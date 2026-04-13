@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+"""Relay CLI entry point. Symlink this into your PATH or add cli/ to PATH."""
+import os
+import sys
+
+HERE = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
+sys.path.insert(0, HERE)
+
+from relay_cli.__main__ import main
+
+if __name__ == "__main__":
+    sys.exit(main())

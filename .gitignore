@@ -1,41 +1,27 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Relay local config — paths and secret references. Never commit.
+relay.local.toml
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+# Obsidian — per-machine workspace/theme/plugin config.
+.obsidian/
 
-# testing
-/coverage
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
 
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
+# OS
 .DS_Store
 *.pem
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
+# Env files
 .env*
 
-# vercel
-.vercel
+# --- Archived Next.js app (kept for history) ---
+archive/next-app/node_modules
+archive/next-app/.next
+archive/next-app/out
+archive/next-app/*.tsbuildinfo
+archive/next-app/next-env.d.ts
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts

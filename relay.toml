@@ -1,0 +1,70 @@
+version = 1
+
+# Relay CompanyOS config.
+#
+# This file is the SHARED, committed config — what projects exist, what agent
+# types are available, who's on the team. Paths and secrets live in the
+# per-machine `relay.local.toml` (gitignored).
+#
+# See README.md for structure.
+
+# --- Projects ---
+#
+# A project is a location where tasks live. Type is "repo" (has a git remote)
+# or "local" (no remote). The actual path on disk is set in relay.local.toml.
+
+[projects.demo]
+type = "local"
+default_status = "ready"
+
+[projects.admin]
+type = "local"
+default_status = "ready"
+
+[projects.rd-tax]
+type = "local"
+default_status = "ready"
+
+# --- Agents ---
+#
+# Agent types. `cli` is the binary name, `interactive`/`auto` are the flags
+# used to load composed context, `file` is the fallback instruction file for
+# agents that don't support prompt injection. `mode = "local"` means the CLI
+# runs on this machine. Remote/cloud modes are future work.
+#
+# For `claude`, `interactive` receives the path to a temp file containing the
+# composed prompt; `auto` receives the prompt content itself.
+
+[agents.claude]
+cli = "claude"
+interactive = "--append-system-prompt-file"
+auto = "-p"
+file = "CLAUDE.md"
+mode = "local"
+
+[agents.codex]
+cli = "codex"
+interactive = "exec"
+auto = "exec"
+file = "AGENTS.md"
+mode = "local"
+
+# --- Assignees ---
+#
+# Humans own named agent instances. Nicknames are per-person — Zach's
+# "claude1" and a teammate's "claude1" are independent. The dispatch key is
+# always (user, nickname), and the user is read from relay.local.toml.
+#
+# `slack` is the Slack user ID (starts with U) used for @mentions. Leave
+# empty to skip mentions.
+
+[assignees.zach]
+agents = { "claude1" = "claude", "claude2" = "claude" }
+slack = ""
+
+# --- Slack ---
+#
+# Webhook URL lives in relay.local.toml [secrets] as slack_webhook.
+# Keeping it out of this file ensures it never gets committed.
+
+[slack]
