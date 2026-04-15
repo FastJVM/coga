@@ -68,9 +68,10 @@ projects/                 Local-type projects live here (optional).
     tasks/                Each task is a directory with ticket.md,
                           blackboard.md, log.md, and task.lock.
 
-cli/                      The Relay CLI (Python)
-  relay                   Entry point (add cli/ to PATH or symlink)
-  relay_cli/              Package
+relay-cli/                The Relay CLI — Python package `relay-os`
+  pyproject.toml          Packaging + deps + console_script
+  src/relay_os/           Source (cli.py, config.py, commands/, ...)
+  tests/                  pytest suite
 
 scripts/                  Shell entry points
   cron.sh                 Called by the user's crontab; runs
@@ -79,19 +80,22 @@ scripts/                  Shell entry points
 
 ## Install
 
-Requires Python 3.11+ and `pyyaml`.
+Requires Python 3.11+.
 
 ```bash
 cd ~/Desktop/ticketing-system
-pip install -r requirements.txt
+
+# Install the CLI (editable mode — source edits take effect immediately)
+cd relay-cli
+pip install -e '.[dev]'
+cd ..
+
+# Configure paths and secrets for this machine
 cp relay.local.toml.example relay.local.toml
 # edit relay.local.toml — set `user`, project paths, and secret env vars
 
-# Add the CLI to your PATH (or symlink `cli/relay` into ~/bin):
-export PATH="$PWD/cli:$PATH"
-chmod +x cli/relay
-
-relay status   # should print "no active tasks" on a fresh repo
+relay --help     # lists the seven subcommands
+relay status     # should print "no active tasks" on a fresh repo
 ```
 
 ## First task
