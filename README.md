@@ -33,8 +33,8 @@ But:
   `relay panic`, and `relay step` silently no-op on the Slack side.
   Set `SLACK_WEBHOOK_URL` in your shell environment to enable it.
 
-The previous Next.js ticketing-system prototype is archived under
-`archive/next-app/` for history.
+Everything in this repo is Python, markdown, and shell. There is no
+TypeScript, no Node, no server, no database.
 
 ## Repo layout
 
@@ -61,8 +61,10 @@ recurring/                Templates that create tasks on a cron schedule
   <name>.md               Schedule + full ticket template
 
 projects/                 Local-type projects live here (optional).
-  demo/.relay/            Repo-type projects live anywhere on disk and
+  demo/relay-os/          Repo-type projects live anywhere on disk and
     context.md            are pointed to from relay.local.toml.
+    counter               Per-project task ID counter (auto-incremented
+                          by `relay create`, atomic via fcntl).
     tasks/                Each task is a directory with ticket.md,
                           blackboard.md, log.md, and task.lock.
 
@@ -70,7 +72,9 @@ cli/                      The Relay CLI (Python)
   relay                   Entry point (add cli/ to PATH or symlink)
   relay_cli/              Package
 
-archive/next-app/         Archived Next.js prototype — not used
+scripts/                  Shell entry points
+  cron.sh                 Called by the user's crontab; runs
+                          `relay create --check-recurring`.
 ```
 
 ## Install

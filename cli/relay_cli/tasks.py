@@ -11,7 +11,7 @@ def _iter_task_dirs(cfg: Config, project_filter=None):
         path = cfg.project_path(name)
         if not path:
             continue
-        tasks_dir = path / ".relay" / "tasks"
+        tasks_dir = path / "relay-os" / "tasks"
         if not tasks_dir.exists():
             continue
         for d in sorted(tasks_dir.iterdir()):

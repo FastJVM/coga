@@ -1,4 +1,5 @@
 """relay create — scaffold a new task directory."""
+import fcntl
 import re
 from pathlib import Path
 
@@ -11,8 +12,8 @@ from ..logfile import append as log_append
 
 def register(sub):
     p = sub.add_parser("create", help="Create a new task")
-    p.add_argument("--project", required=True, help="Project name (from relay.toml)")
-    p.add_argument("--title", required=True, help="Human-readable task title")
+    p.add_argument("--project", help="Project name (from relay.toml)")
+    p.add_argument("--title", help="Human-readable task title")
     p.add_argument("--owner", help="Defaults to the user in relay.local.toml")
     p.add_argument("--assignee", help="Assignee nickname (agent) or human name")
     p.add_argument(
@@ -29,6 +30,13 @@ def register(sub):
         metavar="REF",
         help="Context ref to attach (repeatable), e.g. email/payment-flow",
     )
+    p.add_argument(
+        "--check-recurring",
+        action="store_true",
+        help="Scan recurring/ templates and create any due tasks (used by "
+        "scripts/cron.sh). Ignores --project/--title when set. "
+        "Note: scheduling logic is stubbed in v1 — flagged as open in the spec.",
+    )
     p.set_defaults(func=run)
 
 
@@ -37,17 +45,46 @@ def _slugify(s: str) -> str:
     return s[:60] or "task"
 
 
-def _next_id(tasks_dir: Path) -> str:
+def _scan_max_id(tasks_dir: Path) -> int:
+    """Walk the tasks directory to find the highest existing task ID.
+    Used to seed the counter on first run against an existing project."""
     if not tasks_dir.exists():
-        return "001"
+        return 0
     ids = []
     for d in tasks_dir.iterdir():
         if d.is_dir():
             m = re.match(r"^(\d+)-", d.name)
             if m:
                 ids.append(int(m.group(1)))
-    n = (max(ids) + 1) if ids else 1
-    return f"{n:03d}"
+    return max(ids) if ids else 0
+
+
+def _next_id(relay_os_dir: Path) -> str:
+    """Atomically read-and-increment `<project>/relay-os/counter`.
+    On first run (no counter file), seeds from existing tasks. Uses
+    fcntl.flock to serialize concurrent creates on the same machine."""
+    relay_os_dir.mkdir(parents=True, exist_ok=True)
+    counter_path = relay_os_dir / "counter"
+    tasks_dir = relay_os_dir / "tasks"
+
+    if not counter_path.exists():
+        # Seed from existing tasks so we don't collide with pre-migration IDs.
+        seed = _scan_max_id(tasks_dir)
+        counter_path.write_text(f"{seed}\n")
+
+    with counter_path.open("r+") as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            raw = f.read().strip()
+            current = int(raw) if raw else 0
+            next_n = current + 1
+            f.seek(0)
+            f.truncate()
+            f.write(f"{next_n}\n")
+            f.flush()
+        finally:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    return f"{next_n:03d}"
 
 
 def _load_workflow_snapshot(cfg: Config, name: str | None):
@@ -83,6 +120,15 @@ def _validate_contexts(cfg: Config, refs):
 
 def run(args):
     cfg = Config()
+
+    if args.check_recurring:
+        return _run_check_recurring(cfg)
+
+    if not args.project:
+        raise SystemExit("error: --project is required")
+    if not args.title:
+        raise SystemExit("error: --title is required")
+
     project = cfg.project(args.project)
     if not project:
         known = ", ".join((cfg.shared.get("projects") or {}).keys()) or "(none)"
@@ -105,9 +151,10 @@ def run(args):
 
     workflow = _load_workflow_snapshot(cfg, args.workflow)
 
-    tasks_dir = proj_path / ".relay" / "tasks"
+    relay_os_dir = proj_path / "relay-os"
+    tasks_dir = relay_os_dir / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
-    tid = _next_id(tasks_dir)
+    tid = _next_id(relay_os_dir)
     slug = _slugify(args.title)
     task_dir = tasks_dir / f"{tid}-{slug}"
     task_dir.mkdir()
@@ -151,4 +198,31 @@ def run(args):
 
     print(f"created {args.project}/{tid}-{slug}")
     print(f"  {task_dir}")
+    return 0
+
+
+def _run_check_recurring(cfg: Config) -> int:
+    """Scan recurring/ templates and create due tasks.
+
+    v1 stub. The spec explicitly flags scheduling logic as an open
+    question ("Recurring integration: how does --check-recurring detect
+    'already created for this period'"). Rather than guess at the
+    answer, this stub lists the templates it found and exits cleanly so
+    scripts/cron.sh doesn't break. Fill in real cron-parsing + last_run
+    tracking when the detection policy is decided.
+    """
+    recurring_dir = cfg.root / "recurring"
+    if not recurring_dir.exists():
+        print("no recurring/ directory — nothing to check")
+        return 0
+    templates = sorted(recurring_dir.glob("*.md"))
+    if not templates:
+        print("no recurring templates found")
+        return 0
+    print(f"found {len(templates)} recurring templates:")
+    for t in templates:
+        print(f"  {t.relative_to(cfg.root)}")
+    print()
+    print("scheduling logic not yet implemented — no tasks created.")
+    print("see spec 'still underspecified': recurring integration.")
     return 0
