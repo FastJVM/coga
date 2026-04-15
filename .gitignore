@@ -18,10 +18,4 @@ venv/
 # Env files
 .env*
 
-# --- Archived Next.js app (kept for history) ---
-archive/next-app/node_modules
-archive/next-app/.next
-archive/next-app/out
-archive/next-app/*.tsbuildinfo
-archive/next-app/next-env.d.ts
 

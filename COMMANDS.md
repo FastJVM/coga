@@ -183,7 +183,7 @@ Open ticket.md and edit the `status:` field. Valid values:
 
 ```bash
 # Open a ticket to edit its status
-open -e projects/demo/.relay/tasks/006-my-task/ticket.md
+open -e projects/demo/relay-os/tasks/006-my-task/ticket.md
 ```
 
 Change `status: ready` to `status: active` (or whatever transition
@@ -218,7 +218,7 @@ contexts:
 Open blackboard.md and write under the appropriate section heading:
 
 ```bash
-open -e projects/demo/.relay/tasks/006-my-task/blackboard.md
+open -e projects/demo/relay-os/tasks/006-my-task/blackboard.md
 ```
 
 - `## Plan` — current working plan
@@ -230,7 +230,7 @@ open -e projects/demo/.relay/tasks/006-my-task/blackboard.md
 ### Read the audit trail
 
 ```bash
-cat projects/demo/.relay/tasks/006-my-task/log.md
+cat projects/demo/relay-os/tasks/006-my-task/log.md
 ```
 
 ### Remove a task
@@ -239,20 +239,20 @@ Delete its directory:
 
 ```bash
 # Remove a specific task
-rm -rf projects/demo/.relay/tasks/006-my-task
+rm -rf projects/demo/relay-os/tasks/006-my-task
 
 # Remove ALL tasks in a project (careful!)
-rm -rf projects/demo/.relay/tasks/*
+rm -rf projects/demo/relay-os/tasks/*
 ```
 
 ### Remove a project's tasks but keep the project
 
 ```bash
-rm -rf projects/demo/.relay/tasks/*
+rm -rf projects/demo/relay-os/tasks/*
 ```
 
 The project itself (config in relay.toml, path in relay.local.toml,
-context.md in .relay/) stays intact.
+context.md in relay-os/) stays intact.
 
 ---
 
@@ -342,8 +342,8 @@ the process instructions available:
 
 | Project | Type | Where tasks live |
 |---|---|---|
-| `demo` | local | `./projects/demo/.relay/tasks/` |
-| `admin` | local | `./projects/admin/.relay/tasks/` |
+| `demo` | local | `./projects/demo/relay-os/tasks/` |
+| `admin` | local | `./projects/admin/relay-os/tasks/` |
 | `rd-tax` | local | Not configured yet (commented out in relay.local.toml) |
 
 ---
@@ -379,19 +379,20 @@ relay status --all
 ### "I want to read a task's full history"
 
 ```bash
-cat projects/demo/.relay/tasks/007-my-task/log.md
+cat projects/demo/relay-os/tasks/007-my-task/log.md
 ```
 
-### "I want to see what contexts and workflows exist"
+### "I want to see what contexts, skills, and workflows exist"
 
 ```bash
-ls contexts/*/SKILL.md contexts/*/*/SKILL.md
+ls contexts/*/*/SKILL.md
+ls skills/*/*/SKILL.md
 ls workflows/*/*.md
 ```
 
 ### "I want to clean up and start fresh"
 
 ```bash
-rm -rf projects/demo/.relay/tasks/*
+rm -rf projects/demo/relay-os/tasks/*
 relay status
 ```

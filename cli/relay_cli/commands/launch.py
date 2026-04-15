@@ -81,7 +81,7 @@ def _compose_prompt(cfg: Config, ticket, project: str, mode: str) -> str:
     # 4. Project base context
     proj_path = cfg.project_path(project)
     if proj_path:
-        parts.append(_read(proj_path / ".relay" / "context.md"))
+        parts.append(_read(proj_path / "relay-os" / "context.md"))
 
     # 5. Task contexts (domain knowledge attached to this ticket)
     for ref in ticket.contexts or []:
