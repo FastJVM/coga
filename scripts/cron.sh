@@ -30,9 +30,11 @@ trap 'rm -f "$PIDFILE"' EXIT
 
 cd "$REPO_ROOT"
 
-# Put relay on PATH if it isn't already.
+# Require relay on PATH. Install with: cd relay-cli && pip install -e .
 if ! command -v relay >/dev/null 2>&1; then
-  export PATH="$REPO_ROOT/cli:$PATH"
+  echo "[relay cron] error: 'relay' not on PATH — " \
+    "install with 'cd $REPO_ROOT/relay-cli && pip install -e .'" >&2
+  exit 1
 fi
 
 # Check for due recurring tasks. Scheduling detection itself is a stub
