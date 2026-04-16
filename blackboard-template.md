@@ -19,8 +19,8 @@
 ---
 
 ## Findings
-<!-- Agent: write discovered facts, intermediate results, research outputs here. -->
-<!-- Human: read this to understand what the agent has learned. -->
+<!-- Agent: write what you discovered, what's uncertain, and what doesn't fit. -->
+<!-- Flag inconsistencies and assumptions you're relying on. Don't just record outcomes; surface what the human should double-check. -->
 
 ---
 

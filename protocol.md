@@ -46,9 +46,10 @@ The directory contains three files:
 
 - **`ticket.md`** — YAML frontmatter plus description/context. This is
   the source of truth for the task's assignee, status, workflow step,
-  mode, and context references. You may edit the `contexts` list if you
-  discover additional domain knowledge that belongs attached to this
-  task. You may not edit any other frontmatter field.
+  mode, and context references. **You do not edit it.** If you discover
+  domain knowledge that belongs attached to this task, write the
+  suggestion under **Findings** on the blackboard and surface it via
+  `relay feed` — a human decides whether to add it to `contexts`.
 - **`blackboard.md`** — the shared workspace for you and the human. This
   is where you write. See "Blackboard discipline" below.
 - **`log.md`** — append-only structured log. **You do not write to this
@@ -140,14 +141,17 @@ Keep messages short and concrete.
 
 ## Frontmatter discipline
 
-YAML frontmatter in `ticket.md` is machine-parsable. If you edit it
-(and remember, only the `contexts` list), preserve exact indentation,
-use real YAML syntax, and do not invent fields. The `---` lines bracket
-the block. Strings containing colons must be quoted.
+YAML frontmatter in `ticket.md` is machine-parsable. You **read** it —
+it's the source of truth for the task's assignee, status, workflow
+step, mode, and contexts. You do **not edit** it. Every field — `title`,
+`status`, `mode`, `owner`, `assignee`, `watchers`, `workflow`, `step`,
+`contexts` — changes through CLI commands or direct human edits.
 
-Never edit: `title`, `status`, `mode`, `owner`, `assignee`, `watchers`,
-`workflow`, `step`. Those change through CLI commands or direct human
-edits — not through you.
+If you think a field should change (a context is missing, a step is
+wrong, a status is stale), write the suggestion under **Findings** on
+the blackboard and surface it via `relay feed`. A human decides whether
+to apply it. Editing frontmatter yourself is out of scope regardless of
+how obvious the change looks.
 
 ## Secrets
 
@@ -165,5 +169,5 @@ treat their values as sensitive even when troubleshooting.
 
 Read ticket + context + skill + blackboard. Do the step's work. Write
 findings and decisions as you go. Advance or panic when done. Never
-touch `log.md`. Never touch frontmatter outside `contexts`. Never leak
+touch `log.md`. Never touch `ticket.md` frontmatter. Never leak
 secrets. Use `$RELAY_TASK_ID` in commands.
