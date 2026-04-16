@@ -153,6 +153,16 @@ the blackboard and surface it via `relay feed`. A human decides whether
 to apply it. Editing frontmatter yourself is out of scope regardless of
 how obvious the change looks.
 
+**One exception: interactive ticket creation.** During the initial
+scaffolding flow — specifically, the `meta/create-suggest` skill run
+immediately after `relay create` — the agent writes proposed values
+(workflow, contexts, mode, assignee) directly into frontmatter as a
+live draft. That exception is sanctioned because the human is present
+and approving each field as it lands. It applies **only** in that
+interactive creation flow; if the human steps away or the session is
+not interactive, stop writing to frontmatter and fall back to
+Findings-plus-feed like every other case.
+
 ## Secrets
 
 Any environment variables present when you start were intentionally

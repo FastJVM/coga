@@ -32,6 +32,12 @@ is to propose:
 
 ## Rules
 
+- This skill is the **only** sanctioned exception to the protocol's
+  "do not edit `ticket.md` frontmatter" rule. The exception applies
+  only while the human is present and approving each field as it
+  lands. If the human steps away or the flow stops being interactive,
+  stop writing to frontmatter and surface remaining suggestions on
+  the blackboard's **Findings** section instead.
 - Never invent a workflow, context, or skill that doesn't exist. If
   nothing fits, say so and suggest creating one (but do not create it
   yourself — that's a dream-skill proposal).
