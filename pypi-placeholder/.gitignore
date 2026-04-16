@@ -1,5 +1,0 @@
-# Build artifacts — do not commit, regenerate with `python -m build`.
-build/
-dist/
-src/*.egg-info/
-*.egg-info/
