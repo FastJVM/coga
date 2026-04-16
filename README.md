@@ -45,6 +45,8 @@ rules.md                  Global rules inlined in every task prompt
 protocol.md               Relay protocol system prompt (base)
 protocol-interactive.md   Mode block — human is present
 protocol-auto.md          Mode block — agent is alone
+blackboard-template.md    Skeleton scaffolded into each new task's
+                          blackboard.md by `relay create`
 
 skills/                   Process knowledge (how to do things)
   <path>/SKILL.md         name + description frontmatter, markdown body

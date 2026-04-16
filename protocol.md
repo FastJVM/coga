@@ -8,9 +8,41 @@ in the composed prompt.
 This protocol is the same for every task in every project. Read it once,
 then rely on it.
 
+## Your identity in this session
+
+The composed prompt above includes a header that names the task you're
+working on (project, task ID, title). You can also reach the same
+information through environment variables that `relay launch` sets when
+it spawns you:
+
+| Env var             | What it holds                                       |
+|---------------------|-----------------------------------------------------|
+| `RELAY_TASK_ID`     | Numeric task ID, zero-padded — e.g. `003`           |
+| `RELAY_PROJECT`     | Project name — e.g. `email-tool`                    |
+| `RELAY_TASK_SLUG`   | Full task directory name — e.g. `003-fix-retry-logic` |
+| `RELAY_TASK_DIR`    | Absolute path to the task directory                 |
+| `RELAY_BLACKBOARD`  | Absolute path to `blackboard.md` (convenience)      |
+| `RELAY_REPO_ROOT`   | Absolute path to the Relay repo root                |
+
+Use these in shell commands rather than hard-coding values. For
+example: `relay step --task $RELAY_TASK_ID`. A snippet that uses the
+env var works in every session; a snippet that hard-codes `003` is
+copy-paste rot waiting to happen.
+
+These env vars are not secret — they're identifying information for
+your task. Other env vars present in your environment may be secret;
+see "Secrets" below.
+
 ## Files in a task directory
 
-Every task is a directory. It contains three files:
+Every task is a directory at
+`$RELAY_REPO_ROOT/projects/<project>/relay-os/tasks/<id>-<slug>/` (for
+local-type projects) or
+`<project-path>/relay-os/tasks/<id>-<slug>/` (for repo-type projects,
+where `<project-path>` lives wherever `relay.local.toml` says). Either
+way, `$RELAY_TASK_DIR` always resolves to the right place.
+
+The directory contains three files:
 
 - **`ticket.md`** — YAML frontmatter plus description/context. This is
   the source of truth for the task's assignee, status, workflow step,
@@ -64,7 +96,7 @@ instruction is elsewhere in the composed prompt above this section.
 
 When the step is complete, call:
 
-    relay step --task <id>
+    relay step --task $RELAY_TASK_ID
 
 Do not skip steps. Do not try to advance past work that isn't done. Do
 not move backwards. If a previous step needs rework, call `relay panic`
@@ -78,7 +110,7 @@ by calling `relay panic` if you cannot finish.
 
 Call:
 
-    relay panic --task <id> --reason "<short, concrete reason>"
+    relay panic --task $RELAY_TASK_ID --reason "<short, concrete reason>"
 
 when you are stuck and cannot proceed. Before panicking, write the
 blocker to the **Blockers** section of the blackboard so the human can
@@ -96,7 +128,7 @@ on backoff ceiling" is actionable. "stuck" is not.
 
 Call:
 
-    relay feed --task <id> --message "<short fyi>"
+    relay feed --task $RELAY_TASK_ID --message "<short fyi>"
 
 to post an informational update to the shared Slack channel. Use it for
 milestones the team would want to see in passing: "opened PR #142",
@@ -114,7 +146,8 @@ use real YAML syntax, and do not invent fields. The `---` lines bracket
 the block. Strings containing colons must be quoted.
 
 Never edit: `title`, `status`, `mode`, `owner`, `assignee`, `watchers`,
-`workflow`, `step`. Those change through CLI commands or humans.
+`workflow`, `step`. Those change through CLI commands or direct human
+edits — not through you.
 
 ## Secrets
 
@@ -123,9 +156,14 @@ injected by `relay launch` from `relay.local.toml`. Use them. Never
 echo them to the blackboard, the log, or stdout. Never write them to
 files, including files you create.
 
+Distinguish carefully: the `RELAY_*` vars listed in "Your identity"
+above are not secret — they identify your task. Vars like
+`STRIPE_SECRET_KEY`, `LINKEDIN_TOKEN`, `SLACK_WEBHOOK` are secret —
+treat their values as sensitive even when troubleshooting.
+
 ## Summary
 
 Read ticket + context + skill + blackboard. Do the step's work. Write
 findings and decisions as you go. Advance or panic when done. Never
 touch `log.md`. Never touch frontmatter outside `contexts`. Never leak
-secrets.
+secrets. Use `$RELAY_TASK_ID` in commands.
