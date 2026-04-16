@@ -17,9 +17,9 @@ it spawns you:
 
 | Env var             | What it holds                                       |
 |---------------------|-----------------------------------------------------|
-| `RELAY_TASK_ID`     | Numeric task ID, zero-padded — e.g. `003`           |
-| `RELAY_PROJECT`     | Project name — e.g. `email-tool`                    |
-| `RELAY_TASK_SLUG`   | Full task directory name — e.g. `003-fix-retry-logic` |
+| `RELAY_TASK_ID`     | Numeric task ID, zero-padded to 3 digits — e.g. `003` |
+| `RELAY_PROJECT`     | Project name — e.g. `email-tool`                      |
+| `RELAY_TASK_SLUG`   | Slug portion only, no ID prefix — e.g. `fix-retry-logic` |
 | `RELAY_TASK_DIR`    | Absolute path to the task directory                 |
 | `RELAY_BLACKBOARD`  | Absolute path to `blackboard.md` (convenience)      |
 | `RELAY_REPO_ROOT`   | Absolute path to the Relay repo root                |
@@ -76,7 +76,7 @@ Write to every section as the work warrants:
   "retry succeeded after switching to exponential backoff with jitter;
   Stripe 429 resolved in 3 attempts with 1s/4s/12s delays" is useful.
 - **Decisions** — rationale for choices that affect future work. Format:
-  `[YYYY-MM-DD] [your nickname] decision + reason`. An agent relaunching
+  `[YYYY-MM-DD] [actor] decision + reason`. An agent relaunching
   this task reads Decisions first to pick up context.
 - **Blockers** — anything stalling progress. Write a blocker before you
   panic, so the human can read what stopped you without having to
