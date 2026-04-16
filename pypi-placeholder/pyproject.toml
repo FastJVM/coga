@@ -4,14 +4,16 @@ version = "0.0.1"
 description = "Relay — a task system for humans and agents. Under development."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = { text = "GPL-3.0-or-later" }
 authors = [
     { name = "FastJVM" },
+    { name = "Nicolas Toper" },
+    { name = "Zachary Cohen" },
 ]
 keywords = ["relay", "task-management", "agents", "ai", "blackboard"]
 classifiers = [
     "Development Status :: 1 - Planning",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -25,6 +27,9 @@ Repository = "https://github.com/FastJVM/relay"
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+license-files = ["LICENSE"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
