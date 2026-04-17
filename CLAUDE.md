@@ -3,7 +3,7 @@
 This is the Relay CompanyOS repo. Two concerns coexist here:
 
 1. **The knowledge tree** at the repo root — `skills/`, `contexts/`,
-   `workflows/`, `recurring/`, `rules.md`, `protocol.md`,
+   `workflows/`, `recurring/`, `rules.md`, `prompt.md`,
    `projects/*/relay-os/` — read and mutated by the `relay` CLI when
    humans and agents do work.
 2. **The CLI itself** — under `relay-cli/`, a Python package (`relay-os`
@@ -52,7 +52,7 @@ first. Editing a context block or workflow is different from editing
   `contexts` — status, assignee, step, workflow, etc. change via the
   CLI (`relay step`, manual edits for status/assignee), not by
   running code that mutates them in bulk.
-- `protocol.md`, `protocol-interactive.md`, `protocol-auto.md` — these
+- `prompt.md`, `prompt-interactive.md`, `prompt-auto.md` — these
   are the system prompt for every Relay-launched agent. Change them
   deliberately; they affect every task in every project forever.
 

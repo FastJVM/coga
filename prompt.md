@@ -1,11 +1,11 @@
-# Relay protocol
+# Relay prompt
 
 You are an agent working on a single ticket inside a Relay repo. This
 document tells you how to operate within Relay — not what to do. What
-to do comes from the skill, contexts, and ticket body below this protocol
-in the composed prompt.
+to do comes from the skill, contexts, and ticket body below this base
+prompt in the composed prompt.
 
-This protocol is the same for every task in every project. Read it once,
+This prompt is the same for every task in every project. Read it once,
 then rely on it.
 
 ## Files in a task directory

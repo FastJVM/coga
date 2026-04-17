@@ -42,9 +42,9 @@ TypeScript, no Node, no server, no database.
 relay.toml                Shared, committed config (projects, agents, team)
 relay.local.toml          Per-machine config — paths and secret refs (gitignored)
 rules.md                  Global rules inlined in every task prompt
-protocol.md               Relay protocol system prompt (base)
-protocol-interactive.md   Mode block — human is present
-protocol-auto.md          Mode block — agent is alone
+prompt.md                 Relay prompt (base)
+prompt-interactive.md     Mode block — human is present
+prompt-auto.md            Mode block — agent is alone
 
 skills/                   Process knowledge (how to do things)
   <path>/SKILL.md         name + description frontmatter, markdown body
@@ -128,7 +128,7 @@ relay launch --task 001
 | `relay panic` | Record a blocker and notify the task owner in Slack |
 | `relay feed` | Post an FYI to the shared Slack feed |
 
-See `protocol.md` for how agents are taught to use these.
+See `prompt.md` for how agents are taught to use these.
 
 ## The four automations
 
@@ -162,5 +162,5 @@ task — the templates reference the skill paths they will use.
   which context belongs with which task. Everything else — generation,
   execution, reporting — is automated.
 
-See the full spec for the long form. See `protocol.md` for how agents
+See the full spec for the long form. See `prompt.md` for how agents
 are taught to operate inside this system.
