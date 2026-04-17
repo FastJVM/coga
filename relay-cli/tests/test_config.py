@@ -344,3 +344,40 @@ def test_secret_accessor(repo: Path, monkeypatch) -> None:
     assert cfg.secret("slack_webhook") == "resolved"
     assert cfg.secret("hardcoded") == "literal-value"
     assert cfg.secret("nonexistent") is None
+
+
+def test_secrets_env_returns_resolved_dict(repo: Path, monkeypatch) -> None:
+    monkeypatch.setenv("TEST_SLACK_WEBHOOK", "resolved")
+    cfg = RelayConfig.load(start=repo)
+    env = cfg.secrets_env()
+    assert env == {"slack_webhook": "resolved", "hardcoded": "literal-value"}
+
+
+def test_secrets_env_omits_empty_values(repo: Path, monkeypatch) -> None:
+    """Unset env:VAR references resolve to empty string; secrets_env
+    should filter those out so spawned subprocesses don't see KEY=''."""
+    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+    cfg = RelayConfig.load(start=repo)
+    env = cfg.secrets_env()
+    assert "slack_webhook" not in env
+    assert env == {"hardcoded": "literal-value"}
+
+
+# --------------------------------------------------------------------
+# Schema version
+# --------------------------------------------------------------------
+
+
+def test_version_default_is_1(tmp_path: Path) -> None:
+    """Omitted version field defaults to 1."""
+    (tmp_path / "relay.toml").write_text("[projects.demo]\ntype = \"local\"\n")
+    cfg = RelayConfig.load(start=tmp_path)
+    assert cfg.shared.version == 1
+
+
+def test_version_invalid_rejected(tmp_path: Path) -> None:
+    """Any version other than 1 is a clear load-time error — no silent
+    acceptance of a newer schema the code doesn't understand."""
+    (tmp_path / "relay.toml").write_text("version = 2\n")
+    with pytest.raises(ConfigError, match="invalid relay.toml"):
+        RelayConfig.load(start=tmp_path)

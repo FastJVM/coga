@@ -93,9 +93,15 @@ class SlackConfig(BaseModel):
 
 
 class SharedConfig(BaseModel):
-    """Root of relay.toml."""
+    """Root of relay.toml.
 
-    version: int = 1
+    ``version`` is pinned to ``1``. Bumping the schema version is a
+    deliberate breaking-change event — when it happens, this Literal
+    flips and callers get a clear load-time error rather than silently
+    reading a newer schema with old expectations.
+    """
+
+    version: Literal[1] = 1
     projects: dict[str, ProjectSpec] = Field(default_factory=dict)
     agents: dict[str, AgentSpec] = Field(default_factory=dict)
     assignees: dict[str, AssigneeSpec] = Field(default_factory=dict)
@@ -191,6 +197,14 @@ class RelayConfig(BaseModel):
         unset, or if the referenced env var resolved to empty."""
         val = self.resolved_secrets.get(key)
         return val if val else None
+
+    def secrets_env(self) -> dict[str, str]:
+        """All resolved non-empty secrets as a dict. Intended for
+        ``relay launch`` to inject into the environment of the agent or
+        script it spawns. Empty values (unset env vars) are filtered
+        out — downstream features should silently no-op rather than see
+        ``KEY=""``."""
+        return {k: v for k, v in self.resolved_secrets.items() if v}
 
     # -- Loader --
 
