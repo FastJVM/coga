@@ -1,0 +1,346 @@
+"""Tests for relay_os.config.
+
+Covers:
+- Loading — full config, minimal config, missing files.
+- Schema validation — invalid TOML, wrong types, bad literals, missing required.
+- Cross-reference validation — bad nicknames, bad paths.
+- Secret resolution — env:VAR_NAME set/unset, literals, malformed refs.
+- Accessors — project, project_path, agent, resolve_assignee, slack_user, secrets.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from textwrap import dedent
+
+import pytest
+
+from relay_os.config import (
+    AgentSpec,
+    AssigneeSpec,
+    ConfigError,
+    LocalConfig,
+    ProjectSpec,
+    RelayConfig,
+    SharedConfig,
+    _resolve_secrets,
+    _validate_cross_references,
+    find_repo_root,
+)
+
+
+# --------------------------------------------------------------------
+# Fixtures
+# --------------------------------------------------------------------
+
+
+@pytest.fixture
+def shared_toml() -> str:
+    """A full shared config mirroring the repo's actual relay.toml."""
+    return dedent("""\
+        version = 1
+
+        [projects.demo]
+        type = "local"
+        default_status = "ready"
+
+        [projects.admin]
+        type = "local"
+
+        [agents.claude]
+        cli = "claude"
+        interactive = "--append-system-prompt-file"
+        auto = "-p"
+        file = "CLAUDE.md"
+        mode = "local"
+
+        [agents.codex]
+        cli = "codex"
+        interactive = "exec"
+        auto = "exec"
+        file = "AGENTS.md"
+
+        [assignees.zach]
+        agents = { "claude1" = "claude", "claude2" = "claude" }
+        slack = "U12345"
+
+        [slack]
+    """)
+
+
+@pytest.fixture
+def local_toml() -> str:
+    """A full local config mirroring the repo's relay.local.toml.example."""
+    return dedent("""\
+        user = "zach"
+
+        [paths]
+        demo = "./projects/demo"
+        admin = "./projects/admin"
+
+        [secrets]
+        slack_webhook = "env:TEST_SLACK_WEBHOOK"
+        hardcoded = "literal-value"
+    """)
+
+
+@pytest.fixture
+def repo(tmp_path: Path, shared_toml: str, local_toml: str) -> Path:
+    """A tmp_path with both config files written."""
+    (tmp_path / "relay.toml").write_text(shared_toml)
+    (tmp_path / "relay.local.toml").write_text(local_toml)
+    return tmp_path
+
+
+# --------------------------------------------------------------------
+# Loading — happy paths
+# --------------------------------------------------------------------
+
+
+def test_load_full_config(repo: Path, monkeypatch) -> None:
+    monkeypatch.setenv("TEST_SLACK_WEBHOOK", "https://hooks.slack.com/services/XYZ")
+    cfg = RelayConfig.load(start=repo)
+    assert cfg.current_user == "zach"
+    assert cfg.root == repo
+
+
+def test_load_minimal_shared_only(tmp_path: Path, monkeypatch) -> None:
+    """relay.local.toml is optional — `user` falls back to $USER."""
+    (tmp_path / "relay.toml").write_text('version = 1\n')
+    monkeypatch.setenv("USER", "alice")
+    cfg = RelayConfig.load(start=tmp_path)
+    assert cfg.current_user == "alice"
+    assert cfg.shared.projects == {}
+
+
+def test_find_repo_root_walks_up(tmp_path: Path) -> None:
+    (tmp_path / "relay.toml").write_text("version = 1\n")
+    nested = tmp_path / "a" / "b" / "c"
+    nested.mkdir(parents=True)
+    assert find_repo_root(start=nested) == tmp_path
+
+
+# --------------------------------------------------------------------
+# Loading — error paths
+# --------------------------------------------------------------------
+
+
+def test_no_relay_toml_found(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="not inside a Relay repo"):
+        RelayConfig.load(start=tmp_path)
+
+
+def test_invalid_toml_syntax(tmp_path: Path) -> None:
+    (tmp_path / "relay.toml").write_text("[projects.demo\ntype = \"local\"\n")
+    with pytest.raises(ConfigError, match="invalid TOML"):
+        RelayConfig.load(start=tmp_path)
+
+
+def test_invalid_project_type_literal(tmp_path: Path) -> None:
+    """Literal type catches typos like type='lcoal'."""
+    (tmp_path / "relay.toml").write_text(dedent("""
+        [projects.demo]
+        type = "lcoal"
+    """))
+    with pytest.raises(ConfigError, match="invalid relay.toml"):
+        RelayConfig.load(start=tmp_path)
+
+
+def test_invalid_status_literal(tmp_path: Path) -> None:
+    (tmp_path / "relay.toml").write_text(dedent("""
+        [projects.demo]
+        type = "local"
+        default_status = "not-a-status"
+    """))
+    with pytest.raises(ConfigError, match="invalid relay.toml"):
+        RelayConfig.load(start=tmp_path)
+
+
+def test_missing_required_agent_field(tmp_path: Path) -> None:
+    """Agents require cli/interactive/auto/file — missing any should fail."""
+    (tmp_path / "relay.toml").write_text(dedent("""
+        [agents.claude]
+        cli = "claude"
+    """))
+    with pytest.raises(ConfigError, match="invalid relay.toml"):
+        RelayConfig.load(start=tmp_path)
+
+
+def test_missing_required_local_user(tmp_path: Path) -> None:
+    (tmp_path / "relay.toml").write_text("version = 1\n")
+    (tmp_path / "relay.local.toml").write_text("[paths]\ndemo = \"x\"\n")
+    with pytest.raises(ConfigError, match="invalid relay.local.toml"):
+        RelayConfig.load(start=tmp_path)
+
+
+# --------------------------------------------------------------------
+# Cross-reference validation
+# --------------------------------------------------------------------
+
+
+def test_bad_nickname_agent_type(tmp_path: Path) -> None:
+    (tmp_path / "relay.toml").write_text(dedent("""
+        [agents.claude]
+        cli = "claude"
+        interactive = "x"
+        auto = "y"
+        file = "f"
+
+        [assignees.zach]
+        agents = { "claude1" = "nonexistent" }
+    """))
+    (tmp_path / "relay.local.toml").write_text('user = "zach"\n')
+    with pytest.raises(ConfigError, match="no such agent type"):
+        RelayConfig.load(start=tmp_path)
+
+
+def test_bad_path_project(tmp_path: Path, shared_toml: str) -> None:
+    (tmp_path / "relay.toml").write_text(shared_toml)
+    (tmp_path / "relay.local.toml").write_text(dedent("""
+        user = "zach"
+        [paths]
+        bogus-project = "./nowhere"
+    """))
+    with pytest.raises(ConfigError, match="no project named"):
+        RelayConfig.load(start=tmp_path)
+
+
+# --------------------------------------------------------------------
+# Secret resolution
+# --------------------------------------------------------------------
+
+
+def test_secret_env_var_resolved(monkeypatch) -> None:
+    monkeypatch.setenv("REL_TEST_VAR", "secret-value")
+    out = _resolve_secrets({"token": "env:REL_TEST_VAR"})
+    assert out["token"] == "secret-value"
+
+
+def test_secret_env_var_unset_returns_empty(monkeypatch) -> None:
+    monkeypatch.delenv("NEVER_SET_XYZ", raising=False)
+    out = _resolve_secrets({"token": "env:NEVER_SET_XYZ"})
+    assert out["token"] == ""
+
+
+def test_secret_literal_passes_through() -> None:
+    out = _resolve_secrets({"hardcoded": "plain-value"})
+    assert out["hardcoded"] == "plain-value"
+
+
+def test_secret_malformed_env_reference() -> None:
+    with pytest.raises(ConfigError, match="missing variable name"):
+        _resolve_secrets({"token": "env:"})
+
+
+def test_slack_webhook_resolved(repo: Path, monkeypatch) -> None:
+    monkeypatch.setenv("TEST_SLACK_WEBHOOK", "https://hooks.slack.com/svcs/ABC")
+    cfg = RelayConfig.load(start=repo)
+    assert cfg.slack_webhook == "https://hooks.slack.com/svcs/ABC"
+
+
+def test_slack_webhook_unset_returns_none(repo: Path, monkeypatch) -> None:
+    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+    cfg = RelayConfig.load(start=repo)
+    assert cfg.slack_webhook is None
+
+
+# --------------------------------------------------------------------
+# Accessors
+# --------------------------------------------------------------------
+
+
+def test_project_accessor(repo: Path, monkeypatch) -> None:
+    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+    cfg = RelayConfig.load(start=repo)
+    demo = cfg.project("demo")
+    assert demo is not None
+    assert demo.type == "local"
+    assert demo.default_status == "ready"
+    assert cfg.project("not-a-project") is None
+
+
+def test_project_path_relative_resolves_to_root(repo: Path, monkeypatch) -> None:
+    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+    cfg = RelayConfig.load(start=repo)
+    p = cfg.project_path("demo")
+    assert p == (repo / "projects" / "demo").resolve()
+
+
+def test_project_path_unmapped(repo: Path, monkeypatch) -> None:
+    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+    cfg = RelayConfig.load(start=repo)
+    # admin is mapped; pretend we ask for an unmapped project.
+    assert cfg.project_path("not-in-paths") is None
+
+
+def test_project_path_expands_tilde(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / "relay.toml").write_text(dedent("""
+        [projects.home-proj]
+        type = "local"
+    """))
+    (tmp_path / "relay.local.toml").write_text(dedent("""
+        user = "zach"
+        [paths]
+        home-proj = "~/somewhere"
+    """))
+    cfg = RelayConfig.load(start=tmp_path)
+    p = cfg.project_path("home-proj")
+    assert p is not None
+    assert not str(p).startswith("~")
+    assert p.is_absolute()
+
+
+def test_agent_accessor(repo: Path, monkeypatch) -> None:
+    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+    cfg = RelayConfig.load(start=repo)
+    claude = cfg.agent("claude")
+    assert claude is not None
+    assert claude.cli == "claude"
+    assert cfg.agent("not-an-agent") is None
+
+
+def test_resolve_assignee_current_user(repo: Path, monkeypatch) -> None:
+    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+    cfg = RelayConfig.load(start=repo)
+    agent = cfg.resolve_assignee("claude1")
+    assert agent is not None
+    assert agent.cli == "claude"
+
+
+def test_resolve_assignee_unknown_nickname(repo: Path, monkeypatch) -> None:
+    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+    cfg = RelayConfig.load(start=repo)
+    assert cfg.resolve_assignee("bogus-nickname") is None
+
+
+def test_resolve_assignee_no_assignee_block(tmp_path: Path) -> None:
+    (tmp_path / "relay.toml").write_text("version = 1\n")
+    (tmp_path / "relay.local.toml").write_text('user = "nobody"\n')
+    cfg = RelayConfig.load(start=tmp_path)
+    assert cfg.resolve_assignee("claude1") is None
+
+
+def test_slack_user_accessor(repo: Path, monkeypatch) -> None:
+    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+    cfg = RelayConfig.load(start=repo)
+    assert cfg.slack_user("zach") == "U12345"
+    assert cfg.slack_user("not-a-user") is None
+
+
+def test_slack_user_empty_returns_none(tmp_path: Path) -> None:
+    (tmp_path / "relay.toml").write_text(dedent("""
+        [assignees.zach]
+        agents = {}
+        slack = ""
+    """))
+    (tmp_path / "relay.local.toml").write_text('user = "zach"\n')
+    cfg = RelayConfig.load(start=tmp_path)
+    assert cfg.slack_user("zach") is None
+
+
+def test_secret_accessor(repo: Path, monkeypatch) -> None:
+    monkeypatch.setenv("TEST_SLACK_WEBHOOK", "resolved")
+    cfg = RelayConfig.load(start=repo)
+    assert cfg.secret("slack_webhook") == "resolved"
+    assert cfg.secret("hardcoded") == "literal-value"
+    assert cfg.secret("nonexistent") is None
