@@ -376,6 +376,31 @@ def test_secrets_env_omits_empty_values(repo: Path, monkeypatch) -> None:
     assert env == {"hardcoded": "literal-value"}
 
 
+def test_missing_secrets_empty_when_all_set(repo: Path, monkeypatch) -> None:
+    """When every env:VAR reference resolves, missing_secrets is []."""
+    monkeypatch.setenv("TEST_SLACK_WEBHOOK", "resolved")
+    cfg = RelayConfig.load(start=repo)
+    assert cfg.missing_secrets() == []
+
+
+def test_missing_secrets_lists_unset_keys(repo: Path, monkeypatch) -> None:
+    """An unset env var → the secret's key shows up in missing_secrets."""
+    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+    cfg = RelayConfig.load(start=repo)
+    assert cfg.missing_secrets() == ["slack_webhook"]
+
+
+def test_missing_secrets_ignores_literals(tmp_path: Path) -> None:
+    """Literal values are never 'missing' — even if empty — because
+    the user set them intentionally, not as an env reference."""
+    (tmp_path / "relay.toml").write_text("version = 1\n")
+    (tmp_path / "relay.local.toml").write_text(
+        'user = "zach"\n\n[secrets]\na = "literal"\nb = ""\n'
+    )
+    cfg = RelayConfig.load(start=tmp_path)
+    assert cfg.missing_secrets() == []
+
+
 # --------------------------------------------------------------------
 # Schema version
 # --------------------------------------------------------------------

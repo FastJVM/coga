@@ -209,6 +209,25 @@ class RelayConfig(BaseModel):
         ``KEY=""``."""
         return {k: v for k, v in self.resolved_secrets.items() if v}
 
+    def missing_secrets(self) -> list[str]:
+        """Keys whose ``env:VAR_NAME`` references resolved to empty
+        because the environment variable isn't set.
+
+        The resolver itself is fail-open — unset env vars become empty
+        strings so the feature that needs them silently no-ops. This
+        method gives callers (``relay launch``, a future ``relay doctor``)
+        a way to surface the unset vars without changing that contract:
+        *"heads up, `slack_webhook` is unset, Slack posts won't work."*
+
+        Literal secret values (not ``env:`` references) are never
+        counted as missing, even if the literal is an empty string.
+        """
+        return [
+            key
+            for key, raw in self.local.secrets.items()
+            if raw.startswith("env:") and not self.resolved_secrets.get(key)
+        ]
+
     # -- Loader --
 
     @classmethod
