@@ -346,6 +346,19 @@ def test_secret_accessor(repo: Path, monkeypatch) -> None:
     assert cfg.secret("nonexistent") is None
 
 
+def test_secrets_hidden_from_repr(repo: Path, monkeypatch) -> None:
+    """Accidental print(config) or debugger inspection must not dump
+    secret values. Both raw LocalConfig.secrets and the resolved map
+    on RelayConfig are marked repr=False."""
+    monkeypatch.setenv("TEST_SLACK_WEBHOOK", "super-secret-webhook-url")
+    cfg = RelayConfig.load(start=repo)
+    rendered = repr(cfg)
+    assert "super-secret-webhook-url" not in rendered
+    assert "literal-value" not in rendered
+    # Structure is still visible — user, paths, shared config, etc.
+    assert "zach" in rendered
+
+
 def test_secrets_env_returns_resolved_dict(repo: Path, monkeypatch) -> None:
     monkeypatch.setenv("TEST_SLACK_WEBHOOK", "resolved")
     cfg = RelayConfig.load(start=repo)

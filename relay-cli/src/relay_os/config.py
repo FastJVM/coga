@@ -125,7 +125,7 @@ class LocalConfig(BaseModel):
 
     user: str
     paths: dict[str, str] = Field(default_factory=dict)
-    secrets: dict[str, str] = Field(default_factory=dict)
+    secrets: dict[str, str] = Field(default_factory=dict, repr=False)
 
 
 # --------------------------------------------------------------------
@@ -139,7 +139,10 @@ class RelayConfig(BaseModel):
     root: Path
     shared: SharedConfig
     local: LocalConfig
-    resolved_secrets: dict[str, str] = Field(default_factory=dict)
+    # repr=False so accidental print(config) / debugger inspection
+    # doesn't dump secret values. Callers access via .secret(key) or
+    # .secrets_env() deliberately.
+    resolved_secrets: dict[str, str] = Field(default_factory=dict, repr=False)
 
     # -- Accessors --
 
