@@ -120,6 +120,17 @@ def test_find_repo_root_walks_up(tmp_path: Path) -> None:
     assert find_repo_root(start=nested) == tmp_path
 
 
+def test_find_repo_root_defaults_to_cwd(tmp_path: Path, monkeypatch) -> None:
+    """Called with no argument, find_repo_root uses the current working
+    directory. This is the path CLI commands take — user runs `relay` from
+    inside a Relay repo and everything works without --root flags."""
+    (tmp_path / "relay.toml").write_text("version = 1\n")
+    nested = tmp_path / "subdir"
+    nested.mkdir()
+    monkeypatch.chdir(nested)
+    assert find_repo_root() == tmp_path
+
+
 # --------------------------------------------------------------------
 # Loading — error paths
 # --------------------------------------------------------------------

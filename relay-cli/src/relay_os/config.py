@@ -309,7 +309,7 @@ def _validate_cross_references(
             if agent_type not in agent_names:
                 raise ConfigError(
                     f"assignees.{user}.agents.{nickname} = {agent_type!r}: "
-                    f"no such agent type. Valid agent types: "
+                    f"no such agent type in relay.toml. Valid agent types: "
                     f"{sorted(agent_names)}"
                 )
 
