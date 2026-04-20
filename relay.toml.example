@@ -1,0 +1,74 @@
+# Example relay.toml with every field populated.
+#
+# This file is the canonical schema reference. When you add a new
+# field to Relay's shared config, add it here — the pydantic models
+# in `relay-cli/src/relay_os/config.py` and the tests in
+# `relay-cli/tests/test_config.py` should match what this template
+# demonstrates.
+#
+# Copy to `relay.toml`, adjust values for your team, commit.
+
+version = 1
+
+# -- Projects --------------------------------------------------------
+#
+# A project is a location where tasks live. Tasks are scaffolded under
+# `<path>/.relay/tasks/<id>-<slug>/`. The actual on-disk path is set
+# per-machine in relay.local.toml `[paths]`, not here.
+
+[projects.demo]
+type = "local"                    # "local" (inside this repo) or "repo" (has a git remote)
+default_status = "ready"          # initial status for new tickets in this project
+
+[projects.admin]
+type = "local"
+default_status = "ready"
+
+[projects.my-service]
+type = "repo"                     # `type="repo"` projects have a git remote
+default_status = "ready"
+remote = "https://github.com/example/my-service"
+
+# -- Agents ----------------------------------------------------------
+#
+# Agent types — the binaries that run work. `cli` is the executable;
+# `interactive` and `auto` are the CLI flags used to load the composed
+# prompt in each mode; `file` is the fallback instruction file for
+# agents that don't accept prompt injection.
+
+[agents.claude]
+cli = "claude"
+interactive = "--append-system-prompt-file"
+auto = "-p"
+file = "CLAUDE.md"
+mode = "local"                    # "local" is the only value supported today
+
+[agents.codex]
+cli = "codex"
+interactive = "exec"
+auto = "exec"
+file = "AGENTS.md"
+mode = "local"
+
+# -- Assignees -------------------------------------------------------
+#
+# Humans on the team. Each person owns named agent instances via
+# nicknames. Nicknames are per-person — Zach's "claude1" and a
+# teammate's "claude1" are independent. Dispatch is keyed by
+# (user, nickname), where the user comes from relay.local.toml.
+
+[assignees.zach]
+agents = { "claude1" = "claude", "claude2" = "claude", "codex1" = "codex" }
+slack = "U12345678"               # Slack user ID for @mentions; "" to skip
+
+[assignees.teammate]
+agents = { "claude1" = "claude" }
+slack = ""
+
+# -- Slack -----------------------------------------------------------
+#
+# Reserved for future shared Slack config. The webhook URL itself
+# lives in relay.local.toml `[secrets].slack_webhook` so it never
+# gets committed. Leave this section empty.
+
+[slack]

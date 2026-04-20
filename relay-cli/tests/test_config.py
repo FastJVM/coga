@@ -413,6 +413,51 @@ def test_missing_secrets_ignores_literals(tmp_path: Path) -> None:
 
 
 # --------------------------------------------------------------------
+# Template files — schema drift guards
+# --------------------------------------------------------------------
+#
+# The template files at the repo root (`relay.toml.empty`,
+# `relay.toml.example`, `relay.local.toml.empty`, `relay.local.toml.example`)
+# are the canonical schema reference. If someone adds a new pydantic
+# field without updating these templates, or adds a field to the
+# templates that the pydantic models don't recognize, these tests
+# fail — which is the desired coupling.
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_empty_templates_load(tmp_path: Path) -> None:
+    """Both `.empty` templates copied into place load without error."""
+    import shutil
+
+    shutil.copy(REPO_ROOT / "relay.toml.empty", tmp_path / "relay.toml")
+    shutil.copy(
+        REPO_ROOT / "relay.local.toml.empty", tmp_path / "relay.local.toml"
+    )
+    cfg = RelayConfig.load(start=tmp_path)
+    assert cfg.shared.projects == {}
+    assert cfg.shared.agents == {}
+
+
+def test_example_templates_load(tmp_path: Path) -> None:
+    """Both `.example` templates copied into place load without error,
+    and the example pair is internally consistent (paths line up with
+    projects, nicknames line up with agents)."""
+    import shutil
+
+    shutil.copy(REPO_ROOT / "relay.toml.example", tmp_path / "relay.toml")
+    shutil.copy(
+        REPO_ROOT / "relay.local.toml.example", tmp_path / "relay.local.toml"
+    )
+    cfg = RelayConfig.load(start=tmp_path)
+    # The example demonstrates at least one project and one agent type;
+    # exact names are not asserted so examples can evolve.
+    assert cfg.shared.projects, "example should demonstrate at least one project"
+    assert cfg.shared.agents, "example should demonstrate at least one agent type"
+
+
+# --------------------------------------------------------------------
 # Schema version
 # --------------------------------------------------------------------
 
