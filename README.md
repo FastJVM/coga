@@ -11,8 +11,8 @@ is markdown you can read, edit, and diff.
 
 **Demonstration scaffold. Nothing here touches live operations.**
 
-The CLI works end-to-end for the basics (`create`, `status`, `launch`,
-`step`, `panic`, `feed`) and the `relay/` knowledge tree is stocked
+The CLI works end-to-end for the basics (`init`, `create`, `status`,
+`launch`, `step`, `panic`, `feed`) and the `relay/` knowledge tree is stocked
 with example skills, contexts, workflows, and recurring templates so
 the shape is legible.
 
@@ -121,6 +121,7 @@ relay launch --task 001
 
 | Command | Purpose |
 |---|---|
+| `relay init` | Initialize a new Relay repo (or a project within one) |
 | `relay create` | Scaffold a new task directory in a project |
 | `relay status` | One-line-per-task view across all projects |
 | `relay launch` | Compose prompt, inject secrets, spawn agent or run script |
@@ -128,7 +129,24 @@ relay launch --task 001
 | `relay panic` | Record a blocker and notify the task owner in Slack |
 | `relay feed` | Post an FYI to the shared Slack feed |
 
-See `protocol.md` for how agents are taught to use these.
+See `protocol.md` for how agents are taught to use these, and
+`COMMANDS.md` for full flag-level reference.
+
+## Task lifecycle
+
+Each task's `ticket.md` carries a `status` field that moves through a
+fixed set of values. `relay status` shows the active ones by default;
+pass `--all` to include terminal states.
+
+| Status | Meaning |
+|---|---|
+| `design` | Not ready — needs scoping or research |
+| `ready` | In the pool — work can start |
+| `active` | Someone is working on it |
+| `paused` | Suspended — pick up later |
+| `done` | Completed |
+| `canceled` | Deliberately abandoned |
+| `failed` | Work was attempted and did not succeed |
 
 ## The four automations
 
