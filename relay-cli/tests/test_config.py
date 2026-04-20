@@ -300,24 +300,28 @@ def test_slack_user_empty_returns_none(tmp_path: Path) -> None:
 # Template files — schema drift guards
 # --------------------------------------------------------------------
 #
-# The template files at the repo root (`relay.toml.empty`,
+# The template files under `src/relay_os/templates/` (`relay.toml.empty`,
 # `relay.toml.example`, `relay.local.toml.empty`, `relay.local.toml.example`)
-# are the canonical schema reference. If someone adds a new pydantic
-# field without updating these templates, or adds a field to the
-# templates that the pydantic models don't recognize, these tests
-# fail — which is the desired coupling.
+# are the canonical schema reference and ship with the package so they're
+# available at runtime after `pip install`. If someone adds a new pydantic
+# field without updating these templates, or adds a field to the templates
+# that the pydantic models don't recognize, these tests fail — which is
+# the desired coupling.
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+TEMPLATES_DIR = (
+    Path(__file__).resolve().parents[1] / "src" / "relay_os" / "templates"
+)
 
 
 def test_empty_templates_load(tmp_path: Path) -> None:
     """Both `.empty` templates copied into place load without error."""
     import shutil
 
-    shutil.copy(REPO_ROOT / "relay.toml.empty", tmp_path / "relay.toml")
+    shutil.copy(TEMPLATES_DIR / "relay.toml.empty", tmp_path / "relay.toml")
     shutil.copy(
-        REPO_ROOT / "relay.local.toml.empty", tmp_path / "relay.local.toml"
+        TEMPLATES_DIR / "relay.local.toml.empty",
+        tmp_path / "relay.local.toml",
     )
     cfg = RelayConfig.load(start=tmp_path)
     assert cfg.shared.projects == {}
@@ -330,9 +334,10 @@ def test_example_templates_load(tmp_path: Path) -> None:
     projects, nicknames line up with agents)."""
     import shutil
 
-    shutil.copy(REPO_ROOT / "relay.toml.example", tmp_path / "relay.toml")
+    shutil.copy(TEMPLATES_DIR / "relay.toml.example", tmp_path / "relay.toml")
     shutil.copy(
-        REPO_ROOT / "relay.local.toml.example", tmp_path / "relay.local.toml"
+        TEMPLATES_DIR / "relay.local.toml.example",
+        tmp_path / "relay.local.toml",
     )
     cfg = RelayConfig.load(start=tmp_path)
     # The example demonstrates at least one project and one agent type;
