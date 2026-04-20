@@ -1,5 +1,7 @@
 # Relay local config — paths and secret references. Never commit.
-relay.local.toml
+# Anchored to repo root so the bundled template at
+# relay-cli/src/relay_os/templates/relay.local.toml still tracks.
+/relay.local.toml
 
 # Obsidian — per-machine workspace/theme/plugin config.
 .obsidian/

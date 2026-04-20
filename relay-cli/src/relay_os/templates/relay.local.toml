@@ -1,0 +1,19 @@
+# Empty skeleton for relay.local.toml.
+#
+# Copy to `relay.local.toml` (gitignored) and fill in for your machine.
+# See `relay.local.toml.example` for a walkthrough with realistic values.
+#
+# This file is one of two canonical schema references for the local
+# config (the other is `relay.local.toml.example`). Adding a field to
+# the local schema means adding a line here and in the example — the
+# pydantic models in `relay-cli/src/relay_os/config.py` derive from
+# these templates.
+
+# user — your name, matching an [assignees.<name>] entry in relay.toml.
+# Used to resolve agent nicknames and to attribute CLI actions.
+user = ""
+
+# [paths] — one key per project, mapping project name (matching a
+# [projects.<name>] entry in relay.toml) to its on-disk path.
+# Paths may be absolute, relative to the repo root, or start with `~`.
+[paths]
