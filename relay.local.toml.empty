@@ -17,8 +17,3 @@ user = ""
 # [projects.<name>] entry in relay.toml) to its on-disk path.
 # Paths may be absolute, relative to the repo root, or start with `~`.
 [paths]
-
-# [secrets] — credentials. Values use `env:VAR_NAME` to reference
-# environment variables, or are literal strings. Unset env vars
-# resolve to empty string (the matching feature silently no-ops).
-[secrets]

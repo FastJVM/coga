@@ -4,8 +4,7 @@ Covers:
 - Loading — full config, minimal config, missing files.
 - Schema validation — invalid TOML, wrong types, bad literals, missing required.
 - Cross-reference validation — bad nicknames, bad paths.
-- Secret resolution — env:VAR_NAME set/unset, literals, malformed refs.
-- Accessors — project, project_path, agent, resolve_assignee, slack_user, secrets.
+- Accessors — project, project_path, agent, resolve_assignee, slack_user.
 """
 
 from __future__ import annotations
@@ -23,7 +22,6 @@ from relay_os.config import (
     ProjectSpec,
     RelayConfig,
     SharedConfig,
-    _resolve_secrets,
     _validate_cross_references,
     find_repo_root,
 )
@@ -77,10 +75,6 @@ def local_toml() -> str:
         [paths]
         demo = "./projects/demo"
         admin = "./projects/admin"
-
-        [secrets]
-        slack_webhook = "env:TEST_SLACK_WEBHOOK"
-        hardcoded = "literal-value"
     """)
 
 
@@ -97,8 +91,7 @@ def repo(tmp_path: Path, shared_toml: str, local_toml: str) -> Path:
 # --------------------------------------------------------------------
 
 
-def test_load_full_config(repo: Path, monkeypatch) -> None:
-    monkeypatch.setenv("TEST_SLACK_WEBHOOK", "https://hooks.slack.com/services/XYZ")
+def test_load_full_config(repo: Path) -> None:
     cfg = RelayConfig.load(start=repo)
     assert cfg.current_user == "zach"
     assert cfg.root == repo
@@ -217,51 +210,11 @@ def test_bad_path_project(tmp_path: Path, shared_toml: str) -> None:
 
 
 # --------------------------------------------------------------------
-# Secret resolution
-# --------------------------------------------------------------------
-
-
-def test_secret_env_var_resolved(monkeypatch) -> None:
-    monkeypatch.setenv("REL_TEST_VAR", "secret-value")
-    out = _resolve_secrets({"token": "env:REL_TEST_VAR"})
-    assert out["token"] == "secret-value"
-
-
-def test_secret_env_var_unset_returns_empty(monkeypatch) -> None:
-    monkeypatch.delenv("NEVER_SET_XYZ", raising=False)
-    out = _resolve_secrets({"token": "env:NEVER_SET_XYZ"})
-    assert out["token"] == ""
-
-
-def test_secret_literal_passes_through() -> None:
-    out = _resolve_secrets({"hardcoded": "plain-value"})
-    assert out["hardcoded"] == "plain-value"
-
-
-def test_secret_malformed_env_reference() -> None:
-    with pytest.raises(ConfigError, match="missing variable name"):
-        _resolve_secrets({"token": "env:"})
-
-
-def test_slack_webhook_resolved(repo: Path, monkeypatch) -> None:
-    monkeypatch.setenv("TEST_SLACK_WEBHOOK", "https://hooks.slack.com/svcs/ABC")
-    cfg = RelayConfig.load(start=repo)
-    assert cfg.slack_webhook == "https://hooks.slack.com/svcs/ABC"
-
-
-def test_slack_webhook_unset_returns_none(repo: Path, monkeypatch) -> None:
-    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
-    cfg = RelayConfig.load(start=repo)
-    assert cfg.slack_webhook is None
-
-
-# --------------------------------------------------------------------
 # Accessors
 # --------------------------------------------------------------------
 
 
-def test_project_accessor(repo: Path, monkeypatch) -> None:
-    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+def test_project_accessor(repo: Path) -> None:
     cfg = RelayConfig.load(start=repo)
     demo = cfg.project("demo")
     assert demo is not None
@@ -270,21 +223,19 @@ def test_project_accessor(repo: Path, monkeypatch) -> None:
     assert cfg.project("not-a-project") is None
 
 
-def test_project_path_relative_resolves_to_root(repo: Path, monkeypatch) -> None:
-    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+def test_project_path_relative_resolves_to_root(repo: Path) -> None:
     cfg = RelayConfig.load(start=repo)
     p = cfg.project_path("demo")
     assert p == (repo / "projects" / "demo").resolve()
 
 
-def test_project_path_unmapped(repo: Path, monkeypatch) -> None:
-    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+def test_project_path_unmapped(repo: Path) -> None:
     cfg = RelayConfig.load(start=repo)
     # admin is mapped; pretend we ask for an unmapped project.
     assert cfg.project_path("not-in-paths") is None
 
 
-def test_project_path_expands_tilde(tmp_path: Path, monkeypatch) -> None:
+def test_project_path_expands_tilde(tmp_path: Path) -> None:
     (tmp_path / "relay.toml").write_text(dedent("""
         [projects.home-proj]
         type = "local"
@@ -301,8 +252,7 @@ def test_project_path_expands_tilde(tmp_path: Path, monkeypatch) -> None:
     assert p.is_absolute()
 
 
-def test_agent_accessor(repo: Path, monkeypatch) -> None:
-    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+def test_agent_accessor(repo: Path) -> None:
     cfg = RelayConfig.load(start=repo)
     claude = cfg.agent("claude")
     assert claude is not None
@@ -310,16 +260,14 @@ def test_agent_accessor(repo: Path, monkeypatch) -> None:
     assert cfg.agent("not-an-agent") is None
 
 
-def test_resolve_assignee_current_user(repo: Path, monkeypatch) -> None:
-    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+def test_resolve_assignee_current_user(repo: Path) -> None:
     cfg = RelayConfig.load(start=repo)
     agent = cfg.resolve_assignee("claude1")
     assert agent is not None
     assert agent.cli == "claude"
 
 
-def test_resolve_assignee_unknown_nickname(repo: Path, monkeypatch) -> None:
-    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+def test_resolve_assignee_unknown_nickname(repo: Path) -> None:
     cfg = RelayConfig.load(start=repo)
     assert cfg.resolve_assignee("bogus-nickname") is None
 
@@ -331,8 +279,7 @@ def test_resolve_assignee_no_assignee_block(tmp_path: Path) -> None:
     assert cfg.resolve_assignee("claude1") is None
 
 
-def test_slack_user_accessor(repo: Path, monkeypatch) -> None:
-    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
+def test_slack_user_accessor(repo: Path) -> None:
     cfg = RelayConfig.load(start=repo)
     assert cfg.slack_user("zach") == "U12345"
     assert cfg.slack_user("not-a-user") is None
@@ -347,69 +294,6 @@ def test_slack_user_empty_returns_none(tmp_path: Path) -> None:
     (tmp_path / "relay.local.toml").write_text('user = "zach"\n')
     cfg = RelayConfig.load(start=tmp_path)
     assert cfg.slack_user("zach") is None
-
-
-def test_secret_accessor(repo: Path, monkeypatch) -> None:
-    monkeypatch.setenv("TEST_SLACK_WEBHOOK", "resolved")
-    cfg = RelayConfig.load(start=repo)
-    assert cfg.secret("slack_webhook") == "resolved"
-    assert cfg.secret("hardcoded") == "literal-value"
-    assert cfg.secret("nonexistent") is None
-
-
-def test_secrets_hidden_from_repr(repo: Path, monkeypatch) -> None:
-    """Accidental print(config) or debugger inspection must not dump
-    secret values. Both raw LocalConfig.secrets and the resolved map
-    on RelayConfig are marked repr=False."""
-    monkeypatch.setenv("TEST_SLACK_WEBHOOK", "super-secret-webhook-url")
-    cfg = RelayConfig.load(start=repo)
-    rendered = repr(cfg)
-    assert "super-secret-webhook-url" not in rendered
-    assert "literal-value" not in rendered
-    # Structure is still visible — user, paths, shared config, etc.
-    assert "zach" in rendered
-
-
-def test_secrets_env_returns_resolved_dict(repo: Path, monkeypatch) -> None:
-    monkeypatch.setenv("TEST_SLACK_WEBHOOK", "resolved")
-    cfg = RelayConfig.load(start=repo)
-    env = cfg.secrets_env()
-    assert env == {"slack_webhook": "resolved", "hardcoded": "literal-value"}
-
-
-def test_secrets_env_omits_empty_values(repo: Path, monkeypatch) -> None:
-    """Unset env:VAR references resolve to empty string; secrets_env
-    should filter those out so spawned subprocesses don't see KEY=''."""
-    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
-    cfg = RelayConfig.load(start=repo)
-    env = cfg.secrets_env()
-    assert "slack_webhook" not in env
-    assert env == {"hardcoded": "literal-value"}
-
-
-def test_missing_secrets_empty_when_all_set(repo: Path, monkeypatch) -> None:
-    """When every env:VAR reference resolves, missing_secrets is []."""
-    monkeypatch.setenv("TEST_SLACK_WEBHOOK", "resolved")
-    cfg = RelayConfig.load(start=repo)
-    assert cfg.missing_secrets() == []
-
-
-def test_missing_secrets_lists_unset_keys(repo: Path, monkeypatch) -> None:
-    """An unset env var → the secret's key shows up in missing_secrets."""
-    monkeypatch.delenv("TEST_SLACK_WEBHOOK", raising=False)
-    cfg = RelayConfig.load(start=repo)
-    assert cfg.missing_secrets() == ["slack_webhook"]
-
-
-def test_missing_secrets_ignores_literals(tmp_path: Path) -> None:
-    """Literal values are never 'missing' — even if empty — because
-    the user set them intentionally, not as an env reference."""
-    (tmp_path / "relay.toml").write_text("version = 1\n")
-    (tmp_path / "relay.local.toml").write_text(
-        'user = "zach"\n\n[secrets]\na = "literal"\nb = ""\n'
-    )
-    cfg = RelayConfig.load(start=tmp_path)
-    assert cfg.missing_secrets() == []
 
 
 # --------------------------------------------------------------------

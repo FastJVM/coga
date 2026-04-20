@@ -67,8 +67,6 @@ slack = ""
 
 # -- Slack -----------------------------------------------------------
 #
-# Reserved for future shared Slack config. The webhook URL itself
-# lives in relay.local.toml `[secrets].slack_webhook` so it never
-# gets committed. Leave this section empty.
+# Reserved for future shared Slack config. Leave this section empty.
 
 [slack]

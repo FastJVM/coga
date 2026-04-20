@@ -1,8 +1,7 @@
 # Per-machine Relay config.
 #
 # Copy to `relay.local.toml` (gitignored) and fill in for your machine.
-# This file holds paths to project directories and references to secrets.
-# Secrets themselves live in environment variables, not in this file.
+# This file holds paths to project directories.
 
 # Who you are. Used to resolve agent nicknames and to attribute CLI actions.
 user = "zach"
@@ -20,19 +19,3 @@ user = "zach"
 demo = "./projects/demo"
 admin = "./projects/admin"
 # rd-tax = "~/RD_Tax_Automation"   # uncomment when ready to migrate
-
-# --- Secrets ---
-#
-# Reference environment variables with `env:VAR_NAME`. At launch time, the
-# CLI resolves these to their current env values and injects them into the
-# spawned process as uppercase env vars matching the key name.
-#
-# Leaving a secret unset is fine — the matching feature (e.g. Slack feed)
-# silently no-ops.
-
-[secrets]
-slack_webhook = "env:SLACK_WEBHOOK_URL"
-anthropic_api_key = "env:ANTHROPIC_API_KEY"
-# Add per-project secrets as needed, e.g.:
-# stripe_key = "env:STRIPE_SECRET_KEY"
-# github_token = "env:GITHUB_TOKEN"

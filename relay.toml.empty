@@ -28,6 +28,5 @@ version = 1
 #   agents = { nickname1 = agent-type, ... }
 #   slack  = Slack user ID for @mentions                       (default: "")
 
-# [slack] — reserved for future shared Slack config. Leave empty; the
-# webhook itself lives in relay.local.toml [secrets].
+# [slack] — reserved for future shared Slack config. Leave empty.
 [slack]
