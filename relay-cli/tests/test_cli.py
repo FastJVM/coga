@@ -63,10 +63,11 @@ def test_panic_requires_task_and_reason() -> None:
 def test_every_subcommand_is_a_stub() -> None:
     """Every subcommand prints "not implemented" when invoked with the
     minimum valid args. Serves as a checklist: once a ticket fills in a
-    command, that command's assertion moves out of this test."""
+    command, that command's assertion moves out of this test.
+
+    Implemented (removed from the list): ``init`` (FJVM-1289)."""
     runner = CliRunner()
     invocations = [
-        ["init"],
         ["create"],
         ["launch", "--task", "001"],
         ["status"],
