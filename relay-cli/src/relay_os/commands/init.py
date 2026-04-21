@@ -4,8 +4,8 @@ Two modes:
 
 * ``relay init`` — in the current directory, drop the shared knowledge
   tree (``skills/``, ``contexts/``, ``workflows/``, ``recurring/``,
-  ``scripts/``), the config files, ``rules.md``, and the three protocol
-  files. This is the second thing a user runs after installing the CLI.
+  ``scripts/``), the config files, and ``rules.md``. This is the second
+  thing a user runs after installing the CLI.
 
 * ``relay init --project <name>`` — inside a Relay repo, scaffold the
   per-project ``relay-os/`` directory (``context.md``, ``counter``,
@@ -31,9 +31,6 @@ REPO_TEMPLATES = (
     ("relay.toml", "relay.toml"),
     ("relay.local.toml", "relay.local.toml"),
     ("rules.md", "rules.md"),
-    ("protocol.md", "protocol.md"),
-    ("protocol-interactive.md", "protocol-interactive.md"),
-    ("protocol-auto.md", "protocol-auto.md"),
 )
 
 

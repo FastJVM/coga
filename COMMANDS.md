@@ -101,7 +101,7 @@ relay launch --task 006
 **What launch does behind the scenes:**
 
 1. Reads the ticket's assignee → resolves to an agent type
-2. Composes the prompt: protocol + mode block + rules + project context + ticket contexts + inline context + current step skill + blackboard
+2. Composes the prompt: rules + project context + ticket contexts + inline context + current step skill + blackboard
 3. Writes the composed prompt to a temp file
 4. Spawns the agent with the right CLI flags (or runs the script for script mode)
 5. Logs the launch to log.md

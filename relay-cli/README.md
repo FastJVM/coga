@@ -5,7 +5,7 @@ your PATH; reads the shared repo's `relay.toml` + per-machine
 `relay.local.toml`; manipulates tasks, prompts, and the Slack feed.
 
 This directory is the Python project. The rest of the parent repo
-(skills, contexts, workflows, recurring templates, protocol, rules) is
+(skills, contexts, workflows, recurring templates, rules) is
 the knowledge tree this CLI operates on.
 
 ## Requirements

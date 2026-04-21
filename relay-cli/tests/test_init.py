@@ -39,9 +39,6 @@ def test_init_creates_full_structure_in_empty_dir(tmp_path: Path) -> None:
             "relay.toml",
             "relay.local.toml",
             "rules.md",
-            "protocol.md",
-            "protocol-interactive.md",
-            "protocol-auto.md",
             "scripts/cron.sh",
             ".gitignore",
         ):
@@ -182,9 +179,6 @@ def test_init_project_errors_on_unmapped_path(
 TEMPLATE_PAIRS = [
     ("relay.toml.empty", "relay.toml"),
     ("relay.local.toml.empty", "relay.local.toml"),
-    ("protocol.md", "protocol.md"),
-    ("protocol-interactive.md", "protocol-interactive.md"),
-    ("protocol-auto.md", "protocol-auto.md"),
     ("scripts/cron.sh", "cron.sh"),
 ]
 
