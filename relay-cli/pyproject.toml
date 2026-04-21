@@ -29,6 +29,13 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+# Ship everything under src/relay_os/templates/ with the wheel.
+# Includes the schema-reference templates (`.empty` / `.example`) so
+# they're available at runtime after `pip install` — accessed via
+# `importlib.resources.files("relay_os") / "templates" / "<name>"`.
+relay_os = ["templates/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
