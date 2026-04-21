@@ -38,15 +38,10 @@ def test_init_creates_full_structure_in_empty_dir(tmp_path: Path) -> None:
         for f in (
             "relay.toml",
             "relay.local.toml",
-            "rules.md",
-            "scripts/cron.sh",
             ".gitignore",
         ):
             assert (root / f).is_file(), f"missing {f}"
 
-        assert (root / "scripts" / "cron.sh").stat().st_mode & 0o111, (
-            "cron.sh should be executable"
-        )
         assert "relay.local.toml" in (root / ".gitignore").read_text()
 
 
@@ -69,13 +64,13 @@ def test_init_is_idempotent(tmp_path: Path) -> None:
         root = Path(cwd)
 
         assert runner.invoke(main, ["init"]).exit_code == 0
-        (root / "rules.md").write_text("custom user content\n")
+        (root / "relay.toml").write_text("# custom user content\nversion = 1\n")
 
         result = runner.invoke(main, ["init"])
         assert result.exit_code == 0, result.output
-        assert (root / "rules.md").read_text() == "custom user content\n", (
-            "second init must not overwrite user edits"
-        )
+        assert (root / "relay.toml").read_text() == (
+            "# custom user content\nversion = 1\n"
+        ), "second init must not overwrite user edits"
         assert "skipped" in result.output
 
 
@@ -179,7 +174,6 @@ def test_init_project_errors_on_unmapped_path(
 TEMPLATE_PAIRS = [
     ("relay.toml.empty", "relay.toml"),
     ("relay.local.toml.empty", "relay.local.toml"),
-    ("scripts/cron.sh", "cron.sh"),
 ]
 
 

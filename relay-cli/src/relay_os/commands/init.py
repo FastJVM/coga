@@ -2,10 +2,11 @@
 
 Two modes:
 
-* ``relay init`` — in the current directory, drop the shared knowledge
-  tree (``skills/``, ``contexts/``, ``workflows/``, ``recurring/``,
-  ``scripts/``), the config files, and ``rules.md``. This is the second
-  thing a user runs after installing the CLI.
+* ``relay init`` — in the current directory, create the knowledge-tree
+  directory layout (``skills/``, ``contexts/``, ``workflows/``,
+  ``recurring/``, ``scripts/``) and the two config files (``relay.toml``,
+  ``relay.local.toml``). This is the second thing a user runs after
+  installing the CLI.
 
 * ``relay init --project <name>`` — inside a Relay repo, scaffold the
   per-project ``relay-os/`` directory (``context.md``, ``counter``,
@@ -30,7 +31,6 @@ REPO_DIRS = ("skills", "contexts", "workflows", "recurring", "scripts")
 REPO_TEMPLATES = (
     ("relay.toml", "relay.toml"),
     ("relay.local.toml", "relay.local.toml"),
-    ("rules.md", "rules.md"),
 )
 
 
@@ -59,15 +59,6 @@ def _init_repo(target: Path) -> None:
         _write_template_if_missing(
             target / filename, template_name, target, created, skipped
         )
-
-    cron = target / "scripts" / "cron.sh"
-    if cron.exists():
-        skipped.append(str(cron.relative_to(target)))
-    else:
-        cron.parent.mkdir(parents=True, exist_ok=True)
-        cron.write_text(_read_template("cron.sh"))
-        cron.chmod(0o755)
-        created.append(str(cron.relative_to(target)))
 
     _ensure_gitignore_entry(target, "relay.local.toml", created, skipped)
 
