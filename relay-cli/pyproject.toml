@@ -10,6 +10,16 @@ authors = [
     { name = "Nicolas Toper" },
     { name = "Zachary Cohen" },
 ]
+keywords = ["relay", "task-management", "agents", "ai", "blackboard"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS",
+]
 dependencies = [
     "click>=8.1",
     "pydantic>=2.5",
@@ -22,6 +32,9 @@ dev = [
 
 [project.scripts]
 relay = "relay_os.cli:main"
+
+[project.urls]
+Repository = "https://github.com/FastJVM/relay"
 
 [build-system]
 requires = ["setuptools>=68"]
