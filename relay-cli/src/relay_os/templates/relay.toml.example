@@ -1,12 +1,12 @@
 # Example relay.toml with every field populated.
 #
-# This file is the canonical schema reference. When you add a new
-# field to Relay's shared config, add it here — the pydantic models
-# in `relay-cli/src/relay_os/config.py` and the tests in
-# `relay-cli/tests/test_config.py` should match what this template
-# demonstrates.
+# Ships inside the relay-os package as the canonical schema reference.
+# When you add a new field to Relay's shared config, add it here — the
+# pydantic models in `relay_os/config.py` and the tests in
+# `tests/test_config.py` should match what this template demonstrates.
 #
-# Copy to `relay.toml`, adjust values for your team, commit.
+# `relay init` copies from here as a starting point for a new install;
+# otherwise this file serves as live documentation.
 
 version = 1
 

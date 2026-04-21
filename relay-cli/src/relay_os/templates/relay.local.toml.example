@@ -1,7 +1,8 @@
-# Per-machine Relay config.
+# Per-machine Relay config, example.
 #
-# Copy to `relay.local.toml` (gitignored) and fill in for your machine.
-# This file holds paths to project directories.
+# Ships inside the relay-os package. `relay init` copies from here
+# as a starting point when setting up a new install; the live file
+# on disk is gitignored. This file holds paths to project directories.
 
 # Who you are. Used to resolve agent nicknames and to attribute CLI actions.
 user = "zach"

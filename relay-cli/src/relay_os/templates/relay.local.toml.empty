@@ -1,13 +1,13 @@
-# Empty skeleton for relay.local.toml.
+# Minimal skeleton for relay.local.toml — per-machine Relay config.
 #
-# Copy to `relay.local.toml` (gitignored) and fill in for your machine.
+# Ships inside the relay-os package. `relay init` copies from here
+# when scaffolding a new install; the live file on disk is gitignored.
 # See `relay.local.toml.example` for a walkthrough with realistic values.
 #
 # This file is one of two canonical schema references for the local
 # config (the other is `relay.local.toml.example`). Adding a field to
 # the local schema means adding a line here and in the example — the
-# pydantic models in `relay-cli/src/relay_os/config.py` derive from
-# these templates.
+# pydantic models in `relay_os/config.py` derive from these templates.
 
 # user — your name, matching an [assignees.<name>] entry in relay.toml.
 # Used to resolve agent nicknames and to attribute CLI actions.
