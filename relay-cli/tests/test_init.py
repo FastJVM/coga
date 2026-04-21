@@ -1,9 +1,7 @@
 """Tests for relay_os.commands.init.
 
-Covers both modes (``relay init`` and ``relay init --project``), the
-bundled templates that ship in the wheel, idempotency, and the drift
-guard that keeps the package-data templates in sync with the repo-root
-reference files.
+`relay init <project>` scaffolds the per-project `relay-os/` directory
+inside the path declared for that project in `relay.local.toml`.
 """
 
 from __future__ import annotations
@@ -15,68 +13,6 @@ import pytest
 from click.testing import CliRunner
 
 from relay_os.cli import main
-from relay_os.config import RelayConfig
-
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-
-
-# --------------------------------------------------------------------
-# relay init  (repo mode)
-# --------------------------------------------------------------------
-
-
-def test_init_creates_full_structure_in_empty_dir(tmp_path: Path) -> None:
-    runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as cwd:
-        result = runner.invoke(main, ["init"])
-        assert result.exit_code == 0, result.output
-
-        root = Path(cwd)
-        for d in ("skills", "contexts", "workflows", "recurring", "scripts"):
-            assert (root / d).is_dir()
-        for f in (
-            "relay.toml",
-            "relay.local.toml",
-            ".gitignore",
-        ):
-            assert (root / f).is_file(), f"missing {f}"
-
-        assert "relay.local.toml" in (root / ".gitignore").read_text()
-
-
-def test_init_produces_loadable_config(tmp_path: Path) -> None:
-    """The bundled relay.toml + relay.local.toml pair must load through
-    RelayConfig without a user touching anything. A broken starter
-    template would silently ship otherwise."""
-    runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as cwd:
-        result = runner.invoke(main, ["init"])
-        assert result.exit_code == 0, result.output
-        cfg = RelayConfig.load(start=Path(cwd))
-        assert cfg.shared.projects == {}
-        assert cfg.shared.agents == {}
-
-
-def test_init_is_idempotent(tmp_path: Path) -> None:
-    runner = CliRunner()
-    with runner.isolated_filesystem(temp_dir=tmp_path) as cwd:
-        root = Path(cwd)
-
-        assert runner.invoke(main, ["init"]).exit_code == 0
-        (root / "relay.toml").write_text("# custom user content\nversion = 1\n")
-
-        result = runner.invoke(main, ["init"])
-        assert result.exit_code == 0, result.output
-        assert (root / "relay.toml").read_text() == (
-            "# custom user content\nversion = 1\n"
-        ), "second init must not overwrite user edits"
-        assert "skipped" in result.output
-
-
-# --------------------------------------------------------------------
-# relay init --project  (project mode)
-# --------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -99,10 +35,10 @@ def initialized_repo(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def test_init_project_creates_relay_os(initialized_repo: Path, monkeypatch) -> None:
+def test_init_creates_relay_os(initialized_repo: Path, monkeypatch) -> None:
     monkeypatch.chdir(initialized_repo)
     runner = CliRunner()
-    result = runner.invoke(main, ["init", "--project", "demo"])
+    result = runner.invoke(main, ["init", "demo"])
     assert result.exit_code == 0, result.output
 
     project = initialized_repo / "demo-proj"
@@ -112,43 +48,49 @@ def test_init_project_creates_relay_os(initialized_repo: Path, monkeypatch) -> N
     assert (project / "relay-os" / "counter").read_text() == "1\n"
 
 
-def test_init_project_is_idempotent(
-    initialized_repo: Path, monkeypatch
-) -> None:
+def test_init_is_idempotent(initialized_repo: Path, monkeypatch) -> None:
     monkeypatch.chdir(initialized_repo)
     runner = CliRunner()
-    assert runner.invoke(main, ["init", "--project", "demo"]).exit_code == 0
+    assert runner.invoke(main, ["init", "demo"]).exit_code == 0
 
     counter = initialized_repo / "demo-proj" / "relay-os" / "counter"
     counter.write_text("42\n")  # simulate tasks having been created
-    result = runner.invoke(main, ["init", "--project", "demo"])
+    result = runner.invoke(main, ["init", "demo"])
     assert result.exit_code == 0, result.output
     assert counter.read_text() == "42\n", "second init must not reset counter"
 
 
-def test_init_project_errors_on_unknown_project(
+def test_init_errors_on_missing_project_arg(tmp_path: Path, monkeypatch) -> None:
+    """With no positional argument, click should surface its standard
+    missing-argument error, not a traceback."""
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(main, ["init"])
+    assert result.exit_code != 0
+    assert "PROJECT" in result.output or "project" in result.output.lower()
+
+
+def test_init_errors_on_unknown_project(
     initialized_repo: Path, monkeypatch
 ) -> None:
     monkeypatch.chdir(initialized_repo)
     runner = CliRunner()
-    result = runner.invoke(main, ["init", "--project", "nonesuch"])
+    result = runner.invoke(main, ["init", "nonesuch"])
     assert result.exit_code != 0
     assert "no project named" in result.output
 
 
-def test_init_project_errors_when_not_in_relay_repo(
+def test_init_errors_when_not_in_relay_repo(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    result = runner.invoke(main, ["init", "--project", "demo"])
+    result = runner.invoke(main, ["init", "demo"])
     assert result.exit_code != 0
     assert "not inside a Relay repo" in result.output
 
 
-def test_init_project_errors_on_unmapped_path(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_init_errors_on_unmapped_path(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / "relay.toml").write_text(dedent("""\
         [projects.demo]
         type = "local"
@@ -156,38 +98,6 @@ def test_init_project_errors_on_unmapped_path(
     (tmp_path / "relay.local.toml").write_text('user = "zach"\n')
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    result = runner.invoke(main, ["init", "--project", "demo"])
+    result = runner.invoke(main, ["init", "demo"])
     assert result.exit_code != 0
     assert "no path" in result.output
-
-
-# --------------------------------------------------------------------
-# Drift guard: bundled templates == repo-root canonical files
-# --------------------------------------------------------------------
-#
-# Option A of the plan: templates are duplicated under the package so
-# they ship with the wheel. This test asserts the copies stay in sync
-# with the canonical files at the repo root — editing one without the
-# other fails CI.
-
-
-TEMPLATE_PAIRS = [
-    ("relay.toml.empty", "relay.toml"),
-    ("relay.local.toml.empty", "relay.local.toml"),
-]
-
-
-@pytest.mark.parametrize("repo_file,template_file", TEMPLATE_PAIRS)
-def test_bundled_template_matches_repo_root(
-    repo_file: str, template_file: str
-) -> None:
-    from importlib.resources import files as resource_files
-
-    repo_content = (REPO_ROOT / repo_file).read_text()
-    template_content = (
-        resource_files("relay_os.templates").joinpath(template_file).read_text()
-    )
-    assert repo_content == template_content, (
-        f"bundled template {template_file!r} has drifted from "
-        f"{repo_file!r} at the repo root"
-    )

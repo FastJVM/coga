@@ -1,24 +1,25 @@
-"""relay init — scaffold a new Relay repo or project.
+"""relay init — scaffold a project's ``relay-os/`` directory.
 
-Two modes:
+Takes one argument: the project name (must match a ``[projects.<name>]``
+entry in ``relay.toml``). Inside the path declared for that project in
+``relay.local.toml`` ``[paths]``, creates:
 
-* ``relay init`` — in the current directory, create the knowledge-tree
-  directory layout (``skills/``, ``contexts/``, ``workflows/``,
-  ``recurring/``, ``scripts/``) and the two config files (``relay.toml``,
-  ``relay.local.toml``). This is the second thing a user runs after
-  installing the CLI.
+- ``relay-os/``
+- ``relay-os/context.md`` (empty project base context)
+- ``relay-os/counter`` (initialized to ``1``)
+- ``relay-os/tasks/``
 
-* ``relay init --project <name>`` — inside a Relay repo, scaffold the
-  per-project ``relay-os/`` directory (``context.md``, ``counter``,
-  ``tasks/``) at the path declared for ``<name>`` in
-  ``relay.local.toml``.
+Idempotent: existing files and directories are left alone. Running twice
+is safe.
 
-Both modes are idempotent: existing files are left alone.
+Bootstrapping a fresh Relay repo itself (creating ``relay.toml`` and the
+knowledge-tree directories) is out of scope for this command. Users
+clone the Relay repo, fill in ``relay.toml`` / ``relay.local.toml``, and
+then run ``relay init <project>`` for each project they're working on.
 """
 
 from __future__ import annotations
 
-from importlib.resources import files as resource_files
 from pathlib import Path
 
 import click
@@ -26,62 +27,27 @@ import click
 from ..config import ConfigError, RelayConfig
 
 
-REPO_DIRS = ("skills", "contexts", "workflows", "recurring", "scripts")
-
-REPO_TEMPLATES = (
-    ("relay.toml", "relay.toml"),
-    ("relay.local.toml", "relay.local.toml"),
-)
-
-
 @click.command()
-@click.option(
-    "--project",
-    help="Initialize a project directory (creates relay-os/ inside). "
-    "Omit to initialize the current directory as a Relay repo.",
-)
-def init(project: str | None) -> None:
-    """Initialize a new Relay repo or project."""
-    if project is None:
-        _init_repo(Path.cwd())
-    else:
-        _init_project(project)
-
-
-def _init_repo(target: Path) -> None:
-    created: list[str] = []
-    skipped: list[str] = []
-
-    for d in REPO_DIRS:
-        _mkdir_if_missing(target / d, target, created, skipped)
-
-    for filename, template_name in REPO_TEMPLATES:
-        _write_template_if_missing(
-            target / filename, template_name, target, created, skipped
-        )
-
-    _ensure_gitignore_entry(target, "relay.local.toml", created, skipped)
-
-    _print_summary(target, created, skipped)
-
-
-def _init_project(name: str) -> None:
+@click.argument("project")
+def init(project: str) -> None:
+    """Scaffold PROJECT's relay-os/ directory."""
     try:
         cfg = RelayConfig.load()
     except ConfigError as e:
         raise click.ClickException(str(e))
 
-    if cfg.project(name) is None:
+    if cfg.project(project) is None:
         valid = sorted(cfg.shared.projects.keys())
         raise click.ClickException(
-            f"no project named {name!r} in relay.toml. Valid projects: {valid}"
+            f"no project named {project!r} in relay.toml. "
+            f"Valid projects: {valid}"
         )
 
-    project_path = cfg.project_path(name)
+    project_path = cfg.project_path(project)
     if project_path is None:
         raise click.ClickException(
-            f"project {name!r} has no path in relay.local.toml [paths]. "
-            f'Add an entry like: {name} = "./projects/{name}"'
+            f"project {project!r} has no path in relay.local.toml [paths]. "
+            f'Add an entry like: {project} = "./projects/{project}"'
         )
 
     project_path.mkdir(parents=True, exist_ok=True)
@@ -97,7 +63,7 @@ def _init_project(name: str) -> None:
     if context.exists():
         skipped.append(str(context.relative_to(project_path)))
     else:
-        context.write_text(_project_context_stub(name))
+        context.write_text(_project_context_stub(project))
         created.append(str(context.relative_to(project_path)))
 
     counter = relay_dir / "counter"
@@ -115,25 +81,6 @@ def _init_project(name: str) -> None:
 # --------------------------------------------------------------------
 
 
-def _read_template(name: str) -> str:
-    return resource_files("relay_os.templates").joinpath(name).read_text()
-
-
-def _write_template_if_missing(
-    dest: Path,
-    template_name: str,
-    base: Path,
-    created: list[str],
-    skipped: list[str],
-) -> None:
-    rel = str(dest.relative_to(base))
-    if dest.exists():
-        skipped.append(rel)
-    else:
-        dest.write_text(_read_template(template_name))
-        created.append(rel)
-
-
 def _mkdir_if_missing(
     path: Path, base: Path, created: list[str], skipped: list[str]
 ) -> None:
@@ -143,25 +90,6 @@ def _mkdir_if_missing(
     else:
         path.mkdir(parents=True, exist_ok=True)
         created.append(rel)
-
-
-def _ensure_gitignore_entry(
-    target: Path, entry: str, created: list[str], skipped: list[str]
-) -> None:
-    gi = target / ".gitignore"
-    if gi.exists():
-        lines = gi.read_text().splitlines()
-        if entry in lines:
-            skipped.append(".gitignore")
-            return
-        with gi.open("a") as f:
-            if lines and lines[-1] != "":
-                f.write("\n")
-            f.write(f"{entry}\n")
-        created.append(".gitignore (entry added)")
-    else:
-        gi.write_text(f"{entry}\n")
-        created.append(".gitignore")
 
 
 def _project_context_stub(name: str) -> str:
