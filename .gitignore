@@ -20,4 +20,9 @@ venv/
 # Env files
 .env*
 
+# Personal reference copies of spec/vision docs (source of truth lives
+# elsewhere; these are local working copies and shouldn't land on branches)
+/relay-spec-updated*.md
+/relay-vision-updated*.md
+
 
