@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A blackboard for humans and agents — CLI for the Relay CompanyOS."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = { text = "GPL-3.0-or-later" }
 authors = [
     { name = "FastJVM" },
 ]
