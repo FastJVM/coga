@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+from textwrap import dedent
+
+import pytest
+from typer.testing import CliRunner
+
+from relay.cli import app
+from relay.commands.create import scaffold_task
+from relay.commands.launch import build_agent_command
+from relay.config import AgentType, load_config
+from relay.lock import TaskLock
+from relay.tasks import list_tasks
+
+
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(dedent(text).lstrip())
+
+
+# --- unit: command construction ------------------------------------------------
+
+
+def _agent(interactive: str, auto: str) -> AgentType:
+    return AgentType(name="x", cli="my-cli", interactive=interactive, auto=auto, file="X.md", mode="local")
+
+
+def test_build_command_claude_interactive(tmp_path: Path) -> None:
+    prompt_file = tmp_path / "p.md"
+    prompt_file.write_text("hi")
+    cmd = build_agent_command(
+        _agent("--append-system-prompt-file", "-p"),
+        mode="interactive",
+        prompt="IGNORED-TEXT",
+        prompt_file=prompt_file,
+    )
+    assert cmd == ["my-cli", "--append-system-prompt-file", str(prompt_file)]
+
+
+def test_build_command_claude_auto_passes_text(tmp_path: Path) -> None:
+    prompt_file = tmp_path / "p.md"
+    prompt_file.write_text("hi")
+    cmd = build_agent_command(
+        _agent("--append-system-prompt-file", "-p"),
+        mode="auto",
+        prompt="full prompt text",
+        prompt_file=prompt_file,
+    )
+    assert cmd == ["my-cli", "-p", "full prompt text"]
+
+
+def test_build_command_codex_like_subcommand(tmp_path: Path) -> None:
+    prompt_file = tmp_path / "p.md"
+    prompt_file.write_text("hi")
+    cmd = build_agent_command(
+        _agent("exec", "exec"),
+        mode="interactive",
+        prompt="full prompt text",
+        prompt_file=prompt_file,
+    )
+    assert cmd == ["my-cli", "exec", "full prompt text"]
+
+
+# --- integration: end-to-end via CliRunner with mocked subprocess --------------
+
+
+@pytest.fixture
+def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    company = tmp_path / "relay-os"
+    project = tmp_path / "projects" / "email-tool"
+    project.mkdir(parents=True)
+    _write(
+        company / "relay.toml",
+        f"""
+        version = 1
+        [projects.email-tool]
+        type = "local"
+        default_status = "ready"
+        [agents.claude]
+        cli = "claude"
+        interactive = "--append-system-prompt-file"
+        auto = "-p"
+        file = "CLAUDE.md"
+        [assignees.marc]
+        agents = {{"claude1" = "claude"}}
+        """,
+    )
+    _write(company / "relay.local.toml", f'user = "marc"\n[paths]\nemail-tool = "{project}"\n')
+
+    monkeypatch.chdir(company)
+    cfg = load_config(company)
+    scaffold_task(
+        cfg=cfg, project="email-tool", title="Fix retry logic",
+        workflow_name=None, contexts=[], mode="interactive",
+        owner="marc", assignee="claude1", watchers=[], status="active",
+    )
+    return company
+
+
+def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "--task", "email-tool/001"])
+    assert result.exit_code == 0, result.output
+
+    # Agent called with --append-system-prompt-file <path>
+    assert len(calls) == 1
+    assert calls[0][0] == "claude"
+    assert calls[0][1] == "--append-system-prompt-file"
+    assert calls[0][2].endswith(".md")
+
+    # Log entry written
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg, "email-tool")[0]
+    log = (ref.path / "log.md").read_text()
+    assert "launched in interactive mode" in log
+
+    # Lock released after run
+    assert not TaskLock(ref.path).path.exists()
+
+    # Prompt temp file cleaned up
+    assert not Path(calls[0][2]).exists()
+
+
+def test_launch_requires_active_status(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Flip status to paused
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg, "email-tool")[0]
+    from relay.ticket import Ticket
+    t = Ticket.read(ref.path / "ticket.md")
+    t.frontmatter["status"] = "paused"
+    t.write(ref.path / "ticket.md")
+
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "--task", "email-tool/001"])
+    assert result.exit_code == 2
+    assert "'paused'" in result.output or "'paused'" in (result.stderr or "")
+
+
+def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: None)
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "--task", "email-tool/001"])
+    assert result.exit_code == 2
+    assert "not found in PATH" in (result.output + (result.stderr or ""))

@@ -1,0 +1,36 @@
+version = 1
+
+# --- Projects ---
+
+[projects.email-tool]
+type = "local"
+default_status = "ready"
+
+[projects.ops]
+type = "local"
+default_status = "design"
+
+# --- Agents ---
+
+[agents.claude]
+cli = "claude"
+interactive = "--append-system-prompt-file"
+auto = "-p"
+file = "CLAUDE.md"
+mode = "local"
+
+# --- Assignees ---
+
+[assignees.marc]
+agents = {"claude1" = "claude", "claude2" = "claude"}
+slack = "U04MARC"
+
+[assignees.pierre]
+agents = {"claude1" = "claude"}
+slack = "U04PIER"
+
+# --- Slack ---
+
+# Omit `webhook` to run without real Slack posts (messages go to stderr).
+# [slack]
+# webhook = "https://hooks.slack.com/services/xxx"
