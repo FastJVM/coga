@@ -1,0 +1,58 @@
+"""blackboard.md — render from bundled template and append to sections."""
+
+from __future__ import annotations
+
+import re
+from datetime import datetime
+from importlib.resources import files
+from pathlib import Path
+
+
+def render_blackboard(task_id: str, task_title: str) -> str:
+    """Render the default blackboard template with task metadata filled in."""
+    template = files("relay.resources").joinpath("blackboard.md").read_text()
+    return template.replace("{task_id}", task_id).replace("{task_title}", task_title)
+
+
+_SECTION_RE = re.compile(r"^(## .+?)$", re.MULTILINE)
+
+
+def append_to_section(path: Path, heading: str, entry: str) -> None:
+    """Append `entry` at the end of the `## <heading>` section.
+
+    If the section isn't found, appends a new section at the end of the file.
+    """
+    text = path.read_text()
+    entry = entry.rstrip() + "\n"
+    target = f"## {heading}"
+
+    matches = list(_SECTION_RE.finditer(text))
+    for i, m in enumerate(matches):
+        if m.group(1).strip() == target:
+            # End of this section = start of next section, or EOF.
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            # Trim trailing "---" separator between sections so the entry sits inside the section.
+            body_until_end = text[:end]
+            trimmed = body_until_end.rstrip()
+            separator_start = trimmed.rfind("---")
+            if separator_start > m.end() and trimmed[separator_start:].strip() == "---":
+                insertion = trimmed[:separator_start].rstrip() + "\n\n" + entry + "\n"
+                new_text = insertion + "\n---\n\n" + text[end:]
+            else:
+                new_text = trimmed + "\n\n" + entry + text[end:]
+            path.write_text(new_text)
+            return
+
+    # Section not found — append a new one.
+    tail = "" if text.endswith("\n") else "\n"
+    path.write_text(text + f"{tail}\n---\n\n## {heading}\n\n{entry}")
+
+
+def append_blocker(task_dir: Path, actor: str, reason: str) -> None:
+    """Write a timestamped blocker entry to the blackboard's Blockers section."""
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    entry = f"- [{ts}] [{actor}] {reason}"
+    append_to_section(task_dir / "blackboard.md", "Blockers", entry)
+
+
+__all__ = ["render_blackboard", "append_to_section", "append_blocker"]

@@ -1,0 +1,12 @@
+# Local per-machine config. `relay.local.toml` is gitignored in a real repo;
+# this copy ships with the example so the smoke test has something to read.
+# Paths here are relative to relay.toml's directory (this one).
+
+user = "marc"
+
+[paths]
+email-tool = "../projects/email-tool"
+ops = "../projects/ops"
+
+[secrets]
+# Populated from env vars at launch time; see docs/design.md.

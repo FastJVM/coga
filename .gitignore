@@ -1,5 +1,10 @@
 # Relay local config — paths and secret references. Never commit.
-relay.local.toml
+# (Root-only; the bundled `example/` ships a non-secret template.)
+/relay.local.toml
+
+# Personal reference copies of the spec/vision docs live at repo root.
+/relay-spec-updated*.md
+/relay-vision-updated*.md
 
 # Obsidian — per-machine workspace/theme/plugin config.
 .obsidian/
