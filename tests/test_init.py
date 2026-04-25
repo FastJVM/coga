@@ -16,11 +16,11 @@ EXPECTED_FILES = {
     "relay-os/context.md",
     "relay-os/counter",
     "relay-os/scripts/cron.sh",
-    "relay-os/contexts/.gitkeep",
-    "relay-os/skills/.gitkeep",
-    "relay-os/workflows/.gitkeep",
-    "relay-os/recurring/.gitkeep",
-    "relay-os/tasks/.gitkeep",
+    "relay-os/contexts/_template/SKILL.md",
+    "relay-os/skills/_template/SKILL.md",
+    "relay-os/workflows/_template.md",
+    "relay-os/recurring/_template.md",
+    "relay-os/tasks/_template/ticket.md",
 }
 
 
