@@ -1,37 +1,19 @@
 ---
-# `relay create` writes most of this for you. This file shows what a
-# ticket looks like once it's been scaffolded — useful as a reference
-# when hand-editing or recovering.
-title: Fix retry logic
-status: active                # design | ready | active | paused | done | canceled | failed
-mode: interactive             # interactive | auto | script
-owner: marc                   # human accountable; stable for the task's life
-assignee: claude1             # who's currently doing the work — human name or agent nickname
-watchers:                     # optional — additional Slack @mentions
-  - pierre
-workflow:                     # frozen snapshot, written by `relay create --workflow <name>`
-  name: code/with-review
-  steps:
-    - name: implement
-      skill: infra/testing-conventions
-    - name: pr
-    - name: approve
-    - name: merge
-step: 1 (implement)           # only when `workflow:` is set
-contexts:                     # domain knowledge attached to the ticket
-  - email/payment-flow
+title: Replace with a one-line task title
+status: ready
+mode: interactive
+owner: replace-with-human-name
+assignee: replace-with-human-or-agent-nickname
 ---
 
 ## Description
 
-Stripe webhook retries are silently failing after the third attempt.
-The retry backoff logic doesn't account for rate-limit responses (429).
-Fix the backoff to respect Retry-After headers and add observability so
-we know when retries are exhausted.
+What needs to happen and why. The agent reads the composed prompt at
+launch time, not this body — these sections exist to help humans
+organize their thinking.
 
 ## Context
 
-The retry logic lives in `lib/webhooks/retry.ts`. Current backoff is
-fixed 1s/5s/30s — no awareness of rate limit headers. The Stripe
-dashboard shows ~40 exhausted retries/day, mostly on billing-update.
-Don't touch the idempotency layer — that's a separate task.
+Task-specific knowledge that isn't a reusable skill or context file.
+One-off details: where in the codebase, what to watch out for, what not
+to touch.

@@ -1,35 +1,25 @@
 ---
-# `name` matches the directory path under contexts/. Always namespaced.
-name: email/payment-flow
-# `description` is what create-suggest matches against when a new task
-# needs background knowledge. Keep it scoped — broad descriptions cause
-# over-attachment.
-description: How payment-related tasks interact with Stripe webhooks, retries, and idempotency.
+name: _template
+description: Starter context. Copy this directory to contexts/<namespace>/<your-context>/ and replace this content. Contexts are domain knowledge — what's true about the world — and attach to tickets via the `contexts:` frontmatter list.
 ---
 
-# Payment flow
+# Replace with your context title
 
-<!--
-A context is *domain knowledge* — what's true about the world the task
-operates in. No process, no scripts. Tickets attach to it via the
-`contexts:` field; `relay launch` inlines this file into the prompt.
+Contexts are domain knowledge. No process, no scripts. Tickets attach to
+contexts via the `contexts:` field; `relay launch` inlines this file
+into the prompt at launch time.
 
 Keep contexts under a page. If you find yourself adding a fourth
 top-level section, the context is conflating two domains — split it.
--->
 
-## Retry behavior
+## Section 1
 
-- Stripe webhooks retry with exponential backoff: 1s, 5s, 30s, 5m, 30m, 2h.
-- On 429, respect `Retry-After`. Do not add your own backoff on top.
-- After six failed deliveries, Stripe stops retrying.
+Facts the agent needs. Concrete, specific, dated when appropriate.
 
-## Idempotency
+## Section 2
 
-- Every webhook handler must be idempotent — Stripe may deliver twice.
-- Use `idempotency_key` on outgoing API calls (live in `lib/stripe/idempotent.py`).
+Edge cases and gotchas — things that surprise the agent.
 
-## Edge cases
+## What this context does NOT cover
 
-- Test clock events fire *immediately*; production clock events are queued.
-- Fraudster chargebacks often arrive 45-60 days after the original charge.
+Optional but valuable. Helps prevent over-attachment to unrelated tasks.

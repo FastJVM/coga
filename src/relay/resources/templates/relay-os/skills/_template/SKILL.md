@@ -1,28 +1,29 @@
 ---
-# `name` matches the directory path under skills/. Always namespaced.
-name: infra/testing-conventions
-# `description` is what create-suggest matches against when a new task
-# needs a workflow step skill. One sentence; concrete.
-description: How we write and run tests in this codebase.
+name: _template
+description: Starter SKILL.md. Copy this directory to skills/<namespace>/<your-skill>/ and replace this content. Skills are process knowledge — how to do a thing — and attach to workflow steps.
 ---
 
-# Testing conventions
+# Replace with your skill title
 
-<!--
-A skill is *process knowledge* — how to do something. It attaches to a
-workflow step, not to a ticket. Keep it short and declarative — agents
-do better with bullet points than long prose.
--->
+Skills are process knowledge. They attach to a workflow step and inline
+into the agent's prompt at launch time when the task reaches that step.
 
-- Tests live next to the code they test, in `*_test.py` files.
-- Use pytest. Prefer fixtures over setup/teardown.
-- Every bug fix gets a regression test first — make it fail, then fix.
-- Integration tests hit a real Postgres via `docker compose up test-db`.
-- Don't mock the database in integration tests.
+Write what an agent picking up this step needs to know. Short and
+declarative beats long and exhaustive.
 
-<!--
-If this skill ships with scripts, drop them next to SKILL.md and
-describe when they run. The agent invokes them directly during
-interactive/auto sessions; for `mode: script` tasks, `relay launch`
-runs the first executable script with secrets injected as env vars.
--->
+## When to use this
+
+Optional. Useful when the description alone is ambiguous.
+
+## How to do it
+
+- Bullet
+- Bullet
+- Bullet
+
+## Bundled scripts
+
+If this skill ships with scripts, drop them next to SKILL.md and describe
+when each is called. The agent invokes them during interactive/auto
+sessions; for `mode: script` tasks, `relay launch` runs the first
+executable script with secrets injected as env vars.
