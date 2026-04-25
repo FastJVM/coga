@@ -100,3 +100,23 @@ def test_check_recurring_skips_bad_template(repo: Path, capsys) -> None:
     created = check_recurring(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     assert len(created) == 1  # good one still created
     assert "skipping bad.md" in capsys.readouterr().err
+
+
+def test_check_recurring_skips_underscore_template(repo: Path, capsys) -> None:
+    # `_template.md` is a scaffold, not a live recurring task — must be ignored
+    # silently (no stderr complaint) even though its placeholder fields wouldn't
+    # validate.
+    _write(
+        repo / "recurring" / "_template.md",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: placeholder
+        project: missing-project
+        ---
+        """,
+    )
+    cfg = load_config(repo)
+    created = check_recurring(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    assert len(created) == 1  # only the real one
+    assert "_template.md" not in capsys.readouterr().err

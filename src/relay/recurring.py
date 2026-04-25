@@ -67,6 +67,9 @@ def check_recurring(cfg: Config, now: datetime | None = None) -> list[TaskRef]:
 
     created: list[TaskRef] = []
     for path in sorted(root.glob("*.md")):
+        if path.name.startswith("_"):
+            # Underscore-prefixed files are templates/scaffolds, not live recurring tasks.
+            continue
         try:
             template = Template.load(path)
         except RecurringError as exc:
