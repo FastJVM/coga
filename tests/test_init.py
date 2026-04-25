@@ -38,14 +38,26 @@ def test_init_into_empty_dir(tmp_path: Path) -> None:
     assert "version = 1" in (target / "relay-os" / "relay.toml").read_text()
 
 
-def test_init_refuses_non_empty(tmp_path: Path) -> None:
+def test_init_into_non_empty_dir_is_fine(tmp_path: Path) -> None:
+    target = tmp_path / "existing-repo"
+    target.mkdir()
+    (target / "README.md").write_text("hi")
+    (target / "src").mkdir()
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+    assert (target / "relay-os" / "relay.toml").is_file()
+    assert (target / "README.md").read_text() == "hi"
+
+
+def test_init_refuses_existing_relay_os(tmp_path: Path) -> None:
     target = tmp_path / "occupied"
     target.mkdir()
-    (target / "existing.txt").write_text("hi")
+    (target / "relay-os").mkdir()
 
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 2
-    assert "not empty" in result.output
+    assert "already exists" in result.output
 
 
 def test_init_creates_missing_dir(tmp_path: Path) -> None:
