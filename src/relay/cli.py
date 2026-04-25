@@ -6,6 +6,7 @@ import typer
 
 from relay.commands import create as create_cmd
 from relay.commands import feed as feed_cmd
+from relay.commands import init as init_cmd
 from relay.commands import launch as launch_cmd
 from relay.commands import panic as panic_cmd
 from relay.commands import status as status_cmd
@@ -18,6 +19,7 @@ app = typer.Typer(
     add_completion=False,
 )
 
+app.command("init")(init_cmd.init)
 app.command("create")(create_cmd.create)
 app.command("launch")(launch_cmd.launch)
 app.command("status")(status_cmd.status)

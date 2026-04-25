@@ -1,0 +1,39 @@
+version = 1
+
+# --- Projects ---
+# Each project is a location relay can launch tasks against.
+# type = "local" for in-repo work, "repo" for external git checkouts.
+
+# [projects.example]
+# type = "local"
+# default_status = "ready"
+
+# --- Agents ---
+# Agent types. Each defines the CLI binary and how to invoke it.
+
+[agents.claude]
+cli = "claude"
+interactive = "--append-system-prompt-file"
+auto = "-p"
+file = "CLAUDE.md"
+mode = "local"
+
+[agents.codex]
+cli = "codex"
+interactive = "exec"
+auto = "exec"
+file = "AGENTS.md"
+mode = "local"
+
+# --- Assignees ---
+# Humans, with their per-person agent nicknames.
+
+# [assignees.you]
+# agents = {"claude1" = "claude"}
+# slack = "U00000000"
+
+# --- Slack ---
+# Omit `webhook` to run without real Slack posts (messages go to stderr).
+
+# [slack]
+# webhook = "https://hooks.slack.com/services/xxx"
