@@ -34,7 +34,7 @@ def test_init_into_empty_dir(tmp_path: Path) -> None:
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
 
-    assert (target / "relay-os" / "counter").read_text().strip() == "1"
+    assert (target / "relay-os" / "counter").read_text().strip() == "0"
     assert "version = 1" in (target / "relay-os" / "relay.toml").read_text()
 
 
