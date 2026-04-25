@@ -13,7 +13,7 @@ This document describes what Relay is, why it works for us, and why it's hard to
 
 ## What this is
 
-Relay is not a product. It's how we run a company.
+Relay is not a product. It's how we run our company.
 
 The substrate is markdown files in a git repo. The tooling is a six-command CLI. The methodology is how we use both — what we automate, what we don't, how we encode knowledge, how we divide work between us and the agents.
 
@@ -43,7 +43,7 @@ A two-person technical team can produce the output of a ten-person team if three
 
 **Frontier models are cheap and getting cheaper.** Inference cost per task has dropped by orders of magnitude and continues to fall. Tasks that weren't economically automatable two years ago are now automatable at rounding-error cost.
 
-**Founder-encoded expertise compounds.** The person who understands the domain is the person encoding it. No translation layer, no onboarding loss, no tribal knowledge lost to turnover. Context written once is reusable forever and updatable at minutes of latency when the world changes.
+**Encoded expertise compounds.** The person who understands the domain is the person encoding it. No translation layer, no onboarding loss, no tribal knowledge lost to turnover. Context written once is reusable forever and updatable at minutes of latency when the world changes.
 
 **The break-even point for automation has moved an order of magnitude.** Tasks that took 20 hours to automate and saved 4 hours a month used to have five-year payback. Now the same task takes 5 hours to automate and saves the same 4 hours a month — payback measured in weeks. A whole class of previously-not-worth-it work becomes worth automating.
 
@@ -149,7 +149,7 @@ The methodology describes itself using its own primitives. Two meta-skills make 
 
 **Dream** is a recurring task that scans the repo and proposes improvements. Gaps in context coverage, workflows that should exist but don't, skills referenced but not written, contexts that contradict recent blackboards. It writes proposals; we accept or reject. The contexts stay current not because we maintain them on a schedule, but because the system surfaces gaps in the flow of work.
 
-**Create-suggest** is a skill that runs during task creation. Give it a title and description, it asks clarifying questions, proposes which contexts and workflows apply, and drafts the ticket. We review before confirming. Most of our task creation goes through this — it's how new work gets slotted into the existing substrate without us having to remember what's there.
+**Create** is a skill that runs during task creation. Give it a title and description, it asks clarifying questions, proposes which contexts and workflows apply, and drafts the ticket. We review before confirming. Most of our task creation goes through this — it's how new work gets slotted into the existing substrate without us having to remember what's there.
 
 Hofstadter spent *Gödel, Escher, Bach* arguing that strange loops — systems that contain representations of themselves and can reason about their own structure — are where interesting things happen. Relay isn't intelligent in any Hofstadter sense, but the pattern is similar at a workaday level: the system's rules are files, the files can be read by the same agents the rules govern, and the agents can propose changes to the rules they're about to follow. Dream is Relay reasoning about Relay, using Relay. Create-suggest is Relay extending Relay, from within Relay.
 
@@ -193,9 +193,9 @@ Each substitution has a tradeoff. Notion has a better UI. Linear has stronger co
 
 The methodology is published. The CLI is open source. Anyone can fork the repo. And yet:
 
-**The reset is the first barrier.** Most companies past 10 people can't rebuild around this without breaking things that work. Established process, existing SaaS subscriptions, tribal knowledge distributed across team members — these are assets at normal scale and liabilities when adopting a substrate like Relay. The window for adopting this closes as companies ossify. Founders at the right moment can; founders past it usually can't.
+**The reset is the first barrier.** Most companies can't rebuild around this without breaking things that work. Established process, existing SaaS subscriptions, tribal knowledge distributed across team members — these are assets at normal scale and liabilities when adopting a substrate like Relay. The window for adopting this closes as companies ossify. Founders at the right moment can; founders past it usually can't.
 
-**The encoded expertise is the second barrier.** Our context library is years of compiler work compressed into markdown. Forking Relay gets you the CLI, not the contexts. Another team building their own context library from scratch is doing the real work — the CLI is a tool in service of that work, not a substitute for it.
+**The encoded expertise is the second barrier.** Our context library is years of work compressed into markdown. Forking Relay gets you the CLI, not the contexts. Another team building their own context library from scratch is doing the real work — the CLI is a tool in service of that work, not a substitute for it.
 
 **The discipline is the third barrier.** Most teams adopt a methodology with enthusiasm and abandon it when maintenance friction compounds. The practices listed above look simple. Sustaining them for a year, then two, then five, while the company grows and priorities shift, is where most attempts fail. We haven't sustained them for five years yet — we've sustained them for six months. Ask us again in four years.
 
