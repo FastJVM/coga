@@ -1,0 +1,34 @@
+version = 1
+
+# --- Projects ---
+
+[projects.relay]
+type = "local"
+default_status = "ready"
+
+# --- Agents ---
+
+[agents.claude]
+cli = "claude"
+interactive = "--append-system-prompt-file"
+auto = "-p"
+file = "CLAUDE.md"
+mode = "local"
+
+[agents.codex]
+cli = "codex"
+interactive = "exec"
+auto = "exec"
+file = "AGENTS.md"
+mode = "local"
+
+# --- Assignees ---
+
+[assignees.nick]
+agents = {"claude1" = "claude", "codex1" = "codex"}
+
+# --- Slack ---
+# Omit `webhook` to run without real Slack posts (messages go to stderr).
+
+# [slack]
+# webhook = "https://hooks.slack.com/services/xxx"

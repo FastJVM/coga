@@ -13,15 +13,16 @@ import typer
 def init(
     path: Path = typer.Argument(
         Path("."),
-        help="Target directory. Created if missing. Must be empty.",
+        help="Target directory (created if missing). `relay-os/` is scaffolded inside it.",
     ),
 ) -> None:
-    """Copy the relay repo template into PATH."""
+    """Scaffold `relay-os/` inside PATH from the bundled template."""
     target = path.resolve()
+    relay_os = target / "relay-os"
 
-    if target.exists() and any(target.iterdir()):
+    if relay_os.exists():
         typer.secho(
-            f"{target} is not empty — refusing to overwrite.",
+            f"{relay_os} already exists — refusing to overwrite.",
             fg=typer.colors.RED,
             err=True,
         )
@@ -31,4 +32,9 @@ def init(
     with resources.as_file(template) as src:
         shutil.copytree(src, target, dirs_exist_ok=True)
 
-    typer.echo(f"Initialized relay repo at {target}")
+    typer.echo(f"Initialized relay repo at {relay_os}")
+    typer.echo("")
+    typer.echo("Next steps:")
+    typer.echo(f"  1. Edit {relay_os}/relay.toml — set your projects, agents, channels.")
+    typer.echo(f"  2. Optionally create relay.local.toml for paths and credentials.")
+    typer.echo(f"  3. Run `relay --help` to see what's available.")

@@ -81,11 +81,19 @@ class Config:
 
 
 def find_repo_root(start: Path | None = None) -> Path:
-    """Walk up from `start` (default cwd) until a `relay.toml` is found."""
+    """Walk up from `start` (default cwd) until a `relay.toml` is found.
+
+    Also descends into a sibling `relay-os/` subdir at each level — so
+    `relay` works from a company repo's root, not just from inside
+    `relay-os/`.
+    """
     cur = (start or Path.cwd()).resolve()
     for candidate in [cur, *cur.parents]:
         if (candidate / "relay.toml").is_file():
             return candidate
+        nested = candidate / "relay-os"
+        if (nested / "relay.toml").is_file():
+            return nested
     raise ConfigError(
         f"No relay.toml found in {cur} or any parent directory. "
         "Run `relay` from inside a Relay repo."
