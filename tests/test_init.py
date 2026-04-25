@@ -10,17 +10,17 @@ from relay.cli import app
 
 
 EXPECTED_FILES = {
-    ".gitignore",
-    "relay.toml",
-    "rules.md",
-    "context.md",
-    "counter",
-    "scripts/cron.sh",
-    "contexts/.gitkeep",
-    "skills/.gitkeep",
-    "workflows/.gitkeep",
-    "recurring/.gitkeep",
-    "tasks/.gitkeep",
+    "relay-os/.gitignore",
+    "relay-os/relay.toml",
+    "relay-os/rules.md",
+    "relay-os/context.md",
+    "relay-os/counter",
+    "relay-os/scripts/cron.sh",
+    "relay-os/contexts/.gitkeep",
+    "relay-os/skills/.gitkeep",
+    "relay-os/workflows/.gitkeep",
+    "relay-os/recurring/.gitkeep",
+    "relay-os/tasks/.gitkeep",
 }
 
 
@@ -34,8 +34,8 @@ def test_init_into_empty_dir(tmp_path: Path) -> None:
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
 
-    assert (target / "counter").read_text().strip() == "1"
-    assert "version = 1" in (target / "relay.toml").read_text()
+    assert (target / "relay-os" / "counter").read_text().strip() == "1"
+    assert "version = 1" in (target / "relay-os" / "relay.toml").read_text()
 
 
 def test_init_refuses_non_empty(tmp_path: Path) -> None:
@@ -54,4 +54,4 @@ def test_init_creates_missing_dir(tmp_path: Path) -> None:
 
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0, result.output
-    assert (target / "relay.toml").is_file()
+    assert (target / "relay-os" / "relay.toml").is_file()
