@@ -5,6 +5,11 @@ description: Starter SKILL.md. Copy this directory to skills/<namespace>/<your-s
 
 # Replace with your skill title
 
+This file follows the `SKILL.md` standard — the same format Claude Code
+and OpenAI Codex use. A relay skill IS a Claude Code skill IS a Codex
+skill. Zero proprietary extensions, so Anthropic's `skill-creator` (and
+any other tool that speaks SKILL.md) can author and edit these files.
+
 Skills are process knowledge. They attach to a workflow step and inline
 into the agent's prompt at launch time when the task reaches that step.
 

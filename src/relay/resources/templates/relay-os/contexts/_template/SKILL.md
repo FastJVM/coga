@@ -5,6 +5,11 @@ description: Starter context. Copy this directory to contexts/<namespace>/<your-
 
 # Replace with your context title
 
+This file follows the `SKILL.md` standard — the same format Claude Code
+and OpenAI Codex use. Contexts and skills share the format on purpose:
+zero proprietary extensions, and tools like Anthropic's `skill-creator`
+can author and edit these files directly.
+
 Contexts are domain knowledge. No process, no scripts. Tickets attach to
 contexts via the `contexts:` field; `relay launch` inlines this file
 into the prompt at launch time.

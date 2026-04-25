@@ -215,7 +215,7 @@ These are locked in. Not yet built, but the design is final.
 
 ### Skills
 
-Skills are knowledge. They follow the `SKILL.md` standard — the same format used by Claude Code and OpenAI Codex. A relay skill IS a Claude Code skill IS a Codex skill. Zero proprietary extensions.
+Skills are knowledge. They follow the `SKILL.md` standard — the same format used by Claude Code and OpenAI Codex. A relay skill IS a Claude Code skill IS a Codex skill. Zero proprietary extensions, which means tools that already speak SKILL.md — Anthropic's `skill-creator`, IDE skill browsers, anything else built around the standard — work on relay skills out of the box.
 
 A skill is a folder with a `SKILL.md` file and optionally scripts. Directory-namespaced at arbitrary depth: `relay-os/skills/<path>/SKILL.md`.
 
