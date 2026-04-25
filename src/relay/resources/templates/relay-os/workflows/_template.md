@@ -1,21 +1,32 @@
 ---
-name: your-namespace/your-workflow
-description: One sentence — the create-suggest skill reads this to decide whether to attach this workflow to a new task.
+# `name` matches the file path under workflows/ (without the .md).
+name: code/with-review
+# `description` is what create-suggest matches against when picking a
+# workflow for a new task. One sentence.
+description: Standard code workflow with PR and approval gate.
+# `steps` is the ordered sequence. Each step is either:
+#   - has a `skill:` ref → full skill content inlined when this step runs
+#   - has no skill → the agent reads the inline body section below with
+#     a `## <step-name>` heading
 steps:
-  - name: first-step
-    skill: your-namespace/some-skill   # optional — omit for inline-instruction steps
-  - name: second-step
-  - name: last-step
+  - name: implement
+    skill: infra/testing-conventions
+  - name: pr
+  - name: approve
+  - name: merge
 ---
 
-## first-step
-(Optional — only needed if this step has no `skill:` ref. The body
-heading must match the step name. One paragraph is plenty.)
+<!--
+Body sections below correspond 1:1 to steps without a `skill:` ref.
+The heading must match the step name. Keep them short — one paragraph
+each is plenty for inline instructions.
+-->
 
-## second-step
-Inline instruction for the agent at this step. Use this for self-explanatory
-work that doesn't justify a full skill file.
+## pr
+Create a branch, push, open a PR. Title the PR after the task title.
 
-## last-step
-Wrap-up. `relay step` past this step marks the task `done` and notifies
-Slack — there's no need for an explicit "close" step.
+## approve
+Review the PR. If changes are needed, comment and wait. If approved, advance.
+
+## merge
+Merge the PR and clean up the branch.

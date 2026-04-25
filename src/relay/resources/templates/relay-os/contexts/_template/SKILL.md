@@ -1,34 +1,35 @@
 ---
-name: your-namespace/your-context
-description: One sentence describing the slice of the world this context covers. Tickets attach to it via the `contexts:` field.
+# `name` matches the directory path under contexts/. Always namespaced.
+name: email/payment-flow
+# `description` is what create-suggest matches against when a new task
+# needs background knowledge. Keep it scoped — broad descriptions cause
+# over-attachment.
+description: How payment-related tasks interact with Stripe webhooks, retries, and idempotency.
 ---
 
-# Your context
+# Payment flow
 
-A context is **domain knowledge** — what's true about the world the task
-operates in. No process, no scripts. Pure knowledge.
+<!--
+A context is *domain knowledge* — what's true about the world the task
+operates in. No process, no scripts. Tickets attach to it via the
+`contexts:` field; `relay launch` inlines this file into the prompt.
 
-Contexts attach to **tickets** (not workflow steps). They're composed
-into the prompt at launch time so the agent picks up the task with the
-relevant background already loaded.
+Keep contexts under a page. If you find yourself adding a fourth
+top-level section, the context is conflating two domains — split it.
+-->
 
-## Scope
+## Retry behavior
 
-What this context covers and — equally important — what it doesn't.
-Long contexts (more than a page) usually mean two contexts have been
-conflated; split before that happens.
+- Stripe webhooks retry with exponential backoff: 1s, 5s, 30s, 5m, 30m, 2h.
+- On 429, respect `Retry-After`. Do not add your own backoff on top.
+- After six failed deliveries, Stripe stops retrying.
 
-## Facts the agent needs
+## Idempotency
 
-Bullet points or short paragraphs. Concrete, specific, dated when
-appropriate. Cite sources when citing matters.
+- Every webhook handler must be idempotent — Stripe may deliver twice.
+- Use `idempotency_key` on outgoing API calls (live in `lib/stripe/idempotent.py`).
 
-## Edge cases / gotchas
+## Edge cases
 
-Things that surprise the agent — payment retry timing, rate-limit
-behavior, vendor-specific quirks, undocumented conventions.
-
-## What this context does NOT cover
-
-(Optional but valuable.) Helps prevent agents from over-attaching this
-context to unrelated tasks.
+- Test clock events fire *immediately*; production clock events are queued.
+- Fraudster chargebacks often arrive 45-60 days after the original charge.

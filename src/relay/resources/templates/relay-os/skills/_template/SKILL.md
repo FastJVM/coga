@@ -1,33 +1,28 @@
 ---
-name: your-namespace/your-skill
-description: One sentence the agent (and the dream skill) will read to decide whether this skill applies. Be specific about when to use it.
+# `name` matches the directory path under skills/. Always namespaced.
+name: infra/testing-conventions
+# `description` is what create-suggest matches against when a new task
+# needs a workflow step skill. One sentence; concrete.
+description: How we write and run tests in this codebase.
 ---
 
-# Your skill
+# Testing conventions
 
-A skill is **process knowledge** — how to do something. Write what an
-agent picking this up needs to know to execute the step it's attached to.
+<!--
+A skill is *process knowledge* — how to do something. It attaches to a
+workflow step, not to a ticket. Keep it short and declarative — agents
+do better with bullet points than long prose.
+-->
 
-Skills attach to **workflow steps**, not to tickets. They flow into the
-prompt at launch time when the task reaches a step that references them.
+- Tests live next to the code they test, in `*_test.py` files.
+- Use pytest. Prefer fixtures over setup/teardown.
+- Every bug fix gets a regression test first — make it fail, then fix.
+- Integration tests hit a real Postgres via `docker compose up test-db`.
+- Don't mock the database in integration tests.
 
-## When to use this
-
-(Optional — but useful if the description alone doesn't make it obvious.)
-
-## How to do it
-
-Step-by-step or just prose. Match the style of the existing skills under
-`skills/` — short and direct beats long and exhaustive.
-
-## Edge cases
-
-(Optional — note anything subtle the agent might miss.)
-
-## Bundled scripts
-
-If this skill ships with scripts, list them here and explain when each is
-called. The agent invokes them directly during interactive/auto sessions.
-For `mode: script` tasks, `relay launch` runs the script with secrets
-injected as env vars — the workflow step's `skill:` ref must point at a
-skill that has a runnable script.
+<!--
+If this skill ships with scripts, drop them next to SKILL.md and
+describe when they run. The agent invokes them directly during
+interactive/auto sessions; for `mode: script` tasks, `relay launch`
+runs the first executable script with secrets injected as env vars.
+-->
