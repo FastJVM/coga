@@ -8,31 +8,7 @@ This document merges `relay-spec-v2` and all updates from `relay-spec-updates` i
 
 ```toml
 version = 1
-
-# --- Projects ---
-
-[projects.email-tool]
-type = "repo"
-remote = "git@github.com:company/email-tool.git"
 default_status = "ready"
-
-[projects.site]
-type = "repo"
-remote = "git@github.com:company/site.git"
-default_status = "ready"
-
-[projects.frontend]
-type = "repo"
-remote = "git@github.com:company/frontend.git"
-default_status = "ready"
-
-[projects.content]
-type = "local"
-default_status = "ready"
-
-[projects.ops]
-type = "local"
-default_status = "design"
 
 # --- Agents ---
 
@@ -90,13 +66,6 @@ webhook = "https://hooks.slack.com/services/xxx"
 ```toml
 user = "marc"
 
-[paths]
-email-tool = "~/projects/email-tool"
-site = "~/projects/site"
-frontend = "~/projects/frontend"
-content = "~/projects/content"
-ops = "~/projects/ops"
-
 [secrets]
 linkedin_token = "env:LINKEDIN_TOKEN"
 linkedin_person_id = "env:LINKEDIN_PERSON_ID"
@@ -106,84 +75,83 @@ reddit_client_secret = "env:REDDIT_CLIENT_SECRET"
 github_token = "env:GITHUB_TOKEN"
 ```
 
-Shared config has the what, local config has the where and the credentials.
+Shared config has the what, local config has the who-am-I and the credentials.
 
 ---
 
 ## Repo structure
 
-Relay is a company OS — one repo containing everything the company runs on: code workflows, content ops, research processes, finance tasks, agent skills. Everyone on the team has full read access. No ACLs, no siloing. This is an explicit architectural decision for small, high-trust teams: the overhead of access control costs more than it protects. Credentials never live in the repo (see `relay.local.toml`).
+Relay is a company OS — and **a Relay repo is one operational surface**. One repo per surface: a `code` repo for engineering work, an `admin` repo for legal/finance/hiring, a `company` repo for cross-cutting ops. Each one has its own `relay-os/` directory at the root and is independent — no federation, no cross-repo CLI commands, no shared task ID space. The CLI always operates on the relay-os/ in its working tree.
 
-Skills, workflows, and recurring templates all support arbitrary depth nesting. There is no fixed two-level `<domain>/<skill>` constraint — paths reflect the actual structure of your company's knowledge.
+Everything the surface runs on lives in that one repo: code workflows, content ops, research processes, finance tasks, agent skills, the work artifacts themselves. Everyone on the team has full read access. No ACLs, no siloing. This is an explicit architectural decision for small, high-trust teams: the overhead of access control costs more than it protects. Credentials never live in the repo (see `relay.local.toml`).
 
-```
-relay-os/
-  relay.toml
-  relay.local.toml          ← gitignored
-  rules.md                  ← global rules, inlined in every task
-  skills/
-    content/
-      brand-voice/SKILL.md
-      product-changelog/SKILL.md
-      linkedin/SKILL.md, post.py
-      reddit/SKILL.md, read-thread.py, reply.py
-    infra/
-      deployment/SKILL.md
-      auth/SKILL.md
-      testing-conventions/SKILL.md
-    email/
-      stripe-check/SKILL.md, check-failures.py
-    meta/
-      dream/SKILL.md
-      create-suggest/SKILL.md
-  contexts/
-    email/
-      deliverability/
-        dns/SKILL.md
-        SKILL.md
-      payment-flow/SKILL.md
-      stripe/SKILL.md
-    ops/
-      customer-tiers/SKILL.md
-  workflows/
-    code/
-      autonomous.md
-      with-review.md
-    content/
-      post.md
-      newsletter.md
-    admin/
-      accounting-reconciliation.md
-    ops.md
-  recurring/
-    weekly-deliverability-check.md
-    stripe-failed-payments.md
-    monthly-newsletter.md
-    post-deploy-health.md
-  scripts/
-    cron.sh                  ← entry point for system cron
-```
-
-> **Future consideration:** contractor access and per-domain ACLs are not designed for now. If the team grows to include external contributors or lower-trust roles, a submodule-per-domain strategy is the likely path — one architectural seam rather than a full permission system.
-
-> **Git as sync layer.** Git is the v1 sync mechanism — zero infrastructure, free versioning, works with existing developer workflows. This is a deliberate choice for small teams (2-5 people), not a permanent architectural commitment. At 10+ people or with real-time coordination needs, git push/pull becomes a bottleneck and merge conflicts on task files become frequent. A server-backed sync layer is the likely v2/v3 path. For now, conflicts are rare (see one-task-one-worker constraint) and manually resolved when they occur.
-
-### Project directory structure
+Skills, workflows, and recurring templates all support arbitrary depth nesting. There is no fixed two-level `<domain>/<skill>` constraint — paths reflect the actual structure of the surface's knowledge.
 
 ```
-~/projects/email-tool/
+~/work/code/                ← the repo IS the project
+  .git/
+  CLAUDE.md                 ← developer-owned, NOT overwritten by relay
+  [code files...]
   relay-os/
-    context.md              ← project base context
+    relay.toml              ← shared config (committed)
+    relay.local.toml        ← gitignored — user, secrets
+    rules.md                ← global rules, inlined in every task
+    context.md              ← repo-wide context, inlined in every task
     counter                 ← next task ID (plain integer, auto-incremented by relay create)
+    skills/
+      content/
+        brand-voice/SKILL.md
+        product-changelog/SKILL.md
+        linkedin/SKILL.md, post.py
+        reddit/SKILL.md, read-thread.py, reply.py
+      infra/
+        deployment/SKILL.md
+        auth/SKILL.md
+        testing-conventions/SKILL.md
+      email/
+        stripe-check/SKILL.md, check-failures.py
+      meta/
+        dream/SKILL.md
+        create-suggest/SKILL.md
+    contexts/
+      email/
+        deliverability/
+          dns/SKILL.md
+          SKILL.md
+        payment-flow/SKILL.md
+        stripe/SKILL.md
+      ops/
+        customer-tiers/SKILL.md
+    workflows/
+      code/
+        autonomous.md
+        with-review.md
+      content/
+        post.md
+        newsletter.md
+      admin/
+        accounting-reconciliation.md
+      ops.md
+    recurring/
+      weekly-deliverability-check.md
+      stripe-failed-payments.md
+      monthly-newsletter.md
+      post-deploy-health.md
     tasks/
       003-fix-retry-logic/
         ticket.md           ← assignee, status, workflow step, description, context
         log.md              ← append-only, written by CLI commands only
         blackboard.md       ← shared workspace (see below)
-        task.lock            ← serializes concurrent access
-  CLAUDE.md                 ← developer-owned, NOT overwritten by relay
-  [project files...]
+        task.lock           ← serializes concurrent access
+    scripts/
+      cron.sh               ← entry point for system cron
 ```
+
+> **Multi-surface companies.** A team running multiple operational surfaces just keeps multiple repos — one per surface. Cross-surface visibility happens through Slack (every repo's webhook can post into the same channel), not through the CLI. There's no `relay status --across-repos` or equivalent; if you want a unified view of work, the Slack feed is it.
+
+> **Future consideration:** contractor access and per-domain ACLs are not designed for now. If the team grows to include external contributors or lower-trust roles, a submodule-per-domain strategy is the likely path — one architectural seam rather than a full permission system.
+
+> **Git as sync layer.** Git is the v1 sync mechanism — zero infrastructure, free versioning, works with existing developer workflows. This is a deliberate choice for small teams (2-5 people), not a permanent architectural commitment. At 10+ people or with real-time coordination needs, git push/pull becomes a bottleneck and merge conflicts on task files become frequent. A server-backed sync layer is the likely v2/v3 path. For now, conflicts are rare (see one-task-one-worker constraint) and manually resolved when they occur.
 
 ---
 
@@ -195,7 +163,7 @@ relay-os/
 - It's easier to have a human manage KM — too important to leave to AI for recurring tasks and important ones
 - Once you have figured out KM, then it's context loading
 - Then it's task assignment + memory (for in between runs) and you want to move a task from an AI to a human and vice versa. Ticket is a good abstraction for that — it enriches the context
-- Agents have an owner — they're bound to a person, not to a project. A person can have multiple instances of the same agent type (e.g. two Claude Code sessions). Nicknames distinguish them. Dispatch key is always (user, nickname)
+- Agents have an owner — they're bound to a person, not to a repo. A person can have multiple instances of the same agent type (e.g. two Claude Code sessions). Nicknames distinguish them. Dispatch key is always (user, nickname)
 
 ---
 
@@ -203,9 +171,9 @@ relay-os/
 
 These are locked in. Not yet built, but the design is final.
 
-**Projects are locations.** Type (repo/local), remote URL, local path, default status. No skills or workflow config — those are per-task.
+**The repo is the project.** A Relay repo represents one operational surface. There is no `[projects.X]` block, no `--project` flag, no cross-repo task ID space. Multi-surface companies use multiple repos.
 
-**Agents are types.** An agent type defines cli binary, instruction file, and mode. `[agents.claude]` is the template — it says "Claude Code uses `claude` cli, reads `CLAUDE.md`, runs locally." Agent types are not tied to a person or project.
+**Agents are types.** An agent type defines cli binary, instruction file, and mode. `[agents.claude]` is the template — it says "Claude Code uses `claude` cli, reads `CLAUDE.md`, runs locally." Agent types are not tied to a person or repo.
 
 **Agent instances have an owner.** Each person owns named instances of agent types. Marc has "claude1" (type: claude), "claude2" (type: claude), "my IDE" (type: cursor). Pierre has "claude2" (type: claude), "goat" (type: copilot). Nicknames are per-person — no global collision. The dispatch key is always `(user, nickname)`. `relay launch claude1` resolves the current user from `relay.local.toml`, finds their "claude1", and uses the `claude` agent type config.
 
@@ -351,7 +319,7 @@ When a task uses `--workflow code/with-review`, it starts at step 1. `relay step
 
 A ticket has two independent state machines.
 
-**Control plane (status)** governs *whether* work happens — scheduling, prioritization, lifecycle. Universal across all projects. Same states everywhere.
+**Control plane (status)** governs *whether* work happens — scheduling, prioritization, lifecycle. Same states everywhere.
 
 | Status | Meaning |
 |---|---|
@@ -370,7 +338,7 @@ Transitions are not constrained by the system in v1 — any status can move to a
 - `active → design` (send back, needs rethinking)
 - `active → failed` / `active → canceled`
 
-Per-project config controls the default starting status via `default_status` in `relay.toml`.
+The default starting status comes from the top-level `default_status` field in `relay.toml` (defaults to `ready` if absent).
 
 **Data plane (workflow step)** governs *what* work happens — the sequence of steps to complete the task. Per-task, frozen from the workflow definition at creation time. Step only advances when status is `active`. Pausing freezes the step. Sending back to `design` does not reset the step.
 
@@ -555,7 +523,6 @@ assignee: claude1
 owner: marc
 contexts:
   - email/deliverability
-project: email-tool
 ---
 
 ## Description
@@ -584,7 +551,7 @@ The dream/drift validation script reads the `acquired` timestamp to detect stale
 
 **Agent instruction file.** Relay does not own or overwrite `CLAUDE.md` / `AGENTS.md` / `.cursorrules`. These files belong to the developer. Relay delivers composed context via CLI prompt injection at launch time — the agent receives everything it needs as a prompt argument, not by reading an instruction file. The instruction file is available as a fallback for agents that don't support CLI prompt injection (e.g. Cursor), in which case Relay appends a relay-managed section to the file.
 
-**Prompt composition.** `relay launch` builds a single composed prompt containing: global rules, project context, ticket contexts, current workflow step skill, and the blackboard. This prompt is written to a temp file and passed to the agent via the appropriate CLI flag. The temp file is cleaned up after the session ends (interactive) or the command exits (auto). 
+**Prompt composition.** `relay launch` builds a single composed prompt containing: global rules, repo context, ticket contexts, current workflow step skill, and the blackboard. This prompt is written to a temp file and passed to the agent via the appropriate CLI flag. The temp file is cleaned up after the session ends (interactive) or the command exits (auto). 
 
 **Three launch modes.** Tasks declare their mode in ticket frontmatter (`mode: interactive`, `mode: auto`, or `mode: script`). Interactive (default): human-attended session. Auto: autonomous execution — agent runs to completion without human input. Script: direct execution — no agent, just a script with secrets injected. See `relay launch` spec below.
 
@@ -692,7 +659,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 |---|---|
 | `relay create` | Scaffold a ticket, snapshot the workflow into frontmatter. Also checks recurring templates and creates any due tasks. |
 | `relay launch` | Compose prompt from all context, inject secrets, start work on a task. Handles all three modes: interactive, auto, and script. |
-| `relay status` | Show all active tasks across projects. One line per task: project, id, title, assignee, step, mode. |
+| `relay status` | Show all active tasks in this repo. One line per task: id, title, assignee, step, mode. |
 
 **Background** — what agents call (taught by the relay protocol system prompt):
 
@@ -717,7 +684,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 #### Behavior
 
 1. Resolve the current user from `relay.local.toml`.
-2. Look up the task in the specified project (or search across projects if unambiguous).
+2. Look up the task in `relay-os/tasks/` (the CLI always operates on the repo it's running inside).
 3. Read the `assignee` field from the ticket. Resolve the agent nickname in the user's `[assignees]` config to the agent type.
 4. Verify the task's `status` is `active`. Error if not.
 5. Load secrets from `relay.local.toml` `[secrets]` section. Resolve `env:VAR_NAME` references to actual values. These will be exported as environment variables into the launched process.
@@ -725,7 +692,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
    - Relay protocol system prompt (how to operate within Relay — see below)
    - Mode-specific protocol block (interactive vs. auto behavioral rules)
    - `relay-os/rules.md` (global rules)
-   - `relay-os/context.md` (project base context)
+   - `relay-os/context.md` (repo-wide context)
    - Contexts referenced in ticket frontmatter (inlined from `relay-os/contexts/`)
    - Inline context from ticket body (the `## Context` section)
    - Current workflow step skill (inlined from `relay-os/skills/` if the step has a `skill:` reference, otherwise the inline instruction from the workflow markdown)
@@ -737,7 +704,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
    - **Auto:** `{cli} {auto-flag} "$(cat /tmp/relay-<task-id>.md)"` — sends composed prompt, agent runs to completion. CLI waits for exit.
    - **Script:** No agent spawned. Reads the current workflow step's skill, finds the script, executes it directly with secrets injected as env vars. No prompt composition, no LLM token cost.
 10. Log the launch: append to `log.md` — `"launched in {mode} mode"`
-11. Post to Slack via `relay feed`: FYI — `marc's claude1 started work on email-tool 003 "Fix retry logic" (interactive)`
+11. Post to Slack via `relay feed`: FYI — `marc's claude1 started work on 003 "Fix retry logic" (interactive)`
 
 #### Composition order
 
@@ -746,7 +713,7 @@ The order is deliberate — it follows specificity:
 1. Relay protocol (how to operate — same for every task)
 2. Mode-specific block (interactive vs. auto behavioral rules)
 3. Global rules (broadest — apply to everything)
-4. Project context (project-level — apply to all tasks in this project)
+4. Repo context (apply to all tasks in this repo)
 5. Contexts (domain knowledge — scoped to this task type)
 6. Inline context (task-specific — one-off details for this exact task)
 7. Workflow step skill (process knowledge — what to do right now)
@@ -754,9 +721,9 @@ The order is deliberate — it follows specificity:
 
 Later content overrides earlier content when they conflict. The agent sees the most specific information last, which is where most LLMs place the highest weight. The protocol comes first because it's structural — it defines how the agent interacts with the system, not what it does. It should never be overridden by task-specific content.
 
-#### Multi-task per project
+#### Multi-task per repo
 
-`relay launch` requires `--task`. It launches exactly one task per invocation. If you have two active tasks in the same project, you launch them separately in separate terminal sessions.
+`relay launch` requires `--task`. It launches exactly one task per invocation. If you have two active tasks in the same repo, you launch them separately in separate terminal sessions.
 
 #### Errors
 
@@ -785,7 +752,7 @@ Example:
 relay panic --task 003 --reason "429 retry logic unclear, need decision on backoff ceiling"
 ```
 
-Slack: `@marc — email-tool 003 "Fix retry logic" — agent stuck: "429 retry logic unclear, need decision on backoff ceiling"`
+Slack: `@marc — 003 "Fix retry logic" — agent stuck: "429 retry logic unclear, need decision on backoff ceiling"`
 
 `--reason` is required.
 
@@ -878,7 +845,7 @@ The relay protocol lives at `relay-os/protocol.md` (base) and `relay-os/protocol
 
 **What:** A live activity feed in a shared Slack channel. Every state change across the company posts automatically. Humans get @mentioned when they need to act. Everything else is FYI.
 
-**Why:** Agents work asynchronously. Humans need to know when something needs their attention (review, approve, unblock) and what their agents have been doing. The Slack channel is the primary awareness layer — a scrollable timeline of everything happening across all projects.
+**Why:** Agents work asynchronously. Humans need to know when something needs their attention (review, approve, unblock) and what their agents have been doing. The Slack channel is the primary awareness layer — a scrollable timeline of everything happening across all the repos a team operates. Multiple repos can post into the same channel; that's the cross-surface view.
 
 ### Design principles
 
@@ -918,18 +885,20 @@ To @mention users, the CLI needs a mapping from relay usernames to Slack user ID
 ### Message format examples
 
 ```
-@marc — email-tool 003 "Fix retry logic" needs your attention (approve, step 3)
+@marc — 003 "Fix retry logic" needs your attention (approve, step 3)
 
-marc's claude1 completed step 2 (pr) on email-tool 003 "Fix retry logic"
+marc's claude1 completed step 2 (pr) on 003 "Fix retry logic"
 
-New task: content 005 "LinkedIn post retry logic" assigned to marc (workflow: content/post)
+New task: 005 "LinkedIn post retry logic" assigned to marc (workflow: content/post)
 
-marc's claude1: pushed branch, opened PR #142 (email-tool 003)
+marc's claude1: pushed branch, opened PR #142 (003)
 
-email-tool 003 "Fix retry logic" done ✓
+003 "Fix retry logic" done ✓
 
-@marc — email-tool 003 "Fix retry logic" — agent stuck: "429 retry logic unclear"
+@marc — 003 "Fix retry logic" — agent stuck: "429 retry logic unclear"
 ```
+
+Each repo's webhook can point at the same channel — the source repo isn't part of the message format, so if cross-surface disambiguation matters, include it in the channel name (`#admin-relay`, `#code-relay`) or in the slack app config rather than in every message.
 
 ---
 
@@ -951,7 +920,7 @@ Every CLI command can fail. The spec describes happy paths — this section defi
 | `relay launch` with `mode: script` exits non-zero | Log the failure to log.md. Post to Slack. Task stays at current step. |
 | `relay step` on a non-active task | Error. Task must be `active` to advance. |
 | `relay create` with missing context/skill references | Error. List the missing references. Do not create the task. |
-| `relay create` with missing project path | Error. The project path in `relay.local.toml` must exist. |
+| `relay create` outside a `relay-os/` tree | Error. The CLI requires a `relay-os/` somewhere in an ancestor directory. |
 | `git push` rejected | Show the git error. Suggest `git pull --rebase` then retry. Do not auto-resolve. |
 
 Note: `relay step` on the last step is not an error — it marks the task `done` and notifies. See `relay step` spec.
@@ -962,8 +931,8 @@ Note: `relay step` on the last step is not an error — it marks the task `done`
 
 Items to evaluate after v1 is built and used. Not designed yet.
 
-1. **Per-project control plane workflows.** The universal status list (design, ready, active, etc.) could become an editable state graph per project — same workflow primitive as the data plane, but with branches and backward edges. Requires extending the workflow format to support non-linear graphs.
-2. **Priority / ordering.** Skipped for v1. If 15+ active tasks across projects makes it hard to know what to work on next, add then.
+1. **Per-repo control plane workflows.** The universal status list (design, ready, active, etc.) could become an editable state graph per repo — same workflow primitive as the data plane, but with branches and backward edges. Requires extending the workflow format to support non-linear graphs.
+2. **Priority / ordering.** Skipped for v1. If 15+ active tasks in a repo makes it hard to know what to work on next, add then.
 3. **Real Slack app.** Bot token with `chat:write` + `users:read` scopes for DMs instead of shared channel @mentions.
 4. **Fully autonomous agent chains.** Agent-to-agent handoff: when agent A completes its step and the next step is assigned to agent B, auto-trigger `relay launch` for B. Requires lifting the `reassign`-to-agent restriction. Depends on v1 learnings about how often multi-agent chains actually occur.
 5. **System-prompt-level injection for Codex/OpenCode.** Currently `interactive` and `auto` use the same subcommand for these tools because they lack `--system-prompt` flags. When these tools add them, update agent config to prefer system-level injection.
@@ -972,6 +941,8 @@ Items to evaluate after v1 is built and used. Not designed yet.
 ---
 
 ## Removed
+
+**Multi-project federation** — removed. Earlier drafts of the spec had `[projects.<name>]` blocks in `relay.toml`, a `[paths]` section in `relay.local.toml` mapping each project name to a separate filesystem location, a `--project` flag on every CLI command, and `project/id-slug` task references. In practice every repo only ever declared one project — the federation primitive was overhead for a 1-of-1 dimension. The new model: **the repo IS the project.** A team running multiple operational surfaces uses multiple repos, one `relay-os/` per repo, and gets a unified view via Slack (every repo's webhook can post into the same channel) rather than via a CLI federation layer. `default_status` moves from per-project to a top-level field in `relay.toml`.
 
 **`relay inbox`** — removed. The Slack feed is the notification layer. No local inbox command.
 
@@ -989,7 +960,7 @@ Items to evaluate after v1 is built and used. Not designed yet.
 
 **`relay log`** — removed from CLI. Log entries are written by CLI commands as internal side effects. Agents and humans do not write to `log.md` directly — use the blackboard's Notes section for unstructured observations.
 
-**`relay status`** — moved to convenience command. Shows one-line-per-task summary across projects.
+**`relay status`** — moved to convenience command. Shows one-line-per-task summary for the current repo.
 
 **`relay run`** — removed. Absorbed into `relay launch`. Script execution is handled by `mode: script` — `relay launch` reads the step's skill, finds the script, runs it directly with secrets injected as env vars. No separate command needed; the agent calls scripts natively during interactive/auto sessions.
 
@@ -1020,13 +991,13 @@ No detailed behavior spec. Now also absorbs recurring template checking. Open qu
 
 #### ~~Task ID generation~~ — resolved
 
-Per-project auto-increment. Each project directory has a `relay-os/counter` file containing the next task ID as a plain integer. `relay create` reads, increments, and writes this file atomically (file lock around the read-write). Format: `003-fix-retry-logic` — zero-padded to 3 digits, slug auto-generated from title (lowercase, hyphens, truncated to 50 chars). The ID is stable — used in branch names (`relay/003-fix-retry-logic`), Slack messages, and cross-references. Concurrent creation collisions are handled by the same lockfile used for the counter read-write — second caller waits.
+Per-repo auto-increment. Each `relay-os/` has a `counter` file containing the next task ID as a plain integer. `relay create` reads, increments, and writes this file atomically (file lock around the read-write). Format: `003-fix-retry-logic` — zero-padded to 3 digits, slug auto-generated from title (lowercase, hyphens, truncated to 50 chars). The ID is stable — used in branch names (`relay/003-fix-retry-logic`), Slack messages, and cross-references. Concurrent creation collisions are handled by the same lockfile used for the counter read-write — second caller waits.
 
 #### `relay create` CLI interface
 
 The command's arguments are not defined. Open questions:
 
-- What's the invocation? `relay create --project email-tool --workflow code/with-review --title "Fix retry logic"`? Interactive prompts? A mix?
+- What's the invocation? `relay create --workflow code/with-review --title "Fix retry logic"`? Interactive prompts? A mix?
 - Which arguments are required vs. optional?
 - The create-with-suggestions skill implies a conversational post-create flow, but the base command needs a defined argument interface before that can layer on top.
 
@@ -1077,12 +1048,11 @@ When `relay step` advances to a step where a different person should take over (
 
 #### `relay status` — detailed behavior
 
-Listed as a foreground command but has no spec beyond "show all active tasks across projects." Open questions:
+Listed as a foreground command but has no spec beyond "show all active tasks in this repo." Open questions:
 
 - What does the output look like? Columns, formatting?
-- Does it scan all projects or just the current one?
-- Filters: by project, by assignee, by status?
-- Sorting: by project, by recency, by status?
+- Filters: by assignee, by status?
+- Sorting: by recency, by status?
 - Does it show only `active` tasks, or all non-done tasks?
 
 #### `relay feed` — detailed behavior
@@ -1090,7 +1060,7 @@ Listed as a foreground command but has no spec beyond "show all active tasks acr
 Listed as a background command but has no spec beyond the protocol description. Open questions:
 
 - Does it require `--task`? (Likely yes — agent is always working on a task.)
-- Does the message format include task/project context automatically, or does it post the raw string?
+- Does the message format include task context automatically, or does it post the raw string?
 - Is there a character limit?
 
 #### Script mode execution path
@@ -1098,17 +1068,17 @@ Listed as a background command but has no spec beyond the protocol description. 
 `relay launch` with `mode: script` says "finds the script, executes it directly." The error table covers "no script found" but the happy path is thin. Open questions:
 
 - How does it find the script — first executable in the skill directory? A `script` field in the skill frontmatter?
-- What's the working directory — the project root? The task directory?
+- What's the working directory — the repo root? The task directory?
 - What if the step has inline instructions instead of a `skill:` reference — is that an error for script mode?
 - Exit code handling beyond non-zero = failure?
 
-#### Project / task resolution
+#### Task resolution
 
-`relay launch` says "search across projects if unambiguous." Open questions:
+Open questions on how `--task` is parsed across commands:
 
-- Is `--task` just the numeric ID, or `project/id`?
-- What's the error message on ambiguity — does it list the colliding tasks?
-- Do other commands (`relay step`, `relay panic`, `relay feed`) also need `--task`, and do they resolve the same way? Or do they infer the task from the current working directory / active session?
+- Accept just the numeric ID (`003`), the slug (`fix-retry-logic`), or the full id-slug (`003-fix-retry-logic`)?
+- What's the error message on ambiguity (e.g. multiple tasks whose slug starts with `fix-`)?
+- Should `relay step`, `relay panic`, `relay feed` infer the task from the current working directory (e.g. when invoked from inside `relay-os/tasks/003-…/`) instead of always requiring `--task`?
 
 ### Can defer — resolve during or after 3-month internal use
 
@@ -1118,9 +1088,9 @@ Listed as a background command but has no spec beyond the protocol description. 
 - Is there a prune or archive command? Auto-cleanup after N days?
 - Will know what's needed after 3 months of use.
 
-#### `relay init` / `relay project add`
+#### `relay init`
 
-- Setup commands. Not spec'd beyond listing.
+- Setup command. Not spec'd in detail beyond listing.
 - Manual repo setup works for v1.
 
 #### Task dependencies
