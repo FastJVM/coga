@@ -156,6 +156,11 @@ def _read_toml(path: Path) -> dict:
 
 
 def _parse_projects(raw: dict, paths: dict, repo_root: Path) -> dict[str, Project]:
+    # When relay.toml lives in a `relay-os/` subdir, a `local` project with no
+    # explicit [paths] entry defaults to the dir that contains relay-os/ — i.e.
+    # the company repo itself. Lets `relay create` work after `relay init`
+    # without hand-editing relay.local.toml.
+    default_local = repo_root.parent if repo_root.name == "relay-os" else None
     out: dict[str, Project] = {}
     for name, data in raw.items():
         ptype = data.get("type")
@@ -165,6 +170,8 @@ def _parse_projects(raw: dict, paths: dict, repo_root: Path) -> dict[str, Projec
         if path_str:
             expanded = Path(path_str).expanduser()
             path = expanded if expanded.is_absolute() else (repo_root / expanded).resolve()
+        elif ptype == "local":
+            path = default_local
         else:
             path = None
         out[name] = Project(
