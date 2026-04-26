@@ -375,10 +375,11 @@ def test_init_writes_pin_file(
 
 def test_version_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """`relay --version` prints the package version and (when present) the pin."""
+    # chdir somewhere with no relay-os/ so `find_repo_root` returns nothing.
+    monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(app, ["--version"])
     assert result.exit_code == 0, result.output
     assert "relay " in result.output
-    # In test env (no pinned relay-os/), pin line is absent.
     assert "vendored from upstream" not in result.output
 
 

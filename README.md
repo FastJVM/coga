@@ -9,17 +9,40 @@ quickstart + a one-screen reference for each CLI command.
 
 ## Install
 
+Not yet on PyPI. Bootstrap from the source repo:
+
 ```sh
-pip install relay-os                # global install
-relay init mycompany                # scaffolds mycompany/relay-os/
-cd mycompany
-# edit relay-os/relay.toml + relay-os/relay.local.toml
-relay create --project mycompany --title "First task"
+git clone https://github.com/FastJVM/relay
+cd relay
+python -m pip install -e .
 ```
 
-`relay init` also vendors a self-contained copy of the CLI into
-`relay-os/.relay/`, so even if your global install drifts, every contributor
-runs the same version. Refresh it with `relay init --update`.
+That puts `relay` on your PATH against the source. Once it's there, the
+normal flow is to **`relay init` your operational repos** — typically one
+per operational surface (e.g. `admin`, `company`, `code`):
+
+```sh
+relay init ~/work/admin                # scaffolds ~/work/admin/relay-os/
+relay init ~/work/code                 # ditto for the code repo
+```
+
+Each `relay init` also vendors a self-contained copy of the CLI into that
+repo's `relay-os/.relay/` (with its own venv), so contributors and agents
+working in the repo share one pinned version regardless of what's globally
+installed. Refresh it later with `relay init --update`.
+
+After init, edit the freshly-written `relay-os/relay.toml` to declare your
+projects, agents, and assignees, and set `user = "<you>"` in
+`relay-os/relay.local.toml`. Then create your first task:
+
+```sh
+relay create --project <project-name> --title "First task"
+```
+
+`--project` refers to a `[projects.<name>]` block in `relay.toml`, **not**
+the directory name. A single `relay-os/` can host multiple projects — e.g.
+an `admin` repo's `relay.toml` might declare `[projects.legal]`,
+`[projects.finance]`, `[projects.hiring]`.
 
 ## Layout
 
