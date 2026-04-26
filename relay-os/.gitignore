@@ -3,3 +3,6 @@ relay.local.toml
 
 # Task locks — local file-existence locks, not meant to be shared.
 **/task.lock
+
+# Vendored CLI — managed by `relay update`, refreshed from upstream.
+.relay/
