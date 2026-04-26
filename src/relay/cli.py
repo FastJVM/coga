@@ -11,6 +11,7 @@ from relay.commands import launch as launch_cmd
 from relay.commands import panic as panic_cmd
 from relay.commands import status as status_cmd
 from relay.commands import step as step_cmd
+from relay.commands import update as update_cmd
 
 app = typer.Typer(
     name="relay",
@@ -20,6 +21,7 @@ app = typer.Typer(
 )
 
 app.command("init")(init_cmd.init)
+app.command("update")(update_cmd.update)
 app.command("create")(create_cmd.create)
 app.command("launch")(launch_cmd.launch)
 app.command("status")(status_cmd.status)
