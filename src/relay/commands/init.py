@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -23,7 +24,9 @@ from relay.commands.update import (
     install_venv,
     refresh_cli,
     refresh_templates,
+    upstream_sha,
     write_bin_wrapper,
+    write_pin,
 )
 from relay.config import find_repo_root
 
@@ -90,19 +93,26 @@ def _do_init(path: Path) -> None:
 
         shutil.copytree(upstream_templates, relay_os)
         refresh_cli(clone_dir, relay_os)
+        sha = upstream_sha(clone_dir)
 
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
+    write_pin(relay_os, sha)
 
     local_toml = relay_os / "relay.local.toml"
     local_toml.write_text(LOCAL_TOML_TEMPLATE)
 
     bin_dir = relay_os / ".relay" / "bin"
     shim = _try_install_shim(bin_dir / "relay")
+    commit_sha = _git_commit_relay_os(target, relay_os)
 
     typer.echo("")
     typer.echo(f"Initialized relay repo at {relay_os}")
     typer.echo(f"Wrote {local_toml} (set `user` to your assignee name).")
+    if sha is not None:
+        typer.echo(f"Pinned to upstream {sha[:12]}.")
+    if commit_sha is not None:
+        typer.echo(f"Committed relay-os/ as {commit_sha[:12]} (push when ready).")
     typer.echo("")
     typer.echo("Next steps:")
     if shim is not None:
@@ -122,12 +132,16 @@ def _do_update() -> None:
         clone_dir = clone_upstream(Path(tmp) / "repo")
         refresh_cli(clone_dir, relay_os)
         copied = refresh_templates(clone_dir, relay_os)
+        sha = upstream_sha(clone_dir)
 
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
+    write_pin(relay_os, sha)
 
     typer.echo("")
     typer.echo(f"Refreshed CLI at {relay_os / '.relay'}")
+    if sha is not None:
+        typer.echo(f"Pinned to upstream {sha[:12]}.")
     if copied:
         typer.echo(f"Refreshed {len(copied)} template file(s):")
         for rel in copied:
@@ -152,6 +166,45 @@ def _try_install_shim(wrapper: Path) -> Path | None:
     except OSError:
         return None
     return target
+
+
+def _git_commit_relay_os(target: Path, relay_os: Path) -> str | None:
+    """If `target` is a git repo, stage relay-os/ and commit. Don't push.
+
+    Returns the new commit SHA on success, None if we skipped (not a git repo,
+    nothing to stage, or git invocation failed). Never raises.
+    """
+    if not (target / ".git").exists():
+        return None
+    try:
+        subprocess.run(
+            ["git", "-C", str(target), "add", "--", "relay-os"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        # Anything actually staged?
+        diff = subprocess.run(
+            ["git", "-C", str(target), "diff", "--cached", "--quiet"],
+            capture_output=True,
+        )
+        if diff.returncode == 0:
+            return None
+        subprocess.run(
+            ["git", "-C", str(target), "commit", "-m", "Scaffold relay-os via `relay init`"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        rev = subprocess.run(
+            ["git", "-C", str(target), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return rev.stdout.strip() or None
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
 
 
 def _on_path(directory: Path) -> bool:

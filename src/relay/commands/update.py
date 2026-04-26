@@ -38,6 +38,44 @@ def clone_upstream(into: Path) -> Path:
     return into
 
 
+def upstream_sha(clone_dir: Path) -> str | None:
+    """Return the HEAD SHA of `clone_dir`, or None if `git rev-parse` fails."""
+    result = subprocess.run(
+        ["git", "-C", str(clone_dir), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    sha = result.stdout.strip()
+    return sha or None
+
+
+def write_pin(relay_os: Path, sha: str | None) -> Path | None:
+    """Record the upstream commit `relay-os/.relay/` was vendored from.
+
+    Skips the write if `sha` is None (clone-without-git in tests, mostly).
+    Returns the pin path on success.
+    """
+    if sha is None:
+        return None
+    pin = relay_os / ".relay" / "RELAY_PIN"
+    pin.parent.mkdir(parents=True, exist_ok=True)
+    pin.write_text(f"{RELAY_REPO_URL}\n{sha}\n")
+    return pin
+
+
+def read_pin(relay_os: Path) -> str | None:
+    """Return the pinned upstream SHA from `.relay/RELAY_PIN`, or None if absent/garbled."""
+    pin = relay_os / ".relay" / "RELAY_PIN"
+    if not pin.is_file():
+        return None
+    lines = [line.strip() for line in pin.read_text().splitlines() if line.strip()]
+    if len(lines) < 2:
+        return None
+    return lines[1]
+
+
 def refresh_cli(clone_dir: Path, relay_os: Path) -> None:
     """Replace `relay-os/.relay/src/relay/` (+ pyproject + requirements) from the clone."""
     src = clone_dir / CLI_SRC_SUBPATH
