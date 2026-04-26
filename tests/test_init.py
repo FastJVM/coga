@@ -186,7 +186,9 @@ def test_init_skips_shim_when_target_exists(
     fake_home = tmp_path / "home"
     local_bin = fake_home / ".local" / "bin"
     local_bin.mkdir(parents=True)
-    (local_bin / "relay").write_text("# pre-existing\n")
+    pre_existing = local_bin / "relay"
+    pre_existing.write_text("#!/bin/sh\n# pre-existing\n")
+    pre_existing.chmod(0o755)
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setenv("PATH", f"{local_bin}:/usr/bin")
 
@@ -194,9 +196,12 @@ def test_init_skips_shim_when_target_exists(
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0, result.output
 
-    # Pre-existing file untouched, instructions fall back to PATH export.
-    assert (local_bin / "relay").read_text() == "# pre-existing\n"
-    assert "Add the bin dir to your PATH" in result.output
+    # Pre-existing file untouched and we don't nag the user about PATH —
+    # `shutil.which` finds their existing `relay`, so init confirms that
+    # instead of telling them to munge PATH.
+    assert pre_existing.read_text() == "#!/bin/sh\n# pre-existing\n"
+    assert "Add the bin dir to your PATH" not in result.output
+    assert "is already on your PATH at" in result.output
 
 
 def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_clone, fake_venv) -> None:

@@ -27,9 +27,17 @@ relay init ~/work/code                 # ditto for the code repo
 ```
 
 Each `relay init` also vendors a self-contained copy of the CLI into that
-repo's `relay-os/.relay/` (with its own venv), so contributors and agents
-working in the repo share one pinned version regardless of what's globally
-installed. Refresh it later with `relay init --update`.
+repo's `relay-os/.relay/` (with its own venv). It exists for two things:
+**bootstrap** — a fresh contributor who clones the repo can run it without
+`pip install`-ing anything — and as a known-good copy that agents can
+target. Refresh it later with `relay init --update`.
+
+Day-to-day, your *global* `relay` is what runs. We deliberately don't
+auto-activate the vendored copy per-repo (no PATH munging, no rbenv-style
+re-exec): with multiple operational repos that quickly turns into a mess of
+"which `.relay/.venv/bin/relay` won the PATH race?". The tradeoff is that
+relay assumes everyone keeps their global install reasonably current — a
+periodic `git pull && pip install -e .` in the source repo is enough.
 
 After init, edit the freshly-written `relay-os/relay.toml` to declare your
 projects, agents, and assignees, and set `user = "<you>"` in
