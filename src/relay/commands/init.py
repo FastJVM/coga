@@ -1,4 +1,11 @@
-"""`relay init` — scaffold a new relay repo from upstream."""
+"""`relay init` — scaffold a new relay repo, or refresh an existing one.
+
+Default mode (`relay init`) writes everything from scratch into `<path>/relay-os/`
+and refuses to overwrite if it already exists. `--update` mode refreshes the
+vendored CLI in `.relay/` and any `_*` template scaffolds, leaving user-edited
+config (`relay.toml`, `rules.md`, etc.) untouched. Both modes (re)build the
+self-contained venv that backs the `relay` console script.
+"""
 
 from __future__ import annotations
 
@@ -13,8 +20,12 @@ import typer
 from relay.commands.update import (
     TEMPLATE_SUBPATH,
     clone_upstream,
+    install_venv,
     refresh_cli,
+    refresh_templates,
+    write_bin_wrapper,
 )
+from relay.config import find_repo_root
 
 
 LOCAL_TOML_TEMPLATE = """\
@@ -33,16 +44,31 @@ user = ""
 def init(
     path: Path = typer.Argument(
         Path("."),
-        help="Target directory (created if missing). `relay-os/` is scaffolded inside it.",
+        help=(
+            "Target dir for fresh init (created if missing). "
+            "Ignored under --update — refreshes the current relay-os/."
+        ),
+    ),
+    update: bool = typer.Option(
+        False,
+        "--update",
+        help="Refresh vendored CLI + `_*` templates in the current relay-os/. Leaves user config alone.",
     ),
 ) -> None:
-    """Scaffold `relay-os/` inside PATH from upstream."""
+    """Scaffold `relay-os/` from upstream, or refresh it with --update."""
+    if update:
+        _do_update()
+    else:
+        _do_init(path)
+
+
+def _do_init(path: Path) -> None:
     target = path.resolve()
     relay_os = target / "relay-os"
 
     if relay_os.exists():
         typer.secho(
-            f"{relay_os} already exists — refusing to overwrite.",
+            f"{relay_os} already exists — use `relay init --update` to refresh.",
             fg=typer.colors.RED,
             err=True,
         )
@@ -65,6 +91,9 @@ def init(
         shutil.copytree(upstream_templates, relay_os)
         refresh_cli(clone_dir, relay_os)
 
+    install_venv(relay_os)
+    write_bin_wrapper(relay_os / ".relay" / "bin")
+
     local_toml = relay_os / "relay.local.toml"
     local_toml.write_text(LOCAL_TOML_TEMPLATE)
 
@@ -76,16 +105,33 @@ def init(
     typer.echo(f"Wrote {local_toml} (set `user` to your assignee name).")
     typer.echo("")
     typer.echo("Next steps:")
-    typer.echo(f"  1. Install Python deps for the vendored CLI (one-time):")
-    typer.echo(f"       pip install -r {relay_os / '.relay' / 'requirements.txt'}")
     if shim is not None:
-        typer.echo(f"  2. `relay` is on your PATH via {shim}.")
+        typer.echo(f"  1. `relay` is on your PATH via {shim}.")
     else:
-        typer.echo(f"  2. Add the bin dir to your PATH so `relay` runs from this repo:")
+        typer.echo(f"  1. Add the bin dir to your PATH so `relay` runs from this repo:")
         typer.echo(f"       export PATH=\"{bin_dir}:$PATH\"")
-    typer.echo(f"  3. Edit {relay_os}/relay.toml — set your projects, agents, channels.")
-    typer.echo(f"  4. Set `user` in {local_toml} to match an [assignees.x] in relay.toml.")
-    typer.echo(f"  5. Run `relay --help` to see what's available.")
+    typer.echo(f"  2. Edit {relay_os}/relay.toml — set your projects, agents, channels.")
+    typer.echo(f"  3. Set `user` in {local_toml} to match an [assignees.x] in relay.toml.")
+    typer.echo(f"  4. Run `relay --help` to see what's available.")
+
+
+def _do_update() -> None:
+    relay_os = find_repo_root()
+
+    with tempfile.TemporaryDirectory(prefix="relay-init-update-") as tmp:
+        clone_dir = clone_upstream(Path(tmp) / "repo")
+        refresh_cli(clone_dir, relay_os)
+        copied = refresh_templates(clone_dir, relay_os)
+
+    install_venv(relay_os)
+    write_bin_wrapper(relay_os / ".relay" / "bin")
+
+    typer.echo("")
+    typer.echo(f"Refreshed CLI at {relay_os / '.relay'}")
+    if copied:
+        typer.echo(f"Refreshed {len(copied)} template file(s):")
+        for rel in copied:
+            typer.echo(f"  {rel}")
 
 
 def _try_install_shim(wrapper: Path) -> Path | None:

@@ -1,4 +1,8 @@
-"""`relay update` — refresh the vendored CLI + `_template` scaffolds from upstream."""
+"""Bootstrap helpers used by `relay init` (with or without --update).
+
+Pulls upstream into `relay-os/.relay/` and stands up the self-contained venv
+the vendored CLI runs out of. No Typer commands live here.
+"""
 
 from __future__ import annotations
 
@@ -10,29 +14,10 @@ from pathlib import Path
 
 import typer
 
-from relay.config import find_repo_root
-
 
 RELAY_REPO_URL = "https://github.com/FastJVM/relay"
 TEMPLATE_SUBPATH = Path("src/relay/resources/templates/relay-os")
 CLI_SRC_SUBPATH = Path("src/relay")
-
-
-def update() -> None:
-    """Pull the latest CLI + `_template` scaffolds from upstream into relay-os/."""
-    relay_os = find_repo_root()
-
-    with tempfile.TemporaryDirectory(prefix="relay-update-") as tmp:
-        clone_dir = clone_upstream(Path(tmp) / "repo")
-        refresh_cli(clone_dir, relay_os)
-        copied = refresh_templates(clone_dir, relay_os)
-
-    typer.echo("")
-    typer.echo(f"Refreshed CLI at {relay_os / '.relay'}")
-    if copied:
-        typer.echo(f"Refreshed {len(copied)} template file(s):")
-        for rel in copied:
-            typer.echo(f"  {rel}")
 
 
 def clone_upstream(into: Path) -> Path:
@@ -54,10 +39,7 @@ def clone_upstream(into: Path) -> Path:
 
 
 def refresh_cli(clone_dir: Path, relay_os: Path) -> None:
-    """Replace `relay-os/.relay/src/relay/` with the version from the clone.
-
-    Also writes the `bin/relay` wrapper so the CLI is callable from PATH.
-    """
+    """Replace `relay-os/.relay/src/relay/` (+ pyproject + requirements) from the clone."""
     src = clone_dir / CLI_SRC_SUBPATH
     if not src.is_dir():
         typer.secho(
@@ -79,8 +61,6 @@ def refresh_cli(clone_dir: Path, relay_os: Path) -> None:
         if upstream_file.is_file():
             shutil.copy2(upstream_file, dst_relay / fname)
 
-    write_bin_wrapper(dst_relay / "bin")
-
 
 def refresh_templates(clone_dir: Path, relay_os: Path) -> list[str]:
     """Refresh `_*` scaffolds under `relay_os/` from the clone."""
@@ -96,16 +76,70 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> list[str]:
 
 
 def write_bin_wrapper(bin_dir: Path) -> None:
-    """Drop `bin/relay` — execs `python3 -m relay` against the vendored source."""
+    """Drop `bin/relay` — a relative symlink to the venv's `relay` console script.
+
+    Resolved chain at runtime: `<.relay>/bin/relay` → `<.relay>/.venv/bin/relay`,
+    whose pip-generated shebang points at `<.relay>/.venv/bin/python`. Works even
+    when `bin/relay` itself is reached via another symlink (e.g. `~/.local/bin`).
+    """
     bin_dir.mkdir(parents=True, exist_ok=True)
     wrapper = bin_dir / "relay"
-    wrapper.write_text(
-        '#!/bin/sh\n'
-        'set -e\n'
-        'HERE="$(cd "$(dirname "$0")/.." && pwd)"\n'
-        'PYTHONPATH="${HERE}/src:${PYTHONPATH:-}" exec python3 -m relay "$@"\n'
+    if wrapper.exists() or wrapper.is_symlink():
+        wrapper.unlink()
+    wrapper.symlink_to(Path("..") / ".venv" / "bin" / "relay")
+
+
+def install_venv(relay_os: Path) -> Path:
+    """Create `.relay/.venv/` and `pip install` the vendored relay package into it.
+
+    Idempotent: re-running upgrades the venv in place. Returns the venv path.
+    Exits with a clear error if Python venv/pip aren't usable.
+    """
+    dst_relay = relay_os / ".relay"
+    venv_dir = dst_relay / ".venv"
+    pyproject = dst_relay / "pyproject.toml"
+    if not pyproject.is_file():
+        typer.secho(
+            f"Cannot bootstrap venv: missing {pyproject}.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
+    if not (venv_dir / "bin" / "python").is_file():
+        typer.echo(f"Creating venv at {venv_dir}…")
+        result = subprocess.run(
+            [sys.executable, "-m", "venv", str(venv_dir)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            typer.secho(
+                f"venv creation failed:\n{result.stderr}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            sys.exit(2)
+
+    typer.echo("Installing vendored CLI into venv (pip install)…")
+    result = subprocess.run(
+        [
+            str(venv_dir / "bin" / "python"),
+            "-m", "pip", "install",
+            "--quiet", "--upgrade",
+            str(dst_relay),
+        ],
+        capture_output=True,
+        text=True,
     )
-    wrapper.chmod(0o755)
+    if result.returncode != 0:
+        typer.secho(
+            f"pip install failed:\n{result.stderr}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    return venv_dir
 
 
 def _copy_templates(src_root: Path, dst_root: Path) -> list[str]:
