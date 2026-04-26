@@ -1,14 +1,7 @@
 version = 1
 
-# --- Projects ---
-
-[projects.email-tool]
-type = "local"
+# Default status for new tasks. Override per-task with `--status`.
 default_status = "ready"
-
-[projects.ops]
-type = "local"
-default_status = "design"
 
 # --- Agents ---
 

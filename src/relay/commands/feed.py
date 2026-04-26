@@ -10,7 +10,6 @@ from relay.config import ConfigError, load_config
 from relay.logfile import append_log
 from relay.slack import post_feed
 from relay.tasks import (
-    AmbiguousTaskError,
     TaskNotFoundError,
     read_ticket,
     resolve_task,
@@ -18,7 +17,7 @@ from relay.tasks import (
 
 
 def feed(
-    task: str = typer.Option(..., "--task", help="Task ID or project/id."),
+    task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
     message: str = typer.Option(..., "--message", help="Short FYI message."),
 ) -> None:
     """Post an FYI to the team Slack channel."""
@@ -32,7 +31,7 @@ def feed(
 
     try:
         ref = resolve_task(cfg, task)
-    except (TaskNotFoundError, AmbiguousTaskError) as exc:
+    except TaskNotFoundError as exc:
         _bail(str(exc))
 
     ticket = read_ticket(ref)
@@ -41,7 +40,7 @@ def feed(
     post_feed(
         cfg,
         f"{ticket.assignee or cfg.current_user}: {message} "
-        f"({ref.project} {ref.id_slug})",
+        f"({ref.id_slug})",
     )
     append_log(ref.path, actor, f"feed: {message}")
     typer.echo("posted")

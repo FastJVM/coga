@@ -36,7 +36,7 @@ VALID_STATUSES = {"design", "ready", "active", "paused", "done", "canceled", "fa
 @dataclass
 class Issue:
     kind: str            # "stale-lock", "missing-file", "broken-ref", ...
-    task: str            # "project/id-slug"
+    task: str            # "id-slug"
     message: str
     severity: str = "warn"  # "warn" | "error"
 
@@ -64,7 +64,7 @@ def run(cfg: Config, max_lock_hours: float = 24.0, idle_hours: float = 72.0) -> 
     now = datetime.now(timezone.utc)
 
     for ref in refs:
-        task_label = f"{ref.project}/{ref.id_slug}"
+        task_label = ref.id_slug
 
         # Required files
         for fname in ("ticket.md", "blackboard.md", "log.md"):

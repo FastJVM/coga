@@ -21,14 +21,10 @@ def _write(path: Path, text: str) -> None:
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     company = tmp_path / "relay-os"
-    project = tmp_path / "projects" / "email-tool"
-    project.mkdir(parents=True)
     _write(
         company / "relay.toml",
-        f"""
+        """
         version = 1
-        [projects.email-tool]
-        type = "local"
         default_status = "ready"
         [agents.claude]
         cli = "claude"
@@ -36,15 +32,13 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {{"claude1" = "claude"}}
+        agents = {"claude1" = "claude"}
         """,
     )
     _write(
         company / "relay.local.toml",
-        f'''
+        '''
         user = "marc"
-        [paths]
-        email-tool = "{project}"
         [secrets]
         token = "env:TEST_TOKEN"
         ''',
@@ -85,18 +79,18 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     monkeypatch.setenv("TEST_TOKEN", "secret-abc")
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, project="email-tool", title="Check", workflow_name="ops",
+        cfg=cfg, title="Check", workflow_name="ops",
         contexts=[], mode="script", owner="marc", assignee="claude1",
         watchers=[], status="active",
     )
-    ref = list_tasks(cfg, "email-tool")[0]
+    ref = list_tasks(cfg)[0]
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "email-tool/001"])
+    result = runner.invoke(app, ["launch", "--task", "001"])
     assert result.exit_code == 0, result.output
 
-    # Script wrote to the project path (cwd) with the secret
-    output = (cfg.projects["email-tool"].path / "script-output.txt").read_text()
+    # Script wrote to the host repo (parent of relay-os/) with the secret
+    output = (cfg.repo_root.parent / "script-output.txt").read_text()
     assert "token=secret-abc" in output
 
     # Log records launch + exit
@@ -114,12 +108,12 @@ def test_script_mode_requires_skill_field(repo: Path) -> None:
     skill_md.write_text("---\nname: ops/checker\n---\n")
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, project="email-tool", title="Check", workflow_name="ops",
+        cfg=cfg, title="Check", workflow_name="ops",
         contexts=[], mode="script", owner="marc", assignee="claude1",
         watchers=[], status="active",
     )
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "email-tool/001"])
+    result = runner.invoke(app, ["launch", "--task", "001"])
     assert result.exit_code == 2
     assert "script" in result.output.lower()
 
@@ -131,13 +125,13 @@ def test_script_mode_nonzero_exit_logged(repo: Path) -> None:
 
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, project="email-tool", title="Fail", workflow_name="ops",
+        cfg=cfg, title="Fail", workflow_name="ops",
         contexts=[], mode="script", owner="marc", assignee="claude1",
         watchers=[], status="active",
     )
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "email-tool/001"])
+    result = runner.invoke(app, ["launch", "--task", "001"])
     assert result.exit_code == 3
-    ref = list_tasks(cfg, "email-tool")[0]
+    ref = list_tasks(cfg)[0]
     log = (ref.path / "log.md").read_text()
     assert "script exited with code 3" in log

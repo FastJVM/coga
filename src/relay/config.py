@@ -13,15 +13,6 @@ class ConfigError(Exception):
 
 
 @dataclass(frozen=True)
-class Project:
-    name: str
-    type: str              # "repo" | "local"
-    remote: str | None
-    default_status: str
-    path: Path | None       # from relay.local.toml
-
-
-@dataclass(frozen=True)
 class AgentType:
     name: str
     cli: str
@@ -42,7 +33,7 @@ class Assignee:
 class Config:
     repo_root: Path
     current_user: str
-    projects: dict[str, Project]
+    default_status: str
     agents: dict[str, AgentType]
     assignees: dict[str, Assignee]
     slack_webhook: str | None
@@ -50,11 +41,6 @@ class Config:
     extra_local: dict[str, object] = field(default_factory=dict)
 
     # --- convenience accessors -------------------------------------------------
-
-    def project(self, name: str) -> Project:
-        if name not in self.projects:
-            raise ConfigError(f"Unknown project: {name!r}. Known: {sorted(self.projects)}")
-        return self.projects[name]
 
     def assignee(self, name: str) -> Assignee:
         if name not in self.assignees:
@@ -113,7 +99,7 @@ def load_config(repo_root: Path | None = None) -> Config:
     if version != 1:
         raise ConfigError(f"Unsupported relay.toml version: {version!r} (expected 1)")
 
-    projects = _parse_projects(shared.get("projects", {}), local.get("paths", {}), root)
+    default_status = shared.get("default_status", "ready")
     agents = _parse_agents(shared.get("agents", {}))
     assignees = _parse_assignees(shared.get("assignees", {}))
     slack_webhook = (shared.get("slack") or {}).get("webhook")
@@ -131,12 +117,12 @@ def load_config(repo_root: Path | None = None) -> Config:
 
     secrets = _resolve_secrets(local.get("secrets", {}))
 
-    extra_local = {k: v for k, v in local.items() if k not in {"user", "paths", "secrets"}}
+    extra_local = {k: v for k, v in local.items() if k not in {"user", "secrets"}}
 
     return Config(
         repo_root=root,
         current_user=current_user,
-        projects=projects,
+        default_status=default_status,
         agents=agents,
         assignees=assignees,
         slack_webhook=slack_webhook,
@@ -153,35 +139,6 @@ def _read_toml(path: Path) -> dict:
         raise ConfigError(f"Missing config file: {path}")
     with path.open("rb") as f:
         return tomllib.load(f)
-
-
-def _parse_projects(raw: dict, paths: dict, repo_root: Path) -> dict[str, Project]:
-    # When relay.toml lives in a `relay-os/` subdir, a `local` project with no
-    # explicit [paths] entry defaults to the dir that contains relay-os/ — i.e.
-    # the company repo itself. Lets `relay create` work after `relay init`
-    # without hand-editing relay.local.toml.
-    default_local = repo_root.parent if repo_root.name == "relay-os" else None
-    out: dict[str, Project] = {}
-    for name, data in raw.items():
-        ptype = data.get("type")
-        if ptype not in ("repo", "local"):
-            raise ConfigError(f"projects.{name}.type must be 'repo' or 'local' (got {ptype!r})")
-        path_str = paths.get(name)
-        if path_str:
-            expanded = Path(path_str).expanduser()
-            path = expanded if expanded.is_absolute() else (repo_root / expanded).resolve()
-        elif ptype == "local":
-            path = default_local
-        else:
-            path = None
-        out[name] = Project(
-            name=name,
-            type=ptype,
-            remote=data.get("remote"),
-            default_status=data.get("default_status", "ready"),
-            path=path,
-        )
-    return out
 
 
 def _parse_agents(raw: dict) -> dict[str, AgentType]:

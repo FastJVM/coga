@@ -69,14 +69,10 @@ def test_build_command_codex_like_subcommand(tmp_path: Path) -> None:
 @pytest.fixture
 def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     company = tmp_path / "relay-os"
-    project = tmp_path / "projects" / "email-tool"
-    project.mkdir(parents=True)
     _write(
         company / "relay.toml",
-        f"""
+        """
         version = 1
-        [projects.email-tool]
-        type = "local"
         default_status = "ready"
         [agents.claude]
         cli = "claude"
@@ -84,15 +80,15 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {{"claude1" = "claude"}}
+        agents = {"claude1" = "claude"}
         """,
     )
-    _write(company / "relay.local.toml", f'user = "marc"\n[paths]\nemail-tool = "{project}"\n')
+    _write(company / "relay.local.toml", 'user = "marc"\n')
 
     monkeypatch.chdir(company)
     cfg = load_config(company)
     scaffold_task(
-        cfg=cfg, project="email-tool", title="Fix retry logic",
+        cfg=cfg, title="Fix retry logic",
         workflow_name=None, contexts=[], mode="interactive",
         owner="marc", assignee="claude1", watchers=[], status="active",
     )
@@ -113,7 +109,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "email-tool/001"])
+    result = runner.invoke(app, ["launch", "--task", "001"])
     assert result.exit_code == 0, result.output
 
     # Agent called with --append-system-prompt-file <path>
@@ -124,7 +120,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
 
     # Log entry written
     cfg = load_config(active_task)
-    ref = list_tasks(cfg, "email-tool")[0]
+    ref = list_tasks(cfg)[0]
     log = (ref.path / "log.md").read_text()
     assert "launched in interactive mode" in log
 
@@ -138,7 +134,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
 def test_launch_requires_active_status(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Flip status to paused
     cfg = load_config(active_task)
-    ref = list_tasks(cfg, "email-tool")[0]
+    ref = list_tasks(cfg)[0]
     from relay.ticket import Ticket
     t = Ticket.read(ref.path / "ticket.md")
     t.frontmatter["status"] = "paused"
@@ -146,7 +142,7 @@ def test_launch_requires_active_status(active_task: Path, monkeypatch: pytest.Mo
 
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "email-tool/001"])
+    result = runner.invoke(app, ["launch", "--task", "001"])
     assert result.exit_code == 2
     assert "'paused'" in result.output or "'paused'" in (result.stderr or "")
 
@@ -154,6 +150,6 @@ def test_launch_requires_active_status(active_task: Path, monkeypatch: pytest.Mo
 def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: None)
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "email-tool/001"])
+    result = runner.invoke(app, ["launch", "--task", "001"])
     assert result.exit_code == 2
     assert "not found in PATH" in (result.output + (result.stderr or ""))

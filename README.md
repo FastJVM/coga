@@ -18,8 +18,8 @@ python -m pip install -e .
 ```
 
 That puts `relay` on your PATH against the source. Once it's there, the
-normal flow is to **`relay init` your operational repos** — typically one
-per operational surface (e.g. `admin`, `company`, `code`):
+normal flow is to **`relay init` each operational repo** — one `relay-os/`
+per repo, since the repo *is* the project:
 
 ```sh
 relay init ~/work/admin                # scaffolds ~/work/admin/relay-os/
@@ -32,17 +32,16 @@ working in the repo share one pinned version regardless of what's globally
 installed. Refresh it later with `relay init --update`.
 
 After init, edit the freshly-written `relay-os/relay.toml` to declare your
-projects, agents, and assignees, and set `user = "<you>"` in
+agents and assignees, and set `user = "<you>"` in
 `relay-os/relay.local.toml`. Then create your first task:
 
 ```sh
-relay create --project <project-name> --title "First task"
+relay create --title "First task"
 ```
 
-`--project` refers to a `[projects.<name>]` block in `relay.toml`, **not**
-the directory name. A single `relay-os/` can host multiple projects — e.g.
-an `admin` repo's `relay.toml` might declare `[projects.legal]`,
-`[projects.finance]`, `[projects.hiring]`.
+Multi-surface companies (e.g. an admin repo + a code repo) run multiple
+relay-os/ side by side — coordinate them by pointing each repo's `[slack]
+webhook` at the same channel.
 
 ## Layout
 
@@ -93,8 +92,8 @@ the next ID from the counter and writing `ticket.md`, `blackboard.md`, and
 workflow it follows, and what contexts it pulls in.
 
 ```sh
-relay create --project mycompany --title "Add retry to webhook handler"
-relay create --project email --title "Investigate bounce rate" \
+relay create --title "Add retry to webhook handler"
+relay create --title "Investigate bounce rate" \
              --workflow code/with-review --context email/payment-flow \
              --assignee claude1 --mode auto
 ```
@@ -113,9 +112,9 @@ prompt and start the configured agent against it. Acquires a `task.lock`
 so two agents don't grab the same ticket.
 
 ```sh
-relay launch --task mycompany/001-add-retry          # use full ref
-relay launch --task 001                              # short, when unambiguous
-relay launch --task mycompany/001 --force            # break a stale lock
+relay launch --task 001-add-retry                    # full id-slug
+relay launch --task 001                              # short
+relay launch --task 001 --force                      # break a stale lock
 ```
 
 The agent type comes from the ticket's `assignee` (e.g. `claude1`) resolved
@@ -123,13 +122,12 @@ through `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
 
 ### `relay status`
 
-Show what's in flight across every project. Defaults to non-terminal tasks
+Show what's in flight in the repo. Defaults to non-terminal tasks
 (`design`, `ready`, `active`, `paused`); use `--all` to include `done`,
 `canceled`, `failed`.
 
 ```sh
-relay status                              # active work, all projects
-relay status --project mycompany          # filter to one project
+relay status                              # active work
 relay status --all                        # include closed tasks
 ```
 
@@ -141,8 +139,8 @@ itself is frozen into the ticket at create time, so step semantics don't
 drift mid-task.
 
 ```sh
-relay step 2 --task mycompany/001-add-retry         # move to step 2
-relay step done --task mycompany/001-add-retry      # mark workflow complete
+relay step 2 --task 001-add-retry                   # move to step 2
+relay step done --task 001-add-retry                # mark workflow complete
 ```
 
 ### `relay panic --task <id> --reason "..."`
@@ -153,7 +151,7 @@ can pick it up. Intended for the agent to call when it's truly stuck —
 not for routine handoffs.
 
 ```sh
-relay panic --task mycompany/001 --reason "Auth flow needs prod creds I don't have"
+relay panic --task 001 --reason "Auth flow needs prod creds I don't have"
 ```
 
 ### `relay feed --task <id> --message "..."`
@@ -164,7 +162,7 @@ context that the team should see but doesn't need to react to. Posts to
 stderr if `[slack].webhook` isn't configured.
 
 ```sh
-relay feed --task mycompany/001 --message "Pushed branch, waiting on CI"
+relay feed --task 001 --message "Pushed branch, waiting on CI"
 ```
 
 ### `relay --version`

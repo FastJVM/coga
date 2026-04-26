@@ -12,7 +12,6 @@ from relay.lock import TaskLock
 from relay.logfile import append_log
 from relay.slack import post_mention
 from relay.tasks import (
-    AmbiguousTaskError,
     TaskNotFoundError,
     read_ticket,
     resolve_task,
@@ -20,7 +19,7 @@ from relay.tasks import (
 
 
 def panic(
-    task: str = typer.Option(..., "--task", help="Task ID or project/id."),
+    task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
     reason: str = typer.Option(..., "--reason", help="Why the agent is stuck."),
 ) -> None:
     """Agent is stuck. Write blocker, @mention owner, release lock."""
@@ -34,7 +33,7 @@ def panic(
 
     try:
         ref = resolve_task(cfg, task)
-    except (TaskNotFoundError, AmbiguousTaskError) as exc:
+    except TaskNotFoundError as exc:
         _bail(str(exc))
 
     ticket = read_ticket(ref)
@@ -50,9 +49,9 @@ def panic(
     post_mention(
         cfg,
         owner,
-        f"{ref.project} {ref.id_slug} \"{ticket.title}\" — agent stuck: \"{reason}\"",
+        f"{ref.id_slug} \"{ticket.title}\" — agent stuck: \"{reason}\"",
     )
-    typer.echo(f"{ref.project}/{ref.id_slug}: panicked (owner @{owner} notified)")
+    typer.echo(f"{ref.id_slug}: panicked (owner @{owner} notified)")
 
 
 def _bail(msg: str) -> None:

@@ -6,7 +6,6 @@ mode: auto
 workflow: meta/dream-run
 assignee: claude1
 owner: marc
-project: ops
 ---
 
 ## Description
