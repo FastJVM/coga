@@ -19,7 +19,6 @@ from relay.lock import LockHeldError, TaskLock
 from relay.logfile import append_log
 from relay.slack import post_feed
 from relay.tasks import (
-    AmbiguousTaskError,
     TaskNotFoundError,
     read_ticket,
     resolve_task,
@@ -27,7 +26,7 @@ from relay.tasks import (
 
 
 def launch(
-    task: str = typer.Option(..., "--task", help="Task ID or project/id."),
+    task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
     force: bool = typer.Option(False, "--force", help="Break a stale lock."),
 ) -> None:
     """Compose context, start work on a task."""
@@ -38,20 +37,20 @@ def launch(
 
     try:
         ref = resolve_task(cfg, task)
-    except (TaskNotFoundError, AmbiguousTaskError) as exc:
+    except TaskNotFoundError as exc:
         _bail(str(exc))
 
     ticket = read_ticket(ref)
 
     if ticket.status != "active":
         _bail(
-            f"Task {ref.project}/{ref.id_slug} is {ticket.status!r}. "
+            f"Task {ref.id_slug} is {ticket.status!r}. "
             f"Set status to 'active' before launching."
         )
 
     assignee = ticket.assignee
     if not assignee:
-        _bail(f"Task {ref.project}/{ref.id_slug} has no assignee")
+        _bail(f"Task {ref.id_slug} has no assignee")
 
     mode = ticket.mode
 
@@ -101,7 +100,7 @@ def launch(
     post_feed(
         cfg,
         f"{cfg.current_user}'s {assignee} started work on "
-        f"{ref.project} {ref.id_slug} \"{ticket.title}\" ({mode})",
+        f"{ref.id_slug} \"{ticket.title}\" ({mode})",
     )
 
     # Install a signal-safe cleanup.

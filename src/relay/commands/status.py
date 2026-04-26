@@ -1,4 +1,4 @@
-"""`relay status` — one line per task across projects."""
+"""`relay status` — one line per task in the repo."""
 
 from __future__ import annotations
 
@@ -14,19 +14,18 @@ from relay.ticket import TicketError
 
 
 def status(
-    project: str = typer.Option(None, "--project", help="Limit to one project."),
     all: bool = typer.Option(False, "--all", help="Include done/canceled/failed tasks."),
 ) -> None:
-    """Show tasks across projects."""
+    """Show tasks in the repo."""
     try:
         cfg = load_config()
     except ConfigError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
 
-    refs = list_tasks(cfg, project)
+    refs = list_tasks(cfg)
     table = Table(show_lines=False, show_edge=False, pad_edge=False)
-    for col in ("project", "id", "title", "status", "assignee", "step", "mode"):
+    for col in ("id", "title", "status", "assignee", "step", "mode"):
         table.add_column(col)
 
     hidden = {"done", "canceled", "failed"}
@@ -41,7 +40,6 @@ def status(
         step = ticket.step or "-"
         assignee = ticket.assignee or "-"
         table.add_row(
-            ref.project,
             f"{ref.id:03d}",
             ticket.title or "-",
             ticket.status or "-",

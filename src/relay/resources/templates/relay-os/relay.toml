@@ -1,12 +1,7 @@
 version = 1
 
-# --- Projects ---
-# Each project is a location relay can launch tasks against.
-# type = "local" for in-repo work, "repo" for external git checkouts.
-
-# [projects.example]
-# type = "local"
-# default_status = "ready"
+# Default status for new tasks. Override per-task with `--status`.
+default_status = "ready"
 
 # --- Agents ---
 # Agent types. Each defines the CLI binary and how to invoke it.

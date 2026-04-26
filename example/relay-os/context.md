@@ -1,4 +1,4 @@
-# email-tool — project context
+# email-tool — repo context
 
 The email-tool repo handles deliverability diagnostics and Stripe billing for
 YC-backed customers. Python 3.11+. Tests via pytest. Postgres 14.

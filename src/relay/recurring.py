@@ -42,17 +42,11 @@ class Template:
             raise RecurringError(f"{path}: frontmatter must be a mapping")
         if "schedule" not in fm:
             raise RecurringError(f"{path}: `schedule` is required")
-        if "project" not in fm:
-            raise RecurringError(f"{path}: `project` is required")
         return cls(path=path, name=path.stem, frontmatter=fm, body=match.group(2))
 
     @property
     def schedule(self) -> str:
         return self.frontmatter["schedule"]
-
-    @property
-    def project(self) -> str:
-        return self.frontmatter["project"]
 
 
 def check_recurring(cfg: Config, now: datetime | None = None) -> list[TaskRef]:
@@ -82,12 +76,11 @@ def check_recurring(cfg: Config, now: datetime | None = None) -> list[TaskRef]:
         period_key = _period_key(template.schedule, last_fire)
         target_slug = f"{template.name}-{period_key}"
 
-        if _task_with_slug_exists(cfg, template.project, target_slug):
+        if _task_with_slug_exists(cfg, target_slug):
             continue
 
         ref = scaffold_task(
             cfg=cfg,
-            project=template.project,
             title=_extract_title(template),
             workflow_name=template.frontmatter.get("workflow"),
             contexts=list(template.frontmatter.get("contexts") or []),
@@ -95,14 +88,13 @@ def check_recurring(cfg: Config, now: datetime | None = None) -> list[TaskRef]:
             owner=template.frontmatter.get("owner"),
             assignee=template.frontmatter.get("assignee"),
             watchers=list(template.frontmatter.get("watchers") or []),
-            status=template.frontmatter.get("status") or cfg.project(template.project).default_status,
+            status=template.frontmatter.get("status") or cfg.default_status,
             slug_override=target_slug,
             description=_extract_description(template),
             created_by="system",
         )
         created.append(
             TaskRef(
-                project=template.project,
                 id=int(ref["id_slug"].split("-", 1)[0]),
                 slug=ref["id_slug"].split("-", 1)[1],
                 path=ref["path"],
@@ -142,8 +134,8 @@ def _period_key(cron: str, fire_time: datetime) -> str:
     return fire_time.strftime("%Y%m%dT%H%M")
 
 
-def _task_with_slug_exists(cfg: Config, project: str, target_slug: str) -> bool:
-    for ref in list_tasks(cfg, project):
+def _task_with_slug_exists(cfg: Config, target_slug: str) -> bool:
+    for ref in list_tasks(cfg):
         if ref.slug == target_slug:
             return True
     return False

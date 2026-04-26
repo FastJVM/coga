@@ -11,7 +11,6 @@ from relay.lock import TaskLock
 from relay.logfile import append_log
 from relay.slack import post_feed
 from relay.tasks import (
-    AmbiguousTaskError,
     TaskNotFoundError,
     read_ticket,
     resolve_task,
@@ -20,7 +19,7 @@ from relay.tasks import (
 
 def step(
     next_step: int = typer.Argument(..., help="Next step number (1-indexed)."),
-    task: str = typer.Option(..., "--task", help="Task ID or project/id."),
+    task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
 ) -> None:
     """Advance to the next workflow step (or mark done)."""
     try:
@@ -30,17 +29,17 @@ def step(
 
     try:
         ref = resolve_task(cfg, task)
-    except (TaskNotFoundError, AmbiguousTaskError) as exc:
+    except TaskNotFoundError as exc:
         _bail(str(exc))
 
     ticket = read_ticket(ref)
 
     if ticket.status != "active":
-        _bail(f"Task {ref.project}/{ref.id_slug} is {ticket.status!r}. Cannot advance.")
+        _bail(f"Task {ref.id_slug} is {ticket.status!r}. Cannot advance.")
 
     wf = ticket.workflow
     if not wf or not wf.get("steps"):
-        _bail(f"Task {ref.project}/{ref.id_slug} has no workflow steps.")
+        _bail(f"Task {ref.id_slug} has no workflow steps.")
 
     steps = wf["steps"]
     total = len(steps)
@@ -61,9 +60,9 @@ def step(
         TaskLock(ref.path).release()
         post_feed(
             cfg,
-            f"{ref.project} {ref.id_slug} \"{ticket.title}\" done ✓",
+            f"{ref.id_slug} \"{ticket.title}\" done ✓",
         )
-        typer.echo(f"{ref.project}/{ref.id_slug}: done")
+        typer.echo(f"{ref.id_slug}: done")
         return
 
     new_step_name = steps[next_step - 1]["name"]
@@ -72,10 +71,10 @@ def step(
     append_log(ref.path, actor, f"advanced to step {next_step} ({new_step_name})")
     post_feed(
         cfg,
-        f"{ticket.assignee or cfg.current_user} advanced {ref.project} "
+        f"{ticket.assignee or cfg.current_user} advanced "
         f"{ref.id_slug} to step {next_step} ({new_step_name})",
     )
-    typer.echo(f"{ref.project}/{ref.id_slug}: step {next_step} ({new_step_name})")
+    typer.echo(f"{ref.id_slug}: step {next_step} ({new_step_name})")
 
 
 def _bail(msg: str) -> None:
