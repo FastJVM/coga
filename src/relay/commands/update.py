@@ -74,9 +74,10 @@ def refresh_cli(clone_dir: Path, relay_os: Path) -> None:
     dst_src.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(src, dst_src)
 
-    pyproject = clone_dir / "pyproject.toml"
-    if pyproject.is_file():
-        shutil.copy2(pyproject, dst_relay / "pyproject.toml")
+    for fname in ("pyproject.toml", "requirements.txt"):
+        upstream_file = clone_dir / fname
+        if upstream_file.is_file():
+            shutil.copy2(upstream_file, dst_relay / fname)
 
     write_bin_wrapper(dst_relay / "bin")
 

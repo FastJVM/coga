@@ -55,6 +55,7 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     (cli_src / "cli.py").write_text("# fake cli\n")
 
     (clone_dir / "pyproject.toml").write_text("[project]\nname = 'relay-os'\n")
+    (clone_dir / "requirements.txt").write_text("typer>=0.12\nPyYAML>=6\n")
 
 
 @pytest.fixture
@@ -90,6 +91,7 @@ def test_init_vendors_cli_and_writes_wrapper(tmp_path: Path, fake_clone) -> None
 
     assert (target / "relay-os" / ".relay" / "src" / "relay" / "cli.py").is_file()
     assert (target / "relay-os" / ".relay" / "pyproject.toml").is_file()
+    assert (target / "relay-os" / ".relay" / "requirements.txt").is_file()
 
     wrapper = target / "relay-os" / ".relay" / "bin" / "relay"
     assert wrapper.is_file()
@@ -97,6 +99,7 @@ def test_init_vendors_cli_and_writes_wrapper(tmp_path: Path, fake_clone) -> None
     assert "python3 -m relay" in wrapper.read_text()
 
     assert "Add the bin dir to your PATH" in result.output
+    assert "pip install -r" in result.output
 
 
 def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_clone) -> None:

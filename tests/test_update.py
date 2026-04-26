@@ -43,6 +43,7 @@ def _seed_fake_upstream(clone_dir: Path) -> None:
     (cli_src / "cli.py").write_text("# NEW vendored cli\n")
 
     (clone_dir / "pyproject.toml").write_text("[project]\nname = 'relay-os'\n")
+    (clone_dir / "requirements.txt").write_text("typer>=0.12\nPyYAML>=6\n")
 
 
 def test_update_refreshes_cli_and_underscore_templates(
@@ -70,6 +71,7 @@ def test_update_refreshes_cli_and_underscore_templates(
 
     assert (relay_os / ".relay" / "src" / "relay" / "cli.py").read_text() == "# NEW vendored cli\n"
     assert (relay_os / ".relay" / "pyproject.toml").is_file()
+    assert (relay_os / ".relay" / "requirements.txt").is_file()
 
     wrapper = relay_os / ".relay" / "bin" / "relay"
     assert wrapper.is_file()
