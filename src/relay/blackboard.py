@@ -49,10 +49,13 @@ def append_to_section(path: Path, heading: str, entry: str) -> None:
 
 
 def append_blocker(task_dir: Path, actor: str, reason: str) -> None:
-    """Write a timestamped blocker entry to the blackboard's Blockers section."""
+    """Append a timestamped blocker line to the end of the blackboard."""
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
-    entry = f"- [{ts}] [{actor}] {reason}"
-    append_to_section(task_dir / "blackboard.md", "Blockers", entry)
+    entry = f"- [{ts}] [{actor}] BLOCKER: {reason}"
+    path = task_dir / "blackboard.md"
+    text = path.read_text()
+    sep = "" if text.endswith("\n") else "\n"
+    path.write_text(text + sep + "\n" + entry + "\n")
 
 
 __all__ = ["render_blackboard", "append_to_section", "append_blocker"]

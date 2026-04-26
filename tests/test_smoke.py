@@ -105,7 +105,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert r.exit_code == 0, r.output
     bb = (ref2["path"] / "blackboard.md").read_text()
     assert "need prod DNS access to reproduce" in bb
-    assert "## Blockers" in bb
+    assert "BLOCKER:" in bb
 
     r = runner.invoke(app, [
         "feed",

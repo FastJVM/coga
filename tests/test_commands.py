@@ -125,7 +125,7 @@ def test_panic_writes_blocker_and_releases_lock(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     blackboard = (task_path / "blackboard.md").read_text()
     assert "unclear ceiling for 429 backoff" in blackboard
-    assert "## Blockers" in blackboard
+    assert "BLOCKER:" in blackboard
     assert not TaskLock(task_path).path.exists()
     assert "panic:" in (task_path / "log.md").read_text()
 

@@ -19,27 +19,20 @@ Each task lives in `relay-os/tasks/<id>-<slug>/` and contains:
   Read here first when picking up after a blocker or relaunch.
 - `log.md` — append-only audit trail. **Do not write to this file.** CLI
   commands (`relay launch`, `relay step`, `relay panic`) are the only writers.
-  Write observations in the blackboard's Notes section instead.
+  Write observations in the blackboard instead.
 - `task.lock` — serializes concurrent access. **Do not touch.** `relay launch`
   manages it.
 
 ## Blackboard discipline
 
 The blackboard is your persistence layer between sessions. An agent that writes
-to it frequently is recoverable; one that doesn't is not.
+to it frequently is recoverable; one that doesn't is not. The blackboard is
+unstructured — write whatever helps the next session pick up: plans, findings,
+decisions (with reasons), blockers, half-formed observations. Organize it
+however serves the task.
 
-Write to it:
-
-- **Plan** — at the start of work, and whenever your plan changes materially.
-- **Findings** — discovered facts, intermediate results, research outputs.
-- **Decisions** — every non-trivial choice, with the reason. Format:
-  `[YYYY-MM-DD HH:MM] [agent:<your-nickname>] decision + reason`
-- **Blockers** — anything stalling progress. If you panic, write the blocker
-  here first, then call `relay panic`.
-- **Notes** — free space for questions, observations, half-formed thoughts.
-
-Read selectively by heading. Don't re-read the whole blackboard every turn —
-load the sections relevant to your current step.
+Date-stamp non-trivial entries so the timeline is reconstructable, e.g.
+`[YYYY-MM-DD HH:MM] [agent:<your-nickname>] decision + reason`.
 
 ## Step transitions
 
@@ -69,8 +62,8 @@ Call this when stuck. Specifically:
 - You've discovered the task's premise is wrong and rework is needed.
 - You've tried and failed to make meaningful progress.
 
-Before panicking: write the blocker to the blackboard's Blockers section so
-the human relaunching can read it without digging through history.
+Before panicking: write the blocker to the blackboard so the human relaunching
+can read it without digging through history.
 
 After panicking: stop. Do not keep trying. The panic posts an @mention to the
 task owner in Slack and releases the lock so a human can relaunch.

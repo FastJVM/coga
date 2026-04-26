@@ -161,8 +161,5 @@ def test_append_log(tmp_path: Path) -> None:
 def test_render_blackboard() -> None:
     out = render_blackboard("003", "Fix retry logic")
     assert "# Blackboard — 003 Fix retry logic" in out
-    assert "## Plan" in out
-    assert "## Notes" in out
-    assert "## Findings" in out
-    assert "## Blockers" in out
-    assert "## Decisions" in out
+    assert "{task_id}" not in out
+    assert "{task_title}" not in out
