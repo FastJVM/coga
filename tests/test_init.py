@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -32,7 +33,7 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     """Mimic the layout of the real repo: templates + CLI source."""
     templates = clone_dir / update_cmd.TEMPLATE_SUBPATH
     templates.mkdir(parents=True)
-    (templates / ".gitignore").write_text("relay.local.toml\n")
+    (templates / ".gitignore").write_text("relay.local.toml\n.relay/\n**/task.lock\n")
     (templates / "relay.toml").write_text("version = 1\n")
     (templates / "rules.md").write_text("rules\n")
     (templates / "context.md").write_text("context\n")
@@ -59,13 +60,23 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     (clone_dir / "requirements.txt").write_text("typer>=0.12\nPyYAML>=6\n")
 
 
+FAKE_SHA = "deadbeefcafe1234567890abcdef1234567890ab"
+
+
 @pytest.fixture
 def fake_clone(monkeypatch: pytest.MonkeyPatch):
+    real_run = subprocess.run
+
     def fake_run(cmd, **kwargs):
         if cmd[:2] == ["git", "clone"]:
             _seed_fake_clone(Path(cmd[-1]))
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        raise AssertionError(f"unexpected subprocess: {cmd}")
+        if cmd[:2] == ["git", "-C"] and cmd[3:] == ["rev-parse", "HEAD"]:
+            # Only fake the upstream-clone rev-parse; let local-repo rev-parse
+            # (used by the post-init commit step) run for real.
+            if "/repo" in cmd[2] and "relay-init-" in cmd[2]:
+                return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
+        return real_run(cmd, **kwargs)
 
     monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
 
@@ -262,11 +273,19 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     relay_os = _seed_local_relay_os(tmp_path)
     monkeypatch.chdir(relay_os)
 
+    real_run = subprocess.run
+
     def fake_run(cmd, **kwargs):
         if cmd[:2] == ["git", "clone"]:
             _seed_fake_upstream_for_update(Path(cmd[-1]))
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        raise AssertionError(f"unexpected subprocess: {cmd}")
+        if (
+            cmd[:2] == ["git", "-C"]
+            and cmd[3:] == ["rev-parse", "HEAD"]
+            and "relay-init-update-" in cmd[2]
+        ):
+            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
+        return real_run(cmd, **kwargs)
 
     monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
 
@@ -287,6 +306,96 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     wrapper = relay_os / ".relay" / "bin" / "relay"
     assert wrapper.is_symlink()
     assert wrapper.resolve() == (relay_os / ".relay" / ".venv" / "bin" / "relay").resolve()
+
+    pin = relay_os / ".relay" / "RELAY_PIN"
+    assert pin.is_file()
+    assert FAKE_SHA in pin.read_text()
+    assert f"Pinned to upstream {FAKE_SHA[:12]}" in result.output
+
+
+def test_init_commits_relay_os_when_target_is_git_repo(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
+    monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+    assert "Committed relay-os/ as" in result.output
+
+    log = subprocess.run(
+        ["git", "-C", str(target), "log", "--oneline"],
+        capture_output=True, text=True, check=True,
+    )
+    assert "Scaffold relay-os via `relay init`" in log.stdout
+
+    # `.relay/` and `relay.local.toml` are gitignored — they should not be tracked.
+    tracked = subprocess.run(
+        ["git", "-C", str(target), "ls-files", "relay-os"],
+        capture_output=True, text=True, check=True,
+    ).stdout.splitlines()
+    assert any(p.startswith("relay-os/relay.toml") for p in tracked)
+    assert not any(".relay/" in p for p in tracked)
+    assert not any(p.endswith("relay.local.toml") for p in tracked)
+
+
+def test_init_skips_commit_when_target_is_not_git_repo(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+    assert "Committed relay-os/" not in result.output
+
+
+def test_init_writes_pin_file(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    pin = target / "relay-os" / ".relay" / "RELAY_PIN"
+    assert pin.is_file()
+    lines = pin.read_text().splitlines()
+    assert lines[0] == update_cmd.RELAY_REPO_URL
+    assert lines[1] == FAKE_SHA
+    assert f"Pinned to upstream {FAKE_SHA[:12]}" in result.output
+
+
+def test_version_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`relay --version` prints the package version and (when present) the pin."""
+    result = CliRunner().invoke(app, ["--version"])
+    assert result.exit_code == 0, result.output
+    assert "relay " in result.output
+    # In test env (no pinned relay-os/), pin line is absent.
+    assert "vendored from upstream" not in result.output
+
+
+def test_version_flag_includes_pin_when_in_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    relay_os = tmp_path / "relay-os"
+    (relay_os / ".relay").mkdir(parents=True)
+    (relay_os / "relay.toml").write_text("version = 1\n")
+    (relay_os / ".relay" / "RELAY_PIN").write_text(
+        f"{update_cmd.RELAY_REPO_URL}\n{FAKE_SHA}\n"
+    )
+    monkeypatch.chdir(relay_os)
+
+    result = CliRunner().invoke(app, ["--version"])
+    assert result.exit_code == 0, result.output
+    assert FAKE_SHA[:12] in result.output
 
 
 def test_init_update_fails_loudly_if_clone_fails(
