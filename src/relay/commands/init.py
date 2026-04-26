@@ -110,16 +110,30 @@ def _do_init(path: Path) -> None:
         typer.echo(f"Pinned to upstream {sha[:12]}.")
     if commit_sha is not None:
         typer.echo(f"Committed relay-os/ as {commit_sha[:12]} (push when ready).")
+
+    # Whether the user already has a working `relay` they can run as-is.
+    # `shutil.which` honors the executable bit, so a stale non-executable
+    # file at `~/.local/bin/relay` won't fool us.
+    existing = shutil.which("relay")
+    if shim is not None:
+        typer.echo(f"`relay` is on your PATH via {shim}.")
+    elif existing:
+        typer.echo(f"`relay` is already on your PATH at {existing}.")
+
+    steps: list[str] = []
+    if shim is None and not existing:
+        steps.append(
+            "Add the bin dir to your PATH so `relay` runs:\n"
+            f"       export PATH=\"{bin_dir}:$PATH\""
+        )
+    steps.append(f"Edit {relay_os}/relay.toml — set your agents, assignees, channels.")
+    steps.append(f"Set `user` in {local_toml} to match an [assignees.x] in relay.toml.")
+    steps.append("Run `relay --help` to see what's available.")
+
     typer.echo("")
     typer.echo("Next steps:")
-    if shim is not None:
-        typer.echo(f"  1. `relay` is on your PATH via {shim}.")
-    else:
-        typer.echo(f"  1. Add the bin dir to your PATH so `relay` runs from this repo:")
-        typer.echo(f"       export PATH=\"{bin_dir}:$PATH\"")
-    typer.echo(f"  2. Edit {relay_os}/relay.toml — set your agents, assignees, channels.")
-    typer.echo(f"  3. Set `user` in {local_toml} to match an [assignees.x] in relay.toml.")
-    typer.echo(f"  4. Run `relay --help` to see what's available.")
+    for i, step in enumerate(steps, 1):
+        typer.echo(f"  {i}. {step}")
 
 
 def _do_update() -> None:
