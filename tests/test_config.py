@@ -66,7 +66,7 @@ def test_load_basic(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg.current_user == "marc"
     assert set(cfg.projects) == {"email-tool", "ops"}
     assert cfg.projects["email-tool"].path == Path("~/projects/email-tool").expanduser()
-    assert cfg.projects["ops"].path is None
+    assert cfg.projects["ops"].path is None  # repo_root not named relay-os/, no default
     assert cfg.agents["claude"].cli == "claude"
     assert cfg.slack_webhook.startswith("https://")
     assert cfg.secrets["stripe_key"] == "sk_test_abc"
@@ -119,6 +119,32 @@ def test_missing_env_secret_is_empty(repo: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
     cfg = load_config(repo)
     assert cfg.secrets["stripe_key"] == ""
+
+
+def test_local_project_defaults_to_parent_when_in_relay_os(tmp_path: Path) -> None:
+    """A `local` project with no [paths] entry defaults to the dir above relay-os/."""
+    company = tmp_path / "mycompany"
+    relay_os = company / "relay-os"
+    relay_os.mkdir(parents=True)
+    _write(
+        relay_os / "relay.toml",
+        """
+        version = 1
+        [projects.mycompany]
+        type = "local"
+        [agents.claude]
+        cli = "claude"
+        interactive = "-i"
+        auto = "-p"
+        file = "CLAUDE.md"
+        [assignees.me]
+        agents = {"claude1" = "claude"}
+        """,
+    )
+    _write(relay_os / "relay.local.toml", 'user = "me"\n')
+
+    cfg = load_config(relay_os)
+    assert cfg.projects["mycompany"].path == company
 
 
 def test_unsupported_version(tmp_path: Path) -> None:

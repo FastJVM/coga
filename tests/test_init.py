@@ -83,8 +83,13 @@ def test_init_into_empty_dir(tmp_path: Path, fake_clone) -> None:
     assert "version = 1" in (target / "relay-os" / "relay.toml").read_text()
 
 
-def test_init_vendors_cli_and_writes_wrapper(tmp_path: Path, fake_clone) -> None:
+def test_init_vendors_cli_and_writes_wrapper(
+    tmp_path: Path, fake_clone, monkeypatch: pytest.MonkeyPatch
+) -> None:
     target = tmp_path / "company"
+    # Force the shim path off — keep this test focused on the wrapper.
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0, result.output
@@ -100,6 +105,62 @@ def test_init_vendors_cli_and_writes_wrapper(tmp_path: Path, fake_clone) -> None
 
     assert "Add the bin dir to your PATH" in result.output
     assert "pip install -r" in result.output
+
+
+def test_init_writes_local_toml_placeholder(
+    tmp_path: Path, fake_clone, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    local_toml = target / "relay-os" / "relay.local.toml"
+    assert local_toml.is_file()
+    text = local_toml.read_text()
+    assert 'user = ""' in text
+    assert "[paths]" in text  # commented example present
+
+
+def test_init_installs_shim_when_local_bin_on_path(
+    tmp_path: Path, fake_clone, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_home = tmp_path / "home"
+    local_bin = fake_home / ".local" / "bin"
+    local_bin.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("PATH", f"{local_bin}:/usr/bin")
+
+    target = tmp_path / "company"
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    shim = local_bin / "relay"
+    assert shim.is_symlink()
+    assert shim.resolve() == (target / "relay-os" / ".relay" / "bin" / "relay").resolve()
+    assert "is on your PATH via" in result.output
+    assert "Add the bin dir to your PATH" not in result.output
+
+
+def test_init_skips_shim_when_target_exists(
+    tmp_path: Path, fake_clone, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_home = tmp_path / "home"
+    local_bin = fake_home / ".local" / "bin"
+    local_bin.mkdir(parents=True)
+    (local_bin / "relay").write_text("# pre-existing\n")
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("PATH", f"{local_bin}:/usr/bin")
+
+    target = tmp_path / "company"
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    # Pre-existing file untouched, instructions fall back to PATH export.
+    assert (local_bin / "relay").read_text() == "# pre-existing\n"
+    assert "Add the bin dir to your PATH" in result.output
 
 
 def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_clone) -> None:
