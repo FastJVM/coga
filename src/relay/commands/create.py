@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import sys
+from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
 import typer
 
-from relay.blackboard import render_blackboard
 from relay.config import Config, ConfigError, load_config
 from relay.counter import next_id
 from relay.logfile import append_log
@@ -162,7 +162,10 @@ def scaffold_task(
     Ticket(frontmatter=fm, body=body).write(task_dir / "ticket.md")
 
     # Blackboard from template
-    (task_dir / "blackboard.md").write_text(render_blackboard(f"{task_id:03d}", title))
+    template = files("relay.resources").joinpath("blackboard.md").read_text()
+    (task_dir / "blackboard.md").write_text(
+        template.replace("{task_id}", f"{task_id:03d}").replace("{task_title}", title)
+    )
 
     # Empty log, then first entry
     (task_dir / "log.md").write_text("")

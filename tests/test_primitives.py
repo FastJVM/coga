@@ -5,7 +5,6 @@ from textwrap import dedent
 
 import pytest
 
-from relay.blackboard import render_blackboard
 from relay.counter import next_id
 from relay.lock import LockHeldError, TaskLock
 from relay.logfile import append_log
@@ -158,8 +157,3 @@ def test_append_log(tmp_path: Path) -> None:
 # --- blackboard ---------------------------------------------------------------
 
 
-def test_render_blackboard() -> None:
-    out = render_blackboard("003", "Fix retry logic")
-    assert "# Blackboard — 003 Fix retry logic" in out
-    assert "{task_id}" not in out
-    assert "{task_title}" not in out

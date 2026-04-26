@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import sys
+from datetime import datetime
 
 import typer
 
-from relay.blackboard import append_blocker
 from relay.config import ConfigError, load_config
 from relay.lock import TaskLock
 from relay.logfile import append_log
@@ -40,7 +40,11 @@ def panic(
     ticket = read_ticket(ref)
     actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
 
-    append_blocker(ref.path, actor, reason)
+    bb_path = ref.path / "blackboard.md"
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    bb_text = bb_path.read_text()
+    sep = "" if bb_text.endswith("\n") else "\n"
+    bb_path.write_text(f"{bb_text}{sep}\n- [{ts}] [{actor}] BLOCKER: {reason}\n")
     append_log(ref.path, actor, f"panic: {reason}")
 
     # Release the lock so a human can relaunch.
