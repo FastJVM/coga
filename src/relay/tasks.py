@@ -80,9 +80,23 @@ def resolve_task(cfg: Config, task_arg: str) -> TaskRef:
         raise TaskNotFoundError(f"Can't parse task id from {task_arg!r}")
     target_id = int(m.group(1))
 
-    candidates = [t for t in list_tasks(cfg) if t.id == target_id]
+    tasks = list_tasks(cfg)
+    # Exact id_slug match wins — handles the case where two task dirs
+    # accidentally share an id (which the counter shouldn't allow, but
+    # legacy/dogfood repos can drift into).
+    exact = [t for t in tasks if t.id_slug == task_arg]
+    if exact:
+        return exact[0]
+
+    candidates = [t for t in tasks if t.id == target_id]
     if not candidates:
         raise TaskNotFoundError(f"No task with id {target_id:03d}")
+    if len(candidates) > 1:
+        slugs = ", ".join(c.id_slug for c in candidates)
+        raise TaskNotFoundError(
+            f"Multiple tasks with id {target_id:03d}: {slugs}. "
+            f"Pass the full id-slug to disambiguate."
+        )
     return candidates[0]
 
 
