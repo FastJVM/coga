@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -255,6 +256,12 @@ def _seed_local_relay_os(root: Path) -> Path:
 
     # Stale top-level file an earlier upstream shipped (counter / numeric IDs).
     (relay_os / "counter").write_text("7\n")
+    # Stale top-level dir an earlier upstream shipped (meta/ → bootstrap/ rename).
+    (relay_os / "meta").mkdir()
+    (relay_os / "meta" / "ticket.md").write_text("OLD meta/ shim\n")
+    # Stale `_*` scaffold upstream no longer ships (rename or removal).
+    (relay_os / "recurring").mkdir(exist_ok=True)
+    (relay_os / "recurring" / "_template_old.md").write_text("STALE recurring template\n")
 
     vendored = relay_os / ".relay" / "src" / "relay"
     vendored.mkdir(parents=True)
@@ -314,10 +321,15 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert (relay_os / "bootstrap" / "create" / "ticket.md").read_text() == "NEW bootstrap shim\n"
     # Shims dropped upstream (renamed/removed) are pruned locally.
     assert not (relay_os / "bootstrap" / "stale").exists()
-    # Top-level files upstream once shipped but no longer does are pruned.
+    # Top-level paths upstream once shipped but no longer does are pruned.
     assert not (relay_os / "counter").exists()
-    assert "Pruned 1 obsolete path(s)" in result.output
+    assert not (relay_os / "meta").exists()
+    # `_*` scaffolds upstream no longer ships are also pruned.
+    assert not (relay_os / "recurring" / "_template_old.md").exists()
+    assert "Pruned 3 obsolete path(s)" in result.output
     assert "  counter" in result.output
+    assert "  meta" in result.output
+    assert "recurring/_template_old.md" in result.output
     # User-edited content untouched.
     assert (relay_os / "skills" / "myteam" / "real-skill" / "SKILL.md").read_text() == "user content\n"
     assert (relay_os / "rules.md").read_text() == "user-edited rules\n"
@@ -618,3 +630,109 @@ def test_init_update_fails_loudly_if_clone_fails(
     result = CliRunner().invoke(app, ["init", "--update"])
     assert result.exit_code == 2
     assert "git clone failed" in result.output
+
+
+# --- venv recreation ----------------------------------------------------------
+
+
+def test_venv_python_version_parses_pyvenv_cfg(tmp_path: Path) -> None:
+    venv = tmp_path / ".venv"
+    venv.mkdir()
+    (venv / "pyvenv.cfg").write_text("home = /usr/bin\nversion = 3.11.4\n")
+    assert update_cmd._venv_python_version(venv) == (3, 11)
+
+
+def test_venv_python_version_returns_none_when_missing(tmp_path: Path) -> None:
+    assert update_cmd._venv_python_version(tmp_path / ".venv") is None
+
+
+def test_venv_python_version_handles_malformed_cfg(tmp_path: Path) -> None:
+    venv = tmp_path / ".venv"
+    venv.mkdir()
+    (venv / "pyvenv.cfg").write_text("garbage without an equals\nversion = not.a.version\n")
+    assert update_cmd._venv_python_version(venv) is None
+
+
+def test_install_venv_recreates_on_python_version_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A venv built against a different Python X.Y gets blown away and rebuilt."""
+    relay_os = tmp_path / "relay-os"
+    dst_relay = relay_os / ".relay"
+    dst_relay.mkdir(parents=True)
+    (dst_relay / "pyproject.toml").write_text("[project]\nname = 'relay-os'\n")
+
+    # Stand up a fake "old" venv tagged as Python 1.0 so it can never match.
+    venv_dir = dst_relay / ".venv"
+    (venv_dir / "bin").mkdir(parents=True)
+    venv_python = venv_dir / "bin" / "python"
+    venv_python.write_text("#!/bin/sh\n")
+    venv_python.chmod(0o755)
+    (venv_dir / "pyvenv.cfg").write_text("home = /old\nversion = 1.0.0\n")
+    sentinel = venv_dir / "lib" / "python1.0" / "leftover.txt"
+    sentinel.parent.mkdir(parents=True)
+    sentinel.write_text("stale")
+
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kwargs):
+        if len(cmd) >= 3 and cmd[0] == sys.executable and cmd[1:3] == ["-m", "venv"]:
+            new_venv = Path(cmd[3])
+            (new_venv / "bin").mkdir(parents=True, exist_ok=True)
+            (new_venv / "bin" / "python").write_text("#!/bin/sh\n")
+            (new_venv / "bin" / "python").chmod(0o755)
+            (new_venv / "bin" / "relay").write_text("#!/bin/sh\n")
+            (new_venv / "bin" / "relay").chmod(0o755)
+            (new_venv / "pyvenv.cfg").write_text(
+                f"version = {sys.version_info.major}.{sys.version_info.minor}.0\n"
+            )
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if "pip" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    update_cmd.install_venv(relay_os)
+
+    # Stale lib dir wiped, new venv tagged with the running Python version.
+    assert not sentinel.exists()
+    assert update_cmd._venv_python_version(venv_dir) == sys.version_info[:2]
+
+
+def test_install_venv_keeps_matching_venv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A venv that already matches the running Python isn't recreated."""
+    relay_os = tmp_path / "relay-os"
+    dst_relay = relay_os / ".relay"
+    dst_relay.mkdir(parents=True)
+    (dst_relay / "pyproject.toml").write_text("[project]\nname = 'relay-os'\n")
+
+    venv_dir = dst_relay / ".venv"
+    (venv_dir / "bin").mkdir(parents=True)
+    (venv_dir / "bin" / "python").write_text("#!/bin/sh\n")
+    (venv_dir / "bin" / "python").chmod(0o755)
+    (venv_dir / "pyvenv.cfg").write_text(
+        f"version = {sys.version_info.major}.{sys.version_info.minor}.7\n"
+    )
+    sentinel = venv_dir / "marker.txt"
+    sentinel.write_text("preserve me")
+
+    venv_calls: list[list[str]] = []
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kwargs):
+        if len(cmd) >= 3 and cmd[0] == sys.executable and cmd[1:3] == ["-m", "venv"]:
+            venv_calls.append(list(cmd))
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if "pip" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    update_cmd.install_venv(relay_os)
+
+    assert venv_calls == []  # no recreate
+    assert sentinel.read_text() == "preserve me"

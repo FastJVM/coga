@@ -157,10 +157,10 @@ def _do_update() -> None:
     with tempfile.TemporaryDirectory(prefix="relay-init-update-") as tmp:
         clone_dir = clone_upstream(Path(tmp) / "repo")
         refresh_cli(clone_dir, relay_os)
-        copied = refresh_templates(clone_dir, relay_os)
+        copied, pruned_templates = refresh_templates(clone_dir, relay_os)
         sha = upstream_sha(clone_dir)
 
-    pruned = prune_obsolete(relay_os)
+    pruned = prune_obsolete(relay_os) + pruned_templates
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
