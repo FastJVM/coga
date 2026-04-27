@@ -87,7 +87,7 @@ def resolve_task(cfg: Config, task_arg: str) -> TaskRef:
 
 
 def resolve_bootstrap(cfg: Config, name: str) -> BootstrapRef:
-    """Resolve a bootstrap shim by name (e.g. "create" or "bootstrap/create")."""
+    """Resolve a bootstrap shim by name (e.g. "ticket" or "bootstrap/ticket")."""
     if name.startswith(_BOOTSTRAP_PREFIX):
         name = name[len(_BOOTSTRAP_PREFIX):]
     path = bootstrap_path(cfg, name)

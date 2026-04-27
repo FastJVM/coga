@@ -42,7 +42,7 @@ def create(
     This command is intentionally mechanical: it lays down the directory,
     ticket frontmatter, blackboard, and log. It does not interview the human
     or decide which workflow / contexts / assignee fit. Authoring lives in
-    the `bootstrap/create` skill, which calls this command to scaffold and
+    the `bootstrap/ticket` skill, which calls this command to scaffold and
     then fills in the blanks.
     """
     try:
