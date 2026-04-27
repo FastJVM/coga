@@ -27,14 +27,14 @@ from relay.tasks import (
     resolve_target,
     resolve_task,
 )
-_LAUNCHABLE_STATUSES = {"design", "active"}
+_LAUNCHABLE_STATUSES = {"draft", "active"}
 
 
 def launch(
     task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` shim."),
     title: str = typer.Argument(
         None,
-        help="With a bootstrap shim, scaffold a new design-status task with this title and launch on it.",
+        help="With a bootstrap shim, scaffold a new draft task with this title and launch on it.",
     ),
     force: bool = typer.Option(False, "--force", help="Break a stale lock."),
 ) -> None:
@@ -51,8 +51,8 @@ def launch(
 
     is_bootstrap = isinstance(ref, BootstrapRef)
 
-    # Factory mode: bootstrap shim + title → scaffold a new design-status
-    # task seeded from the shim's frontmatter, then launch on the new task.
+    # Factory mode: bootstrap shim + title → scaffold a new draft task
+    # seeded from the shim's frontmatter, then launch on the new task.
     if title is not None:
         if not is_bootstrap:
             _bail("Title arg is only valid when launching a `bootstrap/<name>` shim.")
@@ -67,7 +67,7 @@ def launch(
     if not is_bootstrap and ticket.status not in _LAUNCHABLE_STATUSES:
         _bail(
             f"Task {ref.id_slug} is {ticket.status!r}. "
-            f"Set status to 'design' or 'active' before launching."
+            f"Set status to 'draft' or 'active' before launching."
         )
 
     assignee = ticket.assignee
@@ -165,7 +165,7 @@ def launch(
 
 
 def _scaffold_from_shim(cfg: Config, shim: BootstrapRef, title: str) -> TaskRef:
-    """Scaffold a new design-status task seeded from a bootstrap shim's frontmatter.
+    """Scaffold a new draft task seeded from a bootstrap shim's frontmatter.
 
     The shim ticket carries the `mode`, `assignee`, and `skill` ref the new
     task should inherit; the agent will fill in workflow/contexts/description
@@ -181,7 +181,7 @@ def _scaffold_from_shim(cfg: Config, shim: BootstrapRef, title: str) -> TaskRef:
         owner=cfg.current_user,
         assignee=shim_ticket.assignee,
         watchers=[],
-        status="design",
+        status="draft",
         skill=shim_ticket.skill,
         created_by=f"bootstrap:{shim.name}",
     )

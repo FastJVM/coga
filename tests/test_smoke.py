@@ -41,7 +41,7 @@ def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg = load_config(seeded)
     assert cfg.current_user == "marc"
-    assert cfg.default_status == "ready"
+    assert cfg.default_status == "draft"
 
     # 1. Create a task with the code/with-review workflow.
     ref = scaffold_task(

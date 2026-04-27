@@ -41,10 +41,10 @@ periodic `git pull && pip install -e .` in the source repo is enough.
 
 After init, edit the freshly-written `relay-os/relay.toml` to declare your
 agents and assignees, and set `user = "<you>"` in
-`relay-os/relay.local.toml`. Then create your first task:
+`relay-os/relay.local.toml`. Then create your first ticket:
 
 ```sh
-relay create --title "First task"
+relay create "First task"
 ```
 
 Multi-surface companies (e.g. an admin repo + a code repo) run multiple
@@ -105,37 +105,44 @@ yourself if you use them. If init finds something non-directory in the way
 (e.g. an empty `.codex` sentinel file from an older setup), it skips that
 agent and prints what to clear.
 
-### `relay create`
+### `relay create "<title>"`
 
-Scaffold a new task directory under `relay-os/tasks/<slug>/` (slug derived
-from the title) and write `ticket.md`, `blackboard.md`, and `log.md`. If the
-slug already exists, the new task gets `-2`, `-3`, … appended. The ticket
-frontmatter encodes who owns it, who's assigned, what workflow it follows,
-and what contexts it pulls in.
+Scaffold a new `draft` ticket under `relay-os/tasks/<slug>/` (slug derived
+from the title) and auto-launch the `bootstrap/ticket` skill on it. The
+skill interviews you, scans the inventory, and fills in workflow,
+contexts, assignee, and description directly in the ticket. If the slug
+already exists, the new task gets `-2`, `-3`, … appended.
 
 ```sh
-relay create --title "Add retry to webhook handler"
-relay create --title "Investigate bounce rate" \
-             --workflow code/with-review --context email/payment-flow \
-             --assignee claude1 --mode auto
+relay create "Add retry to webhook handler"
+relay create "Investigate bounce rate" -d "Audit Mailgun bounce logs for last 30 days"
+relay create "Tweak copy" --no-launch         # scaffold only, edit by hand
 ```
 
-Key flags:
-- `--workflow NAME` — freeze a workflow into the ticket so steps + skills are pinned.
-- `--context REF` (repeatable) — attach domain knowledge files; validated to exist.
-- `--mode interactive | auto | script` — how the launcher should run it.
-- `--check-recurring` — scan `relay-os/recurring/` and create any tasks that are due.
+Flags:
+- `--description` / `-d` — one-line description seeded into the ticket body.
+- `--no-launch` — scaffold the `draft` ticket but don't spawn the skill (CI / scripted use).
 
-`relay create` is intentionally mechanical — it lays bytes on disk. The
-*authoring* flow (interview, pick a workflow, attach the right contexts,
-fill in the assignee) lives in the `bootstrap/ticket` skill. Run that via
-the persistent shim — bare for an empty session, or with a title to
-scaffold a design-status task and have the agent fill in the rest:
+`relay create` is the human entry point — it stays minimal on purpose.
+Workflows, contexts, assignee, mode, and watchers are all set by the
+`bootstrap/ticket` skill that launches against the new ticket. Programmatic
+callers (e.g. the recurring scaffolder) call `scaffold_task()` in
+`relay.commands.create` directly with the full keyword surface.
+
+You can also enter the authoring flow via the persistent shim — bare for
+an empty session, or via the equivalent factory form:
 
 ```sh
 relay launch bootstrap/ticket
 relay launch bootstrap/ticket "Investigate bounce rate"
 ```
+
+### `relay recurring check`
+
+Scan `relay-os/recurring/` and scaffold any due tasks. Called from
+`scripts/cron.sh`; safe to run by hand. Recurring scaffolding goes through
+`scaffold_task()` directly with the template's full frontmatter, so it's
+unaffected by the `relay create` CLI shape.
 
 ### `relay launch <target> [title]`
 
@@ -150,9 +157,9 @@ relay launch add-retry                              # any unique prefix works
 relay launch add-retry --force                      # break a stale lock
 relay launch bootstrap/ticket                       # stateless shim → run a skill
 relay launch bootstrap/ticket "Add retry to webhook handler"
-                                                    # factory: scaffold a design-status
-                                                    # task with that title and launch
-                                                    # the bootstrap/ticket skill on it
+                                                    # factory: scaffold a draft task
+                                                    # with that title and launch the
+                                                    # bootstrap/ticket skill on it
 ```
 
 Tasks are addressed by slug — there is no numeric ID. Pass any unique prefix
@@ -161,14 +168,14 @@ Tasks are addressed by slug — there is no numeric ID. Pass any unique prefix
 The agent type comes from the ticket's `assignee` (e.g. `claude1`) resolved
 through `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
 
-A task is launchable in `design` (agent is authoring) or `active` (agent is
-executing) status. `paused`, `done`, etc. require a flip first.
+A task is launchable in `draft` (agent is authoring) or `active` (agent is
+executing) status. `paused` and `done` require a flip first.
 
 `bootstrap/<name>` tickets are stateless re-entry points for skills. Without
 a title arg they run as authoring sessions and don't acquire a lock —
 concurrent launches are safe. With a title, they act as factories: scaffold
 a new task seeded from the shim's frontmatter (mode, assignee, skill),
-status=design, then launch the agent on the new task to fill in the details.
+status=draft, then launch the agent on the new task to fill in the details.
 
 Init ships `bootstrap/ticket` (authoring flow); the `relay-os/bootstrap/`
 tree is upstream-managed and refreshed wholesale by `relay init --update`,
@@ -177,8 +184,7 @@ so don't add custom shims there — write your own launch wrappers elsewhere.
 ### `relay status`
 
 Show what's in flight in the repo. Defaults to non-terminal tasks
-(`design`, `ready`, `active`, `paused`); use `--all` to include `done`,
-`canceled`, `failed`.
+(`draft`, `active`, `paused`); use `--all` to include `done`.
 
 ```sh
 relay status                              # active work

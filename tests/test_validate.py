@@ -26,7 +26,7 @@ def repo(tmp_path: Path):
         company / "relay.toml",
         """
         version = 1
-        default_status = "ready"
+        default_status = "draft"
         [agents.claude]
         cli = "claude"
         interactive = "-i"
@@ -47,7 +47,7 @@ def test_clean_repo_has_no_issues(repo: Path) -> None:
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=["email/payment-flow"], mode="interactive",
-        owner="marc", assignee="claude1", watchers=[], status="ready",
+        owner="marc", assignee="claude1", watchers=[], status="draft",
     )
     report = run(cfg)
     assert report.issues == []
@@ -104,7 +104,7 @@ def test_invalid_status(repo: Path) -> None:
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude1",
-        watchers=[], status="ready",
+        watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.path / "ticket.md")
@@ -119,7 +119,7 @@ def test_missing_file(repo: Path) -> None:
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude1",
-        watchers=[], status="ready",
+        watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
     (ref.path / "blackboard.md").unlink()

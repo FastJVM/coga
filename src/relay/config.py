@@ -99,7 +99,7 @@ def load_config(repo_root: Path | None = None) -> Config:
     if version != 1:
         raise ConfigError(f"Unsupported relay.toml version: {version!r} (expected 1)")
 
-    default_status = shared.get("default_status", "ready")
+    default_status = shared.get("default_status", "draft")
     agents = _parse_agents(shared.get("agents", {}))
     assignees = _parse_assignees(shared.get("assignees", {}))
     slack_webhook = (shared.get("slack") or {}).get("webhook")

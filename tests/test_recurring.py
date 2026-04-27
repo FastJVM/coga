@@ -24,7 +24,7 @@ def repo(tmp_path: Path):
         company / "relay.toml",
         """
         version = 1
-        default_status = "ready"
+        default_status = "draft"
         [agents.claude]
         cli = "claude"
         interactive = "-i"

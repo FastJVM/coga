@@ -11,6 +11,7 @@ from relay.commands import feed as feed_cmd
 from relay.commands import init as init_cmd
 from relay.commands import launch as launch_cmd
 from relay.commands import panic as panic_cmd
+from relay.commands import recurring as recurring_cmd
 from relay.commands import status as status_cmd
 from relay.commands import step as step_cmd
 from relay.commands.update import read_pin
@@ -63,6 +64,7 @@ app.command("status")(status_cmd.status)
 app.command("step")(step_cmd.step)
 app.command("panic")(panic_cmd.panic)
 app.command("feed")(feed_cmd.feed)
+app.add_typer(recurring_cmd.app, name="recurring")
 
 
 if __name__ == "__main__":

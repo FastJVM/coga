@@ -8,7 +8,7 @@ This document merges `relay-spec-v2` and all updates from `relay-spec-updates` i
 
 ```toml
 version = 1
-default_status = "ready"
+default_status = "draft"
 
 # --- Agents ---
 
@@ -325,24 +325,21 @@ A ticket has two independent state machines.
 
 | Status | Meaning |
 |---|---|
-| `design` | Not ready. Needs scoping, research, or spec work before it can be executed. |
-| `ready` | In the pool. Pickable. Work can start. |
+| `draft` | Stub. Captured but not yet authored, or authored and waiting for approval. Not pickable for execution. |
 | `active` | Someone is working on it. Workflow steps advance. |
-| `paused` | Suspended. Workflow frozen at current step. Pick up later. |
-| `done` | Completed. |
-| `canceled` | Deliberately abandoned. |
-| `failed` | Work was attempted and did not succeed. |
+| `paused` | Held. Workflow frozen at current step. Manual stop, or terminal error to revisit. |
+| `done` | Closed. Success, abandoned, or failed — the actual outcome lives in the final log entry. |
 
 Transitions are not constrained by the system in v1 — any status can move to any other. The convention is:
 
-- `design → ready → active → done`
+- `draft → active → done`
 - `active → paused → active` (resume)
-- `active → design` (send back, needs rethinking)
-- `active → failed` / `active → canceled`
+- `active → draft` (send back, needs rethinking)
+- `active → done` (any terminal outcome — success, cancel, fail)
 
-The default starting status comes from the top-level `default_status` field in `relay.toml` (defaults to `ready` if absent).
+The default starting status comes from the top-level `default_status` field in `relay.toml` (defaults to `draft` if absent).
 
-**Data plane (workflow step)** governs *what* work happens — the sequence of steps to complete the task. Per-task, frozen from the workflow definition at creation time. Step only advances when status is `active`. Pausing freezes the step. Sending back to `design` does not reset the step.
+**Data plane (workflow step)** governs *what* work happens — the sequence of steps to complete the task. Per-task, frozen from the workflow definition at creation time. Step only advances when status is `active`. Pausing freezes the step. Sending back to `draft` does not reset the step.
 
 ---
 
@@ -441,7 +438,7 @@ The default template:
 | Field | Type | Description |
 |---|---|---|
 | `title` | string | Human-readable name. No `id` field — the task directory path is the unique identifier. |
-| `status` | string | Control plane. One of: design, ready, active, paused, done, canceled, failed. |
+| `status` | string | Control plane. One of: draft, active, paused, done. |
 | `mode` | string | `interactive`, `auto`, or `script`. Default: `interactive`. Controls how `relay launch` starts work. `interactive`: human-attended session — agent starts with composed context, human present in terminal. `auto`: autonomous execution — agent receives composed context as one-shot prompt, runs without human input. `script`: direct execution — no agent spawned, script runs with secrets injected as env vars. |
 | `owner` | string | Human accountable. Stable over the task's life. |
 | `assignee` | string | Who's currently doing the work. Human name or agent nickname. Set independently — not derived from workflow. |
@@ -502,7 +499,7 @@ Don't touch the idempotency layer — that's a separate task.
 ```markdown
 ---
 title: Look into slow DNS resolution on staging
-status: ready
+status: draft
 owner: marc
 ---
 
@@ -602,16 +599,16 @@ It's a persistent memory system (and we can probably use one of the opensource o
 
 #### Create skill
 
-A skill (`relay-os/skills/bootstrap/ticket`) is the authoring entry point for new tasks. `relay create` is a dumb scaffolder — it lays down a task directory and frontmatter from CLI args. The judgment lives in the skill.
+A skill (`relay-os/skills/bootstrap/ticket`) is the authoring entry point for new tasks. `relay create` is a dumb scaffolder — `relay create "<title>"` lays down a task directory with `status: draft` and auto-launches this skill against it. The judgment lives in the skill.
 
-When a human says "make me a task for X" the agent invokes this skill and:
+When a human runs `relay create "<title>"` (or says "make me a ticket for X" inside an existing session), the skill:
 
 1. Interviews the human until the work is framed (one question at a time).
 2. Scans existing workflows, contexts, and skills to find what fits.
-3. Calls `relay create --title ... [--workflow ...] [--context ...] ...` to scaffold.
-4. Edits the freshly-scaffolded `ticket.md` frontmatter to fill in anything not passed on the CLI (workflow, contexts, assignee, watchers).
+3. Edits the freshly-scaffolded `ticket.md` frontmatter to fill in workflow, contexts, assignee, watchers, mode.
+4. Edits the `## Description` body with what to do and why.
 5. Notes the rationale in the blackboard's Notes section.
-6. Stops. Status stays at `design` (or flips to `ready` if the human already approved). The skill never launches the task itself.
+6. Stops. Status stays at `draft` until the human approves and runs `relay launch`. The skill never launches the task itself.
 
 If nothing in the inventory fits, the skill flags the gap on the blackboard for the dream skill to act on later — it never invents a workflow or context that doesn't exist.
 
@@ -629,7 +626,7 @@ remembering the prompt by heart, Relay ships persistent shim tickets under
   work.
 - `relay launch bootstrap/<name> "title"` is a factory shorthand: scaffold
   a new task seeded from the shim's frontmatter (mode, assignee, skill),
-  status=design, then launch the agent on the new task to fill in the rest.
+  status=draft, then launch the agent on the new task to fill in the rest.
 - The ticket directory accumulates `log.md` over time (a record of who
   invoked the shim and when), and may grow `blackboard.md` if the skill
   writes notes there. It does not participate in `relay status`.
@@ -651,7 +648,7 @@ Recurring tasks need a scheduler. Relay doesn't own the scheduler — the OS doe
 `relay-os/scripts/cron.sh` is a script the user's system cron calls on a schedule. It:
 
 1. Acquires a pidfile lock (`/tmp/relay-cron.pid`) — if another instance is already running, exit immediately. At most one cron run at a time.
-2. Runs `relay create --check-recurring` — scans recurring templates in `relay-os/recurring/`, creates any due tasks.
+2. Runs `relay recurring check` — scans recurring templates in `relay-os/recurring/`, creates any due tasks.
 3. Optionally runs `relay launch` on any newly created auto tasks — if the recurring template has `mode: auto`, the task can be launched immediately after creation.
 
 The user sets up their own crontab:
@@ -683,7 +680,8 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 | Command | What it does |
 |---|---|
-| `relay create` | Scaffold a ticket, snapshot the workflow into frontmatter. Also checks recurring templates and creates any due tasks. |
+| `relay create "<title>"` | Scaffold a `draft` ticket and auto-launch the `bootstrap/ticket` skill on it to interview the human and fill in workflow / contexts / description. `--no-launch` for scripted use. |
+| `relay recurring check` | Scan recurring templates and scaffold any due tasks. |
 | `relay launch` | Compose prompt from all context, inject secrets, start work on a task. Handles all three modes: interactive, auto, and script. |
 | `relay status` | Show all active tasks in this repo. One line per task: id, title, assignee, step, mode. |
 
@@ -717,7 +715,7 @@ shims" above.
 1. Resolve the current user from `relay.local.toml`.
 2. Look up the task in `relay-os/tasks/` (the CLI always operates on the repo it's running inside).
 3. Read the `assignee` field from the ticket. Resolve the agent nickname in the user's `[assignees]` config to the agent type.
-4. Verify the task's `status` is `design` or `active`. Error if not.
+4. Verify the task's `status` is `draft` or `active`. Error if not.
 5. Load secrets from `relay.local.toml` `[secrets]` section. Resolve `env:VAR_NAME` references to actual values. These will be exported as environment variables into the launched process.
 6. **Compose the prompt.** Assemble in this order:
    - Relay base prompt (how to operate within Relay — see below)
@@ -762,7 +760,7 @@ Later content overrides earlier content when they conflict. The agent sees the m
 |---|---|
 | Task not found | Error. Show available tasks. |
 | Assignee not found in current user's agents | Error. "Task 003 is assigned to `claude2`, which is not in your agent config." |
-| Task status is not `active` | Error. "Task 003 is `paused`. Set to `active` before launching." |
+| Task status is not launchable | Error. "Task 003 is `paused`. Set to `active` (or `draft`) before launching." |
 | Agent CLI binary not found | Error. "{cli} not found in PATH." |
 | Missing context or skill reference | Error. List the missing references. Do not launch. |
 | Mode is `script` but no script found in step's skill | Error. "Step `publish` has no script to execute." |
@@ -826,7 +824,7 @@ Checks include:
 - Workflow step references point to skills that actually exist
 - Context references in tickets point to contexts that actually exist
 - Assignees in task files match known users in `relay.toml`
-- Status values are valid (one of: design, ready, active, paused, done, canceled, failed)
+- Status values are valid (one of: draft, active, paused, done)
 
 ---
 
@@ -962,7 +960,7 @@ Note: `relay step` on the last step is not an error — it marks the task `done`
 
 Items to evaluate after v1 is built and used. Not designed yet.
 
-1. **Per-repo control plane workflows.** The universal status list (design, ready, active, etc.) could become an editable state graph per repo — same workflow primitive as the data plane, but with branches and backward edges. Requires extending the workflow format to support non-linear graphs.
+1. **Per-repo control plane workflows.** The universal status list (draft, active, paused, done) could become an editable state graph per repo — same workflow primitive as the data plane, but with branches and backward edges. Requires extending the workflow format to support non-linear graphs.
 2. **Priority / ordering.** Skipped for v1. If 15+ active tasks in a repo makes it hard to know what to work on next, add then.
 3. **Real Slack app.** Bot token with `chat:write` + `users:read` scopes for DMs instead of shared channel @mentions.
 4. **Fully autonomous agent chains.** Agent-to-agent handoff: when agent A completes its step and the next step is assigned to agent B, auto-trigger `relay launch` for B. Requires lifting the `reassign`-to-agent restriction. Depends on v1 learnings about how often multi-agent chains actually occur.
@@ -1017,7 +1015,7 @@ No detailed behavior spec. Now also absorbs recurring template checking. Open qu
 - How does create-with-suggestions integrate? Is it a post-create hook? A flag?
 - Handling of duplicate context references.
 - Skills from workflow steps are not composed at creation time — they are loaded at launch time for the current step. Confirmed, but the boundary needs to be explicit in the spec.
-- Recurring integration: how does `relay create --check-recurring` detect "already created for this period" — naming convention on created task, or `last_run` field updated in the template?
+- Recurring integration: how does `relay recurring check` detect "already created for this period" — naming convention on created task, or `last_run` field updated in the template?
 - What "due" means for different schedule frequencies (daily, weekly, monthly).
 
 #### ~~Task ID generation~~ — resolved
@@ -1063,7 +1061,7 @@ When `relay step` advances to a step where a different person should take over (
 #### Task lifecycle transitions
 
 - What happens to the workflow step when status moves to `paused` then back to `active`? (Expected: resumes at same step. Confirm.)
-- What happens to the workflow step when status moves to `design`? (Expected: preserves step. Confirm.)
+- What happens to the workflow step when status moves to `draft`? (Expected: preserves step. Confirm.)
 - Should invalid transitions be rejected or just warned about by the dream/drift validation script?
 
 #### Workflow-less tasks

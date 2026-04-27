@@ -30,7 +30,7 @@ from relay.paths import context_path, skill_path
 from relay.tasks import list_tasks
 from relay.ticket import Ticket, TicketError
 
-VALID_STATUSES = {"design", "ready", "active", "paused", "done", "canceled", "failed"}
+VALID_STATUSES = {"draft", "active", "paused", "done"}
 
 
 @dataclass

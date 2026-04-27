@@ -1,6 +1,6 @@
 ---
 title: Replace with a one-line task title
-status: ready
+status: draft
 mode: interactive
 owner: replace-with-human-name
 assignee: replace-with-human-or-agent-nickname
