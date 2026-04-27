@@ -24,12 +24,13 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = 
     - The current step must have `skill:` set.
     - The skill's SKILL.md frontmatter must have `script: <filename>`.
     - The script runs with secrets from relay.local.toml as env vars.
-    - Working directory = the project's local path.
+    - Working directory = the host repo (parent of relay-os/), or repo_root if
+      relay.toml lives at the top level.
     - Non-zero exit: task stays at current step; a Slack FYI is posted.
     """
     current = ticket.current_step()
     if not current:
-        _bail(f"Task {ref.project}/{ref.id_slug} has no current workflow step.")
+        _bail(f"Task {ref.id_slug} has no current workflow step.")
     if not current.get("skill"):
         _bail(
             f"Step {current['name']!r} has no skill attached. "
@@ -61,8 +62,9 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = 
     env = os.environ.copy()
     env.update(cfg.secrets)
 
-    project = cfg.project(ref.project)
-    cwd = project.path if project.path else cfg.repo_root
+    # The repo root for relay-os/ inside a host repo is `repo/relay-os`; scripts
+    # almost always want the host repo (its parent), so prefer that when present.
+    cwd = cfg.repo_root.parent if cfg.repo_root.name == "relay-os" else cfg.repo_root
 
     append_log(
         ref.path,
@@ -71,7 +73,7 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = 
     )
     post_feed(
         cfg,
-        f"{ref.project} {ref.id_slug} \"{ticket.title}\" — running {skill.script} (script mode)",
+        f"{ref.id_slug} \"{ticket.title}\" — running {skill.script} (script mode)",
     )
 
     try:
@@ -91,13 +93,13 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = 
     if exit_code != 0:
         post_feed(
             cfg,
-            f"{ref.project} {ref.id_slug} — script exited non-zero (code {exit_code}); "
+            f"{ref.id_slug} — script exited non-zero (code {exit_code}); "
             f"task stays at step {ticket.step}",
         )
         typer.secho(f"Script exited with {exit_code}.", fg=typer.colors.YELLOW, err=True)
         sys.exit(exit_code)
 
-    typer.echo(f"{ref.project}/{ref.id_slug}: script ran successfully")
+    typer.echo(f"{ref.id_slug}: script ran successfully")
 
 
 def _bail(msg: str) -> None:

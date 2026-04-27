@@ -1,9 +1,6 @@
 version = 1
 
-# --- Projects ---
-
-[projects.relay]
-type = "local"
+# Default status for new tasks. Override per-task with `--status`.
 default_status = "ready"
 
 # --- Agents ---

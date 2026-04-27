@@ -21,14 +21,10 @@ def _write(path: Path, text: str) -> None:
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     company = tmp_path / "relay-os"
-    project = tmp_path / "projects" / "email-tool"
-    project.mkdir(parents=True)
     _write(
         company / "relay.toml",
-        f"""
+        """
         version = 1
-        [projects.email-tool]
-        type = "local"
         default_status = "ready"
         [agents.claude]
         cli = "claude"
@@ -36,10 +32,10 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {{"claude1" = "claude"}}
+        agents = {"claude1" = "claude"}
         """,
     )
-    _write(company / "relay.local.toml", f'user = "marc"\n[paths]\nemail-tool = "{project}"\n')
+    _write(company / "relay.local.toml", 'user = "marc"\n')
     _write(
         company / "workflows" / "code.md",
         """
@@ -63,7 +59,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "active") -> tuple[str, Path]:
     cfg = load_config(repo)
     ref = scaffold_task(
-        cfg=cfg, project="email-tool", title="Work", workflow_name=workflow,
+        cfg=cfg, title="Work", workflow_name=workflow,
         contexts=[], mode="interactive", owner="marc", assignee="claude1",
         watchers=[], status=status,
     )
@@ -76,10 +72,10 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "acti
 def test_step_advances(repo: Path) -> None:
     _make_task(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["step", "2", "--task", "email-tool/001"])
+    result = runner.invoke(app, ["step", "2", "--task", "001"])
     assert result.exit_code == 0, result.output
     cfg = load_config(repo)
-    ref = list_tasks(cfg, "email-tool")[0]
+    ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.path / "ticket.md")
     assert t.step == "2 (pr)"
     assert "advanced to step 2" in (ref.path / "log.md").read_text()
@@ -89,9 +85,9 @@ def test_step_to_done_marks_done(repo: Path) -> None:
     _, task_path = _make_task(repo)
     runner = CliRunner()
     # Workflow has 3 steps; step 4 = done
-    runner.invoke(app, ["step", "2", "--task", "email-tool/001"])
-    runner.invoke(app, ["step", "3", "--task", "email-tool/001"])
-    result = runner.invoke(app, ["step", "4", "--task", "email-tool/001"])
+    runner.invoke(app, ["step", "2", "--task", "001"])
+    runner.invoke(app, ["step", "3", "--task", "001"])
+    result = runner.invoke(app, ["step", "4", "--task", "001"])
     assert result.exit_code == 0
     t = Ticket.read(task_path / "ticket.md")
     assert t.status == "done"
@@ -101,14 +97,14 @@ def test_step_to_done_marks_done(repo: Path) -> None:
 def test_step_rejects_non_active(repo: Path) -> None:
     _make_task(repo, status="paused")
     runner = CliRunner()
-    result = runner.invoke(app, ["step", "2", "--task", "email-tool/001"])
+    result = runner.invoke(app, ["step", "2", "--task", "001"])
     assert result.exit_code == 2
 
 
 def test_step_rejects_no_workflow(repo: Path) -> None:
     _make_task(repo, workflow=None)
     runner = CliRunner()
-    result = runner.invoke(app, ["step", "2", "--task", "email-tool/001"])
+    result = runner.invoke(app, ["step", "2", "--task", "001"])
     assert result.exit_code == 2
 
 
@@ -121,7 +117,7 @@ def test_panic_writes_blocker_and_releases_lock(repo: Path) -> None:
     from relay.lock import TaskLock
     TaskLock(task_path).acquire("claude1")
     runner = CliRunner()
-    result = runner.invoke(app, ["panic", "--task", "email-tool/001", "--reason", "unclear ceiling for 429 backoff"])
+    result = runner.invoke(app, ["panic", "--task", "001", "--reason", "unclear ceiling for 429 backoff"])
     assert result.exit_code == 0, result.output
     blackboard = (task_path / "blackboard.md").read_text()
     assert "unclear ceiling for 429 backoff" in blackboard
@@ -136,7 +132,7 @@ def test_panic_writes_blocker_and_releases_lock(repo: Path) -> None:
 def test_feed_logs(repo: Path) -> None:
     _, task_path = _make_task(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["feed", "--task", "email-tool/001", "--message", "opened PR #142"])
+    result = runner.invoke(app, ["feed", "--task", "001", "--message", "opened PR #142"])
     assert result.exit_code == 0
     assert "feed: opened PR #142" in (task_path / "log.md").read_text()
 
@@ -149,7 +145,6 @@ def test_status_shows_active(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0
-    assert "email-tool" in result.output
     assert "001" in result.output
 
 

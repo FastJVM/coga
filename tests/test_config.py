@@ -19,15 +19,7 @@ def repo(tmp_path: Path) -> Path:
         tmp_path / "relay.toml",
         """
         version = 1
-
-        [projects.email-tool]
-        type = "repo"
-        remote = "git@github.com:company/email-tool.git"
         default_status = "ready"
-
-        [projects.ops]
-        type = "local"
-        default_status = "design"
 
         [agents.claude]
         cli = "claude"
@@ -49,9 +41,6 @@ def repo(tmp_path: Path) -> Path:
         """
         user = "marc"
 
-        [paths]
-        email-tool = "~/projects/email-tool"
-
         [secrets]
         stripe_key = "env:STRIPE_SECRET_KEY"
         literal = "just-a-value"
@@ -64,13 +53,30 @@ def test_load_basic(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
     cfg = load_config(repo)
     assert cfg.current_user == "marc"
-    assert set(cfg.projects) == {"email-tool", "ops"}
-    assert cfg.projects["email-tool"].path == Path("~/projects/email-tool").expanduser()
-    assert cfg.projects["ops"].path is None  # repo_root not named relay-os/, no default
+    assert cfg.default_status == "ready"
     assert cfg.agents["claude"].cli == "claude"
     assert cfg.slack_webhook.startswith("https://")
     assert cfg.secrets["stripe_key"] == "sk_test_abc"
     assert cfg.secrets["literal"] == "just-a-value"
+
+
+def test_default_status_defaults_to_ready(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        [agents.claude]
+        cli = "claude"
+        interactive = "-i"
+        auto = "-p"
+        file = "CLAUDE.md"
+        [assignees.marc]
+        agents = {"claude1" = "claude"}
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    cfg = load_config(tmp_path)
+    assert cfg.default_status == "ready"
 
 
 def test_resolve_agent_type(repo: Path) -> None:
@@ -119,32 +125,6 @@ def test_missing_env_secret_is_empty(repo: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
     cfg = load_config(repo)
     assert cfg.secrets["stripe_key"] == ""
-
-
-def test_local_project_defaults_to_parent_when_in_relay_os(tmp_path: Path) -> None:
-    """A `local` project with no [paths] entry defaults to the dir above relay-os/."""
-    company = tmp_path / "mycompany"
-    relay_os = company / "relay-os"
-    relay_os.mkdir(parents=True)
-    _write(
-        relay_os / "relay.toml",
-        """
-        version = 1
-        [projects.mycompany]
-        type = "local"
-        [agents.claude]
-        cli = "claude"
-        interactive = "-i"
-        auto = "-p"
-        file = "CLAUDE.md"
-        [assignees.me]
-        agents = {"claude1" = "claude"}
-        """,
-    )
-    _write(relay_os / "relay.local.toml", 'user = "me"\n')
-
-    cfg = load_config(relay_os)
-    assert cfg.projects["mycompany"].path == company
 
 
 def test_unsupported_version(tmp_path: Path) -> None:

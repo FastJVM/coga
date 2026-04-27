@@ -1,13 +1,10 @@
-"""Canonical paths inside a Relay repo and inside a project's relay-os/."""
+"""Canonical paths inside a Relay repo's `relay-os/`."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from relay.config import Config
-
-
-# --- company repo (where relay.toml lives) -------------------------------------
 
 
 def rules_path(cfg: Config) -> Path:
@@ -34,29 +31,16 @@ def recurring_dir(cfg: Config) -> Path:
     return cfg.repo_root / "recurring"
 
 
-# --- per-project relay-os/ -----------------------------------------------------
+def repo_context_path(cfg: Config) -> Path:
+    return cfg.repo_root / "context.md"
 
 
-def project_relay_dir(cfg: Config, project_name: str) -> Path:
-    proj = cfg.project(project_name)
-    if proj.path is None:
-        raise ValueError(
-            f"Project {project_name!r} has no path configured. "
-            "Add it under [paths] in relay.local.toml."
-        )
-    return proj.path / "relay-os"
+def tasks_dir(cfg: Config) -> Path:
+    return cfg.repo_root / "tasks"
 
 
-def project_tasks_dir(cfg: Config, project_name: str) -> Path:
-    return project_relay_dir(cfg, project_name) / "tasks"
-
-
-def project_context_path(cfg: Config, project_name: str) -> Path:
-    return project_relay_dir(cfg, project_name) / "context.md"
-
-
-def task_dir(cfg: Config, project_name: str, id_slug: str) -> Path:
-    return project_tasks_dir(cfg, project_name) / id_slug
+def task_dir(cfg: Config, id_slug: str) -> Path:
+    return tasks_dir(cfg) / id_slug
 
 
 __all__ = [
@@ -66,8 +50,7 @@ __all__ = [
     "skill_dir",
     "context_path",
     "recurring_dir",
-    "project_relay_dir",
-    "project_tasks_dir",
-    "project_context_path",
+    "repo_context_path",
+    "tasks_dir",
     "task_dir",
 ]

@@ -20,14 +20,10 @@ def _write(path: Path, text: str) -> None:
 @pytest.fixture
 def repo(tmp_path: Path):
     company = tmp_path / "relay-os"
-    project = tmp_path / "projects" / "email-tool"
-    project.mkdir(parents=True)
     _write(
         company / "relay.toml",
-        f"""
+        """
         version = 1
-        [projects.email-tool]
-        type = "local"
         default_status = "ready"
         [agents.claude]
         cli = "claude"
@@ -35,10 +31,10 @@ def repo(tmp_path: Path):
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {{"claude1" = "claude"}}
+        agents = {"claude1" = "claude"}
         """,
     )
-    _write(company / "relay.local.toml", f'user = "marc"\n[paths]\nemail-tool = "{project}"\n')
+    _write(company / "relay.local.toml", 'user = "marc"\n')
     _write(
         company / "recurring" / "weekly-check.md",
         """
@@ -48,7 +44,6 @@ def repo(tmp_path: Path):
         mode: auto
         assignee: claude1
         owner: marc
-        project: email-tool
         ---
 
         ## Description
@@ -83,7 +78,7 @@ def test_check_recurring_idempotent(repo: Path) -> None:
     second = check_recurring(cfg, now=now)
     assert len(first) == 1
     assert len(second) == 0
-    assert len(list_tasks(cfg, "email-tool")) == 1
+    assert len(list_tasks(cfg)) == 1
 
 
 def test_check_recurring_different_period_creates_new(repo: Path) -> None:
@@ -112,7 +107,6 @@ def test_check_recurring_skips_underscore_template(repo: Path, capsys) -> None:
         ---
         schedule: "0 9 * * 1"
         title: placeholder
-        project: missing-project
         ---
         """,
     )

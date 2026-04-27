@@ -32,12 +32,9 @@ from relay.config import find_repo_root
 
 
 LOCAL_TOML_TEMPLATE = """\
-# Machine-local config — gitignored. Holds your assignee name, project paths,
-# and secrets. Override anything from relay.toml here without committing it.
+# Machine-local config — gitignored. Holds your assignee name and secrets.
+# Override anything from relay.toml here without committing it.
 user = ""
-
-# [paths]
-# my-project = "/absolute/path/to/checkout"
 
 # [secrets]
 # stripe_key = "env:STRIPE_SECRET_KEY"
@@ -129,7 +126,7 @@ def _do_init(path: Path) -> None:
             "Add the bin dir to your PATH so `relay` runs:\n"
             f"       export PATH=\"{bin_dir}:$PATH\""
         )
-    steps.append(f"Edit {relay_os}/relay.toml — set your projects, agents, channels.")
+    steps.append(f"Edit {relay_os}/relay.toml — set your agents, assignees, channels.")
     steps.append(f"Set `user` in {local_toml} to match an [assignees.x] in relay.toml.")
     steps.append("Run `relay --help` to see what's available.")
 

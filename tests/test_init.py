@@ -156,7 +156,7 @@ def test_init_writes_local_toml_placeholder(
     assert local_toml.is_file()
     text = local_toml.read_text()
     assert 'user = ""' in text
-    assert "[paths]" in text  # commented example present
+    assert "[secrets]" in text  # commented example present
 
 
 def test_init_installs_shim_when_local_bin_on_path(

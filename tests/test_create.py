@@ -18,17 +18,12 @@ def _write(path: Path, text: str) -> None:
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     company = tmp_path / "relay-os"
-    project = tmp_path / "projects" / "email-tool"
     company.mkdir()
-    project.mkdir(parents=True)
 
     _write(
         company / "relay.toml",
-        f"""
+        """
         version = 1
-
-        [projects.email-tool]
-        type = "local"
         default_status = "ready"
 
         [agents.claude]
@@ -39,17 +34,10 @@ def repo(tmp_path: Path) -> Path:
         mode = "local"
 
         [assignees.marc]
-        agents = {{"claude1" = "claude"}}
+        agents = {"claude1" = "claude"}
         """,
     )
-    _write(
-        company / "relay.local.toml",
-        f"""
-        user = "marc"
-        [paths]
-        email-tool = "{project}"
-        """,
-    )
+    _write(company / "relay.local.toml", 'user = "marc"\n')
 
     _write(
         company / "workflows" / "code" / "with-review.md",
@@ -81,7 +69,6 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg = load_config(repo)
     ref = scaffold_task(
         cfg=cfg,
-        project="email-tool",
         title="Fix retry logic",
         workflow_name=None,
         contexts=[],
@@ -109,7 +96,6 @@ def test_create_with_workflow_and_contexts(repo: Path) -> None:
     cfg = load_config(repo)
     ref = scaffold_task(
         cfg=cfg,
-        project="email-tool",
         title="Task A",
         workflow_name="code/with-review",
         contexts=["email/payment-flow", "email/payment-flow"],  # dupe ignored
@@ -131,7 +117,6 @@ def test_create_rejects_unknown_context(repo: Path) -> None:
     with pytest.raises(ValueError, match="Unknown contexts"):
         scaffold_task(
             cfg=cfg,
-            project="email-tool",
             title="X",
             workflow_name=None,
             contexts=["does/not/exist"],
@@ -148,7 +133,6 @@ def test_create_increments_counter(repo: Path) -> None:
     refs = [
         scaffold_task(
             cfg=cfg,
-            project="email-tool",
             title=f"Task {i}",
             workflow_name=None,
             contexts=[],
@@ -167,7 +151,6 @@ def test_create_log_entry_written(repo: Path) -> None:
     cfg = load_config(repo)
     ref = scaffold_task(
         cfg=cfg,
-        project="email-tool",
         title="X",
         workflow_name=None,
         contexts=[],

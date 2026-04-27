@@ -19,15 +19,11 @@ def _write(path: Path, text: str) -> None:
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     company = tmp_path / "relay-os"
-    project = tmp_path / "projects" / "email-tool"
-    project.mkdir(parents=True)
 
     _write(
         company / "relay.toml",
-        f"""
+        """
         version = 1
-        [projects.email-tool]
-        type = "local"
         default_status = "ready"
         [agents.claude]
         cli = "claude"
@@ -35,13 +31,10 @@ def repo(tmp_path: Path) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {{"claude1" = "claude"}}
+        agents = {"claude1" = "claude"}
         """,
     )
-    _write(
-        company / "relay.local.toml",
-        f'user = "marc"\n[paths]\nemail-tool = "{project}"\n',
-    )
+    _write(company / "relay.local.toml", 'user = "marc"\n')
     _write(company / "rules.md", "Never commit secrets.\n")
     _write(
         company / "workflows" / "code" / "with-review.md",
@@ -67,7 +60,7 @@ def repo(tmp_path: Path) -> Path:
         company / "contexts" / "email" / "payment-flow" / "SKILL.md",
         "---\nname: email/payment-flow\n---\n\nStripe retries on 429.\n",
     )
-    _write(project / "relay-os" / "context.md", "Email tool is YC-backed.\n")
+    _write(company / "context.md", "Email tool is YC-backed.\n")
     return company
 
 
@@ -75,7 +68,6 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg,
-        project="email-tool",
         title="Fix retry logic",
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
@@ -85,19 +77,19 @@ def test_compose_includes_all_sections(repo: Path) -> None:
         watchers=[],
         status="active",
     )
-    ref = list_tasks(cfg, "email-tool")[0]
+    ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
 
     # Header
-    assert "Relay task — email-tool/001-fix-retry-logic" in prompt
+    assert "Relay task — 001-fix-retry-logic" in prompt
     # Base prompt
     assert "You are an agent working on a ticket inside Relay" in prompt
     # Interactive prompt
     assert "Interactive mode" in prompt
     # Rules
     assert "Never commit secrets" in prompt
-    # Project context
+    # Repo context
     assert "Email tool is YC-backed" in prompt
     # Ticket context
     assert "Stripe retries on 429" in prompt
@@ -112,7 +104,6 @@ def test_compose_auto_mode_uses_auto_block(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg,
-        project="email-tool",
         title="Auto task",
         workflow_name=None,
         contexts=[],
@@ -122,7 +113,7 @@ def test_compose_auto_mode_uses_auto_block(repo: Path) -> None:
         watchers=[],
         status="active",
     )
-    ref = list_tasks(cfg, "email-tool")[0]
+    ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
     assert "Auto mode" in prompt
@@ -133,7 +124,6 @@ def test_compose_inline_step_instructions(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg,
-        project="email-tool",
         title="T",
         workflow_name="code/with-review",
         contexts=[],
@@ -143,7 +133,7 @@ def test_compose_inline_step_instructions(repo: Path) -> None:
         watchers=[],
         status="active",
     )
-    ref = list_tasks(cfg, "email-tool")[0]
+    ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     # Advance to step 2 (pr) — has inline instructions, no skill
     ticket.frontmatter["step"] = "2 (pr)"
@@ -157,11 +147,11 @@ def test_compose_inline_step_instructions(repo: Path) -> None:
 def test_write_prompt_file(repo: Path, tmp_path: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, project="email-tool", title="X", workflow_name=None,
+        cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner=None, assignee=None,
         watchers=[], status="active",
     )
-    ref = list_tasks(cfg, "email-tool")[0]
+    ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
     out = write_prompt_file(prompt, ref, dest_dir=tmp_path)

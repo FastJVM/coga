@@ -11,7 +11,7 @@ from pathlib import Path
 from relay.config import Config
 from relay.paths import (
     context_path,
-    project_context_path,
+    repo_context_path,
     rules_path,
     skill_path,
     workflow_path,
@@ -28,7 +28,7 @@ def compose_prompt(cfg: Config, task_ref: TaskRef, ticket: Ticket) -> str:
     """Assemble the composed prompt in spec order (§compose)."""
     parts: list[str] = []
 
-    parts.append(f"# Relay task — {task_ref.project}/{task_ref.id_slug}\n\n"
+    parts.append(f"# Relay task — {task_ref.id_slug}\n\n"
                  f"Title: {ticket.title}\nMode: {ticket.mode}\nStatus: {ticket.status}")
 
     # 1. Base prompt
@@ -46,13 +46,10 @@ def compose_prompt(cfg: Config, task_ref: TaskRef, ticket: Ticket) -> str:
     if rules.is_file():
         parts.append(_section("Global rules", rules.read_text()))
 
-    # 4. per-project context.md
-    try:
-        pctx = project_context_path(cfg, task_ref.project)
-    except ValueError:
-        pctx = None
-    if pctx and pctx.is_file():
-        parts.append(_section(f"Project context — {task_ref.project}", pctx.read_text()))
+    # 4. repo context.md
+    pctx = repo_context_path(cfg)
+    if pctx.is_file():
+        parts.append(_section("Repo context", pctx.read_text()))
 
     # 5. ticket-attached contexts
     for ref in ticket.contexts:
