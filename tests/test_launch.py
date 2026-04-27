@@ -73,7 +73,7 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         company / "relay.toml",
         """
         version = 1
-        default_status = "ready"
+        default_status = "draft"
         [agents.claude]
         cli = "claude"
         interactive = "--append-system-prompt-file"
@@ -132,7 +132,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_launch_rejects_non_launchable_status(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Flip status to paused — only design/active are launchable.
+    # Flip status to paused — only draft/active are launchable.
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     from relay.ticket import Ticket
@@ -166,7 +166,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         company / "relay.toml",
         """
         version = 1
-        default_status = "ready"
+        default_status = "draft"
         [agents.claude]
         cli = "claude"
         interactive = "--append-system-prompt-file"
@@ -255,8 +255,8 @@ def test_launch_bootstrap_unknown_shim(
 def test_launch_bootstrap_factory_scaffolds_and_launches(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay launch bootstrap/ticket "title"` scaffolds a design-status
-    task seeded from the shim, then launches the agent against the new task."""
+    """`relay launch bootstrap/ticket "title"` scaffolds a draft task
+    seeded from the shim, then launches the agent against the new task."""
     captured: dict[str, object] = {}
 
     class _Result:
@@ -281,11 +281,11 @@ def test_launch_bootstrap_factory_scaffolds_and_launches(
     new_ref = refs[0]
     assert new_ref.slug == "investigate-flaky-tests"
 
-    # Frontmatter inherited from the shim, status=design, title set.
+    # Frontmatter inherited from the shim, status=draft, title set.
     from relay.ticket import Ticket
     t = Ticket.read(new_ref.path / "ticket.md")
     assert t.frontmatter["title"] == "Investigate flaky tests"
-    assert t.frontmatter["status"] == "design"
+    assert t.frontmatter["status"] == "draft"
     assert t.frontmatter["mode"] == "interactive"
     assert t.frontmatter["assignee"] == "claude1"
     assert t.frontmatter["skill"] == "bootstrap/ticket"

@@ -14,7 +14,7 @@ from relay.ticket import TicketError
 
 
 def status(
-    all: bool = typer.Option(False, "--all", help="Include done/canceled/failed tasks."),
+    all: bool = typer.Option(False, "--all", help="Include done tasks."),
 ) -> None:
     """Show tasks in the repo."""
     try:
@@ -30,7 +30,7 @@ def status(
     for col in ("title", "status", "assignee", "step", "mode"):
         table.add_column(col)
 
-    hidden = {"done", "canceled", "failed"}
+    hidden = {"done"}
     rows = 0
     for ref in refs:
         try:

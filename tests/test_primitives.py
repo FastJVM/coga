@@ -116,7 +116,7 @@ def test_ticket_roundtrip(tmp_path: Path) -> None:
 
 
 def test_ticket_without_workflow() -> None:
-    text = "---\ntitle: X\nstatus: ready\n---\n\n## Description\n\nfoo\n"
+    text = "---\ntitle: X\nstatus: draft\n---\n\n## Description\n\nfoo\n"
     t = Ticket.parse(text)
     assert t.workflow is None
     assert t.step_index() is None

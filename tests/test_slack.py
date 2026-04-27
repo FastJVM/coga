@@ -20,7 +20,7 @@ def cfg(tmp_path: Path):
         tmp_path / "relay.toml",
         """
         version = 1
-        default_status = "ready"
+        default_status = "draft"
         [agents.claude]
         cli = "claude"
         interactive = "-i"
@@ -76,7 +76,7 @@ def test_no_webhook_writes_to_stderr(tmp_path: Path, capsys) -> None:
         tmp_path / "relay.toml",
         """
         version = 1
-        default_status = "ready"
+        default_status = "draft"
         [agents.claude]
         cli = "claude"
         interactive = "-i"

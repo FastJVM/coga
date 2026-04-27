@@ -19,7 +19,7 @@ def repo(tmp_path: Path) -> Path:
         tmp_path / "relay.toml",
         """
         version = 1
-        default_status = "ready"
+        default_status = "draft"
 
         [agents.claude]
         cli = "claude"
@@ -53,14 +53,14 @@ def test_load_basic(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
     cfg = load_config(repo)
     assert cfg.current_user == "marc"
-    assert cfg.default_status == "ready"
+    assert cfg.default_status == "draft"
     assert cfg.agents["claude"].cli == "claude"
     assert cfg.slack_webhook.startswith("https://")
     assert cfg.secrets["stripe_key"] == "sk_test_abc"
     assert cfg.secrets["literal"] == "just-a-value"
 
 
-def test_default_status_defaults_to_ready(tmp_path: Path) -> None:
+def test_default_status_defaults_to_draft(tmp_path: Path) -> None:
     _write(
         tmp_path / "relay.toml",
         """
@@ -76,7 +76,7 @@ def test_default_status_defaults_to_ready(tmp_path: Path) -> None:
     )
     _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
     cfg = load_config(tmp_path)
-    assert cfg.default_status == "ready"
+    assert cfg.default_status == "draft"
 
 
 def test_resolve_agent_type(repo: Path) -> None:

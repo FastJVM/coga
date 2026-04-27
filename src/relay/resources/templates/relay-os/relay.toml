@@ -1,7 +1,8 @@
 version = 1
 
-# Default status for new tasks. Override per-task with `--status`.
-default_status = "ready"
+# Default status for new tasks. Tickets stay `draft` until the human
+# approves and runs `relay launch` (which flips them to `active`).
+default_status = "draft"
 
 # --- Agents ---
 # Agent types. Each defines the CLI binary and how to invoke it.

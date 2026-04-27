@@ -25,7 +25,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         company / "relay.toml",
         """
         version = 1
-        default_status = "ready"
+        default_status = "draft"
         [agents.claude]
         cli = "claude"
         interactive = "--append-system-prompt-file"

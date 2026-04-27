@@ -1,4 +1,4 @@
-"""`relay create` — scaffold a new task directory."""
+"""`relay create` — scaffold a draft ticket and launch the bootstrap/ticket skill."""
 
 from __future__ import annotations
 
@@ -18,72 +18,76 @@ from relay.paths import (
     workflow_path,
 )
 from relay.slugify import slugify
-from relay.tasks import list_tasks
+from relay.tasks import (
+    TaskNotFoundError,
+    list_tasks,
+    read_ticket,
+    resolve_bootstrap,
+)
 from relay.ticket import Ticket
 from relay.workflow import Workflow, WorkflowError
 
 VALID_MODES = {"interactive", "auto", "script"}
-VALID_STATUSES = {"design", "ready", "active", "paused", "done", "canceled", "failed"}
+VALID_STATUSES = {"draft", "active", "paused", "done"}
 
 
 def create(
-    title: str = typer.Option(None, "--title", help="Human-readable title."),
-    workflow: str = typer.Option(None, "--workflow", help="Workflow name (e.g. code/with-review)."),
-    context: list[str] = typer.Option([], "--context", help="Context ref. Repeatable."),
-    mode: str = typer.Option("interactive", "--mode", help="interactive | auto | script."),
-    owner: str = typer.Option(None, "--owner", help="Defaults to current user."),
-    assignee: str = typer.Option(None, "--assignee", help="Defaults to owner."),
-    watcher: list[str] = typer.Option([], "--watcher", help="Additional watcher. Repeatable."),
-    status: str = typer.Option(None, "--status", help="Defaults to repo default_status."),
-    check_recurring: bool = typer.Option(False, "--check-recurring", help="Scan recurring templates and create due tasks."),
+    title: str = typer.Argument(..., help="Ticket title."),
+    description: str = typer.Option(None, "--description", "-d", help="One-line description for the ticket body."),
+    no_launch: bool = typer.Option(False, "--no-launch", help="Scaffold only; skip auto-launching the bootstrap/ticket skill."),
 ) -> None:
-    """Scaffold a new task directory.
+    """Scaffold a `draft` ticket seeded from the `bootstrap/ticket` shim,
+    then auto-launch that skill on it so the agent can interview the human
+    and fill in workflow / contexts / assignee / description.
 
-    This command is intentionally mechanical: it lays down the directory,
-    ticket frontmatter, blackboard, and log. It does not interview the human
-    or decide which workflow / contexts / assignee fit. Authoring lives in
-    the `bootstrap/ticket` skill, which calls this command to scaffold and
-    then fills in the blanks.
+    Scripted callers and the recurring scaffolder use the `scaffold_task()`
+    Python API directly with the full keyword surface.
     """
     try:
         cfg = load_config()
     except ConfigError as exc:
         _bail(str(exc))
 
-    if check_recurring:
-        from relay.recurring import check_recurring as do_check
-
-        created = do_check(cfg)
-        if not created:
-            typer.echo("No recurring tasks due.")
-            return
-        for ref in created:
-            typer.echo(f"Created {ref.id_slug}")
-        return
-
-    if not title:
-        _bail("--title is required")
-    if mode not in VALID_MODES:
-        _bail(f"--mode must be one of {sorted(VALID_MODES)}")
-    if status is not None and status not in VALID_STATUSES:
-        _bail(f"--status must be one of {sorted(VALID_STATUSES)}")
+    try:
+        shim = resolve_bootstrap(cfg, "ticket")
+    except TaskNotFoundError as exc:
+        _bail(
+            f"{exc}\n"
+            "`relay create` requires a `bootstrap/ticket` shim. "
+            "Run `relay init` (or `relay init --update`) to install it."
+        )
+    shim_ticket = read_ticket(shim)
 
     try:
         ref = scaffold_task(
             cfg=cfg,
             title=title,
-            workflow_name=workflow,
-            contexts=list(context),
-            mode=mode,
-            owner=owner,
-            assignee=assignee,
-            watchers=list(watcher),
-            status=status,
+            workflow_name=None,
+            contexts=[],
+            mode=shim_ticket.mode,
+            owner=cfg.current_user,
+            assignee=shim_ticket.assignee,
+            watchers=[],
+            status="draft",
+            skill=shim_ticket.skill,
+            description=description,
         )
     except (ConfigError, WorkflowError, FileNotFoundError, ValueError) as exc:
         _bail(str(exc))
 
     typer.echo(f"Created {ref['slug']} at {ref['path']}")
+
+    if no_launch:
+        return
+
+    # Hand off to launch — composes the bootstrap/ticket skill into the
+    # prompt and starts an interactive session on the freshly-scaffolded
+    # draft. Imported lazily to avoid a circular import at module load.
+    # Calling the typer-decorated function directly bypasses Typer's arg
+    # parsing, so explicit defaults are required for `title` and `force`.
+    from relay.commands.launch import launch as launch_command
+
+    launch_command(task=ref["slug"], title=None, force=False)
 
 
 # --- core scaffold ------------------------------------------------------------

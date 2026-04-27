@@ -5,6 +5,9 @@ from textwrap import dedent
 
 import pytest
 
+from typer.testing import CliRunner
+
+from relay.cli import app
 from relay.commands.create import scaffold_task
 from relay.config import load_config
 from relay.ticket import Ticket
@@ -24,7 +27,7 @@ def repo(tmp_path: Path) -> Path:
         company / "relay.toml",
         """
         version = 1
-        default_status = "ready"
+        default_status = "draft"
 
         [agents.claude]
         cli = "claude"
@@ -85,7 +88,7 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert (task_dir / "log.md").is_file()
     ticket = Ticket.read(task_dir / "ticket.md")
     assert ticket.title == "Fix retry logic"
-    assert ticket.status == "ready"
+    assert ticket.status == "draft"
     assert ticket.mode == "interactive"
     assert ticket.owner == "marc"
     assert ticket.assignee == "marc"
@@ -183,6 +186,159 @@ def test_create_log_entry_written(repo: Path) -> None:
     )
     log = (ref["path"] / "log.md").read_text()
     assert "[human:marc] created" in log
+
+
+@pytest.fixture
+def repo_with_shim(repo: Path) -> Path:
+    """Same fixture as `repo`, plus the bootstrap/ticket shim + skill that
+    `relay create` needs in order to seed defaults and auto-launch."""
+    _write(
+        repo / "bootstrap" / "ticket" / "ticket.md",
+        """
+        ---
+        title: Create a new ticket
+        mode: interactive
+        skill: bootstrap/ticket
+        assignee: claude1
+        ---
+
+        ## Description
+
+        Persistent launch shim.
+        """,
+    )
+    _write(
+        repo / "skills" / "bootstrap" / "ticket" / "SKILL.md",
+        """
+        ---
+        name: bootstrap/ticket
+        description: Author a Relay task.
+        ---
+
+        Interview, fill in the ticket. Stop.
+        """,
+    )
+    return repo
+
+
+def test_create_cli_positional_title_and_no_launch(
+    repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay create "title" --no-launch` scaffolds a draft seeded from the
+    bootstrap/ticket shim and does not spawn an agent."""
+    monkeypatch.chdir(repo_with_shim)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "Investigate flaky tests", "--no-launch"])
+    assert result.exit_code == 0, result.output
+
+    cfg = load_config(repo_with_shim)
+    from relay.tasks import list_tasks
+
+    refs = list_tasks(cfg)
+    assert len(refs) == 1
+    new_ref = refs[0]
+    assert new_ref.slug == "investigate-flaky-tests"
+
+    t = Ticket.read(new_ref.path / "ticket.md")
+    # Defaults inherited from the shim.
+    assert t.frontmatter["status"] == "draft"
+    assert t.frontmatter["mode"] == "interactive"
+    assert t.frontmatter["assignee"] == "claude1"
+    assert t.frontmatter["skill"] == "bootstrap/ticket"
+    assert t.frontmatter["title"] == "Investigate flaky tests"
+
+
+def test_create_cli_description_seeds_body(
+    repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo_with_shim)
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["create", "Tweak copy", "-d", "Update the empty-state CTA to be friendlier", "--no-launch"],
+    )
+    assert result.exit_code == 0, result.output
+    body = (repo_with_shim / "tasks" / "tweak-copy" / "ticket.md").read_text()
+    assert "Update the empty-state CTA to be friendlier" in body
+
+
+def test_create_cli_auto_launches_bootstrap_ticket(
+    repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without --no-launch, `relay create` hands off to the launch path
+    against the freshly-scaffolded draft."""
+    captured: dict[str, object] = {}
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        captured["cmd"] = cmd
+        captured["prompt"] = Path(cmd[2]).read_text()
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.chdir(repo_with_shim)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "Investigate flaky tests"])
+    assert result.exit_code == 0, result.output
+
+    # Agent was actually invoked, with the bootstrap/ticket skill composed in.
+    prompt = captured["prompt"]
+    assert isinstance(prompt, str)
+    assert "Skill: bootstrap/ticket" in prompt
+    assert "Interview, fill in the ticket." in prompt
+
+    # Launch went against the new task, not the shim.
+    cfg = load_config(repo_with_shim)
+    from relay.tasks import list_tasks
+
+    new_ref = list_tasks(cfg)[0]
+    log = (new_ref.path / "log.md").read_text()
+    assert "launched in interactive mode" in log
+
+
+def test_create_cli_requires_bootstrap_shim(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No `bootstrap/ticket` shim → `relay create` errors loudly with a
+    pointer to `relay init`."""
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "X", "--no-launch"])
+    assert result.exit_code == 2
+    output = result.output + (result.stderr or "")
+    assert "bootstrap/ticket" in output
+    assert "relay init" in output
+
+
+def test_recurring_check_subcommand(
+    repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay recurring check` scans templates and creates due tasks."""
+    _write(
+        repo_with_shim / "recurring" / "weekly-check.md",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly deliverability check"
+        mode: auto
+        assignee: claude1
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the diagnostic suite.
+        """,
+    )
+    monkeypatch.chdir(repo_with_shim)
+    runner = CliRunner()
+    result = runner.invoke(app, ["recurring", "check"])
+    assert result.exit_code == 0, result.output
+    assert "Created" in result.output or "No recurring tasks due" in result.output
 
 
 def test_resolve_task_exact_then_prefix(repo: Path) -> None:

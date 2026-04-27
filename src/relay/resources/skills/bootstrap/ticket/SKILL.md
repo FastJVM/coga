@@ -1,35 +1,38 @@
 ---
 name: bootstrap/ticket
-description: Author a new Relay ticket. Interview the human, scaffold the task directory (or fill in one already scaffolded by `relay launch bootstrap/ticket "title"`), then write workflow, contexts, and assignee into the ticket frontmatter. Use when a human says "make a ticket for X" or "I want to start something new."
+description: Author a new Relay ticket. The ticket has already been scaffolded as a `draft` stub with just a title. Interview the human, scan the inventory, and fill in workflow / contexts / assignee / description. Use whenever a draft ticket is launched against this skill.
 ---
 
-# Create
+# Ticket
 
-You are the authoring entry point for a new task. The human has an idea but
-hasn't framed it yet. Your job is to turn that idea into a well-scoped ticket
-that another agent (or human) can pick up cleanly.
+You are the authoring entry point for a new task. The human has an idea and
+typed `relay create "<title>"` (or `relay launch bootstrap/ticket "<title>"`,
+or invoked you inside an empty bootstrap session). A `draft` ticket has
+already been scaffolded with their title — your job is to turn that stub
+into a well-scoped ticket another agent (or human) can pick up cleanly.
 
 ## Step 0 — Detect your mode
 
 Two ways you got here. Check the prompt context:
 
-- **Factory mode.** You're already inside a task directory with `status:
-  design` and a `title` set. The human ran
-  `relay launch bootstrap/ticket "<title>"`. Skip Step 3 — the scaffold
-  already happened. Your job is to fill in the blanks of *this* ticket.
-- **Empty mode.** You're inside the shim itself (no title, no status).
-  The human ran `relay launch bootstrap/ticket`. You'll need to call
-  `relay create` once you have enough to scaffold.
+- **Factory mode (the common case).** You're inside a task directory with
+  `status: draft` and a `title` set. The scaffold already happened. Skip
+  Step 3. Your job is to fill in the blanks of *this* ticket.
+- **Empty mode.** You're inside the `bootstrap/ticket` shim itself (no
+  title, no status). The human ran `relay launch bootstrap/ticket` with no
+  title. You'll need to call `relay create "<title>"` once you have enough
+  to scaffold.
 
 ## Step 1 — Frame the work
 
 Ask the human short, targeted questions. One at a time. Wait for the answer
-before asking the next. Stop once you have enough to scaffold — usually two
-or three questions.
+before asking the next. Stop once you have enough to fill in the ticket —
+usually two or three questions.
 
 You're trying to surface:
 
-- A clear, narrow title (under ~60 chars).
+- A clear, narrow title (under ~60 chars). The scaffold may have used the
+  human's first phrasing — refine it if needed.
 - What kind of work this is: code change, content draft, ops check,
   investigation, one-off.
 - Whether an existing workflow fits or this is ad-hoc.
@@ -55,30 +58,29 @@ exist — flag the gap on the blackboard so the dream skill can pick it up.
 
 ## Step 3 — Scaffold (empty mode only)
 
-Skip this step if you're in factory mode — the task is already scaffolded.
+Skip this step in factory mode — the task is already scaffolded.
 
 Call:
 
 ```
-relay create --title "<title>" [--workflow <name>] [--context <ref>]... \
-  [--owner <user>] [--assignee <nickname>] [--mode interactive|auto|script] \
-  [--status design|ready]
+relay create "<title>" [--description "<one-liner>"] [--no-launch]
 ```
 
-Pass everything you're confident about. Leave out anything you're not — you
-can edit the ticket after.
-
-`relay create` prints the new task's `id-slug` and path. Capture both.
+`relay create` prints the new task's slug and path. If you're already
+running interactively, pass `--no-launch` so it doesn't spawn another
+session on top of you. Capture the slug.
 
 ## Step 4 — Fill in the blanks
 
-Open `relay-os/tasks/<id-slug>/ticket.md`. Add or refine frontmatter fields
-that you couldn't pass on the CLI:
+Open `relay-os/tasks/<slug>/ticket.md`. Add or refine frontmatter fields:
 
 - `workflow:` — only if it's a real one. Setting `workflow` also implies a
   starting `step: 1 (<first-step-name>)`.
 - `contexts:` — list of refs that exist on disk.
-- `assignee:` — human name or agent nickname from `relay.toml`.
+- `assignee:` — human name or agent nickname from `relay.toml`. The shim's
+  default assignee is the starting point; refine if a different operator
+  should own this work.
+- `mode:` — `interactive`, `auto`, or `script`.
 - `watchers:` — additional people who should see Slack pings.
 
 Edit the body's `## Description` section to capture *why* and *what*. Keep
@@ -90,23 +92,22 @@ style.
 
 ## Step 5 — Note your reasoning
 
-Write a short paragraph to the blackboard's Notes section explaining the
-choices you made — which workflow you picked and why, which contexts you
-attached, who you assigned. The human reads this before approving.
+Write a short paragraph to the blackboard explaining the choices you made
+— which workflow you picked and why, which contexts you attached, who you
+assigned. The human reads this before approving.
 
 If you flagged a gap (no workflow fits, no context covers the domain),
-write that to Notes too with a one-line proposal the dream skill can act on
-later.
+write that to the blackboard too with a one-line proposal the dream skill
+can act on later.
 
 ## Step 6 — Stop
 
-Set `status: ready` if the human approved during the interview. Otherwise
-leave it at the default (`design`) — the human will flip it when they're
-ready.
+Leave `status: draft`. The human flips to `active` (and runs
+`relay launch <slug>`) when they're ready to start the work.
 
-Do **not** call `relay launch`. Do **not** advance the step. Do **not**
-start doing the task itself. Authoring is scoping; execution is a separate
-launch.
+Do **not** flip the status yourself. Do **not** call `relay launch`. Do
+**not** advance the step. Do **not** start doing the task itself.
+Authoring is scoping; execution is a separate launch.
 
 ## What not to do
 
