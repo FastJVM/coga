@@ -129,13 +129,15 @@ Key flags:
 `relay create` is intentionally mechanical — it lays bytes on disk. The
 *authoring* flow (interview, pick a workflow, attach the right contexts,
 fill in the assignee) lives in the `bootstrap/ticket` skill. Run that via
-the persistent shim:
+the persistent shim — bare for an empty session, or with a title to
+scaffold a design-status task and have the agent fill in the rest:
 
 ```sh
-relay launch --task bootstrap/ticket
+relay launch bootstrap/ticket
+relay launch bootstrap/ticket "Investigate bounce rate"
 ```
 
-### `relay launch --task <id>`
+### `relay launch <target> [title]`
 
 Compose every relevant file for a task — rules, project context, ticket,
 attached contexts, current workflow step, frozen skills — into a single
@@ -143,21 +145,31 @@ prompt and start the configured agent against it. Acquires a `task.lock`
 so two agents don't grab the same ticket.
 
 ```sh
-relay launch --task 001-add-retry                    # full id-slug
-relay launch --task 001                              # short
-relay launch --task 001 --force                      # break a stale lock
-relay launch --task bootstrap/ticket                 # persistent shim → run a skill
+relay launch 001-add-retry                          # full id-slug
+relay launch 001                                    # short
+relay launch 001 --force                            # break a stale lock
+relay launch bootstrap/ticket                       # stateless shim → run a skill
+relay launch bootstrap/ticket "Add retry to webhook handler"
+                                                    # factory: scaffold a design-status
+                                                    # task with that title and launch
+                                                    # the bootstrap/ticket skill on it
 ```
 
 The agent type comes from the ticket's `assignee` (e.g. `claude1`) resolved
 through `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
 
-`bootstrap/<name>` tickets are stateless re-entry points for skills. They
-don't need a `status: active` flip and don't acquire a lock — concurrent
-launches are safe. Init ships `bootstrap/ticket` (authoring flow); the
-`relay-os/bootstrap/` tree is upstream-managed and refreshed wholesale by
-`relay init --update`, so don't add custom shims there — write your own
-launch wrappers elsewhere.
+A task is launchable in `design` (agent is authoring) or `active` (agent is
+executing) status. `paused`, `done`, etc. require a flip first.
+
+`bootstrap/<name>` tickets are stateless re-entry points for skills. Without
+a title arg they run as authoring sessions and don't acquire a lock —
+concurrent launches are safe. With a title, they act as factories: scaffold
+a new task seeded from the shim's frontmatter (mode, assignee, skill),
+status=design, then launch the agent on the new task to fill in the details.
+
+Init ships `bootstrap/ticket` (authoring flow); the `relay-os/bootstrap/`
+tree is upstream-managed and refreshed wholesale by `relay init --update`,
+so don't add custom shims there — write your own launch wrappers elsewhere.
 
 ### `relay status`
 

@@ -1,6 +1,6 @@
 ---
 name: bootstrap/ticket
-description: Author a new Relay ticket. Interview the human, scaffold the task directory by calling `relay create`, then fill in workflow, contexts, and assignee in the ticket frontmatter. Use when a human says "make a ticket for X" or "I want to start something new."
+description: Author a new Relay ticket. Interview the human, scaffold the task directory (or fill in one already scaffolded by `relay launch bootstrap/ticket "title"`), then write workflow, contexts, and assignee into the ticket frontmatter. Use when a human says "make a ticket for X" or "I want to start something new."
 ---
 
 # Create
@@ -9,9 +9,17 @@ You are the authoring entry point for a new task. The human has an idea but
 hasn't framed it yet. Your job is to turn that idea into a well-scoped ticket
 that another agent (or human) can pick up cleanly.
 
-`relay create` is a dumb scaffolder — it lays down a task directory with
-empty frontmatter and a blank blackboard. You are the brain. You decide what
-the task is, then call `relay create`, then write the rest into the ticket.
+## Step 0 — Detect your mode
+
+Two ways you got here. Check the prompt context:
+
+- **Factory mode.** You're already inside a task directory with `status:
+  design` and a `title` set. The human ran
+  `relay launch bootstrap/ticket "<title>"`. Skip Step 3 — the scaffold
+  already happened. Your job is to fill in the blanks of *this* ticket.
+- **Empty mode.** You're inside the shim itself (no title, no status).
+  The human ran `relay launch bootstrap/ticket`. You'll need to call
+  `relay create` once you have enough to scaffold.
 
 ## Step 1 — Frame the work
 
@@ -45,7 +53,9 @@ ones. Extra context bloats the prompt at launch.
 If nothing fits, say so. Don't invent a workflow or context that doesn't
 exist — flag the gap on the blackboard so the dream skill can pick it up.
 
-## Step 3 — Scaffold
+## Step 3 — Scaffold (empty mode only)
+
+Skip this step if you're in factory mode — the task is already scaffolded.
 
 Call:
 

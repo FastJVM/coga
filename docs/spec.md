@@ -624,10 +624,13 @@ remembering the prompt by heart, Relay ships persistent shim tickets under
 
 - Frontmatter pins `skill: bootstrap/<name>`. No `status`, no workflow, no
   step. The launcher composes the skill into the prompt at run time.
-- `relay launch --task bootstrap/<name>` runs without flipping status to
+- `relay launch bootstrap/<name>` runs without flipping status to
   `active` and without acquiring `task.lock`. Concurrent launches by
   different humans are fine — the ticket is a re-entry point, not a unit of
   work.
+- `relay launch bootstrap/<name> "title"` is a factory shorthand: scaffold
+  a new task seeded from the shim's frontmatter (mode, assignee, skill),
+  status=design, then launch the agent on the new task to fill in the rest.
 - The ticket directory accumulates `log.md` over time (a record of who
   invoked the shim and when), and may grow `blackboard.md` if the skill
   writes notes there. It does not participate in `relay status`.
@@ -703,14 +706,18 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 ### `relay launch` — decided spec
 
-`relay launch --task <task-id>`
+`relay launch <task-id> [title]`
+
+`<task-id>` is a positional argument: numeric ID, full id-slug, or
+`bootstrap/<name>` shim. The optional `title` arg is the factory shorthand
+for bootstrap shims — see "bootstrap shims" above.
 
 #### Behavior
 
 1. Resolve the current user from `relay.local.toml`.
 2. Look up the task in `relay-os/tasks/` (the CLI always operates on the repo it's running inside).
 3. Read the `assignee` field from the ticket. Resolve the agent nickname in the user's `[assignees]` config to the agent type.
-4. Verify the task's `status` is `active`. Error if not.
+4. Verify the task's `status` is `design` or `active`. Error if not.
 5. Load secrets from `relay.local.toml` `[secrets]` section. Resolve `env:VAR_NAME` references to actual values. These will be exported as environment variables into the launched process.
 6. **Compose the prompt.** Assemble in this order:
    - Relay base prompt (how to operate within Relay — see below)
@@ -747,7 +754,7 @@ Later content overrides earlier content when they conflict. The agent sees the m
 
 #### Multi-task per repo
 
-`relay launch` requires `--task`. It launches exactly one task per invocation. If you have two active tasks in the same repo, you launch them separately in separate terminal sessions.
+`relay launch` takes one task target as a positional arg. It launches exactly one task per invocation. If you have two active tasks in the same repo, you launch them separately in separate terminal sessions.
 
 #### Errors
 
