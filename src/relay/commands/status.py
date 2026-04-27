@@ -25,7 +25,9 @@ def status(
 
     refs = list_tasks(cfg)
     table = Table(show_lines=False, show_edge=False, pad_edge=False)
-    for col in ("id", "title", "status", "assignee", "step", "mode"):
+    # Slugs can be long; don't let rich wrap them mid-string in narrow terminals.
+    table.add_column("slug", no_wrap=True, overflow="fold")
+    for col in ("title", "status", "assignee", "step", "mode"):
         table.add_column(col)
 
     hidden = {"done", "canceled", "failed"}
@@ -40,7 +42,7 @@ def status(
         step = ticket.step or "-"
         assignee = ticket.assignee or "-"
         table.add_row(
-            f"{ref.id:03d}",
+            ref.slug,
             ticket.title or "-",
             ticket.status or "-",
             assignee,

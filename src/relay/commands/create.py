@@ -10,7 +10,6 @@ import typer
 
 from relay.blackboard import render_blackboard
 from relay.config import Config, ConfigError, load_config
-from relay.counter import next_id
 from relay.logfile import append_log
 from relay.paths import (
     context_path,
@@ -84,7 +83,7 @@ def create(
     except (ConfigError, WorkflowError, FileNotFoundError, ValueError) as exc:
         _bail(str(exc))
 
-    typer.echo(f"Created {ref['id_slug']} at {ref['path']}")
+    typer.echo(f"Created {ref['slug']} at {ref['path']}")
 
 
 # --- core scaffold ------------------------------------------------------------
@@ -129,16 +128,16 @@ def scaffold_task(
                 f"Workflow {workflow_name!r} references missing skills: {missing_skills}"
             )
 
-    # Allocate ID + slug. The counter is the source of truth, but if it
-    # drifted behind reality (manual task dir creation, restored from
-    # backup, etc.) bump past any pre-existing IDs so we never duplicate.
-    existing_ids = {t.id for t in list_tasks(cfg)}
-    task_id = next_id(cfg.repo_root)
-    while task_id in existing_ids:
-        task_id = next_id(cfg.repo_root)
-    slug = slug_override or slugify(title)
-    id_slug = f"{task_id:03d}-{slug}"
-    task_dir = tasks_dir(cfg) / id_slug
+    # Pick a slug. If it collides with an existing task dir, auto-suffix
+    # `-2`, `-3`, … so two tasks with the same title don't clash.
+    base_slug = slug_override or slugify(title)
+    existing_slugs = {t.slug for t in list_tasks(cfg)}
+    slug = base_slug
+    n = 2
+    while slug in existing_slugs:
+        slug = f"{base_slug}-{n}"
+        n += 1
+    task_dir = tasks_dir(cfg) / slug
     if task_dir.exists():
         raise ValueError(f"Task directory already exists: {task_dir}")
     task_dir.mkdir(parents=True)
@@ -165,14 +164,14 @@ def scaffold_task(
     Ticket(frontmatter=fm, body=body).write(task_dir / "ticket.md")
 
     # Blackboard from template
-    (task_dir / "blackboard.md").write_text(render_blackboard(f"{task_id:03d}", title))
+    (task_dir / "blackboard.md").write_text(render_blackboard(title))
 
     # Empty log, then first entry
     (task_dir / "log.md").write_text("")
     actor = f"{created_by}:{cfg.current_user}" if created_by == "human" else created_by
     append_log(task_dir, actor, f"created (mode={mode}, status={status})")
 
-    return {"id_slug": id_slug, "path": task_dir}
+    return {"slug": slug, "path": task_dir}
 
 
 # --- helpers ------------------------------------------------------------------

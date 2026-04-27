@@ -65,9 +65,8 @@ mycompany/
     ├── contexts/               # reusable domain knowledge
     ├── workflows/              # multi-step recipes
     ├── recurring/              # cron-like recurring task templates
-    ├── tasks/                  # one dir per task: ticket.md, blackboard.md, log.md
+    ├── tasks/                  # one dir per task (named by slug): ticket.md, blackboard.md, log.md
     ├── bootstrap/              # persistent launch shims (e.g. bootstrap/ticket)
-    ├── counter                 # monotonic task ID counter
     └── .relay/                 # vendored CLI + venv (gitignored)
         ├── src/relay/          # CLI source
         ├── .venv/              # self-contained venv
@@ -108,10 +107,11 @@ agent and prints what to clear.
 
 ### `relay create`
 
-Scaffold a new task directory under `relay-os/tasks/<NNN>-<slug>/`, allocating
-the next ID from the counter and writing `ticket.md`, `blackboard.md`, and
-`log.md`. The ticket frontmatter encodes who owns it, who's assigned, what
-workflow it follows, and what contexts it pulls in.
+Scaffold a new task directory under `relay-os/tasks/<slug>/` (slug derived
+from the title) and write `ticket.md`, `blackboard.md`, and `log.md`. If the
+slug already exists, the new task gets `-2`, `-3`, … appended. The ticket
+frontmatter encodes who owns it, who's assigned, what workflow it follows,
+and what contexts it pulls in.
 
 ```sh
 relay create --title "Add retry to webhook handler"
@@ -145,15 +145,18 @@ prompt and start the configured agent against it. Acquires a `task.lock`
 so two agents don't grab the same ticket.
 
 ```sh
-relay launch 001-add-retry                          # full id-slug
-relay launch 001                                    # short
-relay launch 001 --force                            # break a stale lock
+relay launch add-retry-to-webhook-handler          # full slug
+relay launch add-retry                              # any unique prefix works
+relay launch add-retry --force                      # break a stale lock
 relay launch bootstrap/ticket                       # stateless shim → run a skill
 relay launch bootstrap/ticket "Add retry to webhook handler"
                                                     # factory: scaffold a design-status
                                                     # task with that title and launch
                                                     # the bootstrap/ticket skill on it
 ```
+
+Tasks are addressed by slug — there is no numeric ID. Pass any unique prefix
+(git-short-SHA-style) and ambiguous prefixes error out with the matches listed.
 
 The agent type comes from the ticket's `assignee` (e.g. `claude1`) resolved
 through `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
@@ -182,7 +185,7 @@ relay status                              # active work
 relay status --all                        # include closed tasks
 ```
 
-### `relay step <NEXT> --task <id>`
+### `relay step <NEXT> --task <slug>`
 
 Advance a workflow-bound task to the next step (1-indexed), or finish it.
 Updates the ticket's `step:` field and appends a log entry. The workflow
@@ -190,11 +193,11 @@ itself is frozen into the ticket at create time, so step semantics don't
 drift mid-task.
 
 ```sh
-relay step 2 --task 001-add-retry                   # move to step 2
-relay step done --task 001-add-retry                # mark workflow complete
+relay step 2 --task add-retry                       # move to step 2
+relay step done --task add-retry                    # mark workflow complete
 ```
 
-### `relay panic --task <id> --reason "..."`
+### `relay panic --task <slug> --reason "..."`
 
 The agent gives up. Writes a blocker entry to the ticket, @-mentions the
 owner in Slack, and releases the task lock so a human (or another agent)
@@ -202,10 +205,10 @@ can pick it up. Intended for the agent to call when it's truly stuck —
 not for routine handoffs.
 
 ```sh
-relay panic --task 001 --reason "Auth flow needs prod creds I don't have"
+relay panic --task add-retry --reason "Auth flow needs prod creds I don't have"
 ```
 
-### `relay feed --task <id> --message "..."`
+### `relay feed --task <slug> --message "..."`
 
 Post a short FYI to the team Slack channel without changing task state.
 Use it for "heads up, deploy started", "tests still flaky", non-blocker
@@ -213,7 +216,7 @@ context that the team should see but doesn't need to react to. Posts to
 stderr if `[slack].webhook` isn't configured.
 
 ```sh
-relay feed --task 001 --message "Pushed branch, waiting on CI"
+relay feed --task add-retry --message "Pushed branch, waiting on CI"
 ```
 
 ### `relay --version`

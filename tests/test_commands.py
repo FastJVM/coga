@@ -63,16 +63,16 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "acti
         contexts=[], mode="interactive", owner="marc", assignee="claude1",
         watchers=[], status=status,
     )
-    return ref["id_slug"], ref["path"]
+    return ref["slug"], ref["path"]
 
 
 # --- step ---------------------------------------------------------------------
 
 
 def test_step_advances(repo: Path) -> None:
-    _make_task(repo)
+    slug, _ = _make_task(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["step", "2", "--task", "001"])
+    result = runner.invoke(app, ["step", "2", "--task", slug])
     assert result.exit_code == 0, result.output
     cfg = load_config(repo)
     ref = list_tasks(cfg)[0]
@@ -82,12 +82,12 @@ def test_step_advances(repo: Path) -> None:
 
 
 def test_step_to_done_marks_done(repo: Path) -> None:
-    _, task_path = _make_task(repo)
+    slug, task_path = _make_task(repo)
     runner = CliRunner()
     # Workflow has 3 steps; step 4 = done
-    runner.invoke(app, ["step", "2", "--task", "001"])
-    runner.invoke(app, ["step", "3", "--task", "001"])
-    result = runner.invoke(app, ["step", "4", "--task", "001"])
+    runner.invoke(app, ["step", "2", "--task", slug])
+    runner.invoke(app, ["step", "3", "--task", slug])
+    result = runner.invoke(app, ["step", "4", "--task", slug])
     assert result.exit_code == 0
     t = Ticket.read(task_path / "ticket.md")
     assert t.status == "done"
@@ -95,16 +95,16 @@ def test_step_to_done_marks_done(repo: Path) -> None:
 
 
 def test_step_rejects_non_active(repo: Path) -> None:
-    _make_task(repo, status="paused")
+    slug, _ = _make_task(repo, status="paused")
     runner = CliRunner()
-    result = runner.invoke(app, ["step", "2", "--task", "001"])
+    result = runner.invoke(app, ["step", "2", "--task", slug])
     assert result.exit_code == 2
 
 
 def test_step_rejects_no_workflow(repo: Path) -> None:
-    _make_task(repo, workflow=None)
+    slug, _ = _make_task(repo, workflow=None)
     runner = CliRunner()
-    result = runner.invoke(app, ["step", "2", "--task", "001"])
+    result = runner.invoke(app, ["step", "2", "--task", slug])
     assert result.exit_code == 2
 
 
@@ -112,12 +112,12 @@ def test_step_rejects_no_workflow(repo: Path) -> None:
 
 
 def test_panic_writes_blocker_and_releases_lock(repo: Path) -> None:
-    _, task_path = _make_task(repo)
+    slug, task_path = _make_task(repo)
     # Simulate a held lock
     from relay.lock import TaskLock
     TaskLock(task_path).acquire("claude1")
     runner = CliRunner()
-    result = runner.invoke(app, ["panic", "--task", "001", "--reason", "unclear ceiling for 429 backoff"])
+    result = runner.invoke(app, ["panic", "--task", slug, "--reason", "unclear ceiling for 429 backoff"])
     assert result.exit_code == 0, result.output
     blackboard = (task_path / "blackboard.md").read_text()
     assert "unclear ceiling for 429 backoff" in blackboard
@@ -130,9 +130,9 @@ def test_panic_writes_blocker_and_releases_lock(repo: Path) -> None:
 
 
 def test_feed_logs(repo: Path) -> None:
-    _, task_path = _make_task(repo)
+    slug, task_path = _make_task(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["feed", "--task", "001", "--message", "opened PR #142"])
+    result = runner.invoke(app, ["feed", "--task", slug, "--message", "opened PR #142"])
     assert result.exit_code == 0
     assert "feed: opened PR #142" in (task_path / "log.md").read_text()
 
@@ -141,15 +141,15 @@ def test_feed_logs(repo: Path) -> None:
 
 
 def test_status_shows_active(repo: Path) -> None:
-    _make_task(repo)
+    slug, _ = _make_task(repo)
     runner = CliRunner()
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0
-    assert "001" in result.output
+    assert slug in result.output
 
 
 def test_status_hides_done_by_default(repo: Path) -> None:
-    _, task_path = _make_task(repo, workflow=None)
+    slug, task_path = _make_task(repo, workflow=None)
     # Mark done directly
     t = Ticket.read(task_path / "ticket.md")
     t.frontmatter["status"] = "done"
@@ -158,4 +158,4 @@ def test_status_hides_done_by_default(repo: Path) -> None:
     result = runner.invoke(app, ["status"])
     assert "(no tasks)" in result.output
     result_all = runner.invoke(app, ["status", "--all"])
-    assert "001" in result_all.output
+    assert slug in result_all.output

@@ -109,7 +109,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "001"])
+    result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
 
     # Agent called with --append-system-prompt-file <path>
@@ -142,7 +142,7 @@ def test_launch_rejects_non_launchable_status(active_task: Path, monkeypatch: py
 
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "001"])
+    result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 2
     assert "'paused'" in result.output or "'paused'" in (result.stderr or "")
 
@@ -150,7 +150,7 @@ def test_launch_rejects_non_launchable_status(active_task: Path, monkeypatch: py
 def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: None)
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "001"])
+    result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 2
     assert "not found in PATH" in (result.output + (result.stderr or ""))
 
@@ -308,6 +308,6 @@ def test_launch_title_arg_rejected_for_regular_tasks(
 ) -> None:
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "001", "Some title"])
+    result = runner.invoke(app, ["launch", "fix-retry-logic", "Some title"])
     assert result.exit_code == 2
     assert "bootstrap" in (result.output + (result.stderr or ""))

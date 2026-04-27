@@ -78,7 +78,7 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         watchers=[],
         status=None,
     )
-    assert ref["id_slug"] == "001-fix-retry-logic"
+    assert ref["slug"] == "fix-retry-logic"
     task_dir = ref["path"]
     assert (task_dir / "ticket.md").is_file()
     assert (task_dir / "blackboard.md").is_file()
@@ -128,7 +128,7 @@ def test_create_rejects_unknown_context(repo: Path) -> None:
         )
 
 
-def test_create_increments_counter(repo: Path) -> None:
+def test_create_distinct_titles_get_distinct_slugs(repo: Path) -> None:
     cfg = load_config(repo)
     refs = [
         scaffold_task(
@@ -144,7 +144,28 @@ def test_create_increments_counter(repo: Path) -> None:
         )
         for i in range(3)
     ]
-    assert [r["id_slug"] for r in refs] == ["001-task-0", "002-task-1", "003-task-2"]
+    assert [r["slug"] for r in refs] == ["task-0", "task-1", "task-2"]
+
+
+def test_create_collision_auto_suffixes(repo: Path) -> None:
+    """Two tasks with the same title should not clash — second gets `-2`."""
+    cfg = load_config(repo)
+    kwargs = dict(
+        cfg=cfg,
+        workflow_name=None,
+        contexts=[],
+        mode="interactive",
+        owner=None,
+        assignee=None,
+        watchers=[],
+        status=None,
+    )
+    a = scaffold_task(title="Same title", **kwargs)
+    b = scaffold_task(title="Same title", **kwargs)
+    c = scaffold_task(title="Same title", **kwargs)
+    assert a["slug"] == "same-title"
+    assert b["slug"] == "same-title-2"
+    assert c["slug"] == "same-title-3"
 
 
 def test_create_log_entry_written(repo: Path) -> None:
@@ -164,46 +185,23 @@ def test_create_log_entry_written(repo: Path) -> None:
     assert "[human:marc] created" in log
 
 
-def test_resolve_task_prefers_exact_id_slug(repo: Path) -> None:
-    """When two task dirs share an id, the full id-slug must win the lookup."""
+def test_resolve_task_exact_then_prefix(repo: Path) -> None:
+    """Resolve prefers exact slug match; falls back to unique prefix; errors on ambiguity."""
     from relay.tasks import resolve_task, TaskNotFoundError
 
     cfg = load_config(repo)
-    # Manually create two dirs with the same id but different slugs.
-    for slug in ("test", "test-ticket"):
-        d = repo / "tasks" / f"002-{slug}"
+    for slug in ("fix-retry", "fix-retry-logic"):
+        d = repo / "tasks" / slug
         d.mkdir(parents=True)
         (d / "ticket.md").write_text(f"---\ntitle: {slug}\n---\n")
 
-    # Exact id-slug match returns the right one.
-    assert resolve_task(cfg, "002-test").slug == "test"
-    assert resolve_task(cfg, "002-test-ticket").slug == "test-ticket"
+    # Exact slug wins even when it's a prefix of another slug.
+    assert resolve_task(cfg, "fix-retry").slug == "fix-retry"
+    assert resolve_task(cfg, "fix-retry-logic").slug == "fix-retry-logic"
 
-    # Bare numeric "002" is ambiguous → error with both slugs listed.
-    with pytest.raises(TaskNotFoundError, match="Multiple tasks"):
-        resolve_task(cfg, "002")
+    # Unique prefix resolves.
+    assert resolve_task(cfg, "fix-retry-l").slug == "fix-retry-logic"
 
-
-def test_create_skips_past_drifted_counter(repo: Path) -> None:
-    """If the counter is behind reality, scaffold should bump past existing IDs
-    rather than minting a duplicate. Covers dogfood/migrated repos where task
-    dirs exist but the counter wasn't incremented for them."""
-    cfg = load_config(repo)
-    # Pretend 001 and 002 pre-existed without the counter being bumped.
-    for slug in ("001-old-a", "002-old-b"):
-        (repo / "tasks" / slug).mkdir(parents=True)
-        (repo / "tasks" / slug / "ticket.md").write_text(f"---\ntitle: {slug}\n---\n")
-
-    ref = scaffold_task(
-        cfg=cfg,
-        title="Fresh",
-        workflow_name=None,
-        contexts=[],
-        mode="interactive",
-        owner=None,
-        assignee=None,
-        watchers=[],
-        status=None,
-    )
-    # Counter starts empty, returns 1 then 2 (both colliding), then 3 — clean.
-    assert ref["id_slug"] == "003-fresh"
+    # Ambiguous prefix lists matches.
+    with pytest.raises(TaskNotFoundError, match="Ambiguous"):
+        resolve_task(cfg, "fix-r")
