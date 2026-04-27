@@ -86,7 +86,7 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     ref = list_tasks(cfg)[0]
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "001"])
+    result = runner.invoke(app, ["launch", "check"])
     assert result.exit_code == 0, result.output
 
     # Script wrote to the host repo (parent of relay-os/) with the secret
@@ -113,7 +113,7 @@ def test_script_mode_requires_skill_field(repo: Path) -> None:
         watchers=[], status="active",
     )
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "001"])
+    result = runner.invoke(app, ["launch", "check"])
     assert result.exit_code == 2
     assert "script" in result.output.lower()
 
@@ -130,7 +130,7 @@ def test_script_mode_nonzero_exit_logged(repo: Path) -> None:
         watchers=[], status="active",
     )
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "001"])
+    result = runner.invoke(app, ["launch", "fail"])
     assert result.exit_code == 3
     ref = list_tasks(cfg)[0]
     log = (ref.path / "log.md").read_text()

@@ -83,7 +83,7 @@ def compose_prompt(cfg: Config, task_ref: TargetRef, ticket: Ticket) -> str:
     return "\n\n---\n\n".join(p.strip() for p in parts if p.strip()) + "\n"
 
 
-def write_prompt_file(prompt: str, task_ref: TaskRef, dest_dir: Path | None = None) -> Path:
+def write_prompt_file(prompt: str, task_ref: TargetRef, dest_dir: Path | None = None) -> Path:
     """Write the composed prompt to a temp file. Returns its path.
 
     Default location: /tmp/relay-<id>-<timestamp>.md per spec.

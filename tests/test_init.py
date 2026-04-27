@@ -19,7 +19,6 @@ EXPECTED_FILES = {
     "relay-os/relay.toml",
     "relay-os/rules.md",
     "relay-os/context.md",
-    "relay-os/counter",
     "relay-os/scripts/cron.sh",
     "relay-os/contexts/_template/SKILL.md",
     "relay-os/skills/_template/SKILL.md",
@@ -37,7 +36,6 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     (templates / "relay.toml").write_text("version = 1\n")
     (templates / "rules.md").write_text("rules\n")
     (templates / "context.md").write_text("context\n")
-    (templates / "counter").write_text("0\n")
     (templates / "scripts").mkdir()
     (templates / "scripts" / "cron.sh").write_text("#!/bin/sh\n")
     for kind, fname in [
@@ -113,7 +111,6 @@ def test_init_into_empty_dir(tmp_path: Path, fake_clone, fake_venv) -> None:
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
 
-    assert (target / "relay-os" / "counter").read_text().strip() == "0"
     assert "version = 1" in (target / "relay-os" / "relay.toml").read_text()
 
 

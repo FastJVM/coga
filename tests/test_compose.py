@@ -82,7 +82,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     prompt = compose_prompt(cfg, ref, ticket)
 
     # Header
-    assert "Relay task — 001-fix-retry-logic" in prompt
+    assert "Relay task — fix-retry-logic" in prompt
     # Base prompt
     assert "You are an agent working on a ticket inside Relay" in prompt
     # Interactive prompt
@@ -157,4 +157,4 @@ def test_write_prompt_file(repo: Path, tmp_path: Path) -> None:
     out = write_prompt_file(prompt, ref, dest_dir=tmp_path)
     assert out.exists()
     assert out.read_text() == prompt
-    assert out.name.startswith("relay-001-x-")
+    assert out.name.startswith("relay-x-")

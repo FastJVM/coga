@@ -97,7 +97,6 @@ Skills, workflows, and recurring templates all support arbitrary depth nesting. 
     relay.local.toml        ← gitignored — user, secrets
     rules.md                ← global rules, inlined in every task
     context.md              ← repo-wide context, inlined in every task
-    counter                 ← next task ID (plain integer, auto-incremented by relay create)
     skills/
       content/
         brand-voice/SKILL.md
@@ -138,7 +137,7 @@ Skills, workflows, and recurring templates all support arbitrary depth nesting. 
       monthly-newsletter.md
       post-deploy-health.md
     tasks/
-      003-fix-retry-logic/
+      fix-retry-logic/      ← directory named by slug; no numeric prefix
         ticket.md           ← assignee, status, workflow step, description, context
         log.md              ← append-only, written by CLI commands only
         blackboard.md       ← shared workspace (see below)
@@ -349,10 +348,10 @@ The default starting status comes from the top-level `default_status` field in `
 
 ### Task directory and the blackboard
 
-**Tasks are directories, not files.** Each task lives in `relay-os/tasks/<id>-<slug>/` and contains:
+**Tasks are directories, not files.** Each task lives in `relay-os/tasks/<slug>/` and contains:
 
 ```
-003-fix-retry-logic/
+fix-retry-logic/
   ticket.md             ← assignee, status, workflow step, description, context
   log.md                ← append-only structured log (written by CLI commands only)
   blackboard.md         ← shared workspace for human and agent
@@ -708,9 +707,10 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 `relay launch <task-id> [title]`
 
-`<task-id>` is a positional argument: numeric ID, full id-slug, or
-`bootstrap/<name>` shim. The optional `title` arg is the factory shorthand
-for bootstrap shims — see "bootstrap shims" above.
+`<task-id>` is a positional argument: a task slug (full or any unique
+prefix, git-short-SHA-style) or a `bootstrap/<name>` shim. The optional
+`title` arg is the factory shorthand for bootstrap shims — see "bootstrap
+shims" above.
 
 #### Behavior
 
@@ -1022,7 +1022,7 @@ No detailed behavior spec. Now also absorbs recurring template checking. Open qu
 
 #### ~~Task ID generation~~ — resolved
 
-Per-repo auto-increment. Each `relay-os/` has a `counter` file containing the next task ID as a plain integer. `relay create` reads, increments, and writes this file atomically (file lock around the read-write). Format: `003-fix-retry-logic` — zero-padded to 3 digits, slug auto-generated from title (lowercase, hyphens, truncated to 50 chars). The ID is stable — used in branch names (`relay/003-fix-retry-logic`), Slack messages, and cross-references. Concurrent creation collisions are handled by the same lockfile used for the counter read-write — second caller waits.
+Slug-only. Each task lives at `relay-os/tasks/<slug>/`, where `<slug>` is derived from the title (lowercase, hyphens, truncated to 50 chars). There is no numeric ID and no `counter` file — the directory name is the canonical reference. If a slug collides with an existing task, the new one gets `-2`, `-3`, … appended. Tasks resolve by exact slug or any unique prefix (git-short-SHA-style); ambiguous prefixes error and list the matches. Slugs appear in branch names (`relay/fix-retry-logic`), Slack messages, and cross-references. The earlier counter-backed `NNN-slug` design was dropped because the counter file fights git: parallel branches both mint the same next ID, and the merge has to be hand-resolved. Slugs sidestep that — collision detection happens against the actual filesystem state at create time.
 
 #### `relay create` CLI interface
 
@@ -1103,13 +1103,11 @@ Listed as a background command but has no spec beyond the base prompt descriptio
 - What if the step has inline instructions instead of a `skill:` reference — is that an error for script mode?
 - Exit code handling beyond non-zero = failure?
 
-#### Task resolution
+#### Task resolution — resolved
 
-Open questions on how `--task` is parsed across commands:
+`--task` (and the positional arg on `relay launch`) accepts an exact slug or any unique prefix. Exact matches win even when the arg is also a prefix of a longer slug. Ambiguous prefixes error with all matches listed (`Ambiguous task ref 'fix-': matches fix-retry-logic, fix-timeout-handling. Use a longer prefix to disambiguate.`).
 
-- Accept just the numeric ID (`003`), the slug (`fix-retry-logic`), or the full id-slug (`003-fix-retry-logic`)?
-- What's the error message on ambiguity (e.g. multiple tasks whose slug starts with `fix-`)?
-- Should `relay step`, `relay panic`, `relay feed` infer the task from the current working directory (e.g. when invoked from inside `relay-os/tasks/003-…/`) instead of always requiring `--task`?
+Open: should `relay step`, `relay panic`, `relay feed` infer the task from the current working directory (e.g. when invoked from inside `relay-os/tasks/<slug>/`) instead of always requiring `--task`?
 
 ### Can defer — resolve during or after 3-month internal use
 
@@ -1137,7 +1135,7 @@ Open questions on how `--task` is parsed across commands:
 
 #### Git merge conflicts
 
-Git is the sync layer. The one-task-one-worker constraint means two people rarely touch the same task files. Conflicts are most likely on `relay.toml` (config edits), simultaneous `relay create` (task ID collision), or rare human-edits-while-agent-pushes cases. Manually resolved for v1.
+Git is the sync layer. The one-task-one-worker constraint means two people rarely touch the same task files. Conflicts are most likely on `relay.toml` (config edits) or rare human-edits-while-agent-pushes cases. Slug-only task names (no shared counter) eliminate the ID-collision conflict entirely — two parallel `relay create` runs only collide if they pick the exact same slug, in which case the second gets a `-2` suffix. Manually resolved for v1.
 
 #### Prompt size / token limits
 

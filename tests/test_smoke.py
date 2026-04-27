@@ -73,13 +73,14 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
     # 3. Advance steps.
     runner = CliRunner()
-    r = runner.invoke(app, ["step", "2", "--task", "001"])
+    slug = ref["slug"]
+    r = runner.invoke(app, ["step", "2", "--task", slug])
     assert r.exit_code == 0, r.output
-    r = runner.invoke(app, ["step", "3", "--task", "001"])
+    r = runner.invoke(app, ["step", "3", "--task", slug])
     assert r.exit_code == 0
-    r = runner.invoke(app, ["step", "4", "--task", "001"])
+    r = runner.invoke(app, ["step", "4", "--task", slug])
     assert r.exit_code == 0
-    r = runner.invoke(app, ["step", "5", "--task", "001"])
+    r = runner.invoke(app, ["step", "5", "--task", slug])
     assert r.exit_code == 0, r.output
     assert read_ticket(task_ref).status == "done"
 
@@ -97,7 +98,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     )
     r = runner.invoke(app, [
         "panic",
-        "--task", ref2["id_slug"].split("-", 1)[0],
+        "--task", ref2["slug"],
         "--reason", "need prod DNS access to reproduce",
     ])
     assert r.exit_code == 0, r.output
@@ -107,7 +108,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
     r = runner.invoke(app, [
         "feed",
-        "--task", ref2["id_slug"].split("-", 1)[0],
+        "--task", ref2["slug"],
         "--message", "checked DNS resolver logs, no answer",
     ])
     assert r.exit_code == 0
@@ -116,12 +117,12 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # 5. Status shows the active task (the first one is done, so not shown by default).
     r = runner.invoke(app, ["status"])
     assert r.exit_code == 0
-    assert "002" in r.output
-    assert "001" not in r.output  # done by default is hidden
+    assert ref2["slug"] in r.output
+    assert ref["slug"] not in r.output  # done by default is hidden
 
     r = runner.invoke(app, ["status", "--all"])
-    assert "001" in r.output
-    assert "002" in r.output
+    assert ref["slug"] in r.output
+    assert ref2["slug"] in r.output
 
     # 6. Validator reports no errors on this repo.
     report = validate_run(cfg)

@@ -60,14 +60,14 @@ def test_launch_auto_mode(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda n: f"/usr/bin/{n}")
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "001"])
+    result = runner.invoke(app, ["launch", "auto-run"])
     assert result.exit_code == 0, result.output
 
     cmd = captured["cmd"]
     assert cmd[0] == "claude"
     assert cmd[1] == "-p"
     # Last arg is the full prompt text, not a file path
-    assert "Relay task — 001-auto-run" in cmd[2]
+    assert "Relay task — auto-run" in cmd[2]
     assert "Auto mode" in cmd[2]
 
     # Lock released

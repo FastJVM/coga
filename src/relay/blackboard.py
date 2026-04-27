@@ -8,10 +8,10 @@ from importlib.resources import files
 from pathlib import Path
 
 
-def render_blackboard(task_id: str, task_title: str) -> str:
+def render_blackboard(task_title: str) -> str:
     """Render the default blackboard template with task metadata filled in."""
     template = files("relay.resources").joinpath("blackboard.md").read_text()
-    return template.replace("{task_id}", task_id).replace("{task_title}", task_title)
+    return template.replace("{task_title}", task_title)
 
 
 _SECTION_RE = re.compile(r"^(## .+?)$", re.MULTILINE)

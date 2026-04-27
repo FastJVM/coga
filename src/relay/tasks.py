@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Union
 
 from relay.config import Config
-from relay.paths import bootstrap_dir, bootstrap_path, tasks_dir
+from relay.paths import bootstrap_path, tasks_dir
 from relay.ticket import Ticket
 
 
@@ -16,19 +15,17 @@ class TaskNotFoundError(Exception):
     pass
 
 
-_ID_RE = re.compile(r"^(\d+)-")
 _BOOTSTRAP_PREFIX = "bootstrap/"
 
 
 @dataclass(frozen=True)
 class TaskRef:
-    id: int
     slug: str
     path: Path
 
     @property
     def id_slug(self) -> str:
-        return f"{self.id:03d}-{self.slug}"
+        return self.slug
 
 
 @dataclass(frozen=True)
@@ -51,7 +48,13 @@ TargetRef = Union[TaskRef, BootstrapRef]
 
 
 def list_tasks(cfg: Config) -> list[TaskRef]:
-    """List all task directories under `relay-os/tasks/`."""
+    """List all task directories under `relay-os/tasks/`.
+
+    A task is any direct child directory of `tasks/` that contains a
+    `ticket.md`. The directory name is the task's slug. Directories whose
+    names start with `_` are treated as templates and skipped (matching
+    the convention used elsewhere in the layout).
+    """
     tasks_root = tasks_dir(cfg)
     if not tasks_root.is_dir():
         return []
@@ -59,45 +62,39 @@ def list_tasks(cfg: Config) -> list[TaskRef]:
     for entry in sorted(tasks_root.iterdir()):
         if not entry.is_dir():
             continue
-        m = _ID_RE.match(entry.name)
-        if not m:
+        if entry.name.startswith("_"):
             continue
-        task_id = int(m.group(1))
-        slug = entry.name[len(m.group(0)):]
-        out.append(TaskRef(id=task_id, slug=slug, path=entry))
+        if not (entry / "ticket.md").is_file():
+            continue
+        out.append(TaskRef(slug=entry.name, path=entry))
     return out
 
 
 def resolve_task(cfg: Config, task_arg: str) -> TaskRef:
-    """Resolve a `--task` argument to a TaskRef.
+    """Resolve a task arg to a TaskRef.
 
-    Accepts:
-      - "003"                     — numeric ID
-      - "003-fix-retry-logic"     — fully qualified id+slug
+    Accepts an exact slug (`fix-retry-logic`) or any unique slug prefix
+    (`fix-ret`), git-short-SHA-style. Ambiguous prefixes raise with the
+    matching slugs listed.
     """
-    m = _ID_RE.match(task_arg) or re.match(r"^(\d+)$", task_arg)
-    if not m:
-        raise TaskNotFoundError(f"Can't parse task id from {task_arg!r}")
-    target_id = int(m.group(1))
-
     tasks = list_tasks(cfg)
-    # Exact id_slug match wins — handles the case where two task dirs
-    # accidentally share an id (which the counter shouldn't allow, but
-    # legacy/dogfood repos can drift into).
-    exact = [t for t in tasks if t.id_slug == task_arg]
+    if not tasks:
+        raise TaskNotFoundError(f"No tasks found (looked for {task_arg!r})")
+
+    exact = [t for t in tasks if t.slug == task_arg]
     if exact:
         return exact[0]
 
-    candidates = [t for t in tasks if t.id == target_id]
-    if not candidates:
-        raise TaskNotFoundError(f"No task with id {target_id:03d}")
-    if len(candidates) > 1:
-        slugs = ", ".join(c.id_slug for c in candidates)
+    matches = [t for t in tasks if t.slug.startswith(task_arg)]
+    if not matches:
+        raise TaskNotFoundError(f"No task matches {task_arg!r}")
+    if len(matches) > 1:
+        slugs = ", ".join(t.slug for t in matches)
         raise TaskNotFoundError(
-            f"Multiple tasks with id {target_id:03d}: {slugs}. "
-            f"Pass the full id-slug to disambiguate."
+            f"Ambiguous task ref {task_arg!r}: matches {slugs}. "
+            f"Use a longer prefix to disambiguate."
         )
-    return candidates[0]
+    return matches[0]
 
 
 def resolve_bootstrap(cfg: Config, name: str) -> BootstrapRef:
@@ -114,7 +111,7 @@ def resolve_bootstrap(cfg: Config, name: str) -> BootstrapRef:
 
 
 def resolve_target(cfg: Config, arg: str) -> TargetRef:
-    """Resolve a `--task` argument to either a numeric task or a bootstrap shim."""
+    """Resolve a target arg to either a task slug or a bootstrap shim."""
     if arg.startswith(_BOOTSTRAP_PREFIX):
         return resolve_bootstrap(cfg, arg)
     return resolve_task(cfg, arg)

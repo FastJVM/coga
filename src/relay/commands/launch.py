@@ -185,7 +185,7 @@ def _scaffold_from_shim(cfg: Config, shim: BootstrapRef, title: str) -> TaskRef:
         skill=shim_ticket.skill,
         created_by=f"bootstrap:{shim.name}",
     )
-    return resolve_task(cfg, result["id_slug"])
+    return resolve_task(cfg, result["slug"])
 
 
 def build_agent_command(agent, mode: str, prompt: str, prompt_file: Path) -> list[str]:

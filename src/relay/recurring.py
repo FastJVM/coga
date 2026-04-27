@@ -93,13 +93,7 @@ def check_recurring(cfg: Config, now: datetime | None = None) -> list[TaskRef]:
             description=_extract_description(template),
             created_by="system",
         )
-        created.append(
-            TaskRef(
-                id=int(ref["id_slug"].split("-", 1)[0]),
-                slug=ref["id_slug"].split("-", 1)[1],
-                path=ref["path"],
-            )
-        )
+        created.append(TaskRef(slug=ref["slug"], path=ref["path"]))
     return created
 
 
