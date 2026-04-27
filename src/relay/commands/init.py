@@ -101,6 +101,7 @@ def _do_init(path: Path) -> None:
 
     bin_dir = relay_os / ".relay" / "bin"
     shim = _try_install_shim(bin_dir / "relay")
+    wired_agents, blocked_agents = _link_skills_for_agents(target, relay_os)
     commit_sha = _git_commit_relay_os(target, relay_os)
 
     typer.echo("")
@@ -108,6 +109,15 @@ def _do_init(path: Path) -> None:
     typer.echo(f"Wrote {local_toml} (set `user` to your assignee name).")
     if sha is not None:
         typer.echo(f"Pinned to upstream {sha[:12]}.")
+    if wired_agents:
+        names = ", ".join(wired_agents)
+        typer.echo(f"Wired skill discovery for {names} (symlinked into their skill dirs).")
+    for label, path in blocked_agents:
+        typer.secho(
+            f"Skipped {label} skill wiring — {path} exists but isn't a directory. "
+            f"Remove or convert it, then rerun `relay init --update`.",
+            fg=typer.colors.YELLOW,
+        )
     if commit_sha is not None:
         typer.echo(f"Committed relay-os/ as {commit_sha[:12]} (push when ready).")
 
@@ -148,15 +158,80 @@ def _do_update() -> None:
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
+    wired_agents, blocked_agents = _link_skills_for_agents(relay_os.parent, relay_os)
 
     typer.echo("")
     typer.echo(f"Refreshed CLI at {relay_os / '.relay'}")
     if sha is not None:
         typer.echo(f"Pinned to upstream {sha[:12]}.")
+    if wired_agents:
+        names = ", ".join(wired_agents)
+        typer.echo(f"Wired skill discovery for {names}.")
+    for label, path in blocked_agents:
+        typer.secho(
+            f"Skipped {label} skill wiring — {path} isn't a directory. "
+            f"Remove or convert it, then rerun this command.",
+            fg=typer.colors.YELLOW,
+        )
     if copied:
         typer.echo(f"Refreshed {len(copied)} template file(s):")
         for rel in copied:
             typer.echo(f"  {rel}")
+
+
+# Agents we wire skill discovery for. Each entry is the project-level dir
+# that the agent's CLI scans for skills (e.g. Claude Code reads `.claude/skills/`,
+# Codex reads `.codex/skills/`). We symlink `<agent>/skills/relay` -> `relay-os/skills`
+# so the existing SKILL.md standard "just works" without polluting the agent's
+# own skills tree. Other agents (OpenCode etc.) need manual wiring.
+_AGENT_SKILL_DIRS: tuple[tuple[str, str], ...] = (
+    ("Claude Code", ".claude"),
+    ("Codex", ".codex"),
+)
+
+
+def _link_skills_for_agents(
+    target: Path, relay_os: Path
+) -> tuple[list[str], list[tuple[str, Path]]]:
+    """Symlink relay-os/skills into each known agent's skill discovery path.
+
+    Creates `<target>/<agent-dir>/skills/relay` -> `<target>/relay-os/skills`
+    for Claude Code and Codex. Idempotent: skips if the link already exists,
+    if the agent dir is something we shouldn't touch (e.g. a non-directory
+    marker file), or if the OS doesn't support symlinks.
+
+    Returns `(wired, blocked)` where `wired` is the list of human-readable
+    agent names that ended up with a working link, and `blocked` is a list
+    of `(name, path)` pairs we skipped because something non-directory was
+    sitting in the way.
+    """
+    skills_src = relay_os / "skills"
+    if not skills_src.is_dir():
+        return [], []
+
+    wired: list[str] = []
+    blocked: list[tuple[str, Path]] = []
+    for label, dirname in _AGENT_SKILL_DIRS:
+        agent_dir = target / dirname
+        # Some agents leave a marker file (e.g. an empty `.codex` sentinel).
+        # Don't clobber it — surface it to the caller so the human decides.
+        if agent_dir.exists() and not agent_dir.is_dir():
+            blocked.append((label, agent_dir))
+            continue
+
+        skills_dir = agent_dir / "skills"
+        link = skills_dir / "relay"
+        try:
+            if link.is_symlink() or link.exists():
+                wired.append(label)
+                continue
+            skills_dir.mkdir(parents=True, exist_ok=True)
+            rel_target = Path(os.path.relpath(skills_src, skills_dir))
+            link.symlink_to(rel_target, target_is_directory=True)
+        except OSError:
+            continue
+        wired.append(label)
+    return wired, blocked
 
 
 def _try_install_shim(wrapper: Path) -> Path | None:

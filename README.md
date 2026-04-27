@@ -92,6 +92,19 @@ relay init --update            # refresh .relay/ + _* templates in current repo
 If `~/.local/bin` is on your `PATH`, init also drops a `~/.local/bin/relay`
 symlink so the vendored copy is usable from any cwd in a new shell.
 
+**Skill discovery.** Init also wires `relay-os/skills/` into the project-level
+skill dirs of the agents that follow the `SKILL.md` standard, so they
+auto-discover relay's skills when you start a session in the repo:
+
+- **Claude Code** — symlinked into `.claude/skills/relay/`.
+- **Codex** — symlinked into `.codex/skills/relay/`.
+
+That covers our two daily drivers. Other agents (e.g. OpenCode) don't have a
+matching project-level skill convention yet — point them at `relay-os/skills/`
+yourself if you use them. If init finds something non-directory in the way
+(e.g. an empty `.codex` sentinel file from an older setup), it skips that
+agent and prints what to clear.
+
 ### `relay create`
 
 Scaffold a new task directory under `relay-os/tasks/<NNN>-<slug>/`, allocating
