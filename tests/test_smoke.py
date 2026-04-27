@@ -70,7 +70,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Stripe webhooks retry" in prompt         # ticket context
     assert "Tests live next to the code" in prompt   # step skill
     assert "Current step: implement" in prompt
-    assert "Protocol — interactive mode" in prompt
+    assert "Interactive mode" in prompt
     assert "Blackboard" in prompt
 
     # 3. Advance steps.

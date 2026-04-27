@@ -31,14 +31,14 @@ def compose_prompt(cfg: Config, task_ref: TaskRef, ticket: Ticket) -> str:
     parts.append(f"# Relay task — {task_ref.project}/{task_ref.id_slug}\n\n"
                  f"Title: {ticket.title}\nMode: {ticket.mode}\nStatus: {ticket.status}")
 
-    # 1. Base protocol
-    parts.append(_resource("protocol.md"))
+    # 1. Base prompt
+    parts.append(_resource("prompt.md"))
 
-    # 2. Mode-specific protocol
+    # 2. Mode-specific prompt
     if ticket.mode == "interactive":
-        parts.append(_resource("protocol-interactive.md"))
+        parts.append(_resource("prompt-interactive.md"))
     elif ticket.mode == "auto":
-        parts.append(_resource("protocol-auto.md"))
+        parts.append(_resource("prompt-auto.md"))
     # script mode never gets composed; enforced by launch.py
 
     # 3. rules.md

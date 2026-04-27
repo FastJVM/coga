@@ -1,4 +1,4 @@
-# Protocol — interactive mode
+# Interactive mode
 
 A human is present in this terminal. Work with them, not around them.
 

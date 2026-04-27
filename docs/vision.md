@@ -55,11 +55,11 @@ Relay is our substrate.
 
 ## The substrate
 
-Everything Relay operates on is markdown in a git repo. Tasks, contexts, skills, workflows, rules, the protocol agents follow, the blackboards where agents write their in-progress state. One file type. One versioning system. No database, no server, no vendor platform.
+Everything Relay operates on is markdown in a git repo. Tasks, contexts, skills, workflows, rules, the base prompt agents are launched with, the blackboards where agents write their in-progress state. One file type. One versioning system. No database, no server, no vendor platform.
 
 The property we're reaching for is the one Lisp had: homoiconicity. Code and data in the same structure, so a running program can inspect and modify its own behavior using the same primitives it uses to operate. No metalanguage gap. Lisp achieved this at the code level and paid for it with a steep learning curve; the payoff was a language where macros, metaprogramming, and self-modification were first-class rather than bolted on.
 
-Relay reaches for the same property at the operations level. The protocol the agents follow, the rules they obey, the knowledge they draw on, the workflows they execute, and the workspace they operate in are all the same kind of file. Edited with the same tool. Versioned in the same history. Inspection and modification are the same action.
+Relay reaches for the same property at the operations level. The base prompt the agents start from, the rules they obey, the knowledge they draw on, the workflows they execute, and the workspace they operate in are all the same kind of file. Edited with the same tool. Versioned in the same history. Inspection and modification are the same action.
 
 The consequence is concrete: when we notice an agent getting something wrong, we open the relevant file, edit it, commit. The next run uses the new version. No PR cycle, no deploy, no vendor feature request, no support ticket. End-to-end latency from "saw a mistake" to "fix is live" is roughly two minutes.
 
@@ -103,7 +103,7 @@ This is what we mean when we say the methodology is a flywheel rather than a col
 
 Two consequences worth naming:
 
-**Context is the asset that appreciates.** Six months in, our context library is more valuable than the CLI, the scripts, the workflows, and the protocol combined. Those are scaffolding. The contexts are the encoded operating knowledge of a compiler company at month six, and they're only that good because we've corrected them hundreds of times in the flow of work. A competitor forking Relay gets nothing that matters. A competitor somehow acquiring our contexts gets years of expertise they'd have otherwise had to live through. The flywheel spins up slowly and the output is specific to the company that spun it.
+**Context is the asset that appreciates.** Six months in, our context library is more valuable than the CLI, the scripts, the workflows, and the base prompt combined. Those are scaffolding. The contexts are the encoded operating knowledge of a compiler company at month six, and they're only that good because we've corrected them hundreds of times in the flow of work. A competitor forking Relay gets nothing that matters. A competitor somehow acquiring our contexts gets years of expertise they'd have otherwise had to live through. The flywheel spins up slowly and the output is specific to the company that spun it.
 
 **Marginal automation becomes worth doing.** Tasks that took four hours a month and would have taken thirty hours to automate used to not pencil out. At today's correction loop cost, those same tasks take three to five hours to automate, the automation stays sharp because the correction loop keeps it sharp, and the payback is weeks instead of years. A whole category of "just do it manually forever" tasks becomes worth building. This is what actually lets two people run the operational surface of a larger company.
 
@@ -123,7 +123,7 @@ Two consequences worth naming:
 
 **Three modes** per task: interactive (human sits with the agent), auto (agent runs alone, panics to a human when stuck), script (no agent, a script runs with secrets injected). The mode is declared per-task. Most recurring operational work is script or auto. Most novel work is interactive. Choice is per-task, not a global setting.
 
-**The protocol** is a system prompt injected into every agent session. It teaches the agent how to operate within Relay — when to advance workflow steps, when to panic, how to use the blackboard, how to handle frontmatter. The protocol lives as version-controlled markdown. Agents don't learn Relay through their own memory or config; they learn it fresh every session from a file we own.
+**The base prompt** is a system prompt injected into every agent session. It teaches the agent how to operate within Relay — when to advance workflow steps, when to panic, how to use the blackboard, how to handle frontmatter. The base prompt lives as version-controlled markdown. Agents don't learn Relay through their own memory or config; they learn it fresh every session from a file we own.
 
 ---
 

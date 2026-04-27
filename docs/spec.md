@@ -362,7 +362,7 @@ The default starting status comes from the top-level `default_status` field in `
 
 **Locks are local-only.** Lock files use file existence on the local filesystem. They serialize concurrent access on a single machine — they do not provide distributed locking across machines. This is sufficient under the one-task-one-worker constraint: if Marc's agent is working on task 003, Pierre's agent is not. Git merge conflicts on lock files are not expected in normal operation. If they occur, delete the lock and re-acquire — the dream/drift validation script covers stale lock detection.
 
-**log.md** is append-only and structured. Written exclusively by CLI commands as a side effect — `relay launch`, `relay step`, `relay panic`, and `relay create` all append to `log.md` when they execute. Agents and humans do not write to `log.md` directly. If agents need to record unstructured observations, they write to the blackboard's Notes section. Format:
+**log.md** is append-only and structured. Written exclusively by CLI commands as a side effect — `relay launch`, `relay step`, `relay panic`, and `relay create` all append to `log.md` when they execute. Agents and humans do not write to `log.md` directly. If agents need to record unstructured observations, they write to the blackboard. Format:
 
 ```
 2025-01-14 10:32 [agent:claude1] advanced to step 2 (pr)
@@ -376,11 +376,9 @@ The blackboard pattern originates in AI research (Hearsay-II, CMU, 1970s) for pr
 
 Relay applies this pattern per task. `blackboard.md` is the shared workspace for the task. Any entity — human or agent — can write to it at any time (serialized via `task.lock`). There is no message passing between human and agent; they communicate through the board.
 
-**blackboard.md** uses a fixed skeleton generated at task creation by `relay create`. The skeleton is the API — consistent headings enable agents to load only the sections relevant to their current step rather than reading the full document. An agent picking up after a blocker reads Blockers and Findings. An agent relaunching reads Decisions first. This keeps context window usage bounded.
+**blackboard.md** is unstructured by design. `relay create` scaffolds it as a near-empty file; the agent organizes it however fits the task — invent headings that make sense, or write flat. The base prompt teaches the agent what's worth capturing (plan, findings, decisions with reasons, blockers) without prescribing a section layout. Earlier drafts shipped a fixed Plan/Findings/Decisions/Blockers/Notes skeleton; it cost more in agent confusion than it bought in selective-load efficiency.
 
 The blackboard is a workspace for live state — not a copy of the task's context. Domain knowledge and task-specific context live in the ticket (frontmatter context refs + inline body) and get composed into the prompt at launch time by `relay launch`. The blackboard captures what's happened *during* work: plans, findings, decisions, blockers. This avoids duplication between the blackboard and the composed prompt.
-
-V1 uses a single default template. Custom templates per workflow type can be added later when the need is proven.
 
 The default template:
 
@@ -571,7 +569,7 @@ The dream/drift validation script reads the `acquired` timestamp to detect stale
 2. Check for stale locks — clear if the agent is no longer running.
 3. Relaunch with `relay launch` — the composed prompt includes the blackboard, so the new session picks up from the last written state.
 
-The blackboard is the persistence layer between sessions. An agent that writes to the blackboard frequently (findings, plan updates, decisions) is recoverable. An agent that doesn't write is not. The relay protocol system prompt includes instructions telling the agent to write to the blackboard after meaningful progress.
+The blackboard is the persistence layer between sessions. An agent that writes to the blackboard frequently (findings, plan updates, decisions) is recoverable. An agent that doesn't write is not. The relay base prompt includes instructions telling the agent to write to the blackboard after meaningful progress.
 
 No automatic crash detection or restart in v1. The dream/drift validation script flags stale locks (suggesting a crash), but recovery is always human-initiated.
 
@@ -661,7 +659,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 | `relay launch` | Compose prompt from all context, inject secrets, start work on a task. Handles all three modes: interactive, auto, and script. |
 | `relay status` | Show all active tasks in this repo. One line per task: id, title, assignee, step, mode. |
 
-**Background** — what agents call (taught by the relay protocol system prompt):
+**Background** — what agents call (taught by the relay base prompt):
 
 | Command | What it does |
 |---|---|
@@ -673,7 +671,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 **Humans** edit files directly — reassign a task, adjust context refs, tweak a workflow, update skills. The dream/drift skill includes a validation script that checks repo consistency (stale locks, broken references, invalid state) as part of its recurring run.
 
-**Agents** edit files directly — write to the blackboard, update frontmatter fields (contexts, blockers). Agents call background commands within their self-service boundary, as taught by the relay protocol system prompt.
+**Agents** edit files directly — write to the blackboard, update frontmatter fields (contexts, blockers). Agents call background commands within their self-service boundary, as taught by the relay base prompt.
 
 ---
 
@@ -689,8 +687,8 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 4. Verify the task's `status` is `active`. Error if not.
 5. Load secrets from `relay.local.toml` `[secrets]` section. Resolve `env:VAR_NAME` references to actual values. These will be exported as environment variables into the launched process.
 6. **Compose the prompt.** Assemble in this order:
-   - Relay protocol system prompt (how to operate within Relay — see below)
-   - Mode-specific protocol block (interactive vs. auto behavioral rules)
+   - Relay base prompt (how to operate within Relay — see below)
+   - Mode-specific prompt block (interactive vs. auto behavioral rules)
    - `relay-os/rules.md` (global rules)
    - `relay-os/context.md` (repo-wide context)
    - Contexts referenced in ticket frontmatter (inlined from `relay-os/contexts/`)
@@ -710,8 +708,8 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 The order is deliberate — it follows specificity:
 
-1. Relay protocol (how to operate — same for every task)
-2. Mode-specific block (interactive vs. auto behavioral rules)
+1. Relay base prompt (how to operate — same for every task)
+2. Mode-specific prompt block (interactive vs. auto behavioral rules)
 3. Global rules (broadest — apply to everything)
 4. Repo context (apply to all tasks in this repo)
 5. Contexts (domain knowledge — scoped to this task type)
@@ -719,7 +717,7 @@ The order is deliberate — it follows specificity:
 7. Workflow step skill (process knowledge — what to do right now)
 8. Blackboard (live state — what's happened so far, decisions, findings)
 
-Later content overrides earlier content when they conflict. The agent sees the most specific information last, which is where most LLMs place the highest weight. The protocol comes first because it's structural — it defines how the agent interacts with the system, not what it does. It should never be overridden by task-specific content.
+Later content overrides earlier content when they conflict. The agent sees the most specific information last, which is where most LLMs place the highest weight. The base prompt comes first because it's structural — it defines how the agent interacts with the system, not what it does. It should never be overridden by task-specific content.
 
 #### Multi-task per repo
 
@@ -744,7 +742,7 @@ Later content overrides earlier content when they conflict. The agent sees the m
 
 #### Behavior
 
-Writes reason to the blackboard's Blockers section, @mentions the task owner in Slack, stops the agent. This is the only escalation mechanism for autonomous agents.
+Writes a timestamped blocker line to the blackboard, @mentions the task owner in Slack, stops the agent. This is the only escalation mechanism for autonomous agents.
 
 Example:
 
@@ -762,7 +760,7 @@ Slack: `@marc — 003 "Fix retry logic" — agent stuck: "429 retry logic unclea
 
 `relay step <next-step-number>`
 
-A thin command for side effects. The agent calls this when it completes a workflow step. The intelligence about *when* to call it lives in the relay protocol system prompt, not in the command.
+A thin command for side effects. The agent calls this when it completes a workflow step. The intelligence about *when* to call it lives in the relay base prompt, not in the command.
 
 #### Behavior
 
@@ -799,45 +797,45 @@ Checks include:
 
 ---
 
-## Relay protocol — system prompt
+## Relay base prompt
 
-The relay protocol is a system prompt injected at the top of every composed prompt by `relay launch`. It teaches the agent how to operate within Relay — not what to do (that comes from skills, contexts, and the ticket), but how to behave as a participant in the system.
+The relay base prompt is a system prompt injected at the top of every composed prompt by `relay launch`. It teaches the agent how to operate within Relay — not what to do (that comes from skills, contexts, and the ticket), but how to behave as a participant in the system.
 
-This is the most important piece of the spec. When commands like `relay step` were thinned to pure side-effect runners, the protocol became the brain — it carries the logic about when to advance, when to panic, how to use the blackboard, and how to handle frontmatter.
+This is the most important piece of the spec. When commands like `relay step` were thinned to pure side-effect runners, the base prompt became the brain — it carries the logic about when to advance, when to panic, how to use the blackboard, and how to handle frontmatter.
 
-### What the protocol covers
+### What the base prompt covers
 
 1. **Identity** — you're an agent working on a ticket inside Relay.
 2. **Files** — what ticket.md, blackboard.md, and log.md are for. Which you read, which you write, which you don't touch.
-3. **Blackboard discipline** — write frequently (plan, findings, decisions, blockers). The blackboard is the crash recovery mechanism. An agent that writes to it is recoverable; one that doesn't is not.
+3. **Blackboard discipline** — write frequently (plan, findings, decisions, blockers). The blackboard is unstructured by design and is the crash recovery mechanism. An agent that writes to it is recoverable; one that doesn't is not.
 4. **Step transitions** — do the work for your current step. When done, call `relay step`. Do not skip steps. Do not go back. If a previous step needs rework, panic.
-5. **Escalation** — call `relay panic` when stuck. Be specific about the reason. Write to the Blockers section before panicking. After panicking, stop.
+5. **Escalation** — call `relay panic` when stuck. Be specific about the reason. Write the blocker to the blackboard before panicking. After panicking, stop.
 6. **Feed** — call `relay feed` for FYI updates. Keep messages short. Do not use feed for blockers.
 7. **YAML discipline** — preserve existing fields, use exact syntax, don't invent formats.
 
 ### Mode-specific blocks
 
-The protocol has a base section (same for every task) and a mode-specific block swapped in by `relay launch`:
+The base prompt has a section (same for every task) and a mode-specific block swapped in by `relay launch`:
 
 **Interactive block:** You're working with a human. Ask when uncertain. Discuss tradeoffs. The human is here.
 
 **Auto block:** You're alone. Either proceed (and note uncertainty on the blackboard) or panic. Do not write questions and wait — nobody is watching.
 
-The `script` mode does not use the protocol — no agent is spawned.
+The `script` mode does not use the base prompt — no agent is spawned.
 
 ### Why this matters
 
-Before the protocol, agents needed to know Relay's conventions through their instruction file (CLAUDE.md, AGENTS.md) or through ad-hoc prompting. This was fragile — every agent type needed separate instructions, conventions drifted, and there was no guarantee the agent knew how to use the blackboard or when to escalate.
+Before the base prompt, agents needed to know Relay's conventions through their instruction file (CLAUDE.md, AGENTS.md) or through ad-hoc prompting. This was fragile — every agent type needed separate instructions, conventions drifted, and there was no guarantee the agent knew how to use the blackboard or when to escalate.
 
-The protocol standardizes this. Every agent, regardless of type, receives the same operating instructions at launch time. The instructions are version-controlled, editable, and visible — consistent with the "no magic, everything exposed" design principle.
+The base prompt standardizes this. Every agent, regardless of type, receives the same operating instructions at launch time. The instructions are version-controlled, editable, and visible — consistent with the "no magic, everything exposed" design principle.
 
 ### Prompt templates replaced
 
-The earlier spec flagged "prompt templates for agent file editing" as a blocking dependency. The relay protocol resolves this — it teaches YAML formatting rules, blackboard conventions, and file discipline directly in the system prompt. No separate template system needed.
+The earlier spec flagged "prompt templates for agent file editing" as a blocking dependency. The relay base prompt resolves this — it teaches YAML formatting rules, blackboard conventions, and file discipline directly in the system prompt. No separate template system needed.
 
 ### Location
 
-The relay protocol lives at `relay-os/protocol.md` (base) and `relay-os/protocol-interactive.md` / `relay-os/protocol-auto.md` (mode blocks). Version-controlled alongside skills, contexts, and workflows.
+The relay base prompt lives at `relay-os/prompt.md` (base) and `relay-os/prompt-interactive.md` / `relay-os/prompt-auto.md` (mode blocks). Version-controlled alongside skills, contexts, and workflows.
 
 ---
 
@@ -958,7 +956,7 @@ Items to evaluate after v1 is built and used. Not designed yet.
 
 **`relay done`** — absorbed into `relay step`. Stepping past the final step sets status to `done` and notifies.
 
-**`relay log`** — removed from CLI. Log entries are written by CLI commands as internal side effects. Agents and humans do not write to `log.md` directly — use the blackboard's Notes section for unstructured observations.
+**`relay log`** — removed from CLI. Log entries are written by CLI commands as internal side effects. Agents and humans do not write to `log.md` directly — use the blackboard for unstructured observations.
 
 **`relay status`** — moved to convenience command. Shows one-line-per-task summary for the current repo.
 
@@ -970,7 +968,7 @@ Items to evaluate after v1 is built and used. Not designed yet.
 
 **`relay sync`** — removed. Was a ghost reference in the error model with no spec. Git push/pull is manual.
 
-**`relay advance`** — renamed to `relay step`. Thinned to a side-effect command (update step field, log, notify Slack). The intelligence about when to advance lives in the relay protocol system prompt, not the command.
+**`relay advance`** — renamed to `relay step`. Thinned to a side-effect command (update step field, log, notify Slack). The intelligence about when to advance lives in the relay base prompt, not the command.
 
 ---
 
@@ -1011,9 +1009,9 @@ Lock format is defined (holder + acquired timestamp, file-existence based). The 
 - Does `mode: script` acquire a lock?
 - Stale lock detection threshold — how long before the dream/drift script considers a lock stale?
 
-#### Interactive and auto protocol blocks
+#### Interactive and auto prompt blocks
 
-The base protocol (`relay-os/protocol.md`) is written. The mode-specific blocks (`protocol-interactive.md` and `protocol-auto.md`) are described in one sentence each but the actual prompt text doesn't exist. These are a hard dependency for `relay launch` — prompt composition includes them.
+The base prompt (`relay-os/prompt.md`) and the mode-specific blocks (`prompt-interactive.md` and `prompt-auto.md`) are written. They're version-controlled markdown alongside skills and contexts; refine as we learn what agents reliably ignore vs. follow.
 
 ### Should resolve — but won't block initial build
 
@@ -1022,7 +1020,7 @@ The base protocol (`relay-os/protocol.md`) is written. The mode-specific blocks 
 Described briefly but not at the level of `relay launch`. Missing:
 
 - Full error table (what if task has no owner? what if agent is in interactive mode? what if the task isn't active?).
-- Exact format of the Blockers section write.
+- Exact format of the blocker line written to the blackboard.
 - Does panic change the task status? (e.g. to `paused`?)
 
 #### Step transitions with assignee changes
@@ -1057,7 +1055,7 @@ Listed as a foreground command but has no spec beyond "show all active tasks in 
 
 #### `relay feed` — detailed behavior
 
-Listed as a background command but has no spec beyond the protocol description. Open questions:
+Listed as a background command but has no spec beyond the base prompt description. Open questions:
 
 - Does it require `--task`? (Likely yes — agent is always working on a task.)
 - Does the message format include task context automatically, or does it post the raw string?
@@ -1096,7 +1094,7 @@ Open questions on how `--task` is parsed across commands:
 #### Task dependencies
 
 - No structured way to say "task B blocked by task A."
-- The Blockers section on the blackboard is freeform.
+- Blocker lines on the blackboard are freeform.
 - Likely sufficient for v1 at this team size.
 
 #### Context/skill staleness
@@ -1114,7 +1112,7 @@ No detection or mitigation when the composed prompt exceeds the agent's context 
 
 #### Blackboard growth
 
-Over a long-running task with many relaunches, the blackboard grows unbounded. Plan is "live state" (replaced), but Findings, Decisions, and Notes accumulate. Eventually competes for context window space. No pruning or summarization strategy. May not matter for v1 task durations — revisit if tasks routinely span 10+ sessions.
+Over a long-running task with many relaunches, the blackboard grows unbounded. Findings and decisions accumulate across sessions. Eventually competes for context window space. No pruning or summarization strategy. May not matter for v1 task durations — revisit if tasks routinely span 10+ sessions.
 
 #### Temp file cleanup
 
