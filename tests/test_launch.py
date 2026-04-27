@@ -160,7 +160,7 @@ def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyP
 
 @pytest.fixture
 def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A relay-os/ with a bootstrap/create shim and a stub skill, no tasks."""
+    """A relay-os/ with a bootstrap/ticket shim and a stub skill, no tasks."""
     company = tmp_path / "relay-os"
     _write(
         company / "relay.toml",
@@ -178,25 +178,25 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
     _write(
-        company / "bootstrap" / "create" / "ticket.md",
+        company / "bootstrap" / "ticket" / "ticket.md",
         """
         ---
-        title: Author a new task
+        title: Create a new ticket
         mode: interactive
-        skill: bootstrap/create
+        skill: bootstrap/ticket
         assignee: claude1
         ---
 
         ## Description
 
-        Persistent launch shim for the bootstrap/create skill.
+        Persistent launch shim for the bootstrap/ticket skill.
         """,
     )
     _write(
-        company / "skills" / "bootstrap" / "create" / "SKILL.md",
+        company / "skills" / "bootstrap" / "ticket" / "SKILL.md",
         """
         ---
-        name: bootstrap/create
+        name: bootstrap/ticket
         description: Author a Relay task.
         ---
 
@@ -224,22 +224,22 @@ def test_launch_bootstrap_skips_status_and_lock(
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "bootstrap/create"])
+    result = runner.invoke(app, ["launch", "--task", "bootstrap/ticket"])
     assert result.exit_code == 0, result.output
 
     # No lock file left behind; in fact none was ever written.
-    assert not (bootstrap_repo / "bootstrap" / "create" / "task.lock").exists()
+    assert not (bootstrap_repo / "bootstrap" / "ticket" / "task.lock").exists()
 
     # Skill body composed into the prompt.
     prompt = captured["prompt"]
     assert isinstance(prompt, str)
-    assert "Skill: bootstrap/create" in prompt
+    assert "Skill: bootstrap/ticket" in prompt
     assert "Interview, scaffold, fill in the ticket." in prompt
     # Header still uses the bootstrap/<name> id_slug.
-    assert "bootstrap/create" in prompt
+    assert "bootstrap/ticket" in prompt
 
     # log.md was created and recorded the launch.
-    log = (bootstrap_repo / "bootstrap" / "create" / "log.md").read_text()
+    log = (bootstrap_repo / "bootstrap" / "ticket" / "log.md").read_text()
     assert "launched in interactive mode" in log
 
 

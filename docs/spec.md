@@ -145,7 +145,7 @@ Skills, workflows, and recurring templates all support arbitrary depth nesting. 
         task.lock           ← serializes concurrent access
     bootstrap/
       create/
-        ticket.md           ← persistent launch shim → `relay launch bootstrap/create`
+        ticket.md           ← persistent launch shim → `relay launch bootstrap/ticket`
     scripts/
       cron.sh               ← entry point for system cron
 ```
@@ -603,7 +603,7 @@ It's a persistent memory system (and we can probably use one of the opensource o
 
 #### Create skill
 
-A skill (`relay-os/skills/bootstrap/create`) is the authoring entry point for new tasks. `relay create` is a dumb scaffolder — it lays down a task directory and frontmatter from CLI args. The judgment lives in the skill.
+A skill (`relay-os/skills/bootstrap/ticket`) is the authoring entry point for new tasks. `relay create` is a dumb scaffolder — it lays down a task directory and frontmatter from CLI args. The judgment lives in the skill.
 
 When a human says "make me a task for X" the agent invokes this skill and:
 
@@ -632,7 +632,7 @@ remembering the prompt by heart, Relay ships persistent shim tickets under
   invoked the shim and when), and may grow `blackboard.md` if the skill
   writes notes there. It does not participate in `relay status`.
 
-`bootstrap/create` is the canonical example: it's how a fresh `relay-os/`
+`bootstrap/ticket` is the canonical example: it's how a fresh `relay-os/`
 gets a "type one command and start authoring tasks" entry point. Future
 shims (`bootstrap/dream`, etc.) follow the same shape.
 
