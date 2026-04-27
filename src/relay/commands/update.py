@@ -101,7 +101,12 @@ def refresh_cli(clone_dir: Path, relay_os: Path) -> None:
 
 
 def refresh_templates(clone_dir: Path, relay_os: Path) -> list[str]:
-    """Refresh `_*` scaffolds under `relay_os/` from the clone."""
+    """Refresh relay-owned scaffolds under `relay_os/` from the clone.
+
+    Two trees are treated as upstream-owned (always overwritten on update):
+      - `_*` template scaffolds (`_template/` etc.)
+      - `bootstrap/` shims — these are infra, not user content.
+    """
     src_root = clone_dir / TEMPLATE_SUBPATH
     if not src_root.is_dir():
         typer.secho(
@@ -110,7 +115,9 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> list[str]:
             err=True,
         )
         sys.exit(2)
-    return _copy_templates(src_root, relay_os)
+    copied = _copy_templates(src_root, relay_os)
+    copied.extend(_copy_bootstrap(src_root, relay_os))
+    return copied
 
 
 def write_bin_wrapper(bin_dir: Path) -> None:
@@ -205,4 +212,26 @@ def _copy_templates(src_root: Path, dst_root: Path) -> list[str]:
             shutil.copy2(src, dst)
             copied.append(str(rel))
 
+    return copied
+
+
+def _copy_bootstrap(src_root: Path, dst_root: Path) -> list[str]:
+    """Refresh every file under `bootstrap/` from upstream.
+
+    Bootstrap shims are part of the relay infra (launch entry points for
+    relay-owned skills), not user content — same overwrite semantics as
+    `_*` scaffolds. Files only present locally (custom shims) are kept.
+    """
+    src_bootstrap = src_root / "bootstrap"
+    if not src_bootstrap.is_dir():
+        return []
+    copied: list[str] = []
+    for src in src_bootstrap.rglob("*"):
+        if not src.is_file():
+            continue
+        rel = src.relative_to(src_root)
+        dst = dst_root / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        copied.append(str(rel))
     return copied
