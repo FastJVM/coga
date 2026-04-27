@@ -100,6 +100,7 @@ def scaffold_task(
     assignee: str | None,
     watchers: list[str],
     status: str | None,
+    skill: str | None = None,
     slug_override: str | None = None,
     description: str | None = None,
     created_by: str = "human",
@@ -148,6 +149,8 @@ def scaffold_task(
         fm["workflow"] = wf.freeze()
         first_step = wf.steps[0].name
         fm["step"] = f"1 ({first_step})"
+    if skill:
+        fm["skill"] = skill
     if contexts:
         fm["contexts"] = list(contexts)
 

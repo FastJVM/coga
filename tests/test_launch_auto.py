@@ -60,7 +60,7 @@ def test_launch_auto_mode(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda n: f"/usr/bin/{n}")
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "001"])
+    result = runner.invoke(app, ["launch", "001"])
     assert result.exit_code == 0, result.output
 
     cmd = captured["cmd"]

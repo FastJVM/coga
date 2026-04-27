@@ -109,7 +109,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "001"])
+    result = runner.invoke(app, ["launch", "001"])
     assert result.exit_code == 0, result.output
 
     # Agent called with --append-system-prompt-file <path>
@@ -131,8 +131,8 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert not Path(calls[0][2]).exists()
 
 
-def test_launch_requires_active_status(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Flip status to paused
+def test_launch_rejects_non_launchable_status(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Flip status to paused — only design/active are launchable.
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     from relay.ticket import Ticket
@@ -142,7 +142,7 @@ def test_launch_requires_active_status(active_task: Path, monkeypatch: pytest.Mo
 
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "001"])
+    result = runner.invoke(app, ["launch", "001"])
     assert result.exit_code == 2
     assert "'paused'" in result.output or "'paused'" in (result.stderr or "")
 
@@ -150,7 +150,7 @@ def test_launch_requires_active_status(active_task: Path, monkeypatch: pytest.Mo
 def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: None)
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "001"])
+    result = runner.invoke(app, ["launch", "001"])
     assert result.exit_code == 2
     assert "not found in PATH" in (result.output + (result.stderr or ""))
 
@@ -224,7 +224,7 @@ def test_launch_bootstrap_skips_status_and_lock(
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "bootstrap/ticket"])
+    result = runner.invoke(app, ["launch", "bootstrap/ticket"])
     assert result.exit_code == 0, result.output
 
     # No lock file left behind; in fact none was ever written.
@@ -247,6 +247,67 @@ def test_launch_bootstrap_unknown_shim(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "--task", "bootstrap/does-not-exist"])
+    result = runner.invoke(app, ["launch", "bootstrap/does-not-exist"])
     assert result.exit_code == 2
     assert "bootstrap/does-not-exist" in (result.output + (result.stderr or ""))
+
+
+def test_launch_bootstrap_factory_scaffolds_and_launches(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay launch bootstrap/ticket "title"` scaffolds a design-status
+    task seeded from the shim, then launches the agent against the new task."""
+    captured: dict[str, object] = {}
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        captured["cmd"] = cmd
+        captured["prompt"] = Path(cmd[2]).read_text()
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "bootstrap/ticket", "Investigate flaky tests"])
+    assert result.exit_code == 0, result.output
+
+    # A new task dir got scaffolded under tasks/.
+    cfg = load_config(bootstrap_repo)
+    refs = list_tasks(cfg)
+    assert len(refs) == 1
+    new_ref = refs[0]
+    assert new_ref.slug == "investigate-flaky-tests"
+
+    # Frontmatter inherited from the shim, status=design, title set.
+    from relay.ticket import Ticket
+    t = Ticket.read(new_ref.path / "ticket.md")
+    assert t.frontmatter["title"] == "Investigate flaky tests"
+    assert t.frontmatter["status"] == "design"
+    assert t.frontmatter["mode"] == "interactive"
+    assert t.frontmatter["assignee"] == "claude1"
+    assert t.frontmatter["skill"] == "bootstrap/ticket"
+
+    # Skill body composed into the prompt for the new task.
+    prompt = captured["prompt"]
+    assert isinstance(prompt, str)
+    assert "Skill: bootstrap/ticket" in prompt
+    assert "Interview, scaffold, fill in the ticket." in prompt
+
+    # Launch went against the new task, not the shim.
+    log = (new_ref.path / "log.md").read_text()
+    assert "launched in interactive mode" in log
+    # Lock for the new task was acquired and released.
+    assert not TaskLock(new_ref.path).path.exists()
+
+
+def test_launch_title_arg_rejected_for_regular_tasks(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "001", "Some title"])
+    assert result.exit_code == 2
+    assert "bootstrap" in (result.output + (result.stderr or ""))

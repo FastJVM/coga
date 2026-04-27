@@ -13,6 +13,7 @@ from pathlib import Path
 import typer
 
 from relay.commands.common import not_implemented
+from relay.commands.create import scaffold_task
 from relay.compose import compose_prompt, write_prompt_file
 from relay.config import Config, ConfigError, load_config
 from relay.lock import LockHeldError, TaskLock
@@ -21,13 +22,20 @@ from relay.slack import post_feed
 from relay.tasks import (
     BootstrapRef,
     TaskNotFoundError,
+    TaskRef,
     read_ticket,
     resolve_target,
+    resolve_task,
 )
+_LAUNCHABLE_STATUSES = {"design", "active"}
 
 
 def launch(
-    task: str = typer.Option(..., "--task", help="Task ID, id-slug, or `bootstrap/<name>` shim."),
+    task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` shim."),
+    title: str = typer.Argument(
+        None,
+        help="With a bootstrap shim, scaffold a new design-status task with this title and launch on it.",
+    ),
     force: bool = typer.Option(False, "--force", help="Break a stale lock."),
 ) -> None:
     """Compose context, start work on a task."""
@@ -41,13 +49,25 @@ def launch(
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
-    ticket = read_ticket(ref)
     is_bootstrap = isinstance(ref, BootstrapRef)
 
-    if not is_bootstrap and ticket.status != "active":
+    # Factory mode: bootstrap shim + title → scaffold a new design-status
+    # task seeded from the shim's frontmatter, then launch on the new task.
+    if title is not None:
+        if not is_bootstrap:
+            _bail("Title arg is only valid when launching a `bootstrap/<name>` shim.")
+        try:
+            ref = _scaffold_from_shim(cfg, ref, title)
+        except (ConfigError, ValueError) as exc:
+            _bail(str(exc))
+        is_bootstrap = False
+
+    ticket = read_ticket(ref)
+
+    if not is_bootstrap and ticket.status not in _LAUNCHABLE_STATUSES:
         _bail(
             f"Task {ref.id_slug} is {ticket.status!r}. "
-            f"Set status to 'active' before launching."
+            f"Set status to 'design' or 'active' before launching."
         )
 
     assignee = ticket.assignee
@@ -142,6 +162,30 @@ def launch(
 
 
 # --- helpers ------------------------------------------------------------------
+
+
+def _scaffold_from_shim(cfg: Config, shim: BootstrapRef, title: str) -> TaskRef:
+    """Scaffold a new design-status task seeded from a bootstrap shim's frontmatter.
+
+    The shim ticket carries the `mode`, `assignee`, and `skill` ref the new
+    task should inherit; the agent will fill in workflow/contexts/description
+    during its first launch.
+    """
+    shim_ticket = read_ticket(shim)
+    result = scaffold_task(
+        cfg=cfg,
+        title=title,
+        workflow_name=None,
+        contexts=[],
+        mode=shim_ticket.mode,
+        owner=cfg.current_user,
+        assignee=shim_ticket.assignee,
+        watchers=[],
+        status="design",
+        skill=shim_ticket.skill,
+        created_by=f"bootstrap:{shim.name}",
+    )
+    return resolve_task(cfg, result["id_slug"])
 
 
 def build_agent_command(agent, mode: str, prompt: str, prompt_file: Path) -> list[str]:
