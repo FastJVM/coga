@@ -360,6 +360,58 @@ def test_init_skips_commit_when_target_is_not_git_repo(
     assert "Committed relay-os/" not in result.output
 
 
+# --- skill discovery wiring ---------------------------------------------------
+
+
+def test_init_links_skills_into_agent_dirs(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    skills_src = (target / "relay-os" / "skills").resolve()
+    for dirname in (".claude", ".codex"):
+        link = target / dirname / "skills" / "relay"
+        assert link.is_symlink(), f"missing symlink for {dirname}"
+        assert link.resolve() == skills_src
+    assert "Wired skill discovery for Claude Code, Codex" in result.output
+
+
+def test_init_skips_skill_link_when_agent_marker_is_a_file(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    sentinel = target / ".codex"
+    sentinel.write_text("")  # mimic the empty-file Codex marker
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    # Sentinel left alone.
+    assert sentinel.is_file()
+    assert not (target / ".codex" / "skills").exists()
+    # Claude Code still wired.
+    assert (target / ".claude" / "skills" / "relay").is_symlink()
+    assert "Skipped Codex skill wiring" in result.output
+
+
+def test_init_link_skills_is_idempotent(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    relay_os = target / "relay-os"
+    (relay_os / "skills").mkdir(parents=True)
+
+    wired1, blocked1 = init_cmd._link_skills_for_agents(target, relay_os)
+    wired2, blocked2 = init_cmd._link_skills_for_agents(target, relay_os)
+    assert wired1 == wired2 == ["Claude Code", "Codex"]
+    assert blocked1 == blocked2 == []
+    assert (target / ".claude" / "skills" / "relay").is_symlink()
+
+
 def test_init_writes_pin_file(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
