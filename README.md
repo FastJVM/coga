@@ -154,9 +154,10 @@ through `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
 
 `bootstrap/<name>` tickets are stateless re-entry points for skills. They
 don't need a `status: active` flip and don't acquire a lock — concurrent
-launches are safe. Init ships `bootstrap/ticket` (authoring flow); add your
-own under `relay-os/bootstrap/<name>/ticket.md` with `skill: <ref>` in
-frontmatter to expose any other skill the same way.
+launches are safe. Init ships `bootstrap/ticket` (authoring flow); the
+`relay-os/bootstrap/` tree is upstream-managed and refreshed wholesale by
+`relay init --update`, so don't add custom shims there — write your own
+launch wrappers elsewhere.
 
 ### `relay status`
 

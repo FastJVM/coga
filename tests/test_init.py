@@ -249,6 +249,8 @@ def _seed_local_relay_os(root: Path) -> Path:
     (relay_os / "skills" / "myteam" / "real-skill" / "SKILL.md").write_text("user content\n")
     (relay_os / "bootstrap" / "create").mkdir(parents=True)
     (relay_os / "bootstrap" / "create" / "ticket.md").write_text("OLD bootstrap shim\n")
+    (relay_os / "bootstrap" / "stale").mkdir(parents=True)
+    (relay_os / "bootstrap" / "stale" / "ticket.md").write_text("STALE shim from a prior upstream\n")
     (relay_os / "relay.toml").write_text("version = 1\n")
     (relay_os / "rules.md").write_text("user-edited rules\n")
 
@@ -303,8 +305,10 @@ def test_init_update_refreshes_cli_and_underscore_templates(
 
     assert (relay_os / "skills" / "_template" / "SKILL.md").read_text() == "NEW skill template\n"
     assert (relay_os / "tasks" / "_template" / "ticket.md").read_text() == "NEW ticket template\n"
-    # Bootstrap shims are infra — refreshed by --update like _* scaffolds.
+    # Bootstrap shims are infra — the whole tree mirrors upstream on --update.
     assert (relay_os / "bootstrap" / "create" / "ticket.md").read_text() == "NEW bootstrap shim\n"
+    # Shims dropped upstream (renamed/removed) are pruned locally.
+    assert not (relay_os / "bootstrap" / "stale").exists()
     # User-edited content untouched.
     assert (relay_os / "skills" / "myteam" / "real-skill" / "SKILL.md").read_text() == "user content\n"
     assert (relay_os / "rules.md").read_text() == "user-edited rules\n"

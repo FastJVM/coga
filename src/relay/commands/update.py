@@ -216,22 +216,22 @@ def _copy_templates(src_root: Path, dst_root: Path) -> list[str]:
 
 
 def _copy_bootstrap(src_root: Path, dst_root: Path) -> list[str]:
-    """Refresh every file under `bootstrap/` from upstream.
+    """Mirror `bootstrap/` from upstream — wipe local, copy fresh.
 
-    Bootstrap shims are part of the relay infra (launch entry points for
-    relay-owned skills), not user content — same overwrite semantics as
-    `_*` scaffolds. Files only present locally (custom shims) are kept.
+    Bootstrap shims are upstream-managed infra (launch entry points for
+    relay-owned skills), not user content. The whole tree is replaced on
+    update so renames and removals propagate cleanly. Don't put custom
+    shims here — they'll be pruned.
     """
     src_bootstrap = src_root / "bootstrap"
     if not src_bootstrap.is_dir():
         return []
-    copied: list[str] = []
-    for src in src_bootstrap.rglob("*"):
-        if not src.is_file():
-            continue
-        rel = src.relative_to(src_root)
-        dst = dst_root / rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
-        copied.append(str(rel))
-    return copied
+    dst_bootstrap = dst_root / "bootstrap"
+    if dst_bootstrap.exists():
+        shutil.rmtree(dst_bootstrap)
+    shutil.copytree(src_bootstrap, dst_bootstrap)
+    return [
+        str(f.relative_to(src_root))
+        for f in src_bootstrap.rglob("*")
+        if f.is_file()
+    ]
