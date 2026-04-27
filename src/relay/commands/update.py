@@ -25,6 +25,7 @@ CLI_SRC_SUBPATH = Path("src/relay")
 # and now want gone, never user-owned paths.
 OBSOLETE_PATHS: tuple[str, ...] = (
     "counter",  # numeric task ID counter, dropped in the slug-only migration
+    "meta",  # renamed to bootstrap/ — pre-bootstrap upstreams shipped meta/
 )
 
 
@@ -108,7 +109,7 @@ def refresh_cli(clone_dir: Path, relay_os: Path) -> None:
             shutil.copy2(upstream_file, dst_relay / fname)
 
 
-def refresh_templates(clone_dir: Path, relay_os: Path) -> list[str]:
+def refresh_templates(clone_dir: Path, relay_os: Path) -> tuple[list[str], list[str]]:
     """Refresh relay-owned scaffolds under `relay_os/` from the clone.
 
     Three things are treated as upstream-owned (always overwritten on update):
@@ -116,6 +117,9 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> list[str]:
       - `bootstrap/` shims — these are infra, not user content.
       - `.gitignore` — must track upstream so new ignore entries land in
         existing repos without manual edits.
+
+    Returns `(copied, pruned)`: `pruned` lists `_*` scaffolds removed because
+    upstream no longer ships them (renames, deletions).
     """
     src_root = clone_dir / TEMPLATE_SUBPATH
     if not src_root.is_dir():
@@ -128,7 +132,8 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> list[str]:
     copied = _copy_templates(src_root, relay_os)
     copied.extend(_copy_bootstrap(src_root, relay_os))
     copied.extend(_copy_upstream_files(src_root, relay_os))
-    return copied
+    pruned = _prune_removed_templates(src_root, relay_os)
+    return copied, pruned
 
 
 def prune_obsolete(relay_os: Path) -> list[str]:
@@ -212,8 +217,11 @@ def write_bin_wrapper(bin_dir: Path) -> None:
 def install_venv(relay_os: Path) -> Path:
     """Create `.relay/.venv/` and `pip install` the vendored relay package into it.
 
-    Idempotent: re-running upgrades the venv in place. Returns the venv path.
-    Exits with a clear error if Python venv/pip aren't usable.
+    Idempotent: re-running upgrades the venv in place. If the existing venv was
+    built against a different Python X.Y than the current interpreter, it gets
+    rebuilt from scratch (pip-installed packages from the old version aren't
+    portable, and a host Python upgrade can leave a broken interpreter symlink).
+    Returns the venv path. Exits with a clear error if Python venv/pip aren't usable.
     """
     dst_relay = relay_os / ".relay"
     venv_dir = dst_relay / ".venv"
@@ -226,7 +234,21 @@ def install_venv(relay_os: Path) -> Path:
         )
         sys.exit(2)
 
-    if not (venv_dir / "bin" / "python").is_file():
+    host_version = sys.version_info[:2]
+    venv_version = _venv_python_version(venv_dir)
+    venv_python = venv_dir / "bin" / "python"
+    if venv_dir.exists() and (
+        not venv_python.is_file()
+        or (venv_version is not None and venv_version != host_version)
+    ):
+        if venv_version is not None and venv_version != host_version:
+            typer.echo(
+                f"Recreating venv (was Python {venv_version[0]}.{venv_version[1]}, "
+                f"now {host_version[0]}.{host_version[1]})…"
+            )
+        shutil.rmtree(venv_dir)
+
+    if not venv_python.is_file():
         typer.echo(f"Creating venv at {venv_dir}…")
         result = subprocess.run(
             [sys.executable, "-m", "venv", str(venv_dir)],
@@ -262,6 +284,21 @@ def install_venv(relay_os: Path) -> Path:
     return venv_dir
 
 
+def _venv_python_version(venv_dir: Path) -> tuple[int, int] | None:
+    """Read `pyvenv.cfg` and return the (major, minor) Python the venv was built with."""
+    cfg = venv_dir / "pyvenv.cfg"
+    if not cfg.is_file():
+        return None
+    for line in cfg.read_text().splitlines():
+        key, sep, value = line.partition("=")
+        if not sep or key.strip() != "version":
+            continue
+        parts = value.strip().split(".")
+        if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
+            return int(parts[0]), int(parts[1])
+    return None
+
+
 def _copy_templates(src_root: Path, dst_root: Path) -> list[str]:
     """Copy every `_*` scaffold under `src_root` into `dst_root`.
 
@@ -288,6 +325,41 @@ def _copy_templates(src_root: Path, dst_root: Path) -> list[str]:
             copied.append(str(rel))
 
     return copied
+
+
+def _prune_removed_templates(src_root: Path, dst_root: Path) -> list[str]:
+    """Remove top-level `_*` scaffolds in `dst_root` that upstream no longer ships.
+
+    Catches renames and deletions: a `_template/` removed upstream stays in user
+    repos forever otherwise, since `_copy_templates` is purely additive. Only
+    inspects top-level `_*` matches (same convention as `_copy_templates`) so
+    nested entries inside a scaffold are owned by their parent. Skips trees that
+    are managed by a different mechanism — `.relay/` is vendored wholesale by
+    `refresh_cli` and ships its own template fixtures, and `bootstrap/` is
+    mirrored as a unit by `_copy_bootstrap`.
+    """
+    if not dst_root.is_dir():
+        return []
+    candidates: list[Path] = []
+    for dst in dst_root.rglob("_*"):
+        rel = dst.relative_to(dst_root)
+        if any(part.startswith("_") for part in rel.parts[:-1]):
+            continue
+        if rel.parts and rel.parts[0] in (".relay", "bootstrap"):
+            continue
+        candidates.append(dst)
+
+    pruned: list[str] = []
+    for dst in candidates:
+        rel = dst.relative_to(dst_root)
+        if (src_root / rel).exists():
+            continue
+        if dst.is_dir():
+            shutil.rmtree(dst)
+        else:
+            dst.unlink()
+        pruned.append(str(rel))
+    return pruned
 
 
 _UPSTREAM_OWNED_FILES: tuple[str, ...] = (
