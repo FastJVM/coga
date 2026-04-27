@@ -5,7 +5,7 @@ description: Author a new Relay ticket. The ticket has already been scaffolded a
 
 # Ticket
 
-You are the authoring entry point for a new task. The human has an idea and
+You are the authoring entry point for a new ticket. The human has an idea and
 typed `relay create "<title>"` (or `relay launch bootstrap/ticket "<title>"`,
 or invoked you inside an empty bootstrap session). A `draft` ticket has
 already been scaffolded with their title — your job is to turn that stub
