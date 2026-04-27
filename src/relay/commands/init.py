@@ -21,6 +21,7 @@ import typer
 from relay.commands.update import (
     TEMPLATE_SUBPATH,
     clone_upstream,
+    ensure_host_gitignore,
     install_venv,
     prune_obsolete,
     refresh_cli,
@@ -103,7 +104,8 @@ def _do_init(path: Path) -> None:
     bin_dir = relay_os / ".relay" / "bin"
     shim = _try_install_shim(bin_dir / "relay")
     wired_agents, blocked_agents = _link_skills_for_agents(target, relay_os)
-    commit_sha = _git_commit_relay_os(target, relay_os)
+    host_gitignore_changed = ensure_host_gitignore(target)
+    commit_sha = _git_commit_relay_os(target, relay_os, host_gitignore_changed)
 
     typer.echo("")
     typer.echo(f"Initialized relay repo at {relay_os}")
@@ -119,6 +121,8 @@ def _do_init(path: Path) -> None:
             f"Remove or convert it, then rerun `relay init --update`.",
             fg=typer.colors.YELLOW,
         )
+    if host_gitignore_changed:
+        typer.echo(f"Updated {target / '.gitignore'} (relay-managed block).")
     if commit_sha is not None:
         typer.echo(f"Committed relay-os/ as {commit_sha[:12]} (push when ready).")
 
@@ -161,6 +165,7 @@ def _do_update() -> None:
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
     wired_agents, blocked_agents = _link_skills_for_agents(relay_os.parent, relay_os)
+    host_gitignore_changed = ensure_host_gitignore(relay_os.parent)
 
     typer.echo("")
     typer.echo(f"Refreshed CLI at {relay_os / '.relay'}")
@@ -183,6 +188,8 @@ def _do_update() -> None:
         typer.echo(f"Pruned {len(pruned)} obsolete path(s):")
         for rel in pruned:
             typer.echo(f"  {rel}")
+    if host_gitignore_changed:
+        typer.echo(f"Updated {relay_os.parent / '.gitignore'} (relay-managed block).")
 
 
 # Agents we wire skill discovery for. Each entry is the project-level dir
@@ -260,8 +267,10 @@ def _try_install_shim(wrapper: Path) -> Path | None:
     return target
 
 
-def _git_commit_relay_os(target: Path, relay_os: Path) -> str | None:
-    """If `target` is a git repo, stage relay-os/ and commit. Don't push.
+def _git_commit_relay_os(
+    target: Path, relay_os: Path, include_host_gitignore: bool
+) -> str | None:
+    """If `target` is a git repo, stage relay-os/ (+ host .gitignore) and commit.
 
     Returns the new commit SHA on success, None if we skipped (not a git repo,
     nothing to stage, or git invocation failed). Never raises.
@@ -269,8 +278,11 @@ def _git_commit_relay_os(target: Path, relay_os: Path) -> str | None:
     if not (target / ".git").exists():
         return None
     try:
+        paths = ["relay-os"]
+        if include_host_gitignore and (target / ".gitignore").is_file():
+            paths.append(".gitignore")
         subprocess.run(
-            ["git", "-C", str(target), "add", "--", "relay-os"],
+            ["git", "-C", str(target), "add", "--", *paths],
             check=True,
             capture_output=True,
             text=True,

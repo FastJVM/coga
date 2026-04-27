@@ -32,7 +32,9 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     """Mimic the layout of the real repo: templates + CLI source."""
     templates = clone_dir / update_cmd.TEMPLATE_SUBPATH
     templates.mkdir(parents=True)
-    (templates / ".gitignore").write_text("relay.local.toml\n.relay/\n**/task.lock\n")
+    (templates / ".gitignore").write_text(
+        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\n**/_template/\n**/_template.md\n"
+    )
     (templates / "relay.toml").write_text("version = 1\n")
     (templates / "rules.md").write_text("rules\n")
     (templates / "context.md").write_text("context\n")
@@ -269,6 +271,9 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "rules.md").write_text("NEW upstream rules — should NOT be copied (no _ prefix)\n")
     (templates / "bootstrap" / "create").mkdir(parents=True)
     (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap shim\n")
+    (templates / ".gitignore").write_text(
+        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\n**/_template/\n**/_template.md\n"
+    )
 
     cli_src = clone_dir / update_cmd.CLI_SRC_SUBPATH
     cli_src.mkdir(parents=True, exist_ok=True)
@@ -353,7 +358,7 @@ def test_init_commits_relay_os_when_target_is_git_repo(
     )
     assert "Scaffold relay-os via `relay init`" in log.stdout
 
-    # `.relay/` and `relay.local.toml` are gitignored — they should not be tracked.
+    # Upstream-managed paths and machine-local files are gitignored — none should be tracked.
     tracked = subprocess.run(
         ["git", "-C", str(target), "ls-files", "relay-os"],
         capture_output=True, text=True, check=True,
@@ -361,6 +366,8 @@ def test_init_commits_relay_os_when_target_is_git_repo(
     assert any(p.startswith("relay-os/relay.toml") for p in tracked)
     assert not any(".relay/" in p for p in tracked)
     assert not any(p.endswith("relay.local.toml") for p in tracked)
+    assert not any("/bootstrap/" in p for p in tracked)
+    assert not any("/_template" in p for p in tracked)
 
 
 def test_init_skips_commit_when_target_is_not_git_repo(
@@ -468,6 +475,133 @@ def test_version_flag_includes_pin_when_in_repo(
     result = CliRunner().invoke(app, ["--version"])
     assert result.exit_code == 0, result.output
     assert FAKE_SHA[:12] in result.output
+
+
+# --- gitignore management ----------------------------------------------------
+
+
+def test_init_writes_host_gitignore_block_in_git_repo(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
+    monkeypatch.setenv("PATH", os.environ["PATH"])
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    host_gi = (target / ".gitignore").read_text()
+    assert update_cmd.HOST_GITIGNORE_BEGIN in host_gi
+    assert update_cmd.HOST_GITIGNORE_END in host_gi
+    assert ".claude/skills/relay" in host_gi
+    assert ".codex/skills/relay" in host_gi
+
+    # Block was committed alongside relay-os/ in the init commit.
+    tracked = subprocess.run(
+        ["git", "-C", str(target), "ls-files"],
+        capture_output=True, text=True, check=True,
+    ).stdout.splitlines()
+    assert ".gitignore" in tracked
+
+
+def test_init_appends_to_existing_host_gitignore(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
+    (target / ".gitignore").write_text("node_modules/\ndist/\n")
+    monkeypatch.setenv("PATH", os.environ["PATH"])
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    host_gi = (target / ".gitignore").read_text()
+    assert "node_modules/" in host_gi
+    assert "dist/" in host_gi
+    assert update_cmd.HOST_GITIGNORE_BEGIN in host_gi
+    assert ".claude/skills/relay" in host_gi
+
+
+def test_init_skips_host_gitignore_when_not_git_repo(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+    assert not (target / ".gitignore").exists()
+
+
+def test_ensure_host_gitignore_is_idempotent(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    (target / ".git").mkdir()
+
+    assert update_cmd.ensure_host_gitignore(target) is True
+    first = (target / ".gitignore").read_text()
+    # Second call with no changes should be a no-op.
+    assert update_cmd.ensure_host_gitignore(target) is False
+    assert (target / ".gitignore").read_text() == first
+
+
+def test_ensure_host_gitignore_replaces_malformed_block(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    (target / ".git").mkdir()
+    # Block with begin marker but no end marker — replace from begin to EOF.
+    (target / ".gitignore").write_text(
+        f"node_modules/\n{update_cmd.HOST_GITIGNORE_BEGIN}\nstale-content\n"
+    )
+
+    assert update_cmd.ensure_host_gitignore(target) is True
+    text = (target / ".gitignore").read_text()
+    assert "stale-content" not in text
+    assert "node_modules/" in text
+    assert ".claude/skills/relay" in text
+    assert update_cmd.HOST_GITIGNORE_END in text
+
+
+def test_init_update_refreshes_inner_gitignore(
+    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--update` must overwrite relay-os/.gitignore so new entries land in existing repos."""
+    relay_os = _seed_local_relay_os(tmp_path)
+    # Stale inner gitignore from an older upstream — missing bootstrap/ etc.
+    (relay_os / ".gitignore").write_text("relay.local.toml\n.relay/\n")
+    monkeypatch.chdir(relay_os)
+
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            _seed_fake_upstream_for_update(Path(cmd[-1]))
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if (
+            cmd[:2] == ["git", "-C"]
+            and cmd[3:] == ["rev-parse", "HEAD"]
+            and "relay-init-update-" in cmd[2]
+        ):
+            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    result = CliRunner().invoke(app, ["init", "--update"])
+    assert result.exit_code == 0, result.output
+
+    gi = (relay_os / ".gitignore").read_text()
+    assert "bootstrap/" in gi
+    assert "_template/" in gi
+    assert "_template.md" in gi
 
 
 def test_init_update_fails_loudly_if_clone_fails(
