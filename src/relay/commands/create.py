@@ -35,10 +35,16 @@ def create(
     assignee: str = typer.Option(None, "--assignee", help="Defaults to owner."),
     watcher: list[str] = typer.Option([], "--watcher", help="Additional watcher. Repeatable."),
     status: str = typer.Option(None, "--status", help="Defaults to repo default_status."),
-    suggest: bool = typer.Option(False, "--suggest/--no-suggest", help="Launch create-suggest after scaffold."),
     check_recurring: bool = typer.Option(False, "--check-recurring", help="Scan recurring templates and create due tasks."),
 ) -> None:
-    """Scaffold a new task (or scan recurring templates)."""
+    """Scaffold a new task directory.
+
+    This command is intentionally mechanical: it lays down the directory,
+    ticket frontmatter, blackboard, and log. It does not interview the human
+    or decide which workflow / contexts / assignee fit. Authoring lives in
+    the `meta/create` skill, which calls this command to scaffold and then
+    fills in the blanks.
+    """
     try:
         cfg = load_config()
     except ConfigError as exc:
@@ -78,9 +84,6 @@ def create(
         _bail(str(exc))
 
     typer.echo(f"Created {ref['id_slug']} at {ref['path']}")
-
-    if suggest:
-        typer.secho("--suggest not yet implemented (M6).", fg=typer.colors.YELLOW)
 
 
 # --- core scaffold ------------------------------------------------------------

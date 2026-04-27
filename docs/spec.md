@@ -112,7 +112,7 @@ Skills, workflows, and recurring templates all support arbitrary depth nesting. 
         stripe-check/SKILL.md, check-failures.py
       meta/
         dream/SKILL.md
-        create-suggest/SKILL.md
+        create/SKILL.md
     contexts/
       email/
         deliverability/
@@ -598,17 +598,20 @@ It's also reading contexts and look for contradictions/things to resolve. It pro
 
 It's a persistent memory system (and we can probably use one of the opensource one) but it produces a report that a human is responsible for (to detect mistakes and contradictions).
 
-#### Create-with-suggestions skill
+#### Create skill
 
-A skill (`relay-os/skills/meta/create-suggest`) attached to the `create` workflow. When a human creates a task with a title and description, the agent:
+A skill (`relay-os/skills/meta/create`) is the authoring entry point for new tasks. `relay create` is a dumb scaffolder — it lays down a task directory and frontmatter from CLI args. The judgment lives in the skill.
 
-1. Start from a template of ticket. 
-2. Human explains what it's trying to do. Agents asks question until the ticket is filled.
-3. Agent suggests which workflow fits, which contexts to attach, and which skills apply to each step.
-4. Writes suggestions to the ticket frontmatter as a draft.
-5. Human reviews and confirms.
+When a human says "make me a task for X" the agent invokes this skill and:
 
-This runs as part of `relay create` — after scaffolding, the agent is launched with the create-suggest skill to fill in the blanks. The human edits the result directly if needed.
+1. Interviews the human until the work is framed (one question at a time).
+2. Scans existing workflows, contexts, and skills to find what fits.
+3. Calls `relay create --title ... [--workflow ...] [--context ...] ...` to scaffold.
+4. Edits the freshly-scaffolded `ticket.md` frontmatter to fill in anything not passed on the CLI (workflow, contexts, assignee, watchers).
+5. Notes the rationale in the blackboard's Notes section.
+6. Stops. Status stays at `design` (or flips to `ready` if the human already approved). The skill never launches the task itself.
+
+If nothing in the inventory fits, the skill flags the gap on the blackboard for the dream skill to act on later — it never invents a workflow or context that doesn't exist.
 
 #### Why this matters
 
