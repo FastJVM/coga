@@ -111,9 +111,11 @@ def refresh_cli(clone_dir: Path, relay_os: Path) -> None:
 def refresh_templates(clone_dir: Path, relay_os: Path) -> list[str]:
     """Refresh relay-owned scaffolds under `relay_os/` from the clone.
 
-    Two trees are treated as upstream-owned (always overwritten on update):
+    Three things are treated as upstream-owned (always overwritten on update):
       - `_*` template scaffolds (`_template/` etc.)
       - `bootstrap/` shims — these are infra, not user content.
+      - `.gitignore` — must track upstream so new ignore entries land in
+        existing repos without manual edits.
     """
     src_root = clone_dir / TEMPLATE_SUBPATH
     if not src_root.is_dir():
@@ -125,6 +127,7 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> list[str]:
         sys.exit(2)
     copied = _copy_templates(src_root, relay_os)
     copied.extend(_copy_bootstrap(src_root, relay_os))
+    copied.extend(_copy_upstream_files(src_root, relay_os))
     return copied
 
 
@@ -140,6 +143,56 @@ def prune_obsolete(relay_os: Path) -> list[str]:
             shutil.rmtree(target)
             pruned.append(rel)
     return pruned
+
+
+HOST_GITIGNORE_BEGIN = "# >>> relay-managed >>>"
+HOST_GITIGNORE_END = "# <<< relay-managed <<<"
+_HOST_GITIGNORE_BODY = (
+    f"{HOST_GITIGNORE_BEGIN}\n"
+    "# Managed by `relay init [--update]`. Don't edit between these markers —\n"
+    "# they will be overwritten. Symlinks below are created by `relay init` so\n"
+    "# agent CLIs (Claude Code, Codex) can discover relay-os/skills/.\n"
+    ".claude/skills/relay\n"
+    ".codex/skills/relay\n"
+    f"{HOST_GITIGNORE_END}\n"
+)
+
+
+def ensure_host_gitignore(target: Path) -> bool:
+    """Insert/refresh the relay-managed block in `<target>/.gitignore`.
+
+    Idempotent: leaves the file alone when the existing block already matches.
+    Only runs inside a git repo — outside one a host `.gitignore` is moot.
+    Returns True iff the file was modified.
+    """
+    if not (target / ".git").exists():
+        return False
+
+    gi = target / ".gitignore"
+    existing = gi.read_text() if gi.is_file() else ""
+
+    begin = existing.find(HOST_GITIGNORE_BEGIN)
+    if begin == -1:
+        prefix = existing
+        if prefix and not prefix.endswith("\n"):
+            prefix += "\n"
+        if prefix:
+            prefix += "\n"
+        new = prefix + _HOST_GITIGNORE_BODY
+    else:
+        end = existing.find(HOST_GITIGNORE_END, begin)
+        if end == -1:
+            new = existing[:begin] + _HOST_GITIGNORE_BODY
+        else:
+            end += len(HOST_GITIGNORE_END)
+            if end < len(existing) and existing[end] == "\n":
+                end += 1
+            new = existing[:begin] + _HOST_GITIGNORE_BODY + existing[end:]
+
+    if new == existing:
+        return False
+    gi.write_text(new)
+    return True
 
 
 def write_bin_wrapper(bin_dir: Path) -> None:
@@ -234,6 +287,29 @@ def _copy_templates(src_root: Path, dst_root: Path) -> list[str]:
             shutil.copy2(src, dst)
             copied.append(str(rel))
 
+    return copied
+
+
+_UPSTREAM_OWNED_FILES: tuple[str, ...] = (
+    ".gitignore",
+)
+
+
+def _copy_upstream_files(src_root: Path, dst_root: Path) -> list[str]:
+    """Overwrite a fixed set of upstream-managed root files (e.g. `.gitignore`).
+
+    These aren't covered by the `_*` glob but must track upstream so changes
+    propagate into existing repos on `relay init --update`.
+    """
+    copied: list[str] = []
+    for rel in _UPSTREAM_OWNED_FILES:
+        src = src_root / rel
+        if not src.is_file():
+            continue
+        dst = dst_root / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        copied.append(rel)
     return copied
 
 
