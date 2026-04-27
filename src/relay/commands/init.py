@@ -22,6 +22,7 @@ from relay.commands.update import (
     TEMPLATE_SUBPATH,
     clone_upstream,
     install_venv,
+    prune_obsolete,
     refresh_cli,
     refresh_templates,
     upstream_sha,
@@ -155,6 +156,7 @@ def _do_update() -> None:
         copied = refresh_templates(clone_dir, relay_os)
         sha = upstream_sha(clone_dir)
 
+    pruned = prune_obsolete(relay_os)
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
@@ -176,6 +178,10 @@ def _do_update() -> None:
     if copied:
         typer.echo(f"Refreshed {len(copied)} template file(s):")
         for rel in copied:
+            typer.echo(f"  {rel}")
+    if pruned:
+        typer.echo(f"Pruned {len(pruned)} obsolete path(s):")
+        for rel in pruned:
             typer.echo(f"  {rel}")
 
 

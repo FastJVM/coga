@@ -251,6 +251,9 @@ def _seed_local_relay_os(root: Path) -> Path:
     (relay_os / "relay.toml").write_text("version = 1\n")
     (relay_os / "rules.md").write_text("user-edited rules\n")
 
+    # Stale top-level file an earlier upstream shipped (counter / numeric IDs).
+    (relay_os / "counter").write_text("7\n")
+
     vendored = relay_os / ".relay" / "src" / "relay"
     vendored.mkdir(parents=True)
     (vendored / "cli.py").write_text("# OLD vendored cli\n")
@@ -306,6 +309,10 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert (relay_os / "bootstrap" / "create" / "ticket.md").read_text() == "NEW bootstrap shim\n"
     # Shims dropped upstream (renamed/removed) are pruned locally.
     assert not (relay_os / "bootstrap" / "stale").exists()
+    # Top-level files upstream once shipped but no longer does are pruned.
+    assert not (relay_os / "counter").exists()
+    assert "Pruned 1 obsolete path(s)" in result.output
+    assert "  counter" in result.output
     # User-edited content untouched.
     assert (relay_os / "skills" / "myteam" / "real-skill" / "SKILL.md").read_text() == "user content\n"
     assert (relay_os / "rules.md").read_text() == "user-edited rules\n"

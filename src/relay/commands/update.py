@@ -19,6 +19,14 @@ RELAY_REPO_URL = "https://github.com/FastJVM/relay"
 TEMPLATE_SUBPATH = Path("src/relay/resources/templates/relay-os")
 CLI_SRC_SUBPATH = Path("src/relay")
 
+# Paths (relative to relay-os/) that earlier upstreams shipped but no longer do.
+# `init --update` prunes these from existing repos so removed scaffolding doesn't
+# linger after a migration. Keep entries narrow — only files we know we shipped
+# and now want gone, never user-owned paths.
+OBSOLETE_PATHS: tuple[str, ...] = (
+    "counter",  # numeric task ID counter, dropped in the slug-only migration
+)
+
 
 def clone_upstream(into: Path) -> Path:
     """Shallow-clone the relay repo into `into`. Exit on failure. Return the path."""
@@ -118,6 +126,20 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> list[str]:
     copied = _copy_templates(src_root, relay_os)
     copied.extend(_copy_bootstrap(src_root, relay_os))
     return copied
+
+
+def prune_obsolete(relay_os: Path) -> list[str]:
+    """Remove paths upstream once shipped but no longer does. Returns relative paths pruned."""
+    pruned: list[str] = []
+    for rel in OBSOLETE_PATHS:
+        target = relay_os / rel
+        if target.is_symlink() or target.is_file():
+            target.unlink()
+            pruned.append(rel)
+        elif target.is_dir():
+            shutil.rmtree(target)
+            pruned.append(rel)
+    return pruned
 
 
 def write_bin_wrapper(bin_dir: Path) -> None:
