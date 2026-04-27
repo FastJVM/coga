@@ -1,5 +1,5 @@
 ---
-name: meta/create
+name: bootstrap/create
 description: Author a new Relay task. Interview the human, scaffold the task directory by calling `relay create`, then fill in workflow, contexts, and assignee in the ticket frontmatter. Use when a human says "make a task for X" or "I want to start something new."
 ---
 

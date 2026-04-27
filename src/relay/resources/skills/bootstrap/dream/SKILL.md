@@ -1,5 +1,5 @@
 ---
-name: meta/dream
+name: bootstrap/dream
 description: Scan the Relay repo for knowledge gaps, broken references, stale locks, and workflow patterns. Propose concrete fixes on the blackboard and summarize in Slack.
 ---
 

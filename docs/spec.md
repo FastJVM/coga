@@ -110,7 +110,7 @@ Skills, workflows, and recurring templates all support arbitrary depth nesting. 
         testing-conventions/SKILL.md
       email/
         stripe-check/SKILL.md, check-failures.py
-      meta/
+      bootstrap/
         dream/SKILL.md
         create/SKILL.md
     contexts/
@@ -143,6 +143,9 @@ Skills, workflows, and recurring templates all support arbitrary depth nesting. 
         log.md              ← append-only, written by CLI commands only
         blackboard.md       ← shared workspace (see below)
         task.lock           ← serializes concurrent access
+    bootstrap/
+      create/
+        ticket.md           ← persistent launch shim → `relay launch bootstrap/create`
     scripts/
       cron.sh               ← entry point for system cron
 ```
@@ -581,7 +584,7 @@ The system improves itself using its own primitives. They are CLI commands execu
 
 #### Dream skill
 
-A skill (`relay-os/skills/meta/dream`) that tells the agent: scan the repo and improve skills and context.
+A skill (`relay-os/skills/bootstrap/dream`) that tells the agent: scan the repo and improve skills and context.
 
 The agent reads all tickets, blackboards, contexts, skills, and workflows. It looks for:
 
@@ -600,7 +603,7 @@ It's a persistent memory system (and we can probably use one of the opensource o
 
 #### Create skill
 
-A skill (`relay-os/skills/meta/create`) is the authoring entry point for new tasks. `relay create` is a dumb scaffolder — it lays down a task directory and frontmatter from CLI args. The judgment lives in the skill.
+A skill (`relay-os/skills/bootstrap/create`) is the authoring entry point for new tasks. `relay create` is a dumb scaffolder — it lays down a task directory and frontmatter from CLI args. The judgment lives in the skill.
 
 When a human says "make me a task for X" the agent invokes this skill and:
 
@@ -612,6 +615,26 @@ When a human says "make me a task for X" the agent invokes this skill and:
 6. Stops. Status stays at `design` (or flips to `ready` if the human already approved). The skill never launches the task itself.
 
 If nothing in the inventory fits, the skill flags the gap on the blackboard for the dream skill to act on later — it never invents a workflow or context that doesn't exist.
+
+#### Bootstrap tickets
+
+Skills are knowledge, not entry points. To make a skill *runnable* without
+remembering the prompt by heart, Relay ships persistent shim tickets under
+`relay-os/bootstrap/<name>/`. Each one is a stateless launch target:
+
+- Frontmatter pins `skill: bootstrap/<name>`. No `status`, no workflow, no
+  step. The launcher composes the skill into the prompt at run time.
+- `relay launch --task bootstrap/<name>` runs without flipping status to
+  `active` and without acquiring `task.lock`. Concurrent launches by
+  different humans are fine — the ticket is a re-entry point, not a unit of
+  work.
+- The ticket directory accumulates `log.md` over time (a record of who
+  invoked the shim and when), and may grow `blackboard.md` if the skill
+  writes notes there. It does not participate in `relay status`.
+
+`bootstrap/create` is the canonical example: it's how a fresh `relay-os/`
+gets a "type one command and start authoring tasks" entry point. Future
+shims (`bootstrap/dream`, etc.) follow the same shape.
 
 #### Why this matters
 

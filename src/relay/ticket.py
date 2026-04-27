@@ -92,6 +92,11 @@ class Ticket:
     def step(self) -> str | None:
         return self.frontmatter.get("step")
 
+    @property
+    def skill(self) -> str | None:
+        """Top-level skill ref for bootstrap tickets that aren't workflow-bound."""
+        return self.frontmatter.get("skill")
+
     def step_index(self) -> int | None:
         """Return 1-indexed step number, or None if no workflow."""
         step = self.step

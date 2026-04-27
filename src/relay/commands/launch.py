@@ -19,14 +19,15 @@ from relay.lock import LockHeldError, TaskLock
 from relay.logfile import append_log
 from relay.slack import post_feed
 from relay.tasks import (
+    BootstrapRef,
     TaskNotFoundError,
     read_ticket,
-    resolve_task,
+    resolve_target,
 )
 
 
 def launch(
-    task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
+    task: str = typer.Option(..., "--task", help="Task ID, id-slug, or `bootstrap/<name>` shim."),
     force: bool = typer.Option(False, "--force", help="Break a stale lock."),
 ) -> None:
     """Compose context, start work on a task."""
@@ -36,13 +37,14 @@ def launch(
         _bail(str(exc))
 
     try:
-        ref = resolve_task(cfg, task)
+        ref = resolve_target(cfg, task)
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
     ticket = read_ticket(ref)
+    is_bootstrap = isinstance(ref, BootstrapRef)
 
-    if ticket.status != "active":
+    if not is_bootstrap and ticket.status != "active":
         _bail(
             f"Task {ref.id_slug} is {ticket.status!r}. "
             f"Set status to 'active' before launching."
@@ -55,6 +57,8 @@ def launch(
     mode = ticket.mode
 
     if mode == "script":
+        if is_bootstrap:
+            _bail("Bootstrap tickets only support interactive/auto modes.")
         from relay.commands.launch_script import run_script_mode
         run_script_mode(cfg, ref, ticket)
         return
@@ -72,14 +76,16 @@ def launch(
     if shutil.which(agent.cli) is None:
         _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
 
-    # Acquire lock.
-    lock = TaskLock(ref.path)
-    try:
-        lock.acquire(holder=assignee, force=force)
-    except LockHeldError as exc:
-        _bail(
-            f"{exc}\nPass --force to break the lock (e.g. after a crashed session)."
-        )
+    # Acquire lock for normal tasks. Bootstrap shims are stateless re-entry
+    # points — concurrent launches are fine, no lock to release.
+    lock = None if is_bootstrap else TaskLock(ref.path)
+    if lock is not None:
+        try:
+            lock.acquire(holder=assignee, force=force)
+        except LockHeldError as exc:
+            _bail(
+                f"{exc}\nPass --force to break the lock (e.g. after a crashed session)."
+            )
 
     # Compose & write prompt.
     prompt = compose_prompt(cfg, ref, ticket)
@@ -105,7 +111,8 @@ def launch(
 
     # Install a signal-safe cleanup.
     def _cleanup() -> None:
-        lock.release()
+        if lock is not None:
+            lock.release()
         try:
             prompt_file.unlink()
         except FileNotFoundError:

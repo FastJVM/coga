@@ -153,3 +153,100 @@ def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyP
     result = runner.invoke(app, ["launch", "--task", "001"])
     assert result.exit_code == 2
     assert "not found in PATH" in (result.output + (result.stderr or ""))
+
+
+# --- bootstrap shims -----------------------------------------------------------
+
+
+@pytest.fixture
+def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A relay-os/ with a bootstrap/create shim and a stub skill, no tasks."""
+    company = tmp_path / "relay-os"
+    _write(
+        company / "relay.toml",
+        """
+        version = 1
+        default_status = "ready"
+        [agents.claude]
+        cli = "claude"
+        interactive = "--append-system-prompt-file"
+        auto = "-p"
+        file = "CLAUDE.md"
+        [assignees.marc]
+        agents = {"claude1" = "claude"}
+        """,
+    )
+    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(
+        company / "bootstrap" / "create" / "ticket.md",
+        """
+        ---
+        title: Author a new task
+        mode: interactive
+        skill: bootstrap/create
+        assignee: claude1
+        ---
+
+        ## Description
+
+        Persistent launch shim for the bootstrap/create skill.
+        """,
+    )
+    _write(
+        company / "skills" / "bootstrap" / "create" / "SKILL.md",
+        """
+        ---
+        name: bootstrap/create
+        description: Author a Relay task.
+        ---
+
+        Interview, scaffold, fill in the ticket. Stop.
+        """,
+    )
+    monkeypatch.chdir(company)
+    return company
+
+
+def test_launch_bootstrap_skips_status_and_lock(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        captured["cmd"] = cmd
+        captured["prompt"] = Path(cmd[2]).read_text()
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "--task", "bootstrap/create"])
+    assert result.exit_code == 0, result.output
+
+    # No lock file left behind; in fact none was ever written.
+    assert not (bootstrap_repo / "bootstrap" / "create" / "task.lock").exists()
+
+    # Skill body composed into the prompt.
+    prompt = captured["prompt"]
+    assert isinstance(prompt, str)
+    assert "Skill: bootstrap/create" in prompt
+    assert "Interview, scaffold, fill in the ticket." in prompt
+    # Header still uses the bootstrap/<name> id_slug.
+    assert "bootstrap/create" in prompt
+
+    # log.md was created and recorded the launch.
+    log = (bootstrap_repo / "bootstrap" / "create" / "log.md").read_text()
+    assert "launched in interactive mode" in log
+
+
+def test_launch_bootstrap_unknown_shim(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "--task", "bootstrap/does-not-exist"])
+    assert result.exit_code == 2
+    assert "bootstrap/does-not-exist" in (result.output + (result.stderr or ""))
