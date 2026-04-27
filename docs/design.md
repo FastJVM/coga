@@ -22,7 +22,6 @@ Options
   --assignee TEXT           Default: owner.
   --watcher TEXT            Additional watcher. Repeatable.
   --status TEXT             Default: project's default_status from relay.toml.
-  --suggest / --no-suggest  Launch create-suggest agent after scaffold. Default: --no-suggest.
   --check-recurring         Instead of creating a new task, scan recurring templates and create any due tasks.
 ```
 
@@ -42,11 +41,11 @@ Options
 
 Deduplicated silently, order preserved (first occurrence wins). If any context ref doesn't resolve on disk, the command errors and lists every unresolved ref. No task is created.
 
-### `--suggest` integration
+### Authoring lives in a skill, not the CLI
 
-Post-scaffold. After writing `ticket.md`, `blackboard.md`, `log.md`, the command internally invokes `relay launch` on the new task with an override that injects `skills/meta/create-suggest/SKILL.md` into the composed prompt. The agent asks clarifying questions, then edits the ticket's frontmatter with suggested `workflow`, `contexts`, and per-step skill choices. Human reviews in their editor and sets `status: ready` when happy.
+`relay create` is intentionally mechanical — it scaffolds the directory and writes whatever frontmatter the caller passes. The judgment about *which* workflow / contexts / assignee fit is in the `meta/create` skill (`relay-os/skills/meta/create/SKILL.md`). A human invokes that skill ("make me a task for X"), the skill interviews, calls `relay create` to scaffold, then edits the ticket frontmatter to fill in the rest.
 
-Default-off for the POC — the flag exists but `--no-suggest` is the default. M6 wires up the actual skill.
+There's no `--suggest` flag. If you want the authoring flow, run the skill. If you just want bytes on disk, call `relay create` directly with the flags above.
 
 ### Skills at creation time
 
@@ -111,5 +110,5 @@ Two keys, newline-separated. Parsed leniently (strip whitespace).
 ## Scope notes for the POC build
 
 - Full Slack integration: webhook POST is implemented; offline/test mode falls back to stdout when no webhook is configured.
-- `create-suggest` and `dream` skills ship with SKILL.md content and templates, but their actual agent scans are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
+- `meta/create` and `meta/dream` skills ship with SKILL.md content and templates, but their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
 - `status` starts scoped to "one project per invocation"; cross-project scan lands in M3 if trivial, otherwise deferred.
