@@ -68,7 +68,7 @@ def test_launch_auto_mode(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert cmd[1] == "-p"
     # Last arg is the full prompt text, not a file path
     assert "Relay task — 001-auto-run" in cmd[2]
-    assert "Protocol — auto mode" in cmd[2]
+    assert "Auto mode" in cmd[2]
 
     # Lock released
     ref = list_tasks(cfg)[0]

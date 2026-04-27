@@ -83,10 +83,10 @@ def test_compose_includes_all_sections(repo: Path) -> None:
 
     # Header
     assert "Relay task — 001-fix-retry-logic" in prompt
-    # Base protocol
+    # Base prompt
     assert "You are an agent working on a ticket inside Relay" in prompt
-    # Interactive protocol
-    assert "Protocol — interactive mode" in prompt
+    # Interactive prompt
+    assert "Interactive mode" in prompt
     # Rules
     assert "Never commit secrets" in prompt
     # Repo context
@@ -116,8 +116,8 @@ def test_compose_auto_mode_uses_auto_block(repo: Path) -> None:
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
-    assert "Protocol — auto mode" in prompt
-    assert "Protocol — interactive mode" not in prompt
+    assert "Auto mode" in prompt
+    assert "Interactive mode" not in prompt
 
 
 def test_compose_inline_step_instructions(repo: Path) -> None:
