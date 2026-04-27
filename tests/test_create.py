@@ -162,3 +162,48 @@ def test_create_log_entry_written(repo: Path) -> None:
     )
     log = (ref["path"] / "log.md").read_text()
     assert "[human:marc] created" in log
+
+
+def test_resolve_task_prefers_exact_id_slug(repo: Path) -> None:
+    """When two task dirs share an id, the full id-slug must win the lookup."""
+    from relay.tasks import resolve_task, TaskNotFoundError
+
+    cfg = load_config(repo)
+    # Manually create two dirs with the same id but different slugs.
+    for slug in ("test", "test-ticket"):
+        d = repo / "tasks" / f"002-{slug}"
+        d.mkdir(parents=True)
+        (d / "ticket.md").write_text(f"---\ntitle: {slug}\n---\n")
+
+    # Exact id-slug match returns the right one.
+    assert resolve_task(cfg, "002-test").slug == "test"
+    assert resolve_task(cfg, "002-test-ticket").slug == "test-ticket"
+
+    # Bare numeric "002" is ambiguous → error with both slugs listed.
+    with pytest.raises(TaskNotFoundError, match="Multiple tasks"):
+        resolve_task(cfg, "002")
+
+
+def test_create_skips_past_drifted_counter(repo: Path) -> None:
+    """If the counter is behind reality, scaffold should bump past existing IDs
+    rather than minting a duplicate. Covers dogfood/migrated repos where task
+    dirs exist but the counter wasn't incremented for them."""
+    cfg = load_config(repo)
+    # Pretend 001 and 002 pre-existed without the counter being bumped.
+    for slug in ("001-old-a", "002-old-b"):
+        (repo / "tasks" / slug).mkdir(parents=True)
+        (repo / "tasks" / slug / "ticket.md").write_text(f"---\ntitle: {slug}\n---\n")
+
+    ref = scaffold_task(
+        cfg=cfg,
+        title="Fresh",
+        workflow_name=None,
+        contexts=[],
+        mode="interactive",
+        owner=None,
+        assignee=None,
+        watchers=[],
+        status=None,
+    )
+    # Counter starts empty, returns 1 then 2 (both colliding), then 3 — clean.
+    assert ref["id_slug"] == "003-fresh"

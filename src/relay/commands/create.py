@@ -19,6 +19,7 @@ from relay.paths import (
     workflow_path,
 )
 from relay.slugify import slugify
+from relay.tasks import list_tasks
 from relay.ticket import Ticket
 from relay.workflow import Workflow, WorkflowError
 
@@ -128,8 +129,13 @@ def scaffold_task(
                 f"Workflow {workflow_name!r} references missing skills: {missing_skills}"
             )
 
-    # Allocate ID + slug
+    # Allocate ID + slug. The counter is the source of truth, but if it
+    # drifted behind reality (manual task dir creation, restored from
+    # backup, etc.) bump past any pre-existing IDs so we never duplicate.
+    existing_ids = {t.id for t in list_tasks(cfg)}
     task_id = next_id(cfg.repo_root)
+    while task_id in existing_ids:
+        task_id = next_id(cfg.repo_root)
     slug = slug_override or slugify(title)
     id_slug = f"{task_id:03d}-{slug}"
     task_dir = tasks_dir(cfg) / id_slug
