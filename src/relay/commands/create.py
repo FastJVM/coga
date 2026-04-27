@@ -42,8 +42,8 @@ def create(
     This command is intentionally mechanical: it lays down the directory,
     ticket frontmatter, blackboard, and log. It does not interview the human
     or decide which workflow / contexts / assignee fit. Authoring lives in
-    the `meta/create` skill, which calls this command to scaffold and then
-    fills in the blanks.
+    the `bootstrap/create` skill, which calls this command to scaffold and
+    then fills in the blanks.
     """
     try:
         cfg = load_config()

@@ -5,9 +5,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Union
 
 from relay.config import Config
-from relay.paths import tasks_dir
+from relay.paths import bootstrap_dir, bootstrap_path, tasks_dir
 from relay.ticket import Ticket
 
 
@@ -16,6 +17,7 @@ class TaskNotFoundError(Exception):
 
 
 _ID_RE = re.compile(r"^(\d+)-")
+_BOOTSTRAP_PREFIX = "bootstrap/"
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,25 @@ class TaskRef:
     @property
     def id_slug(self) -> str:
         return f"{self.id:03d}-{self.slug}"
+
+
+@dataclass(frozen=True)
+class BootstrapRef:
+    """A persistent launch-shim ticket under `relay-os/bootstrap/<name>/`.
+
+    Bootstrap tickets are stateless re-entry points (no status flips, no lock).
+    `id_slug` matches the launch arg form so logs read naturally.
+    """
+
+    name: str
+    path: Path
+
+    @property
+    def id_slug(self) -> str:
+        return f"bootstrap/{self.name}"
+
+
+TargetRef = Union[TaskRef, BootstrapRef]
 
 
 def list_tasks(cfg: Config) -> list[TaskRef]:
@@ -65,14 +86,38 @@ def resolve_task(cfg: Config, task_arg: str) -> TaskRef:
     return candidates[0]
 
 
-def read_ticket(ref: TaskRef) -> Ticket:
+def resolve_bootstrap(cfg: Config, name: str) -> BootstrapRef:
+    """Resolve a bootstrap shim by name (e.g. "create" or "bootstrap/create")."""
+    if name.startswith(_BOOTSTRAP_PREFIX):
+        name = name[len(_BOOTSTRAP_PREFIX):]
+    path = bootstrap_path(cfg, name)
+    if not (path / "ticket.md").is_file():
+        raise TaskNotFoundError(
+            f"No bootstrap ticket at {path / 'ticket.md'} "
+            f"(expected for `bootstrap/{name}`)"
+        )
+    return BootstrapRef(name=name, path=path)
+
+
+def resolve_target(cfg: Config, arg: str) -> TargetRef:
+    """Resolve a `--task` argument to either a numeric task or a bootstrap shim."""
+    if arg.startswith(_BOOTSTRAP_PREFIX):
+        return resolve_bootstrap(cfg, arg)
+    return resolve_task(cfg, arg)
+
+
+def read_ticket(ref: TargetRef) -> Ticket:
     return Ticket.read(ref.path / "ticket.md")
 
 
 __all__ = [
     "TaskRef",
+    "BootstrapRef",
+    "TargetRef",
     "TaskNotFoundError",
     "list_tasks",
     "resolve_task",
+    "resolve_bootstrap",
+    "resolve_target",
     "read_ticket",
 ]

@@ -66,6 +66,7 @@ mycompany/
     ├── workflows/              # multi-step recipes
     ├── recurring/              # cron-like recurring task templates
     ├── tasks/                  # one dir per task: ticket.md, blackboard.md, log.md
+    ├── bootstrap/              # persistent launch shims (e.g. bootstrap/create)
     ├── counter                 # monotonic task ID counter
     └── .relay/                 # vendored CLI + venv (gitignored)
         ├── src/relay/          # CLI source
@@ -125,6 +126,15 @@ Key flags:
 - `--mode interactive | auto | script` — how the launcher should run it.
 - `--check-recurring` — scan `relay-os/recurring/` and create any tasks that are due.
 
+`relay create` is intentionally mechanical — it lays bytes on disk. The
+*authoring* flow (interview, pick a workflow, attach the right contexts,
+fill in the assignee) lives in the `bootstrap/create` skill. Run that via
+the persistent shim:
+
+```sh
+relay launch --task bootstrap/create
+```
+
 ### `relay launch --task <id>`
 
 Compose every relevant file for a task — rules, project context, ticket,
@@ -136,10 +146,17 @@ so two agents don't grab the same ticket.
 relay launch --task 001-add-retry                    # full id-slug
 relay launch --task 001                              # short
 relay launch --task 001 --force                      # break a stale lock
+relay launch --task bootstrap/create                 # persistent shim → run a skill
 ```
 
 The agent type comes from the ticket's `assignee` (e.g. `claude1`) resolved
 through `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
+
+`bootstrap/<name>` tickets are stateless re-entry points for skills. They
+don't need a `status: active` flip and don't acquire a lock — concurrent
+launches are safe. Init ships `bootstrap/create` (authoring flow); add your
+own under `relay-os/bootstrap/<name>/ticket.md` with `skill: <ref>` in
+frontmatter to expose any other skill the same way.
 
 ### `relay status`
 

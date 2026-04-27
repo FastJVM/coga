@@ -43,7 +43,7 @@ Deduplicated silently, order preserved (first occurrence wins). If any context r
 
 ### Authoring lives in a skill, not the CLI
 
-`relay create` is intentionally mechanical — it scaffolds the directory and writes whatever frontmatter the caller passes. The judgment about *which* workflow / contexts / assignee fit is in the `meta/create` skill (`relay-os/skills/meta/create/SKILL.md`). A human invokes that skill ("make me a task for X"), the skill interviews, calls `relay create` to scaffold, then edits the ticket frontmatter to fill in the rest.
+`relay create` is intentionally mechanical — it scaffolds the directory and writes whatever frontmatter the caller passes. The judgment about *which* workflow / contexts / assignee fit is in the `bootstrap/create` skill (`relay-os/skills/bootstrap/create/SKILL.md`). A human invokes that skill ("make me a task for X"), the skill interviews, calls `relay create` to scaffold, then edits the ticket frontmatter to fill in the rest.
 
 There's no `--suggest` flag. If you want the authoring flow, run the skill. If you just want bytes on disk, call `relay create` directly with the flags above.
 
@@ -110,5 +110,5 @@ Two keys, newline-separated. Parsed leniently (strip whitespace).
 ## Scope notes for the POC build
 
 - Full Slack integration: webhook POST is implemented; offline/test mode falls back to stdout when no webhook is configured.
-- `meta/create` and `meta/dream` skills ship with SKILL.md content and templates, but their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
+- `bootstrap/create` and `bootstrap/dream` skills ship with SKILL.md content and templates, but their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
 - `status` starts scoped to "one project per invocation"; cross-project scan lands in M3 if trivial, otherwise deferred.

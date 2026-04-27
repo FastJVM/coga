@@ -16,7 +16,7 @@ from relay.paths import (
     skill_path,
     workflow_path,
 )
-from relay.tasks import TaskRef
+from relay.tasks import TargetRef
 from relay.ticket import Ticket
 from relay.workflow import Workflow
 
@@ -24,12 +24,14 @@ from relay.workflow import Workflow
 _SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 
 
-def compose_prompt(cfg: Config, task_ref: TaskRef, ticket: Ticket) -> str:
+def compose_prompt(cfg: Config, task_ref: TargetRef, ticket: Ticket) -> str:
     """Assemble the composed prompt in spec order (§compose)."""
     parts: list[str] = []
 
-    parts.append(f"# Relay task — {task_ref.id_slug}\n\n"
-                 f"Title: {ticket.title}\nMode: {ticket.mode}\nStatus: {ticket.status}")
+    header = f"# Relay task — {task_ref.id_slug}\n\nTitle: {ticket.title}\nMode: {ticket.mode}"
+    if ticket.status:
+        header += f"\nStatus: {ticket.status}"
+    parts.append(header)
 
     # 1. Base prompt
     parts.append(_resource("prompt.md"))
@@ -62,8 +64,11 @@ def compose_prompt(cfg: Config, task_ref: TaskRef, ticket: Ticket) -> str:
     if inline_ctx:
         parts.append(_section("Task-specific context", inline_ctx))
 
-    # 7. current workflow step (skill or inline instructions)
-    parts.extend(_step_sections(cfg, ticket))
+    # 7. top-level skill (bootstrap tickets) or current workflow step
+    if ticket.skill:
+        parts.extend(_skill_sections(cfg, ticket.skill))
+    else:
+        parts.extend(_step_sections(cfg, ticket))
 
     # 8. blackboard
     bb = task_ref.path / "blackboard.md"
@@ -86,7 +91,8 @@ def write_prompt_file(prompt: str, task_ref: TaskRef, dest_dir: Path | None = No
     if dest_dir is None:
         dest_dir = Path(tempfile.gettempdir())
     ts = datetime.now().strftime("%Y%m%dT%H%M%S")
-    path = dest_dir / f"relay-{task_ref.id_slug}-{ts}.md"
+    safe_slug = task_ref.id_slug.replace("/", "-")
+    path = dest_dir / f"relay-{safe_slug}-{ts}.md"
     path.write_text(prompt)
     return path
 
@@ -112,6 +118,16 @@ def _extract_section(body: str, heading: str) -> str:
             end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
             return body[start:end].strip()
     return ""
+
+
+def _skill_sections(cfg: Config, skill_ref: str) -> list[str]:
+    sp = skill_path(cfg, skill_ref)
+    if sp.is_file():
+        return [_section(f"Skill: {skill_ref}", sp.read_text())]
+    return [_section(
+        f"Skill: {skill_ref}",
+        f"*Skill file not found at {sp}.*",
+    )]
 
 
 def _step_sections(cfg: Config, ticket: Ticket) -> list[str]:
