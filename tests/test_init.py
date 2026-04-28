@@ -34,7 +34,7 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     templates = clone_dir / update_cmd.TEMPLATE_SUBPATH
     templates.mkdir(parents=True)
     (templates / ".gitignore").write_text(
-        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\n**/_template/\n**/_template.md\n"
+        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\nskills/bootstrap/\n**/_template/\n**/_template.md\n"
     )
     (templates / "relay.toml").write_text("version = 1\n")
     (templates / "rules.md").write_text("rules\n")
@@ -282,7 +282,7 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "bootstrap" / "create").mkdir(parents=True)
     (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap shim\n")
     (templates / ".gitignore").write_text(
-        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\n**/_template/\n**/_template.md\n"
+        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\nskills/bootstrap/\n**/_template/\n**/_template.md\n"
     )
 
     cli_src = clone_dir / update_cmd.CLI_SRC_SUBPATH
