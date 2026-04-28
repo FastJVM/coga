@@ -118,7 +118,8 @@ def test_panic_writes_blocker_and_releases_lock(repo: Path) -> None:
     TaskLock(task_path).acquire("claude1")
     runner = CliRunner()
     result = runner.invoke(app, ["panic", "--task", slug, "--reason", "unclear ceiling for 429 backoff"])
-    assert result.exit_code == 0, result.output
+    # Panic exits non-zero so a parent process can detect agent distress.
+    assert result.exit_code == 1, result.output
     blackboard = (task_path / "blackboard.md").read_text()
     assert "unclear ceiling for 429 backoff" in blackboard
     assert "## Blockers" in blackboard

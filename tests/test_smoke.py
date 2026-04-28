@@ -101,7 +101,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "--task", ref2["slug"],
         "--reason", "need prod DNS access to reproduce",
     ])
-    assert r.exit_code == 0, r.output
+    assert r.exit_code == 1, r.output
     bb = (ref2["path"] / "blackboard.md").read_text()
     assert "need prod DNS access to reproduce" in bb
     assert "## Blockers" in bb

@@ -222,7 +222,7 @@ implied by "scripted use"). Document the actual contract.
 | Append log line | ✅ | |
 | @mention task owner in Slack | ✅ | `panic.py:49-52`. |
 | Release lock | ✅ | `panic.py:46`. |
-| Stop the agent | 🟡 | The CLI exits 0; spec implies the *agent process* should also stop. Today the agent has to read the panic acknowledgment and decide to exit. Consider returning a non-zero exit code so the parent agent can detect it. |
+| Stop the agent | ✅ | CLI exits 1 (`panic.py`) so a parent shell or supervising agent can detect the distress signal. |
 | Change task status (e.g. to `paused`)? | ❓ | Open in spec. Implementation leaves status untouched. |
 | Format of blocker line | ❓ | Open in spec. Implementation: `"- [<ISO ts>] [<actor>] <reason>"` (`blackboard.py:51-55`). |
 

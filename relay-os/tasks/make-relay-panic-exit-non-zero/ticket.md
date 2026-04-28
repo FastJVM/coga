@@ -3,7 +3,7 @@ title: Make relay panic exit non-zero
 status: draft
 mode: interactive
 owner: nick
-assignee: claude1
+assignee: nick
 contexts:
   - relay/architecture
   - relay/principles
