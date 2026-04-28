@@ -115,7 +115,9 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> tuple[list[str], list[
 
     Three things are treated as upstream-owned (always overwritten on update):
       - `_*` template scaffolds (`_template/` etc.)
-      - `bootstrap/` shims — these are infra, not user content.
+      - `bootstrap/` shims and the `skills/bootstrap/` skills they reference —
+        relay-owned infra, not user content. Mirrored as a unit by
+        `_copy_bootstrap`.
       - `.gitignore` — must track upstream so new ignore entries land in
         existing repos without manual edits.
 
@@ -453,22 +455,30 @@ def _drop_matching_lines(text: str, drop: set[str]) -> str:
 
 
 def _copy_bootstrap(src_root: Path, dst_root: Path) -> list[str]:
-    """Mirror `bootstrap/` from upstream — wipe local, copy fresh.
+    """Mirror the `bootstrap/`-namespace tree from upstream — wipe, copy fresh.
 
-    Bootstrap shims are upstream-managed infra (launch entry points for
-    relay-owned skills), not user content. The whole tree is replaced on
-    update so renames and removals propagate cleanly. Don't put custom
-    shims here — they'll be pruned.
+    Covers two paths, both relay-owned infra (not user content):
+      - `bootstrap/` — launch shims for relay-owned skills.
+      - `skills/bootstrap/` — the skills those shims reference.
+
+    Each is wholesale-replaced on update so renames and removals propagate
+    cleanly. Don't put custom shims or custom skills under `bootstrap/`
+    namespaces — they'll be pruned. Custom skills go elsewhere under
+    `skills/` (e.g. `skills/code/...`).
     """
-    src_bootstrap = src_root / "bootstrap"
-    if not src_bootstrap.is_dir():
-        return []
-    dst_bootstrap = dst_root / "bootstrap"
-    if dst_bootstrap.exists():
-        shutil.rmtree(dst_bootstrap)
-    shutil.copytree(src_bootstrap, dst_bootstrap)
-    return [
-        str(f.relative_to(src_root))
-        for f in src_bootstrap.rglob("*")
-        if f.is_file()
-    ]
+    copied: list[str] = []
+    for rel in ("bootstrap", "skills/bootstrap"):
+        src = src_root / rel
+        if not src.is_dir():
+            continue
+        dst = dst_root / rel
+        if dst.exists():
+            shutil.rmtree(dst)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src, dst)
+        copied.extend(
+            str(f.relative_to(src_root))
+            for f in src.rglob("*")
+            if f.is_file()
+        )
+    return copied

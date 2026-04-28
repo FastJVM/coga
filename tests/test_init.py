@@ -281,6 +281,8 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "rules.md").write_text("NEW upstream rules — should NOT be copied (no _ prefix)\n")
     (templates / "bootstrap" / "create").mkdir(parents=True)
     (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap shim\n")
+    (templates / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
+    (templates / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text("NEW bootstrap/ticket skill\n")
     (templates / ".gitignore").write_text(
         "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\nskills/bootstrap/\n**/_template/\n**/_template.md\n"
     )
@@ -322,19 +324,25 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert (relay_os / "tasks" / "_template" / "ticket.md").read_text() == "NEW ticket template\n"
     # Bootstrap shims are infra — the whole tree mirrors upstream on --update.
     assert (relay_os / "bootstrap" / "create" / "ticket.md").read_text() == "NEW bootstrap shim\n"
+    # Bootstrap-namespace skills mirror the same way (skills/bootstrap/ is
+    # relay-managed; refreshes wholesale alongside the shims).
+    assert (
+        (relay_os / "skills" / "bootstrap" / "ticket" / "SKILL.md").read_text()
+        == "NEW bootstrap/ticket skill\n"
+    )
     # Shims dropped upstream (renamed/removed) are pruned locally.
     assert not (relay_os / "bootstrap" / "stale").exists()
     # Top-level paths upstream once shipped but no longer does are pruned.
     assert not (relay_os / "counter").exists()
     assert not (relay_os / "meta").exists()
-    # Nested obsolete paths (renamed bootstrap skills etc.) are pruned too.
+    # Renamed bootstrap-namespace skills go away too — wiped by the
+    # `skills/bootstrap/` wholesale mirror (not by `prune_obsolete`).
     assert not (relay_os / "skills" / "bootstrap" / "create").exists()
     # `_*` scaffolds upstream no longer ships are also pruned.
     assert not (relay_os / "recurring" / "_template_old.md").exists()
-    assert "Pruned 4 obsolete path(s)" in result.output
+    assert "Pruned 3 obsolete path(s)" in result.output
     assert "  counter" in result.output
     assert "  meta" in result.output
-    assert "skills/bootstrap/create" in result.output
     assert "recurring/_template_old.md" in result.output
     # User-edited content untouched.
     assert (relay_os / "skills" / "myteam" / "real-skill" / "SKILL.md").read_text() == "user content\n"
