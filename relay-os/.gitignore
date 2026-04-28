@@ -6,3 +6,8 @@ relay.local.toml
 
 # Vendored CLI — managed by `relay update`, refreshed from upstream.
 .relay/
+
+# Upstream-managed launch shim and bootstrap skills — refreshed by
+# `relay init [--update]`. Tracking them creates churn.
+/bootstrap/
+/skills/bootstrap/
