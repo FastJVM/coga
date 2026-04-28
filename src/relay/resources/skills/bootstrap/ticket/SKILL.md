@@ -1,120 +1,160 @@
 ---
 name: bootstrap/ticket
-description: Author a new Relay ticket. The ticket has already been scaffolded as a `draft` stub with just a title. Interview the human, scan the inventory, and fill in workflow / contexts / assignee / description. Use whenever a draft ticket is launched against this skill.
+description: Interview the human, fill in a freshly-scaffolded draft ticket (workflow, contexts, assignee, body), create any missing contexts or skills the ticket needs, and run an independent evaluator review before handing back to the human for approval.
 ---
 
-# Ticket
+# Bootstrap a ticket
 
-You are the authoring entry point for a new ticket. The human has an idea and
-typed `relay create "<title>"` (or `relay launch bootstrap/ticket "<title>"`,
-or invoked you inside an empty bootstrap session). A `draft` ticket has
-already been scaffolded with their title — your job is to turn that stub
-into a well-scoped ticket another agent (or human) can pick up cleanly.
+Your job is to turn a one-line title into a complete `draft` ticket the human
+can review and launch. You do **not** start the work itself — you set it up.
 
-## Step 0 — Detect your mode
+The human is at the keyboard (`mode: interactive`). Ask, don't guess. Keep
+the interview short — 4–6 questions, not a survey.
 
-Two ways you got here. Check the prompt context:
+## Ticket format — read this first
 
-- **Factory mode (the common case).** You're inside a task directory with
-  `status: draft` and a `title` set. The scaffold already happened. Skip
-  Step 3. Your job is to fill in the blanks of *this* ticket.
-- **Empty mode.** You're inside the `bootstrap/ticket` shim itself (no
-  title, no status). The human ran `relay launch bootstrap/ticket` with no
-  title. You'll need to call `relay create "<title>"` once you have enough
-  to scaffold.
+The canonical ticket shape is `relay-os/tasks/_template/ticket.md`. **Read it
+once before you start** — that's the frontmatter fields and body sections
+your filled ticket has to match. Two real examples in the same tree to mimic:
 
-## Step 1 — Frame the work
+- `relay-os/tasks/fix-relay-status-narrow-terminal-table-wrapping/ticket.md`
+  — a code-change ticket with `contexts:` + `workflow:` filled in.
+- `relay-os/tasks/autotrigger-ticket-type/ticket.md` — a concept-capture
+  ticket with no workflow, just description + context body.
 
-Ask the human short, targeted questions. One at a time. Wait for the answer
-before asking the next. Stop once you have enough to fill in the ticket —
-usually two or three questions.
+Match this shape exactly. Don't invent fields the template doesn't define
+(see "YAML discipline" in the base prompt).
 
-You're trying to surface:
+## Step 1 — Detect launch shape
 
-- A clear, narrow title (under ~60 chars). The scaffold may have used the
-  human's first phrasing — refine it if needed.
-- What kind of work this is: code change, content draft, ops check,
-  investigation, one-off.
-- Whether an existing workflow fits or this is ad-hoc.
-- What domain knowledge the executor needs.
-- Who should own it and who should do it.
+Two ways this skill runs:
 
-Don't fish. If the human's first message is already specific, skip ahead.
+- **Seeded launch** (the common case) — `relay create "<title>"` or
+  `relay launch bootstrap/ticket "<title>"` already scaffolded a task. Your
+  current working task has a `title:` set, `status: draft`, and an empty
+  `## Description` / `## Context` body. Skip to step 2.
+- **Empty launch** — `relay launch bootstrap/ticket` with no title. You're
+  inside the stateless shim. Ask the human for a one-line title, then run
+  `relay create "<title>"` and stop. The new task auto-launches this skill
+  and continues from step 2 in a fresh session.
 
-## Step 2 — Scan the inventory
+## Step 2 — Survey what's available
 
-Before suggesting anything, read what's actually available:
+Before suggesting anything, ground yourself in what actually exists:
 
-- Workflows: `relay-os/workflows/**/*.md` — read each frontmatter `name` and
-  `description`.
-- Contexts: `relay-os/contexts/**/SKILL.md` — same.
-- Skills: `relay-os/skills/**/SKILL.md` — same.
+- `ls relay-os/workflows/` (and one level deeper) — known workflows.
+- `ls relay-os/contexts/*/` — known contexts (path shape:
+  `relay-os/contexts/<namespace>/<name>/SKILL.md`; reference shape in
+  tickets: `<namespace>/<name>`).
+- `ls relay-os/skills/*/` — known skills (same path/reference shape).
+- `relay.toml` `[assignees.*]` — known humans and their agent nicknames.
 
-Match against the task. Prefer two or three tight matches over six loose
-ones. Extra context bloats the prompt at launch.
+Don't propose a workflow, context, skill, or assignee that isn't in this
+list — create it (step 4) or pick from the list.
 
-If nothing fits, say so. Don't invent a workflow or context that doesn't
-exist — flag the gap on the blackboard so the dream skill can pick it up.
+## Step 3 — Interview the human
 
-## Step 3 — Scaffold (empty mode only)
+Cover these, in this order, in plain conversation. Stop pulling once you
+have enough — don't ask every question if the title already implies the
+answer.
 
-Skip this step in factory mode — the task is already scaffolded.
+1. **Description** — what needs to happen and why, in 2–4 sentences. This
+   becomes the `## Description` body.
+2. **Context** — what's the agent who picks this up later going to wish they
+   knew? Codebase pointers, gotchas, related tickets, out-of-scope notes.
+   This becomes the `## Context` body.
+3. **Workflow** — does an existing workflow fit? (e.g. `code/with-review`
+   for a code change shipped via PR.) If the work is concept-capture or
+   one-off discussion with no clear sequence, no workflow is fine — leave
+   the field off.
+4. **Contexts to attach** — which existing contexts apply? Don't over-attach;
+   if a context isn't directly relevant, skip it.
+5. **Assignee** — default to whatever the shim seeded (usually the human's
+   primary agent). Confirm if the work clearly fits a different agent or
+   needs to go to a human.
 
-Call:
+While interviewing, watch for **gaps** — domain knowledge that recurs across
+recent tickets but isn't captured anywhere, or process steps that workflows
+keep needing inline. Surface them in step 4.
+
+## Step 4 — Create missing contexts and skills
+
+If the interview reveals a gap that should be a reusable context or skill,
+create the file inline rather than leaving it as a TODO. Bias toward small,
+focused files — under a page each. Use the `_template/` directories as the
+shape:
+
+- New context: `relay-os/contexts/<namespace>/<name>/SKILL.md` with
+  frontmatter `name: <namespace>/<name>` and a one-sentence `description:`.
+  Body is domain knowledge — facts, edge cases, what's out of scope. No
+  process.
+- New skill: `relay-os/skills/<namespace>/<name>/SKILL.md` with the same
+  frontmatter shape. Body is process knowledge — how to do the thing,
+  attached to a workflow step. No domain facts.
+
+Confirm the namespace and name with the human before writing. Once created,
+add the new context to the ticket's `contexts:` list (or, for a new skill,
+note it in the body so the human can wire it into a workflow on review).
+
+If a gap is too speculative to commit to a file, write it to
+`blackboard.md` under a **Proposals** section instead — same shape as the
+`bootstrap/dream` skill uses. The human accepts or rejects on review.
+
+## Step 5 — Write the ticket
+
+Edit `ticket.md` in place. YAML discipline (from the base prompt) applies:
+
+- Add `workflow:` if you picked one — use the workflow name (e.g.
+  `code/with-review`); `relay step` will freeze the snapshot when the human
+  launches.
+- Add `contexts:` as a YAML list (one item per line with `- `).
+- Update `assignee:` only if it changed.
+- **Remove `skill: bootstrap/ticket`** from the frontmatter. That field is
+  what keeps the draft from auto-activating on launch (see `launch.py`); the
+  human's next `relay launch <slug>` is the approval gesture and should flip
+  the ticket draft → active.
+- Keep `status: draft`. You do not activate the ticket — the human does.
+- Fill the `## Description` and `## Context` body sections from the
+  interview.
+
+Do not call `relay step`. There's no workflow running yet.
+
+## Step 6 — Run the evaluator review
+
+Spawn an independent fresh session to read the filled ticket cold and
+critique it. The evaluator should not have seen your interview — it's
+checking the ticket as a future agent picking it up would.
+
+For Claude Code: use the `Agent` tool with `subagent_type: general-purpose`.
+For Codex or other agents: use whatever sub-session primitive is available
+(e.g. `codex exec`).
+
+Hand the evaluator the path to the ticket and ask it to assess:
+
+- Is the description clear enough that an agent with no prior context could
+  start work?
+- Does the chosen workflow fit the shape of the work? Any obvious mismatch?
+- Are the attached contexts relevant? Anything important missing?
+- Is the scope reasonable, or does it bundle multiple tickets' worth of
+  work?
+- Any assumptions that should be questioned before launch?
+
+Write the evaluator's response to `blackboard.md` under a top-level
+**## Evaluator review** section, verbatim. Don't summarize — the human reads
+it directly.
+
+## Step 7 — Hand back to the human
+
+Print a one-line summary of what you did and what's next:
 
 ```
-relay create "<title>" [--description "<one-liner>"] [--no-launch]
+Filled <slug>. Evaluator review on blackboard. Run `relay launch <slug>` to
+approve and start work.
 ```
 
-`relay create` prints the new task's slug and path. If you're already
-running interactively, pass `--no-launch` so it doesn't spawn another
-session on top of you. Capture the slug.
+Optionally `relay feed --task <slug> --message "<short>"` if the ticket
+warrants a heads-up to the channel (a new context was created, an assignee
+changed, etc.). Skip the feed for routine fill-ins.
 
-## Step 4 — Fill in the blanks
-
-Open `relay-os/tasks/<slug>/ticket.md`. Add or refine frontmatter fields:
-
-- `workflow:` — only if it's a real one. Setting `workflow` also implies a
-  starting `step: 1 (<first-step-name>)`.
-- `contexts:` — list of refs that exist on disk.
-- `assignee:` — human name or agent nickname from `relay.toml`. The shim's
-  default assignee is the starting point; refine if a different operator
-  should own this work.
-- `mode:` — `interactive`, `auto`, or `script`.
-- `watchers:` — additional people who should see Slack pings.
-
-Edit the body's `## Description` section to capture *why* and *what*. Keep
-it concrete. The body is for humans; the agent reads the composed prompt at
-launch.
-
-Preserve every existing field. Use exact YAML syntax. Don't reorder for
-style.
-
-## Step 5 — Note your reasoning
-
-Write a short paragraph to the blackboard explaining the choices you made
-— which workflow you picked and why, which contexts you attached, who you
-assigned. The human reads this before approving.
-
-If you flagged a gap (no workflow fits, no context covers the domain),
-write that to the blackboard too with a one-line proposal the dream skill
-can act on later.
-
-## Step 6 — Stop
-
-Leave `status: draft`. The human flips to `active` (and runs
-`relay launch <slug>`) when they're ready to start the work.
-
-Do **not** flip the status yourself. Do **not** call `relay launch`. Do
-**not** advance the step. Do **not** start doing the task itself.
-Authoring is scoping; execution is a separate launch.
-
-## What not to do
-
-- Don't invent workflows, contexts, or skills. Reference only what exists.
-- Don't bundle multiple ideas into one ticket. If the human is describing
-  two unrelated things, scaffold two tasks.
-- Don't write a long Description body. A few sentences with the core
-  context is enough — the executor will pull more from the attached
-  contexts at launch time.
-- Don't fill `step` manually unless you also set `workflow`.
+Then exit. The human reviews `ticket.md` + `blackboard.md`, edits anything
+they want to change, and runs `relay launch <slug>` when satisfied.
