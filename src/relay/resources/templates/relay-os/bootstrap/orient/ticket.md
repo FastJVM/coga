@@ -6,6 +6,7 @@ contexts:
   - relay/architecture
   - relay/principles
   - relay/codebase
+  - relay/cli
   - relay/current-direction
   - relay/project-stage
 ---
@@ -14,9 +15,9 @@ contexts:
 
 Stateless launch shim. `relay launch bootstrap/orient` drops an agent
 into a fully-composed relay-aware session — global rules, repo context,
-and the five canonical relay/* contexts (principles, architecture,
-codebase, current-direction, project-stage). No ticket, no workflow,
-no lock.
+and the canonical relay/* contexts (principles, architecture, codebase,
+cli, current-direction, project-stage). No ticket, no workflow, no
+lock.
 
 The point: skip the "open `claude` in the repo and re-explain the
 project" dance. Use this when the human wants to direct ad-hoc work —
@@ -29,10 +30,11 @@ and a lock.
 
 What the agent should do once oriented:
 
-- Read `README.md` for the CLI surface (`relay status / launch / bump /
-  panic / feed / create / init`). The relay/* contexts cover principles
-  + architecture + codebase + current-direction + project-stage; README
-  covers the commands.
+- The composed prompt already includes `relay/cli` (the CLI surface) and
+  the other relay/* contexts (mental model, codebase, principles,
+  current-direction, project-stage). For deeper reference, `README.md`
+  has more narrative; `docs/spec.md` has the config / frontmatter / error
+  contracts.
 - Wait for the human to direct. Don't `relay create` of your own
   initiative.
 - If asked for a triage view, run `relay status` and summarize.
