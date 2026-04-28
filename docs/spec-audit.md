@@ -76,7 +76,7 @@ but not described in `spec.md` repo layout. Worth a one-line mention.
 | `mode` (interactive/auto/script, default interactive) | ✅ | `Ticket.mode`. |
 | `owner` | ✅ | `Ticket.owner`. |
 | `assignee` | ✅ | `Ticket.assignee`. |
-| `watchers` (list) | 🟡 | Field is read/written from frontmatter but no `Ticket.watchers` accessor and **no Slack code path uses it** (see §5). |
+| `watchers` (list) | ❌ remove | **Decision (PR review):** delete the field entirely. Vision/spec already use a shared Slack channel where everyone sees everything; per-ticket subscription duplicates that. Owner+assignee auto-tag covers @-mention cases; `relay feed --message "@pierre …"` covers one-offs. Reintroduce later if team grows past ~5. See §5. |
 | `workflow` (frozen `{name, steps[]}`) | ✅ | Snapshot taken at create via `Workflow.freeze()`. |
 | `step` (`"N (step-name)"`, 1-indexed) | ✅ | `Ticket.step_index`, `Ticket.current_step`. |
 | `contexts` (list of paths) | ✅ | `Ticket.contexts`. |
@@ -193,6 +193,13 @@ implied by "scripted use"). Document the actual contract.
 | Composition order (8 layers per spec lines 738-751) | ⚠️ | Layers 1-8 match. Implementation appends a 9th "Task description" section *after* the blackboard (`compose.py:78-81`). Spec puts the description body inside the ticket (already covered by inline-context handling) and lists blackboard as the trailing layer. Either fix the order (move description into the inline-context layer) or update spec to describe it. |
 
 ### `relay step` (`commands/step.py`)
+
+> **Rename pending — PR review decision: `relay step` → `relay bump`.**
+> `step` is overloaded as both noun (frontmatter `step:` field) and
+> verb (the command). `bump` is unambiguously a verb and matches the
+> version-bump mental model. Scope: rename command in `cli.py` +
+> `commands/`, update spec command table + base prompt instructions.
+> Log lines keep "step" as the noun (`"advanced to step N (…)"`).
 
 | Spec | Status | Notes |
 |---|---|---|
@@ -311,18 +318,21 @@ canonical command in `CLAUDE.md`).
 | `relay step` → FYI on advance / completion | ✅ | `step.py:61-76`. |
 | `relay panic` → @mention to owner | ✅ | `panic.py:49-52`. |
 | `relay feed` → FYI | ✅ | `feed.py:40-44`. |
-| Assignee-change notifications | ❌ | No code path observes assignee edits — humans edit the ticket directly. Spec lines 902-903 imply auto-watch and @mention triggers on assignee→human flips. |
-| Status-change notifications | ❌ | Same — no observer when humans flip `status`. |
-| Watchers list additive @mentions | ❌ | `watchers` is in the frontmatter but never read by `slack.py`. |
+| Assignee-change notifications | won't fix | **Decision (PR review):** manual ticket edits stay silent by design. CLI commands keep direct-posting Slack realtime; if a human edits ticket.md in vim, that's the no-notification path. `relay feed --message "reassigned 003 to pierre"` covers explicit announcements. No git hook, no snapshot/diff machinery. |
+| Status-change notifications | won't fix | Same decision as assignee-change row above. |
+| Watchers list additive @mentions | ❌ remove field | **Decision (PR review):** delete the `watchers` field entirely. See §3. |
 | Owner/assignee implicit auto-watch | 🟡 | Owner is @mentioned only on panic. Assignee surfaces by name in step messages. There's no centralized "compute recipients for this event" function. |
 
 ### Slack: take-aways
 
 The Slack feed is the spec's *primary awareness layer*. Today it covers
-the agent-driven events but not the human-driven ones (ticket edits,
-assignee/status flips, watchers). The two open `relay-os/tasks/` tickets
+the agent-driven events; the manual-edit gap is intentionally **not**
+filled (PR review decision — see assignee-change row above). Watchers
+is being removed entirely. The two open `relay-os/tasks/` tickets
 `finish-slack-integration-features` and
-`use-slack-as-a-sync-channel-for-tickets` look targeted at exactly this.
+`use-slack-as-a-sync-channel-for-tickets` should drop watchers /
+manual-edit scope and refocus on remaining gaps (auto-watch fan-out,
+@-mention fallback validation, script-mode failure posts).
 
 ---
 
@@ -502,16 +512,16 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
 
 ### D. Newly surfaced — not yet in spec
 
-17. **Slack notifications for human-driven ticket edits.** Assignee or
-    status change in `ticket.md` (e.g. human-to-human reassignment)
-    isn't mirrored to Slack. Decide between (a) a `relay assign / relay
-    status` companion command that emits the side-effect, (b) git-hook
-    sync, or (c) accept that direct file edits are silent.
-18. **`watchers` field is dead code.** Frontmatter accepts it,
-    validator ignores it, Slack ignores it. Either wire it to
-    `post_mention` recipients or remove.
-19. **`Ticket.watchers` accessor.** Round-tripped via raw frontmatter
-    only. If watchers gain meaning, add the property.
+17. ~~Slack notifications for human-driven ticket edits.~~ **Resolved
+    (PR review):** option (c) — direct file edits stay silent. CLI
+    commands keep direct-posting; manual edits are the human's
+    no-notification path. `relay feed` covers explicit announcements.
+    No git hook, no diff machinery.
+18. ~~`watchers` field is dead code.~~ **Resolved (PR review):**
+    remove the field. Shared Slack channel + owner/assignee auto-tag
+    cover the cases. Reintroduce later if team grows past ~5.
+19. ~~`Ticket.watchers` accessor.~~ **Resolved (PR review):** drops
+    with #18.
 20. **`relay init` is a real CLI surface.** Spec relegates it to "manual
     setup works"; implementation is feature-rich (path, `--update`, venv
     install, symlink wiring, gitignore management). Document.
@@ -533,6 +543,12 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
     title started with `001`. The earlier numeric-counter design was
     explicitly removed; current behavior is fine but worth a sentence
     of guidance ("don't prefix titles with numeric IDs").
+27. **Rename `relay step` → `relay bump`** (PR review decision). `step`
+    is overloaded — frontmatter noun (`step: 1 (implement)`) vs verb
+    (the command). `bump` is unambiguously a verb and matches the
+    version-bump mental model. Scope: rename in `cli.py` +
+    `commands/step.py`, update spec command table + base prompt
+    instructions. Log lines keep "step" as the noun.
 
 ### E. Can defer (per spec, with current state noted)
 
@@ -605,13 +621,20 @@ agent-driven events.
 
 **Functional gaps to wire:**
 
-8. Watchers list → Slack recipients.
-9. Human-driven ticket edits → Slack notifications (the
-   `finish-slack-integration-features` and
-   `use-slack-as-a-sync-channel-for-tickets` tickets in this repo).
+8. ~~Watchers list → Slack recipients.~~ Decided (PR review): remove
+   the `watchers` field entirely.
+9. ~~Human-driven ticket edits → Slack notifications.~~ Decided (PR
+   review): silent by design. `relay feed` covers explicit
+   announcements.
 10. `mode: script` failures → Slack.
 11. dream skill → validator.
-12. Ship `weekly-dream.md` from `init` (or document opt-in).
+12. Ship `weekly-dream.md` from `init` (no opt-in).
+
+**Decided in PR review (to action in next spec pass):**
+
+- Remove `watchers` field entirely (was §D.18, §D.19)
+- Manual ticket edits stay silent — no git hook, no diff logic (was §D.17)
+- Rename `relay step` → `relay bump` (new §D.27)
 
 The implementation is ~90% spec-compliant on happy paths. The remaining
 10% is spread across error paths, Slack human-event coverage, and
