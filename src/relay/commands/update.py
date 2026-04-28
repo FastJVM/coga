@@ -26,6 +26,7 @@ CLI_SRC_SUBPATH = Path("src/relay")
 OBSOLETE_PATHS: tuple[str, ...] = (
     "counter",  # numeric task ID counter, dropped in the slug-only migration
     "meta",  # renamed to bootstrap/ — pre-bootstrap upstreams shipped meta/
+    "skills/bootstrap/create",  # renamed to bootstrap/ticket in 350c4ed
 )
 
 

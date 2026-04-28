@@ -259,6 +259,9 @@ def _seed_local_relay_os(root: Path) -> Path:
     # Stale top-level dir an earlier upstream shipped (meta/ → bootstrap/ rename).
     (relay_os / "meta").mkdir()
     (relay_os / "meta" / "ticket.md").write_text("OLD meta/ shim\n")
+    # Stale nested dir from a bootstrap skill rename (create → ticket in 350c4ed).
+    (relay_os / "skills" / "bootstrap" / "create").mkdir(parents=True)
+    (relay_os / "skills" / "bootstrap" / "create" / "SKILL.md").write_text("OLD bootstrap/create skill\n")
     # Stale `_*` scaffold upstream no longer ships (rename or removal).
     (relay_os / "recurring").mkdir(exist_ok=True)
     (relay_os / "recurring" / "_template_old.md").write_text("STALE recurring template\n")
@@ -324,11 +327,14 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     # Top-level paths upstream once shipped but no longer does are pruned.
     assert not (relay_os / "counter").exists()
     assert not (relay_os / "meta").exists()
+    # Nested obsolete paths (renamed bootstrap skills etc.) are pruned too.
+    assert not (relay_os / "skills" / "bootstrap" / "create").exists()
     # `_*` scaffolds upstream no longer ships are also pruned.
     assert not (relay_os / "recurring" / "_template_old.md").exists()
-    assert "Pruned 3 obsolete path(s)" in result.output
+    assert "Pruned 4 obsolete path(s)" in result.output
     assert "  counter" in result.output
     assert "  meta" in result.output
+    assert "skills/bootstrap/create" in result.output
     assert "recurring/_template_old.md" in result.output
     # User-edited content untouched.
     assert (relay_os / "skills" / "myteam" / "real-skill" / "SKILL.md").read_text() == "user content\n"
