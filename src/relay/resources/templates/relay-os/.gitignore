@@ -10,5 +10,6 @@ relay.local.toml
 # Upstream-managed scaffolding — overwritten on every `relay init --update`.
 # User content lives outside these paths; edits inside will be lost on update.
 bootstrap/
+skills/bootstrap/
 **/_template/
 **/_template.md
