@@ -5,6 +5,10 @@
 
 ---
 
+> **Scope.** This is the public-facing essay — the *why*, written for humans reading about Relay (partners, collaborators, the open-source audience). The agent-loaded, distilled form of the same ideas lives in [`relay-os/contexts/relay/principles/`](../relay-os/contexts/relay/principles/SKILL.md), which is what tickets actually compose into prompts. When the two diverge, `principles` is canon and this doc is narrative.
+
+---
+
 We run FastJVM, a two-person deeptech startup making the JVM faster — a field dominated by Oracle and Google. Pre-revenue, post-reset. Relay is the methodology and tooling we built to run the company after the reset, and it's how we plan to keep running it.
 
 This document describes what Relay is, why it works for us, and why it's hard to duplicate even though we're publishing it in full. Open source, MIT licensed: [github.com/relay-dev/relay](https://github.com/relay-dev/relay).

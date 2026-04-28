@@ -4,6 +4,12 @@ This document merges `relay-spec-v2` and all updates from `relay-spec-updates` i
 
 ---
 
+> **Scope.** Reference contract for config schemas, frontmatter shapes, the foreground command surface, and error/failure tables. Open this when *implementing* config, frontmatter, or CLI changes — it has the detail the contexts don't.
+>
+> The mental model (primitives, planes, prompt composition, locking) lives in [`relay-os/contexts/relay/architecture/`](../relay-os/contexts/relay/architecture/SKILL.md) and is what tickets load at launch. If the two contradict, `architecture` is canon and the spec entry is a bug — file a reconcile ticket rather than implementing from the spec.
+
+---
+
 ## `relay.toml`
 
 ```toml
