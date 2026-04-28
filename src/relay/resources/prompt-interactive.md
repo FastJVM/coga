@@ -17,7 +17,7 @@ A human is present in this terminal. Work with them, not around them.
 - **Still write to the blackboard.** Even with a human present, capture
   decisions and findings. The next session — which may be autonomous —
   needs them.
-- **Slack is still live.** Every `relay step` / `relay feed` / `relay panic`
+- **Slack is still live.** Every `relay bump` / `relay feed` / `relay panic`
   you call posts to the shared channel. Don't spam; treat each call as a
   broadcast.
 

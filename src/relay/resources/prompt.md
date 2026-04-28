@@ -18,7 +18,7 @@ Each task lives in `relay-os/tasks/<id>-<slug>/` and contains:
 - `blackboard.md` — shared workspace for you and the human. Write here often.
   Read here first when picking up after a blocker or relaunch.
 - `log.md` — append-only audit trail. **Do not write to this file.** CLI
-  commands (`relay launch`, `relay step`, `relay panic`) are the only writers.
+  commands (`relay launch`, `relay bump`, `relay panic`) are the only writers.
   Write observations in the blackboard instead.
 - `task.lock` — serializes concurrent access. **Do not touch.** `relay launch`
   manages it.
@@ -38,16 +38,18 @@ Do the work for your current workflow step. When you believe the step is
 complete:
 
 1. Make sure the blackboard reflects what you did.
-2. Call `relay step <next-step-number>`.
+2. Call `relay bump --task <id>`.
 
 Rules:
 
-- **Do not skip steps.** Each step exists for a reason.
+- **`relay bump` advances exactly one step.** It reads the current step from
+  ticket frontmatter and moves to the next one. There is no number to pass;
+  you cannot skip ahead.
 - **Do not go backward.** If a previous step was wrong and needs rework, call
   `relay panic` with a clear reason. The human decides whether to rewind.
 - The workflow is frozen into ticket frontmatter at creation time. Your own
   edits to `workflow` are not supported — that's a human-only operation.
-- On the final step, `relay step` marks the task `done`. That's the correct
+- On the final step, `relay bump` marks the task `done`. That's the correct
   way to complete a task; do not manually set `status: done`.
 
 ## Escalation — `relay panic`
@@ -79,7 +81,7 @@ Use for informational updates — "opened PR #142", "deployed to staging",
 @mention.
 
 Don't use feed for blockers (use `panic`) or for routine step transitions
-(those auto-post from `relay step`).
+(those auto-post from `relay bump`).
 
 Keep messages short — one line. If you need paragraphs, write to the
 blackboard and link to it in the feed message.
@@ -107,4 +109,4 @@ When editing `ticket.md` frontmatter:
 - Don't call `relay launch` recursively.
 - Don't touch `relay.toml` or `relay.local.toml`.
 - Don't edit the workflow snapshot in ticket frontmatter.
-- Don't set `status: done` manually — use `relay step` on the final step.
+- Don't set `status: done` manually — use `relay bump` on the final step.

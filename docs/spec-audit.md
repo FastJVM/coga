@@ -192,24 +192,22 @@ implied by "scripted use"). Document the actual contract.
 | Fail loud on missing context/skill at compose | ❌ | **Real deviation.** `compose.py:57-60` *silently skips* missing context files; `compose.py:127-130` and `:148-151` inline a `*Skill file not found at <path>.*` placeholder and **launch proceeds**. Spec says: *"Error. List the missing references. Do not launch."* (line 765). Create-time validation does fail-fast, but a context that disappears between create and launch slips through. |
 | Composition order (8 layers per spec lines 738-751) | ⚠️ | Layers 1-8 match. Implementation appends a 9th "Task description" section *after* the blackboard (`compose.py:78-81`). Spec puts the description body inside the ticket (already covered by inline-context handling) and lists blackboard as the trailing layer. Either fix the order (move description into the inline-context layer) or update spec to describe it. |
 
-### `relay step` (`commands/step.py`)
+### `relay bump` (`commands/bump.py`)
 
-> **Rename pending — PR review decision: `relay step` → `relay bump`.**
-> `step` is overloaded as both noun (frontmatter `step:` field) and
-> verb (the command). `bump` is unambiguously a verb and matches the
-> version-bump mental model. Scope: rename command in `cli.py` +
-> `commands/`, update spec command table + base prompt instructions.
-> Log lines keep "step" as the noun (`"advanced to step N (…)"`).
+> Renamed from `relay step` (PR review decision). `step` was
+> overloaded as both noun (frontmatter `step:` field) and verb (the
+> command). `bump` is unambiguously a verb and matches the version-bump
+> mental model. Log lines and the `step:` field keep the "step" noun
+> (`"advanced to step N (…)"`).
 
 | Spec | Status | Notes |
 |---|---|---|
-| Positional `<next-step-number>` (1-indexed) | ✅ | `step.py:21-22`. |
+| No positional arg — always advances by one | ✅ | `bump.py` derives next from current `step:`. |
 | `--task` required option | ✅ | |
-| Refuse if task not `active` | ✅ | `step.py:37-38`. |
-| Refuse if no workflow | ✅ | `step.py:40-42`. |
-| Refuse backward movement | ✅ — extra | `step.py:48-49`. Sensible; not in spec. |
+| Refuse if task not `active` | ✅ | |
+| Refuse if no workflow | ✅ | |
 | Update `step` field in ticket | ✅ | |
-| Set `status: done` + release lock on last step | ✅ | `step.py:55-66`. |
+| Set `status: done` + release lock on last step | ✅ | |
 | Append log line `"advanced to step N (step-name)"` or `"task done"` | ✅ | |
 | Slack FYI | ✅ | |
 
@@ -315,7 +313,7 @@ canonical command in `CLAUDE.md`).
 | Falls back to `@<name>` literal if no Slack ID | ⚠️ | Slack does **not** render `@username` as a mention. Either map at config-load time (require a Slack ID for any human assignee) or surface a warning. |
 | `relay create` → FYI "new task created" | ❌ | **Missing.** `commands/create.py:78` only echoes to terminal; no Slack post. Spec line 897 says `relay create` posts a FYI. |
 | `relay launch` → FYI with mode | ✅ | `launch.py:126-130`. |
-| `relay step` → FYI on advance / completion | ✅ | `step.py:61-76`. |
+| `relay bump` → FYI on advance / completion | ✅ | `bump.py`. |
 | `relay panic` → @mention to owner | ✅ | `panic.py:49-52`. |
 | `relay feed` → FYI | ✅ | `feed.py:40-44`. |
 | Assignee-change notifications | won't fix | **Decision (PR review):** manual ticket edits stay silent by design. CLI commands keep direct-posting Slack realtime; if a human edits ticket.md in vim, that's the no-notification path. `relay feed --message "reassigned 003 to pierre"` covers explicit announcements. No git hook, no snapshot/diff machinery. |
@@ -439,7 +437,7 @@ No automatic crash detection. Matches spec.
 |---|---|---|
 | Lock can't be acquired (held) | ✅ | `LockHeldError` includes holder + acquired ts. `--force` to break. |
 | `relay launch mode:script` exits non-zero → log + Slack | 🟡 | Logging done in `launch_script.run_script_mode`; **no Slack notification on script failure**. Spec lines 942-943 require it. |
-| `relay step` on non-active | ✅ | |
+| `relay bump` on non-active | ✅ | |
 | `relay create` with missing context/skill refs | ✅ | Validated in `scaffold_task`. |
 | `relay create` outside a relay-os/ tree | ✅ | `find_repo_root` raises `ConfigError`. |
 | `git push` rejected | n/a | Git is not invoked by the CLI today. |
@@ -498,19 +496,19 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
    document the exit code + blocker-line format
    (`"- [ts] [actor] reason"`).
 9. ~~Step transitions with assignee changes.~~ **Resolved (PR review):**
-   solve via base-prompt discipline now — before calling `relay step`,
+   solve via base-prompt discipline now — before calling `relay bump`,
    if next step is human-driven, agent edits `assignee` in ticket
-   frontmatter and explains in blackboard Notes. `relay step` (or the
+   frontmatter and explains in blackboard Notes. `relay bump` (or the
    future post-event hook) emits the @-mention on the assignee
    transition. No new field, no new flag.
 10. **Task lifecycle transitions.** Spec asks: paused→active preserves
     step? draft→back preserves step? Both: yes per implementation, but
     not asserted by tests. Add tests + freeze in spec.
-11. **Workflow-less tasks.** `relay step` errors on these (`step.py:40`).
+11. **Workflow-less tasks.** `relay bump` errors on these.
     `relay status` shows them with `step` blank. Spec calls this open;
     behavior matches the most natural reading.
 12. **Step field manual edits.** Source of truth is the ticket file; if
-    a human edits `step`, the next `relay step` operates on that value.
+    a human edits `step`, the next `relay bump` operates on that value.
     Document.
 13. ~~`relay status` filters / sorting / format.~~ **Resolved (PR
     review):** defer `--assignee` / `--status` / `--sort` filters
@@ -524,7 +522,7 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
     `script:` in frontmatter; runs from repo root with secrets in env.
     Spec asks for explicit decisions on resolution, working dir, and
     inline-only step error case.
-16. **`relay step`/`panic`/`feed` task inference from cwd.** Today
+16. **`relay bump`/`panic`/`feed` task inference from cwd.** Today
     `--task` is required everywhere. Worth adding cwd inference when
     invoked from inside `relay-os/tasks/<slug>/`.
 
@@ -565,12 +563,10 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
     title started with `001`. The earlier numeric-counter design was
     explicitly removed; current behavior is fine but worth a sentence
     of guidance ("don't prefix titles with numeric IDs").
-27. **Rename `relay step` → `relay bump`** (PR review decision). `step`
-    is overloaded — frontmatter noun (`step: 1 (implement)`) vs verb
-    (the command). `bump` is unambiguously a verb and matches the
-    version-bump mental model. Scope: rename in `cli.py` +
-    `commands/step.py`, update spec command table + base prompt
-    instructions. Log lines keep "step" as the noun.
+27. ~~**Rename `relay step` → `relay bump`**~~ — **landed.** The new
+    command takes no positional arg (always advances by one); bumping
+    past the last step marks `done`. The frontmatter `step:` field name
+    and log-line wording are unchanged.
 
 ### E. Can defer (per spec, with current state noted)
 
@@ -653,7 +649,7 @@ agent-driven events.
 9. Remove `watchers` field entirely (was §D.18 / §D.19).
 10. Manual ticket edits stay silent — no git hook, no diff logic
     (was §D.17).
-11. Rename `relay step` → `relay bump` (new §D.27).
+11. Rename `relay step` → `relay bump` — **landed** (was §D.27).
 12. `mode: script` acquires `task.lock` briefly (was §B.7 sub-bullet).
 13. Agent-to-human handoff via base-prompt discipline (was §C.9).
 14. Ship `weekly-dream.md` installed by default (was §D.25).

@@ -19,9 +19,11 @@ ones that affect implementation:
   blackboard.md, or contexts directly does NOT post to Slack and
   does NOT log. Slack is for agent-driven state transitions only.
   No post-commit hooks watching task files.
-- **`relay step` → `relay bump` (rename pending).** The "advance"
-  semantic stays; the name changes because "step" overloaded with
-  "step in workflow" was confusing. Code change not landed yet.
+- **`relay step` renamed to `relay bump`.** The "advance" semantic
+  stays; the name changed because "step" overloaded with "step in
+  workflow" was confusing. The new command takes no positional arg —
+  it derives the next step from the current `step:` frontmatter and
+  always advances by one. Bumping past the last step marks `done`.
 - **`relay create --check-recurring` is canonical.** No standalone
   `relay recurring` subcommand. Spec L996 still claims absorption
   but spec L684 is the right place.

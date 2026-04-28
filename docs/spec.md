@@ -313,7 +313,7 @@ Key design decisions:
 - **Steps are skills or one-liners.** Same step can be a full skill in one workflow and an inline sentence in another, depending on how much knowledge the agent needs.
 - **Workflows are frozen into tickets at creation.** The ticket gets a snapshot of the workflow, not a reference. In-flight tickets are not affected by workflow changes. For v1, manually edit ticket frontmatter to update a frozen workflow.
 
-When a task uses `--workflow code/with-review`, it starts at step 1. `relay step` moves to the next step. Tasks without a `--workflow` flag have no steps — they move through statuses directly.
+When a task uses `--workflow code/with-review`, it starts at step 1. `relay bump` moves to the next step. Tasks without a `--workflow` flag have no steps — they move through statuses directly.
 
 ---
 
@@ -361,7 +361,7 @@ fix-retry-logic/
 
 **Locks are local-only.** Lock files use file existence on the local filesystem. They serialize concurrent access on a single machine — they do not provide distributed locking across machines. This is sufficient under the one-task-one-worker constraint: if Marc's agent is working on task 003, Pierre's agent is not. Git merge conflicts on lock files are not expected in normal operation. If they occur, delete the lock and re-acquire — the dream/drift validation script covers stale lock detection.
 
-**log.md** is append-only and structured. Written exclusively by CLI commands as a side effect — `relay launch`, `relay step`, `relay panic`, and `relay create` all append to `log.md` when they execute. Agents and humans do not write to `log.md` directly. If agents need to record unstructured observations, they write to the blackboard. Format:
+**log.md** is append-only and structured. Written exclusively by CLI commands as a side effect — `relay launch`, `relay bump`, `relay panic`, and `relay create` all append to `log.md` when they execute. Agents and humans do not write to `log.md` directly. If agents need to record unstructured observations, they write to the blackboard. Format:
 
 ```
 2025-01-14 10:32 [agent:claude1] advanced to step 2 (pr)
@@ -674,7 +674,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 **No magic. Everything exposed.** Every command is callable by a human, even if it's primarily used by agents. There are no hidden internals. If you want to understand what an agent did, you can replay its commands with the same output and side effects. The distinction between "human commands" and "agent commands" is convention — who typically calls them — not access control.
 
-**Foreground and background.** The CLI has a foreground (commands humans reach for daily) and a background (commands agents call, taught by the system prompt). Background commands are fully exposed — a human debugging a stuck task can call `relay step` or `relay panic` manually, see the same output, trigger the same side effects. Nothing is hidden; it's just layered. You learn the foreground first, discover the background when you need it.
+**Foreground and background.** The CLI has a foreground (commands humans reach for daily) and a background (commands agents call, taught by the system prompt). Background commands are fully exposed — a human debugging a stuck task can call `relay bump` or `relay panic` manually, see the same output, trigger the same side effects. Nothing is hidden; it's just layered. You learn the foreground first, discover the background when you need it.
 
 ### Commands
 
@@ -691,7 +691,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 | Command | What it does |
 |---|---|
-| `relay step` | Move task to next workflow step. Logs, notifies Slack. On the last step, marks the task done. |
+| `relay bump` | Advance task one workflow step. Logs, notifies Slack. On the last step, marks the task done. |
 | `relay panic` | Agent is stuck. Write blockers to blackboard, @mention the task owner in Slack, stop. |
 | `relay feed` | Post an informational (FYI) message to the Slack channel. No @mention — just a line in the feed. |
 
@@ -789,18 +789,18 @@ Slack: `@marc — 003 "Fix retry logic" — agent stuck: "429 retry logic unclea
 
 ---
 
-### `relay step` — decided spec
+### `relay bump` — decided spec
 
-`relay step <next-step-number>`
+`relay bump --task <task-id>`
 
-A thin command for side effects. The agent calls this when it completes a workflow step. The intelligence about *when* to call it lives in the relay base prompt, not in the command.
+A thin command for side effects. The agent calls this when it completes a workflow step. The intelligence about *when* to call it lives in the relay base prompt, not in the command. Takes no positional argument — it always advances by exactly one step.
 
 #### Behavior
 
 1. Read the task's current step from ticket frontmatter.
 2. Validate: task status must be `active`. Error if not.
-3. Update the `step` field in ticket.md to the next step.
-4. If this was the last step: set `status: done`, release the lock.
+3. Compute the next step (`current + 1`) and update the `step` field in ticket.md.
+4. If the current step was already the last one: set `status: done`, release the lock.
 5. Append to `log.md` — `"advanced to step N (step-name)"` or `"task done"`.
 6. Post to Slack via `relay feed`: FYI — step transition or task completion.
 
@@ -834,14 +834,14 @@ Checks include:
 
 The relay base prompt is a system prompt injected at the top of every composed prompt by `relay launch`. It teaches the agent how to operate within Relay — not what to do (that comes from skills, contexts, and the ticket), but how to behave as a participant in the system.
 
-This is the most important piece of the spec. When commands like `relay step` were thinned to pure side-effect runners, the base prompt became the brain — it carries the logic about when to advance, when to panic, how to use the blackboard, and how to handle frontmatter.
+This is the most important piece of the spec. When commands like `relay bump` were thinned to pure side-effect runners, the base prompt became the brain — it carries the logic about when to advance, when to panic, how to use the blackboard, and how to handle frontmatter.
 
 ### What the base prompt covers
 
 1. **Identity** — you're an agent working on a ticket inside Relay.
 2. **Files** — what ticket.md, blackboard.md, and log.md are for. Which you read, which you write, which you don't touch.
 3. **Blackboard discipline** — write frequently (plan, findings, decisions, blockers). The blackboard is unstructured by design and is the crash recovery mechanism. An agent that writes to it is recoverable; one that doesn't is not.
-4. **Step transitions** — do the work for your current step. When done, call `relay step`. Do not skip steps. Do not go back. If a previous step needs rework, panic.
+4. **Step transitions** — do the work for your current step. When done, call `relay bump`. Do not go back. If a previous step needs rework, panic.
 5. **Escalation** — call `relay panic` when stuck. Be specific about the reason. Write the blocker to the blackboard before panicking. After panicking, stop.
 6. **Feed** — call `relay feed` for FYI updates. Keep messages short. Do not use feed for blockers.
 7. **YAML discipline** — preserve existing fields, use exact syntax, don't invent formats.
@@ -897,7 +897,7 @@ Messages use two tiers to separate "you need to act" from "FYI":
 |---|---|---|
 | `relay create` | New task created | FYI |
 | `relay launch` | Agent started work on task (includes mode) | FYI |
-| `relay step` | Task moved to next step (or completed on last step) | FYI |
+| `relay bump` | Task moved to next step (or completed on last step) | FYI |
 | `relay panic` | Agent stuck, needs human | @mention to task owner |
 | `relay feed` | Custom FYI message from agent (e.g. "opened PR #142") | FYI |
 
@@ -905,7 +905,7 @@ Ticket-related notifications (assignment changes, status changes) follow the sam
 
 ### Notification logic lives in the CLI
 
-The agent calls `relay step`, etc. as normal. The CLI decides what to post and whether to @mention. Agents never reason about what's worth notifying — the commands themselves are the notification hooks.
+The agent calls `relay bump`, etc. as normal. The CLI decides what to post and whether to @mention. Agents never reason about what's worth notifying — the commands themselves are the notification hooks.
 
 ### Delivery
 
@@ -940,8 +940,8 @@ Every CLI command can fail. The spec describes happy paths — this section defi
 **General principles:**
 
 - **Fail loud, fail early.** CLI exits with a non-zero code and a human-readable error message. No silent failures. No partial state changes — if a multi-step command fails partway, it should either roll back or leave a clear trail of what completed and what didn't.
-- **Agents see errors too.** When an agent calls `relay step` or `relay panic` and it fails, the agent sees the stderr output. Error messages should be actionable enough that an agent can log the failure and flag it, or retry if appropriate.
-- **Slack gets notified on failures that matter.** If `relay launch` fails with `mode: script` (script exits non-zero), or `relay step` fails on an active task, post to the Slack feed so the human knows.
+- **Agents see errors too.** When an agent calls `relay bump` or `relay panic` and it fails, the agent sees the stderr output. Error messages should be actionable enough that an agent can log the failure and flag it, or retry if appropriate.
+- **Slack gets notified on failures that matter.** If `relay launch` fails with `mode: script` (script exits non-zero), or `relay bump` fails on an active task, post to the Slack feed so the human knows.
 
 **Specific failure cases:**
 
@@ -949,12 +949,12 @@ Every CLI command can fail. The spec describes happy paths — this section defi
 |---|---|
 | Lock can't be acquired (already held) | Error with holder identity and acquisition time. Agent/human decides whether to wait or force. `--force` flag to break stale locks. |
 | `relay launch` with `mode: script` exits non-zero | Log the failure to log.md. Post to Slack. Task stays at current step. |
-| `relay step` on a non-active task | Error. Task must be `active` to advance. |
+| `relay bump` on a non-active task | Error. Task must be `active` to advance. |
 | `relay create` with missing context/skill references | Error. List the missing references. Do not create the task. |
 | `relay create` outside a `relay-os/` tree | Error. The CLI requires a `relay-os/` somewhere in an ancestor directory. |
 | `git push` rejected | Show the git error. Suggest `git pull --rebase` then retry. Do not auto-resolve. |
 
-Note: `relay step` on the last step is not an error — it marks the task `done` and notifies. See `relay step` spec.
+Note: `relay bump` on the last step is not an error — it marks the task `done` and notifies. See `relay bump` spec.
 
 ---
 
@@ -987,7 +987,7 @@ Items to evaluate after v1 is built and used. Not designed yet.
 
 **`relay reassign`** — removed. Human-to-human reassignment is done by editing the `assignee` field in ticket frontmatter directly. Agent escalation is handled by `relay panic`.
 
-**`relay done`** — absorbed into `relay step`. Stepping past the final step sets status to `done` and notifies.
+**`relay done`** — absorbed into `relay bump`. Bumping past the final step sets status to `done` and notifies.
 
 **`relay log`** — removed from CLI. Log entries are written by CLI commands as internal side effects. Agents and humans do not write to `log.md` directly — use the blackboard for unstructured observations.
 
@@ -1001,7 +1001,7 @@ Items to evaluate after v1 is built and used. Not designed yet.
 
 **`relay sync`** — removed. Was a ghost reference in the error model with no spec. Git push/pull is manual.
 
-**`relay advance`** — renamed to `relay step`. Thinned to a side-effect command (update step field, log, notify Slack). The intelligence about when to advance lives in the relay base prompt, not the command.
+**`relay advance`** — renamed to `relay bump`. Thinned to a side-effect command (update step field, log, notify Slack). The intelligence about when to advance lives in the relay base prompt, not the command.
 
 ---
 
@@ -1037,7 +1037,7 @@ The command's arguments are not defined. Open questions:
 Lock format is defined (holder + acquired timestamp, file-existence based). The acquire/release lifecycle is not. Open questions:
 
 - When is the lock acquired? By `relay launch`? By the first CLI command the agent calls?
-- When is it released? On process exit? On `relay step` to `done`? On `relay panic`?
+- When is it released? On process exit? On `relay bump` to `done`? On `relay panic`?
 - What happens on Ctrl+C in interactive mode — is release tied to a signal handler?
 - Does `mode: script` acquire a lock?
 - Stale lock detection threshold — how long before the dream/drift script considers a lock stale?
@@ -1058,7 +1058,7 @@ Described briefly but not at the level of `relay launch`. Missing:
 
 #### Step transitions with assignee changes
 
-When `relay step` advances to a step where a different person should take over (e.g. implement → approve), what happens? Does the system prompt teach the agent to reassign? Does `relay step` handle it? This is especially important for the approve step pattern.
+When `relay bump` advances to a step where a different person should take over (e.g. implement → approve), what happens? Does the system prompt teach the agent to reassign? Does `relay bump` handle it? This is especially important for the approve step pattern.
 
 #### Task lifecycle transitions
 
@@ -1069,7 +1069,7 @@ When `relay step` advances to a step where a different person should take over (
 #### Workflow-less tasks
 
 - Tasks without a `workflow` field use simple status transitions (no steps).
-- Interaction with `relay step` (error? no-op?).
+- Interaction with `relay bump` (error? no-op?).
 - How do they appear in `relay status`?
 
 #### `step` field management
@@ -1107,7 +1107,7 @@ Listed as a background command but has no spec beyond the base prompt descriptio
 
 `--task` (and the positional arg on `relay launch`) accepts an exact slug or any unique prefix. Exact matches win even when the arg is also a prefix of a longer slug. Ambiguous prefixes error with all matches listed (`Ambiguous task ref 'fix-': matches fix-retry-logic, fix-timeout-handling. Use a longer prefix to disambiguate.`).
 
-Open: should `relay step`, `relay panic`, `relay feed` infer the task from the current working directory (e.g. when invoked from inside `relay-os/tasks/<slug>/`) instead of always requiring `--task`?
+Open: should `relay bump`, `relay panic`, `relay feed` infer the task from the current working directory (e.g. when invoked from inside `relay-os/tasks/<slug>/`) instead of always requiring `--task`?
 
 ### Can defer — resolve during or after 3-month internal use
 

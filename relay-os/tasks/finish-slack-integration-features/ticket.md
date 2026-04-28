@@ -20,7 +20,7 @@ gaps, and finish the integration so it's reliable and useful.
 - Single webhook configured via `[slack] webhook = "..."` in `relay.toml`.
 - When no webhook is configured, messages go to `stderr` prefixed with
   `[slack]`. When a post fails, the error also goes silently to stderr.
-- Callers today: `step.py`, `launch.py`, `launch_script.py`, `feed.py`,
+- Callers today: `bump.py`, `launch.py`, `launch_script.py`, `feed.py`,
   `panic.py`. Each posts FYI or @mention; no threading.
 
 ## Known / suspected gaps

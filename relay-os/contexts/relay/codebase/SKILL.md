@@ -22,7 +22,7 @@ review bars.
 - `src/relay/` (other modules) — testable logic. `compose.py`
   builds the prompt. `slack.py` posts. `config.py` loads config.
   `launch.py` / `launch_script.py` run agents. `feed.py` posts to
-  Slack feed. `panic.py` surfaces agent distress. `step.py`
+  Slack feed. `panic.py` surfaces agent distress. `bump.py`
   advances workflow steps. `validate.py` checks repo consistency.
 - `tests/` — pytest. Run with `python -m pytest`.
 - `example/` — seeded fixture used by tests. **Update this when

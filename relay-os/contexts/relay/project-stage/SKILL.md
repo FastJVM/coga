@@ -18,13 +18,15 @@ non-tester users, this context gets deleted, not edited.
   directory layout can change on a whim if the new design is
   better. No RFC, no migration window. Just change it and update
   affected tickets/configs in place.
-- Renaming `relay step` to `relay bump` is fine. Renaming
-  `task.lock` to `lock` is fine. Moving `contexts/` to live next
-  to tasks would be fine if the design were better.
+- Renaming `task.lock` to `lock` is fine. Moving `contexts/` to
+  live next to tasks would be fine if the design were better.
+  (We already shipped one such rename — `relay step` → `relay bump`
+  — without ceremony.)
 
 ## No backwards-compat hacks
 
-- No deprecation shims (`relay step` calling into `relay bump`).
+- No deprecation shims (e.g. an old command name calling into the
+  new one).
 - No `_legacy` fields kept around "in case."
 - No migration scripts for ticket frontmatter — edit the few
   existing tickets by hand.

@@ -191,16 +191,16 @@ relay status                              # active work
 relay status --all                        # include closed tasks
 ```
 
-### `relay step <NEXT> --task <slug>`
+### `relay bump --task <slug>`
 
-Advance a workflow-bound task to the next step (1-indexed), or finish it.
-Updates the ticket's `step:` field and appends a log entry. The workflow
-itself is frozen into the ticket at create time, so step semantics don't
-drift mid-task.
+Advance a workflow-bound task one step. Updates the ticket's `step:`
+field and appends a log entry. Bumping past the last step marks the task
+`done`. The workflow itself is frozen into the ticket at create time, so
+step semantics don't drift mid-task.
 
 ```sh
-relay step 2 --task add-retry                       # move to step 2
-relay step done --task add-retry                    # mark workflow complete
+relay bump --task add-retry                         # advance one step
+relay bump --task add-retry                         # again, until past the last → done
 ```
 
 ### `relay panic --task <slug> --reason "..."`

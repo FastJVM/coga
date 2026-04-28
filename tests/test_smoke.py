@@ -3,7 +3,7 @@
 Verifies:
 - `relay create` scaffolds a task with a frozen workflow snapshot.
 - Prompt composition includes every expected section.
-- `relay step` advances and `relay step <final>` marks the task done.
+- `relay bump` advances and bumping past the last step marks the task done.
 - `relay panic` writes to blackboard + releases the lock.
 - `relay feed` logs a message.
 - `relay status` lists the active task.
@@ -71,17 +71,12 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Interactive mode" in prompt
     assert "Blackboard" in prompt
 
-    # 3. Advance steps.
+    # 3. Advance steps. Workflow has 4 steps; bumping from step 4 marks done.
     runner = CliRunner()
     slug = ref["slug"]
-    r = runner.invoke(app, ["step", "2", "--task", slug])
-    assert r.exit_code == 0, r.output
-    r = runner.invoke(app, ["step", "3", "--task", slug])
-    assert r.exit_code == 0
-    r = runner.invoke(app, ["step", "4", "--task", slug])
-    assert r.exit_code == 0
-    r = runner.invoke(app, ["step", "5", "--task", slug])
-    assert r.exit_code == 0, r.output
+    for _ in range(4):
+        r = runner.invoke(app, ["bump", "--task", slug])
+        assert r.exit_code == 0, r.output
     assert read_ticket(task_ref).status == "done"
 
     # Lifecycle shows up in log.md

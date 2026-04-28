@@ -39,7 +39,7 @@ to tune the next one.
   configured channel. Config: `[notifications.slack]` in `relay.toml`,
   webhook URL via `env:SLACK_WEBHOOK` (per the secrets-in-local-toml rule
   in `vision.md`).
-- **Trigger.** `relay step` on transition to `done` auto-launches
+- **Trigger.** `relay bump` on transition to `done` auto-launches
   `bootstrap/retro` on the same task. The retro runs *after* the task
   lock is released — it's post-completion analysis, not part of execution.
 - **Granularity.** One retro PR per task. Cheaper to review than a batched
@@ -47,9 +47,9 @@ to tune the next one.
 
 ## Open questions
 
-- Does retro run synchronously inside `relay step`, or async via a
+- Does retro run synchronously inside `relay bump`, or async via a
   background queue? Synchronous is simpler; async avoids stalling the
-  human waiting for `step` to return.
+  human waiting for `bump` to return.
 - Skip retro for trivially-small tickets? (e.g. fewer than N steps, or no
   blackboard activity.) Probably yes — retros on one-line tickets are
   noise.

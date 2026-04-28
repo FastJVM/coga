@@ -13,7 +13,7 @@ from relay.commands import launch as launch_cmd
 from relay.commands import panic as panic_cmd
 from relay.commands import recurring as recurring_cmd
 from relay.commands import status as status_cmd
-from relay.commands import step as step_cmd
+from relay.commands import bump as bump_cmd
 from relay.commands.update import read_pin
 from relay.config import ConfigError, find_repo_root
 
@@ -61,7 +61,7 @@ app.command("init")(init_cmd.init)
 app.command("create")(create_cmd.create)
 app.command("launch")(launch_cmd.launch)
 app.command("status")(status_cmd.status)
-app.command("step")(step_cmd.step)
+app.command("bump")(bump_cmd.bump)
 app.command("panic")(panic_cmd.panic)
 app.command("feed")(feed_cmd.feed)
 app.add_typer(recurring_cmd.app, name="recurring")
