@@ -78,14 +78,14 @@ This is idempotent — running `--check-recurring` twice inside the same period 
 
 - `relay launch` acquires `task.lock` at start. Writes `holder: <assignee>` and `acquired: <ISO-8601 UTC>`.
 - If the lock exists, error with holder + age. `--force` overrides (prints a warning).
-- `relay create`, `relay step`, `relay feed`, `relay panic` do **not** acquire the lock. They're short writes; the one-task-one-worker invariant and the running `relay launch` are sufficient serialization for the POC.
+- `relay create`, `relay bump`, `relay feed`, `relay panic` do **not** acquire the lock. They're short writes; the one-task-one-worker invariant and the running `relay launch` are sufficient serialization for the POC.
 
 ### Release
 
 Three paths, all of which release:
 
 1. **Normal exit** — `relay launch` installs a try/finally and signal handlers (SIGINT, SIGTERM) that delete `task.lock` on exit. Covers interactive Ctrl+C, auto run completion, script exit.
-2. **Terminal step** — `relay step` on the last step releases as a safety net (status flipping to `done` implies nothing else should hold the lock).
+2. **Terminal step** — `relay bump` on the last step releases as a safety net (status flipping to `done` implies nothing else should hold the lock).
 3. **Panic** — `relay panic` releases. The agent is stopping; holding the lock blocks a human relaunch.
 
 ### Script mode

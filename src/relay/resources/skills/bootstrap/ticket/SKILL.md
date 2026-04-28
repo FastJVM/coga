@@ -105,7 +105,7 @@ If a gap is too speculative to commit to a file, write it to
 Edit `ticket.md` in place. YAML discipline (from the base prompt) applies:
 
 - Add `workflow:` if you picked one — use the workflow name (e.g.
-  `code/with-review`); `relay step` will freeze the snapshot when the human
+  `code/with-review`); `relay bump` will freeze the snapshot when the human
   launches.
 - Add `contexts:` as a YAML list (one item per line with `- `).
 - Update `assignee:` only if it changed.
@@ -117,7 +117,7 @@ Edit `ticket.md` in place. YAML discipline (from the base prompt) applies:
 - Fill the `## Description` and `## Context` body sections from the
   interview.
 
-Do not call `relay step`. There's no workflow running yet.
+Do not call `relay bump`. There's no workflow running yet.
 
 ## Step 6 — Run the evaluator review
 

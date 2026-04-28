@@ -1,4 +1,4 @@
-"""`relay step` — advance to next workflow step (or mark done)."""
+"""`relay bump` — advance one workflow step (or mark done)."""
 
 from __future__ import annotations
 
@@ -17,11 +17,10 @@ from relay.tasks import (
 )
 
 
-def step(
-    next_step: int = typer.Argument(..., help="Next step number (1-indexed)."),
+def bump(
     task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
 ) -> None:
-    """Advance to the next workflow step (or mark done)."""
+    """Advance one workflow step (or mark done if past the last step)."""
     try:
         cfg = load_config()
     except ConfigError as exc:
@@ -44,16 +43,12 @@ def step(
     steps = wf["steps"]
     total = len(steps)
     current_idx = ticket.step_index() or 0
-
-    if next_step < current_idx or next_step < 1:
-        _bail(f"Cannot move backward (current step {current_idx}, requested {next_step}).")
-    if next_step > total + 1:
-        _bail(f"Workflow has {total} steps; can advance at most to {total + 1} (done).")
+    next_step = current_idx + 1
 
     actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
 
-    if next_step == total + 1 or (next_step == total and current_idx == total):
-        # Crossed the final step: mark done.
+    if current_idx >= total:
+        # Already on the final step: bump marks done.
         ticket.frontmatter["status"] = "done"
         ticket.write(ref.path / "ticket.md")
         append_log(ref.path, actor, "task done")

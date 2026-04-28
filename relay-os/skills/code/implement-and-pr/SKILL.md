@@ -32,7 +32,7 @@ ticket reassigned to the human owner.
 9. **Hand off.** Edit the ticket's `assignee:` frontmatter to the
    ticket's `owner:` (the human who created it). Add the PR URL to the
    blackboard with a one-line note.
-10. **Advance.** Run `relay step` to move the workflow to `review`. This
+10. **Advance.** Run `relay bump` to move the workflow to `review`. This
     posts to Slack and logs the handoff.
 
 ## Acceptance for this step
@@ -43,7 +43,7 @@ You are done when:
   noted on the blackboard with a reason).
 - The ticket's `assignee` is the human owner.
 - The blackboard has the PR URL.
-- `relay step` has advanced the workflow to `review`.
+- `relay bump` has advanced the workflow to `review`.
 
 ## What this skill does NOT do
 

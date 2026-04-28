@@ -10,4 +10,4 @@ steps:
 ## review
 
 Human reviews the open PR. Edit, request changes locally, or merge when
-satisfied. After merging, run `relay step` to mark the task done.
+satisfied. After merging, run `relay bump` to mark the task done.
