@@ -23,4 +23,4 @@ clean exit. All other side effects (blackboard blocker, log line, Slack
 
 ## PR
 
-Will be added once `gh pr create` runs.
+https://github.com/FastJVM/relay/pull/47 — open, awaiting human review.

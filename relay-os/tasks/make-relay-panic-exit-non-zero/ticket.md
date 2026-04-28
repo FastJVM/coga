@@ -1,21 +1,21 @@
 ---
 title: Make relay panic exit non-zero
-status: draft
+status: done
 mode: interactive
 owner: nick
 assignee: nick
 contexts:
-  - relay/architecture
-  - relay/principles
-  - relay/codebase
-  - relay/current-direction
-  - relay/project-stage
+- relay/architecture
+- relay/principles
+- relay/codebase
+- relay/current-direction
+- relay/project-stage
 workflow:
   name: code/with-review
   steps:
-    - name: implement
-      skill: code/implement-and-pr
-    - name: review
+  - name: implement
+    skill: code/implement-and-pr
+  - name: review
 step: 1 (implement)
 ---
 
