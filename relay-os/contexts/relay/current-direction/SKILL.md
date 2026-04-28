@@ -29,6 +29,11 @@ ones that affect implementation:
   reports stale locks but doesn't auto-clean. Dream/drift removes.
 - **Slack fallback for missing user IDs is a bug.** No silent
   `@<name>` plaintext fallback. Validate at config load.
+- **`relay launch` auto-activates drafts.** Running launch on a
+  `draft` ticket flips it to `active` and logs the transition.
+  No separate `relay activate` command. Bootstrap-skill tickets
+  (top-level `skill:` ref) are exempt — they stay `draft` until
+  the human launches the real ticket.
 
 ## Open ticket queue (the 7 audit-driven bugs)
 

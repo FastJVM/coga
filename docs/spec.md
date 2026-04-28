@@ -558,6 +558,8 @@ The dream/drift validation script reads the `acquired` timestamp to detect stale
 
 **Launch** Relay made to be used with a human or autonomously. In human mode, it will launch a terminal with the prompt loaded already.
 
+**Launch is the approval gesture.** A `draft` task flips to `active` automatically when `relay launch` runs against it — running the launch *is* the human saying "go." The transition is logged. Re-launching an already-`active` task is a no-op on status. Bootstrap-skill tickets (those carrying a top-level `skill:` ref) are exempt: the bootstrap skill leaves them at `draft` so the *next* launch on the real ticket is the approval. `paused` tasks are not launchable at all — flip them manually to `active` or `draft` first.
+
 
 
 ### Crash recovery
