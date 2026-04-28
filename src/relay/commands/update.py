@@ -113,11 +113,14 @@ def refresh_cli(clone_dir: Path, relay_os: Path) -> None:
 def refresh_templates(clone_dir: Path, relay_os: Path) -> tuple[list[str], list[str]]:
     """Refresh relay-owned scaffolds under `relay_os/` from the clone.
 
-    Three things are treated as upstream-owned (always overwritten on update):
+    Four things are treated as upstream-owned (always overwritten on update):
       - `_*` template scaffolds (`_template/` etc.)
       - `bootstrap/` shims and the `skills/bootstrap/` skills they reference —
         relay-owned infra, not user content. Mirrored as a unit by
         `_copy_bootstrap`.
+      - `contexts/relay/{architecture,principles,cli}/` — the canonical
+        relay-the-tool contexts that ship with relay. Mirrored by
+        `_copy_relay_contexts`.
       - `.gitignore` — must track upstream so new ignore entries land in
         existing repos without manual edits.
 
@@ -134,6 +137,7 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> tuple[list[str], list[
         sys.exit(2)
     copied = _copy_templates(src_root, relay_os)
     copied.extend(_copy_bootstrap(src_root, relay_os))
+    copied.extend(_copy_relay_contexts(src_root, relay_os))
     copied.extend(_copy_upstream_files(src_root, relay_os))
     pruned = _prune_removed_templates(src_root, relay_os)
     return copied, pruned
@@ -466,8 +470,35 @@ def _copy_bootstrap(src_root: Path, dst_root: Path) -> list[str]:
     namespaces — they'll be pruned. Custom skills go elsewhere under
     `skills/` (e.g. `skills/code/...`).
     """
+    return _wholesale_mirror(src_root, dst_root, ("bootstrap", "skills/bootstrap"))
+
+
+# Canonical relay-the-tool contexts: same content shipped to every relay-os/.
+# Other namespaces under `contexts/` are user-owned and never touched here.
+_RELAY_OWNED_CONTEXTS: tuple[str, ...] = (
+    "contexts/relay/architecture",
+    "contexts/relay/principles",
+    "contexts/relay/cli",
+)
+
+
+def _copy_relay_contexts(src_root: Path, dst_root: Path) -> list[str]:
+    """Mirror the canonical `contexts/relay/*` contexts from upstream.
+
+    These describe relay-the-tool (mental model, principles, CLI surface) and
+    ship as-is to every relay-os/ so the `bootstrap/orient` shim's references
+    resolve. User-authored contexts under other `contexts/<namespace>/` paths
+    are untouched.
+    """
+    return _wholesale_mirror(src_root, dst_root, _RELAY_OWNED_CONTEXTS)
+
+
+def _wholesale_mirror(
+    src_root: Path, dst_root: Path, rels: tuple[str, ...]
+) -> list[str]:
+    """Wipe-and-copy each `rel` from `src_root` into `dst_root`. Skip missing srcs."""
     copied: list[str] = []
-    for rel in ("bootstrap", "skills/bootstrap"):
+    for rel in rels:
         src = src_root / rel
         if not src.is_dir():
             continue
