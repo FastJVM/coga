@@ -363,27 +363,93 @@ def _prune_removed_templates(src_root: Path, dst_root: Path) -> list[str]:
     return pruned
 
 
-_UPSTREAM_OWNED_FILES: tuple[str, ...] = (
-    ".gitignore",
+RELAY_GITIGNORE_BEGIN = "# >>> relay-managed >>>"
+RELAY_GITIGNORE_END = "# <<< relay-managed <<<"
+_RELAY_GITIGNORE_HEADER = (
+    "# Managed by `relay init [--update]`. Don't edit between these markers —\n"
+    "# they will be overwritten on update. Add your own ignore rules below the\n"
+    "# end marker.\n"
 )
 
 
 def _copy_upstream_files(src_root: Path, dst_root: Path) -> list[str]:
-    """Overwrite a fixed set of upstream-managed root files (e.g. `.gitignore`).
+    """Refresh upstream-managed root files inside `dst_root`.
 
-    These aren't covered by the `_*` glob but must track upstream so changes
-    propagate into existing repos on `relay init --update`.
+    Currently just `.gitignore`, which is merged into a relay-managed marker
+    block — preserving any user-added entries outside the block and deduping
+    entries the user may have copied in before the block existed.
     """
-    copied: list[str] = []
-    for rel in _UPSTREAM_OWNED_FILES:
-        src = src_root / rel
-        if not src.is_file():
-            continue
-        dst = dst_root / rel
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
-        copied.append(rel)
-    return copied
+    if _refresh_relay_gitignore(src_root, dst_root):
+        return [".gitignore"]
+    return []
+
+
+def _refresh_relay_gitignore(src_root: Path, dst_root: Path) -> bool:
+    """Insert/refresh the relay-managed block in `relay-os/.gitignore`.
+
+    Pattern mirrors `ensure_host_gitignore`: the block is fenced by markers
+    and replaced wholesale on each update; lines outside the markers are
+    user-owned and preserved. Lines outside the block that exactly match a
+    managed entry are dropped — handles repos that predate the marker
+    convention or had the upstream content copied in directly.
+
+    Returns True iff the file was modified.
+    """
+    src = src_root / ".gitignore"
+    if not src.is_file():
+        return False
+
+    upstream_text = src.read_text()
+    body = _RELAY_GITIGNORE_HEADER + upstream_text
+    if not body.endswith("\n"):
+        body += "\n"
+    block = f"{RELAY_GITIGNORE_BEGIN}\n{body}{RELAY_GITIGNORE_END}\n"
+
+    dst = dst_root / ".gitignore"
+    existing = dst.read_text() if dst.is_file() else ""
+
+    begin = existing.find(RELAY_GITIGNORE_BEGIN)
+    if begin == -1:
+        # Pre-marker file (or fresh repo). Treat the whole thing as user
+        # content, dedupe against managed entries, and prepend the block.
+        managed_entries = _parse_gitignore_entries(upstream_text)
+        deduped = _drop_matching_lines(existing, managed_entries)
+        if deduped and not deduped.endswith("\n"):
+            deduped += "\n"
+        new = block + (("\n" + deduped) if deduped else "")
+    else:
+        end = existing.find(RELAY_GITIGNORE_END, begin)
+        if end == -1:
+            new = existing[:begin] + block
+        else:
+            end += len(RELAY_GITIGNORE_END)
+            if end < len(existing) and existing[end] == "\n":
+                end += 1
+            new = existing[:begin] + block + existing[end:]
+
+    if new == existing:
+        return False
+    dst.write_text(new)
+    return True
+
+
+def _parse_gitignore_entries(text: str) -> set[str]:
+    """Return the set of non-comment, non-blank lines in a gitignore body."""
+    return {
+        line.strip()
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+
+
+def _drop_matching_lines(text: str, drop: set[str]) -> str:
+    """Remove lines whose stripped form is in `drop`. Preserves other content."""
+    kept = [
+        line
+        for line in text.splitlines(keepends=True)
+        if line.strip() not in drop
+    ]
+    return "".join(kept)
 
 
 def _copy_bootstrap(src_root: Path, dst_root: Path) -> list[str]:

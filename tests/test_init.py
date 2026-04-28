@@ -591,10 +591,15 @@ def test_ensure_host_gitignore_replaces_malformed_block(tmp_path: Path) -> None:
 def test_init_update_refreshes_inner_gitignore(
     tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`--update` must overwrite relay-os/.gitignore so new entries land in existing repos."""
+    """`--update` writes the relay-managed marker block, dropping any duplicates
+    of managed entries the user copied in before the marker convention existed,
+    while leaving non-managed user lines alone."""
     relay_os = _seed_local_relay_os(tmp_path)
-    # Stale inner gitignore from an older upstream — missing bootstrap/ etc.
-    (relay_os / ".gitignore").write_text("relay.local.toml\n.relay/\n")
+    # Stale pre-marker gitignore: some upstream entries copied directly,
+    # plus a user-added rule that should survive the update.
+    (relay_os / ".gitignore").write_text(
+        "relay.local.toml\n.relay/\nbootstrap/\nmy-custom-ignore/\n"
+    )
     monkeypatch.chdir(relay_os)
 
     real_run = subprocess.run
@@ -617,9 +622,53 @@ def test_init_update_refreshes_inner_gitignore(
     assert result.exit_code == 0, result.output
 
     gi = (relay_os / ".gitignore").read_text()
+    # Marker block present and contains all upstream-managed entries.
+    assert update_cmd.RELAY_GITIGNORE_BEGIN in gi
+    assert update_cmd.RELAY_GITIGNORE_END in gi
     assert "bootstrap/" in gi
     assert "_template/" in gi
     assert "_template.md" in gi
+    # User-added rule survives outside the block.
+    assert "my-custom-ignore/" in gi
+    # Duplicates of managed entries that were in the user area get removed.
+    after_block = gi.split(update_cmd.RELAY_GITIGNORE_END, 1)[1]
+    assert "bootstrap/" not in after_block
+    assert "relay.local.toml" not in after_block
+    assert ".relay/" not in after_block
+
+
+def test_refresh_relay_gitignore_is_idempotent(tmp_path: Path) -> None:
+    """Running the refresh twice on the same input is a no-op."""
+    src_root = tmp_path / "upstream"
+    src_root.mkdir()
+    (src_root / ".gitignore").write_text("bootstrap/\n.relay/\n")
+    dst_root = tmp_path / "relay-os"
+    dst_root.mkdir()
+
+    assert update_cmd._refresh_relay_gitignore(src_root, dst_root) is True
+    first = (dst_root / ".gitignore").read_text()
+    assert update_cmd._refresh_relay_gitignore(src_root, dst_root) is False
+    assert (dst_root / ".gitignore").read_text() == first
+
+
+def test_refresh_relay_gitignore_replaces_existing_block(tmp_path: Path) -> None:
+    """An existing marker block is replaced wholesale; user content outside is kept."""
+    src_root = tmp_path / "upstream"
+    src_root.mkdir()
+    (src_root / ".gitignore").write_text("bootstrap/\n.relay/\nnew-entry/\n")
+    dst_root = tmp_path / "relay-os"
+    dst_root.mkdir()
+    # Existing file: stale marker block + user-area content.
+    (dst_root / ".gitignore").write_text(
+        f"{update_cmd.RELAY_GITIGNORE_BEGIN}\nold-stale-entry/\n"
+        f"{update_cmd.RELAY_GITIGNORE_END}\n\nuser-rule/\n"
+    )
+
+    assert update_cmd._refresh_relay_gitignore(src_root, dst_root) is True
+    text = (dst_root / ".gitignore").read_text()
+    assert "old-stale-entry/" not in text
+    assert "new-entry/" in text
+    assert "user-rule/" in text
 
 
 def test_init_update_fails_loudly_if_clone_fails(
