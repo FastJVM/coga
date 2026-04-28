@@ -455,9 +455,12 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
 
 ### A. Fix-or-document spec contradictions
 
-1. **`relay recurring check` vs `relay create --check-recurring`.** Spec
-   describes both, only the first exists. `cron.sh` calls the second
-   (broken). Pick one and update the other side.
+1. ~~`relay recurring check` vs `relay create --check-recurring`.~~
+   **Resolved (PR review):** keep `relay recurring check` (current
+   code). Action: delete the "absorbed into `relay create
+   --check-recurring`" line at spec line 996; fix the three `cron.sh`
+   copies (`src/relay/resources/cron.sh`, `src/relay/resources/templates/relay-os/scripts/cron.sh`,
+   live `relay-os/scripts/cron.sh`).
 2. **Blackboard default template.** Spec body shows full
    Plan/Notes/Findings/Blockers/Decisions skeleton; spec narrative
    argues for minimal; `resources/blackboard.md` is minimal. Update
@@ -465,30 +468,41 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
 3. **Composition order layer 9.** Spec lists 8 layers ending with
    blackboard; implementation appends a 9th `## Task description`. Move
    description into the inline-context layer or extend spec to 9.
-4. **Missing context/skill at launch.** Spec error table says fail
-   loud; compose silently skips/placeholders. **NEW** — fix compose to
-   match spec, or update spec to allow soft skip.
-5. **`relay create` posts to Slack.** Spec table says yes; implementation
-   doesn't. **NEW** — wire it or remove from the spec table.
+4. ~~Missing context/skill at launch.~~ **Resolved (PR review):** fix
+   the code, not the spec. `compose.py` raises on missing context/skill
+   at launch (matches existing spec error table). Add a test asserting
+   fail-loud. Vision flags this as the silent-wrong-answers failure
+   mode — top of the bug list.
+5. ~~`relay create` posts to Slack.~~ **Resolved (PR review):** drop
+   the row from the spec Slack table at line 897. Default flow's
+   auto-launch of `bootstrap/ticket` already emits a launch FYI on the
+   common path; a separate "task created" post is double-notification.
 
 ### B. Resolve before next milestone (spec called these blocking)
 
 6. **`relay create` arg interface.** Today: `relay create "<title>" [-d desc] [--no-launch]`. Spec asks for definitive list of fields auto-set vs CLI args. Document.
 7. **Lock lifecycle precision.** Acquire/release events for each command
-   (covered for normal tasks; spec says open). Decide:
-   - Does `mode: script` acquire a lock? (Today: no.)
-   - Stale-lock threshold default — currently 24h hard-coded; surface as a flag and document.
+   (covered for normal tasks; spec says open). Decisions:
+   - **Resolved (PR review):** `mode: script` acquires `task.lock`
+     briefly during execution. One-task-one-worker invariant holds
+     across all modes.
+   - Stale-lock threshold default — currently 24h hard-coded; surface
+     as a flag and document.
    - Spec mentions Ctrl+C signal handler — present (`launch.py:141-146`); add to spec.
 
 ### C. Resolve when convenient (spec called these non-blocking)
 
-8. **`relay panic`:** does it set `status: paused`? format of blocker
-   line? exit code semantics for the agent? Today: status untouched,
-   exit 0, line format `"- [ts] [actor] reason"`.
-9. **Step transitions with assignee changes.** When the next step
-   should be done by a different person, who reassigns? Today: nothing
-   does — base prompt teaches the agent to write into Notes and panic
-   if it can't proceed. Codify.
+8. ~~`relay panic` semantics.~~ **Resolved (PR review):** status stays
+   untouched (no auto-paused). Exit code becomes non-zero so parent
+   agent processes detect via exit, not stdout parsing. Spec to
+   document the exit code + blocker-line format
+   (`"- [ts] [actor] reason"`).
+9. ~~Step transitions with assignee changes.~~ **Resolved (PR review):**
+   solve via base-prompt discipline now — before calling `relay step`,
+   if next step is human-driven, agent edits `assignee` in ticket
+   frontmatter and explains in blackboard Notes. `relay step` (or the
+   future post-event hook) emits the @-mention on the assignee
+   transition. No new field, no new flag.
 10. **Task lifecycle transitions.** Spec asks: paused→active preserves
     step? draft→back preserves step? Both: yes per implementation, but
     not asserted by tests. Add tests + freeze in spec.
@@ -498,8 +512,12 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
 12. **Step field manual edits.** Source of truth is the ticket file; if
     a human edits `step`, the next `relay step` operates on that value.
     Document.
-13. **`relay status` filters / sorting / format.** None implemented;
-    Rich table wraps poorly on narrow terminals (**NEW**).
+13. ~~`relay status` filters / sorting / format.~~ **Resolved (PR
+    review):** defer `--assignee` / `--status` / `--sort` filters
+    (premature for 2-person team / ~10-task ceiling). Action: fix the
+    narrow-terminal title wrap (pre-truncate to terminal width or flat
+    one-line-per-task fallback under 80 cols). Filters revisit if a
+    single repo crosses 15+ active tasks.
 14. **`relay feed` format & limits.** Today posts
     `"<assignee>: <msg> (<slug>)"` — pin format; add length cap.
 15. **Script mode execution path.** Today: skill must declare
@@ -528,16 +546,20 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
 21. **Vendored `.relay/` directory.** `relay init` installs an isolated
     venv + vendored CLI source under `relay-os/.relay/`. Not mentioned
     in the repo-layout tree (spec lines 90-150).
-22. **Slack fallback `@<username>` is non-functional** (Slack only honors
-    `<@USERID>`). Today's fallback prints text only. Either require
-    Slack IDs for all humans or document the limitation.
+22. ~~Slack fallback `@<username>` is non-functional.~~ **Resolved (PR
+    review):** at `Config` load time, require `slack = "U…"` on any
+    user appearing as `owner` or human `assignee`. Refuse to post /
+    warn loudly on stderr if missing. Drop the broken `@nick` text
+    fallback.
 23. **`relay launch` script-mode failures don't post to Slack.** Spec
     requires it (lines 942-943).
 24. **Validator → dream wiring.** Spec implies dream calls the
     validator; implementation has both as separate pieces.
-25. **`weekly-dream.md` recurring template not installed by `init`.**
-    Only `_template.md` scaffolds get copied into a fresh repo. Either
-    ship the live recurring or note that users opt in.
+25. ~~`weekly-dream.md` recurring template not installed by `init`.~~
+    **Resolved (PR review):** `relay init` drops `weekly-dream.md` into
+    `relay-os/recurring/` by default (alongside `_template.md`
+    scaffolds). No opt-in. Vision discipline section is binding —
+    skipping invites the drift it warns against.
 26. **Slug containing all digits / pure-digit titles.** `slugify("001")
     → "001"`; tasks like `001-pin-...` exist in this repo because the
     title started with `001`. The earlier numeric-counter design was
@@ -552,15 +574,15 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
 
 ### E. Can defer (per spec, with current state noted)
 
-27. **Archival of done tasks** — none; `--all` flag on `status` already
+28. **Archival of done tasks** — none; `--all` flag on `status` already
     hides them by default.
-28. **Task dependencies** — none; freeform on blackboard.
-29. **Context/skill staleness** — only via dream skill review.
-30. **Git merge conflicts** — manual. One-task-one-worker keeps this
+29. **Task dependencies** — none; freeform on blackboard.
+30. **Context/skill staleness** — only via dream skill review.
+31. **Git merge conflicts** — manual. One-task-one-worker keeps this
     rare.
-31. **Prompt-size detection** — none.
-32. **Blackboard pruning** — none. Git history is the archive.
-33. **Temp-file cleanup on crash** — relies on `/tmp` being ephemeral
+32. **Prompt-size detection** — none.
+33. **Blackboard pruning** — none. Git history is the archive.
+34. **Temp-file cleanup on crash** — relies on `/tmp` being ephemeral
     plus signal handlers in normal exits.
 
 ---
@@ -604,38 +626,56 @@ both base prompt mode blocks, validator, recurring scheduling,
 bootstrap/ticket shim, init (fresh + update), Slack feed for
 agent-driven events.
 
-**Bugs to fix:**
+**Bugs to fix (PR-review-confirmed):**
 
 1. `cron.sh` calls non-existent `relay create --check-recurring`.
-2. Compose silently swallows missing context/skill refs at launch time.
-3. `relay create` doesn't post a "new task" FYI to Slack despite spec
-   requiring it.
-4. Slack fallback `@<name>` doesn't actually @-mention.
+   Resolution: keep `relay recurring check`, fix the three cron.sh
+   copies, drop the absorbed-into-create line at spec line 996.
+2. Compose silently swallows missing context/skill refs at launch.
+   Resolution: fix the code to fail loud (matches spec error table).
+3. ~~`relay create` Slack post.~~ Resolution: don't add — drop the row
+   from spec line 897. Auto-launch FYI already covers it.
+4. Slack `@<name>` fallback doesn't @-mention. Resolution: validate
+   `slack` field at config load for any user that gets @-mentioned;
+   drop the broken text fallback.
+5. `relay launch mode:script` failures don't post to Slack
+   (spec requires it).
+6. `relay panic` returns 0 — should be non-zero.
 
 **Spec contradictions to settle:**
 
-5. Recurring command name (`relay recurring check` vs `relay create
-   --check-recurring`).
-6. Blackboard default template (full skeleton vs minimal).
-7. Composition order — 8 layers in spec, 9 in code.
+7. Blackboard default template (full skeleton vs minimal — spec body
+   vs spec narrative).
+8. Composition order — 8 layers in spec, 9 in code.
 
-**Functional gaps to wire:**
+**Functional changes (PR-review decided):**
 
-8. ~~Watchers list → Slack recipients.~~ Decided (PR review): remove
-   the `watchers` field entirely.
-9. ~~Human-driven ticket edits → Slack notifications.~~ Decided (PR
-   review): silent by design. `relay feed` covers explicit
-   announcements.
-10. `mode: script` failures → Slack.
-11. dream skill → validator.
-12. Ship `weekly-dream.md` from `init` (no opt-in).
+9. Remove `watchers` field entirely (was §D.18 / §D.19).
+10. Manual ticket edits stay silent — no git hook, no diff logic
+    (was §D.17).
+11. Rename `relay step` → `relay bump` (new §D.27).
+12. `mode: script` acquires `task.lock` briefly (was §B.7 sub-bullet).
+13. Agent-to-human handoff via base-prompt discipline (was §C.9).
+14. Ship `weekly-dream.md` installed by default (was §D.25).
+15. Fix `relay status` narrow-terminal title-wrap; defer filters
+    (was §C.13).
 
-**Decided in PR review (to action in next spec pass):**
+**Still open (no decision yet):**
 
-- Remove `watchers` field entirely (was §D.18, §D.19)
-- Manual ticket edits stay silent — no git hook, no diff logic (was §D.17)
-- Rename `relay step` → `relay bump` (new §D.27)
+- Blackboard template shape (§A.2)
+- Composition order — 8 vs 9 layers (§A.3)
+- `relay create` arg interface documentation (§B.6)
+- Stale-lock threshold as a flag (§B.7)
+- Task lifecycle transitions and step-field manual edits docs
+  (§C.10–12)
+- `relay feed` format & limits (§C.14)
+- Script-mode execution path details (§C.15)
+- cwd-based task inference for `step`/`panic`/`feed` (§C.16)
+- Spec-document `relay init` (§D.20) and vendored `.relay/` (§D.21)
+- Validator → dream wiring (§D.24)
+- Slug pure-digit guidance (§D.26)
 
 The implementation is ~90% spec-compliant on happy paths. The remaining
 10% is spread across error paths, Slack human-event coverage, and
-self-bootstrapping wiring.
+self-bootstrapping wiring — most of it now decided in this PR's review
+threads and queued for the next spec pass.
