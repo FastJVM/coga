@@ -131,6 +131,57 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert not Path(calls[0][2]).exists()
 
 
+def test_launch_flips_draft_to_active(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    from relay.ticket import Ticket
+    t = Ticket.read(ref.path / "ticket.md")
+    t.frontmatter["status"] = "draft"
+    t.write(ref.path / "ticket.md")
+
+    class _Result:
+        returncode = 0
+
+    monkeypatch.setattr(
+        "relay.commands.launch.subprocess.run",
+        lambda cmd, env=None, check=False: _Result(),
+    )
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+
+    t = Ticket.read(ref.path / "ticket.md")
+    assert t.frontmatter["status"] == "active"
+
+    log = (ref.path / "log.md").read_text()
+    assert "activated (draft → active)" in log
+    assert "launched in interactive mode" in log
+
+
+def test_launch_active_stays_active(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Re-launching an already-active task does not re-log activation."""
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+
+    class _Result:
+        returncode = 0
+
+    monkeypatch.setattr(
+        "relay.commands.launch.subprocess.run",
+        lambda cmd, env=None, check=False: _Result(),
+    )
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+
+    log = (ref.path / "log.md").read_text()
+    assert "activated" not in log
+
+
 def test_launch_rejects_non_launchable_status(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Flip status to paused — only draft/active are launchable.
     cfg = load_config(active_task)

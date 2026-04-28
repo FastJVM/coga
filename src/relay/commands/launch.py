@@ -107,6 +107,19 @@ def launch(
                 f"{exc}\nPass --force to break the lock (e.g. after a crashed session)."
             )
 
+    # Launching is the approval gesture: a draft becomes active.
+    # Skip for tickets carrying a top-level skill ref (bootstrap-style):
+    # the bootstrap skill leaves the new task as `draft` so the human's
+    # *next* launch is what approves the real work (spec L611).
+    if not is_bootstrap and not ticket.skill and ticket.status == "draft":
+        ticket.frontmatter["status"] = "active"
+        ticket.write(ref.path / "ticket.md")
+        append_log(
+            ref.path,
+            f"human:{cfg.current_user}",
+            "activated (draft → active)",
+        )
+
     # Compose & write prompt.
     prompt = compose_prompt(cfg, ref, ticket)
     prompt_file = write_prompt_file(prompt, ref)
