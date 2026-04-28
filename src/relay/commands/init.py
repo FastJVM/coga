@@ -20,6 +20,7 @@ import typer
 
 from relay.commands.update import (
     TEMPLATE_SUBPATH,
+    _refresh_relay_gitignore,
     clone_upstream,
     ensure_host_gitignore,
     install_venv,
@@ -91,6 +92,10 @@ def _do_init(path: Path) -> None:
             sys.exit(2)
 
         shutil.copytree(upstream_templates, relay_os)
+        # `.gitignore` shipped verbatim by copytree; wrap it in the
+        # relay-managed marker block so `init --update` later only touches
+        # the fenced region and leaves user additions alone.
+        _refresh_relay_gitignore(upstream_templates, relay_os)
         refresh_cli(clone_dir, relay_os)
         sha = upstream_sha(clone_dir)
 
