@@ -13,7 +13,7 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-.venv/
+.venv*/
 venv/
 
 # OS
@@ -22,5 +22,9 @@ venv/
 
 # Env files
 .env*
+
+# Local agent / tooling state
+.claude/
+.codex
 
 
