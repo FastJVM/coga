@@ -1,6 +1,14 @@
 # Claude Instructions
 
-Read [docs/vision.md](/home/n/Code/relay/docs/vision.md) and [docs/spec.md](/home/n/Code/relay/docs/spec.md) before changing behavior. `vision.md` explains the non-negotiables: Relay is a markdown-first, git-backed, locally operated company OS optimized for legibility and a short human correction loop. `spec.md` is the contract for config layout, task structure, workflows, skills, contexts, and agent integration.
+Primary references — read these first:
+
+- [`relay-os/contexts/relay/`](/home/n/Code/relay/relay-os/contexts/relay/) — the agent-loaded mental model. `principles` (non-negotiables, fail-loud, classical mode), `architecture` (primitives, planes, composition, locking), `codebase` (where source lives + how to test), `current-direction` (open decisions), `project-stage` (stage-specific posture). These are the *same* contexts that get composed into every launched ticket — they are canon for day-to-day reasoning.
+- [`README.md`](/home/n/Code/relay/README.md) — CLI surface: `relay init / create / launch / status / bump / panic / feed / recurring`. One-screen reference per command.
+
+Deeper reference (open when relevant):
+
+- [`docs/spec.md`](/home/n/Code/relay/docs/spec.md) — reference contract: config schemas, frontmatter shapes, error/failure tables. Use when implementing config or CLI changes. The architecture context is canon if the two disagree.
+- [`docs/vision.md`](/home/n/Code/relay/docs/vision.md) — public-facing essay. The `principles` context is the working form.
 
 Implementation rules:
 - Keep Typer command entrypoints in `src/relay/commands/` thin; move reusable logic into testable modules under `src/relay/`.
