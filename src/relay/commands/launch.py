@@ -140,6 +140,7 @@ def launch(
         cfg,
         f"{cfg.current_user}'s {assignee} started work on "
         f"{ref.id_slug} \"{ticket.title}\" ({mode})",
+        task_path=ref.path,
     )
 
     # Install a signal-safe cleanup.
