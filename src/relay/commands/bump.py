@@ -37,15 +37,25 @@ def bump(
         _bail(f"Task {ref.id_slug} is {ticket.status!r}. Cannot advance.")
 
     wf = ticket.workflow
+    actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
+
+    # No workflow → bump marks done. The only "step" is the whole ticket.
     if not wf or not wf.get("steps"):
-        _bail(f"Task {ref.id_slug} has no workflow steps.")
+        ticket.frontmatter["status"] = "done"
+        ticket.write(ref.path / "ticket.md")
+        append_log(ref.path, actor, "task done")
+        TaskLock(ref.path).release()
+        post(
+            cfg,
+            f"{ref.id_slug} \"{ticket.title}\" done ✓",
+        )
+        typer.echo(f"{ref.id_slug}: done")
+        return
 
     steps = wf["steps"]
     total = len(steps)
     current_idx = ticket.step_index() or 0
     next_step = current_idx + 1
-
-    actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
 
     if current_idx >= total:
         # Already on the final step: bump marks done.

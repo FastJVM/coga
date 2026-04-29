@@ -345,7 +345,7 @@ Key design decisions:
 - **Steps are skills or one-liners.** Same step can be a full skill in one workflow and an inline sentence in another, depending on how much knowledge the agent needs.
 - **Workflows are frozen into tickets at creation.** The ticket gets a snapshot of the workflow, not a reference. In-flight tickets are not affected by workflow changes. For v1, manually edit ticket frontmatter to update a frozen workflow.
 
-When a task uses `--workflow code/with-review`, it starts at step 1. `relay bump` moves to the next step. Tasks without a `--workflow` flag have no steps — they move through statuses directly.
+When a task uses `--workflow code/with-review`, it starts at step 1. `relay bump` moves to the next step. Tasks without a `--workflow` flag have no steps — `relay bump` marks them `done` directly (the whole ticket is the only "step").
 
 ---
 
@@ -723,7 +723,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 | Command | What it does |
 |---|---|
-| `relay bump` | Advance task one workflow step. Logs, notifies Slack. On the last step, marks the task done. |
+| `relay bump` | Advance task one workflow step. Logs, notifies Slack. On the last step (or on a workflow-less ticket), marks the task done. |
 | `relay panic` | Agent is stuck. Write blockers to blackboard, post a Slack message naming the task owner, stop. |
 | `relay feed` | Post an informational (FYI) message to the Slack channel. |
 

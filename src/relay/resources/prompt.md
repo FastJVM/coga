@@ -51,6 +51,10 @@ Rules:
   edits to `workflow` are not supported — that's a human-only operation.
 - On the final step, `relay bump` marks the task `done`. That's the correct
   way to complete a task; do not manually set `status: done`.
+- **Tickets without a workflow.** If the ticket has no `workflow:` field,
+  there are no steps. When you finish the work, call `relay bump --task <id>`
+  anyway — it marks the task `done` directly. Do not set `status: done` by
+  hand.
 
 ## Escalation — `relay panic`
 
