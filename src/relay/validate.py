@@ -2,7 +2,7 @@
 
 Run as a module:
 
-    python -m relay.validate [--json] [--max-lock-hours N]
+    python -m relay.validate [--json] [--max-lock-hours N] [--check-slack]
 
 Checks:
 - Task dirs have ticket.md, blackboard.md, log.md.
@@ -12,6 +12,7 @@ Checks:
 - Ticket context refs point to files that exist.
 - Assignees referenced in tickets exist in relay.toml.
 - Status values are from the valid set.
+- (Opt-in) Slack webhook reachability via an empty-text probe.
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+import requests
 
 from relay.config import Config, ConfigError, load_config
 from relay.lock import TaskLock
@@ -51,8 +54,31 @@ class Report:
 # --- engine -------------------------------------------------------------------
 
 
-def run(cfg: Config, max_lock_hours: float = 24.0, idle_hours: float = 72.0) -> Report:
+def run(
+    cfg: Config,
+    max_lock_hours: float = 24.0,
+    idle_hours: float = 72.0,
+    check_slack: bool = False,
+) -> Report:
     report = Report(generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    if check_slack and cfg.slack_webhook:
+        status, detail = probe_slack(cfg.slack_webhook)
+        if status == "live":
+            pass  # ok — leave it implicit so JSON output stays clean
+        elif status == "revoked":
+            report.issues.append(Issue(
+                kind="slack-revoked",
+                task="(slack)",
+                message=f"webhook URL not recognized by Slack: {detail}",
+                severity="error",
+            ))
+        else:  # unreachable
+            report.issues.append(Issue(
+                kind="slack-unreachable",
+                task="(slack)",
+                message=f"could not reach Slack: {detail}",
+                severity="error",
+            ))
     refs = list_tasks(cfg)
 
     assignee_names = set(cfg.assignees)
@@ -146,8 +172,37 @@ def run(cfg: Config, max_lock_hours: float = 24.0, idle_hours: float = 72.0) -> 
                         severity="warn",
                     ))
 
-    report.ok_count = len(refs) - len({i.task for i in report.issues if i.severity == "error"})
+    report.ok_count = len(refs) - len({i.task for i in report.issues if i.severity == "error" and i.task != "(slack)"})
     return report
+
+
+# --- slack probe -------------------------------------------------------------
+
+
+def probe_slack(webhook_url: str) -> tuple[str, str]:
+    """POST an empty-text payload to a Slack webhook and classify the response.
+
+    Returns (status, detail) where status is one of:
+      "live"        — Slack received the request (any 2xx/4xx that isn't a 404
+                      or a `no_service` body)
+      "revoked"     — webhook URL not recognized (HTTP 404 or `no_service`)
+      "unreachable" — network-level failure or 5xx
+
+    Slack's incoming-webhook wire format isn't pinned by contract; the
+    implementation matches by `in` rather than equality so minor body changes
+    don't break things.
+    """
+    try:
+        resp = requests.post(webhook_url, json={"text": ""}, timeout=5)
+    except requests.RequestException as exc:
+        return "unreachable", f"{type(exc).__name__}: {exc}"
+
+    body = resp.text.strip()[:200]
+    if resp.status_code == 404 or "no_service" in body:
+        return "revoked", f"HTTP {resp.status_code}: {body!r}"
+    if 200 <= resp.status_code < 500:
+        return "live", f"HTTP {resp.status_code}: {body!r}"
+    return "unreachable", f"HTTP {resp.status_code}: {body!r}"
 
 
 # --- CLI entry ----------------------------------------------------------------
@@ -158,6 +213,11 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
     parser.add_argument("--max-lock-hours", type=float, default=24.0)
     parser.add_argument("--idle-hours", type=float, default=72.0)
+    parser.add_argument(
+        "--check-slack",
+        action="store_true",
+        help="Also probe the Slack webhook with an empty-text payload (network call).",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -166,7 +226,12 @@ def _main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"{exc}\n")
         return 2
 
-    report = run(cfg, max_lock_hours=args.max_lock_hours, idle_hours=args.idle_hours)
+    report = run(
+        cfg,
+        max_lock_hours=args.max_lock_hours,
+        idle_hours=args.idle_hours,
+        check_slack=args.check_slack,
+    )
 
     if args.json:
         payload: dict[str, Any] = {

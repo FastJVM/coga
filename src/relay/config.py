@@ -102,7 +102,7 @@ def load_config(repo_root: Path | None = None) -> Config:
     default_status = shared.get("default_status", "draft")
     agents = _parse_agents(shared.get("agents", {}))
     assignees = _parse_assignees(shared.get("assignees", {}))
-    slack_webhook = (shared.get("slack") or {}).get("webhook")
+    slack_webhook = (shared.get("slack") or {}).get("webhook") or os.environ.get("SLACK_WEBHOOK_URL")
     aliases = _parse_aliases(shared.get("aliases", {}))
 
     current_user = local.get("user")

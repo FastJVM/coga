@@ -206,6 +206,15 @@ Use it for "heads up, deploy started", "tests still flaky", non-blocker
 context that the team should see but doesn't need to react to. Posts to
 stderr if `[slack].webhook` isn't configured.
 
+The webhook can also come from `$SLACK_WEBHOOK_URL` — useful when
+multiple apps on the same machine post through one Slack app config.
+The `[slack].webhook` value in `relay.toml` takes precedence when both
+are set. Run `relay validate --check-slack` to probe the webhook (POSTs
+an empty-text payload that Slack rejects without posting to the
+channel) so a dead URL surfaces at config time. Failures after retries
+land in `relay-os/.slack-failures.log` and are summarized as a footer
+line on `relay status`.
+
 ```sh
 relay feed --task add-retry --message "Pushed branch, waiting on CI"
 ```
