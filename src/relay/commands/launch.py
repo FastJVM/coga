@@ -216,7 +216,7 @@ def build_agent_command(agent, mode: str, prompt: str, prompt_file: Path) -> lis
     # Only when the agent takes the prompt as a file — otherwise the prompt
     # itself was already passed positionally as the user turn.
     if mode == "interactive" and takes_file:
-        cmd.append("Begin.")
+        cmd.append("Make it so.")
     return cmd
 
 
