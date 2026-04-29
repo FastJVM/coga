@@ -29,6 +29,11 @@ mode = "local"
 
 # --- Slack ---
 # Omit `webhook` to run without real Slack posts (messages go to stderr).
+# If `webhook` is not set here, relay falls back to `$SLACK_WEBHOOK_URL`
+# from the environment — point multiple apps at the same env var to share
+# one Slack app config. The toml value (when present) takes precedence.
+# `relay validate --check-slack` probes the webhook so dead URLs surface
+# at config time, not at first `bump`.
 
 # [slack]
 # webhook = "https://hooks.slack.com/services/xxx"

@@ -6,12 +6,14 @@ from textwrap import dedent
 
 import pytest
 
+import requests
+
 from relay.scaffold import scaffold_task
 from relay.config import load_config
 from relay.lock import TaskLock
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
-from relay.validate import run
+from relay.validate import probe_slack, run
 
 
 def _write(path: Path, text: str) -> None:
@@ -125,6 +127,84 @@ def test_missing_file(repo: Path) -> None:
     (ref.path / "blackboard.md").unlink()
     report = run(cfg)
     assert any(i.kind == "missing-file" and "blackboard" in i.message for i in report.issues)
+
+
+class _FakeResponse:
+    def __init__(self, status_code: int, text: str = "") -> None:
+        self.status_code = status_code
+        self.text = text
+
+
+def _fake_post_factory(response: _FakeResponse | Exception):
+    def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    return fake_post
+
+
+def test_probe_slack_live(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "relay.validate.requests.post",
+        _fake_post_factory(_FakeResponse(400, "no_text")),
+    )
+    status, detail = probe_slack("https://hooks.slack.com/services/x")
+    assert status == "live"
+    assert "400" in detail
+
+
+def test_probe_slack_revoked_by_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "relay.validate.requests.post",
+        _fake_post_factory(_FakeResponse(404, "no_service")),
+    )
+    status, _ = probe_slack("https://hooks.slack.com/services/x")
+    assert status == "revoked"
+
+
+def test_probe_slack_unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "relay.validate.requests.post",
+        _fake_post_factory(requests.ConnectionError("dns fail")),
+    )
+    status, detail = probe_slack("https://hooks.slack.com/services/x")
+    assert status == "unreachable"
+    assert "ConnectionError" in detail
+
+
+def test_run_check_slack_emits_issue_for_revoked(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Add slack webhook to the repo's config.
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
+    )
+    monkeypatch.setattr(
+        "relay.validate.requests.post",
+        _fake_post_factory(_FakeResponse(404, "no_service")),
+    )
+    cfg = load_config(repo)
+    report = run(cfg, check_slack=True)
+    kinds = [i.kind for i in report.issues]
+    assert "slack-revoked" in kinds
+
+
+def test_run_no_slack_check_by_default(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
+    )
+
+    def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("network must not be called when --check-slack is off")
+
+    monkeypatch.setattr("relay.validate.requests.post", boom)
+    cfg = load_config(repo)
+    run(cfg)  # must not raise
 
 
 def test_stuck_active_flagged(repo: Path) -> None:

@@ -8,7 +8,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from relay.config import ConfigError, load_config
+from relay.config import Config, ConfigError, load_config
+from relay.slack import FAILURES_LOG
 from relay.tasks import list_tasks, read_ticket
 from relay.ticket import TicketError
 
@@ -53,6 +54,26 @@ def status(
 
     if rows == 0:
         typer.echo("(no tasks)")
-        return
+    else:
+        Console().print(table)
 
-    Console().print(table)
+    _print_slack_failures_footer(cfg)
+
+
+def _print_slack_failures_footer(cfg: Config) -> None:
+    """If the slack-failures log exists and is non-empty, print a footer line."""
+    log_path = cfg.repo_root / FAILURES_LOG
+    try:
+        with log_path.open("r", encoding="utf-8") as f:
+            count = sum(1 for line in f if line.strip())
+    except FileNotFoundError:
+        return
+    except OSError:
+        return
+    if count == 0:
+        return
+    rel = log_path.relative_to(cfg.repo_root.parent) if log_path.is_relative_to(cfg.repo_root.parent) else log_path
+    typer.secho(
+        f"⚠ {count} Slack post failures — see {rel}",
+        fg=typer.colors.YELLOW,
+    )
