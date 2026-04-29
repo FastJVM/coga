@@ -28,3 +28,11 @@ venv/
 .codex
 
 
+
+# >>> relay-managed >>>
+# Managed by `relay init [--update]`. Don't edit between these markers —
+# they will be overwritten. Symlinks below are created by `relay init` so
+# agent CLIs (Claude Code, Codex) can discover relay-os/skills/.
+.claude/skills/relay
+.codex/skills/relay
+# <<< relay-managed <<<
