@@ -61,24 +61,35 @@ def run(
     check_slack: bool = False,
 ) -> Report:
     report = Report(generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
-    if check_slack and cfg.slack_webhook:
-        status, detail = probe_slack(cfg.slack_webhook)
-        if status == "live":
-            pass  # ok — leave it implicit so JSON output stays clean
-        elif status == "revoked":
+    if check_slack:
+        if not cfg.slack_enabled:
+            # Honor the opt-out — don't pretend to validate something that's off.
+            pass
+        elif not cfg.slack_webhook:
             report.issues.append(Issue(
-                kind="slack-revoked",
+                kind="slack-misconfigured",
                 task="(slack)",
-                message=f"webhook URL not recognized by Slack: {detail}",
+                message="$SLACK_WEBHOOK_URL is not set (relay requires it unless [slack].enabled = false)",
                 severity="error",
             ))
-        else:  # unreachable
-            report.issues.append(Issue(
-                kind="slack-unreachable",
-                task="(slack)",
-                message=f"could not reach Slack: {detail}",
-                severity="error",
-            ))
+        else:
+            status, detail = probe_slack(cfg.slack_webhook)
+            if status == "live":
+                pass  # ok — leave it implicit so JSON output stays clean
+            elif status == "revoked":
+                report.issues.append(Issue(
+                    kind="slack-revoked",
+                    task="(slack)",
+                    message=f"webhook URL not recognized by Slack: {detail}",
+                    severity="error",
+                ))
+            else:  # unreachable
+                report.issues.append(Issue(
+                    kind="slack-unreachable",
+                    task="(slack)",
+                    message=f"could not reach Slack: {detail}",
+                    severity="error",
+                ))
     refs = list_tasks(cfg)
 
     assignee_names = set(cfg.assignees)

@@ -155,6 +155,25 @@ def _do_init(path: Path) -> None:
     for i, step in enumerate(steps, 1):
         typer.echo(f"  {i}. {step}")
 
+    _print_slack_state(local_toml)
+
+
+def _print_slack_state(local_toml: Path) -> None:
+    """End-of-init line on Slack — set ✓, unset ⚠. Doesn't gate the init."""
+    typer.echo("")
+    if os.environ.get("SLACK_WEBHOOK_URL"):
+        typer.secho("✓ Slack: $SLACK_WEBHOOK_URL is set — relay will post.", fg=typer.colors.GREEN)
+        return
+    typer.secho(
+        "⚠ Slack: $SLACK_WEBHOOK_URL is not set. Relay requires it for the team\n"
+        "  sync point — bump/feed/panic/launch will refuse to run until you export it.\n"
+        "  To opt out (solo runs, dev/test), add to "
+        f"{local_toml}:\n"
+        "      [slack]\n"
+        "      enabled = false",
+        fg=typer.colors.YELLOW,
+    )
+
 
 def _do_update() -> None:
     relay_os = find_repo_root()

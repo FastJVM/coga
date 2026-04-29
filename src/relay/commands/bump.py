@@ -45,12 +45,14 @@ def bump(
         ticket.write(ref.path / "ticket.md")
         append_log(ref.path, actor, "task done")
         TaskLock(ref.path).release()
+        # Echo before post: state has already changed; if slack crashes the
+        # user still sees the local outcome on stdout before the error on stderr.
+        typer.echo(f"{ref.id_slug}: done")
         post(
             cfg,
             f"{ref.id_slug} \"{ticket.title}\" done ✓",
             task_path=ref.path,
         )
-        typer.echo(f"{ref.id_slug}: done")
         return
 
     steps = wf["steps"]
@@ -64,25 +66,25 @@ def bump(
         ticket.write(ref.path / "ticket.md")
         append_log(ref.path, actor, "task done")
         TaskLock(ref.path).release()
+        typer.echo(f"{ref.id_slug}: done")
         post(
             cfg,
             f"{ref.id_slug} \"{ticket.title}\" done ✓",
             task_path=ref.path,
         )
-        typer.echo(f"{ref.id_slug}: done")
         return
 
     new_step_name = steps[next_step - 1]["name"]
     ticket.frontmatter["step"] = f"{next_step} ({new_step_name})"
     ticket.write(ref.path / "ticket.md")
     append_log(ref.path, actor, f"advanced to step {next_step} ({new_step_name})")
+    typer.echo(f"{ref.id_slug}: step {next_step} ({new_step_name})")
     post(
         cfg,
         f"{ticket.assignee or cfg.current_user} advanced "
         f"{ref.id_slug} to step {next_step} ({new_step_name})",
         task_path=ref.path,
     )
-    typer.echo(f"{ref.id_slug}: step {next_step} ({new_step_name})")
 
 
 def _bail(msg: str) -> None:

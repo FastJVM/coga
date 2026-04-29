@@ -58,7 +58,8 @@ stuck states, not routine handoffs.
 ## relay feed --task \<slug\> --message "..."
 
 Post a short FYI to the team Slack channel without changing task state.
-Falls back to stderr if `[slack].webhook` isn't configured.
+Slack is required (see `relay/sync`); commands crash if `$SLACK_WEBHOOK_URL`
+is unset and the user hasn't opted out via `[slack].enabled = false`.
 
 ## relay recurring check
 

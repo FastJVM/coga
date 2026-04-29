@@ -1,14 +1,19 @@
-"""Slack webhook poster.
+"""Slack webhook poster — relay's sync point with humans.
 
-When a webhook is configured (via `[slack] webhook` in relay.toml or the
-`$SLACK_WEBHOOK_URL` env-var fallback), every call POSTs JSON `{text: ...}`.
-Otherwise messages are written to stderr prefixed with `[slack]` so dev/test
-runs still surface the traffic.
+Slack is required by default for multi-user coordination: agents and CLI
+commands post here so teammates see state changes as they happen. A silent
+FYI becomes a stale mental model on the human side, so failures crash
+loudly rather than degrade.
 
-On failure, the error goes to stderr (the human at the terminal sees it).
-When called with a `task_path`, the failure is also appended to that task's
-`log.md` — so daemon / scheduled / scripted runs leave a durable record
-even when nobody's watching stderr.
+Three branches:
+  - `slack_enabled = False` (opt-out via `[slack].enabled = false` in
+    `relay.local.toml`) — every call writes to stderr, never crashes. The
+    cost is being out of the sync loop.
+  - `enabled` + no webhook — crash with a message pointing the user at
+    `$SLACK_WEBHOOK_URL` and the opt-out.
+  - `enabled` + webhook — POST. On any RequestException, append to the
+    task's `log.md` (when `task_path` is given) and crash so the caller
+    sees the failure.
 """
 
 from __future__ import annotations
@@ -17,16 +22,28 @@ import sys
 from pathlib import Path
 
 import requests
+import typer
 
 from relay.config import Config
 from relay.logfile import append_log
 
 
 def post(cfg: Config, message: str, *, task_path: Path | None = None) -> None:
-    """Post a message to the configured Slack channel (or stderr fallback)."""
-    if not cfg.slack_webhook:
-        sys.stderr.write(f"[slack] {message}\n")
+    """Post a message to Slack, or crash trying.
+
+    See module docstring for the three branches and why we crash.
+    """
+    if not cfg.slack_enabled:
+        sys.stderr.write(f"[slack] disabled (post suppressed): {message}\n")
         return
+
+    if not cfg.slack_webhook:
+        sys.stderr.write(
+            "[slack] $SLACK_WEBHOOK_URL is not set. "
+            "Export it, or opt out with [slack].enabled = false in relay.local.toml.\n"
+        )
+        raise typer.Exit(1)
+
     try:
         requests.post(
             cfg.slack_webhook,
@@ -37,6 +54,7 @@ def post(cfg: Config, message: str, *, task_path: Path | None = None) -> None:
         sys.stderr.write(f"[slack] post failed: {exc}. Message was: {message}\n")
         if task_path is not None:
             append_log(task_path, "slack", f"post failed: {type(exc).__name__}: {exc}")
+        raise typer.Exit(1)
 
 
 __all__ = ["post"]
