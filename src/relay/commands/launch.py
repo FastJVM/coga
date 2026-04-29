@@ -208,8 +208,16 @@ def build_agent_command(agent, mode: str, prompt: str, prompt_file: Path) -> lis
     path as the trailing argument; otherwise pass the full prompt text.
     """
     flag_str = agent.interactive if mode == "interactive" else agent.auto
-    payload = str(prompt_file) if _flag_takes_file(flag_str) else prompt
-    return [agent.cli, *shlex.split(flag_str), payload]
+    takes_file = _flag_takes_file(flag_str)
+    payload = str(prompt_file) if takes_file else prompt
+    cmd = [agent.cli, *shlex.split(flag_str), payload]
+    # Interactive launches: kick the agent off so it starts working on the
+    # composed context immediately instead of sitting at an empty REPL prompt.
+    # Only when the agent takes the prompt as a file — otherwise the prompt
+    # itself was already passed positionally as the user turn.
+    if mode == "interactive" and takes_file:
+        cmd.append("Begin.")
+    return cmd
 
 
 def _flag_takes_file(flag: str) -> bool:

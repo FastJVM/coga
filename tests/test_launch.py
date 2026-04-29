@@ -36,7 +36,7 @@ def test_build_command_claude_interactive(tmp_path: Path) -> None:
         prompt="IGNORED-TEXT",
         prompt_file=prompt_file,
     )
-    assert cmd == ["my-cli", "--append-system-prompt-file", str(prompt_file)]
+    assert cmd == ["my-cli", "--append-system-prompt-file", str(prompt_file), "Begin."]
 
 
 def test_build_command_claude_auto_passes_text(tmp_path: Path) -> None:
@@ -112,11 +112,12 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
 
-    # Agent called with --append-system-prompt-file <path>
+    # Agent called with --append-system-prompt-file <path> "Begin."
     assert len(calls) == 1
     assert calls[0][0] == "claude"
     assert calls[0][1] == "--append-system-prompt-file"
     assert calls[0][2].endswith(".md")
+    assert calls[0][3] == "Begin."
 
     # Log entry written
     cfg = load_config(active_task)
