@@ -4,65 +4,124 @@ status: draft
 mode: interactive
 owner: nick
 assignee: claude1
-skill: bootstrap/ticket
+contexts:
+  - relay/architecture
+  - relay/principles
+  - relay/codebase
+  - relay/current-direction
+  - relay/project-stage
+workflow: code/with-review
 ---
 
 ## Description
 
-Slack is plumbed but minimal. We suspect parts aren't actually working in
-practice and several features are stubs. Audit the current state, identify
-gaps, and finish the integration so it's reliable and useful.
+Slack is plumbed but minimal. The recent simplification (commit `9b4b7c2`)
+collapsed the integration to a single `post(cfg, message)` posting plain
+text to one shared channel. That shape is the one we want to keep — this
+ticket does **not** re-introduce threading, per-team channel routing, bot
+tokens, or on-call paging. Instead, finish the simple version: make it
+reliable, surface failures, and let other apps share the same webhook.
 
-## Current state (as of opening)
+## Current state
 
-- `src/relay/slack.py` exposes `post_feed(cfg, message)` and
-  `post_mention(cfg, user, message)`.
+- `src/relay/slack.py` exposes `post(cfg, message)`. No threading, no
+  per-call channel selection, no mentions.
 - Single webhook configured via `[slack] webhook = "..."` in `relay.toml`.
-- When no webhook is configured, messages go to `stderr` prefixed with
-  `[slack]`. When a post fails, the error also goes silently to stderr.
-- Callers today: `bump.py`, `launch.py`, `launch_script.py`, `feed.py`,
-  `panic.py`. Each posts FYI or @mention; no threading.
+- When no webhook is set, the message is written to `stderr` prefixed with
+  `[slack]`. When a `requests.post` fails, the error is also written to
+  stderr and swallowed.
+- Callers: `bump.py`, `launch.py`, `launch_script.py`, `feed.py`,
+  `panic.py`. Each calls `post()` with a fully-formed message string.
 
-## Known / suspected gaps
+## In scope
 
-- **Verification.** Confirm what actually works end-to-end. `relay
-  validate` should fail loudly if `slack.webhook` is set but unreachable.
-- **Channel routing.** One webhook = one channel. Different teams /
-  contexts / projects may want different channels. Likely: a map in
-  `relay.toml` keyed by team or context, with the existing `webhook` as
-  default.
-- **Threading.** Right now every post is a top-level message. A ticket's
-  lifecycle (launch → step → done) should thread under a single root
-  post per task. Needs a per-task thread-ts cache (probably in the
-  ticket frontmatter or a sibling dotfile).
-- **Retry / persistence.** A network blip drops the message. A small
-  on-disk queue + retry would make it reliable.
-- **Error visibility.** Silent stderr swallowing is fine in dev but
-  hides real problems in scripted use. Add a structured failure path
-  (log file or `relay status` surface).
-- **Inbound.** Today Slack only receives. Some flows (e.g. responding
-  to a `panic` alert) might benefit from Slack→relay events. Out of
-  scope for this ticket unless trivial.
-
-## Open questions
-
-- Does the codebase need to support multiple Slack workspaces (one per
-  team) or just multiple channels in one workspace?
-- Webhook vs. bot token: webhook is enough for outbound posts but
-  threading needs the chat.postMessage API with a bot token. Trade off
-  simplicity vs. functionality.
-- Should `relay panic` page a specific on-call user (per-team rotation)
-  or only fire `post_mention`?
+1. **Validation.** `relay validate` should fail loudly if `slack.webhook`
+   is set but the webhook is dead. Slack incoming webhooks reject `GET`
+   and `HEAD` (405) and reject empty payloads — exploit that as a
+   liveness probe. Concrete approach: `POST {"text": ""}` with a 5s
+   timeout. A live webhook returns HTTP 400 with body containing
+   `no_text` (Slack rejected the empty text but the URL is alive); a
+   revoked / unknown webhook returns 404 with `no_service`; any
+   `requests.exceptions.RequestException` means unreachable. Report
+   each case with a distinct message. The implementer should sanity-check
+   actual response codes/bodies against a real Slack webhook before
+   pinning the assertion strings — Slack's wire format is the source of
+   truth, not this ticket. The empty-text payload is not expected to
+   produce a visible Slack message; confirm during implementation.
+   Catch typos and revoked URLs at config time, not at first `bump`.
+2. **Shared-webhook env-var fallback.** Read `$SLACK_WEBHOOK_URL` as a
+   fallback when `[slack] webhook` is not set in `relay.toml`. The
+   conventional name (used by other tools that publish to Slack) is the
+   point — multiple apps on the same machine can share one Slack app
+   config without each duplicating the URL. Resolution order:
+   `relay.toml` value first, then `$SLACK_WEBHOOK_URL`, then the existing
+   stderr fallback. Document the convention in
+   `src/relay/resources/templates/relay-os/relay.toml` (commented `[slack]`
+   block) and the README slack section.
+3. **Structured failure path.** Today a network failure during `bump`
+   silently disappears into stderr. Append a record to
+   `relay-os/.slack-failures.log` (per-project, sibling to `relay.toml`)
+   on every failed post (after retries exhaust per (4)). Format: one
+   line per failure, tab-separated:
+   `<ISO8601 timestamp>\t<exception class>\t<message preview ≤120 chars>`.
+   Append-only; no rotation in v1 — the file is meant to be inspected
+   and cleared manually after triage. Add `relay-os/.slack-failures.log`
+   to `.gitignore`. `relay status` reads the file and, if it exists and
+   is non-empty, prints a footer line:
+   `⚠ N Slack post failures — see relay-os/.slack-failures.log` (where N
+   is the line count). Empty/absent file → no footer, no behavior change.
+   Goal: scripted runs can tell whether posts landed.
+4. **Optional retry.** A small in-process retry (≤3 attempts, exponential
+   backoff capped at a few seconds) on transient `RequestException`. No
+   on-disk queue — we're not building durable delivery here. If retries
+   exhaust, fall through to (3).
 
 ## Out of scope
 
-- Inbound Slack -> ticket creation (covered by a separate ticket on
-  Slack-as-sync).
-- Slack-driven retro / knowledge extraction (covered by the retro
-  ticket — that one will *use* this integration).
+- Threading per task (deliberately removed in `9b4b7c2`).
+- Per-team or per-context channel routing.
+- Bot-token migration / `chat.postMessage`.
+- `relay panic` paging an on-call rotation — keep the existing
+  channel-style mention.
+- Multiple workspaces.
+- A relay-hosted webhook proxy / daemon (separate ticket if pursued).
+- Inbound Slack → relay events (separate ticket).
 
-## Why now
+## Context
 
-The retro ticket (`add-bootstrap-retro-skill-for-knowledge-extraction`)
-and the upcoming Slack-as-sync ticket both depend on a working Slack
-integration. Finishing this unblocks them.
+- Implementation: `src/relay/slack.py`. Callers under
+  `src/relay/commands/`. Config schema: `src/relay/config.py` (look for
+  `slack_webhook`).
+- Templates: `src/relay/resources/templates/relay-os/relay.toml` —
+  update the commented `[slack]` block to document the env-var fallback.
+- `relay validate` lives at `python -m relay.validate`; extend it rather
+  than adding a parallel command.
+- Don't bring back `post_feed` / `post_mention`. The simplification was
+  intentional.
+
+## Acceptance criteria
+
+- [ ] `relay validate` reports three distinguishable Slack states when
+      a webhook is configured: healthy (empty-text probe returns 400 +
+      `no_text`), revoked (404 + `no_service`), unreachable
+      (`RequestException`). Exit non-zero on the latter two.
+- [ ] Setting `$SLACK_WEBHOOK_URL` with no `[slack]` block in
+      `relay.toml` posts successfully through `relay feed` /
+      `relay bump`. A `[slack] webhook` value in `relay.toml` overrides
+      the env var.
+- [ ] A failed `relay bump` post (mechanism: pytest `monkeypatch` of
+      `relay.slack.requests.post` to raise
+      `requests.exceptions.ConnectionError`) appends a line to
+      `relay-os/.slack-failures.log` matching the documented format.
+      Tests must not require network access or new dependencies.
+- [ ] After such a failure, `relay status` prints the
+      `⚠ N Slack post failures — see relay-os/.slack-failures.log`
+      footer. With an empty / absent log file, the footer is not
+      printed and `relay status` output is byte-identical to today.
+- [ ] `relay-os/.slack-failures.log` is listed in `.gitignore`.
+- [ ] Tests cover: missing config → stderr; `$SLACK_WEBHOOK_URL` only
+      → posts; toml override of env var; retry-then-success
+      (`monkeypatch` raises `ConnectionError` twice then returns 200);
+      retry exhaustion → log entry written.
+- [ ] README + `relay.toml` template comment document
+      `$SLACK_WEBHOOK_URL` and the `relay.toml`-takes-precedence rule.
