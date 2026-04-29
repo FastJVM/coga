@@ -105,6 +105,10 @@ only; they don't accept their own flags.
 - Surfacing a non-blocker note → `relay feed`.
 - Surfacing a blocker → `relay panic`.
 
+There's also `relay validate [--json] [--check-slack]`, a static repo +
+config diagnostic. Reach for it only when a command is misbehaving or
+slack/webhook setup looks broken — it's not part of any normal flow.
+
 ## What this context does NOT cover
 
 - The mental model behind these commands (primitives, planes, prompt

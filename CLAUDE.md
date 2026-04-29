@@ -20,4 +20,4 @@ Useful commands:
 - `python -m pip install -e .`
 - `relay --help`
 - `python -m pytest`
-- `python -m relay.validate --json`
+- `relay validate --json`

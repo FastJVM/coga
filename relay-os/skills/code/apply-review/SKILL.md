@@ -17,7 +17,7 @@ nothing, this step is a no-op — bump and move on.
 3. **Push back** on any finding you disagree with by writing a one-line
    rebuttal under `## Fix` on the blackboard. Don't silently ignore.
 4. **Test.** Re-run `python -m pytest`. If validation changed, re-run
-   `python -m relay.validate --json`.
+   `relay validate --json`.
 5. **Commit.** One commit summarizing the review fixes is fine
    ("review: address self-review findings"). Reference the ticket slug
    in the body.

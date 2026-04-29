@@ -281,11 +281,12 @@ practice fully implemented and well-tested.
 This deserves a paragraph in `spec.md` rather than a "may not need"
 footnote.
 
-### `relay validate` (script, not CLI subcommand) (`validate.py`)
+### `relay validate` (`commands/validate.py` → `validate.py`)
 
-Per spec the dream/drift skill embeds a deterministic validator. Today
-the validator is exposed as `python -m relay.validate [--json]` (the
-canonical command in `CLAUDE.md`).
+Per spec the dream/drift skill embeds a deterministic validator. The
+validator is exposed as `relay validate [--json] [--check-slack]`
+(thin Typer wrapper) and as `python -m relay.validate` (the underlying
+module entry point).
 
 | Check | Status | Notes |
 |---|---|---|

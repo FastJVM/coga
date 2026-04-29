@@ -10,7 +10,7 @@ Core code lives in `src/relay/`. Keep CLI entrypoints thin in `src/relay/command
 - `python -m pip install -e .` installs the package in editable mode and exposes `relay`.
 - `relay --help` or `python -m relay.cli` is the fastest CLI smoke check.
 - `python -m pytest` runs the test suite; install `pytest` in your dev environment first.
-- `python -m relay.validate --json` validates repo/task structure after config, workflow, or task-model changes.
+- `relay validate --json` validates repo/task structure after config, workflow, or task-model changes.
 
 ## Coding Style & Naming Conventions
 Target Python 3.11+, use 4-space indentation, `from __future__ import annotations`, and explicit type hints. Follow the current naming pattern: `snake_case` for modules/functions, `PascalCase` for dataclasses and exceptions. Prefer standard-library solutions, keep command handlers small, and preserve the spec’s distinctions between projects, skills, contexts, workflows, and tasks.

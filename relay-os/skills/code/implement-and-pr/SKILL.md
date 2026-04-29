@@ -20,7 +20,7 @@ ticket reassigned to the human owner.
    write it on the blackboard for a follow-up ticket; don't fix it here.
 4. **Test.** Add a regression test before the fix when the ticket is a
    bug. Run `python -m pytest`. If validation behavior changed, run
-   `python -m relay.validate --json` against the example fixture.
+   `relay validate --json` against the example fixture.
 5. **Update the example fixture** when behavior affects task layout,
    prompt composition, or workflow semantics (per CLAUDE.md).
 6. **Commit.** Conventional, present-tense summary line. Reference the

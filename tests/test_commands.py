@@ -152,6 +152,28 @@ def test_status_shows_active(repo: Path) -> None:
     assert slug in result.output
 
 
+# --- validate -----------------------------------------------------------------
+
+
+def test_validate_clean_repo_succeeds(repo: Path) -> None:
+    _make_task(repo, workflow=None)
+    runner = CliRunner()
+    result = runner.invoke(app, ["validate"])
+    assert result.exit_code == 0, result.output
+    assert "All good" in result.output
+
+
+def test_validate_json_emits_payload(repo: Path) -> None:
+    _make_task(repo, workflow=None)
+    runner = CliRunner()
+    result = runner.invoke(app, ["validate", "--json"])
+    assert result.exit_code == 0, result.output
+    import json
+    payload = json.loads(result.output)
+    assert payload["issues"] == []
+    assert payload["ok_count"] == 1
+
+
 def test_status_hides_done_by_default(repo: Path) -> None:
     slug, task_path = _make_task(repo, workflow=None)
     # Mark done directly
