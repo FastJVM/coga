@@ -38,6 +38,7 @@ class Config:
     assignees: dict[str, Assignee]
     slack_webhook: str | None
     secrets: dict[str, str]
+    aliases: dict[str, str] = field(default_factory=dict)
     extra_local: dict[str, object] = field(default_factory=dict)
 
     # --- convenience accessors -------------------------------------------------
@@ -103,6 +104,7 @@ def load_config(repo_root: Path | None = None) -> Config:
     agents = _parse_agents(shared.get("agents", {}))
     assignees = _parse_assignees(shared.get("assignees", {}))
     slack_webhook = (shared.get("slack") or {}).get("webhook")
+    aliases = _parse_aliases(shared.get("aliases", {}))
 
     current_user = local.get("user")
     if not current_user:
@@ -127,6 +129,7 @@ def load_config(repo_root: Path | None = None) -> Config:
         assignees=assignees,
         slack_webhook=slack_webhook,
         secrets=secrets,
+        aliases=aliases,
         extra_local=extra_local,
     )
 
@@ -169,6 +172,22 @@ def _parse_assignees(raw: dict) -> dict[str, Assignee]:
             agents=dict(agents),
             slack=data.get("slack"),
         )
+    return out
+
+
+def _parse_aliases(raw: dict) -> dict[str, str]:
+    """Parse [aliases] table — each entry is name → expanded relay command."""
+    if not isinstance(raw, dict):
+        raise ConfigError(f"[aliases] must be a table (got {type(raw).__name__})")
+    out: dict[str, str] = {}
+    for name, value in raw.items():
+        if not isinstance(value, str):
+            raise ConfigError(
+                f"aliases.{name} must be a string (got {type(value).__name__})"
+            )
+        if not value.strip():
+            raise ConfigError(f"aliases.{name} is empty")
+        out[name] = value.strip()
     return out
 
 

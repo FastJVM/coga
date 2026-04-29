@@ -108,41 +108,26 @@ agent and prints what to clear.
 ### `relay create "<title>"`
 
 Scaffold a new `draft` ticket under `relay-os/tasks/<slug>/` (slug derived
-from the title) and auto-launch the `bootstrap/ticket` skill on it. The
-skill interviews you, scans the inventory, and fills in workflow,
-contexts, assignee, and description directly in the ticket. If the slug
-already exists, the new task gets `-2`, `-3`, … appended.
+from the title) and launch the `bootstrap/ticket` skill on it. The skill
+interviews you, scans the inventory, and fills in workflow, contexts,
+assignee, and description directly in the ticket. If the slug already
+exists, the new task gets `-2`, `-3`, … appended.
 
 ```sh
 relay create "Add retry to webhook handler"
-relay create "Investigate bounce rate" -d "Audit Mailgun bounce logs for last 30 days"
-relay create "Tweak copy" --no-launch         # scaffold only, edit by hand
 ```
 
-Flags:
-- `--description` / `-d` — one-line description seeded into the ticket body.
-- `--no-launch` — scaffold the `draft` ticket but don't spawn the skill (CI / scripted use).
-
-`relay create` is the human entry point — it stays minimal on purpose.
-Workflows, contexts, assignee, mode, and watchers are all set by the
-`bootstrap/ticket` skill that launches against the new ticket. Programmatic
+`relay create` is shipped as a default alias for
+`relay launch bootstrap/ticket` — see [Aliases](#aliases). Programmatic
 callers (e.g. the recurring scaffolder) call `scaffold_task()` in
-`relay.commands.create` directly with the full keyword surface.
-
-You can also enter the authoring flow via the persistent shim — bare for
-an empty session, or via the equivalent factory form:
-
-```sh
-relay launch bootstrap/ticket
-relay launch bootstrap/ticket "Investigate bounce rate"
-```
+`relay.scaffold` directly with the full keyword surface.
 
 ### `relay recurring check`
 
 Scan `relay-os/recurring/` and scaffold any due tasks. Called from
 `scripts/cron.sh`; safe to run by hand. Recurring scaffolding goes through
-`scaffold_task()` directly with the template's full frontmatter, so it's
-unaffected by the `relay create` CLI shape.
+`scaffold_task()` in `relay.scaffold` directly with the template's full
+frontmatter.
 
 ### `relay launch <target> [title]`
 
@@ -236,6 +221,31 @@ $ relay --version
 relay 0.2.0
 vendored from upstream 61fa3ddb6571 (full: 61fa3ddb6571339237c701424c5675c2c615bdba)
 ```
+
+### Aliases
+
+Sugar for the often-used commands. The `[aliases]` table in `relay.toml`
+maps a one-word name to an expanded `relay` command; positional args after
+the alias name forward to the expansion. Default aliases shipped by
+`relay init`:
+
+```toml
+[aliases]
+chat = "launch bootstrap/orient"
+create = "launch bootstrap/ticket"
+```
+
+So `relay create "Add retry"` runs as
+`relay launch bootstrap/ticket "Add retry"` (and prints the expansion to
+stderr — `→ relay launch bootstrap/ticket "Add retry"` — so the
+indirection is visible). Add your own for shims or skills you launch
+often.
+
+Rules, checked at config load — fail loud, not silent:
+- Alias names cannot collide with built-in commands.
+- The first token of the expansion must be a known built-in.
+- Aliases are positional pass-through only — they don't accept their own
+  flags.
 
 ## Development
 

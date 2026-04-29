@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-relay = "relay.cli:app"
+relay = "relay.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/relay"]

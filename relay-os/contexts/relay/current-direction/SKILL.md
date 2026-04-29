@@ -5,7 +5,27 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 # Relay — current direction
 
-Last updated: 2026-04-27.
+Last updated: 2026-04-28.
+
+## Recent decisions (alias mechanism)
+
+- **`[aliases]` table in `relay.toml`.** Maps a one-word name to an
+  expanded relay command (free-form string). Positional args after
+  the alias name forward to the expansion. Default aliases:
+  `chat = "launch bootstrap/orient"` and
+  `create = "launch bootstrap/ticket"`. Validated at config load:
+  alias names can't collide with built-ins; first token of expansion
+  must be a known built-in.
+- **`relay create` is no longer a Python command.** It's now an alias.
+  Its `scaffold_task()` Python helper moved to `src/relay/scaffold.py`
+  and is shared by `launch`'s factory path and the recurring scaffolder.
+  The `--description` and `--no-launch` flags are gone (aliases are
+  positional pass-through only); use the `scaffold_task()` Python API
+  for scripted use.
+- **Aliases print their expansion to stderr.** `relay chat` prints
+  `→ relay launch bootstrap/orient` before dispatching, so the
+  indirection is visible. Users learn the long form by using the short
+  form.
 
 ## Recent decisions (PR #43, spec audit)
 
@@ -24,9 +44,11 @@ ones that affect implementation:
   workflow" was confusing. The new command takes no positional arg —
   it derives the next step from the current `step:` frontmatter and
   always advances by one. Bumping past the last step marks `done`.
-- **`relay create --check-recurring` is canonical.** No standalone
-  `relay recurring` subcommand. Spec L996 still claims absorption
-  but spec L684 is the right place.
+- **`relay recurring check` is the canonical entry point** for the
+  cron scaffolder. Reverses the earlier "`relay create --check-recurring`
+  is canonical" call: once `relay create` became a thin alias, hanging
+  the recurring flag on it stopped making sense. Cron scripts and docs
+  now call `relay recurring check` directly.
 - **Lock cleanup is the dream skill's job.** `relay validate`
   reports stale locks but doesn't auto-clean. Dream/drift removes.
 - **Slack fallback for missing user IDs is a bug.** No silent

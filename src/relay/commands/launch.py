@@ -13,11 +13,11 @@ from pathlib import Path
 import typer
 
 from relay.commands.common import not_implemented
-from relay.commands.create import scaffold_task
 from relay.compose import compose_prompt, write_prompt_file
 from relay.config import Config, ConfigError, load_config
 from relay.lock import LockHeldError, TaskLock
 from relay.logfile import append_log
+from relay.scaffold import scaffold_task
 from relay.slack import post_feed
 from relay.tasks import (
     BootstrapRef,

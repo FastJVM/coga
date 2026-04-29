@@ -1,5 +1,5 @@
-from relay.cli import app
+from relay.cli import main
 
 
 if __name__ == "__main__":
-    app()
+    main()

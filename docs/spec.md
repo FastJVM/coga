@@ -55,6 +55,15 @@ slack = "U04GHIJKL"
 
 [slack]
 webhook = "https://hooks.slack.com/services/xxx"
+
+# --- Aliases ---
+# Sugar for the often-used commands. Maps a one-word name to an
+# expanded relay command. Positional args after the alias name forward
+# to the expansion. Default aliases shipped by `relay init`:
+
+[aliases]
+chat = "launch bootstrap/orient"
+create = "launch bootstrap/ticket"
 ```
 
 ### Agent config fields
@@ -66,6 +75,25 @@ webhook = "https://hooks.slack.com/services/xxx"
 | `auto` | Flag/subcommand for autonomous execution. Agent receives composed context as a one-shot prompt, runs to completion without human input. For Claude Code: `-p` sends the prompt and exits when done. |
 | `file` | Instruction file (CLAUDE.md, AGENTS.md, etc.). Developer-owned — Relay does **not** overwrite it. Fallback for agents that don't support CLI prompt injection. |
 | `mode` | `local` for now. Future: `remote`, `cloud`. |
+
+### Aliases
+
+`[aliases]` maps a one-word name to an expanded `relay` command. Positional
+args after the alias name forward to the expansion. The expansion is
+printed to stderr (`→ relay <expansion>`) before dispatch so the
+indirection is visible.
+
+Validated at config load — fail loud, not silent:
+
+- Alias names cannot collide with built-in commands (`init`, `launch`,
+  `status`, `bump`, `panic`, `feed`, `recurring`).
+- The first token of the expansion must be a known built-in.
+- Aliases are positional pass-through only — they don't accept their own
+  flags.
+
+For scripted task scaffolding (when you want full keyword control rather
+than the alias's positional surface), call `scaffold_task()` in
+`relay.scaffold`.
 
 ### `relay.local.toml` (gitignored, per machine)
 
@@ -688,7 +716,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 | Command | What it does |
 |---|---|
-| `relay create "<title>"` | Scaffold a `draft` ticket and auto-launch the `bootstrap/ticket` skill on it to interview the human and fill in workflow / contexts / description. `--no-launch` for scripted use. |
+| `relay create "<title>"` | Default alias for `relay launch bootstrap/ticket "<title>"` — scaffolds a `draft` ticket and runs the bootstrap skill on it to interview the human and fill in workflow / contexts / description. See [Aliases](#aliases). For scripted scaffolding, call `scaffold_task()` in `relay.scaffold`. |
 | `relay recurring check` | Scan recurring templates and scaffold any due tasks. |
 | `relay launch` | Compose prompt from all context, inject secrets, start work on a task. Handles all three modes: interactive, auto, and script. |
 | `relay status` | Show all active tasks in this repo. One line per task: id, title, assignee, step, mode. |
@@ -1001,7 +1029,7 @@ Items to evaluate after v1 is built and used. Not designed yet.
 
 **`relay run`** — removed. Absorbed into `relay launch`. Script execution is handled by `mode: script` — `relay launch` reads the step's skill, finds the script, runs it directly with secrets injected as env vars. No separate command needed; the agent calls scripts natively during interactive/auto sessions.
 
-**`relay recurring`** — removed. Absorbed into `relay create`. `relay create` checks recurring templates and creates any due tasks. A cron job or human runs `relay create --check-recurring` on a schedule.
+**`relay recurring`** — kept as a real subcommand. `relay recurring check` scans templates and scaffolds any due tasks; the cron job calls it directly. (Earlier draft absorbed it into `relay create --check-recurring`; once `relay create` became a thin alias, hanging the recurring flag on it stopped making sense.)
 
 **`relay check`** — removed as standalone command. Repo validation (stale locks, broken references, invalid state) is now a deterministic script inside the dream/drift skill. The skill runs the script, the agent interprets the output.
 

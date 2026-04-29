@@ -30,3 +30,11 @@ agents = {"claude1" = "claude", "codex1" = "codex"}
 
 # [slack]
 # webhook = "https://hooks.slack.com/services/xxx"
+
+# --- Aliases ---
+# Thin sugar over often-used commands (typically bootstrap-shim launches).
+# Aliases forward positional args after the alias name to the expanded form.
+
+[aliases]
+chat = "launch bootstrap/orient"
+create = "launch bootstrap/ticket"

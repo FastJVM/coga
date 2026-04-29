@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 from croniter import croniter
 
-from relay.commands.create import scaffold_task
+from relay.scaffold import scaffold_task
 from relay.config import Config
 from relay.paths import recurring_dir
 from relay.tasks import TaskRef, list_tasks

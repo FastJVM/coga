@@ -8,7 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from relay.cli import app
-from relay.commands.create import scaffold_task
+from relay.scaffold import scaffold_task
 from relay.commands.launch import build_agent_command
 from relay.config import AgentType, load_config
 from relay.lock import TaskLock

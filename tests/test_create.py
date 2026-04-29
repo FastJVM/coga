@@ -8,7 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from relay.cli import app
-from relay.commands.create import scaffold_task
+from relay.scaffold import scaffold_task
 from relay.config import load_config
 from relay.ticket import Ticket
 
@@ -219,99 +219,6 @@ def repo_with_shim(repo: Path) -> Path:
         """,
     )
     return repo
-
-
-def test_create_cli_positional_title_and_no_launch(
-    repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """`relay create "title" --no-launch` scaffolds a draft seeded from the
-    bootstrap/ticket shim and does not spawn an agent."""
-    monkeypatch.chdir(repo_with_shim)
-    runner = CliRunner()
-    result = runner.invoke(app, ["create", "Investigate flaky tests", "--no-launch"])
-    assert result.exit_code == 0, result.output
-
-    cfg = load_config(repo_with_shim)
-    from relay.tasks import list_tasks
-
-    refs = list_tasks(cfg)
-    assert len(refs) == 1
-    new_ref = refs[0]
-    assert new_ref.slug == "investigate-flaky-tests"
-
-    t = Ticket.read(new_ref.path / "ticket.md")
-    # Defaults inherited from the shim.
-    assert t.frontmatter["status"] == "draft"
-    assert t.frontmatter["mode"] == "interactive"
-    assert t.frontmatter["assignee"] == "claude1"
-    assert t.frontmatter["skill"] == "bootstrap/ticket"
-    assert t.frontmatter["title"] == "Investigate flaky tests"
-
-
-def test_create_cli_description_seeds_body(
-    repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.chdir(repo_with_shim)
-    runner = CliRunner()
-    result = runner.invoke(
-        app,
-        ["create", "Tweak copy", "-d", "Update the empty-state CTA to be friendlier", "--no-launch"],
-    )
-    assert result.exit_code == 0, result.output
-    body = (repo_with_shim / "tasks" / "tweak-copy" / "ticket.md").read_text()
-    assert "Update the empty-state CTA to be friendlier" in body
-
-
-def test_create_cli_auto_launches_bootstrap_ticket(
-    repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Without --no-launch, `relay create` hands off to the launch path
-    against the freshly-scaffolded draft."""
-    captured: dict[str, object] = {}
-
-    class _Result:
-        returncode = 0
-
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
-        captured["cmd"] = cmd
-        captured["prompt"] = Path(cmd[2]).read_text()
-        return _Result()
-
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.chdir(repo_with_shim)
-
-    runner = CliRunner()
-    result = runner.invoke(app, ["create", "Investigate flaky tests"])
-    assert result.exit_code == 0, result.output
-
-    # Agent was actually invoked, with the bootstrap/ticket skill composed in.
-    prompt = captured["prompt"]
-    assert isinstance(prompt, str)
-    assert "Skill: bootstrap/ticket" in prompt
-    assert "Interview, fill in the ticket." in prompt
-
-    # Launch went against the new task, not the shim.
-    cfg = load_config(repo_with_shim)
-    from relay.tasks import list_tasks
-
-    new_ref = list_tasks(cfg)[0]
-    log = (new_ref.path / "log.md").read_text()
-    assert "launched in interactive mode" in log
-
-
-def test_create_cli_requires_bootstrap_shim(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """No `bootstrap/ticket` shim → `relay create` errors loudly with a
-    pointer to `relay init`."""
-    monkeypatch.chdir(repo)
-    runner = CliRunner()
-    result = runner.invoke(app, ["create", "X", "--no-launch"])
-    assert result.exit_code == 2
-    output = result.output + (result.stderr or "")
-    assert "bootstrap/ticket" in output
-    assert "relay init" in output
 
 
 def test_recurring_check_subcommand(
