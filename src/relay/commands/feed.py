@@ -8,7 +8,7 @@ import typer
 
 from relay.config import ConfigError, load_config
 from relay.logfile import append_log
-from relay.slack import post_feed
+from relay.slack import post
 from relay.tasks import (
     TaskNotFoundError,
     read_ticket,
@@ -37,7 +37,7 @@ def feed(
     ticket = read_ticket(ref)
     actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
 
-    post_feed(
+    post(
         cfg,
         f"{ticket.assignee or cfg.current_user}: {message} "
         f"({ref.id_slug})",

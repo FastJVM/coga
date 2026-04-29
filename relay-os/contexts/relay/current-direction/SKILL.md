@@ -7,6 +7,17 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 Last updated: 2026-04-28.
 
+## Recent decisions (small-team Slack simplification)
+
+- **`slack` field on `[assignees.<name>]` removed.** With ≤3 people
+  on a shared channel, plain-text posts reach everyone — per-user
+  @mentions add zero signal. `slack.py` collapses to a single
+  `post(cfg, message)`; `post_mention` and `_mention_tag` are gone.
+  `relay panic` now posts `"<owner>: <slug> ..."` instead of
+  `"<@SLACKID> — <slug> ..."`. Re-introduce per-user mentions when
+  team size makes "who needs to look at this" stop being obvious
+  (same logic as removing watchers).
+
 ## Recent decisions (alias mechanism)
 
 - **`[aliases]` table in `relay.toml`.** Maps a one-word name to an
@@ -33,7 +44,7 @@ Last updated: 2026-04-28.
 ones that affect implementation:
 
 - **Watchers removed.** No multi-watcher fanout. `assignee` is the
-  only person field that triggers Slack mention. Re-introduce when
+  only person field surfaced in Slack messages. Re-introduce when
   team size warrants it.
 - **Manual edits stay silent by design.** Editing ticket.md,
   blackboard.md, or contexts directly does NOT post to Slack and
@@ -51,15 +62,13 @@ ones that affect implementation:
   now call `relay recurring check` directly.
 - **Lock cleanup is the dream skill's job.** `relay validate`
   reports stale locks but doesn't auto-clean. Dream/drift removes.
-- **Slack fallback for missing user IDs is a bug.** No silent
-  `@<name>` plaintext fallback. Validate at config load.
 - **`relay launch` auto-activates drafts.** Running launch on a
   `draft` ticket flips it to `active` and logs the transition.
   No separate `relay activate` command. Bootstrap-skill tickets
   (top-level `skill:` ref) are exempt — they stay `draft` until
   the human launches the real ticket.
 
-## Open ticket queue (the 7 audit-driven bugs)
+## Open ticket queue (audit-driven bugs)
 
 In suggested order:
 
@@ -73,8 +82,7 @@ In suggested order:
    isolated.
 5. **`fail-loud-on-missing-context-or-skill-at-launch`** — touches
    compose.py + validate.
-6. **`validate-slack-user-ids-at-config-load`** — config validation.
-7. **`post-slack-notification-on-mode-script-failures`** — depends
+6. **`post-slack-notification-on-mode-script-failures`** — depends
    on #1 being green.
 
 ## Larger ticket in flight
@@ -88,8 +96,8 @@ In suggested order:
 
 - Inbound Slack → ticket creation. Separate Slack-as-sync ticket.
 - Multi-workspace Slack. One workspace assumed for now.
-- Per-on-call routing for `relay panic`. Currently posts a single
-  mention.
+- Per-user @mentions in Slack. Posts are plain text — owner name is
+  in the message body. Re-add when team grows past ~3.
 - Real-time sync (server backend). Git push/pull is the sync layer
   through ~5-person team size; revisit at 10+.
 - `relay update-workflow` to re-snapshot a workflow into in-flight

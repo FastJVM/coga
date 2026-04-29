@@ -13,7 +13,7 @@ from relay.lock import LockHeldError, TaskLock
 from relay.logfile import append_log
 from relay.paths import skill_path
 from relay.skill import Skill
-from relay.slack import post_feed
+from relay.slack import post
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
 
@@ -71,7 +71,7 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = 
         "system",
         f"launched in script mode (skill={skill.name}, script={skill.script})",
     )
-    post_feed(
+    post(
         cfg,
         f"{ref.id_slug} \"{ticket.title}\" — running {skill.script} (script mode)",
     )
@@ -91,7 +91,7 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = 
     append_log(ref.path, "system", f"script exited with code {exit_code}")
 
     if exit_code != 0:
-        post_feed(
+        post(
             cfg,
             f"{ref.id_slug} — script exited non-zero (code {exit_code}); "
             f"task stays at step {ticket.step}",

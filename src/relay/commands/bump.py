@@ -9,7 +9,7 @@ import typer
 from relay.config import ConfigError, load_config
 from relay.lock import TaskLock
 from relay.logfile import append_log
-from relay.slack import post_feed
+from relay.slack import post
 from relay.tasks import (
     TaskNotFoundError,
     read_ticket,
@@ -53,7 +53,7 @@ def bump(
         ticket.write(ref.path / "ticket.md")
         append_log(ref.path, actor, "task done")
         TaskLock(ref.path).release()
-        post_feed(
+        post(
             cfg,
             f"{ref.id_slug} \"{ticket.title}\" done ✓",
         )
@@ -64,7 +64,7 @@ def bump(
     ticket.frontmatter["step"] = f"{next_step} ({new_step_name})"
     ticket.write(ref.path / "ticket.md")
     append_log(ref.path, actor, f"advanced to step {next_step} ({new_step_name})")
-    post_feed(
+    post(
         cfg,
         f"{ticket.assignee or cfg.current_user} advanced "
         f"{ref.id_slug} to step {next_step} ({new_step_name})",

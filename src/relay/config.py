@@ -26,7 +26,6 @@ class AgentType:
 class Assignee:
     name: str
     agents: dict[str, str]  # nickname -> agent type name
-    slack: str | None
 
 
 @dataclass(frozen=True)
@@ -170,7 +169,6 @@ def _parse_assignees(raw: dict) -> dict[str, Assignee]:
         out[name] = Assignee(
             name=name,
             agents=dict(agents),
-            slack=data.get("slack"),
         )
     return out
 

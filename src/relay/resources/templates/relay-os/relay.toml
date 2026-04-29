@@ -26,7 +26,6 @@ mode = "local"
 
 # [assignees.you]
 # agents = {"claude1" = "claude"}
-# slack = "U00000000"
 
 # --- Slack ---
 # Omit `webhook` to run without real Slack posts (messages go to stderr).

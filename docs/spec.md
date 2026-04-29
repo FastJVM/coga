@@ -45,11 +45,9 @@ mode = "local"
 
 [assignees.marc]
 agents = {"claude1": "claude", "claude2": "claude", "my IDE": "cursor"}
-slack = "U04ABCDEF"
 
 [assignees.pierre]
 agents = {"claude2": "claude", "goat": "copilot"}
-slack = "U04GHIJKL"
 
 # --- Slack ---
 
@@ -476,7 +474,7 @@ The default template:
 | `mode` | string | `interactive`, `auto`, or `script`. Default: `interactive`. Controls how `relay launch` starts work. `interactive`: human-attended session — agent starts with composed context, human present in terminal. `auto`: autonomous execution — agent receives composed context as one-shot prompt, runs without human input. `script`: direct execution — no agent spawned, script runs with secrets injected as env vars. |
 | `owner` | string | Human accountable. Stable over the task's life. |
 | `assignee` | string | Who's currently doing the work. Human name or agent nickname. Set independently — not derived from workflow. |
-| `watchers` | list | Additional people who receive Slack @mention notifications. Owner and assignee auto-watch implicitly. |
+| `watchers` | list | Additional people noted on the task. Owner and assignee auto-watch implicitly. (No-op for Slack: posts are plain-text broadcast at small team sizes.) |
 | `workflow` | object | Frozen snapshot of the workflow at creation. Contains `name` (string) and `steps` (list of {name, skill?}). |
 | `step` | string | Current position in frozen workflow. Format: `N (step-name)`. Only advances when status is `active`. |
 | `contexts` | list | Paths to context references in `relay-os/contexts/`. Domain knowledge scoped to this task. |
@@ -726,8 +724,8 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 | Command | What it does |
 |---|---|
 | `relay bump` | Advance task one workflow step. Logs, notifies Slack. On the last step, marks the task done. |
-| `relay panic` | Agent is stuck. Write blockers to blackboard, @mention the task owner in Slack, stop. |
-| `relay feed` | Post an informational (FYI) message to the Slack channel. No @mention — just a line in the feed. |
+| `relay panic` | Agent is stuck. Write blockers to blackboard, post a Slack message naming the task owner, stop. |
+| `relay feed` | Post an informational (FYI) message to the Slack channel. |
 
 ### Who edits what
 
@@ -809,7 +807,7 @@ Later content overrides earlier content when they conflict. The agent sees the m
 
 #### Behavior
 
-Writes a timestamped blocker line to the blackboard, @mentions the task owner in Slack, stops the agent. This is the only escalation mechanism for autonomous agents.
+Writes a timestamped blocker line to the blackboard, posts to the Slack channel naming the task owner, stops the agent. This is the only escalation mechanism for autonomous agents.
 
 Example:
 
@@ -817,7 +815,7 @@ Example:
 relay panic --task 003 --reason "429 retry logic unclear, need decision on backoff ceiling"
 ```
 
-Slack: `@marc — 003 "Fix retry logic" — agent stuck: "429 retry logic unclear, need decision on backoff ceiling"`
+Slack: `marc: 003 "Fix retry logic" — agent stuck: "429 retry logic unclear, need decision on backoff ceiling"`
 
 `--reason` is required.
 
@@ -908,7 +906,7 @@ The relay base prompt lives at `relay-os/prompt.md` (base) and `relay-os/prompt-
 
 ## Slack feed
 
-**What:** A live activity feed in a shared Slack channel. Every state change across the company posts automatically. Humans get @mentioned when they need to act. Everything else is FYI.
+**What:** A live activity feed in a shared Slack channel. Every state change across the company posts automatically. Plain text — no @mentions.
 
 **Why:** Agents work asynchronously. Humans need to know when something needs their attention (review, approve, unblock) and what their agents have been doing. The Slack channel is the primary awareness layer — a scrollable timeline of everything happening across all the repos a team operates. Multiple repos can post into the same channel; that's the cross-surface view.
 
@@ -916,42 +914,29 @@ The relay base prompt lives at `relay-os/prompt.md` (base) and `relay-os/prompt-
 
 The assumption is to overshare. Every state-changing CLI command posts to Slack. No filtering, no agent decision-making about what's "worth" notifying. The channel is a complete feed. If it ever gets too noisy, that's a good problem — it means a lot is getting done, and we can dial back then.
 
-The shared channel is deliberate: team-wide visibility and mutual accountability. Everyone sees what's moving.
-
-### Two tiers
-
-Messages use two tiers to separate "you need to act" from "FYI":
-
-- **@mention** — human action needed. The person is tagged and expected to respond. Triggers when the assignee changes to a human, or when an agent panics.
-- **Plain text** — informational. No tag, just a line in the feed.
+The shared channel is deliberate: team-wide visibility and mutual accountability. Everyone sees what's moving. At small team sizes (≤3 people) everyone reads the channel anyway, so plain posts reach the right person without explicit @mentions. Re-introduce per-user mentions when team size makes "who needs to look at this" stop being obvious.
 
 ### What posts and when
 
-| Event | Posts | Tier |
-|---|---|---|
-| `relay create` | New task created | FYI |
-| `relay launch` | Agent started work on task (includes mode) | FYI |
-| `relay bump` | Task moved to next step (or completed on last step) | FYI |
-| `relay panic` | Agent stuck, needs human | @mention to task owner |
-| `relay feed` | Custom FYI message from agent (e.g. "opened PR #142") | FYI |
-
-Ticket-related notifications (assignment changes, status changes) follow the same two-tier model. Owner and assignee auto-watch every task they're on — no explicit subscription needed. Watchers in the ticket frontmatter are additive — they receive @mentions on the same triggers.
+| Event | Posts |
+|---|---|
+| `relay create` | New task created |
+| `relay launch` | Agent started work on task (includes mode) |
+| `relay bump` | Task moved to next step (or completed on last step) |
+| `relay panic` | Agent stuck, owner named in message |
+| `relay feed` | Custom FYI message from agent (e.g. "opened PR #142") |
 
 ### Notification logic lives in the CLI
 
-The agent calls `relay bump`, etc. as normal. The CLI decides what to post and whether to @mention. Agents never reason about what's worth notifying — the commands themselves are the notification hooks.
+The agent calls `relay bump`, etc. as normal. The CLI decides what to post. Agents never reason about what's worth notifying — the commands themselves are the notification hooks.
 
 ### Delivery
 
 Shared Slack channel via the incoming webhook configured in `relay.toml`. The webhook is channel-bound.
 
-To @mention users, the CLI needs a mapping from relay usernames to Slack user IDs. This lives in the `[assignees]` config.
-
 ### Message format examples
 
 ```
-@marc — 003 "Fix retry logic" needs your attention (approve, step 3)
-
 marc's claude1 completed step 2 (pr) on 003 "Fix retry logic"
 
 New task: 005 "LinkedIn post retry logic" assigned to marc (workflow: content/post)
@@ -960,7 +945,7 @@ marc's claude1: pushed branch, opened PR #142 (003)
 
 003 "Fix retry logic" done ✓
 
-@marc — 003 "Fix retry logic" — agent stuck: "429 retry logic unclear"
+marc: 003 "Fix retry logic" — agent stuck: "429 retry logic unclear"
 ```
 
 Each repo's webhook can point at the same channel — the source repo isn't part of the message format, so if cross-surface disambiguation matters, include it in the channel name (`#admin-relay`, `#code-relay`) or in the slack app config rather than in every message.
@@ -1011,7 +996,7 @@ Items to evaluate after v1 is built and used. Not designed yet.
 
 **`relay inbox`** — removed. The Slack feed is the notification layer. No local inbox command.
 
-**`run` field on workflow steps** — removed. Workflows don't define who does the work. The `assignee` field on the ticket controls that. Slack @mentions trigger on assignee changes (when the new assignee is a human), replacing the old `run: human` trigger.
+**`run` field on workflow steps** — removed. Workflows don't define who does the work. The `assignee` field on the ticket controls that. Slack posts trigger on assignee changes (when the new assignee is a human), replacing the old `run: human` trigger.
 
 **`created` field in ticket frontmatter** — removed. The first log entry is the source of truth for when the ticket was created.
 

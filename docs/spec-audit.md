@@ -27,7 +27,7 @@ spec pass.
 |---|---|---|
 | `version`, `default_status` top-level fields | ✅ | `config.py:98-102`. `default_status` defaults to `"draft"` when absent. |
 | `[agents.<type>]` blocks: `cli`, `interactive`, `auto`, `file`, `mode` | ✅ | `config.py:144-158`. Stored as `AgentType` dataclass. |
-| `[assignees.<name>]` block: `agents` map (nickname → type), `slack` | ✅ | `config.py:161-172`. |
+| `[assignees.<name>]` block: `agents` map (nickname → type) | ✅ | `config.py:161-172`. (`slack` field removed — see §5.) |
 | `[slack].webhook` | ✅ | `config.py:105`. |
 
 ### `relay.local.toml`
@@ -218,7 +218,7 @@ implied by "scripted use"). Document the actual contract.
 | `--task <id> --reason "<text>"`, both required | ✅ | |
 | Append timestamped blocker line to blackboard | ✅ | `panic.py:42` → `append_blocker`. |
 | Append log line | ✅ | |
-| @mention task owner in Slack | ✅ | `panic.py:49-52`. |
+| Post Slack message naming task owner | ✅ | `panic.py:49-52`. (No @mention — see §5.) |
 | Release lock | ✅ | `panic.py:46`. |
 | Stop the agent | ✅ | CLI exits 1 (`panic.py`) so a parent shell or supervising agent can detect the distress signal. |
 | Change task status (e.g. to `paused`)? | ❓ | Open in spec. Implementation leaves status untouched. |
@@ -307,19 +307,17 @@ canonical command in `CLAUDE.md`).
 
 | Spec | Status | Notes |
 |---|---|---|
-| Posts via webhook in `[slack].webhook` | ✅ | `slack.py:43-54`. |
-| Two tiers: `post_feed` (FYI), `post_mention` (@user) | ✅ | `slack.py:21-29`. |
-| Translates assignee → Slack user ID via `[assignees.<x>].slack` | ✅ | `slack.py:35-40`. |
-| Falls back to `@<name>` literal if no Slack ID | ⚠️ | Slack does **not** render `@username` as a mention. Either map at config-load time (require a Slack ID for any human assignee) or surface a warning. |
+| Posts via webhook in `[slack].webhook` | ✅ | `slack.py`. |
+| Single `post()` function (plain text only) | ✅ | `slack.py:18-28`. **Decision (small-team simplification):** dropped `post_mention` / `post_feed` distinction and the `[assignees.<x>].slack` field. At ≤3-person team sizes the channel is shared, everyone reads it, @mentions add zero signal. Re-introduce per-user mentions when the team grows past ~3. |
 | `relay create` → FYI "new task created" | ❌ | **Missing.** `commands/create.py:78` only echoes to terminal; no Slack post. Spec line 897 says `relay create` posts a FYI. |
 | `relay launch` → FYI with mode | ✅ | `launch.py:126-130`. |
 | `relay bump` → FYI on advance / completion | ✅ | `bump.py`. |
-| `relay panic` → @mention to owner | ✅ | `panic.py:49-52`. |
+| `relay panic` → message naming owner | ✅ | `panic.py:49-52`. |
 | `relay feed` → FYI | ✅ | `feed.py:40-44`. |
 | Assignee-change notifications | won't fix | **Decision (PR review):** manual ticket edits stay silent by design. CLI commands keep direct-posting Slack realtime; if a human edits ticket.md in vim, that's the no-notification path. `relay feed --message "reassigned 003 to pierre"` covers explicit announcements. No git hook, no snapshot/diff machinery. |
 | Status-change notifications | won't fix | Same decision as assignee-change row above. |
-| Watchers list additive @mentions | ❌ remove field | **Decision (PR review):** delete the `watchers` field entirely. See §3. |
-| Owner/assignee implicit auto-watch | 🟡 | Owner is @mentioned only on panic. Assignee surfaces by name in step messages. There's no centralized "compute recipients for this event" function. |
+| Watchers list additive notifications | ❌ remove field | **Decision (PR review):** delete the `watchers` field entirely. See §3. |
+| Owner/assignee implicit auto-watch | n/a | With plain-text posts everyone in the channel sees every message. No recipient computation needed. |
 
 ### Slack: take-aways
 
@@ -329,8 +327,8 @@ filled (PR review decision — see assignee-change row above). Watchers
 is being removed entirely. The two open `relay-os/tasks/` tickets
 `finish-slack-integration-features` and
 `use-slack-as-a-sync-channel-for-tickets` should drop watchers /
-manual-edit scope and refocus on remaining gaps (auto-watch fan-out,
-@-mention fallback validation, script-mode failure posts).
+manual-edit scope and refocus on remaining gaps (script-mode failure
+posts).
 
 ---
 
@@ -544,11 +542,11 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
 21. **Vendored `.relay/` directory.** `relay init` installs an isolated
     venv + vendored CLI source under `relay-os/.relay/`. Not mentioned
     in the repo-layout tree (spec lines 90-150).
-22. ~~Slack fallback `@<username>` is non-functional.~~ **Resolved (PR
-    review):** at `Config` load time, require `slack = "U…"` on any
-    user appearing as `owner` or human `assignee`. Refuse to post /
-    warn loudly on stderr if missing. Drop the broken `@nick` text
-    fallback.
+22. ~~Slack fallback `@<username>` is non-functional.~~ **Resolved
+    (small-team simplification):** dropped `post_mention` and the
+    `[assignees.<x>].slack` field entirely. With ≤3 people on a shared
+    channel, plain-text posts reach everyone; per-user @mentions add
+    zero signal. Re-introduce when team size warrants it.
 23. **`relay launch` script-mode failures don't post to Slack.** Spec
     requires it (lines 942-943).
 24. **Validator → dream wiring.** Spec implies dream calls the
@@ -599,7 +597,7 @@ Spread across:
 - `test_recurring.py` — period keys, idempotency, bad-template skip
 - `test_validate.py` — every validator check
 - `test_init.py` — fresh init + `--update`
-- `test_slack.py` — webhook posting tiers
+- `test_slack.py` — webhook posting
 - `test_smoke.py` — end-to-end via `CliRunner`
 
 What the suite doesn't cover yet (matches the gaps above):
@@ -631,9 +629,10 @@ agent-driven events.
    Resolution: fix the code to fail loud (matches spec error table).
 3. ~~`relay create` Slack post.~~ Resolution: don't add — drop the row
    from spec line 897. Auto-launch FYI already covers it.
-4. Slack `@<name>` fallback doesn't @-mention. Resolution: validate
-   `slack` field at config load for any user that gets @-mentioned;
-   drop the broken text fallback.
+4. Slack `@<name>` fallback doesn't @-mention. Resolution: dropped
+   `post_mention` and the `[assignees.<x>].slack` field entirely (see
+   §5). At ≤3-person team sizes, plain-text posts in a shared channel
+   reach the right person without @mentions.
 5. `relay launch mode:script` failures don't post to Slack
    (spec requires it).
 6. `relay panic` returns 0 — should be non-zero.

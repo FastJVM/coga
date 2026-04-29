@@ -30,7 +30,6 @@ def repo(tmp_path: Path) -> Path:
 
         [assignees.marc]
         agents = {"claude1" = "claude", "claude2" = "claude"}
-        slack = "U04ABCDEF"
 
         [slack]
         webhook = "https://hooks.slack.com/services/xxx"

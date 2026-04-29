@@ -41,7 +41,6 @@ output because a context or skill silently failed to load.
 
 - Missing context → raise.
 - Missing skill → raise.
-- Misconfigured Slack user → raise at config load.
 - Network error posting to Slack → surface, don't swallow.
 
 If the cost of a check is one line of code and the cost of skipping

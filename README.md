@@ -190,10 +190,10 @@ relay bump --task add-retry                         # again, until past the last
 
 ### `relay panic --task <slug> --reason "..."`
 
-The agent gives up. Writes a blocker entry to the ticket, @-mentions the
-owner in Slack, and releases the task lock so a human (or another agent)
-can pick it up. Intended for the agent to call when it's truly stuck —
-not for routine handoffs.
+The agent gives up. Writes a blocker entry to the ticket, posts to the
+Slack channel naming the owner, and releases the task lock so a human
+(or another agent) can pick it up. Intended for the agent to call when
+it's truly stuck — not for routine handoffs.
 
 ```sh
 relay panic --task add-retry --reason "Auth flow needs prod creds I don't have"

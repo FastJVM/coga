@@ -50,9 +50,9 @@ mid-task. Errors cleanly on tickets without a workflow.
 
 ## relay panic --task \<slug\> --reason "..."
 
-Agent gives up. Writes a blocker to the ticket, @-mentions the owner in
-Slack, releases the lock. Exits non-zero. Reserved for genuinely stuck
-states, not routine handoffs.
+Agent gives up. Writes a blocker to the ticket, posts to Slack naming
+the owner, releases the lock. Exits non-zero. Reserved for genuinely
+stuck states, not routine handoffs.
 
 ## relay feed --task \<slug\> --message "..."
 

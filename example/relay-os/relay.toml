@@ -17,11 +17,9 @@ mode = "local"
 
 [assignees.marc]
 agents = {"claude1" = "claude", "claude2" = "claude"}
-slack = "U04MARC"
 
 [assignees.pierre]
 agents = {"claude1" = "claude"}
-slack = "U04PIER"
 
 # --- Slack ---
 

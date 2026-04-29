@@ -65,8 +65,8 @@ Call this when stuck. Specifically:
 Before panicking: write the blocker to the blackboard so the human relaunching
 can read it without digging through history.
 
-After panicking: stop. Do not keep trying. The panic posts an @mention to the
-task owner in Slack and releases the lock so a human can relaunch.
+After panicking: stop. Do not keep trying. The panic posts to Slack naming
+the task owner and releases the lock so a human can relaunch.
 
 `--reason` is required. Be specific. "Unclear what to do" is useless.
 "Retry logic ambiguous — spec says respect Retry-After headers but doesn't
@@ -77,8 +77,8 @@ specify max backoff ceiling for 429s" is actionable.
 `relay feed --task <id> --message "<short FYI>"`
 
 Use for informational updates — "opened PR #142", "deployed to staging",
-"found the root cause in lib/webhooks/retry.ts". Posts to Slack with no
-@mention.
+"found the root cause in lib/webhooks/retry.ts". Posts to Slack as a
+plain FYI line.
 
 Don't use feed for blockers (use `panic`) or for routine step transitions
 (those auto-post from `relay bump`).
