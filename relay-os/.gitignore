@@ -15,6 +15,9 @@ relay.local.toml
 # User content lives outside these paths; edits inside will be lost on update.
 bootstrap/
 skills/bootstrap/
+contexts/relay/architecture/
+contexts/relay/principles/
+contexts/relay/cli/
 **/_template/
 **/_template.md
 # <<< relay-managed <<<

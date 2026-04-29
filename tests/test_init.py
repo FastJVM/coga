@@ -283,8 +283,15 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap shim\n")
     (templates / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
     (templates / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text("NEW bootstrap/ticket skill\n")
+    for ctx in ("architecture", "principles", "cli"):
+        (templates / "contexts" / "relay" / ctx).mkdir(parents=True)
+        (templates / "contexts" / "relay" / ctx / "SKILL.md").write_text(
+            f"NEW relay/{ctx} context\n"
+        )
     (templates / ".gitignore").write_text(
-        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\nskills/bootstrap/\n**/_template/\n**/_template.md\n"
+        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\nskills/bootstrap/\n"
+        "contexts/relay/architecture/\ncontexts/relay/principles/\ncontexts/relay/cli/\n"
+        "**/_template/\n**/_template.md\n"
     )
 
     cli_src = clone_dir / update_cmd.CLI_SRC_SUBPATH
@@ -330,6 +337,13 @@ def test_init_update_refreshes_cli_and_underscore_templates(
         (relay_os / "skills" / "bootstrap" / "ticket" / "SKILL.md").read_text()
         == "NEW bootstrap/ticket skill\n"
     )
+    # Canonical relay/* contexts (architecture, principles, cli) ship
+    # with relay and refresh wholesale on update.
+    for ctx in ("architecture", "principles", "cli"):
+        assert (
+            (relay_os / "contexts" / "relay" / ctx / "SKILL.md").read_text()
+            == f"NEW relay/{ctx} context\n"
+        )
     # Shims dropped upstream (renamed/removed) are pruned locally.
     assert not (relay_os / "bootstrap" / "stale").exists()
     # Top-level paths upstream once shipped but no longer does are pruned.
