@@ -1,7 +1,9 @@
 """Deterministic repo validation — the engine behind the dream/drift skill.
 
-Run as a module:
+Exposed as `relay validate` (see `relay.commands.validate`); also runnable
+directly as a module:
 
+    relay validate [--json] [--max-lock-hours N] [--check-slack]
     python -m relay.validate [--json] [--max-lock-hours N] [--check-slack]
 
 Checks:

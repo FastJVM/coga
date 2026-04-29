@@ -292,7 +292,7 @@ git clone https://github.com/FastJVM/relay
 cd relay
 python -m pip install -e .
 python -m pytest                    # 83 tests
-python -m relay.validate --json     # validate the bundled example/ fixture
+relay validate --json               # validate the bundled example/ fixture
 ```
 
 The dogfood relay-os/ for this very repo lives at `relay-os/`. Tasks tracked

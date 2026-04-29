@@ -55,8 +55,8 @@ relay-os/
 - Install editable: `python -m pip install -e .`
 - Run CLI: `relay --help`
 - Tests: `python -m pytest`
-- Validate config + tasks: `python -m relay.validate --json`
-  (also runnable as `relay validate`).
+- Validate config + tasks: `relay validate --json`
+  (or `python -m relay.validate --json` if `relay` isn't on PATH).
 
 ## Secrets
 
