@@ -74,6 +74,7 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = 
     post(
         cfg,
         f"{ref.id_slug} \"{ticket.title}\" — running {skill.script} (script mode)",
+        task_path=ref.path,
     )
 
     try:
@@ -95,6 +96,7 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = 
             cfg,
             f"{ref.id_slug} — script exited non-zero (code {exit_code}); "
             f"task stays at step {ticket.step}",
+            task_path=ref.path,
         )
         typer.secho(f"Script exited with {exit_code}.", fg=typer.colors.YELLOW, err=True)
         sys.exit(exit_code)

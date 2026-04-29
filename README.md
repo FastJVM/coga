@@ -211,9 +211,10 @@ multiple apps on the same machine post through one Slack app config.
 The `[slack].webhook` value in `relay.toml` takes precedence when both
 are set. Run `relay validate --check-slack` to probe the webhook (POSTs
 an empty-text payload that Slack rejects without posting to the
-channel) so a dead URL surfaces at config time. Failures after retries
-land in `relay-os/.slack-failures.log` and are summarized as a footer
-line on `relay status`.
+channel) so a dead URL surfaces at config time. When a post fails in a
+non-interactive run (daemon / cron / launched script), the error is
+appended to that task's `log.md` so it's recoverable after the fact;
+interactive runs just write the error to stderr.
 
 ```sh
 relay feed --task add-retry --message "Pushed branch, waiting on CI"

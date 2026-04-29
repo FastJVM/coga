@@ -2,10 +2,6 @@
 # (Root-only; the bundled `example/` ships a non-secret template.)
 /relay.local.toml
 
-# Relay slack-failure log — appended to whenever a Slack post fails after
-# retries. Triage and clear manually.
-relay-os/.slack-failures.log
-
 # Personal reference copies of the spec/vision docs live at repo root.
 /relay-spec-updated*.md
 /relay-vision-updated*.md

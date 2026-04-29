@@ -41,6 +41,7 @@ def feed(
         cfg,
         f"{ticket.assignee or cfg.current_user}: {message} "
         f"({ref.id_slug})",
+        task_path=ref.path,
     )
     append_log(ref.path, actor, f"feed: {message}")
     typer.echo("posted")

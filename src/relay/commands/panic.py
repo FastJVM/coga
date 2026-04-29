@@ -49,6 +49,7 @@ def panic(
     post(
         cfg,
         f"{owner}: {ref.id_slug} \"{ticket.title}\" — agent stuck: \"{reason}\"",
+        task_path=ref.path,
     )
     typer.echo(f"{ref.id_slug}: panicked (owner {owner} notified)")
     # Panic is the agent's distress signal — exit non-zero so a parent shell

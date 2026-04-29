@@ -7,18 +7,12 @@ import pytest
 import requests
 
 from relay.config import load_config
-from relay.slack import FAILURES_LOG, post
+from relay.slack import post
 
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
-
-
-@pytest.fixture(autouse=True)
-def _no_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make retry backoff instant for all slack tests."""
-    monkeypatch.setattr("relay.slack.time.sleep", lambda _: None)
 
 
 @pytest.fixture
@@ -147,59 +141,32 @@ def test_toml_overrides_env_var(
     assert cfg.slack_webhook == "https://hooks.slack.com/services/from-toml"
 
 
-def test_retry_then_success(cfg, monkeypatch: pytest.MonkeyPatch) -> None:
-    attempts = {"n": 0}
-
-    def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
-        attempts["n"] += 1
-        if attempts["n"] < 3:
-            raise requests.ConnectionError("transient")
-
-        class R:
-            pass
-
-        return R()
-
-    monkeypatch.setattr("relay.slack.requests.post", fake_post)
-    post(cfg, "eventually lands")
-    assert attempts["n"] == 3
-    # No failure log written on eventual success.
-    assert not (cfg.repo_root / FAILURES_LOG).exists()
-
-
-def test_retry_exhaustion_writes_failure_log(
-    cfg, monkeypatch: pytest.MonkeyPatch, capsys
-) -> None:
+def test_failure_writes_to_stderr(cfg, monkeypatch: pytest.MonkeyPatch, capsys) -> None:
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise requests.ConnectionError("no network")
 
     monkeypatch.setattr("relay.slack.requests.post", fake_post)
-    post(cfg, "still logged")  # must not raise
+    post(cfg, "lost message")  # must not raise
 
     err = capsys.readouterr().err
     assert "post failed" in err
-    assert "still logged" in err
-
-    log_path = cfg.repo_root / FAILURES_LOG
-    assert log_path.is_file()
-    line = log_path.read_text().strip()
-    parts = line.split("\t")
-    assert len(parts) == 3
-    assert parts[1] == "ConnectionError"
-    assert parts[2] == "still logged"
+    assert "lost message" in err
 
 
-def test_failure_log_truncates_long_messages(
-    cfg, monkeypatch: pytest.MonkeyPatch
+def test_failure_with_task_path_appends_to_log(
+    cfg, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    task_path = tmp_path / "tasks" / "001-x"
+    task_path.mkdir(parents=True)
+    (task_path / "log.md").write_text("")
+
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise requests.ConnectionError("no network")
 
     monkeypatch.setattr("relay.slack.requests.post", fake_post)
-    long_msg = "x" * 500
-    post(cfg, long_msg)
+    post(cfg, "daemon message", task_path=task_path)
 
-    line = (cfg.repo_root / FAILURES_LOG).read_text().strip()
-    preview = line.split("\t")[2]
-    assert len(preview) == 120
-    assert preview == "x" * 120
+    log_text = (task_path / "log.md").read_text()
+    assert "[slack]" in log_text
+    assert "post failed" in log_text
+    assert "ConnectionError" in log_text
