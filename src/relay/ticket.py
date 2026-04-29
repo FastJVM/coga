@@ -85,7 +85,9 @@ class Ticket:
         return list(value)
 
     @property
-    def workflow(self) -> dict[str, Any] | None:
+    def workflow(self) -> dict[str, Any] | str | None:
+        # Frozen as a dict post-launch; can be a bare string ref on
+        # hand-authored / draft tickets that haven't been launched yet.
         return self.frontmatter.get("workflow")
 
     @property
@@ -110,7 +112,7 @@ class Ticket:
         """Return the current workflow step dict, or None."""
         wf = self.workflow
         idx = self.step_index()
-        if not wf or idx is None:
+        if not isinstance(wf, dict) or idx is None:
             return None
         steps = wf.get("steps", [])
         if 1 <= idx <= len(steps):

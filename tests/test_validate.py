@@ -101,6 +101,25 @@ def test_broken_skill_ref(repo: Path) -> None:
     assert any(i.kind == "broken-skill" for i in report.issues)
 
 
+def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
+    """Hand-authored tickets carrying `workflow: <name>` (a string ref) used
+    to crash the validator at `wf.get("steps", [])`. Regression: surface
+    them as a warning instead."""
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    t = Ticket.read(ref.path / "ticket.md")
+    t.frontmatter["workflow"] = "code/with-review"
+    t.write(ref.path / "ticket.md")
+    report = run(cfg)
+    kinds = [i.kind for i in report.issues]
+    assert "unfrozen-workflow" in kinds
+
+
 def test_invalid_status(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
