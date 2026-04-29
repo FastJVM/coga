@@ -48,8 +48,8 @@ relay create "First task"
 ```
 
 Multi-surface companies (e.g. an admin repo + a code repo) run multiple
-relay-os/ side by side — coordinate them by pointing each repo's `[slack]
-webhook` at the same channel.
+relay-os/ side by side — coordinate them by pointing each repo's
+`$SLACK_WEBHOOK_URL` at the same channel.
 
 ## Layout
 
@@ -203,22 +203,50 @@ relay panic --task add-retry --reason "Auth flow needs prod creds I don't have"
 
 Post a short FYI to the team Slack channel without changing task state.
 Use it for "heads up, deploy started", "tests still flaky", non-blocker
-context that the team should see but doesn't need to react to. Posts to
-stderr if `[slack].webhook` isn't configured.
-
-The webhook can also come from `$SLACK_WEBHOOK_URL` — useful when
-multiple apps on the same machine post through one Slack app config.
-The `[slack].webhook` value in `relay.toml` takes precedence when both
-are set. Run `relay validate --check-slack` to probe the webhook (POSTs
-an empty-text payload that Slack rejects without posting to the
-channel) so a dead URL surfaces at config time. When a post fails in a
-non-interactive run (daemon / cron / launched script), the error is
-appended to that task's `log.md` so it's recoverable after the fact;
-interactive runs just write the error to stderr.
+context that the team should see but doesn't need to react to.
 
 ```sh
 relay feed --task add-retry --message "Pushed branch, waiting on CI"
 ```
+
+### Slack — the team sync point
+
+Slack is required by default. Every `bump`/`feed`/`panic`/`launch` posts
+to the channel pointed at by `$SLACK_WEBHOOK_URL`, so teammates see
+state changes as they happen. Failures are loud: if Slack is unreachable
+or the webhook isn't set, the command exits non-zero rather than
+silently dropping the message — a missed FYI becomes a stale mental
+model on the human side, and that's worse than a noisy retry.
+
+**Setup (solo or team).** Create a Slack incoming webhook for the
+channel and export the URL in your shell rc:
+
+```sh
+export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
+```
+
+The URL is a bearer token — anyone holding it can post to that channel
+as the app. Don't commit it; don't paste it in tickets or logs. Rotate
+via the Slack app's webhook page if it ever leaks. For multi-user
+setups, each member exports the same URL locally; the `relay.toml` does
+not carry the webhook.
+
+Run `relay validate --check-slack` to probe the webhook (POSTs an
+empty-text payload that Slack rejects without posting to the channel)
+so a dead URL surfaces at config time, not at first `bump`. Failures
+during runtime posts also append a line to the task's `log.md` so
+daemon / cron / launched-script runs leave a recoverable trace.
+
+**Opt out (solo dev / CI / dry runs).** Set in `relay.local.toml`:
+
+```toml
+[slack]
+enabled = false
+```
+
+With `enabled = false`, every Slack call is suppressed to stderr and
+nothing crashes. Treat this as an exit from the sync loop, not a
+default — once you're working with another person, turn it back on.
 
 ### `relay --version`
 

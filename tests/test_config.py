@@ -30,9 +30,6 @@ def repo(tmp_path: Path) -> Path:
 
         [assignees.marc]
         agents = {"claude1" = "claude", "claude2" = "claude"}
-
-        [slack]
-        webhook = "https://hooks.slack.com/services/xxx"
         """,
     )
     _write(
@@ -50,11 +47,13 @@ def repo(tmp_path: Path) -> Path:
 
 def test_load_basic(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/xxx")
     cfg = load_config(repo)
     assert cfg.current_user == "marc"
     assert cfg.default_status == "draft"
     assert cfg.agents["claude"].cli == "claude"
     assert cfg.slack_webhook.startswith("https://")
+    assert cfg.slack_enabled is True
     assert cfg.secrets["stripe_key"] == "sk_test_abc"
     assert cfg.secrets["literal"] == "just-a-value"
 

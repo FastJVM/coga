@@ -36,6 +36,7 @@ class Config:
     agents: dict[str, AgentType]
     assignees: dict[str, Assignee]
     slack_webhook: str | None
+    slack_enabled: bool
     secrets: dict[str, str]
     aliases: dict[str, str] = field(default_factory=dict)
     extra_local: dict[str, object] = field(default_factory=dict)
@@ -102,7 +103,10 @@ def load_config(repo_root: Path | None = None) -> Config:
     default_status = shared.get("default_status", "draft")
     agents = _parse_agents(shared.get("agents", {}))
     assignees = _parse_assignees(shared.get("assignees", {}))
-    slack_webhook = (shared.get("slack") or {}).get("webhook") or os.environ.get("SLACK_WEBHOOK_URL")
+    slack_webhook = os.environ.get("SLACK_WEBHOOK_URL")
+    # `[slack].enabled = false` (in either toml) is the explicit opt-out.
+    # Local overrides shared. Default is enabled — slack is the team sync point.
+    slack_enabled = _resolve_slack_enabled(shared.get("slack"), local.get("slack"))
     aliases = _parse_aliases(shared.get("aliases", {}))
 
     current_user = local.get("user")
@@ -127,6 +131,7 @@ def load_config(repo_root: Path | None = None) -> Config:
         agents=agents,
         assignees=assignees,
         slack_webhook=slack_webhook,
+        slack_enabled=slack_enabled,
         secrets=secrets,
         aliases=aliases,
         extra_local=extra_local,
@@ -187,6 +192,19 @@ def _parse_aliases(raw: dict) -> dict[str, str]:
             raise ConfigError(f"aliases.{name} is empty")
         out[name] = value.strip()
     return out
+
+
+def _resolve_slack_enabled(shared: dict | None, local: dict | None) -> bool:
+    """Resolve [slack].enabled with local overriding shared. Default: True."""
+    for table in (local, shared):
+        if isinstance(table, dict) and "enabled" in table:
+            value = table["enabled"]
+            if not isinstance(value, bool):
+                raise ConfigError(
+                    f"[slack].enabled must be a boolean (got {type(value).__name__})"
+                )
+            return value
+    return True
 
 
 def _resolve_secrets(raw: dict) -> dict[str, str]:

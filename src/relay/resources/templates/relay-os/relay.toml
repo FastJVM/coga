@@ -28,15 +28,16 @@ mode = "local"
 # agents = {"claude1" = "claude"}
 
 # --- Slack ---
-# Omit `webhook` to run without real Slack posts (messages go to stderr).
-# If `webhook` is not set here, relay falls back to `$SLACK_WEBHOOK_URL`
-# from the environment — point multiple apps at the same env var to share
-# one Slack app config. The toml value (when present) takes precedence.
+# Slack is the team sync point — bump/feed/panic/launch all post to the
+# channel pointed at by `$SLACK_WEBHOOK_URL`. Each user exports the env
+# var locally (the URL itself is a bearer token; never commit it).
 # `relay validate --check-slack` probes the webhook so dead URLs surface
-# at config time, not at first `bump`.
-
-# [slack]
-# webhook = "https://hooks.slack.com/services/xxx"
+# at config time, not at first bump.
+#
+# To opt out (solo runs, dev/test, CI without notifications), uncomment
+# in relay.local.toml:
+#   [slack]
+#   enabled = false
 
 # --- Aliases ---
 # Thin sugar for often-used commands. Each entry maps a name to an

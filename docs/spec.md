@@ -50,9 +50,13 @@ agents = {"claude1": "claude", "claude2": "claude", "my IDE": "cursor"}
 agents = {"claude2": "claude", "goat": "copilot"}
 
 # --- Slack ---
+# The webhook URL itself lives only in $SLACK_WEBHOOK_URL (a bearer
+# token; never commit it). The toml only carries the opt-out toggle:
+# omit the block to leave Slack required (default), or set
+# enabled = false in relay.local.toml to opt out.
 
-[slack]
-webhook = "https://hooks.slack.com/services/xxx"
+# [slack]
+# enabled = false  # in relay.local.toml only — disables Slack for this user
 
 # --- Aliases ---
 # Sugar for the often-used commands. Maps a one-word name to an
@@ -932,7 +936,7 @@ The agent calls `relay bump`, etc. as normal. The CLI decides what to post. Agen
 
 ### Delivery
 
-Shared Slack channel via the incoming webhook configured in `relay.toml`. The webhook is channel-bound.
+Shared Slack channel via an incoming webhook. The URL itself lives in `$SLACK_WEBHOOK_URL` — each user (or each machine in a multi-machine setup) exports it locally. The webhook is channel-bound and is a bearer token; relay never commits it. Slack is required by default and a missing webhook crashes commands at use time, since silent FYI failures break the team's mental model. To opt out (solo / dev / CI), set `[slack].enabled = false` in `relay.local.toml`.
 
 ### Message format examples
 
