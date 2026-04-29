@@ -36,22 +36,41 @@ reliable, surface failures, and let other apps share the same webhook.
 ## In scope
 
 1. **Validation.** `relay validate` should fail loudly if `slack.webhook`
-   is set but unreachable (e.g. a HEAD or a dry POST that the user can
-   opt out of). Catch typos and revoked URLs at config time, not at
-   first `bump`.
-2. **Shared-webhook env-var fallback.** Add an env-var fallback (e.g.
-   `$RELAY_SLACK_WEBHOOK` or a shared `$SLACK_WEBHOOK_URL` — pick a name
-   in implementation) so multiple apps on the same machine can post
-   through one Slack app config without each duplicating the URL in their
-   own config file. Resolution order: `relay.toml` value first, then env
-   var, then stderr fallback. Document the convention in
-   `relay.toml`-template comments and the README slack section.
+   is set but the webhook is dead. Slack incoming webhooks reject `GET`
+   and `HEAD` (405) and reject empty payloads — exploit that as a
+   liveness probe. Concrete approach: `POST {"text": ""}` with a 5s
+   timeout. A live webhook returns HTTP 400 with body containing
+   `no_text` (Slack rejected the empty text but the URL is alive); a
+   revoked / unknown webhook returns 404 with `no_service`; any
+   `requests.exceptions.RequestException` means unreachable. Report
+   each case with a distinct message. The implementer should sanity-check
+   actual response codes/bodies against a real Slack webhook before
+   pinning the assertion strings — Slack's wire format is the source of
+   truth, not this ticket. The empty-text payload is not expected to
+   produce a visible Slack message; confirm during implementation.
+   Catch typos and revoked URLs at config time, not at first `bump`.
+2. **Shared-webhook env-var fallback.** Read `$SLACK_WEBHOOK_URL` as a
+   fallback when `[slack] webhook` is not set in `relay.toml`. The
+   conventional name (used by other tools that publish to Slack) is the
+   point — multiple apps on the same machine can share one Slack app
+   config without each duplicating the URL. Resolution order:
+   `relay.toml` value first, then `$SLACK_WEBHOOK_URL`, then the existing
+   stderr fallback. Document the convention in
+   `src/relay/resources/templates/relay-os/relay.toml` (commented `[slack]`
+   block) and the README slack section.
 3. **Structured failure path.** Today a network failure during `bump`
-   silently disappears into stderr. Surface failures somewhere durable —
-   simplest option: write to a dotfile (`relay-os/.slack-failures.log`)
-   with timestamp + message + error, and have `relay status` (or a new
-   one-liner) note when failures are present. Goal: scripted runs can
-   tell whether posts landed.
+   silently disappears into stderr. Append a record to
+   `relay-os/.slack-failures.log` (per-project, sibling to `relay.toml`)
+   on every failed post (after retries exhaust per (4)). Format: one
+   line per failure, tab-separated:
+   `<ISO8601 timestamp>\t<exception class>\t<message preview ≤120 chars>`.
+   Append-only; no rotation in v1 — the file is meant to be inspected
+   and cleared manually after triage. Add `relay-os/.slack-failures.log`
+   to `.gitignore`. `relay status` reads the file and, if it exists and
+   is non-empty, prints a footer line:
+   `⚠ N Slack post failures — see relay-os/.slack-failures.log` (where N
+   is the line count). Empty/absent file → no footer, no behavior change.
+   Goal: scripted runs can tell whether posts landed.
 4. **Optional retry.** A small in-process retry (≤3 attempts, exponential
    backoff capped at a few seconds) on transient `RequestException`. No
    on-disk queue — we're not building durable delivery here. If retries
@@ -82,15 +101,27 @@ reliable, surface failures, and let other apps share the same webhook.
 
 ## Acceptance criteria
 
-- [ ] `relay validate` reports a clear failure when `slack.webhook` is
-      set but the URL is unreachable / 4xx-on-empty-post.
-- [ ] Setting `$RELAY_SLACK_WEBHOOK` (or whichever name lands) with no
-      `[slack]` block in `relay.toml` posts successfully.
-- [ ] A simulated network failure during `relay bump` writes a record to
-      the structured failure path and is visible from `relay status` (or
-      equivalent surface).
-- [ ] Tests cover: missing config → stderr; env-var only → posts; toml
-      override of env var; retry then success; retry exhaustion →
-      structured failure log.
-- [ ] README + `relay.toml` template comment document the env-var
-      convention.
+- [ ] `relay validate` reports three distinguishable Slack states when
+      a webhook is configured: healthy (empty-text probe returns 400 +
+      `no_text`), revoked (404 + `no_service`), unreachable
+      (`RequestException`). Exit non-zero on the latter two.
+- [ ] Setting `$SLACK_WEBHOOK_URL` with no `[slack]` block in
+      `relay.toml` posts successfully through `relay feed` /
+      `relay bump`. A `[slack] webhook` value in `relay.toml` overrides
+      the env var.
+- [ ] A failed `relay bump` post (mechanism: pytest `monkeypatch` of
+      `relay.slack.requests.post` to raise
+      `requests.exceptions.ConnectionError`) appends a line to
+      `relay-os/.slack-failures.log` matching the documented format.
+      Tests must not require network access or new dependencies.
+- [ ] After such a failure, `relay status` prints the
+      `⚠ N Slack post failures — see relay-os/.slack-failures.log`
+      footer. With an empty / absent log file, the footer is not
+      printed and `relay status` output is byte-identical to today.
+- [ ] `relay-os/.slack-failures.log` is listed in `.gitignore`.
+- [ ] Tests cover: missing config → stderr; `$SLACK_WEBHOOK_URL` only
+      → posts; toml override of env var; retry-then-success
+      (`monkeypatch` raises `ConnectionError` twice then returns 200);
+      retry exhaustion → log entry written.
+- [ ] README + `relay.toml` template comment document
+      `$SLACK_WEBHOOK_URL` and the `relay.toml`-takes-precedence rule.
