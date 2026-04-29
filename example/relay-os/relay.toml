@@ -28,3 +28,12 @@ slack = "U04PIER"
 # Omit `webhook` to run without real Slack posts (messages go to stderr).
 # [slack]
 # webhook = "https://hooks.slack.com/services/xxx"
+
+# --- Aliases ---
+# Thin sugar for often-used commands. Each entry maps a name to an
+# expanded relay command. Positional args after the alias name forward
+# to the expansion. Alias names cannot collide with built-in commands.
+
+[aliases]
+chat = "launch bootstrap/orient"
+create = "launch bootstrap/ticket"

@@ -5,9 +5,10 @@ description: The relay CLI surface — what each command does, the flags that ma
 
 # Relay CLI
 
-Eight commands. Everything else is a flag or subcommand. The model
-beneath them lives in `relay/architecture` — read that for primitives
-and prompt composition. This context is just the operator's reference.
+Seven built-in commands plus a config-driven alias mechanism. Everything
+else is a flag or subcommand. The model beneath them lives in
+`relay/architecture` — read that for primitives and prompt composition.
+This context is just the operator's reference.
 
 ## relay init [PATH] [--update]
 
@@ -18,16 +19,6 @@ the relay-managed bits in the current repo.
 - `relay init --update` — pull latest CLI + `_*` templates + `bootstrap/`
   + `skills/bootstrap/` from upstream. Leaves `relay.toml`, `rules.md`,
   user contexts, and user skills untouched.
-
-## relay create "\<title\>"
-
-Scaffold a `draft` ticket and auto-launch `bootstrap/ticket` to fill in
-workflow / contexts / assignee / body. Human entry point.
-
-- `-d "<one-liner>"` — seed the description.
-- `--no-launch` — scaffold only; for scripted use.
-- `--check-recurring` — scan `recurring/` and scaffold any due tasks
-  (cron entrypoint; calling form for `scripts/cron.sh`).
 
 ## relay launch \<target\> [title]
 
@@ -68,16 +59,45 @@ states, not routine handoffs.
 Post a short FYI to the team Slack channel without changing task state.
 Falls back to stderr if `[slack].webhook` isn't configured.
 
+## relay recurring check
+
+Scan `relay-os/recurring/` and scaffold any due tasks. Cron entry point;
+called from `relay-os/scripts/cron.sh`.
+
 ## relay --version
 
 Package version + the upstream commit SHA `.relay/` was vendored from.
 Useful for "is this fixed in your copy?" questions.
 
+## Aliases
+
+`[aliases]` in `relay.toml` maps a one-word name to an expanded relay
+command. Positional args after the alias name forward to the expansion.
+Default aliases shipped by `relay init`:
+
+```toml
+[aliases]
+chat = "launch bootstrap/orient"
+create = "launch bootstrap/ticket"
+```
+
+So `relay create "Investigate flaky tests"` runs as
+`relay launch bootstrap/ticket "Investigate flaky tests"` (and prints
+the expansion to stderr so the indirection is visible).
+
+Rules: alias names can't collide with built-in commands; the first
+token of the expansion must be a known built-in. Both checked at
+config load — fail loud, not silent. Aliases are positional pass-through
+only; they don't accept their own flags.
+
 ## Pick which command
 
-- Starting a fresh task → `relay create "<title>"`.
+- Starting a fresh task → `relay create "<title>"` (alias for
+  `launch bootstrap/ticket`).
+- Ticket-less chat session → `relay chat` (alias for
+  `launch bootstrap/orient`).
 - Continuing a known task → `relay launch <slug>`.
-- Stateless/orientation session → `relay launch bootstrap/<name>`.
+- Other bootstrap shim → `relay launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `relay bump`.
 - Triage view → `relay status`.
 - Surfacing a non-blocker note → `relay feed`.

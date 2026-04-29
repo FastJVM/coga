@@ -5,7 +5,7 @@
 #   0 * * * * cd /path/to/relay-repo && relay-os/scripts/cron.sh
 #
 # Acquires a pidfile lock so only one instance runs at a time.
-# Runs `relay create --check-recurring` which scans templates and
+# Runs `relay recurring check` which scans templates and
 # creates any due tasks. Exits non-zero if relay returns non-zero.
 
 set -eu
@@ -23,4 +23,4 @@ fi
 echo "$$" > "$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT INT TERM
 
-exec relay create --check-recurring
+exec relay recurring check

@@ -33,3 +33,13 @@ mode = "local"
 
 # [slack]
 # webhook = "https://hooks.slack.com/services/xxx"
+
+# --- Aliases ---
+# Thin sugar for often-used commands. Each entry maps a name to an
+# expanded relay command (free-form string). Positional args after the
+# alias name are forwarded to the expansion. Alias names cannot collide
+# with built-in commands.
+
+[aliases]
+chat = "launch bootstrap/orient"
+create = "launch bootstrap/ticket"

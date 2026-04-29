@@ -132,3 +132,33 @@ def test_unsupported_version(tmp_path: Path) -> None:
     _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
     with pytest.raises(ConfigError, match="Unsupported relay.toml version"):
         load_config(tmp_path)
+
+
+def test_aliases_load_and_strip(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[aliases]\nchat = "  launch bootstrap/orient  "\n'
+    )
+    cfg = load_config(repo)
+    assert cfg.aliases == {"chat": "launch bootstrap/orient"}
+
+
+def test_aliases_default_empty(repo: Path) -> None:
+    cfg = load_config(repo)
+    assert cfg.aliases == {}
+
+
+def test_aliases_reject_non_string(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text() + "\n[aliases]\nchat = 42\n"
+    )
+    with pytest.raises(ConfigError, match="aliases.chat must be a string"):
+        load_config(repo)
+
+
+def test_aliases_reject_empty_string(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text() + '\n[aliases]\nchat = "   "\n'
+    )
+    with pytest.raises(ConfigError, match="aliases.chat is empty"):
+        load_config(repo)

@@ -7,7 +7,7 @@ import pytest
 from typer.testing import CliRunner
 
 from relay.cli import app
-from relay.commands.create import scaffold_task
+from relay.scaffold import scaffold_task
 from relay.config import load_config
 from relay.tasks import list_tasks
 from relay.ticket import Ticket

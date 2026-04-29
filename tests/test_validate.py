@@ -6,7 +6,7 @@ from textwrap import dedent
 
 import pytest
 
-from relay.commands.create import scaffold_task
+from relay.scaffold import scaffold_task
 from relay.config import load_config
 from relay.lock import TaskLock
 from relay.tasks import list_tasks
