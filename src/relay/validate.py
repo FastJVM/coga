@@ -159,17 +159,27 @@ def run(
                     severity="error",
                 ))
 
-        # Broken skill refs in workflow
-        wf = ticket.workflow or {}
-        for step in wf.get("steps", []):
-            skill_ref = step.get("skill")
-            if skill_ref and not skill_path(cfg, skill_ref).is_file():
-                report.issues.append(Issue(
-                    kind="broken-skill",
-                    task=task_label,
-                    message=f"step {step.get('name', '?')!r} skill {skill_ref!r} does not exist",
-                    severity="error",
-                ))
+        # Broken skill refs in workflow. `ticket.workflow` is a frozen dict
+        # post-launch but can be a bare string (workflow ref) or absent on
+        # hand-authored / pre-freeze tickets — don't crash on those shapes.
+        wf = ticket.workflow
+        if isinstance(wf, dict):
+            for step in wf.get("steps", []):
+                skill_ref = step.get("skill")
+                if skill_ref and not skill_path(cfg, skill_ref).is_file():
+                    report.issues.append(Issue(
+                        kind="broken-skill",
+                        task=task_label,
+                        message=f"step {step.get('name', '?')!r} skill {skill_ref!r} does not exist",
+                        severity="error",
+                    ))
+        elif wf is not None:
+            report.issues.append(Issue(
+                kind="unfrozen-workflow",
+                task=task_label,
+                message=f"workflow {wf!r} is not a frozen dict — likely a hand-authored ticket awaiting first launch",
+                severity="warn",
+            ))
 
         # Stuck-active: status=active but log.md hasn't been touched in `idle_hours`.
         if ticket.status == "active":
