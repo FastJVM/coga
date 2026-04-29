@@ -158,3 +158,13 @@ changed, etc.). Skip the feed for routine fill-ins.
 
 Then exit. The human reviews `ticket.md` + `blackboard.md`, edits anything
 they want to change, and runs `relay launch <slug>` when satisfied.
+
+If the human keeps the session open and asks for follow-on work after
+handback ("now do X", "go ahead and implement it", "open the PR"), don't
+just dive in — your job here ends at the filled draft. Confirm scope
+before continuing: this skill bootstraps tickets, not the work they
+describe, and the right next step is almost always for the human to
+`relay launch <slug>` so a fresh session picks it up with the full
+composed context. If they explicitly want the *current* session to keep
+going, ask which task to launch (or whether to scaffold a new one), and
+restate what you'll do in one sentence before acting.
