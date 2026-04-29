@@ -101,11 +101,14 @@ def test_bump_rejects_non_active(repo: Path) -> None:
     assert result.exit_code == 2
 
 
-def test_bump_rejects_no_workflow(repo: Path) -> None:
-    slug, _ = _make_task(repo, workflow=None)
+def test_bump_no_workflow_marks_done(repo: Path) -> None:
+    slug, task_path = _make_task(repo, workflow=None)
     runner = CliRunner()
     result = runner.invoke(app, ["bump", "--task", slug])
-    assert result.exit_code == 2
+    assert result.exit_code == 0, result.output
+    assert "done" in result.output
+    ticket_text = (task_path / "ticket.md").read_text()
+    assert "status: done" in ticket_text
 
 
 # --- panic --------------------------------------------------------------------

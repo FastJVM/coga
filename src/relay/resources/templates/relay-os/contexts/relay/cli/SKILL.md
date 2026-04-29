@@ -46,7 +46,8 @@ don't appear here.
 Advance a workflow-bound task one step. Updates `step:`, appends a log
 entry. Bumping past the last step marks the task `done`. The workflow
 is frozen into the ticket at create time, so step semantics don't drift
-mid-task. Errors cleanly on tickets without a workflow.
+mid-task. On a ticket without a workflow, `bump` marks it `done`
+directly — the whole ticket is the only "step".
 
 ## relay panic --task \<slug\> --reason "..."
 
