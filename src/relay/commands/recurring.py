@@ -35,7 +35,7 @@ def check() -> None:
         typer.echo(f"Created {ref.id_slug}")
         post(
             cfg,
-            f"{cfg.current_user}: recurring scaffolded {ref.id_slug} "
+            f"🔁 recurring scaffolded *{ref.id_slug}* "
             f"\"{ticket.title}\" — assignee {ticket.assignee or 'unassigned'}",
             task_path=ref.path,
         )
@@ -46,8 +46,7 @@ def check() -> None:
         bullets = "\n".join(f"• {name}: {msg}" for name, msg in result.errors)
         post(
             cfg,
-            f"{cfg.current_user}: recurring check skipped {n} template{plural}\n"
-            f"{bullets}",
+            f"⚠️ recurring check skipped {n} template{plural}\n{bullets}",
         )
 
     if not result.created and not result.errors:

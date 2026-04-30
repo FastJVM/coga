@@ -59,6 +59,97 @@ def test_post_calls_webhook(cfg_with_webhook, monkeypatch: pytest.MonkeyPatch) -
     assert calls[0]["json"] == {"text": "task done"}
 
 
+def test_post_with_image_url_attaches(
+    cfg_with_webhook, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[dict] = []
+
+    def fake_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        calls.append({"url": url, "json": json})
+        class R:
+            pass
+        return R()
+
+    monkeypatch.setattr("relay.slack.requests.post", fake_post)
+    post(cfg_with_webhook, "🎉 done", image_url="https://media.giphy.com/x.gif")
+    payload = calls[0]["json"]
+    assert payload["text"] == "🎉 done"
+    assert payload["attachments"] == [
+        {"image_url": "https://media.giphy.com/x.gif", "fallback": "🎉 done"}
+    ]
+
+
+def test_post_without_image_url_omits_attachments(
+    cfg_with_webhook, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        "relay.slack.requests.post",
+        lambda url, json=None, timeout=None: (calls.append({"json": json}), type("R", (), {})())[1],
+    )
+    post(cfg_with_webhook, "plain")
+    assert "attachments" not in calls[0]["json"]
+
+
+def test_gif_for_returns_none_when_unconfigured(tmp_path: Path) -> None:
+    _scaffold_min(tmp_path)
+    cfg = load_config(tmp_path)
+    assert cfg.gif_for("done") is None
+    assert cfg.gif_for("panic") is None
+
+
+def test_gif_for_picks_from_configured_list(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        interactive = "-i"
+        auto = "-p"
+        file = "CLAUDE.md"
+        [assignees.marc]
+        agents = {"claude1" = "claude"}
+        [slack.gifs]
+        done = ["https://media.giphy.com/done-1.gif"]
+        panic = ["https://media.giphy.com/panic-1.gif", "https://media.giphy.com/panic-2.gif"]
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    cfg = load_config(tmp_path)
+    assert cfg.gif_for("done") == "https://media.giphy.com/done-1.gif"
+    assert cfg.gif_for("panic") in {
+        "https://media.giphy.com/panic-1.gif",
+        "https://media.giphy.com/panic-2.gif",
+    }
+    assert cfg.gif_for("undefined-kind") is None
+
+
+def test_gifs_invalid_shape_raises_config_error(tmp_path: Path) -> None:
+    from relay.config import ConfigError
+
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        interactive = "-i"
+        auto = "-p"
+        file = "CLAUDE.md"
+        [assignees.marc]
+        agents = {"claude1" = "claude"}
+        [slack.gifs]
+        done = "not-a-list"
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    with pytest.raises(ConfigError, match=r"\[slack\.gifs\]"):
+        load_config(tmp_path)
+
+
 def test_env_var_only_is_the_webhook_source(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -41,6 +41,16 @@ mode = "local"
 # in relay.local.toml:
 #   [slack]
 #   enabled = false
+#
+# Optional: attach a GIF to milestone events. One URL is picked at random
+# per post. Skip a kind (or leave its list empty) to keep that event
+# text-only. Example:
+#   [slack.gifs]
+#   done  = ["https://media.giphy.com/media/<id>/giphy.gif"]
+#   panic = [
+#     "https://media.giphy.com/media/<id-a>/giphy.gif",
+#     "https://media.giphy.com/media/<id-b>/giphy.gif",
+#   ]
 
 # --- Aliases ---
 # Thin sugar for often-used commands. Each entry maps a name to an

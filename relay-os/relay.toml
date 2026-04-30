@@ -34,6 +34,62 @@ agents = {"claude1" = "claude", "codex1" = "codex"}
 # never commit it).
 # To opt out (solo / dev / CI), set `[slack].enabled = false` in
 # relay.local.toml.
+#
+# Optional GIFs on milestone events. One URL is picked at random per
+# post. Skip a kind to keep it text-only.
+[slack.gifs]
+done = [
+  # Picard "make it so" supercut
+  "https://media.tenor.com/l2f9i9ugp18AAAAC/star-trek-the-next-generation-captain-picard-make-it-so-supercut-star-trek-the-next-generation.gif",
+  # Snoopy "yay yay yay"
+  "https://media.tenor.com/XgSC-mawqtsAAAAC/snoop-snoopy.gif",
+  # SpongeBob & Patrick dance
+  "https://media.tenor.com/fFCZieAsZ0kAAAAC/spongebob-patrick.gif",
+  # Kermit excited dance
+  "https://media.tenor.com/cfzSkYVRIJUAAAAC/kermit.gif",
+  # Worf — "victory is yours"
+  "https://media.tenor.com/nIlw3JLegTEAAAAC/star-trek-deep-space-9-worf-victory-is-yours-the-emperor%27s-new-cloak-star-trek.gif",
+  # Penguin pushes "ENGAGE" button
+  "https://media.tenor.com/EE_csXdL2oQAAAAC/fight-go.gif",
+  # Star Trek "Engage" button
+  "https://media.tenor.com/RbMw6cT0HOsAAAAC/lets-go-star-trek.gif",
+  # Brooklyn 99 — "we did it!"
+  "https://media.tenor.com/LzSvhU4JMAgAAAAC/brooklyn-nine-nine-amy-santiago.gif",
+  # Mickey thumbs up
+  "https://media.tenor.com/9PPeKHQo_bQAAAAC/mickey-mouse-smile.gif",
+  # Mission accomplished
+  "https://media.tenor.com/ccddOYGuSQ8AAAAC/accomplishment-mission-accomplished.gif",
+  # Penguins toasting under fireworks
+  "https://media.tenor.com/5u-sit1OQZgAAAAC/transparent-happy.gif",
+  # Gandalf dancing in the forest
+  "https://media.tenor.com/83EbiNsfDtAAAAAC/gandalf.gif",
+]
+panic = [
+  # "This is fine" dog
+  "https://media.tenor.com/scX-kVPwUn8AAAAC/this-is-fine.gif",
+  # "This is fine" pixel cat
+  "https://media.tenor.com/qOquC5_CaVEAAAAC/cat-pixel.gif",
+  # "Houston we have a problem"
+  "https://media.tenor.com/C6yc5LVzkGEAAAAC/mold-moldy.gif",
+  # Picard double facepalm
+  "https://media.tenor.com/fi5CGUkQgzcAAAAC/star-trek-the-next-generation-captain-picard-facepalm-double-facepalm-picard-facepalm.gif",
+  # Stewie "send help"
+  "https://media.tenor.com/yk0oFhj5mw8AAAAC/stewie-gone-psycho.gif",
+  # TMNT — "yep, we're doomed"
+  "https://media.tenor.com/HP8YrDlEpcQAAAAC/tmnt-yep-were-doomed.gif",
+  # Squidward — "we're doomed"
+  "https://media.tenor.com/LnYz2KEvWbsAAAAC/we%27re-doomed-squidward-tentacles.gif",
+  # "Bad computer"
+  "https://media.tenor.com/jyG6Co3wtPEAAAAC/bad-computer.gif",
+  # Broken screen glitch
+  "https://media.tenor.com/f8eo8MbiXrwAAAAC/broken-screen.gif",
+  # Stressed Kermit
+  "https://media.tenor.com/v1GFxHf0j1cAAAAC/stressed-kermit.gif",
+  # Inside Out — anxiety
+  "https://media.tenor.com/k7aQ7L0PBpMAAAAC/inside-out-2-anxiety.gif",
+  # Opossum "I'm out, bye"
+  "https://media.tenor.com/ZVwGLyVjQgcAAAAC/im-out-bye.gif",
+]
 
 # --- Aliases ---
 # Thin sugar over often-used commands (typically bootstrap-shim launches).

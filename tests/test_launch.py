@@ -175,7 +175,7 @@ def test_launch_flips_draft_to_active(active_task: Path, monkeypatch: pytest.Mon
     assert "launched in interactive mode" in log
 
     # The activation transition broadcasts; the session start does not.
-    assert any("activated fix-retry-logic" in m and "assignee" in m for m in slack_msgs)
+    assert any("activated *fix-retry-logic*" in m and "assignee" in m for m in slack_msgs)
     assert not any("started work" in m for m in slack_msgs)
 
 
@@ -362,7 +362,7 @@ def test_launch_bootstrap_factory_scaffolds_and_launches(
     # Factory mode broadcasts the new draft. No draft → active flip
     # because the bootstrap-skill ticket stays draft.
     assert len(slack_msgs) == 1
-    assert "created investigate-flaky-tests" in slack_msgs[0]
+    assert "scaffolded *investigate-flaky-tests*" in slack_msgs[0]
     assert "assignee claude1" in slack_msgs[0]
 
     # A new task dir got scaffolded under tasks/.
