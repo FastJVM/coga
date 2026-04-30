@@ -19,8 +19,18 @@ from relay.tasks import (
 
 def bump(
     task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
+    message: str | None = typer.Option(
+        None,
+        "--message",
+        help="Optional FYI to piggy-back on the state-transition broadcast.",
+    ),
 ) -> None:
     """Advance one workflow step (or mark done if past the last step)."""
+    if message is not None and not message.strip():
+        _bail("--message cannot be empty")
+
+    suffix = f" — {message}" if message else ""
+
     try:
         cfg = load_config()
     except ConfigError as exc:
@@ -43,7 +53,7 @@ def bump(
     if not wf or not wf.get("steps"):
         ticket.frontmatter["status"] = "done"
         ticket.write(ref.path / "ticket.md")
-        append_log(ref.path, actor, "task done")
+        append_log(ref.path, actor, f"task done{suffix}")
         TaskLock(ref.path).release()
         # Echo before post: state has already changed; if slack crashes the
         # user still sees the local outcome on stdout before the error on stderr.
@@ -51,7 +61,7 @@ def bump(
         post(
             cfg,
             f"🎉 {ticket.assignee or cfg.current_user} finished "
-            f"*{ref.id_slug}* \"{ticket.title}\"",
+            f"*{ref.id_slug}* \"{ticket.title}\"{suffix}",
             task_path=ref.path,
             image_url=cfg.gif_for("done"),
         )
@@ -66,13 +76,13 @@ def bump(
         # Already on the final step: bump marks done.
         ticket.frontmatter["status"] = "done"
         ticket.write(ref.path / "ticket.md")
-        append_log(ref.path, actor, "task done")
+        append_log(ref.path, actor, f"task done{suffix}")
         TaskLock(ref.path).release()
         typer.echo(f"{ref.id_slug}: done")
         post(
             cfg,
             f"🎉 {ticket.assignee or cfg.current_user} finished "
-            f"*{ref.id_slug}* \"{ticket.title}\"",
+            f"*{ref.id_slug}* \"{ticket.title}\"{suffix}",
             task_path=ref.path,
             image_url=cfg.gif_for("done"),
         )
@@ -81,12 +91,12 @@ def bump(
     new_step_name = steps[next_step - 1]["name"]
     ticket.frontmatter["step"] = f"{next_step} ({new_step_name})"
     ticket.write(ref.path / "ticket.md")
-    append_log(ref.path, actor, f"advanced to step {next_step} ({new_step_name})")
+    append_log(ref.path, actor, f"advanced to step {next_step} ({new_step_name}){suffix}")
     typer.echo(f"{ref.id_slug}: step {next_step} ({new_step_name})")
     post(
         cfg,
         f"👉 {ticket.assignee or cfg.current_user} advanced "
-        f"*{ref.id_slug}* → step {next_step} ({new_step_name})",
+        f"*{ref.id_slug}* → step {next_step} ({new_step_name}){suffix}",
         task_path=ref.path,
     )
 

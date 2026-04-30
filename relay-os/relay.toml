@@ -27,7 +27,7 @@ agents = {"claude1" = "claude", "codex1" = "codex"}
 
 # --- Slack ---
 # Slack is the team sync point — every state change (ticket created,
-# draft → active, bump, panic, feed, script-mode failure, recurring
+# draft → active, bump, panic, slack, script-mode failure, recurring
 # scaffolds) posts to the channel pointed at by `$SLACK_WEBHOOK_URL`.
 # Opening a session on an already-active ticket does not post. Each
 # user exports the env var locally (the URL itself is a bearer token;

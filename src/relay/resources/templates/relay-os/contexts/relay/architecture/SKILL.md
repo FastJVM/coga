@@ -80,7 +80,7 @@ cleaned by the dream/drift validation script.
 ## Six commands
 
 `relay create`, `relay launch`, `relay status`, `relay bump`,
-`relay panic`, `relay feed`. That's the whole CLI. Everything else
+`relay panic`, `relay slack`. That's the whole CLI. Everything else
 is a flag or a subcommand on these.
 
 ## What this context does NOT cover

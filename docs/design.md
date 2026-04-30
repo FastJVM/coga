@@ -78,7 +78,7 @@ This is idempotent — running `--check-recurring` twice inside the same period 
 
 - `relay launch` acquires `task.lock` at start. Writes `holder: <assignee>` and `acquired: <ISO-8601 UTC>`.
 - If the lock exists, error with holder + age. `--force` overrides (prints a warning).
-- `relay create`, `relay bump`, `relay feed`, `relay panic` do **not** acquire the lock. They're short writes; the one-task-one-worker invariant and the running `relay launch` are sufficient serialization for the POC.
+- `relay create`, `relay bump`, `relay slack`, `relay panic` do **not** acquire the lock. They're short writes; the one-task-one-worker invariant and the running `relay launch` are sufficient serialization for the POC.
 
 ### Release
 
