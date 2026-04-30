@@ -72,7 +72,7 @@ def launch(
         post(
             cfg,
             f"{cfg.current_user} created {ref.id_slug} \"{ticket.title}\" "
-            f"(assignee={ticket.assignee or 'unassigned'}, status=draft)",
+            f"— assignee {ticket.assignee or 'unassigned'}",
             task_path=ref.path,
         )
 
@@ -134,7 +134,7 @@ def launch(
         post(
             cfg,
             f"{cfg.current_user} activated {ref.id_slug} \"{ticket.title}\" "
-            f"(draft → active, assignee={assignee})",
+            f"— assignee {assignee}",
             task_path=ref.path,
         )
 

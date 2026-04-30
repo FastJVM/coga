@@ -36,12 +36,12 @@ class Template:
         text = path.read_text()
         match = _FM_RE.match(text)
         if not match:
-            raise RecurringError(f"{path}: missing YAML frontmatter")
+            raise RecurringError("missing YAML frontmatter")
         fm = yaml.safe_load(match.group(1)) or {}
         if not isinstance(fm, dict):
-            raise RecurringError(f"{path}: frontmatter must be a mapping")
+            raise RecurringError("frontmatter must be a mapping")
         if "schedule" not in fm:
-            raise RecurringError(f"{path}: `schedule` is required")
+            raise RecurringError("`schedule` is required")
         return cls(path=path, name=path.stem, frontmatter=fm, body=match.group(2))
 
     @property

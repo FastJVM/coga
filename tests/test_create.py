@@ -260,7 +260,7 @@ def test_recurring_check_subcommand(
     assert "Created" in result.output or "No recurring tasks due" in result.output
 
     if "Created" in result.output:
-        assert any(m.startswith("recurring: scaffolded") for m in slack_msgs)
+        assert any("recurring scaffolded" in m and "assignee" in m for m in slack_msgs)
 
 
 def test_recurring_check_posts_error_summary(
@@ -284,7 +284,9 @@ def test_recurring_check_posts_error_summary(
     runner = CliRunner()
     result = runner.invoke(app, ["recurring", "check"])
     assert result.exit_code == 0, result.output
-    assert any("template(s) skipped" in m and "broken.md" in m for m in slack_msgs)
+    assert any("skipped 1 template" in m and "broken.md" in m for m in slack_msgs)
+    # Path duplication regression: the bullet should NOT contain the full file path.
+    assert not any(str(repo_with_shim) in m for m in slack_msgs)
 
 
 def test_resolve_task_exact_then_prefix(repo: Path) -> None:
