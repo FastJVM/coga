@@ -71,11 +71,6 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = 
         "system",
         f"launched in script mode (skill={skill.name}, script={skill.script})",
     )
-    post(
-        cfg,
-        f"{ref.id_slug} \"{ticket.title}\" — running {skill.script} (script mode)",
-        task_path=ref.path,
-    )
 
     try:
         # Make script executable if needed — POC-friendly.

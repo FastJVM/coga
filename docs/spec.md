@@ -770,8 +770,7 @@ shims" above.
    - **Interactive:** `{cli} {interactive-flag} /tmp/relay-<task-id>.md` — opens an interactive session with composed context loaded. Human is present.
    - **Auto:** `{cli} {auto-flag} "$(cat /tmp/relay-<task-id>.md)"` — sends composed prompt, agent runs to completion. CLI waits for exit.
    - **Script:** No agent spawned. Reads the current workflow step's skill, finds the script, executes it directly with secrets injected as env vars. No prompt composition, no LLM token cost.
-10. Log the launch: append to `log.md` — `"launched in {mode} mode"`
-11. Post to Slack via `relay feed`: FYI — `marc's claude1 started work on 003 "Fix retry logic" (interactive)`
+10. Log the launch: append to `log.md` — `"launched in {mode} mode"`. No Slack post — see "What posts and when" below; launches are not a sync-relevant state change.
 
 #### Composition order
 
@@ -924,11 +923,16 @@ The shared channel is deliberate: team-wide visibility and mutual accountability
 
 | Event | Posts |
 |---|---|
-| `relay create` | New task created |
-| `relay launch` | Agent started work on task (includes mode) |
 | `relay bump` | Task moved to next step (or completed on last step) |
 | `relay panic` | Agent stuck, owner named in message |
 | `relay feed` | Custom FYI message from agent (e.g. "opened PR #142") |
+| `relay launch` (script mode failure) | Script exited non-zero |
+
+`relay launch` (in interactive/auto modes) and `relay create` do not
+post — starting a session or scaffolding a draft isn't a sync-relevant
+state change. Tickets are assigned, collision risk is low, and the
+real state changes (`bump`, `panic`, `feed`) each broadcast on their
+own.
 
 ### Notification logic lives in the CLI
 

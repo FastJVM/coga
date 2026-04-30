@@ -26,9 +26,10 @@ mode = "local"
 agents = {"claude1" = "claude", "codex1" = "codex"}
 
 # --- Slack ---
-# Slack is the team sync point — bump/feed/panic/launch all post to the
-# channel pointed at by `$SLACK_WEBHOOK_URL`. Each user exports the env
-# var locally (the URL itself is a bearer token; never commit it).
+# Slack is the team sync point — bump/feed/panic and script-mode
+# failures all post to the channel pointed at by `$SLACK_WEBHOOK_URL`.
+# Each user exports the env var locally (the URL itself is a bearer
+# token; never commit it).
 # To opt out (solo / dev / CI), set `[slack].enabled = false` in
 # relay.local.toml.
 
