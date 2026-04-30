@@ -260,7 +260,13 @@ def test_recurring_check_subcommand(
     assert "Created" in result.output or "No recurring tasks due" in result.output
 
     if "Created" in result.output:
-        assert any("recurring scaffolded" in m and "assignee" in m for m in slack_msgs)
+        cfg = load_config(repo_with_shim)
+        assert any(
+            "recurring scaffolded" in m
+            and "assignee" in m
+            and cfg.project_name in m
+            for m in slack_msgs
+        )
 
 
 def test_recurring_check_posts_error_summary(
