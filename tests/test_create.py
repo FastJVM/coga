@@ -242,10 +242,49 @@ def test_recurring_check_subcommand(
         """,
     )
     monkeypatch.chdir(repo_with_shim)
+
+    slack_msgs: list[str] = []
+
+    def _capture(url, json=None, timeout=None):
+        slack_msgs.append(json["text"])
+        class R:
+            status_code = 200
+            text = "ok"
+        return R()
+
+    monkeypatch.setattr("relay.slack.requests.post", _capture)
+
     runner = CliRunner()
     result = runner.invoke(app, ["recurring", "check"])
     assert result.exit_code == 0, result.output
     assert "Created" in result.output or "No recurring tasks due" in result.output
+
+    if "Created" in result.output:
+        assert any(m.startswith("recurring: scaffolded") for m in slack_msgs)
+
+
+def test_recurring_check_posts_error_summary(
+    repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A broken template surfaces as a Slack summary, not just stderr."""
+    _write(repo_with_shim / "recurring" / "broken.md", "no frontmatter here\n")
+    monkeypatch.chdir(repo_with_shim)
+
+    slack_msgs: list[str] = []
+
+    def _capture(url, json=None, timeout=None):
+        slack_msgs.append(json["text"])
+        class R:
+            status_code = 200
+            text = "ok"
+        return R()
+
+    monkeypatch.setattr("relay.slack.requests.post", _capture)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["recurring", "check"])
+    assert result.exit_code == 0, result.output
+    assert any("template(s) skipped" in m and "broken.md" in m for m in slack_msgs)
 
 
 def test_resolve_task_exact_then_prefix(repo: Path) -> None:

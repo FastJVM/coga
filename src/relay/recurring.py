@@ -49,17 +49,26 @@ class Template:
         return self.frontmatter["schedule"]
 
 
-def check_recurring(cfg: Config, now: datetime | None = None) -> list[TaskRef]:
+@dataclass
+class CheckResult:
+    created: list[TaskRef]
+    errors: list[tuple[str, str]]  # (template_filename, error_message)
+
+
+def check_recurring(cfg: Config, now: datetime | None = None) -> CheckResult:
     """Scan recurring templates and create any due tasks. Idempotent.
 
-    Returns the newly-created TaskRefs.
+    Returns a CheckResult carrying both new TaskRefs and any per-template
+    parse errors encountered. The caller is responsible for surfacing both
+    (e.g. printing creates to stdout and posting errors to Slack).
     """
     now = now or datetime.now()
     root = recurring_dir(cfg)
     if not root.is_dir():
-        return []
+        return CheckResult(created=[], errors=[])
 
     created: list[TaskRef] = []
+    errors: list[tuple[str, str]] = []
     for path in sorted(root.glob("*.md")):
         if path.name.startswith("_"):
             # Underscore-prefixed files are templates/scaffolds, not live recurring tasks.
@@ -67,9 +76,12 @@ def check_recurring(cfg: Config, now: datetime | None = None) -> list[TaskRef]:
         try:
             template = Template.load(path)
         except RecurringError as exc:
-            # Don't let one bad template block the rest
+            # Don't let one bad template block the rest. Stderr keeps the
+            # interactive `relay recurring check` honest; the command also
+            # posts a Slack summary so unattended cron runs aren't silent.
             import sys
             sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
+            errors.append((path.name, str(exc)))
             continue
 
         last_fire = _last_firing(template.schedule, now)
@@ -94,7 +106,7 @@ def check_recurring(cfg: Config, now: datetime | None = None) -> list[TaskRef]:
             created_by="system",
         )
         created.append(TaskRef(slug=ref["slug"], path=ref["path"]))
-    return created
+    return CheckResult(created=created, errors=errors)
 
 
 # --- helpers ------------------------------------------------------------------
@@ -153,4 +165,4 @@ def _extract_title(template: Template) -> str:
     return template.name.replace("-", " ").replace("_", " ").strip().capitalize()
 
 
-__all__ = ["Template", "check_recurring", "RecurringError"]
+__all__ = ["Template", "CheckResult", "check_recurring", "RecurringError"]

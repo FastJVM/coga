@@ -770,7 +770,7 @@ shims" above.
    - **Interactive:** `{cli} {interactive-flag} /tmp/relay-<task-id>.md` — opens an interactive session with composed context loaded. Human is present.
    - **Auto:** `{cli} {auto-flag} "$(cat /tmp/relay-<task-id>.md)"` — sends composed prompt, agent runs to completion. CLI waits for exit.
    - **Script:** No agent spawned. Reads the current workflow step's skill, finds the script, executes it directly with secrets injected as env vars. No prompt composition, no LLM token cost.
-10. Log the launch: append to `log.md` — `"launched in {mode} mode"`. No Slack post — see "What posts and when" below; launches are not a sync-relevant state change.
+10. Log the launch: append to `log.md` — `"launched in {mode} mode"`. The session start itself doesn't post to Slack; the surrounding state changes (factory create, draft → active flip, bump, panic, feed, script failure) each post on their own — see "What posts and when" below.
 
 #### Composition order
 
@@ -923,16 +923,19 @@ The shared channel is deliberate: team-wide visibility and mutual accountability
 
 | Event | Posts |
 |---|---|
+| `relay create` (factory-mode launch with title) | New draft ticket scaffolded |
+| `relay recurring check` | One post per scaffolded task; one summary post when any templates failed to parse |
+| `relay launch` (draft → active) | Ticket activated — work approved |
 | `relay bump` | Task moved to next step (or completed on last step) |
 | `relay panic` | Agent stuck, owner named in message |
 | `relay feed` | Custom FYI message from agent (e.g. "opened PR #142") |
 | `relay launch` (script mode failure) | Script exited non-zero |
 
-`relay launch` (in interactive/auto modes) and `relay create` do not
-post — starting a session or scaffolding a draft isn't a sync-relevant
-state change. Tickets are assigned, collision risk is low, and the
-real state changes (`bump`, `panic`, `feed`) each broadcast on their
-own.
+Opening an interactive or auto session on an already-active ticket
+does *not* post — that isn't a sync-relevant state change. Tickets are
+assigned, collision risk is low, and the actual transitions
+(creation, activation, bumps, panics, feeds, script failures) each
+broadcast on their own.
 
 ### Notification logic lives in the CLI
 

@@ -57,9 +57,10 @@ def repo(tmp_path: Path):
 def test_check_recurring_creates_task(repo: Path) -> None:
     cfg = load_config(repo)
     fixed_now = datetime(2026, 4, 22, 10, 0, 0)  # a Wednesday after Monday 9am
-    created = check_recurring(cfg, now=fixed_now)
-    assert len(created) == 1
-    ref = created[0]
+    result = check_recurring(cfg, now=fixed_now)
+    assert len(result.created) == 1
+    assert result.errors == []
+    ref = result.created[0]
     ticket = Ticket.read(ref.path / "ticket.md")
     assert ticket.title == "Weekly deliverability check"
     assert ticket.mode == "auto"
@@ -76,24 +77,26 @@ def test_check_recurring_idempotent(repo: Path) -> None:
     now = datetime(2026, 4, 22, 10, 0, 0)
     first = check_recurring(cfg, now=now)
     second = check_recurring(cfg, now=now)
-    assert len(first) == 1
-    assert len(second) == 0
+    assert len(first.created) == 1
+    assert len(second.created) == 0
     assert len(list_tasks(cfg)) == 1
 
 
 def test_check_recurring_different_period_creates_new(repo: Path) -> None:
     cfg = load_config(repo)
     check_recurring(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
-    created = check_recurring(cfg, now=datetime(2026, 4, 29, 10, 0, 0))  # week 18
-    assert len(created) == 1
-    assert created[0].slug.endswith("-2026-W18")
+    result = check_recurring(cfg, now=datetime(2026, 4, 29, 10, 0, 0))  # week 18
+    assert len(result.created) == 1
+    assert result.created[0].slug.endswith("-2026-W18")
 
 
 def test_check_recurring_skips_bad_template(repo: Path, capsys) -> None:
     _write(repo / "recurring" / "bad.md", "no frontmatter here\n")
     cfg = load_config(repo)
-    created = check_recurring(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
-    assert len(created) == 1  # good one still created
+    result = check_recurring(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    assert len(result.created) == 1  # good one still created
+    assert len(result.errors) == 1
+    assert result.errors[0][0] == "bad.md"
     assert "skipping bad.md" in capsys.readouterr().err
 
 
@@ -111,6 +114,7 @@ def test_check_recurring_skips_underscore_template(repo: Path, capsys) -> None:
         """,
     )
     cfg = load_config(repo)
-    created = check_recurring(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
-    assert len(created) == 1  # only the real one
+    result = check_recurring(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    assert len(result.created) == 1  # only the real one
+    assert result.errors == []
     assert "_template.md" not in capsys.readouterr().err
