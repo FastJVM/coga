@@ -13,9 +13,10 @@ When a ticket transitions to `done`, sweep its `ticket.md`, blackboard, and
 log for things that should graduate into reusable knowledge — and surface
 the proposal as a PR the human reviews like any other diff.
 
-This is Relay's "cleanup" story for done tickets: not archival (git is the
-archive), but **knowledge extraction**. Each completed ticket is a chance
-to tune the next one.
+This is Relay's "cleanup" story for done tickets: the retro PR deletes
+the task directory and lifts whatever's worth keeping into contexts and
+skills. Git history is the archive — the task dir itself doesn't need
+to linger on disk once its lessons are extracted.
 
 ## What the retro extracts
 
@@ -33,8 +34,12 @@ to tune the next one.
 - New skill at `relay-os/skills/bootstrap/retro/SKILL.md`. The skill reads
   the done ticket + its blackboard + log, drafts proposals.
 - **Output 1 — PR.** Skill emits diffs against `relay-os/contexts/` and
-  `relay-os/skills/`, opens a branch `retro/<task-slug>`, pushes, opens a
-  PR. The PR body links back to the source ticket.
+  `relay-os/skills/` **and deletes `relay-os/tasks/<task-slug>/` in the
+  same commit**, opens a branch `retro/<task-slug>`, pushes, opens a PR.
+  The PR body links back to the source ticket (git ref, since the dir
+  is gone post-merge). One atomic review: the reviewer sees the deleted
+  files alongside the extracted contexts/skills and confirms nothing
+  valuable was dropped.
 - **Output 2 — Slack.** Posts a one-line summary + PR link to a
   configured channel. Config: `[notifications.slack]` in `relay.toml`,
   webhook URL via `env:SLACK_WEBHOOK` (per the secrets-in-local-toml rule
@@ -65,7 +70,8 @@ to tune the next one.
 
 ## Why now
 
-Discussion thread on 2026-04-27: agreed git history is the archive (no
-file pruning needed), but completed tickets are a knowledge source we're
-currently throwing away. This is the post-`done` cleanup that actually
-matters.
+Discussion thread on 2026-04-27 (revised 2026-04-30): completed tickets
+are a knowledge source we're currently throwing away, *and* their dirs
+clutter `relay-os/tasks/` indefinitely. Git history is the archive, so
+the retro PR can safely delete the dir while extracting the lessons —
+one atomic review covers both.
