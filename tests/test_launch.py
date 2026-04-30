@@ -20,6 +20,14 @@ def _write(path: Path, text: str) -> None:
     path.write_text(dedent(text).lstrip())
 
 
+def _capture_slack(sink: list[str], json_payload):
+    sink.append(json_payload["text"])
+    class R:
+        status_code = 200
+        text = "ok"
+    return R()
+
+
 # --- unit: command construction ------------------------------------------------
 
 
@@ -149,6 +157,12 @@ def test_launch_flips_draft_to_active(active_task: Path, monkeypatch: pytest.Mon
     )
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
+    slack_msgs: list[str] = []
+    monkeypatch.setattr(
+        "relay.slack.requests.post",
+        lambda url, json=None, timeout=None: _capture_slack(slack_msgs, json),
+    )
+
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
@@ -160,9 +174,13 @@ def test_launch_flips_draft_to_active(active_task: Path, monkeypatch: pytest.Mon
     assert "activated (draft → active)" in log
     assert "launched in interactive mode" in log
 
+    # The activation transition broadcasts; the session start does not.
+    assert any("activated" in m and "draft → active" in m for m in slack_msgs)
+    assert not any("started work" in m for m in slack_msgs)
+
 
 def test_launch_active_stays_active(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Re-launching an already-active task does not re-log activation."""
+    """Re-launching an already-active task does not re-log activation or post."""
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
 
@@ -175,12 +193,21 @@ def test_launch_active_stays_active(active_task: Path, monkeypatch: pytest.Monke
     )
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
+    slack_msgs: list[str] = []
+    monkeypatch.setattr(
+        "relay.slack.requests.post",
+        lambda url, json=None, timeout=None: _capture_slack(slack_msgs, json),
+    )
+
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
 
     log = (ref.path / "log.md").read_text()
     assert "activated" not in log
+
+    # No state change happened — Slack stays quiet.
+    assert slack_msgs == []
 
 
 def test_launch_rejects_non_launchable_status(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -322,9 +349,21 @@ def test_launch_bootstrap_factory_scaffolds_and_launches(
     monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
+    slack_msgs: list[str] = []
+    monkeypatch.setattr(
+        "relay.slack.requests.post",
+        lambda url, json=None, timeout=None: _capture_slack(slack_msgs, json),
+    )
+
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket", "Investigate flaky tests"])
     assert result.exit_code == 0, result.output
+
+    # Factory mode broadcasts the new draft. No draft → active flip
+    # because the bootstrap-skill ticket stays draft.
+    assert len(slack_msgs) == 1
+    assert "created investigate-flaky-tests" in slack_msgs[0]
+    assert "status=draft" in slack_msgs[0]
 
     # A new task dir got scaffolded under tasks/.
     cfg = load_config(bootstrap_repo)

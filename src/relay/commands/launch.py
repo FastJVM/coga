@@ -18,6 +18,7 @@ from relay.config import Config, ConfigError, load_config
 from relay.lock import LockHeldError, TaskLock
 from relay.logfile import append_log
 from relay.scaffold import scaffold_task
+from relay.slack import post
 from relay.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -62,6 +63,18 @@ def launch(
         is_bootstrap = False
 
     ticket = read_ticket(ref)
+
+    # Announce ticket creation when the factory mode just scaffolded one.
+    # `title is not None` was the factory-mode signal above; we re-derive
+    # it here rather than threading another local because the post needs
+    # the read ticket either way.
+    if title is not None:
+        post(
+            cfg,
+            f"{cfg.current_user} created {ref.id_slug} \"{ticket.title}\" "
+            f"(assignee={ticket.assignee or 'unassigned'}, status=draft)",
+            task_path=ref.path,
+        )
 
     if not is_bootstrap and ticket.status not in _LAUNCHABLE_STATUSES:
         _bail(
@@ -117,6 +130,12 @@ def launch(
             ref.path,
             f"human:{cfg.current_user}",
             "activated (draft → active)",
+        )
+        post(
+            cfg,
+            f"{cfg.current_user} activated {ref.id_slug} \"{ticket.title}\" "
+            f"(draft → active, assignee={assignee})",
+            task_path=ref.path,
         )
 
     # Compose & write prompt.

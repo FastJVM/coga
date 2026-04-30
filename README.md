@@ -211,14 +211,15 @@ relay feed --task add-retry --message "Pushed branch, waiting on CI"
 
 ### Slack — the team sync point
 
-Slack is required by default. `bump`, `feed`, `panic`, and script-mode
-failures post to the channel pointed at by `$SLACK_WEBHOOK_URL`, so
-teammates see state changes as they happen. `launch` deliberately
-doesn't post — starting a session isn't a state change worth
-broadcasting. Failures are loud: if Slack is unreachable or the
-webhook isn't set, the command exits non-zero rather than silently
-dropping the message — a missed FYI becomes a stale mental model on
-the human side, and that's worse than a noisy retry.
+Slack is required by default. Every state change posts to the channel
+pointed at by `$SLACK_WEBHOOK_URL`: ticket created, draft → active,
+`bump`, `panic`, `feed`, script-mode failure, and each recurring
+scaffold. Opening a session on an already-active ticket does *not*
+post — that isn't a state change. Failures are loud: if Slack is
+unreachable or the webhook isn't set, the command exits non-zero
+rather than silently dropping the message — a missed FYI becomes a
+stale mental model on the human side, and that's worse than a noisy
+retry.
 
 **Setup (solo or team).** Create a Slack incoming webhook for the
 channel and export the URL in your shell rc:

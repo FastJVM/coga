@@ -8,6 +8,8 @@ import typer
 
 from relay.config import ConfigError, load_config
 from relay.recurring import check_recurring as do_check
+from relay.slack import post
+from relay.tasks import read_ticket
 
 app = typer.Typer(
     name="recurring",
@@ -26,9 +28,24 @@ def check() -> None:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
 
-    created = do_check(cfg)
-    if not created:
-        typer.echo("No recurring tasks due.")
-        return
-    for ref in created:
+    result = do_check(cfg)
+
+    for ref in result.created:
+        ticket = read_ticket(ref)
         typer.echo(f"Created {ref.id_slug}")
+        post(
+            cfg,
+            f"recurring: scaffolded {ref.id_slug} \"{ticket.title}\" "
+            f"(assignee={ticket.assignee or 'unassigned'})",
+            task_path=ref.path,
+        )
+
+    if result.errors:
+        bullets = "\n".join(f"• {name}: {msg}" for name, msg in result.errors)
+        post(
+            cfg,
+            f"recurring check: {len(result.errors)} template(s) skipped\n{bullets}",
+        )
+
+    if not result.created and not result.errors:
+        typer.echo("No recurring tasks due.")
