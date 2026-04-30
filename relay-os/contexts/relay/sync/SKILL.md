@@ -10,11 +10,18 @@ Multi-user coordination needs a channel where state changes surface as
 they happen, or the human side accumulates a stale mental model of what
 the agents are doing. That channel, in relay, is Slack.
 
-Every state-changing CLI command (`relay launch`, `bump`, `panic`,
-`feed`, `launch_script`) posts to the same Slack channel via an
+State-changing CLI commands (`relay bump`, `panic`, `feed`, plus
+`launch_script` failures) post to the same Slack channel via an
 incoming webhook. Slack is not an "FYI nice-to-have" — it's the
 synchronization point between async agents and the people approving,
 unblocking, or watching their work.
+
+`relay launch` deliberately does *not* post. Starting a session isn't
+a sync-relevant transition: tickets are already assigned, collision
+risk between teammates is low, and the actual state changes that come
+out of a launch (step advances, blockers, FYIs) each broadcast on
+their own. Adding a "started work" line to every launch turns the
+channel into a session log instead of a state log.
 
 ## Required by default
 
@@ -67,10 +74,10 @@ opt-out is active. Quiet opt-outs become forgotten opt-outs.
 - `cfg.slack_enabled` (`bool`, default `True`) and `cfg.slack_webhook`
   (`str | None`) — both come from `relay.config`. `[slack].enabled` in
   `relay.local.toml` overrides shared.
-- Callers that post: `commands/launch.py`, `commands/launch_script.py`,
-  `commands/bump.py`, `commands/feed.py`, `commands/panic.py`. Each
-  passes `task_path=ref.path` so failure traces also land in the task's
-  `log.md` for non-interactive runs.
+- Callers that post: `commands/bump.py`, `commands/feed.py`,
+  `commands/panic.py`, and `commands/launch_script.py` (failure path
+  only). Each passes `task_path=ref.path` so failure traces also land
+  in the task's `log.md` for non-interactive runs.
 - `relay validate --check-slack` — probes the webhook with an
   empty-text payload that Slack rejects without notifying the channel.
   Honors the opt-out (skipped when `enabled = false`).

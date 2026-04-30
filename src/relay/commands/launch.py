@@ -18,7 +18,6 @@ from relay.config import Config, ConfigError, load_config
 from relay.lock import LockHeldError, TaskLock
 from relay.logfile import append_log
 from relay.scaffold import scaffold_task
-from relay.slack import post
 from relay.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -130,17 +129,10 @@ def launch(
     env = os.environ.copy()
     env.update(cfg.secrets)
 
-    # Log + notify.
     append_log(
         ref.path,
         f"human:{cfg.current_user}",
         f"launched in {mode} mode (assignee={assignee}, agent={agent.name})",
-    )
-    post(
-        cfg,
-        f"{cfg.current_user}'s {assignee} started work on "
-        f"{ref.id_slug} \"{ticket.title}\" ({mode})",
-        task_path=ref.path,
     )
 
     # Install a signal-safe cleanup.
