@@ -36,7 +36,8 @@ def check() -> None:
         post(
             cfg,
             f"🔁 recurring scaffolded *{ref.id_slug}* "
-            f"\"{ticket.title}\" — assignee {ticket.assignee or 'unassigned'}",
+            f"\"{ticket.title}\" in {cfg.project_name} — "
+            f"assignee {ticket.assignee or 'unassigned'}",
             task_path=ref.path,
         )
 

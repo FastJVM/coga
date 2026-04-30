@@ -286,6 +286,74 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return company
 
 
+def test_launch_bare_bootstrap_does_not_post_to_slack(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bare shim launches (e.g. `relay chat`) are stateless re-entry points,
+    not "started work" events — they must not post to Slack."""
+    posts: list[str] = []
+
+    def fake_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        posts.append((json or {}).get("text", ""))
+
+        class R:
+            status_code = 200
+
+        return R()
+
+    class _Result:
+        returncode = 0
+
+    monkeypatch.setattr("relay.slack.requests.post", fake_post)
+    monkeypatch.setattr(
+        "relay.commands.launch.subprocess.run",
+        lambda cmd, env=None, check=False: _Result(),
+    )
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "bootstrap/ticket"])
+    assert result.exit_code == 0, result.output
+    assert posts == []
+
+
+def test_launch_bootstrap_factory_posts_creation_with_repo_name(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Factory mode (`relay create "X"`) posts a single scaffolded event that
+    includes the title and the host repo name."""
+    posts: list[str] = []
+
+    def fake_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        posts.append((json or {}).get("text", ""))
+
+        class R:
+            status_code = 200
+
+        return R()
+
+    class _Result:
+        returncode = 0
+
+    monkeypatch.setattr("relay.slack.requests.post", fake_post)
+    monkeypatch.setattr(
+        "relay.commands.launch.subprocess.run",
+        lambda cmd, env=None, check=False: _Result(),
+    )
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "bootstrap/ticket", "Investigate flaky tests"])
+    assert result.exit_code == 0, result.output
+
+    cfg = load_config(bootstrap_repo)
+    assert len(posts) == 1
+    assert "scaffolded" in posts[0]
+    assert "Investigate flaky tests" in posts[0]
+    assert cfg.project_name in posts[0]
+    assert "started work" not in posts[0]
+
+
 def test_launch_bootstrap_skips_status_and_lock(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

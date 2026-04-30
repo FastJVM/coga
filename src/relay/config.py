@@ -45,6 +45,13 @@ class Config:
 
     # --- convenience accessors -------------------------------------------------
 
+    @property
+    def project_name(self) -> str:
+        """Display name of the host repo. Parent of `relay-os/` when nested."""
+        if self.repo_root.name == "relay-os":
+            return self.repo_root.parent.name
+        return self.repo_root.name
+
     def assignee(self, name: str) -> Assignee:
         if name not in self.assignees:
             raise ConfigError(f"Unknown assignee: {name!r}. Known: {sorted(self.assignees)}")
