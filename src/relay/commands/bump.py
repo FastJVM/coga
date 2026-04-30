@@ -50,8 +50,10 @@ def bump(
         typer.echo(f"{ref.id_slug}: done")
         post(
             cfg,
-            f"{ref.id_slug} \"{ticket.title}\" done ✓",
+            f"🎉 {ticket.assignee or cfg.current_user} finished "
+            f"*{ref.id_slug}* \"{ticket.title}\"",
             task_path=ref.path,
+            image_url=cfg.gif_for("done"),
         )
         return
 
@@ -69,8 +71,10 @@ def bump(
         typer.echo(f"{ref.id_slug}: done")
         post(
             cfg,
-            f"{ref.id_slug} \"{ticket.title}\" done ✓",
+            f"🎉 {ticket.assignee or cfg.current_user} finished "
+            f"*{ref.id_slug}* \"{ticket.title}\"",
             task_path=ref.path,
+            image_url=cfg.gif_for("done"),
         )
         return
 
@@ -81,8 +85,8 @@ def bump(
     typer.echo(f"{ref.id_slug}: step {next_step} ({new_step_name})")
     post(
         cfg,
-        f"{ticket.assignee or cfg.current_user} advanced "
-        f"{ref.id_slug} to step {next_step} ({new_step_name})",
+        f"👉 {ticket.assignee or cfg.current_user} advanced "
+        f"*{ref.id_slug}* → step {next_step} ({new_step_name})",
         task_path=ref.path,
     )
 

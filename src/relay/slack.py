@@ -28,8 +28,18 @@ from relay.config import Config
 from relay.logfile import append_log
 
 
-def post(cfg: Config, message: str, *, task_path: Path | None = None) -> None:
+def post(
+    cfg: Config,
+    message: str,
+    *,
+    task_path: Path | None = None,
+    image_url: str | None = None,
+) -> None:
     """Post a message to Slack, or crash trying.
+
+    `image_url`, if given, attaches a single image (GIF or PNG) below the
+    text via Slack's `attachments` field — used for milestone events
+    (done, panic) so they pop visually in a high-volume feed.
 
     See module docstring for the three branches and why we crash.
     """
@@ -44,10 +54,14 @@ def post(cfg: Config, message: str, *, task_path: Path | None = None) -> None:
         )
         raise typer.Exit(1)
 
+    payload: dict[str, object] = {"text": message}
+    if image_url:
+        payload["attachments"] = [{"image_url": image_url, "fallback": message}]
+
     try:
         requests.post(
             cfg.slack_webhook,
-            json={"text": message},
+            json=payload,
             timeout=5,
         )
     except requests.RequestException as exc:

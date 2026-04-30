@@ -46,10 +46,13 @@ def panic(
     TaskLock(ref.path).release()
 
     owner = ticket.owner or cfg.current_user
+    panicker = ticket.assignee or cfg.current_user
     post(
         cfg,
-        f"{owner}: {ref.id_slug} \"{ticket.title}\" — agent stuck: \"{reason}\"",
+        f"🚨 {panicker} needs help on *{ref.id_slug}* "
+        f"\"{ticket.title}\" — \"{reason}\" (cc {owner})",
         task_path=ref.path,
+        image_url=cfg.gif_for("panic"),
     )
     typer.echo(f"{ref.id_slug}: panicked (owner {owner} notified)")
     # Panic is the agent's distress signal — exit non-zero so a parent shell

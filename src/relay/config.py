@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import random
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,6 +39,7 @@ class Config:
     slack_webhook: str | None
     slack_enabled: bool
     secrets: dict[str, str]
+    slack_gifs: dict[str, list[str]] = field(default_factory=dict)
     aliases: dict[str, str] = field(default_factory=dict)
     extra_local: dict[str, object] = field(default_factory=dict)
 
@@ -62,6 +64,15 @@ class Config:
                 f"Agent type {type_name!r} (from {user}.{nickname}) is not defined in [agents]."
             )
         return self.agents[type_name]
+
+    def gif_for(self, kind: str) -> str | None:
+        """Pick a random GIF URL for `kind` (e.g. "done", "panic"), or None.
+
+        Configured under `[slack.gifs]` in relay.toml as `kind = ["url", ...]`.
+        Empty/missing → None, and the caller posts text-only.
+        """
+        urls = self.slack_gifs.get(kind, [])
+        return random.choice(urls) if urls else None
 
 
 # --- discovery -----------------------------------------------------------------
@@ -107,6 +118,7 @@ def load_config(repo_root: Path | None = None) -> Config:
     # `[slack].enabled = false` (in either toml) is the explicit opt-out.
     # Local overrides shared. Default is enabled — slack is the team sync point.
     slack_enabled = _resolve_slack_enabled(shared.get("slack"), local.get("slack"))
+    slack_gifs = _parse_slack_gifs(shared.get("slack"))
     aliases = _parse_aliases(shared.get("aliases", {}))
 
     current_user = local.get("user")
@@ -132,6 +144,7 @@ def load_config(repo_root: Path | None = None) -> Config:
         assignees=assignees,
         slack_webhook=slack_webhook,
         slack_enabled=slack_enabled,
+        slack_gifs=slack_gifs,
         secrets=secrets,
         aliases=aliases,
         extra_local=extra_local,
@@ -191,6 +204,32 @@ def _parse_aliases(raw: dict) -> dict[str, str]:
         if not value.strip():
             raise ConfigError(f"aliases.{name} is empty")
         out[name] = value.strip()
+    return out
+
+
+def _parse_slack_gifs(shared: dict | None) -> dict[str, list[str]]:
+    """Parse `[slack.gifs]` table — each key maps an event-kind to a list of URLs.
+
+    A random URL is picked per post. Missing/empty → text-only Slack messages.
+    """
+    if not isinstance(shared, dict):
+        return {}
+    gifs = shared.get("gifs")
+    if gifs is None:
+        return {}
+    if not isinstance(gifs, dict):
+        raise ConfigError(
+            f"[slack.gifs] must be a table (got {type(gifs).__name__})"
+        )
+    out: dict[str, list[str]] = {}
+    for kind, urls in gifs.items():
+        if not isinstance(urls, list) or not all(isinstance(u, str) for u in urls):
+            raise ConfigError(
+                f"[slack.gifs].{kind} must be a list of URL strings"
+            )
+        cleaned = [u.strip() for u in urls if u.strip()]
+        if cleaned:
+            out[kind] = cleaned
     return out
 
 

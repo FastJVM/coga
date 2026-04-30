@@ -71,8 +71,8 @@ def launch(
     if title is not None:
         post(
             cfg,
-            f"{cfg.current_user} created {ref.id_slug} \"{ticket.title}\" "
-            f"(assignee={ticket.assignee or 'unassigned'}, status=draft)",
+            f"✨ {cfg.current_user} scaffolded *{ref.id_slug}* "
+            f"\"{ticket.title}\" — assignee {ticket.assignee or 'unassigned'}",
             task_path=ref.path,
         )
 
@@ -133,8 +133,8 @@ def launch(
         )
         post(
             cfg,
-            f"{cfg.current_user} activated {ref.id_slug} \"{ticket.title}\" "
-            f"(draft → active, assignee={assignee})",
+            f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
+            f"\"{ticket.title}\" — assignee {assignee}",
             task_path=ref.path,
         )
 

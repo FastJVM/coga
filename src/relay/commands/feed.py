@@ -39,8 +39,8 @@ def feed(
 
     post(
         cfg,
-        f"{ticket.assignee or cfg.current_user}: {message} "
-        f"({ref.id_slug})",
+        f"💬 {ticket.assignee or cfg.current_user} on *{ref.id_slug}*: "
+        f"{message}",
         task_path=ref.path,
     )
     append_log(ref.path, actor, f"feed: {message}")
