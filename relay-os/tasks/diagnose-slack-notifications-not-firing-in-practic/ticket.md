@@ -1,6 +1,6 @@
 ---
 title: Diagnose Slack notifications not firing in practice
-status: active
+status: done
 mode: interactive
 owner: nick
 assignee: nick
