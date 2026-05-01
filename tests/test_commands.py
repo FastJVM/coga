@@ -130,15 +130,61 @@ def test_panic_writes_blocker_and_releases_lock(repo: Path) -> None:
     assert "panic:" in (task_path / "log.md").read_text()
 
 
-# --- feed ---------------------------------------------------------------------
+# --- slack --------------------------------------------------------------------
 
 
-def test_feed_logs(repo: Path) -> None:
+def test_slack_logs(repo: Path) -> None:
     slug, task_path = _make_task(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["feed", "--task", slug, "--message", "opened PR #142"])
+    result = runner.invoke(app, ["slack", "--task", slug, "--message", "opened PR #142"])
     assert result.exit_code == 0
-    assert "feed: opened PR #142" in (task_path / "log.md").read_text()
+    assert "slack: opened PR #142" in (task_path / "log.md").read_text()
+
+
+# --- bump --message -----------------------------------------------------------
+
+
+def test_bump_message_appended_to_log(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["bump", "--task", slug, "--message", "PR opened: https://example/142"],
+    )
+    assert result.exit_code == 0, result.output
+    log = (task_path / "log.md").read_text()
+    assert "advanced to step 2 (pr) — PR opened: https://example/142" in log
+
+
+def test_bump_message_on_no_workflow_done(repo: Path) -> None:
+    slug, task_path = _make_task(repo, workflow=None)
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["bump", "--task", slug, "--message", "talked to marc, scope ok"]
+    )
+    assert result.exit_code == 0, result.output
+    log = (task_path / "log.md").read_text()
+    assert "task done — talked to marc, scope ok" in log
+
+
+def test_bump_message_on_final_step_done(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    runner.invoke(app, ["bump", "--task", slug])
+    runner.invoke(app, ["bump", "--task", slug])
+    result = runner.invoke(
+        app, ["bump", "--task", slug, "--message", "shipped to prod"]
+    )
+    assert result.exit_code == 0, result.output
+    log = (task_path / "log.md").read_text()
+    assert "task done — shipped to prod" in log
+
+
+def test_bump_rejects_empty_message(repo: Path) -> None:
+    slug, _ = _make_task(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", "--task", slug, "--message", ""])
+    assert result.exit_code == 2
 
 
 # --- status -------------------------------------------------------------------

@@ -176,15 +176,20 @@ relay status                              # active work
 relay status --all                        # include closed tasks
 ```
 
-### `relay bump --task <slug>`
+### `relay bump --task <slug> [--message "..."]`
 
 Advance a workflow-bound task one step. Updates the ticket's `step:`
 field and appends a log entry. Bumping past the last step marks the task
 `done`. The workflow itself is frozen into the ticket at create time, so
 step semantics don't drift mid-task.
 
+`--message` piggy-backs an FYI onto the state-transition Slack
+broadcast — useful for "advanced to (pr) — PR opened: <link>" or
+"finished — talked to marc, scope ok" without firing a second message.
+
 ```sh
 relay bump --task add-retry                         # advance one step
+relay bump --task add-retry --message "PR: https://example/142"
 relay bump --task add-retry                         # again, until past the last → done
 ```
 
@@ -199,21 +204,23 @@ it's truly stuck — not for routine handoffs.
 relay panic --task add-retry --reason "Auth flow needs prod creds I don't have"
 ```
 
-### `relay feed --task <slug> --message "..."`
+### `relay slack --task <slug> --message "..."`
 
-Post a short FYI to the team Slack channel without changing task state.
-Use it for "heads up, deploy started", "tests still flaky", non-blocker
-context that the team should see but doesn't need to react to.
+Manual broadcast escape hatch. Posts a short FYI to the team Slack
+channel without changing task state — for events that don't coincide
+with a `bump`/`panic`/launch transition (e.g. a human announcing they
+hand-edited a ticket, or "tests still flaky" mid-step). For FYIs that
+*do* fire alongside a state change, prefer `bump --message`.
 
 ```sh
-relay feed --task add-retry --message "Pushed branch, waiting on CI"
+relay slack --task add-retry --message "Reassigned to pierre"
 ```
 
 ### Slack — the team sync point
 
 Slack is required by default. Every state change posts to the channel
 pointed at by `$SLACK_WEBHOOK_URL`: ticket created, draft → active,
-`bump`, `panic`, `feed`, script-mode failure, and each recurring
+`bump`, `panic`, `slack`, script-mode failure, and each recurring
 scaffold. Opening a session on an already-active ticket does *not*
 post — that isn't a state change. Failures are loud: if Slack is
 unreachable or the webhook isn't set, the command exits non-zero

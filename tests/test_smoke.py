@@ -5,7 +5,7 @@ Verifies:
 - Prompt composition includes every expected section.
 - `relay bump` advances and bumping past the last step marks the task done.
 - `relay panic` writes to blackboard + releases the lock.
-- `relay feed` logs a message.
+- `relay slack` logs a message.
 - `relay status` lists the active task.
 - The validator runs cleanly against a healthy repo.
 """
@@ -85,7 +85,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "advanced to step 2 (pr)" in log
     assert "task done" in log
 
-    # 4. Create a second task so we can exercise panic + feed without revival of the first.
+    # 4. Create a second task so we can exercise panic + slack without revival of the first.
     ref2 = scaffold_task(
         cfg=cfg, title="Investigate slow DNS",
         workflow_name=None, contexts=[], mode="interactive",
@@ -102,7 +102,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "## Blockers" in bb
 
     r = runner.invoke(app, [
-        "feed",
+        "slack",
         "--task", ref2["slug"],
         "--message", "checked DNS resolver logs, no answer",
     ])

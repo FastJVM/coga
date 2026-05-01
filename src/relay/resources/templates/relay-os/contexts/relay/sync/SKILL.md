@@ -20,8 +20,9 @@ incoming webhook. The current broadcast surface:
 - `relay launch` flipping a ticket draft → active — the moment work
   is approved, distinct from the *session* opening.
 - `relay bump` — step advances and the final-step `done` transition.
+  Optional `--message` piggy-backs an FYI onto the broadcast.
 - `relay panic` — blocker, owner named.
-- `relay feed` — explicit FYI.
+- `relay slack` — explicit FYI (manual broadcast escape hatch).
 - `relay launch` script-mode failure — non-zero exit on a
   `mode: script` step.
 
@@ -33,7 +34,7 @@ What deliberately does *not* post: opening an interactive or auto
 session on an already-active ticket. That isn't a sync-relevant
 transition — tickets are assigned, collision risk between teammates is
 low, and the actual state changes (creation, activation, bumps,
-panics, feeds) each broadcast on their own. A "started work" line per
+panics, slack FYIs) each broadcast on their own. A "started work" line per
 launch would turn the channel into a session log instead of a state
 log.
 
@@ -90,7 +91,7 @@ opt-out is active. Quiet opt-outs become forgotten opt-outs.
   `relay.local.toml` overrides shared.
 - Callers that post: `commands/launch.py` (factory create + draft →
   active flip), `commands/recurring.py` (per-scaffold + error
-  summary), `commands/bump.py`, `commands/feed.py`, `commands/panic.py`,
+  summary), `commands/bump.py`, `commands/slack.py`, `commands/panic.py`,
   and `commands/launch_script.py` (failure path only). Each passes
   `task_path=ref.path` (when a task exists) so failure traces also
   land in the task's `log.md` for non-interactive runs.

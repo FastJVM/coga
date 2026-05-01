@@ -76,19 +76,26 @@ the task owner and releases the lock so a human can relaunch.
 "Retry logic ambiguous — spec says respect Retry-After headers but doesn't
 specify max backoff ceiling for 429s" is actionable.
 
-## Feed — `relay feed`
+## FYIs — `bump --message` and `relay slack`
 
-`relay feed --task <id> --message "<short FYI>"`
+State-transition broadcasts already fire on their own (`launch`, `bump`,
+`panic`, recurring scaffolds). The two ways to add an FYI on top:
 
-Use for informational updates — "opened PR #142", "deployed to staging",
-"found the root cause in lib/webhooks/retry.ts". Posts to Slack as a
-plain FYI line.
+**`relay bump --task <id> --message "<short FYI>"`** — when the FYI
+naturally coincides with the step transition you're about to do anyway.
+Examples: advancing into the PR step with "PR opened: <link>";
+finishing a task with "shipped to staging, watching error rate". The
+message is appended to the state-transition broadcast — one Slack post,
+not two.
 
-Don't use feed for blockers (use `panic`) or for routine step transitions
-(those auto-post from `relay bump`).
+**`relay slack --task <id> --message "<short FYI>"`** — the manual
+broadcast escape hatch for things that don't fit a state transition.
+Examples: a human announcing they hand-edited the ticket; an agent
+calling out "tests still flaky" mid-step. Posts as a plain FYI line.
 
-Keep messages short — one line. If you need paragraphs, write to the
-blackboard and link to it in the feed message.
+Don't use either for blockers — that's `panic`. Keep messages short
+(one line). If you need paragraphs, write to the blackboard and link
+to it in the message.
 
 ## YAML discipline
 

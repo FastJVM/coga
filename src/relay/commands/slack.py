@@ -1,4 +1,12 @@
-"""`relay feed` — post an FYI to the team Slack channel."""
+"""`relay slack` — post an FYI to the team Slack channel.
+
+The manual broadcast escape hatch: state-machine transitions
+(`launch`, `bump`, `panic`, `recurring scaffold`) already broadcast on
+their own; this command covers the cases that don't fit one of those —
+e.g. a human announcing they hand-edited a ticket, or an agent calling
+out a non-transition event mid-step. For FYIs that *do* coincide with
+a step transition, prefer `bump --message`.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +24,7 @@ from relay.tasks import (
 )
 
 
-def feed(
+def slack(
     task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
     message: str = typer.Option(..., "--message", help="Short FYI message."),
 ) -> None:
@@ -43,7 +51,7 @@ def feed(
         f"{message}",
         task_path=ref.path,
     )
-    append_log(ref.path, actor, f"feed: {message}")
+    append_log(ref.path, actor, f"slack: {message}")
     typer.echo("posted")
 
 

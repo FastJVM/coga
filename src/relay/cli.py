@@ -8,11 +8,11 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
 import typer
 
-from relay.commands import feed as feed_cmd
 from relay.commands import init as init_cmd
 from relay.commands import launch as launch_cmd
 from relay.commands import panic as panic_cmd
 from relay.commands import recurring as recurring_cmd
+from relay.commands import slack as slack_cmd
 from relay.commands import status as status_cmd
 from relay.commands import bump as bump_cmd
 from relay.commands import validate as validate_cmd
@@ -64,7 +64,7 @@ app.command("launch")(launch_cmd.launch)
 app.command("status")(status_cmd.status)
 app.command("bump")(bump_cmd.bump)
 app.command("panic")(panic_cmd.panic)
-app.command("feed")(feed_cmd.feed)
+app.command("slack")(slack_cmd.slack)
 app.command("validate")(validate_cmd.validate)
 app.add_typer(recurring_cmd.app, name="recurring")
 
@@ -73,7 +73,7 @@ app.add_typer(recurring_cmd.app, name="recurring")
 # aliases don't collide with built-ins and that alias expansions target
 # real commands.
 _BUILTIN_COMMANDS = frozenset(
-    {"init", "launch", "status", "bump", "panic", "feed", "recurring", "validate"}
+    {"init", "launch", "status", "bump", "panic", "slack", "recurring", "validate"}
 )
 
 

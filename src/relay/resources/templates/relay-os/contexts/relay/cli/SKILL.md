@@ -41,7 +41,7 @@ List tasks in the repo. Defaults to non-terminal (`draft`, `active`,
 `paused`); `--all` includes `done`. Bootstrap shims have no status and
 don't appear here.
 
-## relay bump --task \<slug\>
+## relay bump --task \<slug\> [--message "..."]
 
 Advance a workflow-bound task one step. Updates `step:`, appends a log
 entry. Bumping past the last step marks the task `done`. The workflow
@@ -49,17 +49,27 @@ is frozen into the ticket at create time, so step semantics don't drift
 mid-task. On a ticket without a workflow, `bump` marks it `done`
 directly — the whole ticket is the only "step".
 
+`--message` piggy-backs an FYI onto the state-transition Slack
+broadcast — one post instead of two. Use it for transition-tied notes
+like "PR opened: <link>" or "shipped, watching error rate". For FYIs
+that don't fit a transition, reach for `relay slack` instead.
+
 ## relay panic --task \<slug\> --reason "..."
 
 Agent gives up. Writes a blocker to the ticket, posts to Slack naming
 the owner, releases the lock. Exits non-zero. Reserved for genuinely
 stuck states, not routine handoffs.
 
-## relay feed --task \<slug\> --message "..."
+## relay slack --task \<slug\> --message "..."
 
-Post a short FYI to the team Slack channel without changing task state.
-Slack is required (see `relay/sync`); commands crash if `$SLACK_WEBHOOK_URL`
-is unset and the user hasn't opted out via `[slack].enabled = false`.
+Manual broadcast escape hatch — posts a short FYI to the team Slack
+channel without changing task state. Use for events that don't
+coincide with a state transition (e.g. announcing a hand-edit to a
+ticket, or surfacing a non-blocker mid-step). For FYIs that *do*
+coincide with a `bump`, use `bump --message` instead — one post,
+not two. Slack is required (see `relay/sync`); commands crash if
+`$SLACK_WEBHOOK_URL` is unset and the user hasn't opted out via
+`[slack].enabled = false`.
 
 ## relay recurring check
 
@@ -102,7 +112,8 @@ only; they don't accept their own flags.
 - Other bootstrap shim → `relay launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `relay bump`.
 - Triage view → `relay status`.
-- Surfacing a non-blocker note → `relay feed`.
+- Surfacing a non-blocker note tied to a step transition → `relay bump --message`.
+- Surfacing a non-blocker note that doesn't fit a transition → `relay slack`.
 - Surfacing a blocker → `relay panic`.
 
 There's also `relay validate [--json] [--check-slack]`, a static repo +

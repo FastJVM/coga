@@ -88,7 +88,7 @@ indirection is visible.
 Validated at config load — fail loud, not silent:
 
 - Alias names cannot collide with built-in commands (`init`, `launch`,
-  `status`, `bump`, `panic`, `feed`, `recurring`).
+  `status`, `bump`, `panic`, `slack`, `recurring`).
 - The first token of the expansion must be a known built-in.
 - Aliases are positional pass-through only — they don't accept their own
   flags.
@@ -727,9 +727,9 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 | Command | What it does |
 |---|---|
-| `relay bump` | Advance task one workflow step. Logs, notifies Slack. On the last step (or on a workflow-less ticket), marks the task done. |
+| `relay bump` | Advance task one workflow step. Logs, notifies Slack. On the last step (or on a workflow-less ticket), marks the task done. Optional `--message` piggy-backs an FYI onto the broadcast. |
 | `relay panic` | Agent is stuck. Write blockers to blackboard, post a Slack message naming the task owner, stop. |
-| `relay feed` | Post an informational (FYI) message to the Slack channel. |
+| `relay slack` | Post an informational (FYI) message to the Slack channel. Manual broadcast escape hatch — for FYIs that don't fit a state transition. |
 
 ### Who edits what
 
@@ -770,7 +770,7 @@ shims" above.
    - **Interactive:** `{cli} {interactive-flag} /tmp/relay-<task-id>.md` — opens an interactive session with composed context loaded. Human is present.
    - **Auto:** `{cli} {auto-flag} "$(cat /tmp/relay-<task-id>.md)"` — sends composed prompt, agent runs to completion. CLI waits for exit.
    - **Script:** No agent spawned. Reads the current workflow step's skill, finds the script, executes it directly with secrets injected as env vars. No prompt composition, no LLM token cost.
-10. Log the launch: append to `log.md` — `"launched in {mode} mode"`. The session start itself doesn't post to Slack; the surrounding state changes (factory create, draft → active flip, bump, panic, feed, script failure) each post on their own — see "What posts and when" below.
+10. Log the launch: append to `log.md` — `"launched in {mode} mode"`. The session start itself doesn't post to Slack; the surrounding state changes (factory create, draft → active flip, bump, panic, slack, script failure) each post on their own — see "What posts and when" below.
 
 #### Composition order
 
@@ -836,8 +836,8 @@ A thin command for side effects. The agent calls this when it completes a workfl
 2. Validate: task status must be `active`. Error if not.
 3. Compute the next step (`current + 1`) and update the `step` field in ticket.md.
 4. If the current step was already the last one: set `status: done`, release the lock.
-5. Append to `log.md` — `"advanced to step N (step-name)"` or `"task done"`.
-6. Post to Slack via `relay feed`: FYI — step transition or task completion.
+5. Append to `log.md` — `"advanced to step N (step-name)"` or `"task done"`. When `--message <text>` is set, append ` — <text>` to the log line.
+6. Post to Slack: FYI — step transition or task completion. When `--message <text>` is set, append ` — <text>` to the broadcast.
 
 #### Errors
 
@@ -878,7 +878,7 @@ This is the most important piece of the spec. When commands like `relay bump` we
 3. **Blackboard discipline** — write frequently (plan, findings, decisions, blockers). The blackboard is unstructured by design and is the crash recovery mechanism. An agent that writes to it is recoverable; one that doesn't is not.
 4. **Step transitions** — do the work for your current step. When done, call `relay bump`. Do not go back. If a previous step needs rework, panic.
 5. **Escalation** — call `relay panic` when stuck. Be specific about the reason. Write the blocker to the blackboard before panicking. After panicking, stop.
-6. **Feed** — call `relay feed` for FYI updates. Keep messages short. Do not use feed for blockers.
+6. **FYIs** — `relay slack` posts a standalone FYI; `relay bump --message` piggy-backs an FYI onto a state-transition broadcast. Keep messages short. Do not use either for blockers.
 7. **YAML discipline** — preserve existing fields, use exact syntax, don't invent formats.
 
 ### Mode-specific blocks
@@ -928,13 +928,13 @@ The shared channel is deliberate: team-wide visibility and mutual accountability
 | `relay launch` (draft → active) | Ticket activated — work approved |
 | `relay bump` | Task moved to next step (or completed on last step) |
 | `relay panic` | Agent stuck, owner named in message |
-| `relay feed` | Custom FYI message from agent (e.g. "opened PR #142") |
+| `relay slack` | Custom FYI message from agent or human (e.g. "opened PR #142", "reassigned to pierre") |
 | `relay launch` (script mode failure) | Script exited non-zero |
 
 Opening an interactive or auto session on an already-active ticket
 does *not* post — that isn't a sync-relevant state change. Tickets are
 assigned, collision risk is low, and the actual transitions
-(creation, activation, bumps, panics, feeds, script failures) each
+(creation, activation, bumps, panics, slack FYIs, script failures) each
 broadcast on their own.
 
 ### Notification logic lives in the CLI
@@ -1116,7 +1116,7 @@ Listed as a foreground command but has no spec beyond "show all active tasks in 
 - Sorting: by recency, by status?
 - Does it show only `active` tasks, or all non-done tasks?
 
-#### `relay feed` — detailed behavior
+#### `relay slack` — detailed behavior
 
 Listed as a background command but has no spec beyond the base prompt description. Open questions:
 
@@ -1137,7 +1137,7 @@ Listed as a background command but has no spec beyond the base prompt descriptio
 
 `--task` (and the positional arg on `relay launch`) accepts an exact slug or any unique prefix. Exact matches win even when the arg is also a prefix of a longer slug. Ambiguous prefixes error with all matches listed (`Ambiguous task ref 'fix-': matches fix-retry-logic, fix-timeout-handling. Use a longer prefix to disambiguate.`).
 
-Open: should `relay bump`, `relay panic`, `relay feed` infer the task from the current working directory (e.g. when invoked from inside `relay-os/tasks/<slug>/`) instead of always requiring `--task`?
+Open: should `relay bump`, `relay panic`, `relay slack` infer the task from the current working directory (e.g. when invoked from inside `relay-os/tasks/<slug>/`) instead of always requiring `--task`?
 
 ### Can defer — resolve during or after 3-month internal use
 
