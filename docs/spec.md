@@ -826,9 +826,9 @@ Slack: `marc: 003 "Fix retry logic" — agent stuck: "429 retry logic unclear, n
 
 ### `relay bump` — decided spec
 
-`relay bump --task <task-id>`
+`relay bump <task-id> [--message "<short FYI>"]`
 
-A thin command for side effects. The agent calls this when it completes a workflow step. The intelligence about *when* to call it lives in the relay base prompt, not in the command. Takes no positional argument — it always advances by exactly one step.
+A thin command for side effects. The agent calls this when it completes a workflow step. The intelligence about *when* to call it lives in the relay base prompt, not in the command. The task arg is positional; the command always advances by exactly one step (there is no "skip ahead" form).
 
 #### Behavior
 

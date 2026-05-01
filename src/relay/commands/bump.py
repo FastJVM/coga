@@ -18,7 +18,7 @@ from relay.tasks import (
 
 
 def bump(
-    task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
+    task: str = typer.Argument(..., help="Task ID or id-slug."),
     message: str | None = typer.Option(
         None,
         "--message",

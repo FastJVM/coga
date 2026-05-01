@@ -21,7 +21,7 @@ nothing, this step is a no-op — bump and move on.
 5. **Commit.** One commit summarizing the review fixes is fine
    ("review: address self-review findings"). Reference the ticket slug
    in the body.
-6. **Bump.** Run `relay bump --task <slug>` to advance to `pr`.
+6. **Bump.** Run `relay bump <slug>` to advance to `pr`.
 
 ## Acceptance for this step
 

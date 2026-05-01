@@ -41,7 +41,7 @@ List every task in the repo — `draft`, `active`, `paused`, and `done`.
 Bootstrap shims have no status and don't appear here. No filtering
 flags yet; pipe through `grep` if you want to slice the output.
 
-## relay bump --task \<slug\> [--message "..."]
+## relay bump \<slug\> [--message "..."]
 
 Advance a workflow-bound task one step. Updates `step:`, appends a log
 entry. Bumping past the last step marks the task `done`. The workflow

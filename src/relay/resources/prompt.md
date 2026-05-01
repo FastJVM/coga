@@ -34,7 +34,7 @@ blackboard first.
 
 ## Finishing a step
 
-A step is **not done** until you have run `relay bump --task <id>`.
+A step is **not done** until you have run `relay bump <id>`.
 `bump` is what advances workflow state, posts the handoff to Slack,
 and signals the next step (or human reviewer) to pick up. If you stop
 without bumping, the team sees nothing, the workflow stalls, and your
@@ -56,7 +56,7 @@ Rules:
 - On the final step, `relay bump` marks the task `done`. That's the correct
   way to complete a task; do not manually set `status: done`.
 - **Tickets without a workflow.** If the ticket has no `workflow:` field,
-  there are no steps. When you finish the work, call `relay bump --task <id>`
+  there are no steps. When you finish the work, call `relay bump <id>`
   anyway — it marks the task `done` directly. Do not set `status: done` by
   hand.
 
@@ -85,7 +85,7 @@ specify max backoff ceiling for 429s" is actionable.
 State-transition broadcasts already fire on their own (`launch`, `bump`,
 `panic`, recurring scaffolds). The two ways to add an FYI on top:
 
-**`relay bump --task <id> --message "<short FYI>"`** — when the FYI
+**`relay bump <id> --message "<short FYI>"`** — when the FYI
 naturally coincides with the step transition you're about to do anyway.
 Examples: advancing into the PR step with "PR opened: <link>";
 finishing a task with "shipped to staging, watching error rate". The
