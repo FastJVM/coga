@@ -12,10 +12,10 @@ from relay.config import ConfigError, load_config
 from relay.tasks import list_tasks, read_ticket
 from relay.ticket import TicketError
 
-# Below this terminal width Rich's column balancer crushes the title down to
-# a couple of characters and folds it one-char-per-line, which makes the
-# output unreadable in tmux split panes and small windows. Switch every
-# column to no-wrap + ellipsis so each task stays on a single line.
+# Below this terminal width Rich's column balancer can fold long values
+# one-char-per-line, which makes the output unreadable in tmux split panes
+# and small windows. Switch every column to no-wrap + ellipsis so each task
+# stays on a single line.
 NARROW_WIDTH = 100
 
 
@@ -37,12 +37,12 @@ def status() -> None:
         # so Rich's balancer doesn't crop it. Everything else ellipsizes.
         max_slug = max((len(r.slug) for r in refs), default=0)
         table.add_column("slug", no_wrap=True, overflow="fold", min_width=max_slug)
-        for col in ("title", "status", "assignee", "step", "mode"):
+        for col in ("status", "assignee", "step", "mode"):
             table.add_column(col, no_wrap=True, overflow="ellipsis")
     else:
         # Slugs can be long; don't let rich wrap them mid-string.
         table.add_column("slug", no_wrap=True, overflow="fold")
-        for col in ("title", "status", "assignee", "step", "mode"):
+        for col in ("status", "assignee", "step", "mode"):
             table.add_column(col)
 
     rows = 0
@@ -55,7 +55,6 @@ def status() -> None:
         assignee = ticket.assignee or "-"
         table.add_row(
             ref.slug,
-            ticket.title or "-",
             ticket.status or "-",
             assignee,
             step,
