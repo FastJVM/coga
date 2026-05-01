@@ -198,15 +198,12 @@ def test_status_shows_active(repo: Path) -> None:
     assert slug in result.output
 
 
-def test_status_narrow_terminal_does_not_char_wrap_titles(
+def test_status_narrow_terminal_keeps_each_task_on_one_line(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(repo)
-    long_title = (
-        "A very long ticket title that will not fit in a narrow terminal column"
-    )
     scaffold_task(
-        cfg=cfg, title=long_title, workflow_name=None,
+        cfg=cfg, title="anything", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude1",
         watchers=[], status="active", slug_override="t1",
     )
@@ -214,11 +211,23 @@ def test_status_narrow_terminal_does_not_char_wrap_titles(
     runner = CliRunner()
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0, result.output
-    # Ellipsis means we truncated rather than character-wrapped.
-    assert "…" in result.output
     # Header + one data row + separator. Anything more means Rich wrapped.
     body = [line for line in result.output.splitlines() if line.strip()]
     assert len(body) <= 3, result.output
+
+
+def test_status_does_not_show_title_column(repo: Path) -> None:
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="A distinctive ticket title", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="active", slug_override="t1",
+    )
+    runner = CliRunner()
+    result = runner.invoke(app, ["status"])
+    assert result.exit_code == 0, result.output
+    assert "A distinctive ticket title" not in result.output
+    assert "title" not in result.output.lower().split()
 
 
 # --- validate -----------------------------------------------------------------
