@@ -40,15 +40,9 @@ and signals the next step (or human reviewer) to pick up. If you stop
 without bumping, the team sees nothing, the workflow stalls, and your
 work is invisible — even if the code is on disk and the PR is open.
 
-Definition of done for every step:
-
-1. The blackboard reflects what you did and why.
-2. You have run `relay bump --task <id>` and seen its
-   `step N (name)` (or `done`) confirmation.
-
-Run `bump` as the *last* thing in the step, after the blackboard and
-after any code/PR work. If something stops you from reaching step 2,
-that's `relay panic` — never a silent stop.
+Run `bump` as the *last* thing in the step, after any code/PR work
+and after the blackboard is up to date. If something stops you from
+reaching it, that's `relay panic` — never a silent stop.
 
 Rules:
 
