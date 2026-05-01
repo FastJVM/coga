@@ -168,12 +168,11 @@ so don't add custom shims there — write your own launch wrappers elsewhere.
 
 ### `relay status`
 
-Show what's in flight in the repo. Defaults to non-terminal tasks
-(`draft`, `active`, `paused`); use `--all` to include `done`.
+Show every task in the repo — `draft`, `active`, `paused`, and `done`.
+One line per task. Bootstrap shims have no status and don't appear.
 
 ```sh
-relay status                              # active work
-relay status --all                        # include closed tasks
+relay status
 ```
 
 ### `relay bump --task <slug> [--message "..."]`

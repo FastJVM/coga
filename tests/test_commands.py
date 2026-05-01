@@ -220,7 +220,7 @@ def test_validate_json_emits_payload(repo: Path) -> None:
     assert payload["ok_count"] == 1
 
 
-def test_status_hides_done_by_default(repo: Path) -> None:
+def test_status_shows_done_tasks(repo: Path) -> None:
     slug, task_path = _make_task(repo, workflow=None)
     # Mark done directly
     t = Ticket.read(task_path / "ticket.md")
@@ -228,6 +228,5 @@ def test_status_hides_done_by_default(repo: Path) -> None:
     t.write(task_path / "ticket.md")
     runner = CliRunner()
     result = runner.invoke(app, ["status"])
-    assert "(no tasks)" in result.output
-    result_all = runner.invoke(app, ["status", "--all"])
-    assert slug in result_all.output
+    assert result.exit_code == 0, result.output
+    assert slug in result.output

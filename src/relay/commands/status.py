@@ -13,9 +13,7 @@ from relay.tasks import list_tasks, read_ticket
 from relay.ticket import TicketError
 
 
-def status(
-    all: bool = typer.Option(False, "--all", help="Include done tasks."),
-) -> None:
+def status() -> None:
     """Show tasks in the repo."""
     try:
         cfg = load_config()
@@ -30,14 +28,11 @@ def status(
     for col in ("title", "status", "assignee", "step", "mode"):
         table.add_column(col)
 
-    hidden = {"done"}
     rows = 0
     for ref in refs:
         try:
             ticket = read_ticket(ref)
         except TicketError:
-            continue
-        if not all and ticket.status in hidden:
             continue
         step = ticket.step or "-"
         assignee = ticket.assignee or "-"
