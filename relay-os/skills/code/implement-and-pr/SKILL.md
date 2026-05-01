@@ -13,8 +13,10 @@ ticket reassigned to the human owner.
 1. **Read the ticket carefully.** Description, acceptance criteria,
    referenced files. If anything is ambiguous, write the ambiguity to
    the blackboard and stop — do not guess.
-2. **Branch.** `git checkout -b <task-slug>` from `main`. The branch
-   name should match the task directory name.
+2. **Branch.** `git checkout -b <branch-name>` from `main`. Pick a
+   short descriptive name — it does *not* have to match the slug.
+   Then write `branch: <branch-name>` under a `## Dev` section on the
+   blackboard. See the `dev/code` context for the full convention.
 3. **Implement.** Match existing code style. Keep changes scoped to the
    ticket — no opportunistic refactors. If you find a real adjacent bug,
    write it on the blackboard for a follow-up ticket; don't fix it here.
@@ -30,8 +32,8 @@ ticket reassigned to the human owner.
 8. **Open the PR** with `gh pr create`. Title = ticket title. Body =
    short summary + "Closes ticket: `<slug>`" + a one-line test plan.
 9. **Hand off.** Edit the ticket's `assignee:` frontmatter to the
-   ticket's `owner:` (the human who created it). Add the PR URL to the
-   blackboard with a one-line note.
+   ticket's `owner:` (the human who created it). Add `pr: <url>`
+   under the `## Dev` section on the blackboard.
 10. **Advance.** Run `relay bump` to move the workflow to `review`. This
     posts to Slack and logs the handoff.
 
@@ -42,7 +44,7 @@ You are done when:
 - A PR exists, links the ticket, and is green on CI (or the failure is
   noted on the blackboard with a reason).
 - The ticket's `assignee` is the human owner.
-- The blackboard has the PR URL.
+- The blackboard has a `## Dev` section with `branch:` and `pr:`.
 - `relay bump` has advanced the workflow to `review`.
 
 ## What this skill does NOT do

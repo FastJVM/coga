@@ -14,8 +14,10 @@ later `code/open-pr` step does that, after self-review and fixes.
 1. **Read the ticket carefully.** Description, acceptance criteria,
    referenced files. If anything is ambiguous, write the ambiguity to
    the blackboard and stop — do not guess.
-2. **Branch.** `git checkout -b <task-slug>` from `main`. The branch
-   name should match the task directory name.
+2. **Branch.** `git checkout -b <branch-name>` from `main`. Pick a
+   short descriptive name — it does *not* have to match the slug.
+   Then write `branch: <branch-name>` under a `## Dev` section on the
+   blackboard. See the `dev/code` context for the full convention.
 3. **Implement.** Match existing code style. Keep changes scoped to the
    ticket — no opportunistic refactors. If you find a real adjacent bug,
    write it on the blackboard for a follow-up ticket; don't fix it here.
@@ -30,7 +32,7 @@ later `code/open-pr` step does that, after self-review and fixes.
 
 ## Acceptance for this step
 
-- Local branch exists, named after the task slug.
+- Local branch exists; its name is recorded under `## Dev` on the blackboard.
 - Tests pass locally.
 - Changes committed (no working-tree modifications left).
 - No push, no PR yet.
