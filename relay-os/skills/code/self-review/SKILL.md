@@ -25,7 +25,7 @@ will read and act on. You are **not** fixing anything in this step.
    - **Should fix** — clarity, naming, small structural issues.
    - **Optional** — nits, stylistic preferences. The next step may skip
      these.
-4. **Bump.** Run `relay bump --task <slug>` to advance to `fix`.
+4. **Bump.** Run `relay bump <slug>` to advance to `fix`.
 
 ## Acceptance for this step
 

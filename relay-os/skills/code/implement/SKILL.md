@@ -26,7 +26,7 @@ later `code/open-pr` step does that, after self-review and fixes.
    prompt composition, or workflow semantics (per CLAUDE.md).
 6. **Commit.** Conventional, present-tense summary line. Reference the
    ticket slug in the body. One commit per logical change is fine.
-7. **Bump.** Run `relay bump --task <slug>` to advance to `review`.
+7. **Bump.** Run `relay bump <slug>` to advance to `review`.
 
 ## Acceptance for this step
 

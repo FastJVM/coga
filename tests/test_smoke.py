@@ -75,7 +75,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     runner = CliRunner()
     slug = ref["slug"]
     for _ in range(4):
-        r = runner.invoke(app, ["bump", "--task", slug])
+        r = runner.invoke(app, ["bump", slug])
         assert r.exit_code == 0, r.output
     assert read_ticket(task_ref).status == "done"
 

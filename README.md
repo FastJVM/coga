@@ -175,7 +175,7 @@ One line per task. Bootstrap shims have no status and don't appear.
 relay status
 ```
 
-### `relay bump --task <slug> [--message "..."]`
+### `relay bump <slug> [--message "..."]`
 
 Advance a workflow-bound task one step. Updates the ticket's `step:`
 field and appends a log entry. Bumping past the last step marks the task
@@ -187,9 +187,9 @@ broadcast — useful for "advanced to (pr) — PR opened: <link>" or
 "finished — talked to marc, scope ok" without firing a second message.
 
 ```sh
-relay bump --task add-retry                         # advance one step
-relay bump --task add-retry --message "PR: https://example/142"
-relay bump --task add-retry                         # again, until past the last → done
+relay bump add-retry                         # advance one step
+relay bump add-retry --message "PR: https://example/142"
+relay bump add-retry                         # again, until past the last → done
 ```
 
 ### `relay panic --task <slug> --reason "..."`

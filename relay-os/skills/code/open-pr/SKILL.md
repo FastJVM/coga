@@ -18,7 +18,7 @@ hand the ticket back to the human owner.
 3. **Hand off.** Edit the ticket's `assignee:` frontmatter to the
    ticket's `owner:` (the human who created it).
 4. **Blackboard the URL** with a one-line note ("PR opened: <url>").
-5. **Bump.** Run `relay bump --task <slug>` to advance to the human
+5. **Bump.** Run `relay bump <slug>` to advance to the human
    `merge` step.
 
 ## Acceptance for this step
