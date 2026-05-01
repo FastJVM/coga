@@ -21,4 +21,4 @@ titles to ~10 lines per row. After the fix each task is a single line.
 ## Dev
 
 branch: fix-status-narrow-wrap
-pr: (pending push)
+pr: https://github.com/FastJVM/relay/pull/74

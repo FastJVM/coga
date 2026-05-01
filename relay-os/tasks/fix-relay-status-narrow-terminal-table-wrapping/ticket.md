@@ -1,6 +1,6 @@
 ---
 title: Fix relay status narrow terminal table wrapping
-status: active
+status: done
 mode: interactive
 owner: nick
 assignee: nick
@@ -16,7 +16,7 @@ workflow:
   - name: implement
     skill: code/implement-and-pr
   - name: review
-step: 1 (implement)
+step: 2 (review)
 ---
 
 ## Description
