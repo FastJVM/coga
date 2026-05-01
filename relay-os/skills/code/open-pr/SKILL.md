@@ -17,7 +17,8 @@ hand the ticket back to the human owner.
    one-line test plan.
 3. **Hand off.** Edit the ticket's `assignee:` frontmatter to the
    ticket's `owner:` (the human who created it).
-4. **Blackboard the URL** with a one-line note ("PR opened: <url>").
+4. **Blackboard the URL.** Add `pr: <url>` under the `## Dev`
+   section on the blackboard (see the `dev/code` context).
 5. **Bump.** Run `relay bump <slug>` to advance to the human
    `merge` step.
 
@@ -26,7 +27,7 @@ hand the ticket back to the human owner.
 - A PR exists, links the ticket, and is green on CI (or the failure is
   noted on the blackboard with a reason).
 - The ticket's `assignee` is the human owner.
-- The blackboard has the PR URL.
+- The blackboard has `pr: <url>` under `## Dev`.
 - `relay bump` has advanced the workflow to `merge`.
 
 ## What this skill does NOT do
