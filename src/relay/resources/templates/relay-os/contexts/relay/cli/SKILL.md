@@ -5,7 +5,7 @@ description: The relay CLI surface — what each command does, the flags that ma
 
 # Relay CLI
 
-Seven built-in commands plus a config-driven alias mechanism. Everything
+Eight built-in commands plus a config-driven alias mechanism. Everything
 else is a flag or subcommand. The model beneath them lives in
 `relay/architecture` — read that for primitives and prompt composition.
 This context is just the operator's reference.
@@ -53,6 +53,23 @@ directly — the whole ticket is the only "step".
 broadcast — one post instead of two. Use it for transition-tied notes
 like "PR opened: <link>" or "shipped, watching error rate". For FYIs
 that don't fit a transition, reach for `relay slack` instead.
+
+## relay automerge
+
+Walk active tickets; bump any whose blackboard `## Dev` section names a
+PR that has merged on GitHub. Looks each PR up via `gh pr view`. Scope:
+tickets on their final workflow step, or with no workflow at all.
+Mid-workflow merges stay alone — those need a human eye.
+
+`relay init` symlinks this into `.git/hooks/post-merge` so a normal
+`git pull` after a teammate's merge runs it for you. `relay status`
+also calls it opportunistically (quietly) so the long tail still gets
+caught even when nobody pulled. The explicit command surfaces `gh`
+errors (missing, unauthed); the status path silently skips.
+
+Posts a distinct Slack line — `🎉 *<slug>* "<title>" auto-bumped on
+merge of PR #<N>` — so the team can tell auto-bumps apart from manual
+ones.
 
 ## relay panic --task \<slug\> --reason "..."
 
@@ -111,6 +128,8 @@ only; they don't accept their own flags.
 - Continuing a known task → `relay launch <slug>`.
 - Other bootstrap shim → `relay launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `relay bump`.
+- Catching up tickets after a teammate merged a PR → `relay automerge`
+  (also fires automatically on `git pull` and from `relay status`).
 - Triage view → `relay status`.
 - Surfacing a non-blocker note tied to a step transition → `relay bump --message`.
 - Surfacing a non-blocker note that doesn't fit a transition → `relay slack`.

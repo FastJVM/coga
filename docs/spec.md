@@ -728,6 +728,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 | Command | What it does |
 |---|---|
 | `relay bump` | Advance task one workflow step. Logs, notifies Slack. On the last step (or on a workflow-less ticket), marks the task done. Optional `--message` piggy-backs an FYI onto the broadcast. |
+| `relay automerge` | Walk active tickets; bump any whose blackboard `## Dev` PR has merged. Looks PRs up via `gh pr view`. Symlinked into `.git/hooks/post-merge` by `relay init`, and called opportunistically from `relay status` so the long tail still gets caught. |
 | `relay panic` | Agent is stuck. Write blockers to blackboard, post a Slack message naming the task owner, stop. |
 | `relay slack` | Post an informational (FYI) message to the Slack channel. Manual broadcast escape hatch — for FYIs that don't fit a state transition. |
 

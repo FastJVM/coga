@@ -21,6 +21,7 @@ EXPECTED_FILES = {
     "relay-os/rules.md",
     "relay-os/context.md",
     "relay-os/scripts/cron.sh",
+    "relay-os/hooks/post-merge",
     "relay-os/contexts/_template/SKILL.md",
     "relay-os/skills/_template/SKILL.md",
     "relay-os/workflows/_template.md",
@@ -41,6 +42,10 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     (templates / "context.md").write_text("context\n")
     (templates / "scripts").mkdir()
     (templates / "scripts" / "cron.sh").write_text("#!/bin/sh\n")
+    (templates / "hooks").mkdir()
+    hook = templates / "hooks" / "post-merge"
+    hook.write_text("#!/bin/sh\nrelay automerge || true\n")
+    hook.chmod(0o755)
     for kind, fname in [
         ("contexts", "_template/SKILL.md"),
         ("skills", "_template/SKILL.md"),
@@ -579,6 +584,76 @@ def test_init_skips_host_gitignore_when_not_git_repo(
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0, result.output
     assert not (target / ".gitignore").exists()
+
+
+# --- post-merge hook install --------------------------------------------------
+
+
+def test_init_installs_post_merge_hook_in_git_repo(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    link = target / ".git" / "hooks" / "post-merge"
+    src = target / "relay-os" / "hooks" / "post-merge"
+    assert link.is_symlink()
+    assert link.resolve() == src.resolve()
+    assert "Installed post-merge hook" in result.output
+
+
+def test_init_skips_post_merge_hook_when_not_git_repo(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+    assert "Installed post-merge hook" not in result.output
+
+
+def test_init_does_not_clobber_existing_post_merge_hook(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
+    existing = target / ".git" / "hooks" / "post-merge"
+    existing.write_text("#!/bin/sh\necho user-owned\n")
+    existing.chmod(0o755)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    # User's hook left intact, surfaced as a warning.
+    assert existing.read_text() == "#!/bin/sh\necho user-owned\n"
+    assert "Skipped post-merge hook" in result.output
+
+
+def test_install_post_merge_hook_is_idempotent(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    relay_os = target / "relay-os"
+    (target / ".git" / "hooks").mkdir(parents=True)
+    (relay_os / "hooks").mkdir(parents=True)
+    src = relay_os / "hooks" / "post-merge"
+    src.write_text("#!/bin/sh\nrelay automerge || true\n")
+    src.chmod(0o755)
+
+    s1, _ = init_cmd._install_post_merge_hook(target, relay_os)
+    s2, _ = init_cmd._install_post_merge_hook(target, relay_os)
+    assert s1 == "installed"
+    assert s2 == "present"
 
 
 def test_ensure_host_gitignore_is_idempotent(tmp_path: Path) -> None:

@@ -21,6 +21,10 @@ incoming webhook. The current broadcast surface:
   is approved, distinct from the *session* opening.
 - `relay bump` — step advances and the final-step `done` transition.
   Optional `--message` piggy-backs an FYI onto the broadcast.
+- `relay automerge` (and the `post-merge` hook + `relay status` callers
+  that wrap it) — auto-bumps active tickets to `done` when their
+  blackboard `## Dev` PR has merged. Posts a distinct
+  `🎉 *<slug>* "<title>" auto-bumped on merge of PR #<N>` line.
 - `relay panic` — blocker, owner named.
 - `relay slack` — explicit FYI (manual broadcast escape hatch).
 - `relay launch` script-mode failure — non-zero exit on a
@@ -92,7 +96,9 @@ opt-out is active. Quiet opt-outs become forgotten opt-outs.
 - Callers that post: `commands/launch.py` (factory create + draft →
   active flip), `commands/recurring.py` (per-scaffold + error
   summary), `commands/bump.py`, `commands/slack.py`, `commands/panic.py`,
-  and `commands/launch_script.py` (failure path only). Each passes
+  `commands/launch_script.py` (failure path only), and
+  `automerge.auto_bump_merged` (called by `commands/automerge.py` and
+  opportunistically by `commands/status.py`). Each passes
   `task_path=ref.path` (when a task exists) so failure traces also
   land in the task's `log.md` for non-interactive runs.
 - `relay validate --check-slack` — probes the webhook with an
