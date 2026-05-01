@@ -1,13 +1,13 @@
 ---
 title: Auto-bump tickets when their PR merges
-status: active
+status: done
 mode: interactive
 owner: nick
 assignee: claude1
 contexts:
-  - relay/codebase
-  - relay/architecture
-  - dev/code
+- relay/codebase
+- relay/architecture
+- dev/code
 ---
 
 ## Description
