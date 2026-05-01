@@ -61,6 +61,12 @@ class Config:
         """Resolve (user, nickname) -> AgentType."""
         who = self.assignee(user)
         if nickname not in who.agents:
+            if nickname in self.assignees:
+                raise ConfigError(
+                    f"Ticket assignee {nickname!r} is a human user, not an agent. "
+                    f"`relay launch` only runs agent assignees. "
+                    f"Reassign to one of {sorted(who.agents)} or do the work yourself."
+                )
             raise ConfigError(
                 f"Assignee {user!r} has no agent nickname {nickname!r}. "
                 f"Known nicknames: {sorted(who.agents)}"

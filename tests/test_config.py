@@ -89,6 +89,12 @@ def test_unknown_nickname(repo: Path) -> None:
         cfg.agent_type_for("marc", "goat")
 
 
+def test_human_assignee_rejected_with_clear_message(repo: Path) -> None:
+    cfg = load_config(repo)
+    with pytest.raises(ConfigError, match="is a human user, not an agent"):
+        cfg.agent_type_for("marc", "marc")
+
+
 def test_missing_user(tmp_path: Path) -> None:
     _write(
         tmp_path / "relay.toml",
