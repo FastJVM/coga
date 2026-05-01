@@ -32,13 +32,23 @@ and any blockers. Organize the file however fits the task — invent headings
 that make sense, or write flat. When picking up a relaunched task, read the
 blackboard first.
 
-## Step transitions
+## Finishing a step
 
-Do the work for your current workflow step. When you believe the step is
-complete:
+A step is **not done** until you have run `relay bump --task <id>`.
+`bump` is what advances workflow state, posts the handoff to Slack,
+and signals the next step (or human reviewer) to pick up. If you stop
+without bumping, the team sees nothing, the workflow stalls, and your
+work is invisible — even if the code is on disk and the PR is open.
 
-1. Make sure the blackboard reflects what you did.
-2. Call `relay bump --task <id>`.
+Definition of done for every step:
+
+1. The blackboard reflects what you did and why.
+2. You have run `relay bump --task <id>` and seen its
+   `step N (name)` (or `done`) confirmation.
+
+Run `bump` as the *last* thing in the step, after the blackboard and
+after any code/PR work. If something stops you from reaching step 2,
+that's `relay panic` — never a silent stop.
 
 Rules:
 
@@ -121,3 +131,5 @@ When editing `ticket.md` frontmatter:
 - Don't touch `relay.toml` or `relay.local.toml`.
 - Don't edit the workflow snapshot in ticket frontmatter.
 - Don't set `status: done` manually — use `relay bump` on the final step.
+- Don't end the step without running `relay bump`. If you're blocked,
+  `relay panic` with a reason — never stop silently.
