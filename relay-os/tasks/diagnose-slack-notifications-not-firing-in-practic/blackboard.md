@@ -58,6 +58,11 @@ Per nick: option (b). Reword `src/relay/resources/prompt.md` so:
 2. The "What you don't do" list adds "Don't end the step without
    running `relay bump`. If blocked, `relay panic`."
 
+## PR
+
+https://github.com/FastJVM/relay/pull/69 — "Frame `relay bump` as a
+required end-of-step ritual". Reviewer: nick.
+
 ## Out of scope — follow-up tickets to file
 
 - **Fail-loud on Slack 4xx in `slack.py:post`.** `requests.post`
