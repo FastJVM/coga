@@ -8,6 +8,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from relay.automerge import auto_bump_merged
 from relay.config import ConfigError, load_config
 from relay.tasks import list_tasks, read_ticket
 from relay.ticket import TicketError
@@ -26,6 +27,12 @@ def status() -> None:
     except ConfigError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
+
+    # Opportunistic auto-bump pass: if a teammate merged a PR while this
+    # machine was idle, catch up before rendering. quiet=True swallows
+    # `gh` errors (missing/unauthed) so a fast command stays fast — the
+    # explicit `relay automerge` path surfaces those failures normally.
+    auto_bump_merged(cfg, quiet=True)
 
     refs = list_tasks(cfg)
     console = Console()

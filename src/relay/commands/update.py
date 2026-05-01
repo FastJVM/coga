@@ -138,6 +138,7 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> tuple[list[str], list[
     copied = _copy_templates(src_root, relay_os)
     copied.extend(_copy_bootstrap(src_root, relay_os))
     copied.extend(_copy_relay_contexts(src_root, relay_os))
+    copied.extend(_copy_relay_hooks(src_root, relay_os))
     copied.extend(_copy_upstream_files(src_root, relay_os))
     pruned = _prune_removed_templates(src_root, relay_os)
     return copied, pruned
@@ -491,6 +492,27 @@ def _copy_relay_contexts(src_root: Path, dst_root: Path) -> list[str]:
     are untouched.
     """
     return _wholesale_mirror(src_root, dst_root, _RELAY_OWNED_CONTEXTS)
+
+
+def _copy_relay_hooks(src_root: Path, dst_root: Path) -> list[str]:
+    """Mirror `hooks/` from upstream — the git-hook scripts relay installs.
+
+    Currently just `post-merge` (auto-bumps tickets whose PR has merged).
+    Symlinked into `.git/hooks/` by `relay init`; the file lives here so it
+    travels with the repo and updates land via `init --update`.
+    """
+    copied = _wholesale_mirror(src_root, dst_root, ("hooks",))
+    # `_wholesale_mirror` uses `shutil.copytree` whose default `copy2` honors
+    # mode bits, but be defensive: hooks are useless if not executable.
+    hooks_dir = dst_root / "hooks"
+    if hooks_dir.is_dir():
+        for hook in hooks_dir.iterdir():
+            if hook.is_file():
+                try:
+                    hook.chmod(0o755)
+                except OSError:
+                    pass
+    return copied
 
 
 def _wholesale_mirror(

@@ -192,6 +192,23 @@ relay bump add-retry --message "PR: https://example/142"
 relay bump add-retry                         # again, until past the last → done
 ```
 
+### `relay automerge`
+
+Walk active tickets, find ones on their final workflow step (or with no
+workflow) whose blackboard `## Dev` section names a merged PR, and
+auto-bump them to `done`. Looks the PR up via `gh pr view`. Posts to
+Slack with a distinct `auto-bumped on merge of PR #<N>` line.
+
+`relay init` symlinks this into `.git/hooks/post-merge`, so a normal
+`git pull` after a teammate merges runs it for you. `relay status` also
+calls it opportunistically so the long tail (you didn't pull, but you
+checked status) gets caught. No `gh`? The `status` path silently skips;
+the explicit command surfaces the error.
+
+```sh
+relay automerge   # one-shot. Safe to run by hand.
+```
+
 ### `relay panic --task <slug> --reason "..."`
 
 The agent gives up. Writes a blocker entry to the ticket, posts to the

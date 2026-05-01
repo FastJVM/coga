@@ -109,6 +109,7 @@ def _do_init(path: Path) -> None:
     bin_dir = relay_os / ".relay" / "bin"
     shim = _try_install_shim(bin_dir / "relay")
     wired_agents, blocked_agents = _link_skills_for_agents(target, relay_os)
+    hook_status, hook_blocker = _install_post_merge_hook(target, relay_os)
     host_gitignore_changed = ensure_host_gitignore(target)
     commit_sha = _git_commit_relay_os(target, relay_os, host_gitignore_changed)
 
@@ -126,6 +127,7 @@ def _do_init(path: Path) -> None:
             f"Remove or convert it, then rerun `relay init --update`.",
             fg=typer.colors.YELLOW,
         )
+    _print_post_merge_status(hook_status, hook_blocker, target)
     if host_gitignore_changed:
         typer.echo(f"Updated {target / '.gitignore'} (relay-managed block).")
     if commit_sha is not None:
@@ -189,6 +191,7 @@ def _do_update() -> None:
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
     wired_agents, blocked_agents = _link_skills_for_agents(relay_os.parent, relay_os)
+    hook_status, hook_blocker = _install_post_merge_hook(relay_os.parent, relay_os)
     host_gitignore_changed = ensure_host_gitignore(relay_os.parent)
 
     typer.echo("")
@@ -204,6 +207,7 @@ def _do_update() -> None:
             f"Remove or convert it, then rerun this command.",
             fg=typer.colors.YELLOW,
         )
+    _print_post_merge_status(hook_status, hook_blocker, relay_os.parent)
     if copied:
         typer.echo(f"Refreshed {len(copied)} template file(s):")
         for rel in copied:
@@ -269,6 +273,97 @@ def _link_skills_for_agents(
             continue
         wired.append(label)
     return wired, blocked
+
+
+def _find_git_dir(start: Path) -> Path | None:
+    """Walk up from `start` looking for a `.git` directory. Worktrees
+    (where `.git` is a file) and bare repos aren't supported here — the
+    hook install just no-ops, and `relay status` covers the gap.
+    """
+    cur = start.resolve()
+    for candidate in [cur, *cur.parents]:
+        gd = candidate / ".git"
+        if gd.is_dir():
+            return gd
+    return None
+
+
+def _install_post_merge_hook(
+    host_repo: Path, relay_os: Path
+) -> tuple[str, Path | None]:
+    """Symlink `<host>/.git/hooks/post-merge` → `relay-os/hooks/post-merge`.
+
+    Returns `(status, blocker)`:
+      - `("installed", None)` — newly created.
+      - `("present", None)` — symlink already correct (idempotent re-run).
+      - `("not-a-git-repo", None)` — host has no `.git/`. Nothing to do.
+      - `("no-hook-template", None)` — relay-os/hooks/post-merge missing.
+      - `("blocked", path)` — something else lives at the target. We don't
+        clobber user hooks.
+      - `("failed", None)` — the symlink call itself failed (e.g. Windows
+        without symlink permission).
+
+    Idempotent. Never raises.
+    """
+    git_dir = _find_git_dir(host_repo)
+    if git_dir is None:
+        return ("not-a-git-repo", None)
+    src = relay_os / "hooks" / "post-merge"
+    if not src.is_file():
+        return ("no-hook-template", None)
+    # Mode bits don't always survive `shutil.copytree` cleanly across
+    # filesystems, and a non-executable hook is a silent no-op. Re-chmod.
+    try:
+        src.chmod(0o755)
+    except OSError:
+        pass
+    hooks_dir = git_dir / "hooks"
+    try:
+        hooks_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return ("failed", None)
+    link = hooks_dir / "post-merge"
+
+    if link.is_symlink():
+        try:
+            current = link.resolve(strict=False)
+        except OSError:
+            return ("blocked", link)
+        if current == src.resolve():
+            return ("present", None)
+        return ("blocked", link)
+    if link.exists():
+        return ("blocked", link)
+
+    try:
+        rel_target = Path(os.path.relpath(src, hooks_dir))
+        link.symlink_to(rel_target)
+    except OSError:
+        return ("failed", None)
+    return ("installed", None)
+
+
+def _print_post_merge_status(
+    status: str, blocker: Path | None, host_repo: Path
+) -> None:
+    if status == "installed":
+        typer.echo(
+            "Installed post-merge hook (auto-bumps tickets whose PR has merged)."
+        )
+    elif status == "blocked" and blocker is not None:
+        typer.secho(
+            f"Skipped post-merge hook — {blocker} already exists. "
+            f"Remove it (or chain a `relay automerge` call into it) and rerun "
+            f"`relay init --update` to enable auto-bump on PR merge.",
+            fg=typer.colors.YELLOW,
+        )
+    elif status == "failed":
+        typer.secho(
+            f"Could not install post-merge hook in {host_repo / '.git' / 'hooks'} "
+            f"(symlink failed). `relay status` will still catch up auto-bumps.",
+            fg=typer.colors.YELLOW,
+        )
+    # "present", "not-a-git-repo", "no-hook-template" — silent.
 
 
 def _try_install_shim(wrapper: Path) -> Path | None:

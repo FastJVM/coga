@@ -6,10 +6,8 @@ import sys
 
 import typer
 
+from relay.bump import advance_step, mark_done
 from relay.config import ConfigError, load_config
-from relay.lock import TaskLock
-from relay.logfile import append_log
-from relay.slack import post
 from relay.tasks import (
     TaskNotFoundError,
     read_ticket,
@@ -48,22 +46,20 @@ def bump(
 
     wf = ticket.workflow
     actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
+    finisher = ticket.assignee or cfg.current_user
+    done_slack = (
+        f"🎉 {finisher} finished *{ref.id_slug}* \"{ticket.title}\"{suffix}"
+    )
 
     # No workflow → bump marks done. The only "step" is the whole ticket.
     if not wf or not wf.get("steps"):
-        ticket.frontmatter["status"] = "done"
-        ticket.write(ref.path / "ticket.md")
-        append_log(ref.path, actor, f"task done{suffix}")
-        TaskLock(ref.path).release()
-        # Echo before post: state has already changed; if slack crashes the
-        # user still sees the local outcome on stdout before the error on stderr.
-        typer.echo(f"{ref.id_slug}: done")
-        post(
-            cfg,
-            f"🎉 {ticket.assignee or cfg.current_user} finished "
-            f"*{ref.id_slug}* \"{ticket.title}\"{suffix}",
-            task_path=ref.path,
+        mark_done(
+            cfg, ref, ticket,
+            actor=actor,
+            log_message=f"task done{suffix}",
+            slack_text=done_slack,
             image_url=cfg.gif_for("done"),
+            echo=f"{ref.id_slug}: done",
         )
         return
 
@@ -74,30 +70,28 @@ def bump(
 
     if current_idx >= total:
         # Already on the final step: bump marks done.
-        ticket.frontmatter["status"] = "done"
-        ticket.write(ref.path / "ticket.md")
-        append_log(ref.path, actor, f"task done{suffix}")
-        TaskLock(ref.path).release()
-        typer.echo(f"{ref.id_slug}: done")
-        post(
-            cfg,
-            f"🎉 {ticket.assignee or cfg.current_user} finished "
-            f"*{ref.id_slug}* \"{ticket.title}\"{suffix}",
-            task_path=ref.path,
+        mark_done(
+            cfg, ref, ticket,
+            actor=actor,
+            log_message=f"task done{suffix}",
+            slack_text=done_slack,
             image_url=cfg.gif_for("done"),
+            echo=f"{ref.id_slug}: done",
         )
         return
 
     new_step_name = steps[next_step - 1]["name"]
-    ticket.frontmatter["step"] = f"{next_step} ({new_step_name})"
-    ticket.write(ref.path / "ticket.md")
-    append_log(ref.path, actor, f"advanced to step {next_step} ({new_step_name}){suffix}")
-    typer.echo(f"{ref.id_slug}: step {next_step} ({new_step_name})")
-    post(
-        cfg,
-        f"👉 {ticket.assignee or cfg.current_user} advanced "
-        f"*{ref.id_slug}* → step {next_step} ({new_step_name}){suffix}",
-        task_path=ref.path,
+    advance_step(
+        cfg, ref, ticket,
+        next_step=next_step,
+        new_step_name=new_step_name,
+        actor=actor,
+        log_message=f"advanced to step {next_step} ({new_step_name}){suffix}",
+        slack_text=(
+            f"👉 {finisher} advanced "
+            f"*{ref.id_slug}* → step {next_step} ({new_step_name}){suffix}"
+        ),
+        echo=f"{ref.id_slug}: step {next_step} ({new_step_name})",
     )
 
 
