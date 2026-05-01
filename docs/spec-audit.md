@@ -240,7 +240,7 @@ implied by "scripted use"). Document the actual contract.
 | Spec | Status | Notes |
 |---|---|---|
 | One-line per task: id, title, assignee, step, mode | ✅ | Plus `status` column. |
-| Hide `done` by default; `--all` to include | ✅ — extra | Not in spec, sensible. |
+| Show every status (incl. `done`) | ✅ | No filter flags; grep slices the output. |
 | Filtering (`--assignee`, `--status`) | ❌ | Open in spec. |
 | Sorting (`--sort`) | ❌ | Open in spec. |
 | Output format | ⚠️ | Uses Rich tables. On narrow terminals (≤80 cols) the title column wraps to one character per line — see live `relay status` in this repo. Worth pre-truncating titles or shipping a flat one-line-per-task fallback. |
@@ -569,8 +569,8 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
 
 ### E. Can defer (per spec, with current state noted)
 
-28. **Archival of done tasks** — none; `--all` flag on `status` already
-    hides them by default.
+28. **Archival of done tasks** — none; `relay status` lists everything,
+    grep filters as needed.
 29. **Task dependencies** — none; freeform on blackboard.
 30. **Context/skill staleness** — only via dream skill review.
 31. **Git merge conflicts** — manual. One-task-one-worker keeps this

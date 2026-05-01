@@ -35,11 +35,11 @@ start the configured agent. Acquires `task.lock`.
 Agent type comes from the ticket's `assignee`, resolved through
 `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
 
-## relay status [--all]
+## relay status
 
-List tasks in the repo. Defaults to non-terminal (`draft`, `active`,
-`paused`); `--all` includes `done`. Bootstrap shims have no status and
-don't appear here.
+List every task in the repo — `draft`, `active`, `paused`, and `done`.
+Bootstrap shims have no status and don't appear here. No filtering
+flags yet; pipe through `grep` if you want to slice the output.
 
 ## relay bump --task \<slug\>
 
