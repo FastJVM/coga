@@ -1,9 +1,13 @@
 ---
 title: Auto-bump tickets when their PR merges
-status: draft
+status: active
 mode: interactive
 owner: nick
 assignee: claude1
+contexts:
+  - relay/codebase
+  - relay/architecture
+  - dev/code
 ---
 
 ## Description
