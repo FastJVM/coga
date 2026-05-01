@@ -49,19 +49,36 @@ GitHub Action unless we hit an actual gap.
 ## Linking ticket → PR
 
 Whichever mechanism fires the bump, it needs to know which PR
-belongs to which ticket. Options:
+belongs to which ticket. Today the link is implicit: branch name ==
+ticket slug, by convention from `code/implement-and-pr`. That falls
+apart fast — a single PR can bundle changes for two tickets, an
+agent can pick a different branch name, the slug can be truncated.
+This very PR (`bump-task-positional-and-auto-bump-ticket`) already
+breaks the convention.
 
-- **Branch-name convention.** PR's source branch matches the ticket
-  slug (already the de-facto convention from `code/implement-and-pr`).
-  Cheapest. Risk: someone branches from `main` with a custom name
-  for one task, the link breaks.
-- **PR URL recorded on the ticket.** Either as frontmatter (`pr:
-  <url>`) or in a known blackboard section. More robust; ties the
-  ticket to a specific PR rather than a branch name.
+The fix is to make the link **explicit and recorded by the agent**:
+the branch name (and the PR URL once opened) goes into the
+blackboard in a known shape. Any auto-bump mechanism reads that, no
+inference needed.
 
-Lean toward branch-name as the v1 — it's already the convention and
-costs nothing — and only fall back to a PR field if branch-naming
-turns out to be too brittle.
+Concrete shape: a small `## Dev` section on the blackboard with one
+or two named lines, e.g.
+
+```
+## Dev
+branch: bump-task-positional-and-auto-bump-ticket
+pr: https://github.com/FastJVM/relay/pull/70
+```
+
+This belongs in a **`dev/` context** that code-style tickets attach
+(parallel to the existing `relay/*` contexts). The context teaches
+the agent the convention; ticket authors opt in by listing it. Then
+the same convention is reused by anything that needs the link
+(auto-bump, retro generation, status views).
+
+Out of scope here, but worth filing alongside: a follow-up ticket to
+**create the `dev/` context** with this convention written down.
+Without that context, agents won't reliably populate the section.
 
 ## Open questions
 
