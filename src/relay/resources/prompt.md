@@ -121,7 +121,11 @@ When editing `ticket.md` frontmatter:
 
 - Don't edit `log.md`.
 - Don't edit `task.lock`.
-- Don't call `relay launch` recursively.
+- Don't `relay launch` another agent session from inside your own —
+  there's no terminal for it inside your context and the human ends up
+  tracking parallel agents. Use a subagent (e.g. the Agent tool) or
+  edit files directly instead. Script-mode launches (which run a skill,
+  not an agent) are fine.
 - Don't touch `relay.toml` or `relay.local.toml`.
 - Don't edit the workflow snapshot in ticket frontmatter.
 - Don't set `status: done` manually — use `relay bump` on the final step.
