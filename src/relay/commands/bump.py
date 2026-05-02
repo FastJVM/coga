@@ -6,13 +6,20 @@ import sys
 
 import typer
 
-from relay.bump import advance_step, mark_done
+from relay.bump import (
+    AssigneeResolutionError,
+    advance_step,
+    mark_done,
+    resolve_step_assignee,
+)
 from relay.config import ConfigError, load_config
+from relay.paths import workflow_path
 from relay.tasks import (
     TaskNotFoundError,
     read_ticket,
     resolve_task,
 )
+from relay.workflow import Workflow, WorkflowError
 
 
 def bump(
@@ -43,6 +50,19 @@ def bump(
 
     if ticket.status != "active":
         _bail(f"Task {ref.id_slug} is {ticket.status!r}. Cannot advance.")
+
+    # Hand-authored / pre-freeze tickets carry `workflow:` as a bare string
+    # ref instead of the frozen dict scaffold produces. Resolve and freeze
+    # in-place so the rest of bump (and future bumps) sees a normal shape.
+    if isinstance(ticket.workflow, str):
+        try:
+            wf_def = Workflow.load(workflow_path(cfg, ticket.workflow))
+        except WorkflowError as exc:
+            _bail(str(exc))
+        ticket.frontmatter["workflow"] = wf_def.freeze()
+        if not ticket.step:
+            ticket.frontmatter["step"] = f"1 ({wf_def.steps[0].name})"
+        ticket.write(ref.path / "ticket.md")
 
     wf = ticket.workflow
     actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
@@ -80,18 +100,33 @@ def bump(
         )
         return
 
-    new_step_name = steps[next_step - 1]["name"]
+    new_step = steps[next_step - 1]
+    new_step_name = new_step["name"]
+
+    role = new_step.get("assignee")
+    new_assignee: str | None = None
+    if role is not None:
+        try:
+            resolved = resolve_step_assignee(ticket, role)
+        except AssigneeResolutionError as exc:
+            _bail(str(exc))
+        if resolved != ticket.assignee:
+            new_assignee = resolved
+
+    handoff = f" → assigned to {new_assignee}" if new_assignee else ""
+
     advance_step(
         cfg, ref, ticket,
         next_step=next_step,
         new_step_name=new_step_name,
         actor=actor,
-        log_message=f"advanced to step {next_step} ({new_step_name}){suffix}",
+        log_message=f"advanced to step {next_step} ({new_step_name}){handoff}{suffix}",
         slack_text=(
             f"👉 {finisher} advanced "
-            f"*{ref.id_slug}* → step {next_step} ({new_step_name}){suffix}"
+            f"*{ref.id_slug}* → step {next_step} ({new_step_name}){handoff}{suffix}"
         ),
-        echo=f"{ref.id_slug}: step {next_step} ({new_step_name})",
+        new_assignee=new_assignee,
+        echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",
     )
 
 

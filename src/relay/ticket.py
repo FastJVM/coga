@@ -76,6 +76,16 @@ class Ticket:
         return self.frontmatter.get("owner")
 
     @property
+    def human(self) -> str | None:
+        """The human worker for this ticket (separate from `owner`, which is accountable)."""
+        return self.frontmatter.get("human")
+
+    @property
+    def agent(self) -> str | None:
+        """The agent (LLM coder) assigned to this ticket."""
+        return self.frontmatter.get("agent")
+
+    @property
     def assignee(self) -> str | None:
         return self.frontmatter.get("assignee")
 

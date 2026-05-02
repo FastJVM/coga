@@ -10,6 +10,7 @@ from relay.lock import LockHeldError, TaskLock
 from relay.logfile import append_log
 from relay.slugify import slugify
 from relay.ticket import Ticket, TicketError
+from relay.workflow import Workflow, WorkflowError
 
 
 # --- slugify ------------------------------------------------------------------
@@ -131,6 +132,46 @@ def test_ticket_rejects_non_mapping() -> None:
 def test_ticket_rejects_missing_frontmatter() -> None:
     with pytest.raises(TicketError):
         Ticket.parse("no frontmatter here\n")
+
+
+# --- workflow -----------------------------------------------------------------
+
+
+def test_workflow_step_assignee_role_token_round_trips(tmp_path: Path) -> None:
+    path = tmp_path / "wf.md"
+    path.write_text(dedent(
+        """
+        ---
+        name: wf
+        steps:
+          - name: implement
+            assignee: agent
+          - name: review
+            assignee: human
+        ---
+        """
+    ).lstrip())
+    wf = Workflow.load(path)
+    assert wf.steps[0].assignee == "agent"
+    frozen = wf.freeze()
+    assert frozen["steps"][0] == {"name": "implement", "assignee": "agent"}
+    assert frozen["steps"][1] == {"name": "review", "assignee": "human"}
+
+
+def test_workflow_rejects_non_role_token_assignee(tmp_path: Path) -> None:
+    path = tmp_path / "wf.md"
+    path.write_text(dedent(
+        """
+        ---
+        name: wf
+        steps:
+          - name: implement
+            assignee: claude1
+        ---
+        """
+    ).lstrip())
+    with pytest.raises(WorkflowError, match="role token"):
+        Workflow.load(path)
 
 
 # --- log ----------------------------------------------------------------------

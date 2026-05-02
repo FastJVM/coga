@@ -92,7 +92,113 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ticket.mode == "interactive"
     assert ticket.owner == "marc"
     assert ticket.assignee == "marc"
+    # Auto-populated role fields: human ← owner, agent ← owner's lone configured agent.
+    assert ticket.human == "marc"
+    assert ticket.agent == "claude1"
     assert ticket.workflow is None
+
+
+def test_create_initial_assignee_resolved_from_workflow_step(repo: Path) -> None:
+    _write(
+        repo / "workflows" / "review.md",
+        """
+        ---
+        name: review
+        steps:
+          - name: implement
+            assignee: agent
+          - name: review
+            assignee: human
+        ---
+        """,
+    )
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="W", workflow_name="review",
+        contexts=[], mode="interactive",
+        owner="marc", assignee=None,
+        watchers=[], status="active",
+    )
+    ticket = Ticket.read(ref["path"] / "ticket.md")
+    # Step 1 declares `assignee: agent` → resolves to `marc`'s configured agent.
+    assert ticket.assignee == "claude1"
+
+
+def test_create_explicit_human_and_agent_overrides_defaults(repo: Path) -> None:
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive",
+        owner="marc", assignee=None,
+        human="alice", agent="claude2",
+        watchers=[], status="draft",
+    )
+    ticket = Ticket.read(ref["path"] / "ticket.md")
+    assert ticket.human == "alice"
+    assert ticket.agent == "claude2"
+
+
+# --- retrofit ----------------------------------------------------------------
+
+
+def test_backfill_role_fields_adds_human_and_agent(repo: Path) -> None:
+    from relay.retrofit import backfill_role_fields
+
+    # Seed a legacy ticket without `human:` / `agent:`.
+    legacy = repo / "tasks" / "legacy"
+    legacy.mkdir(parents=True)
+    (legacy / "ticket.md").write_text(dedent(
+        """
+        ---
+        title: Legacy
+        status: active
+        mode: interactive
+        owner: marc
+        assignee: claude1
+        ---
+
+        ## Description
+        old.
+        """
+    ).lstrip())
+    (legacy / "blackboard.md").write_text("")
+    (legacy / "log.md").write_text("")
+
+    cfg = load_config(repo)
+    rewritten = backfill_role_fields(cfg)
+    assert rewritten == ["legacy"]
+    t = Ticket.read(legacy / "ticket.md")
+    assert t.human == "marc"
+    assert t.agent == "claude1"  # detected from assignee being a known agent nick
+
+    # Idempotent: second run does nothing.
+    assert backfill_role_fields(cfg) == []
+
+
+def test_backfill_uses_owner_lone_agent_when_assignee_unknown(repo: Path) -> None:
+    from relay.retrofit import backfill_role_fields
+
+    legacy = repo / "tasks" / "legacy2"
+    legacy.mkdir(parents=True)
+    (legacy / "ticket.md").write_text(dedent(
+        """
+        ---
+        title: Legacy2
+        status: active
+        owner: marc
+        assignee: marc
+        ---
+        """
+    ).lstrip())
+    (legacy / "blackboard.md").write_text("")
+    (legacy / "log.md").write_text("")
+
+    cfg = load_config(repo)
+    backfill_role_fields(cfg)
+    t = Ticket.read(legacy / "ticket.md")
+    assert t.human == "marc"
+    # Assignee `marc` isn't an agent, so fall back to owner's single configured agent.
+    assert t.agent == "claude1"
 
 
 def test_create_with_workflow_and_contexts(repo: Path) -> None:
