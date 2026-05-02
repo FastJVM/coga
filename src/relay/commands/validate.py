@@ -9,6 +9,7 @@ from typing import Any
 
 import typer
 
+from relay.blackboard import BLACKBOARD_WARN_BYTES
 from relay.config import ConfigError, load_config
 from relay.validate import run
 
@@ -22,6 +23,11 @@ def validate(
     ),
     idle_hours: float = typer.Option(
         72.0, "--idle-hours", help="Active-task idle threshold."
+    ),
+    max_blackboard_kb: float = typer.Option(
+        BLACKBOARD_WARN_BYTES / 1024,
+        "--max-blackboard-kb",
+        help="Blackboard size above which to warn about prompt bloat.",
     ),
     check_slack: bool = typer.Option(
         False,
@@ -40,6 +46,7 @@ def validate(
         cfg,
         max_lock_hours=max_lock_hours,
         idle_hours=idle_hours,
+        max_blackboard_bytes=int(max_blackboard_kb * 1024),
         check_slack=check_slack,
     )
 

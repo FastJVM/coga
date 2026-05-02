@@ -3,11 +3,12 @@
 Exposed as `relay validate` (see `relay.commands.validate`); also runnable
 directly as a module:
 
-    relay validate [--json] [--max-lock-hours N] [--check-slack]
-    python -m relay.validate [--json] [--max-lock-hours N] [--check-slack]
+    relay validate [--json] [--max-lock-hours N] [--max-blackboard-kb N] [--check-slack]
+    python -m relay.validate [--json] [--max-lock-hours N] [--max-blackboard-kb N] [--check-slack]
 
 Checks:
 - Task dirs have ticket.md, blackboard.md, log.md.
+- Blackboard files are not large enough to bloat composed prompts.
 - Lock files aren't stale (default threshold: 24h).
 - Tasks stuck in `active` with no recent log activity.
 - Workflow step skill refs point to files that exist.
@@ -29,6 +30,7 @@ from typing import Any
 
 import requests
 
+from relay.blackboard import BLACKBOARD_WARN_BYTES, blackboard_size_warning
 from relay.config import Config, ConfigError, load_config
 from relay.lock import TaskLock
 from relay.paths import context_path, skill_path
@@ -60,6 +62,7 @@ def run(
     cfg: Config,
     max_lock_hours: float = 24.0,
     idle_hours: float = 72.0,
+    max_blackboard_bytes: int = BLACKBOARD_WARN_BYTES,
     check_slack: bool = False,
 ) -> Report:
     report = Report(generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
@@ -114,6 +117,18 @@ def run(
                     message=f"missing {fname}",
                     severity="error",
                 ))
+
+        warning = blackboard_size_warning(
+            ref.path / "blackboard.md",
+            max_bytes=max_blackboard_bytes,
+        )
+        if warning:
+            report.issues.append(Issue(
+                kind="large-blackboard",
+                task=task_label,
+                message=warning,
+                severity="warn",
+            ))
 
         # Lock staleness
         lock = TaskLock(ref.path)
@@ -237,6 +252,12 @@ def _main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-lock-hours", type=float, default=24.0)
     parser.add_argument("--idle-hours", type=float, default=72.0)
     parser.add_argument(
+        "--max-blackboard-kb",
+        type=float,
+        default=BLACKBOARD_WARN_BYTES / 1024,
+        help="Blackboard size above which to warn about prompt bloat.",
+    )
+    parser.add_argument(
         "--check-slack",
         action="store_true",
         help="Also probe the Slack webhook with an empty-text payload (network call).",
@@ -253,6 +274,7 @@ def _main(argv: list[str] | None = None) -> int:
         cfg,
         max_lock_hours=args.max_lock_hours,
         idle_hours=args.idle_hours,
+        max_blackboard_bytes=int(args.max_blackboard_kb * 1024),
         check_slack=args.check_slack,
     )
 

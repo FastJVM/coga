@@ -874,6 +874,7 @@ Repo validation (stale locks, broken references, invalid status values, stuck ta
 Checks include:
 
 - Task directories have all required files (ticket.md, log.md, blackboard.md)
+- Blackboard files stay under the prompt-bloat warning threshold
 - Lock is not stale (held for unexpectedly long — likely a crashed agent)
 - Tasks stuck in `active` status with no recent log activity
 - Workflow step references point to skills that actually exist
@@ -1187,11 +1188,11 @@ Git is the sync layer. The one-task-one-worker constraint means two people rarel
 
 #### Prompt size / token limits
 
-No detection or mitigation when the composed prompt exceeds the agent's context window. A task with multiple contexts, a rich skill, a long blackboard, and a detailed ticket body could exceed limits. Likely fine for v1 with small context sets — but worth a conscious decision about whether to warn, truncate, or ignore.
+No full composed-prompt token budgeting yet. A task with multiple contexts, a rich skill, a long blackboard, and a detailed ticket body could exceed limits. Relay warns on the most obvious controllable case — `blackboard.md` larger than 32 KiB — but broader prompt measurement and mitigation remain future work.
 
 #### Blackboard growth
 
-Over a long-running task with many relaunches, the blackboard grows unbounded. Findings and decisions accumulate across sessions. Eventually competes for context window space. No pruning or summarization strategy. May not matter for v1 task durations — revisit if tasks routinely span 10+ sessions.
+Over a long-running task with many relaunches, the blackboard grows unbounded. Findings and decisions accumulate across sessions. Eventually competes for context window space. `relay launch` and repo validation warn once `blackboard.md` crosses 32 KiB, but there is no automatic pruning or summarization strategy. May not matter for v1 task durations — revisit if tasks routinely span 10+ sessions.
 
 #### Temp file cleanup
 
