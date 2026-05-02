@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
-"""Thin wrapper that runs `python -m relay.validate --json`.
+"""Thin wrapper for the validate-drift Dream worker.
 
 Invoked by the bootstrap/dream skill from within the agent's session.
 """
 
 from __future__ import annotations
 
-import subprocess
 import sys
 
+from relay.dream_validate_drift import main as validate_drift_main
 
-def main() -> int:
-    result = subprocess.run(
-        [sys.executable, "-m", "relay.validate", "--json"],
-        check=False,
-    )
-    return result.returncode
+
+def main(argv: list[str] | None = None) -> int:
+    return validate_drift_main(argv)
 
 
 if __name__ == "__main__":

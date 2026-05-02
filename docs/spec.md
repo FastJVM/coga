@@ -869,7 +869,7 @@ A thin command for side effects. The agent calls this when it completes a workfl
 
 ### Repo consistency checks
 
-Repo validation (stale locks, broken references, invalid status values, stuck tasks) is handled by a deterministic validation script, not an LLM. This script is part of the dream/drift skill — the skill runs the script, then the agent interprets the output alongside its broader scan for knowledge gaps, stale content, and workflow patterns.
+Repo validation (stale locks, broken references, invalid status values, stuck tasks) is handled by a deterministic validation script, not an LLM. The Dream `validate-drift` worker runs `relay validate --json`, classifies each issue into `direct-fix`, `pr-proposal`, or `human-needed`, then writes a concise result to the Dream run blackboard. The broader Dream scan can then interpret that result alongside knowledge gaps, stale content, and workflow patterns.
 
 Checks include:
 
@@ -881,6 +881,12 @@ Checks include:
 - Context references in tickets point to contexts that actually exist
 - Assignees in task files match known users in `relay.toml`
 - Status values are valid (one of: draft, active, paused, done)
+
+Stale locks are conservative by default. Validation can prove that a lock is
+older than the configured threshold, but it cannot prove from age alone that no
+live terminal or agent owns it. Dream reports stale locks as human-needed unless
+a human verifies that the task is not currently running, then removes
+`task.lock` or relaunches with `--force`.
 
 ---
 
