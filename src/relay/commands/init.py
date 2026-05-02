@@ -31,7 +31,8 @@ from relay.commands.update import (
     write_bin_wrapper,
     write_pin,
 )
-from relay.config import find_repo_root
+from relay.config import ConfigError, find_repo_root, load_config
+from relay.retrofit import backfill_role_fields
 
 
 LOCAL_TOML_TEMPLATE = """\
@@ -193,6 +194,7 @@ def _do_update() -> None:
     wired_agents, blocked_agents = _link_skills_for_agents(relay_os.parent, relay_os)
     hook_status, hook_blocker = _install_post_merge_hook(relay_os.parent, relay_os)
     host_gitignore_changed = ensure_host_gitignore(relay_os.parent)
+    retrofitted = _run_retrofits(relay_os)
 
     typer.echo("")
     typer.echo(f"Refreshed CLI at {relay_os / '.relay'}")
@@ -218,6 +220,10 @@ def _do_update() -> None:
             typer.echo(f"  {rel}")
     if host_gitignore_changed:
         typer.echo(f"Updated {relay_os.parent / '.gitignore'} (relay-managed block).")
+    if retrofitted:
+        typer.echo(f"Backfilled `human:`/`agent:` on {len(retrofitted)} ticket(s):")
+        for slug in retrofitted:
+            typer.echo(f"  {slug}")
 
 
 # Agents we wire skill discovery for. Each entry is the project-level dir
@@ -341,6 +347,15 @@ def _install_post_merge_hook(
     except OSError:
         return ("failed", None)
     return ("installed", None)
+
+
+def _run_retrofits(relay_os: Path) -> list[str]:
+    """Best-effort migrations on existing tickets. Skip silently if config can't load."""
+    try:
+        cfg = load_config(relay_os)
+    except ConfigError:
+        return []
+    return backfill_role_fields(cfg)
 
 
 def _print_post_merge_status(

@@ -18,10 +18,14 @@ _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 _HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 
 
+VALID_ASSIGNEE_ROLES: frozenset[str] = frozenset({"owner", "human", "agent"})
+
+
 @dataclass(frozen=True)
 class WorkflowStep:
     name: str
     skill: str | None = None
+    assignee: str | None = None  # role token: "owner" | "human" | "agent"
 
 
 @dataclass
@@ -76,6 +80,8 @@ class Workflow:
             entry: dict[str, Any] = {"name": step.name}
             if step.skill:
                 entry["skill"] = step.skill
+            if step.assignee:
+                entry["assignee"] = step.assignee
             out["steps"].append(entry)
         return out
 
@@ -86,7 +92,13 @@ class Workflow:
 def _parse_step(raw: Any, source: Path) -> WorkflowStep:
     if not isinstance(raw, dict) or "name" not in raw:
         raise WorkflowError(f"{source}: step must be a mapping with a `name` field, got {raw!r}")
-    return WorkflowStep(name=raw["name"], skill=raw.get("skill"))
+    assignee = raw.get("assignee")
+    if assignee is not None and assignee not in VALID_ASSIGNEE_ROLES:
+        raise WorkflowError(
+            f"{source}: step {raw['name']!r} assignee {assignee!r} must be one of "
+            f"{sorted(VALID_ASSIGNEE_ROLES)} (role token only — literal nicknames not allowed)"
+        )
+    return WorkflowStep(name=raw["name"], skill=raw.get("skill"), assignee=assignee)
 
 
 def _parse_inline_sections(body: str, step_names: set[str]) -> dict[str, str]:
@@ -107,4 +119,4 @@ def _parse_inline_sections(body: str, step_names: set[str]) -> dict[str, str]:
     return sections
 
 
-__all__ = ["Workflow", "WorkflowStep", "WorkflowError"]
+__all__ = ["Workflow", "WorkflowStep", "WorkflowError", "VALID_ASSIGNEE_ROLES"]

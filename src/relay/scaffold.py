@@ -16,7 +16,7 @@ from relay.paths import (
 from relay.slugify import slugify
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
-from relay.workflow import Workflow
+from relay.workflow import VALID_ASSIGNEE_ROLES, Workflow
 
 
 def scaffold_task(
@@ -30,6 +30,8 @@ def scaffold_task(
     assignee: str | None,
     watchers: list[str],
     status: str | None,
+    human: str | None = None,
+    agent: str | None = None,
     skill: str | None = None,
     slug_override: str | None = None,
     description: str | None = None,
@@ -37,8 +39,9 @@ def scaffold_task(
 ) -> dict[str, Any]:
     """Create a task directory. Returns dict with {slug, path}."""
     owner = owner or cfg.current_user
-    assignee = assignee or owner
     status = status or cfg.default_status
+    human = human or owner
+    agent = agent or _default_agent_for(cfg, owner, assignee)
 
     contexts = _dedupe(contexts)
     missing_ctx = [c for c in contexts if not context_path(cfg, c).is_file()]
@@ -56,6 +59,22 @@ def scaffold_task(
                 f"Workflow {workflow_name!r} references missing skills: {missing_skills}"
             )
 
+    # Initial assignee: if step 1 declares a role, resolve against the
+    # ticket's role fields. Otherwise honor the explicit `assignee` arg or
+    # fall back to the owner.
+    role_fields = {"owner": owner, "human": human, "agent": agent}
+    if wf and wf.steps[0].assignee:
+        role = wf.steps[0].assignee
+        resolved = role_fields.get(role)
+        if not resolved:
+            raise ValueError(
+                f"Workflow {workflow_name!r} step 1 assignee={role!r} but no `{role}` "
+                f"set on the new ticket."
+            )
+        assignee = resolved
+    else:
+        assignee = assignee or owner
+
     base_slug = slug_override or slugify(title)
     existing_slugs = {t.slug for t in list_tasks(cfg)}
     slug = base_slug
@@ -71,6 +90,10 @@ def scaffold_task(
     fm: dict[str, Any] = {"title": title, "status": status, "mode": mode}
     if owner:
         fm["owner"] = owner
+    if human:
+        fm["human"] = human
+    if agent:
+        fm["agent"] = agent
     if assignee:
         fm["assignee"] = assignee
     if watchers:
@@ -95,6 +118,29 @@ def scaffold_task(
     append_log(task_dir, actor, f"created (mode={mode}, status={status})")
 
     return {"slug": slug, "path": task_dir}
+
+
+def _default_agent_for(
+    cfg: Config, owner: str | None, assignee: str | None
+) -> str | None:
+    """Best-effort default for the new ticket's `agent:` field.
+
+    Two signals, in order:
+      1. If the explicit `assignee` arg is a known agent nickname, use it —
+         the caller already named the agent.
+      2. Else if `owner` has exactly one configured agent, use that.
+
+    Returns None if neither signal resolves; better to leave the field blank
+    than guess wrong.
+    """
+    agent_nicknames = {nick for a in cfg.assignees.values() for nick in a.agents}
+    if assignee and assignee in agent_nicknames:
+        return assignee
+    if owner:
+        owner_cfg = cfg.assignees.get(owner)
+        if owner_cfg and len(owner_cfg.agents) == 1:
+            return next(iter(owner_cfg.agents))
+    return None
 
 
 def _dedupe(items: list[str]) -> list[str]:

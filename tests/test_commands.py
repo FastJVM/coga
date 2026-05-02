@@ -187,6 +187,145 @@ def test_bump_rejects_empty_message(repo: Path) -> None:
     assert result.exit_code == 2
 
 
+# --- bump assignee handoff ----------------------------------------------------
+
+
+def _write_assignee_workflow(repo: Path) -> None:
+    """Workflow whose three steps each declare a different role token."""
+    _write(
+        repo / "workflows" / "review.md",
+        """
+        ---
+        name: review
+        description: Roles per step.
+        steps:
+          - name: implement
+            assignee: agent
+          - name: review
+            assignee: human
+          - name: signoff
+            assignee: owner
+        ---
+        """,
+    )
+
+
+def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
+    _write_assignee_workflow(repo)
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="W", workflow_name="review",
+        contexts=[], mode="interactive",
+        owner="marc", assignee="claude1",
+        human="marc", agent="claude1",
+        watchers=[], status="active",
+    )
+    slug = ref["slug"]
+    task_path = ref["path"]
+
+    # Step 1 declared `assignee: agent` → resolved at scaffold time.
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.assignee == "claude1"
+
+    # Bump into step 2 (assignee: human) → ticket.assignee = ticket.human.
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", slug])
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.step == "2 (review)"
+    assert t.assignee == "marc"
+    log = (task_path / "log.md").read_text()
+    assert "→ assigned to marc" in log
+
+    # Bump into step 3 (assignee: owner) → ticket.assignee = ticket.owner.
+    result = runner.invoke(app, ["bump", slug])
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.assignee == "marc"  # owner == marc, no change → no handoff line
+    log = (task_path / "log.md").read_text()
+    # Only one handoff line so far (the human→owner step is a no-op handoff).
+    assert log.count("→ assigned to") == 1
+
+
+def test_bump_no_assignee_declared_leaves_assignee_unchanged(repo: Path) -> None:
+    # The default `code` workflow in this fixture has no assignee declarations.
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", slug])
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.assignee == "claude1"  # unchanged
+    log = (task_path / "log.md").read_text()
+    assert "→ assigned to" not in log
+
+
+def test_bump_role_token_with_missing_field_fails_loud(repo: Path) -> None:
+    _write_assignee_workflow(repo)
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="W", workflow_name="review",
+        contexts=[], mode="interactive",
+        owner="marc", assignee="claude1",
+        human="marc", agent="claude1",
+        watchers=[], status="active",
+    )
+    # Hand-edit the ticket to remove the `human` field, then bump into the
+    # human step. Bump must refuse rather than silently skip.
+    t = Ticket.read(ref["path"] / "ticket.md")
+    del t.frontmatter["human"]
+    t.write(ref["path"] / "ticket.md")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", ref["slug"]])
+    assert result.exit_code == 2, result.output
+    assert "human" in result.output
+
+
+def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
+    # Hand-authored ticket: `workflow:` is a bare string ref, no `step:`.
+    legacy = repo / "tasks" / "legacy"
+    legacy.mkdir(parents=True)
+    (legacy / "ticket.md").write_text(dedent(
+        """
+        ---
+        title: Legacy
+        status: active
+        mode: interactive
+        owner: marc
+        assignee: claude1
+        workflow: code
+        ---
+        """
+    ).lstrip())
+    (legacy / "blackboard.md").write_text("")
+    (legacy / "log.md").write_text("")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", "legacy"])
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(legacy / "ticket.md")
+    # Workflow now frozen; bump advanced step 1 → 2.
+    assert isinstance(t.workflow, dict)
+    assert t.step == "2 (pr)"
+
+
+def test_bump_handoff_appears_in_slack_text(repo: Path) -> None:
+    _write_assignee_workflow(repo)
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="W", workflow_name="review",
+        contexts=[], mode="interactive",
+        owner="marc", assignee="claude1",
+        human="marc", agent="claude1",
+        watchers=[], status="active",
+    )
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", ref["slug"]])
+    assert result.exit_code == 0, result.output
+    # Echo to stdout includes the same handoff phrasing as the slack text.
+    assert "→ assigned to marc" in result.output
+
+
 # --- show ---------------------------------------------------------------------
 
 

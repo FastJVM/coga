@@ -293,7 +293,7 @@ Skills are not referenced in ticket frontmatter — they flow through workflow s
 
 Workflows are process definitions. A workflow defines an ordered sequence of steps from creation to done, and what knowledge each step needs.
 
-Workflows live in `relay-os/workflows/` as markdown files at arbitrary depth. YAML frontmatter has the machine-parsable step list. Each step has a `name` and optionally a `skill` reference. Steps without a `skill` use inline instructions from the markdown body, keyed by heading.
+Workflows live in `relay-os/workflows/` as markdown files at arbitrary depth. YAML frontmatter has the machine-parsable step list. Each step has a `name`, optionally a `skill` reference, and optionally an `assignee` role token (one of `owner` | `human` | `agent`). Steps without a `skill` use inline instructions from the markdown body, keyed by heading.
 
 `relay-os/workflows/code/with-review.md`:
 
@@ -304,10 +304,14 @@ description: Standard code workflow with PR and approval gate.
 steps:
   - name: implement
     skill: infra/testing-conventions
+    assignee: agent
   - name: pr
+    assignee: agent
   - name: approve
     skill: process/approve
+    assignee: human
   - name: merge
+    assignee: owner
 ---
 
 ## pr
@@ -316,6 +320,8 @@ Create a branch, push, open a PR.
 ## merge
 Merge the PR and clean up the branch.
 ```
+
+The `assignee:` field on a step is a *role token*, not a literal nickname. On bump into a step that declares one, the ticket's `assignee:` is rewritten to whatever the ticket's matching role field (`owner:`, `human:`, `agent:`) holds. Role tokens — not literals — keep the workflow reusable across tickets with different humans and agents. Steps that omit `assignee:` leave the ticket's assignee unchanged on bump (back-compat for older workflows).
 
 `relay-os/workflows/content/post.md`:
 
@@ -344,7 +350,7 @@ Two ways to define what a step does:
 
 Key design decisions:
 
-- **No `run` field on steps.** Workflows don't define who does the work. The `assignee` field on the ticket controls that. The same workflow can be used by a human or an agent — reassignment is a deliberate action on the ticket.
+- **Steps name a *role*, not a person.** A step's `assignee:` field takes a role token (`owner` | `human` | `agent`) — never a literal nickname. The ticket carries the concrete `owner:` / `human:` / `agent:` fields, and bump resolves the token against them. The same workflow stays reusable across tickets with different humans and agents.
 - **No mandatory steps.** You compose the workflow you need.
 - **Steps are skills or one-liners.** Same step can be a full skill in one workflow and an inline sentence in another, depending on how much knowledge the agent needs.
 - **Workflows are frozen into tickets at creation.** The ticket gets a snapshot of the workflow, not a reference. In-flight tickets are not affected by workflow changes. For v1, manually edit ticket frontmatter to update a frozen workflow.
@@ -477,9 +483,11 @@ The default template:
 | `status` | string | Control plane. One of: draft, active, paused, done. |
 | `mode` | string | `interactive`, `auto`, or `script`. Default: `interactive`. Controls how `relay launch` starts work. `interactive`: human-attended session — agent starts with composed context, human present in terminal. `auto`: autonomous execution — agent receives composed context as one-shot prompt, runs without human input. `script`: direct execution — no agent spawned, script runs with secrets injected as env vars. |
 | `owner` | string | Human accountable. Stable over the task's life. |
-| `assignee` | string | Who's currently doing the work. Human name or agent nickname. Set independently — not derived from workflow. |
+| `human` | string | Human worker on this ticket. Resolved from a workflow step's `assignee: human` token on bump. |
+| `agent` | string | Agent (LLM coder) on this ticket. Resolved from a workflow step's `assignee: agent` token on bump. |
+| `assignee` | string | Who's currently doing the work. Human name or agent nickname. Rewritten by `relay bump` when the next workflow step declares an `assignee:` role token; otherwise stable across bumps. |
 | `watchers` | list | Additional people noted on the task. Owner and assignee auto-watch implicitly. (No-op for Slack: posts are plain-text broadcast at small team sizes.) |
-| `workflow` | object | Frozen snapshot of the workflow at creation. Contains `name` (string) and `steps` (list of {name, skill?}). |
+| `workflow` | object | Frozen snapshot of the workflow at creation. Contains `name` (string) and `steps` (list of {name, skill?, assignee?}). |
 | `step` | string | Current position in frozen workflow. Format: `N (step-name)`. Only advances when status is `active`. |
 | `contexts` | list | Paths to context references in `relay-os/contexts/`. Domain knowledge scoped to this task. |
 
@@ -501,15 +509,21 @@ owner: marc
 assignee: claude1
 watchers:
   - pierre
+human: marc
+agent: claude1
 workflow:
   name: code/with-review
   steps:
     - name: implement
       skill: infra/testing-conventions
+      assignee: agent
     - name: pr
+      assignee: agent
     - name: approve
       skill: process/approve
+      assignee: human
     - name: merge
+      assignee: owner
 step: 1 (implement)
 contexts:
   - email/payment-flow

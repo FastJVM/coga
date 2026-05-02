@@ -23,6 +23,10 @@ no in-memory state.
 - **Workflows** are ordered step definitions. Live in
   `relay-os/workflows/`. Frozen into a ticket's frontmatter at
   creation — in-flight tickets are unaffected by later workflow edits.
+  Each step may declare an `assignee:` role token (`owner` | `human` |
+  `agent`); on bump, the token resolves against the ticket's
+  matching role field and rewrites `assignee:`. Steps without one
+  leave the assignee unchanged.
 - **Bootstrap shims** in `relay-os/bootstrap/<name>/ticket.md` are
   stateless launch targets for skills. No status, no workflow, no
   lock. `relay launch bootstrap/ticket "title"` is the factory
