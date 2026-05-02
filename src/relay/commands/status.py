@@ -21,7 +21,7 @@ from relay.ticket import TicketError
 # stays on a single line.
 NARROW_WIDTH = 100
 
-ORDER_BY_CHOICES = ("slug", "status", "assignee", "step", "mode", "updated")
+ORDER_BY_CHOICES = ("slug", "status", "owner", "assignee", "step", "mode", "updated")
 
 
 def _format_relative(then: datetime, now: datetime) -> str:
@@ -87,6 +87,7 @@ def status(
         rows.append({
             "slug": ref.slug,
             "status": ticket.status or "-",
+            "owner": ticket.owner or "-",
             "assignee": ticket.assignee or "-",
             "step": ticket.step or "-",
             "mode": ticket.mode,
@@ -113,11 +114,11 @@ def status(
         # so Rich's balancer doesn't crop it. Everything else ellipsizes.
         max_slug = max((len(r["slug"]) for r in rows), default=0)
         table.add_column("slug", no_wrap=True, overflow="fold", min_width=max_slug)
-        for col in ("status", "assignee", "step", "mode", "updated"):
+        for col in ("status", "owner", "assignee", "step", "mode", "updated"):
             table.add_column(col, no_wrap=True, overflow="ellipsis")
     else:
         table.add_column("slug", no_wrap=True, overflow="fold")
-        for col in ("status", "assignee", "step", "mode", "updated"):
+        for col in ("status", "owner", "assignee", "step", "mode", "updated"):
             table.add_column(col)
 
     now = datetime.now()
@@ -125,7 +126,8 @@ def status(
         ts = r["updated_ts"]
         updated = _format_relative(ts, now) if ts is not None else "-"
         table.add_row(
-            r["slug"], r["status"], r["assignee"], r["step"], r["mode"], updated,
+            r["slug"], r["status"], r["owner"], r["assignee"],
+            r["step"], r["mode"], updated,
         )
 
     if not rows:
