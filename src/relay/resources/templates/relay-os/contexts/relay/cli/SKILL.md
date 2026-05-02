@@ -41,6 +41,14 @@ List every task in the repo — `draft`, `active`, `paused`, and `done`.
 Bootstrap shims have no status and don't appear here. No filtering
 flags yet; pipe through `grep` if you want to slice the output.
 
+## relay show \<slug\>
+
+Print a task's `ticket.md`, `blackboard.md`, and `log.md` to the
+terminal, rendered as markdown via Rich. Same prefix matching as
+`launch`/`bump`. Bootstrap shims show only `ticket.md` (they have no
+blackboard or log). For grep/pipe use, read the files directly — `show`
+is for human eyes.
+
 ## relay bump \<slug\> [--message "..."]
 
 Advance a workflow-bound task one step. Updates `step:`, appends a log
@@ -131,6 +139,7 @@ only; they don't accept their own flags.
 - Catching up tickets after a teammate merged a PR → `relay automerge`
   (also fires automatically on `git pull` and from `relay status`).
 - Triage view → `relay status`.
+- Reading a single task without opening the file → `relay show <slug>`.
 - Surfacing a non-blocker note tied to a step transition → `relay bump --message`.
 - Surfacing a non-blocker note that doesn't fit a transition → `relay slack`.
 - Surfacing a blocker → `relay panic`.

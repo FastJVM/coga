@@ -175,6 +175,18 @@ One line per task. Bootstrap shims have no status and don't appear.
 relay status
 ```
 
+### `relay show <slug>`
+
+Print a task's `ticket.md`, `blackboard.md`, and `log.md` to the
+terminal, rendered as markdown. Same prefix matching as `bump`/`launch`.
+Bootstrap shims show only `ticket.md`. For grep/pipe use, read the
+files directly — `show` is for human eyes.
+
+```sh
+relay show add-retry
+relay show bootstrap/orient
+```
+
 ### `relay bump <slug> [--message "..."]`
 
 Advance a workflow-bound task one step. Updates the ticket's `step:`
