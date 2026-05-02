@@ -8,15 +8,24 @@ description: Scan the Relay repo for knowledge gaps, broken references, stale lo
 Your job is to read the entire Relay repo and surface what's missing or drifting.
 Write concrete proposals, not vague recommendations.
 
-## Step 1 — Run the deterministic checker
+## Step 1 — Run the validate-drift worker
 
 Run:
 
 ```
-python -m relay.validate --json > /tmp/relay-validate.json
+python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py --blackboard relay-os/tasks/<this-dream-task>/blackboard.md
 ```
 
-Parse the JSON. Each issue has `kind`, `task`, `message`, and `severity`. Kinds:
+Replace `<this-dream-task>` with the slug of this Dream run. The worker runs
+the same deterministic surface as `relay validate --json`, classifies every
+issue, and appends a concise `## Dream Worker: validate-drift` section to this
+run's blackboard. It uses three action buckets:
+
+- `direct-fix` — safe to apply in a small Dream PR without changing task state.
+- `pr-proposal` — file-backed fix that needs a reviewable PR after reading the target.
+- `human-needed` — lifecycle, ownership, lock, secret, or ambiguous state decision.
+
+Validator issue kinds include:
 
 - `missing-file` — a task is missing ticket.md/blackboard.md/log.md.
 - `stale-lock` — a lock file is older than the configured threshold (likely a crashed agent).
@@ -25,9 +34,9 @@ Parse the JSON. Each issue has `kind`, `task`, `message`, and `severity`. Kinds:
 - `broken-context` / `broken-skill` — a reference points to a file that doesn't exist.
 - `stuck-active` — task is `active` but `log.md` hasn't been written to in a while.
 
-For each error-severity issue: write a **Proposal** entry to the Findings section
-of your own blackboard with a concrete remediation step (e.g. "delete stale lock
-at path X", "reassign task Y to Pierre because claude2 is no longer used", etc.).
+Stale-lock rule: never delete a `task.lock` from age alone. The worker reports
+stale locks as `human-needed`. A human must verify that no live terminal or
+agent still owns the task, then remove the lock or relaunch with `--force`.
 
 ## Step 2 — Scan for knowledge gaps (this is the harder part)
 
@@ -68,7 +77,7 @@ pre-filter.
 
 ## Step 4 — Summarize for Slack
 
-Call `relay feed --task <your-task-id> --message "<summary>"`. One line.
+Call `relay slack --task <your-task-id> --message "<summary>"`. One line.
 Example: `Dream scan: 3 broken refs, 2 context proposals, 1 stale lock.`
 
 ## Step 5 — Don't take action
