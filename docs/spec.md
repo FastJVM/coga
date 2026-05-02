@@ -27,7 +27,7 @@ mode = "local"
 
 [agents.codex]
 cli = "codex"
-interactive = "exec"
+interactive = ""
 auto = "exec"
 file = "AGENTS.md"
 mode = "local"
@@ -65,6 +65,9 @@ agents = {"claude2": "claude", "goat": "copilot"}
 
 [aliases]
 chat = "launch bootstrap/orient"
+# Optional once the current user has these nicknames configured:
+# claude = "launch bootstrap/orient --agent claude1"
+# codex = "launch bootstrap/orient --agent codex1"
 create = "launch bootstrap/ticket"
 ```
 
@@ -90,8 +93,8 @@ Validated at config load — fail loud, not silent:
 - Alias names cannot collide with built-in commands (`init`, `launch`,
   `status`, `bump`, `panic`, `slack`, `recurring`).
 - The first token of the expansion must be a known built-in.
-- Aliases are positional pass-through only — they don't accept their own
-  flags.
+- Aliases are pass-through only. Arguments and flags after the alias name
+  are forwarded to the expanded command.
 
 For scripted task scaffolding (when you want full keyword control rather
 than the alias's positional surface), call `scaffold_task()` in
@@ -767,7 +770,7 @@ shims" above.
 
 1. Resolve the current user from `relay.local.toml`.
 2. Look up the task in `relay-os/tasks/` (the CLI always operates on the repo it's running inside).
-3. Read the `assignee` field from the ticket. Resolve the agent nickname in the user's `[assignees]` config to the agent type.
+3. Read the `assignee` field from the ticket. Resolve the agent nickname in the user's `[assignees]` config to the agent type. For `bootstrap/<name>` launches only, `--agent <nickname>` may override the shim's default assignee for that launch.
 4. Verify the task's `status` is `draft` or `active`. Error if not.
 5. Load secrets from `relay.local.toml` `[secrets]` section. Resolve `env:VAR_NAME` references to actual values. These will be exported as environment variables into the launched process.
 6. **Compose the prompt.** Assemble in this order:

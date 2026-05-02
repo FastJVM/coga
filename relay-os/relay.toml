@@ -15,7 +15,7 @@ mode = "local"
 
 [agents.codex]
 cli = "codex"
-interactive = "exec"
+interactive = ""
 auto = "exec"
 file = "AGENTS.md"
 mode = "local"
@@ -97,4 +97,6 @@ panic = [
 
 [aliases]
 chat = "launch bootstrap/orient"
+claude = "launch bootstrap/orient --agent claude1"
+codex = "launch bootstrap/orient --agent codex1"
 create = "launch bootstrap/ticket"

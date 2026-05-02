@@ -36,6 +36,11 @@ def launch(
         None,
         help="With a bootstrap shim, scaffold a new draft task with this title and launch on it.",
     ),
+    agent_override: str | None = typer.Option(
+        None,
+        "--agent",
+        help="Agent nickname to use for this bootstrap launch instead of the shim default.",
+    ),
     force: bool = typer.Option(False, "--force", help="Break a stale lock."),
 ) -> None:
     """Compose context, start work on a task."""
@@ -50,6 +55,14 @@ def launch(
         _bail(str(exc))
 
     is_bootstrap = isinstance(ref, BootstrapRef)
+    if agent_override is not None and not is_bootstrap:
+        _bail("--agent is only supported when launching a `bootstrap/<name>` shim.")
+
+    if agent_override is not None:
+        try:
+            cfg.agent_type_for(cfg.current_user, agent_override)
+        except ConfigError as exc:
+            _bail(str(exc))
 
     # Factory mode: bootstrap shim + title → scaffold a new draft task
     # seeded from the shim's frontmatter, then launch on the new task.
@@ -57,12 +70,14 @@ def launch(
         if not is_bootstrap:
             _bail("Title arg is only valid when launching a `bootstrap/<name>` shim.")
         try:
-            ref = _scaffold_from_shim(cfg, ref, title)
+            ref = _scaffold_from_shim(cfg, ref, title, assignee_override=agent_override)
         except (ConfigError, ValueError) as exc:
             _bail(str(exc))
         is_bootstrap = False
 
     ticket = read_ticket(ref)
+    if agent_override is not None and is_bootstrap:
+        ticket.frontmatter["assignee"] = agent_override
 
     # Announce ticket creation when the factory mode just scaffolded one.
     # `title is not None` was the factory-mode signal above; we re-derive
@@ -190,7 +205,13 @@ def launch(
 # --- helpers ------------------------------------------------------------------
 
 
-def _scaffold_from_shim(cfg: Config, shim: BootstrapRef, title: str) -> TaskRef:
+def _scaffold_from_shim(
+    cfg: Config,
+    shim: BootstrapRef,
+    title: str,
+    *,
+    assignee_override: str | None = None,
+) -> TaskRef:
     """Scaffold a new draft task seeded from a bootstrap shim's frontmatter.
 
     The shim ticket carries the `mode`, `assignee`, and `skill` ref the new
@@ -205,7 +226,7 @@ def _scaffold_from_shim(cfg: Config, shim: BootstrapRef, title: str) -> TaskRef:
         contexts=[],
         mode=shim_ticket.mode,
         owner=cfg.current_user,
-        assignee=shim_ticket.assignee,
+        assignee=assignee_override or shim_ticket.assignee,
         watchers=[],
         status="draft",
         skill=shim_ticket.skill,

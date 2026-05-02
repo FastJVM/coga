@@ -71,6 +71,18 @@ def test_build_command_codex_like_subcommand(tmp_path: Path) -> None:
     assert cmd == ["my-cli", "exec", "full prompt text"]
 
 
+def test_build_command_interactive_without_flags_passes_prompt_text(tmp_path: Path) -> None:
+    prompt_file = tmp_path / "p.md"
+    prompt_file.write_text("hi")
+    cmd = build_agent_command(
+        _agent("", "exec"),
+        mode="interactive",
+        prompt="full prompt text",
+        prompt_file=prompt_file,
+    )
+    assert cmd == ["my-cli", "full prompt text"]
+
+
 # --- integration: end-to-end via CliRunner with mocked subprocess --------------
 
 
@@ -87,8 +99,13 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         interactive = "--append-system-prompt-file"
         auto = "-p"
         file = "CLAUDE.md"
+        [agents.codex]
+        cli = "codex"
+        interactive = ""
+        auto = "exec"
+        file = "AGENTS.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude1" = "claude", "codex1" = "codex"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -251,8 +268,13 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         interactive = "--append-system-prompt-file"
         auto = "-p"
         file = "CLAUDE.md"
+        [agents.codex]
+        cli = "codex"
+        interactive = ""
+        auto = "exec"
+        file = "AGENTS.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude1" = "claude", "codex1" = "codex"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -388,6 +410,53 @@ def test_launch_bootstrap_skips_status_and_lock(
     # log.md was created and recorded the launch.
     log = (bootstrap_repo / "bootstrap" / "ticket" / "log.md").read_text()
     assert "launched in interactive mode" in log
+
+
+def test_launch_bootstrap_agent_override_uses_requested_agent(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        captured["cmd"] = cmd
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "bootstrap/ticket", "--agent", "codex1"])
+    assert result.exit_code == 0, result.output
+
+    cmd = captured["cmd"]
+    assert isinstance(cmd, list)
+    assert cmd[0] == "codex"
+    assert "Skill: bootstrap/ticket" in cmd[1]
+
+    log = (bootstrap_repo / "bootstrap" / "ticket" / "log.md").read_text()
+    assert "assignee=codex1, agent=codex" in log
+
+
+def test_launch_agent_override_rejects_normal_task(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    called = False
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "fix-retry-logic", "--agent", "claude1"])
+    assert result.exit_code == 2
+    assert "--agent is only supported" in (result.output + (result.stderr or ""))
+    assert not called
 
 
 def test_launch_bootstrap_unknown_shim(

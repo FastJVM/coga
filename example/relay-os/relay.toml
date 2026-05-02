@@ -13,10 +13,17 @@ auto = "-p"
 file = "CLAUDE.md"
 mode = "local"
 
+[agents.codex]
+cli = "codex"
+interactive = ""
+auto = "exec"
+file = "AGENTS.md"
+mode = "local"
+
 # --- Assignees ---
 
 [assignees.marc]
-agents = {"claude1" = "claude", "claude2" = "claude"}
+agents = {"claude1" = "claude", "claude2" = "claude", "codex1" = "codex"}
 
 [assignees.pierre]
 agents = {"claude1" = "claude"}
@@ -34,4 +41,6 @@ agents = {"claude1" = "claude"}
 
 [aliases]
 chat = "launch bootstrap/orient"
+claude = "launch bootstrap/orient --agent claude1"
+codex = "launch bootstrap/orient --agent codex1"
 create = "launch bootstrap/ticket"
