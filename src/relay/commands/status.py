@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import datetime
 
 import typer
 from rich.console import Console
@@ -10,6 +11,7 @@ from rich.table import Table
 
 from relay.automerge import auto_bump_merged
 from relay.config import ConfigError, load_config
+from relay.logfile import last_activity
 from relay.tasks import list_tasks, read_ticket
 from relay.ticket import TicketError
 
@@ -19,13 +21,51 @@ from relay.ticket import TicketError
 # stays on a single line.
 NARROW_WIDTH = 100
 
+ORDER_BY_CHOICES = ("slug", "status", "assignee", "step", "mode", "updated")
 
-def status() -> None:
+
+def _format_relative(then: datetime, now: datetime) -> str:
+    """Compact relative time (`5m`, `3h`, `2d`, `4w`)."""
+    delta = now - then
+    seconds = int(delta.total_seconds())
+    if seconds < 60:
+        return "0m"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h"
+    days = hours // 24
+    if days < 7:
+        return f"{days}d"
+    return f"{days // 7}w"
+
+
+def status(
+    order_by: str = typer.Option(
+        "updated",
+        "--order-by",
+        "-o",
+        help=f"Sort column. One of: {', '.join(ORDER_BY_CHOICES)}.",
+    ),
+    reverse: bool = typer.Option(
+        False, "--reverse", "-r", help="Reverse sort order."
+    ),
+) -> None:
     """Show tasks in the repo."""
     try:
         cfg = load_config()
     except ConfigError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        sys.exit(2)
+
+    if order_by not in ORDER_BY_CHOICES:
+        typer.secho(
+            f"--order-by must be one of: {', '.join(ORDER_BY_CHOICES)}",
+            fg=typer.colors.RED,
+            err=True,
+        )
         sys.exit(2)
 
     # Opportunistic auto-bump pass: if a teammate merged a PR while this
@@ -38,38 +78,57 @@ def status() -> None:
     console = Console()
     narrow = console.width < NARROW_WIDTH
 
-    table = Table(show_lines=False, show_edge=False, pad_edge=False)
-    if narrow:
-        # Slug is the primary identifier; pin its column to the longest slug
-        # so Rich's balancer doesn't crop it. Everything else ellipsizes.
-        max_slug = max((len(r.slug) for r in refs), default=0)
-        table.add_column("slug", no_wrap=True, overflow="fold", min_width=max_slug)
-        for col in ("status", "assignee", "step", "mode"):
-            table.add_column(col, no_wrap=True, overflow="ellipsis")
-    else:
-        # Slugs can be long; don't let rich wrap them mid-string.
-        table.add_column("slug", no_wrap=True, overflow="fold")
-        for col in ("status", "assignee", "step", "mode"):
-            table.add_column(col)
-
-    rows = 0
+    rows = []
     for ref in refs:
         try:
             ticket = read_ticket(ref)
         except TicketError:
             continue
-        step = ticket.step or "-"
-        assignee = ticket.assignee or "-"
-        table.add_row(
-            ref.slug,
-            ticket.status or "-",
-            assignee,
-            step,
-            ticket.mode,
-        )
-        rows += 1
+        rows.append({
+            "slug": ref.slug,
+            "status": ticket.status or "-",
+            "assignee": ticket.assignee or "-",
+            "step": ticket.step or "-",
+            "mode": ticket.mode,
+            "updated_ts": last_activity(ref.path),
+        })
 
-    if rows == 0:
+    # Default reading is "newest first" for date columns and alphabetical
+    # for everything else; --reverse flips whichever default applies.
+    descending = (order_by == "updated") ^ reverse
+
+    if order_by == "updated":
+        # Two passes so the "missing" group always ends up last regardless
+        # of direction. Pass 1: sort by the timestamp itself, with None
+        # mapped to datetime.min so it doesn't crash compares. Pass 2 is
+        # stable, so it preserves pass-1 order within each group.
+        rows.sort(key=lambda r: r["updated_ts"] or datetime.min, reverse=descending)
+        rows.sort(key=lambda r: r["updated_ts"] is None)
+    else:
+        rows.sort(key=lambda r: r[order_by], reverse=descending)
+
+    table = Table(show_lines=False, show_edge=False, pad_edge=False)
+    if narrow:
+        # Slug is the primary identifier; pin its column to the longest slug
+        # so Rich's balancer doesn't crop it. Everything else ellipsizes.
+        max_slug = max((len(r["slug"]) for r in rows), default=0)
+        table.add_column("slug", no_wrap=True, overflow="fold", min_width=max_slug)
+        for col in ("status", "assignee", "step", "mode", "updated"):
+            table.add_column(col, no_wrap=True, overflow="ellipsis")
+    else:
+        table.add_column("slug", no_wrap=True, overflow="fold")
+        for col in ("status", "assignee", "step", "mode", "updated"):
+            table.add_column(col)
+
+    now = datetime.now()
+    for r in rows:
+        ts = r["updated_ts"]
+        updated = _format_relative(ts, now) if ts is not None else "-"
+        table.add_row(
+            r["slug"], r["status"], r["assignee"], r["step"], r["mode"], updated,
+        )
+
+    if not rows:
         typer.echo("(no tasks)")
         return
 

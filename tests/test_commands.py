@@ -262,3 +262,107 @@ def test_status_shows_done_tasks(repo: Path) -> None:
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0, result.output
     assert slug in result.output
+
+
+# --- status --order-by / --reverse / updated column ---------------------------
+
+
+def _set_log_timestamp(task_path: Path, when: str) -> None:
+    """Overwrite task's log.md with a single line at the given timestamp."""
+    (task_path / "log.md").write_text(f"{when} [system] backdated\n")
+
+
+def test_status_includes_updated_column(repo: Path) -> None:
+    _make_task(repo, workflow=None)
+    runner = CliRunner()
+    result = runner.invoke(app, ["status"])
+    assert result.exit_code == 0, result.output
+    assert "updated" in result.output
+
+
+def test_status_default_orders_by_updated_desc(repo: Path) -> None:
+    cfg = load_config(repo)
+    older = scaffold_task(
+        cfg=cfg, title="older", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="active", slug_override="aaa-old",
+    )
+    newer = scaffold_task(
+        cfg=cfg, title="newer", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="active", slug_override="zzz-new",
+    )
+    _set_log_timestamp(older["path"], "2026-01-01 09:00")
+    _set_log_timestamp(newer["path"], "2026-04-30 17:00")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["status"])
+    assert result.exit_code == 0, result.output
+    new_idx = result.output.index("zzz-new")
+    old_idx = result.output.index("aaa-old")
+    assert new_idx < old_idx, result.output
+
+
+def test_status_order_by_slug_is_alphabetical(repo: Path) -> None:
+    cfg = load_config(repo)
+    for slug in ("zeta", "alpha", "mu"):
+        scaffold_task(
+            cfg=cfg, title=slug, workflow_name=None,
+            contexts=[], mode="interactive", owner="marc", assignee="claude1",
+            watchers=[], status="active", slug_override=slug,
+        )
+    runner = CliRunner()
+    result = runner.invoke(app, ["status", "--order-by", "slug"])
+    assert result.exit_code == 0, result.output
+    a = result.output.index("alpha")
+    m = result.output.index("mu")
+    z = result.output.index("zeta")
+    assert a < m < z, result.output
+
+
+def test_status_reverse_flips_order(repo: Path) -> None:
+    cfg = load_config(repo)
+    for slug in ("alpha", "zeta"):
+        scaffold_task(
+            cfg=cfg, title=slug, workflow_name=None,
+            contexts=[], mode="interactive", owner="marc", assignee="claude1",
+            watchers=[], status="active", slug_override=slug,
+        )
+    runner = CliRunner()
+    result = runner.invoke(app, ["status", "--order-by", "slug", "--reverse"])
+    assert result.exit_code == 0, result.output
+    assert result.output.index("zeta") < result.output.index("alpha"), result.output
+
+
+def test_status_rejects_unknown_order_by(repo: Path) -> None:
+    _make_task(repo, workflow=None)
+    runner = CliRunner()
+    result = runner.invoke(app, ["status", "--order-by", "bogus"])
+    assert result.exit_code == 2
+
+
+def test_status_tasks_without_log_sort_to_end(repo: Path) -> None:
+    cfg = load_config(repo)
+    has_log = scaffold_task(
+        cfg=cfg, title="logged", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="active", slug_override="zzz-logged",
+    )
+    no_log = scaffold_task(
+        cfg=cfg, title="no log", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="active", slug_override="aaa-nolog",
+    )
+    _set_log_timestamp(has_log["path"], "2026-04-30 17:00")
+    (no_log["path"] / "log.md").unlink()
+
+    runner = CliRunner()
+    # Default order (updated desc) — logged task on top, no-log task at bottom.
+    result = runner.invoke(app, ["status"])
+    assert result.exit_code == 0, result.output
+    assert result.output.index("zzz-logged") < result.output.index("aaa-nolog")
+
+    # Even with --reverse, missing log stays at the bottom.
+    result = runner.invoke(app, ["status", "--reverse"])
+    assert result.exit_code == 0, result.output
+    assert result.output.index("zzz-logged") < result.output.index("aaa-nolog")
