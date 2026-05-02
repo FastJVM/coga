@@ -187,6 +187,47 @@ def test_bump_rejects_empty_message(repo: Path) -> None:
     assert result.exit_code == 2
 
 
+# --- show ---------------------------------------------------------------------
+
+
+def test_show_prints_ticket_blackboard_and_log(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    (task_path / "blackboard.md").write_text("# Plan\n\nfigure it out\n")
+    (task_path / "log.md").write_text("created task\n")
+    runner = CliRunner()
+    result = runner.invoke(app, ["show", slug])
+    assert result.exit_code == 0, result.output
+    assert "ticket.md" in result.output
+    assert "blackboard.md" in result.output
+    assert "log.md" in result.output
+    assert "figure it out" in result.output
+
+
+def test_show_resolves_prefix(repo: Path) -> None:
+    slug, _ = _make_task(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["show", slug[:6]])
+    assert result.exit_code == 0, result.output
+    assert "ticket.md" in result.output
+
+
+def test_show_handles_missing_blackboard_and_log(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    (task_path / "blackboard.md").unlink(missing_ok=True)
+    (task_path / "log.md").unlink(missing_ok=True)
+    runner = CliRunner()
+    result = runner.invoke(app, ["show", slug])
+    assert result.exit_code == 0, result.output
+    assert "no blackboard.md" in result.output
+    assert "no log.md" in result.output
+
+
+def test_show_unknown_task_exits_nonzero(repo: Path) -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["show", "no-such-task-xyz"])
+    assert result.exit_code == 2
+
+
 # --- status -------------------------------------------------------------------
 
 
