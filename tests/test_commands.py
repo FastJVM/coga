@@ -432,6 +432,17 @@ def test_validate_json_emits_payload(repo: Path) -> None:
     assert payload["ok_count"] == 1
 
 
+def test_validate_warns_for_large_blackboard(repo: Path) -> None:
+    _, task_path = _make_task(repo, workflow=None)
+    (task_path / "blackboard.md").write_text("x" * 2048)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["validate", "--max-blackboard-kb", "1"])
+    assert result.exit_code == 0, result.output
+    assert "[WARN]" in result.output
+    assert "large-blackboard" in result.output
+
+
 def test_status_shows_done_tasks(repo: Path) -> None:
     slug, task_path = _make_task(repo, workflow=None)
     # Mark done directly

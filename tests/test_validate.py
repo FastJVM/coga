@@ -148,6 +148,22 @@ def test_missing_file(repo: Path) -> None:
     assert any(i.kind == "missing-file" and "blackboard" in i.message for i in report.issues)
 
 
+def test_large_blackboard_warns(repo: Path) -> None:
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    (ref.path / "blackboard.md").write_text("x" * 2048)
+
+    report = run(cfg, max_blackboard_bytes=1024)
+    issue = next(i for i in report.issues if i.kind == "large-blackboard")
+    assert issue.severity == "warn"
+    assert "included in launch prompts" in issue.message
+
+
 class _FakeResponse:
     def __init__(self, status_code: int, text: str = "") -> None:
         self.status_code = status_code

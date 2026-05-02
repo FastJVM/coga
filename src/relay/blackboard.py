@@ -8,6 +8,9 @@ from importlib.resources import files
 from pathlib import Path
 
 
+BLACKBOARD_WARN_BYTES = 32 * 1024
+
+
 def render_blackboard(task_title: str) -> str:
     """Render the default blackboard template with task metadata filled in."""
     template = files("relay.resources").joinpath("blackboard.md").read_text()
@@ -55,4 +58,37 @@ def append_blocker(task_dir: Path, actor: str, reason: str) -> None:
     append_to_section(task_dir / "blackboard.md", "Blockers", entry)
 
 
-__all__ = ["render_blackboard", "append_to_section", "append_blocker"]
+def format_bytes(size: int) -> str:
+    """Human-friendly binary size."""
+    if size < 1024:
+        return f"{size} B"
+    return f"{size / 1024:.1f} KiB"
+
+
+def blackboard_size_warning(
+    path: Path,
+    *,
+    max_bytes: int = BLACKBOARD_WARN_BYTES,
+) -> str | None:
+    """Return a warning if `blackboard.md` is large enough to bloat prompts."""
+    try:
+        size = path.stat().st_size
+    except FileNotFoundError:
+        return None
+    if size <= max_bytes:
+        return None
+    return (
+        f"blackboard.md is {format_bytes(size)} "
+        f"(warning threshold {format_bytes(max_bytes)}); it is included in "
+        "launch prompts. Consider summarizing old notes."
+    )
+
+
+__all__ = [
+    "BLACKBOARD_WARN_BYTES",
+    "render_blackboard",
+    "append_to_section",
+    "append_blocker",
+    "format_bytes",
+    "blackboard_size_warning",
+]

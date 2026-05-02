@@ -251,6 +251,32 @@ def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyP
     assert "not found in PATH" in (result.output + (result.stderr or ""))
 
 
+def test_launch_warns_for_large_blackboard(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    (ref.path / "blackboard.md").write_text("x" * (33 * 1024))
+
+    class _Result:
+        returncode = 0
+
+    monkeypatch.setattr(
+        "relay.commands.launch.subprocess.run",
+        lambda cmd, env=None, check=False: _Result(),
+    )
+    monkeypatch.setattr(
+        "relay.commands.launch.shutil.which",
+        lambda name: f"/usr/bin/{name}",
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+    assert "blackboard.md is" in (result.output + (result.stderr or ""))
+
+
 # --- bootstrap shims -----------------------------------------------------------
 
 

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import typer
 
+from relay.blackboard import blackboard_size_warning
 from relay.commands.common import not_implemented
 from relay.compose import compose_prompt, write_prompt_file
 from relay.config import Config, ConfigError, load_config
@@ -155,6 +156,10 @@ def launch(
         )
 
     # Compose & write prompt.
+    warning = blackboard_size_warning(ref.path / "blackboard.md")
+    if warning:
+        typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
+
     prompt = compose_prompt(cfg, ref, ticket)
     prompt_file = write_prompt_file(prompt, ref)
 
