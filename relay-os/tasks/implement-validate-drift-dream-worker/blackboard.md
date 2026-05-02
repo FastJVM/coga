@@ -24,5 +24,6 @@ Verification:
 - `.venv/bin/python -m pytest` -> 202 passed.
 - `../.venv/bin/relay validate --json` from `example/` -> no issues.
 - `.venv/bin/python src/relay/resources/templates/relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py --cwd example` -> no validation drift found.
+- GitHub checks: `gh pr checks 82 --watch=false` -> no checks reported for the branch.
 
 Note: `relay validate --json` against this worktree's live dogfood `relay-os/` cannot run without creating `relay-os/relay.local.toml`, which this task prompt explicitly says not to edit.
