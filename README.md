@@ -141,6 +141,7 @@ relay launch add-retry-to-webhook-handler          # full slug
 relay launch add-retry                              # any unique prefix works
 relay launch add-retry --force                      # break a stale lock
 relay launch bootstrap/ticket                       # stateless shim → run a skill
+relay launch bootstrap/orient --agent codex1        # choose a bootstrap agent
 relay launch bootstrap/ticket "Add retry to webhook handler"
                                                     # factory: scaffold a draft task
                                                     # with that title and launch the
@@ -152,6 +153,9 @@ Tasks are addressed by slug — there is no numeric ID. Pass any unique prefix
 
 The agent type comes from the ticket's `assignee` (e.g. `claude1`) resolved
 through `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
+Bootstrap shims also accept `--agent <nickname>` for one-off sessions, so
+`relay chat --agent codex1` can open the orient shim with Codex while
+`relay chat --agent claude1` opens it with Claude.
 
 A task is launchable in `draft` (agent is authoring) or `active` (agent is
 executing) status. `paused` and `done` require a flip first.
@@ -308,6 +312,9 @@ the alias name forward to the expansion. Default aliases shipped by
 ```toml
 [aliases]
 chat = "launch bootstrap/orient"
+# Optional once those nicknames exist for the current user:
+# claude = "launch bootstrap/orient --agent claude1"
+# codex = "launch bootstrap/orient --agent codex1"
 create = "launch bootstrap/ticket"
 ```
 
@@ -320,8 +327,8 @@ often.
 Rules, checked at config load — fail loud, not silent:
 - Alias names cannot collide with built-in commands.
 - The first token of the expansion must be a known built-in.
-- Aliases are positional pass-through only — they don't accept their own
-  flags.
+- Aliases are pass-through only. Arguments and flags after the alias name
+  are forwarded to the expanded command.
 
 ## Development
 

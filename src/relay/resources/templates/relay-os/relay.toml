@@ -16,7 +16,7 @@ mode = "local"
 
 [agents.codex]
 cli = "codex"
-interactive = "exec"
+interactive = ""
 auto = "exec"
 file = "AGENTS.md"
 mode = "local"
@@ -60,4 +60,7 @@ mode = "local"
 
 [aliases]
 chat = "launch bootstrap/orient"
+# Uncomment after adding matching nicknames under your `[assignees.<user>]`.
+# claude = "launch bootstrap/orient --agent claude1"
+# codex = "launch bootstrap/orient --agent codex1"
 create = "launch bootstrap/ticket"
