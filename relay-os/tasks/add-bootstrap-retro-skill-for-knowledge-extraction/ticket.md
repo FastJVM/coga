@@ -9,69 +9,138 @@ skill: bootstrap/ticket
 
 ## Description
 
-When a ticket transitions to `done`, sweep its `ticket.md`, blackboard, and
-log for things that should graduate into reusable knowledge — and surface
-the proposal as a PR the human reviews like any other diff.
+Proposed retitle: **Make Dream a per-project recurring maintenance
+orchestrator**.
 
-This is Relay's "cleanup" story for done tickets: the retro PR deletes
-the task directory and lifts whatever's worth keeping into contexts and
-skills. Git history is the archive — the task dir itself doesn't need
-to linger on disk once its lessons are extracted.
+Dream should not live under `bootstrap/`. Bootstrap shims are stateless
+launch helpers. Dream is ongoing project maintenance: a recurring,
+per-project loop that inventories background work, runs independent
+maintenance units when safe, and opens reviewable PRs for anything that
+changes durable repo state.
 
-## What the retro extracts
+Each repo owns its own Dream. In Relay's current model, a project is a
+repo with its own `relay-os/`; there is no global cross-repo daemon.
+Shared Dream tasks can ship as templates, but the active schedule,
+enabled task list, and project-specific checks live in that repo.
 
-- **Contexts.** Domain facts the executor learned mid-task that aren't yet
-  in any `relay-os/contexts/*.md`. Propose new context entries or
-  additions to existing ones.
-- **Skills.** Repeated step patterns that should be promoted to
-  `relay-os/skills/*` (or tweaks to existing skills).
-- **Mismatches.** Places where the workflow / contexts / assignee that
-  `bootstrap/ticket` chose turned out wrong. These are signal for tuning
-  future bootstrap decisions, not just this ticket.
+## Desired shape
 
-## Shape
+- `relay-os/recurring/weekly-dream.md` schedules the recurring run.
+- `relay-os/workflows/dream/run.md` defines the workflow for one Dream run.
+- `relay-os/skills/dream/orchestrate/SKILL.md` inventories work and
+  dispatches independent tasks.
+- `relay-os/skills/dream/tasks/*/SKILL.md` defines individual maintenance
+  units with clear inputs, outputs, safety rules, and idempotency rules.
+- Existing `bootstrap/dream` material moves or is replaced by the Dream
+  workflow/skill shape above.
 
-- New skill at `relay-os/skills/bootstrap/retro/SKILL.md`. The skill reads
-  the done ticket + its blackboard + log, drafts proposals.
-- **Output 1 — PR.** Skill emits diffs against `relay-os/contexts/` and
-  `relay-os/skills/` **and deletes `relay-os/tasks/<task-slug>/` in the
-  same commit**, opens a branch `retro/<task-slug>`, pushes, opens a PR.
-  The PR body links back to the source ticket (git ref, since the dir
-  is gone post-merge). One atomic review: the reviewer sees the deleted
-  files alongside the extracted contexts/skills and confirms nothing
-  valuable was dropped.
-- **Output 2 — Slack.** Posts a one-line summary + PR link to a
-  configured channel. Config: `[notifications.slack]` in `relay.toml`,
-  webhook URL via `env:SLACK_WEBHOOK` (per the secrets-in-local-toml rule
-  in `vision.md`).
-- **Trigger.** `relay bump` on transition to `done` auto-launches
-  `bootstrap/retro` on the same task. The retro runs *after* the task
-  lock is released — it's post-completion analysis, not part of execution.
-- **Granularity.** One retro PR per task. Cheaper to review than a batched
-  weekly diff, and each PR stays scoped to one ticket's lessons.
+## Independent Dream tasks
+
+### Relay core tasks
+
+- **Validate drift.** Run `relay validate --json`, classify broken refs,
+  stale locks, invalid state, and stuck active tickets. Output proposals
+  or small fix PRs.
+- **Retro done ticket.** Read one done ticket's `ticket.md`, `blackboard.md`,
+  and `log.md`; extract durable knowledge into contexts, skills, or
+  workflows; delete the task directory in the same PR. Git history is the
+  archive after extraction.
+- **Cleanup stale lock.** Clear only locks that validation proves stale
+  under a documented age/running-process rule. This should be deterministic
+  and narrow.
+- **Context/skill staleness review.** Compare recent tickets and
+  blackboards against existing contexts and skills. Output a proposal PR,
+  not silent direct edits.
+- **Workflow mismatch review.** Find tickets where selected workflow,
+  contexts, owner, or assignee were wrong in practice. Output tuning
+  proposals for bootstrap selection rules, workflow docs, or skills.
+- **Recurring scaffolding check.** Run or verify `relay recurring check`
+  and surface missed schedules or broken recurring templates.
+
+### Dev project tasks
+
+These are examples of per-project Dream tasks for a code repo:
+
+- **Run unit tests.** Run the repo's configured unit test command and
+  ticket or summarize failures with exact commands and failing tests.
+- **Check CI drift.** Compare local test/docs instructions against CI
+  workflows and flag mismatches.
+- **Remove stale branches.** Identify merged local branches, stale remote
+  tracking branches, and old topic branches. Propose deletion first unless
+  the branch is proven merged and covered by a conservative rule.
+- **Dependency drift.** Check dependency/lockfile freshness where the repo
+  has a standard tool for it.
+- **Spec/API drift.** Compare docs/specs against implemented CLI or API
+  behavior and open small correction PRs.
+
+## Orchestration rules
+
+- Dream is an inventory and dispatcher, not a giant monolithic cleanup
+  script.
+- Each task must be independently runnable and idempotent.
+- Each task must define whether it can edit directly, must open a PR, or
+  should only write proposals to the Dream run blackboard.
+- Destructive changes, especially deleting done task dirs or removing
+  branches, require reviewable evidence. Prefer a PR or explicit proposal
+  unless the rule is deterministic and low-risk.
+- A Dream run should summarize what it did and what it deferred in Slack
+  with one short line.
+
+## First milestone
+
+Implement the per-project Dream structure and migrate the current
+`bootstrap/dream` skill into it. The first enabled worker should be
+**retro done ticket**, because it gives Relay its cleanup story without
+throwing away knowledge:
+
+1. Find done tickets that have not had a retro PR.
+2. Run one retro per ticket.
+3. Extract useful knowledge into contexts/skills/workflows.
+4. Delete that ticket directory in the same PR.
+5. Post a short summary with the PR link.
+
+## Child tickets
+
+First wave, active:
+
+- `move-dream-out-of-bootstrap` - move Dream into the project-owned
+  recurring maintenance namespace.
+- `define-dream-worker-contract` - define worker discovery, dispatch,
+  safety, output, and idempotency rules.
+- `implement-retro-done-ticket-worker` - implement one-ticket retro
+  extraction and cleanup.
+- `track-retro-completion-for-dream` - prevent duplicate retros for the
+  same done ticket.
+- `implement-validate-drift-dream-worker` - turn validation into an
+  independent Dream worker.
+- `add-dev-unit-test-dream-worker` - add a dev/code unit-test worker
+  template.
+- `add-dev-stale-branch-dream-worker` - add a dev/code stale-branch worker
+  template.
+- `update-dream-docs-and-current-direction` - make the new Dream model
+  canonical in docs and contexts.
+
+Second wave, draft:
+
+- `plan-second-wave-dream-workers` - park dependency drift, CI drift,
+  spec/API drift, workflow mismatch review, flaky-test retry, small
+  maintenance PR queue, and template drift until the first-wave worker
+  contract has proven itself.
 
 ## Open questions
 
-- Does retro run synchronously inside `relay bump`, or async via a
-  background queue? Synchronous is simpler; async avoids stalling the
-  human waiting for `bump` to return.
-- Skip retro for trivially-small tickets? (e.g. fewer than N steps, or no
-  blackboard activity.) Probably yes — retros on one-line tickets are
-  noise.
-- Where does the slack webhook config live in `relay.toml`? Suggest
-  `[notifications.slack] webhook = "env:SLACK_WEBHOOK"` and a
-  `channel_default` plus optional `channel_per_team` map.
+- How does Dream track that a done ticket already had a retro PR: marker in
+  the PR body, branch naming convention, a tiny metadata file, or git log?
+- Should Dream run one worker per recurring task, or can one Dream run
+  dispatch several independent workers before bumping?
+- Which actions are allowed to commit directly, and which must always open
+  a PR?
+- Should project-specific Dream tasks be selected by context files,
+  workflow config, or simply by files present under `skills/dream/tasks/`?
 
 ## Out of scope
 
-- Auto-merging retro PRs. Always human-reviewed.
-- Cross-task retros / weekly digests. Defer until single-task retros are
-  shipped and we know what patterns recur.
-
-## Why now
-
-Discussion thread on 2026-04-27 (revised 2026-04-30): completed tickets
-are a knowledge source we're currently throwing away, *and* their dirs
-clutter `relay-os/tasks/` indefinitely. Git history is the archive, so
-the retro PR can safely delete the dir while extracting the lessons —
-one atomic review covers both.
+- Auto-merging Dream PRs. Human review stays required.
+- Cross-repo Dream orchestration. Each project/repo runs its own Dream.
+- A daemon, service, queue, or database. Recurring tasks and git remain the
+  operating model.
