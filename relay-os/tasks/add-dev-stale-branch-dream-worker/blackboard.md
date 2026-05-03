@@ -2,7 +2,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 branch: codex/stale-branch-dream-worker
-pr:
+pr: https://github.com/FastJVM/relay/pull/90
 
 ## Notes
 
