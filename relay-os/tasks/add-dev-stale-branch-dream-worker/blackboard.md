@@ -10,3 +10,4 @@ pr: https://github.com/FastJVM/relay/pull/90
 - Kept the worker proposal-only: it records exact git evidence and proposed commands but does not delete local branches, remote-tracking refs, or remote branches.
 - Categories are separated as merged local branches, stale remote-tracking refs, and old topic branches.
 - Full test suite passed with `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest` (215 passed).
+- GitHub checks: `gh pr checks 90 --watch=false` -> no checks reported on the branch.
