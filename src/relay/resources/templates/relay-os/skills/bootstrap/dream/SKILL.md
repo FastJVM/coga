@@ -52,6 +52,9 @@ agent still owns the task, then remove the lock or relaunch with `--force`.
 Optional dev/code worker templates live under `tasks/dev/`. For example,
 `tasks/dev/stale-branches` inspects git branches and writes a reviewable cleanup
 proposal with exact evidence; it is proposal-only and does not delete branches.
+`tasks/dev/unit-tests` runs only for code repos that declare a project-specific
+unit test command in `relay.toml`; non-engineering Dream work should not inherit
+a test-command requirement.
 
 ## Step 2 — Scan for knowledge gaps (this is the harder part)
 
