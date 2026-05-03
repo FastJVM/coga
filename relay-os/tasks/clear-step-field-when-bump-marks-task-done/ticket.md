@@ -1,8 +1,10 @@
 ---
 title: Clear step field when bump marks task done
-status: active
+status: done
 mode: interactive
 owner: nick
+human: nick
+agent: claude1
 assignee: nick
 workflow:
   name: code/with-review
@@ -10,10 +12,9 @@ workflow:
   - name: implement
     skill: code/implement-and-pr
   - name: review
-step: 1 (implement)
 contexts:
-  - relay/codebase
-  - relay/cli
+- relay/codebase
+- relay/cli
 ---
 
 ## Description
