@@ -491,7 +491,7 @@ The default template:
 | `assignee` | string | Who's currently doing the work. Human name or agent nickname. Rewritten by `relay bump` when the next workflow step declares an `assignee:` role token; otherwise stable across bumps. |
 | `watchers` | list | Additional people noted on the task. Owner and assignee auto-watch implicitly. (No-op for Slack: posts are plain-text broadcast at small team sizes.) |
 | `workflow` | object | Frozen snapshot of the workflow at creation. Contains `name` (string) and `steps` (list of {name, skill?, assignee?}). |
-| `step` | string | Current position in frozen workflow. Format: `N (step-name)`. Only advances when status is `active`. |
+| `step` | string | Current position in frozen workflow. Format: `N (step-name)`. Present while a workflow-bound task is not done; removed when the task is marked `done`. |
 | `contexts` | list | Paths to context references in `relay-os/contexts/`. Domain knowledge scoped to this task. |
 
 **Body sections:**
@@ -859,17 +859,18 @@ A thin command for side effects. The agent calls this when it completes a workfl
 
 1. Read the task's current step from ticket frontmatter.
 2. Validate: task status must be `active`. Error if not.
-3. Compute the next step (`current + 1`) and update the `step` field in ticket.md.
-4. If the current step was already the last one: set `status: done`, release the lock.
-5. Append to `log.md` — `"advanced to step N (step-name)"` or `"task done"`. When `--message <text>` is set, append ` — <text>` to the log line.
-6. Post to Slack: FYI — step transition or task completion. When `--message <text>` is set, append ` — <text>` to the broadcast.
+3. If the task has no workflow steps, set `status: done`, remove any stale `step` field, and release the lock.
+4. If the current step was already the last one: set `status: done`, remove `step`, and release the lock.
+5. Otherwise compute the next step (`current + 1`) and update the `step` field in ticket.md.
+6. Append to `log.md` — `"advanced to step N (step-name)"` or `"task done"`. When `--message <text>` is set, append ` — <text>` to the log line.
+7. Post to Slack: FYI — step transition or task completion. When `--message <text>` is set, append ` — <text>` to the broadcast.
 
 #### Errors
 
 | Scenario | Behavior |
 |---|---|
 | Task is not `active` | Error. "Task 003 is `paused`. Cannot advance." |
-| Task has no workflow | Error. "Task 003 has no workflow steps." |
+| Task has no workflow | Not an error — marks task `done` directly and notifies. |
 | Already on last step | Not an error — marks task `done` and notifies. |
 
 ---
