@@ -4,7 +4,12 @@ status: active
 mode: interactive
 owner: nick
 assignee: claude1
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skill: code/implement-and-pr
+  - name: review
 step: 1 (implement)
 contexts:
   - relay/codebase
