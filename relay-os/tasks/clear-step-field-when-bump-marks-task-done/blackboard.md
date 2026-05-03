@@ -15,3 +15,5 @@ pr: https://github.com/FastJVM/relay/pull/88
   - `.venv/bin/python -m pytest` -> 214 passed.
   - `../.venv/bin/relay validate --json` from `example/` -> no issues.
   - `.venv/bin/relay validate --json` from repo root is blocked by local config: `user` is missing from `relay-os/relay.local.toml`.
+- GitHub connector PR creation returned 404 for `FastJVM/relay`; fell back to authenticated `gh pr create`.
+- PR checks: no checks reported on `codex/clear-step-field-done` at creation time.
