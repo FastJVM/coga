@@ -140,6 +140,7 @@ so two agents don't grab the same ticket.
 relay launch add-retry-to-webhook-handler          # full slug
 relay launch add-retry                              # any unique prefix works
 relay launch add-retry --force                      # break a stale lock
+relay launch add-retry --agent codex1               # one-off agent override
 relay launch bootstrap/ticket                       # stateless shim → run a skill
 relay launch bootstrap/orient --agent codex1        # choose a bootstrap agent
 relay launch bootstrap/ticket "Add retry to webhook handler"
@@ -152,10 +153,12 @@ Tasks are addressed by slug — there is no numeric ID. Pass any unique prefix
 (git-short-SHA-style) and ambiguous prefixes error out with the matches listed.
 
 The agent type comes from the ticket's `assignee` (e.g. `claude1`) resolved
-through `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
-Bootstrap shims also accept `--agent <nickname>` for one-off sessions, so
-`relay chat --agent codex1` can open the orient shim with Codex while
-`relay chat --agent claude1` opens it with Claude.
+through `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`. Pass
+`--agent <nickname>` to use one of your configured agent nicknames for this
+launch only; normal task launches do not rewrite the ticket's `assignee`.
+Bootstrap shims use the same flag for one-off sessions, so `relay chat --agent
+codex1` can open the orient shim with Codex while `relay chat --agent claude1`
+opens it with Claude.
 
 A task is launchable in `draft` (agent is authoring) or `active` (agent is
 executing) status. `paused` and `done` require a flip first.

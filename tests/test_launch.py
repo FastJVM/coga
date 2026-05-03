@@ -466,23 +466,37 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
     assert "assignee=codex1, agent=codex" in log
 
 
-def test_launch_agent_override_rejects_normal_task(
+def test_launch_agent_override_normal_task_uses_requested_agent_without_reassigning(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    called = False
+    captured: dict[str, object] = {}
+
+    class _Result:
+        returncode = 0
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
-        nonlocal called
-        called = True
+        captured["cmd"] = cmd
+        return _Result()
 
     monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "fix-retry-logic", "--agent", "claude1"])
-    assert result.exit_code == 2
-    assert "--agent is only supported" in (result.output + (result.stderr or ""))
-    assert not called
+    result = runner.invoke(app, ["launch", "fix-retry-logic", "--agent", "codex1"])
+    assert result.exit_code == 0, result.output
+
+    cmd = captured["cmd"]
+    assert isinstance(cmd, list)
+    assert cmd[0] == "codex"
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    from relay.ticket import Ticket
+    ticket = Ticket.read(ref.path / "ticket.md")
+    assert ticket.frontmatter["assignee"] == "claude1"
+
+    log = (ref.path / "log.md").read_text()
+    assert "assignee=claude1, launch_assignee=codex1, agent=codex" in log
 
 
 def test_launch_bootstrap_unknown_shim(
