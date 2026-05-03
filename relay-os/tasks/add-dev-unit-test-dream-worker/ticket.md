@@ -1,14 +1,12 @@
 ---
 title: Add dev unit-test Dream worker template
-status: active
+status: done
 mode: interactive
 owner: nick
 human: nick
 agent: claude1
 assignee: claude1
 contexts:
-  - relay/architecture
-  - relay/principles
   - relay/codebase
   - relay/current-direction
   - relay/project-stage
@@ -19,7 +17,6 @@ workflow:
     - name: implement
       skill: code/implement-and-pr
     - name: review
-step: 1 (implement)
 ---
 
 ## Description
