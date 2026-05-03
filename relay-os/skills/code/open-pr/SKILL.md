@@ -1,12 +1,14 @@
 ---
 name: code/open-pr
-description: Agent step that pushes the branch, opens (or marks ready) the PR, hands off to the human owner. Final agent step before human review.
+description: Agent step that pushes the branch and opens (or marks ready) the PR. Final agent step before human review.
 ---
 
 # Push and open the PR
 
-Final agent step. Push the branch, open the PR (or mark a draft ready),
-hand the ticket back to the human owner.
+Final agent step. Push the branch and open the PR (or mark a draft
+ready). The workflow declares the next step's assignee, so the
+handoff happens automatically on bump — you don't edit `assignee:`
+yourself.
 
 ## Order of operations
 
@@ -15,26 +17,24 @@ hand the ticket back to the human owner.
    already opened a draft, run `gh pr ready <PR#>` instead. Title =
    ticket title. Body = short summary + "Closes ticket: `<slug>`" + a
    one-line test plan.
-3. **Hand off.** Edit the ticket's `assignee:` frontmatter to the
-   ticket's `owner:` (the human who created it).
-4. **Blackboard the URL.** Add `pr: <url>` under the `## Dev`
+3. **Blackboard the URL.** Add `pr: <url>` under the `## Dev`
    section on the blackboard (see the `dev/code` context).
-5. **Bump.** Run `relay bump <slug>` to advance to the human
-   `merge` step.
+4. **Bump.** Run `relay bump <slug>` to advance to the next step.
 
 ## Acceptance for this step
 
 - A PR exists, links the ticket, and is green on CI (or the failure is
   noted on the blackboard with a reason).
-- The ticket's `assignee` is the human owner.
 - The blackboard has `pr: <url>` under `## Dev`.
-- `relay bump` has advanced the workflow to `merge`.
+- `relay bump` has advanced the workflow.
 
 ## What this skill does NOT do
 
-- Decide whether to merge — that's the human's `merge` step.
+- Decide whether to merge — that's the human's job in the next step.
 - Make code changes. If CI fails for a real reason, `relay panic` and
-  let the human relaunch into `fix`.
+  let the human relaunch.
+- Edit `assignee:` by hand. The workflow's per-step `assignee:` field
+  handles the role rewrite on bump.
 
 ## Gotchas
 
