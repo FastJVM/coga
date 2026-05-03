@@ -2,7 +2,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 branch: codex/testing-skill-split
-pr:
+pr: https://github.com/FastJVM/relay/pull/92
 
 ## Outcome
 
@@ -14,8 +14,9 @@ that boundary was wrong: unit-test execution belongs in generic dev workflows,
 not in Dream. Dream can later discover missing testing skills or stale imported
 skills, but it should not own normal dev test execution.
 
-PR https://github.com/FastJVM/relay/pull/91 is cancelled. Follow-up work is
-split into draft tickets:
+PR https://github.com/FastJVM/relay/pull/91 is cancelled. Replacement PR
+https://github.com/FastJVM/relay/pull/92 splits follow-up work into draft
+tickets:
 
 - `add-bootstrap-skill-for-importing-external-skills`
 - `add-imported-skill-update-check`
