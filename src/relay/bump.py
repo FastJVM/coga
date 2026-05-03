@@ -67,6 +67,7 @@ def mark_done(
     used by the quiet auto-bump path inside `relay status`.
     """
     ticket.frontmatter["status"] = "done"
+    ticket.frontmatter.pop("step", None)
     ticket.write(ref.path / "ticket.md")
     append_log(ref.path, actor, log_message)
     TaskLock(ref.path).release()

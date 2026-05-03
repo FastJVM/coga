@@ -3,7 +3,7 @@ title: Clear step field when bump marks task done
 status: active
 mode: interactive
 owner: nick
-assignee: claude1
+assignee: nick
 workflow:
   name: code/with-review
   steps:
