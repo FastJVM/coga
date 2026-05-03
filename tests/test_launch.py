@@ -120,6 +120,68 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return company
 
 
+def _allow_slack(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://slack.example.test")
+    slack_msgs: list[str] = []
+    monkeypatch.setattr(
+        "relay.slack.requests.post",
+        lambda url, json=None, timeout=None: _capture_slack(slack_msgs, json),
+    )
+    return slack_msgs
+
+
+def _write_skill(repo: Path, ref: str, body: str) -> None:
+    _write(
+        repo / "skills" / ref / "SKILL.md",
+        f"""
+        ---
+        name: {ref}
+        description: test skill.
+        ---
+
+        {body}
+        """,
+    )
+
+
+def _scaffold_chain_task(active_task: Path, *, mode: str = "interactive") -> dict[str, object]:
+    _write(
+        active_task / "workflows" / "chain.md",
+        """
+        ---
+        name: chain
+        description: Agent chain.
+        steps:
+          - name: implement
+            skill: code/implement
+            assignee: agent
+          - name: self-review
+            skill: code/self-review
+            assignee: agent
+          - name: review
+            assignee: human
+        ---
+        """,
+    )
+    _write_skill(active_task, "code/implement", "Implement the change.")
+    _write_skill(active_task, "code/self-review", "Review your own change.")
+
+    cfg = load_config(active_task)
+    return scaffold_task(
+        cfg=cfg,
+        title="Chain work",
+        workflow_name="chain",
+        contexts=[],
+        mode=mode,
+        owner="marc",
+        human="marc",
+        agent="claude1",
+        assignee="claude1",
+        watchers=[],
+        status="active",
+    )
+
+
 def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[list[str]] = []
 
@@ -155,6 +217,136 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
 
     # Prompt temp file cleaned up
     assert not Path(calls[0][2]).exists()
+
+
+@pytest.mark.parametrize("mode", ["interactive", "auto"])
+def test_launch_harness_continues_through_consecutive_agent_steps(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+) -> None:
+    ref = _scaffold_chain_task(active_task, mode=mode)
+    slug = str(ref["slug"])
+    calls: list[list[str]] = []
+    _allow_slack(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        result = CliRunner().invoke(app, ["bump", slug])
+        assert result.exit_code == 0, result.output
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 2
+    assert "next step has no skill" in result.output
+
+    from relay.ticket import Ticket
+    ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
+    assert ticket.step == "3 (review)"
+    assert ticket.assignee == "marc"
+    assert not TaskLock(Path(ref["path"])).path.exists()
+
+
+def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(
+        active_task / "workflows" / "handoff.md",
+        """
+        ---
+        name: handoff
+        description: Skilled handoff.
+        steps:
+          - name: implement
+            skill: code/implement
+            assignee: agent
+          - name: human-check
+            skill: code/human-check
+            assignee: human
+        ---
+        """,
+    )
+    _write_skill(active_task, "code/implement", "Implement the change.")
+    _write_skill(active_task, "code/human-check", "Human checks the change.")
+    cfg = load_config(active_task)
+    ref = scaffold_task(
+        cfg=cfg,
+        title="Handoff work",
+        workflow_name="handoff",
+        contexts=[],
+        mode="interactive",
+        owner="marc",
+        human="marc",
+        agent="claude1",
+        assignee="claude1",
+        watchers=[],
+        status="active",
+    )
+    slug = ref["slug"]
+    calls: list[list[str]] = []
+    _allow_slack(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        result = CliRunner().invoke(app, ["bump", slug])
+        assert result.exit_code == 0, result.output
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    assert "next step assignee changed: claude1 → marc" in result.output
+
+    from relay.ticket import Ticket
+    ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
+    assert ticket.step == "2 (human-check)"
+    assert ticket.assignee == "marc"
+
+
+def test_launch_harness_stops_on_agent_panic(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _scaffold_chain_task(active_task)
+    slug = str(ref["slug"])
+    calls: list[list[str]] = []
+    _allow_slack(monkeypatch)
+
+    class _Result:
+        returncode = 1
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        result = CliRunner().invoke(
+            app,
+            ["panic", "--task", slug, "--reason", "test panic"],
+        )
+        assert result.exit_code == 1, result.output
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 1, result.output
+    assert len(calls) == 1
+    assert "Agent exited with code 1" in (result.output + (result.stderr or ""))
+    assert "test panic" in (Path(ref["path"]) / "blackboard.md").read_text()
+    assert not TaskLock(Path(ref["path"])).path.exists()
 
 
 def test_launch_flips_draft_to_active(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:

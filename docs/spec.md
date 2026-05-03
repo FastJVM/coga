@@ -787,8 +787,15 @@ shims" above.
 9. Launch based on mode:
    - **Interactive:** `{cli} {interactive-flag} /tmp/relay-<task-id>.md` — opens an interactive session with composed context loaded. Human is present.
    - **Auto:** `{cli} {auto-flag} "$(cat /tmp/relay-<task-id>.md)"` — sends composed prompt, agent runs to completion. CLI waits for exit.
-   - **Script:** No agent spawned. Reads the current workflow step's skill, finds the script, executes it directly with secrets injected as env vars. No prompt composition, no LLM token cost.
-10. Log the launch: append to `log.md` — `"launched in {mode} mode"`. The session start itself doesn't post to Slack; the surrounding state changes (factory create, draft → active flip, bump, panic, slack, script failure) each post on their own — see "What posts and when" below.
+   - **Script:** No agent spawned. Reads the current workflow step's skill, finds the script, executes it directly with secrets injected as env vars. No prompt composition, no LLM token cost. Script mode is single-shot; it does not enter the agent-step loop.
+10. Log each agent process launch: append to `log.md` — `"launched in {mode} mode"`. The session start itself doesn't post to Slack; the surrounding state changes (factory create, draft → active flip, bump, panic, slack, script failure) each post on their own — see "What posts and when" below.
+11. For workflow-bound interactive/auto tasks, re-read the ticket after a clean agent exit. Continue in a fresh agent process only when all of these are true:
+   - the task is still `active`;
+   - the step advanced during the previous process;
+   - the new current workflow step has a `skill:` reference;
+   - the concrete ticket `assignee:` is unchanged from the just-finished step.
+
+   Each continued step re-composes the prompt from disk, including the newly updated ticket and blackboard. Stop cleanly when the task is `done` or `paused`, the next step has no skill, the assignee changed, or the agent exited cleanly without advancing the step. Stop with the agent's exit code on non-zero exits; `relay panic` already releases the lock and posts its blocker.
 
 #### Composition order
 
