@@ -338,6 +338,7 @@ cd relay
 python -m pip install -e .
 python -m pytest                    # 83 tests
 relay validate --json               # validate the bundled example/ fixture
+relay validate --fix                # repair missing blackboard.md/log.md only
 ```
 
 The dogfood relay-os/ for this very repo lives at `relay-os/`. Tasks tracked

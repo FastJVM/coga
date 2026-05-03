@@ -18,6 +18,11 @@ def validate(
     json_output: bool = typer.Option(
         False, "--json", help="Emit JSON instead of text."
     ),
+    fix: bool = typer.Option(
+        False,
+        "--fix",
+        help="Apply conservative safe repairs before reporting.",
+    ),
     max_lock_hours: float = typer.Option(
         24.0, "--max-lock-hours", help="Lock age above which to flag as stale."
     ),
@@ -48,20 +53,26 @@ def validate(
         idle_hours=idle_hours,
         max_blackboard_bytes=int(max_blackboard_kb * 1024),
         check_slack=check_slack,
+        fix=fix,
     )
 
     if json_output:
         payload: dict[str, Any] = {
             "generated_at": report.generated_at,
             "ok_count": report.ok_count,
+            "fixes": [asdict(f) for f in report.fixes],
             "issues": [asdict(i) for i in report.issues],
         }
         json.dump(payload, sys.stdout, indent=2)
         sys.stdout.write("\n")
     else:
         if not report.issues:
+            for fix_item in report.fixes:
+                typer.echo(f"[FIX] {fix_item.task}: {fix_item.kind} — {fix_item.message}")
             typer.echo(f"All good ({report.ok_count} tasks checked).")
         else:
+            for fix_item in report.fixes:
+                typer.echo(f"[FIX] {fix_item.task}: {fix_item.kind} — {fix_item.message}")
             for issue in report.issues:
                 sev = issue.severity.upper()
                 typer.echo(f"[{sev}] {issue.task}: {issue.kind} — {issue.message}")

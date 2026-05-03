@@ -3,8 +3,8 @@
 Exposed as `relay validate` (see `relay.commands.validate`); also runnable
 directly as a module:
 
-    relay validate [--json] [--max-lock-hours N] [--max-blackboard-kb N] [--check-slack]
-    python -m relay.validate [--json] [--max-lock-hours N] [--max-blackboard-kb N] [--check-slack]
+    relay validate [--json] [--fix] [--max-lock-hours N] [--max-blackboard-kb N] [--check-slack]
+    python -m relay.validate [--json] [--fix] [--max-lock-hours N] [--max-blackboard-kb N] [--check-slack]
 
 Checks:
 - Task dirs have ticket.md, blackboard.md, log.md.
@@ -30,7 +30,7 @@ from typing import Any
 
 import requests
 
-from relay.blackboard import BLACKBOARD_WARN_BYTES, blackboard_size_warning
+from relay.blackboard import BLACKBOARD_WARN_BYTES, blackboard_size_warning, render_blackboard
 from relay.config import Config, ConfigError, load_config
 from relay.lock import TaskLock
 from relay.paths import context_path, skill_path
@@ -49,9 +49,18 @@ class Issue:
 
 
 @dataclass
+class Fix:
+    kind: str
+    task: str
+    message: str
+    path: str
+
+
+@dataclass
 class Report:
     generated_at: str
     issues: list[Issue] = field(default_factory=list)
+    fixes: list[Fix] = field(default_factory=list)
     ok_count: int = 0
 
 
@@ -64,8 +73,12 @@ def run(
     idle_hours: float = 72.0,
     max_blackboard_bytes: int = BLACKBOARD_WARN_BYTES,
     check_slack: bool = False,
+    fix: bool = False,
 ) -> Report:
     report = Report(generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    if fix:
+        report.fixes.extend(apply_safe_fixes(cfg))
+
     if check_slack:
         if not cfg.slack_enabled:
             # Honor the opt-out — don't pretend to validate something that's off.
@@ -214,6 +227,50 @@ def run(
     return report
 
 
+def apply_safe_fixes(cfg: Config) -> list[Fix]:
+    """Apply deterministic repairs that do not change task state.
+
+    Current safe set:
+      - create missing `blackboard.md` from the default template
+      - create missing `log.md` as an empty append-only file
+
+    Existing files are never rewritten, and `ticket.md` is never
+    reconstructed from inference.
+    """
+    fixes: list[Fix] = []
+    for ref in list_tasks(cfg):
+        blackboard_path = ref.path / "blackboard.md"
+        if not blackboard_path.is_file():
+            title = ref.slug
+            try:
+                title = Ticket.read(ref.path / "ticket.md").title or ref.slug
+            except (TicketError, FileNotFoundError):
+                pass
+            blackboard_path.write_text(render_blackboard(title))
+            fixes.append(
+                Fix(
+                    kind="missing-file",
+                    task=ref.id_slug,
+                    message="created blackboard.md",
+                    path=str(blackboard_path),
+                )
+            )
+
+        log_path = ref.path / "log.md"
+        if not log_path.is_file():
+            log_path.write_text("")
+            fixes.append(
+                Fix(
+                    kind="missing-file",
+                    task=ref.id_slug,
+                    message="created log.md",
+                    path=str(log_path),
+                )
+            )
+
+    return fixes
+
+
 # --- slack probe -------------------------------------------------------------
 
 
@@ -249,6 +306,11 @@ def probe_slack(webhook_url: str) -> tuple[str, str]:
 def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Relay repo validator")
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Apply conservative safe repairs before reporting.",
+    )
     parser.add_argument("--max-lock-hours", type=float, default=24.0)
     parser.add_argument("--idle-hours", type=float, default=72.0)
     parser.add_argument(
@@ -276,20 +338,26 @@ def _main(argv: list[str] | None = None) -> int:
         idle_hours=args.idle_hours,
         max_blackboard_bytes=int(args.max_blackboard_kb * 1024),
         check_slack=args.check_slack,
+        fix=args.fix,
     )
 
     if args.json:
         payload: dict[str, Any] = {
             "generated_at": report.generated_at,
             "ok_count": report.ok_count,
+            "fixes": [asdict(f) for f in report.fixes],
             "issues": [asdict(i) for i in report.issues],
         }
         json.dump(payload, sys.stdout, indent=2)
         sys.stdout.write("\n")
     else:
         if not report.issues:
+            for fix_item in report.fixes:
+                print(f"[FIX] {fix_item.task}: {fix_item.kind} — {fix_item.message}")
             print(f"All good ({report.ok_count} tasks checked).")
         else:
+            for fix_item in report.fixes:
+                print(f"[FIX] {fix_item.task}: {fix_item.kind} — {fix_item.message}")
             for issue in report.issues:
                 sev = issue.severity.upper()
                 print(f"[{sev}] {issue.task}: {issue.kind} — {issue.message}")

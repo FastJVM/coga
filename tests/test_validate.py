@@ -13,7 +13,7 @@ from relay.config import load_config
 from relay.lock import TaskLock
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
-from relay.validate import probe_slack, run
+from relay.validate import apply_safe_fixes, probe_slack, run
 
 
 def _write(path: Path, text: str) -> None:
@@ -146,6 +146,45 @@ def test_missing_file(repo: Path) -> None:
     (ref.path / "blackboard.md").unlink()
     report = run(cfg)
     assert any(i.kind == "missing-file" and "blackboard" in i.message for i in report.issues)
+
+
+def test_apply_safe_fixes_creates_missing_workspace_files(repo: Path) -> None:
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    (ref.path / "blackboard.md").unlink()
+    (ref.path / "log.md").unlink()
+
+    fixes = apply_safe_fixes(cfg)
+
+    assert [fix.message for fix in fixes] == [
+        "created blackboard.md",
+        "created log.md",
+    ]
+    assert (ref.path / "blackboard.md").is_file()
+    assert (ref.path / "log.md").is_file()
+    assert (ref.path / "log.md").read_text() == ""
+
+
+def test_run_fix_repairs_before_reporting(repo: Path) -> None:
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    (ref.path / "blackboard.md").unlink()
+
+    report = run(cfg, fix=True)
+
+    assert len(report.fixes) == 1
+    assert report.fixes[0].message == "created blackboard.md"
+    assert not any(i.kind == "missing-file" for i in report.issues)
 
 
 def test_large_blackboard_warns(repo: Path) -> None:

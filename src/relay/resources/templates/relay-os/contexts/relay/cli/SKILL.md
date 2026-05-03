@@ -144,9 +144,13 @@ only; they don't accept their own flags.
 - Surfacing a non-blocker note that doesn't fit a transition → `relay slack`.
 - Surfacing a blocker → `relay panic`.
 
-There's also `relay validate [--json] [--check-slack]`, a static repo +
-config diagnostic. Reach for it only when a command is misbehaving or
-slack/webhook setup looks broken — it's not part of any normal flow.
+There's also `relay validate [--json] [--fix] [--check-slack]`, a static
+repo + config diagnostic. `--fix` is deliberately narrow: it creates missing
+`blackboard.md` and empty `log.md` files, then reports the remaining issues.
+It does not rewrite existing files, freeze workflows, delete locks, or push
+git state. Reach for validation when a command is misbehaving or
+slack/webhook setup looks broken; Dream's validate-drift worker is the normal
+place to apply safe fixes and broadcast a summary during maintenance.
 
 ## What this context does NOT cover
 
