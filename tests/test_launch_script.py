@@ -102,6 +102,22 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     assert not (ref.path / "task.lock").exists()
 
 
+def test_script_mode_rejects_agent_override(repo: Path) -> None:
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], mode="script", owner="marc", assignee="claude1",
+        watchers=[], status="active",
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "check", "--agent", "claude1"])
+    assert result.exit_code == 2
+    assert "--agent is only supported for interactive/auto launches" in (
+        result.output + (result.stderr or "")
+    )
+
+
 def test_script_mode_requires_skill_field(repo: Path) -> None:
     # Rewrite SKILL.md without `script:`
     skill_md = repo / "skills" / "ops" / "checker" / "SKILL.md"

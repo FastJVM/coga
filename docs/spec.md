@@ -759,7 +759,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 ### `relay launch` — decided spec
 
-`relay launch <task-id> [title]`
+`relay launch <task-id> [title] [--agent <nickname>]`
 
 `<task-id>` is a positional argument: a task slug (full or any unique
 prefix, git-short-SHA-style) or a `bootstrap/<name>` shim. The optional
@@ -770,7 +770,7 @@ shims" above.
 
 1. Resolve the current user from `relay.local.toml`.
 2. Look up the task in `relay-os/tasks/` (the CLI always operates on the repo it's running inside).
-3. Read the `assignee` field from the ticket. Resolve the agent nickname in the user's `[assignees]` config to the agent type. For `bootstrap/<name>` launches only, `--agent <nickname>` may override the shim's default assignee for that launch.
+3. Read the `assignee` field from the ticket. Resolve the agent nickname in the user's `[assignees]` config to the agent type. `--agent <nickname>` may override the launched agent for this invocation only; on normal tasks it does not rewrite the ticket's `assignee`, while bootstrap factory launches use it as the scaffolded task's assignee.
 4. Verify the task's `status` is `draft` or `active`. Error if not.
 5. Load secrets from `relay.local.toml` `[secrets]` section. Resolve `env:VAR_NAME` references to actual values. These will be exported as environment variables into the launched process.
 6. **Compose the prompt.** Assemble in this order:

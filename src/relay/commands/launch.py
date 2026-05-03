@@ -40,7 +40,7 @@ def launch(
     agent_override: str | None = typer.Option(
         None,
         "--agent",
-        help="Agent nickname to use for this bootstrap launch instead of the shim default.",
+        help="Agent nickname to use for this launch instead of the ticket/shim assignee.",
     ),
     force: bool = typer.Option(False, "--force", help="Break a stale lock."),
 ) -> None:
@@ -56,9 +56,6 @@ def launch(
         _bail(str(exc))
 
     is_bootstrap = isinstance(ref, BootstrapRef)
-    if agent_override is not None and not is_bootstrap:
-        _bail("--agent is only supported when launching a `bootstrap/<name>` shim.")
-
     if agent_override is not None:
         try:
             cfg.agent_type_for(cfg.current_user, agent_override)
@@ -106,6 +103,8 @@ def launch(
     mode = ticket.mode
 
     if mode == "script":
+        if agent_override is not None:
+            _bail("--agent is only supported for interactive/auto launches.")
         if is_bootstrap:
             _bail("Bootstrap tickets only support interactive/auto modes.")
         from relay.commands.launch_script import run_script_mode
@@ -115,9 +114,11 @@ def launch(
     if mode not in ("interactive", "auto"):
         _bail(f"Unknown mode: {mode!r}")
 
-    # Resolve agent for this assignee (under current user's config).
+    launch_assignee = agent_override or assignee
+
+    # Resolve agent for this launch assignee (under current user's config).
     try:
-        agent = cfg.agent_type_for(cfg.current_user, assignee)
+        agent = cfg.agent_type_for(cfg.current_user, launch_assignee)
     except ConfigError as exc:
         _bail(str(exc))
 
@@ -130,7 +131,7 @@ def launch(
     lock = None if is_bootstrap else TaskLock(ref.path)
     if lock is not None:
         try:
-            lock.acquire(holder=assignee, force=force)
+            lock.acquire(holder=launch_assignee, force=force)
         except LockHeldError as exc:
             _bail(
                 f"{exc}\nPass --force to break the lock (e.g. after a crashed session)."
@@ -151,7 +152,8 @@ def launch(
         post(
             cfg,
             f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
-            f"\"{ticket.title}\" — assignee {assignee}",
+            f"\"{ticket.title}\" — assignee {assignee}"
+            f"{_agent_override_note(agent_override, assignee)}",
             task_path=ref.path,
         )
 
@@ -172,7 +174,7 @@ def launch(
     append_log(
         ref.path,
         f"human:{cfg.current_user}",
-        f"launched in {mode} mode (assignee={assignee}, agent={agent.name})",
+        _launch_log_message(mode, assignee, launch_assignee, agent.name),
     )
 
     # Install a signal-safe cleanup.
@@ -261,6 +263,26 @@ def build_agent_command(agent, mode: str, prompt: str, prompt_file: Path) -> lis
 
 def _flag_takes_file(flag: str) -> bool:
     return "file" in flag.lower()
+
+
+def _agent_override_note(agent_override: str | None, assignee: str) -> str:
+    if agent_override is None or agent_override == assignee:
+        return ""
+    return f" (launched with {agent_override})"
+
+
+def _launch_log_message(
+    mode: str,
+    assignee: str,
+    launch_assignee: str,
+    agent_name: str,
+) -> str:
+    if launch_assignee == assignee:
+        return f"launched in {mode} mode (assignee={assignee}, agent={agent_name})"
+    return (
+        f"launched in {mode} mode "
+        f"(assignee={assignee}, launch_assignee={launch_assignee}, agent={agent_name})"
+    )
 
 
 def _bail(msg: str) -> None:
