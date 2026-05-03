@@ -49,6 +49,10 @@ Stale-lock rule: never delete a `task.lock` from age alone. The worker reports
 stale locks as `human-needed`. A human must verify that no live terminal or
 agent still owns the task, then remove the lock or relaunch with `--force`.
 
+Optional dev/code worker templates live under `tasks/dev/`. For example,
+`tasks/dev/stale-branches` inspects git branches and writes a reviewable cleanup
+proposal with exact evidence; it is proposal-only and does not delete branches.
+
 ## Step 2 — Scan for knowledge gaps (this is the harder part)
 
 Read every ticket (its body and blackboard). Compare against existing contexts,
