@@ -2,7 +2,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 branch: codex/unit-test-dream-worker
-pr:
+pr: https://github.com/FastJVM/relay/pull/91
 
 ## Plan
 
@@ -21,3 +21,4 @@ pr:
 - Passing runs write a concise no-op and do not open PRs just to report success.
 - Verification: `/home/n/Code/relay/.venv/bin/python -m pytest tests/test_dream_worker_templates.py` -> 2 passed.
 - Verification: `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest` -> 216 passed.
+- GitHub checks: `gh pr checks 91 --watch=false` -> no checks reported on the branch.
