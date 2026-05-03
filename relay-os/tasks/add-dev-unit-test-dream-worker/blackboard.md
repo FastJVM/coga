@@ -22,3 +22,4 @@ pr: https://github.com/FastJVM/relay/pull/91
 - Verification: `/home/n/Code/relay/.venv/bin/python -m pytest tests/test_dream_worker_templates.py` -> 2 passed.
 - Verification: `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest` -> 216 passed.
 - GitHub checks: `gh pr checks 91 --watch=false` -> no checks reported on the branch.
+- `relay bump add-dev-unit-test-dream-worker --message "PR opened: https://github.com/FastJVM/relay/pull/91"` advanced the ticket to review. The first Slack post failed under sandbox DNS; `relay slack --task add-dev-unit-test-dream-worker --message "Advanced to review. PR opened: https://github.com/FastJVM/relay/pull/91"` posted successfully with network escalation.

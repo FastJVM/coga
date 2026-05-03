@@ -19,7 +19,7 @@ workflow:
     - name: implement
       skill: code/implement-and-pr
     - name: review
-step: 1 (implement)
+step: 2 (review)
 ---
 
 ## Description
