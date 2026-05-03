@@ -25,6 +25,8 @@ the relay-managed bits in the current repo.
 Compose every relevant file (rules + repo context + ticket contexts +
 current step's skill + blackboard + ticket body) into one prompt and
 start the configured agent. Acquires `task.lock`.
+Interactive launches require stdin and stdout to both be terminals; use
+`mode: auto` or `mode: script` for non-interactive wrappers and CI.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
 - `relay launch <slug> --force` — break a stale lock.
