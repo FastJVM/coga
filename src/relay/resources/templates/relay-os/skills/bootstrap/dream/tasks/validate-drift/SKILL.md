@@ -24,10 +24,15 @@ It then classifies every validator issue into one of three buckets:
 From the host repo root:
 
 ```
-python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py --blackboard relay-os/tasks/<dream-run-task>/blackboard.md
+python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py --fix --blackboard relay-os/tasks/<dream-run-task>/blackboard.md --slack-task <dream-run-task>
 ```
 
 Replace `<dream-run-task>` with the current Dream run task slug.
+
+`--fix` applies the same conservative repair set as `relay validate --fix`:
+create missing `blackboard.md` and `log.md` only. To publish those repairs from
+a Dream repair branch, add `--commit-and-push`; it commits only repaired files
+and pushes the current branch, refusing `main`/`master` by default.
 
 The worker exits `0` when validation completed, even if the validator found
 issues. It exits non-zero only when the validator itself failed or emitted
@@ -42,7 +47,9 @@ The worker appends a concise section to the Dream run blackboard:
 ```
 
 The section includes the exact command, issue counts by bucket, and one
-remediation line per issue.
+remediation line per issue. When `--fix` repairs files, it also lists the
+applied fixes. When `--slack-task` is provided, it posts a one-line Slack
+summary against that task.
 
 ## Safety
 

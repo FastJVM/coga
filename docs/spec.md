@@ -869,7 +869,9 @@ A thin command for side effects. The agent calls this when it completes a workfl
 
 ### Repo consistency checks
 
-Repo validation (stale locks, broken references, invalid status values, stuck tasks) is handled by a deterministic validation script, not an LLM. The Dream `validate-drift` worker runs `relay validate --json`, classifies each issue into `direct-fix`, `pr-proposal`, or `human-needed`, then writes a concise result to the Dream run blackboard. The broader Dream scan can then interpret that result alongside knowledge gaps, stale content, and workflow patterns.
+Repo validation (stale locks, broken references, invalid status values, stuck tasks) is handled by a deterministic validation script, not an LLM. `relay validate --fix` may apply only conservative file-presence repairs: create missing `blackboard.md` from the standard template and create missing `log.md` as an empty append-only file. It never rewrites existing files, reconstructs `ticket.md`, freezes workflows, deletes locks, or changes lifecycle/assignee state.
+
+The Dream `validate-drift` worker runs the same validator surface, usually as `relay validate --json --fix`, classifies remaining issues into `direct-fix`, `pr-proposal`, or `human-needed`, writes a concise result to the Dream run blackboard, and can post a one-line Slack summary for the run. When a Dream run is already on a repair branch, the worker can also commit and push the files it repaired; that push path is intentionally outside plain `relay validate`. The broader Dream scan can then interpret remaining drift alongside knowledge gaps, stale content, and workflow patterns.
 
 Checks include:
 

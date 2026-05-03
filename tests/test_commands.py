@@ -428,8 +428,24 @@ def test_validate_json_emits_payload(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     import json
     payload = json.loads(result.output)
+    assert payload["fixes"] == []
     assert payload["issues"] == []
     assert payload["ok_count"] == 1
+
+
+def test_validate_fix_json_repairs_missing_workspace_file(repo: Path) -> None:
+    _, task_path = _make_task(repo, workflow=None)
+    (task_path / "blackboard.md").unlink()
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["validate", "--fix", "--json"])
+
+    assert result.exit_code == 0, result.output
+    import json
+    payload = json.loads(result.output)
+    assert payload["fixes"][0]["message"] == "created blackboard.md"
+    assert payload["issues"] == []
+    assert (task_path / "blackboard.md").is_file()
 
 
 def test_validate_warns_for_large_blackboard(repo: Path) -> None:

@@ -13,7 +13,7 @@ Write concrete proposals, not vague recommendations.
 Run:
 
 ```
-python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py --blackboard relay-os/tasks/<this-dream-task>/blackboard.md
+python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py --fix --blackboard relay-os/tasks/<this-dream-task>/blackboard.md --slack-task <this-dream-task>
 ```
 
 Replace `<this-dream-task>` with the slug of this Dream run. The worker runs
@@ -24,6 +24,17 @@ run's blackboard. It uses three action buckets:
 - `direct-fix` — safe to apply in a small Dream PR without changing task state.
 - `pr-proposal` — file-backed fix that needs a reviewable PR after reading the target.
 - `human-needed` — lifecycle, ownership, lock, secret, or ambiguous state decision.
+
+With `--fix`, the worker applies only the deterministic safe repairs currently
+supported by `relay validate --fix`: create missing `blackboard.md` from the
+standard template and create missing `log.md` as an empty append-only file. It
+does not rewrite existing files, synthesize `ticket.md`, freeze workflows,
+delete locks, or change lifecycle/assignee state.
+
+If the Dream run is already on a repair branch and the safe fixes should be
+published immediately, add `--commit-and-push`. That mode commits only the
+files repaired by the worker and pushes the current branch. It refuses to push
+from `main`/`master` unless a human explicitly passes `--allow-main-push`.
 
 Validator issue kinds include:
 
@@ -77,8 +88,10 @@ pre-filter.
 
 ## Step 4 — Summarize for Slack
 
-Call `relay slack --task <your-task-id> --message "<summary>"`. One line.
-Example: `Dream scan: 3 broken refs, 2 context proposals, 1 stale lock.`
+The validate-drift worker posts its own one-line Slack summary when run with
+`--slack-task`. For the broader Dream scan, call `relay slack --task
+<your-task-id> --message "<summary>"`. One line. Example: `Dream scan:
+3 broken refs, 2 context proposals, 1 stale lock.`
 
 ## Step 5 — Don't take action
 

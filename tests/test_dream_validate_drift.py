@@ -5,13 +5,17 @@ import sys
 from pathlib import Path
 from textwrap import dedent
 
+import pytest
+
 from relay.dream_validate_drift import (
     ACTION_DIRECT_FIX,
     ACTION_HUMAN_NEEDED,
     ACTION_PR_PROPOSAL,
+    ValidationFix,
     ValidationIssue,
     build_validate_command,
     classify_issue,
+    commit_and_push_fixes,
 )
 
 
@@ -67,8 +71,9 @@ def _seed_repo(root: Path) -> Path:
 
 
 def test_build_validate_command_uses_deterministic_json_surface() -> None:
-    cmd = build_validate_command(max_lock_hours=12, idle_hours=48)
+    cmd = build_validate_command(fix=True, max_lock_hours=12, idle_hours=48)
     assert cmd[:4] == [sys.executable, "-m", "relay.validate", "--json"]
+    assert "--fix" in cmd
     assert "--check-slack" not in cmd
     assert "--max-lock-hours" in cmd
     assert "--idle-hours" in cmd
@@ -141,3 +146,59 @@ def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
     assert "`broken-context`: `broken-context` (error)" in text
     assert "PR Proposal" in text
     assert "Command: `" in text
+
+
+def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> None:
+    relay_os = _seed_repo(tmp_path)
+    task = relay_os / "tasks" / "broken-context"
+    (task / "blackboard.md").unlink()
+    (task / "log.md").unlink()
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "relay.dream_validate_drift",
+            "--cwd",
+            str(tmp_path),
+            "--fix",
+            "--blackboard",
+            str(task / "blackboard.md"),
+            "--slack-task",
+            "broken-context",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (task / "blackboard.md").is_file()
+    assert (task / "log.md").is_file()
+    assert "[slack] disabled" in result.stderr
+    text = (task / "blackboard.md").read_text()
+    assert "Applied fixes: 2." in text
+    assert "created blackboard.md" in text
+    assert "created log.md" in text
+    assert "PR Proposal" in text
+
+
+def test_commit_and_push_refuses_main_branch(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True, capture_output=True)
+    fixed = tmp_path / "relay-os" / "tasks" / "x" / "log.md"
+    fixed.parent.mkdir(parents=True)
+    fixed.write_text("")
+
+    with pytest.raises(RuntimeError, match="refusing to push validation fixes directly"):
+        commit_and_push_fixes(
+            cwd=tmp_path,
+            fixes=[
+                ValidationFix(
+                    kind="missing-file",
+                    task="x",
+                    message="created log.md",
+                    path=str(fixed),
+                )
+            ],
+            message="Dream: repair validation drift",
+        )

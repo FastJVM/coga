@@ -16,6 +16,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from relay.config import Config, ConfigError, find_repo_root, load_config
+from relay.slack import post
+from relay.tasks import TaskNotFoundError, resolve_task
+
 
 ACTION_DIRECT_FIX = "direct-fix"
 ACTION_PR_PROPOSAL = "pr-proposal"
@@ -37,6 +41,14 @@ class ValidationIssue:
 
 
 @dataclass(frozen=True)
+class ValidationFix:
+    kind: str
+    task: str
+    message: str
+    path: str
+
+
+@dataclass(frozen=True)
 class ClassifiedIssue:
     issue: ValidationIssue
     action: str
@@ -45,12 +57,15 @@ class ClassifiedIssue:
 
 def build_validate_command(
     *,
+    fix: bool = False,
     max_lock_hours: float | None = None,
     idle_hours: float | None = None,
     max_blackboard_kb: float | None = None,
 ) -> list[str]:
     """Return the exact deterministic validation command this worker runs."""
     cmd = [sys.executable, "-m", "relay.validate", "--json"]
+    if fix:
+        cmd.append("--fix")
     if max_lock_hours is not None:
         cmd.extend(["--max-lock-hours", str(max_lock_hours)])
     if idle_hours is not None:
@@ -63,6 +78,7 @@ def build_validate_command(
 def run_validate_json(
     *,
     cwd: Path | None = None,
+    fix: bool = False,
     max_lock_hours: float | None = None,
     idle_hours: float | None = None,
     max_blackboard_kb: float | None = None,
@@ -73,6 +89,7 @@ def run_validate_json(
     successful worker inputs. Exit 2 means the validator itself failed.
     """
     cmd = build_validate_command(
+        fix=fix,
         max_lock_hours=max_lock_hours,
         idle_hours=idle_hours,
         max_blackboard_kb=max_blackboard_kb,
@@ -96,6 +113,22 @@ def run_validate_json(
             f"`{shlex.join(cmd)}` did not emit valid JSON: {exc}"
         ) from exc
     return payload, cmd
+
+
+def parse_fixes(payload: dict[str, Any]) -> list[ValidationFix]:
+    fixes: list[ValidationFix] = []
+    for raw in payload.get("fixes", []):
+        if not isinstance(raw, dict):
+            continue
+        fixes.append(
+            ValidationFix(
+                kind=str(raw.get("kind", "unknown")),
+                task=str(raw.get("task", "(unknown)")),
+                message=str(raw.get("message", "")),
+                path=str(raw.get("path", "")),
+            )
+        )
+    return fixes
 
 
 def parse_issues(payload: dict[str, Any]) -> list[ValidationIssue]:
@@ -222,9 +255,12 @@ def classify_issues(issues: list[ValidationIssue]) -> list[ClassifiedIssue]:
 def render_blackboard_report(
     classified: list[ClassifiedIssue],
     *,
+    fixes: list[ValidationFix] | None = None,
     generated_at: str,
     command: list[str],
+    git_result: str | None = None,
 ) -> str:
+    fixes = fixes or []
     counts = {
         action: sum(1 for item in classified if item.action == action)
         for action in ACTION_LABELS
@@ -238,8 +274,20 @@ def render_blackboard_report(
         f"Command: `{shlex.join(command)}`",
         "",
     ]
+    if fixes:
+        lines.append(f"Applied fixes: {len(fixes)}.")
+        lines.append("")
+        for fix_item in fixes:
+            lines.append(
+                f"- `{fix_item.task}`: `{fix_item.kind}` - {fix_item.message} "
+                f"(`{fix_item.path}`)"
+            )
+        lines.append("")
+    if git_result:
+        lines.append(f"Git: {git_result}")
+        lines.append("")
     if total == 0:
-        lines.append("Result: no validation drift found.")
+        lines.append("Result: no remaining validation drift found.")
         return "\n".join(lines) + "\n"
 
     lines.append(
@@ -281,6 +329,123 @@ def append_report(blackboard: Path, report: str) -> None:
     blackboard.write_text(existing + separator + report)
 
 
+def build_slack_summary(
+    fixes: list[ValidationFix],
+    classified: list[ClassifiedIssue],
+    *,
+    git_result: str | None = None,
+) -> str:
+    direct = sum(1 for item in classified if item.action == ACTION_DIRECT_FIX)
+    proposals = sum(1 for item in classified if item.action == ACTION_PR_PROPOSAL)
+    human = sum(1 for item in classified if item.action == ACTION_HUMAN_NEEDED)
+    parts: list[str] = []
+    if fixes:
+        parts.append(f"fixed {len(fixes)}")
+    if classified:
+        parts.append(
+            f"{len(classified)} remaining "
+            f"({direct} direct, {proposals} proposal, {human} human-needed)"
+        )
+    else:
+        parts.append("no remaining validation drift")
+    if git_result:
+        parts.append(git_result)
+    return "Dream validate-drift: " + "; ".join(parts)
+
+
+def post_slack_summary(cfg: Config, task_slug: str, summary: str) -> None:
+    try:
+        ref = resolve_task(cfg, task_slug)
+    except TaskNotFoundError as exc:
+        raise RuntimeError(str(exc)) from exc
+    post(cfg, f"🧹 {summary}", task_path=ref.path)
+
+
+def infer_task_slug_from_blackboard(cfg: Config, blackboard: Path | None) -> str | None:
+    if blackboard is None:
+        return None
+    try:
+        rel = blackboard.resolve().relative_to((cfg.repo_root / "tasks").resolve())
+    except ValueError:
+        return None
+    if len(rel.parts) == 2 and rel.parts[1] == "blackboard.md":
+        return rel.parts[0]
+    return None
+
+
+def load_worker_config(cwd: Path | None) -> Config:
+    if cwd is None:
+        return load_config()
+    return load_config(find_repo_root(cwd))
+
+
+def commit_and_push_fixes(
+    *,
+    cwd: Path,
+    fixes: list[ValidationFix],
+    message: str,
+    allow_main_push: bool = False,
+) -> str | None:
+    if not fixes:
+        return None
+
+    git_root = Path(_run_git(["rev-parse", "--show-toplevel"], cwd=cwd).strip())
+    branch = _run_git(["branch", "--show-current"], cwd=git_root).strip()
+    if not branch:
+        raise RuntimeError("refusing to commit validation fixes from detached HEAD")
+    if branch in {"main", "master"} and not allow_main_push:
+        raise RuntimeError(
+            "refusing to push validation fixes directly from main; "
+            "create a Dream repair branch or pass --allow-main-push"
+        )
+
+    staged = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=git_root)
+    if staged.returncode not in (0, 1):
+        raise RuntimeError("could not inspect staged git changes")
+    if staged.returncode == 1:
+        raise RuntimeError("refusing to commit with pre-existing staged changes")
+
+    rel_paths: list[str] = []
+    for fix_item in fixes:
+        path = Path(fix_item.path)
+        if not path.is_absolute():
+            path = cwd / path
+        try:
+            rel_paths.append(str(path.resolve().relative_to(git_root.resolve())))
+        except ValueError as exc:
+            raise RuntimeError(f"fix path is outside git root: {path}") from exc
+
+    _run_git(["add", *rel_paths], cwd=git_root)
+    _run_git(["commit", "-m", message], cwd=git_root)
+
+    upstream = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+        cwd=git_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if upstream.returncode == 0:
+        _run_git(["push"], cwd=git_root)
+    else:
+        _run_git(["push", "-u", "origin", "HEAD"], cwd=git_root)
+    return f"committed and pushed `{branch}`"
+
+
+def _run_git(args: list[str], *, cwd: Path) -> str:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip() or "no output"
+        raise RuntimeError(f"`git {shlex.join(args)}` failed: {detail}")
+    return result.stdout
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the validate-drift Dream worker.")
     parser.add_argument(
@@ -293,6 +458,30 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="Run validation from this repo directory. Defaults to the current directory.",
     )
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Apply validator safe repairs before classifying remaining drift.",
+    )
+    parser.add_argument(
+        "--slack-task",
+        help="Post the worker summary to Slack against this task slug.",
+    )
+    parser.add_argument(
+        "--commit-and-push",
+        action="store_true",
+        help="Commit repaired files and push the current non-main branch.",
+    )
+    parser.add_argument(
+        "--allow-main-push",
+        action="store_true",
+        help="Allow --commit-and-push while on main/master.",
+    )
+    parser.add_argument(
+        "--commit-message",
+        default="Dream: repair validation drift",
+        help="Commit subject used with --commit-and-push.",
+    )
     parser.add_argument("--max-lock-hours", type=float)
     parser.add_argument("--idle-hours", type=float)
     parser.add_argument("--max-blackboard-kb", type=float)
@@ -301,22 +490,50 @@ def main(argv: list[str] | None = None) -> int:
     try:
         payload, command = run_validate_json(
             cwd=args.cwd,
+            fix=args.fix,
             max_lock_hours=args.max_lock_hours,
             idle_hours=args.idle_hours,
             max_blackboard_kb=args.max_blackboard_kb,
         )
+        fixes = parse_fixes(payload)
         classified = classify_issues(parse_issues(payload))
         generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        git_result = None
+        if args.commit_and_push:
+            if not args.fix:
+                raise RuntimeError("--commit-and-push requires --fix")
+            git_result = commit_and_push_fixes(
+                cwd=args.cwd or Path.cwd(),
+                fixes=fixes,
+                message=args.commit_message,
+                allow_main_push=args.allow_main_push,
+            )
         report = render_blackboard_report(
             classified,
+            fixes=fixes,
             generated_at=generated_at,
             command=command,
+            git_result=git_result,
         )
         if args.blackboard:
             append_report(args.blackboard, report)
         else:
             sys.stdout.write(report)
-    except RuntimeError as exc:
+        slack_task = args.slack_task
+        if slack_task is None and args.blackboard:
+            try:
+                cfg = load_worker_config(args.cwd)
+                slack_task = infer_task_slug_from_blackboard(cfg, args.blackboard)
+            except ConfigError:
+                slack_task = None
+        if slack_task:
+            cfg = load_worker_config(args.cwd)
+            post_slack_summary(
+                cfg,
+                slack_task,
+                build_slack_summary(fixes, classified, git_result=git_result),
+            )
+    except (ConfigError, RuntimeError) as exc:
         sys.stderr.write(f"{exc}\n")
         return 2
 
