@@ -163,6 +163,13 @@ opens it with Claude.
 A task is launchable in `draft` (agent is authoring) or `active` (agent is
 executing) status. `paused` and `done` require a flip first.
 
+For workflow-bound interactive/auto tasks, one `relay launch` can run multiple
+agent-owned steps. After each clean agent exit, Relay re-reads the ticket and
+continues in a fresh agent process only when the task is still active, the step
+advanced, the new current step has a `skill:`, and the concrete `assignee:`
+did not change. It stops at human/no-skill steps, assignee handoffs, done or
+paused tasks, no-progress exits, and panic/non-zero exits.
+
 `bootstrap/<name>` tickets are stateless re-entry points for skills. Without
 a title arg they run as authoring sessions and don't acquire a lock —
 concurrent launches are safe. With a title, they act as factories: scaffold

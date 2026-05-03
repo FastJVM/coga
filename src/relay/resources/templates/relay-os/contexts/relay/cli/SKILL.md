@@ -28,12 +28,21 @@ start the configured agent. Acquires `task.lock`.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
 - `relay launch <slug> --force` — break a stale lock.
+- `relay launch <slug> --agent <nickname>` — one-off agent override;
+  does not rewrite the ticket's `assignee:`.
 - `relay launch bootstrap/<name>` — stateless shim; no lock, concurrent
   launches safe. With a title arg, acts as a factory: scaffolds a new
   ticket from the shim's frontmatter and launches on it.
 
 Agent type comes from the ticket's `assignee`, resolved through
 `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
+
+For workflow-bound interactive/auto tasks, `launch` can continue through
+consecutive agent-owned steps in fresh processes. After a clean agent exit,
+it re-reads the ticket and continues only if the task is still active, the
+step advanced, the new current step has `skill:`, and the concrete assignee
+did not change. It stops at human/no-skill steps, assignee handoffs, done or
+paused tasks, no-progress exits, and panic/non-zero exits.
 
 ## relay status
 

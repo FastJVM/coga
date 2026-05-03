@@ -13,7 +13,6 @@ from pathlib import Path
 import typer
 
 from relay.blackboard import blackboard_size_warning
-from relay.commands.common import not_implemented
 from relay.compose import compose_prompt, write_prompt_file
 from relay.config import Config, ConfigError, load_config
 from relay.lock import LockHeldError, TaskLock
@@ -28,6 +27,8 @@ from relay.tasks import (
     resolve_target,
     resolve_task,
 )
+from relay.ticket import Ticket
+
 _LAUNCHABLE_STATUSES = {"draft", "active"}
 
 
@@ -157,34 +158,27 @@ def launch(
             task_path=ref.path,
         )
 
-    # Compose & write prompt.
-    warning = blackboard_size_warning(ref.path / "blackboard.md")
-    if warning:
-        typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
-
-    prompt = compose_prompt(cfg, ref, ticket)
-    prompt_file = write_prompt_file(prompt, ref)
-
-    cmd = build_agent_command(agent, mode, prompt, prompt_file)
-
     # Inject secrets as env vars.
     env = os.environ.copy()
     env.update(cfg.secrets)
 
-    append_log(
-        ref.path,
-        f"human:{cfg.current_user}",
-        _launch_log_message(mode, assignee, launch_assignee, agent.name),
-    )
-
     # Install a signal-safe cleanup.
-    def _cleanup() -> None:
-        if lock is not None:
-            lock.release()
+    prompt_file: Path | None = None
+
+    def _cleanup_prompt() -> None:
+        nonlocal prompt_file
+        if prompt_file is None:
+            return
         try:
             prompt_file.unlink()
         except FileNotFoundError:
             pass
+        prompt_file = None
+
+    def _cleanup() -> None:
+        if lock is not None:
+            lock.release()
+        _cleanup_prompt()
 
     def _on_signal(signum, frame):  # type: ignore[no-untyped-def]
         _cleanup()
@@ -194,19 +188,60 @@ def launch(
     signal.signal(signal.SIGTERM, _on_signal)
 
     try:
-        # Interactive: inherit stdio (human sits with agent).
-        # Auto: capture nothing, let agent print to our stdout.
-        result = subprocess.run(cmd, env=env, check=False)
-        exit_code = result.returncode
-    except FileNotFoundError:
-        _cleanup()
-        _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
+        while True:
+            ticket = read_ticket(ref)
+            if agent_override is not None and is_bootstrap:
+                ticket.frontmatter["assignee"] = agent_override
+            _echo_launch_iteration(ref, ticket)
+
+            # Compose & write prompt fresh for this step.
+            warning = blackboard_size_warning(ref.path / "blackboard.md")
+            if warning:
+                typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
+
+            prompt = compose_prompt(cfg, ref, ticket)
+            prompt_file = write_prompt_file(prompt, ref)
+            cmd = build_agent_command(agent, mode, prompt, prompt_file)
+
+            append_log(
+                ref.path,
+                f"human:{cfg.current_user}",
+                _launch_log_message(
+                    mode,
+                    ticket.assignee or assignee,
+                    launch_assignee,
+                    agent.name,
+                ),
+            )
+
+            try:
+                # Interactive: inherit stdio (human sits with agent).
+                # Auto: capture nothing, let agent print to our stdout.
+                result = subprocess.run(cmd, env=env, check=False)
+                exit_code = result.returncode
+            except FileNotFoundError:
+                _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
+            finally:
+                _cleanup_prompt()
+
+            if exit_code != 0:
+                typer.secho(
+                    f"Agent exited with code {exit_code}.",
+                    fg=typer.colors.YELLOW,
+                    err=True,
+                )
+                sys.exit(exit_code)
+
+            if is_bootstrap or ticket.skill:
+                break
+
+            updated_ticket = read_ticket(ref)
+            stop_reason = _harness_stop_reason(ref, ticket, updated_ticket)
+            if stop_reason is not None:
+                typer.echo(stop_reason)
+                break
     finally:
         _cleanup()
-
-    if exit_code != 0:
-        typer.secho(f"Agent exited with code {exit_code}.", fg=typer.colors.YELLOW, err=True)
-        sys.exit(exit_code)
 
 
 # --- helpers ------------------------------------------------------------------
@@ -263,6 +298,39 @@ def build_agent_command(agent, mode: str, prompt: str, prompt_file: Path) -> lis
 
 def _flag_takes_file(flag: str) -> bool:
     return "file" in flag.lower()
+
+
+def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:
+    current = ticket.current_step()
+    if current is None:
+        typer.echo(f"→ launching {ref.id_slug}")
+        return
+    typer.echo(f"→ entering step {ticket.step}: {current['name']}")
+
+
+def _harness_stop_reason(ref: TaskRef, before: Ticket, after: Ticket) -> str | None:
+    if after.status != "active":
+        if after.status == "done":
+            return f"{ref.id_slug}: task is done"
+        if after.status == "paused":
+            return f"{ref.id_slug}: task is paused"
+        return f"{ref.id_slug}: task status is {after.status!r}"
+
+    if (after.step, after.status) == (before.step, before.status):
+        current = after.step or "no workflow step"
+        return f"{ref.id_slug}: still on {current}; stopping"
+
+    current = after.current_step()
+    if current is None:
+        return f"{ref.id_slug}: no current workflow step; stopping"
+
+    if not current.get("skill"):
+        return f"{ref.id_slug}: next step has no skill — handoff to human"
+
+    if after.assignee != before.assignee:
+        return f"{ref.id_slug}: next step assignee changed: {before.assignee} → {after.assignee}"
+
+    return None
 
 
 def _agent_override_note(agent_override: str | None, assignee: str) -> str:
