@@ -130,6 +130,20 @@ def _allow_slack(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     return slack_msgs
 
 
+def _allow_interactive_tty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "relay.commands.launch._interactive_stdio_has_tty",
+        lambda: True,
+    )
+
+
+def _deny_interactive_tty(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "relay.commands.launch._interactive_stdio_has_tty",
+        lambda: False,
+    )
+
+
 def _write_skill(repo: Path, ref: str, body: str) -> None:
     _write(
         repo / "skills" / ref / "SKILL.md",
@@ -184,6 +198,7 @@ def _scaffold_chain_task(active_task: Path, *, mode: str = "interactive") -> dic
 
 def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[list[str]] = []
+    _allow_interactive_tty(monkeypatch)
 
     class _Result:
         returncode = 0
@@ -219,6 +234,34 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert not Path(calls[0][2]).exists()
 
 
+def test_launch_interactive_without_tty_fails_before_lock(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called = False
+    _deny_interactive_tty(monkeypatch)
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        nonlocal called
+        called = True
+        raise AssertionError("interactive launch should fail before spawning agent")
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+
+    assert result.exit_code == 2
+    assert "Cannot launch 'fix-retry-logic': mode=interactive requires a TTY" in (
+        result.output + (result.stderr or "")
+    )
+    assert not called
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    assert not TaskLock(ref.path).path.exists()
+
+
 @pytest.mark.parametrize("mode", ["interactive", "auto"])
 def test_launch_harness_continues_through_consecutive_agent_steps(
     active_task: Path,
@@ -229,6 +272,7 @@ def test_launch_harness_continues_through_consecutive_agent_steps(
     slug = str(ref["slug"])
     calls: list[list[str]] = []
     _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
 
     class _Result:
         returncode = 0
@@ -293,6 +337,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
     slug = ref["slug"]
     calls: list[list[str]] = []
     _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
 
     class _Result:
         returncode = 0
@@ -325,6 +370,7 @@ def test_launch_harness_stops_on_agent_panic(
     slug = str(ref["slug"])
     calls: list[list[str]] = []
     _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
 
     class _Result:
         returncode = 1
@@ -352,6 +398,7 @@ def test_launch_harness_stops_on_agent_panic(
 def test_launch_flips_draft_to_active(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
+    _allow_interactive_tty(monkeypatch)
     from relay.ticket import Ticket
     t = Ticket.read(ref.path / "ticket.md")
     t.frontmatter["status"] = "draft"
@@ -392,6 +439,7 @@ def test_launch_active_stays_active(active_task: Path, monkeypatch: pytest.Monke
     """Re-launching an already-active task does not re-log activation or post."""
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
+    _allow_interactive_tty(monkeypatch)
 
     class _Result:
         returncode = 0
@@ -436,6 +484,7 @@ def test_launch_rejects_non_launchable_status(active_task: Path, monkeypatch: py
 
 
 def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _allow_interactive_tty(monkeypatch)
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: None)
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -450,6 +499,7 @@ def test_launch_warns_for_large_blackboard(
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     (ref.path / "blackboard.md").write_text("x" * (33 * 1024))
+    _allow_interactive_tty(monkeypatch)
 
     class _Result:
         returncode = 0
@@ -532,6 +582,7 @@ def test_launch_bare_bootstrap_does_not_post_to_slack(
     """Bare shim launches (e.g. `relay chat`) are stateless re-entry points,
     not "started work" events — they must not post to Slack."""
     posts: list[str] = []
+    _allow_interactive_tty(monkeypatch)
 
     def fake_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
         posts.append((json or {}).get("text", ""))
@@ -563,6 +614,7 @@ def test_launch_bootstrap_factory_posts_creation_with_repo_name(
     """Factory mode (`relay create "X"`) posts a single scaffolded event that
     includes the title and the host repo name."""
     posts: list[str] = []
+    _allow_interactive_tty(monkeypatch)
 
     def fake_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
         posts.append((json or {}).get("text", ""))
@@ -594,10 +646,48 @@ def test_launch_bootstrap_factory_posts_creation_with_repo_name(
     assert "started work" not in posts[0]
 
 
+def test_launch_bootstrap_factory_without_tty_fails_before_agent(
+    bootstrap_repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    called = False
+    _deny_interactive_tty(monkeypatch)
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        nonlocal called
+        called = True
+        raise AssertionError("bootstrap factory should fail before spawning agent")
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "relay.slack.requests.post",
+        lambda url, json=None, timeout=None: _capture_slack([], json),
+    )
+
+    result = CliRunner().invoke(
+        app,
+        ["launch", "bootstrap/ticket", "Investigate flaky tests"],
+    )
+
+    assert result.exit_code == 2
+    assert "Cannot launch 'investigate-flaky-tests': mode=interactive requires a TTY" in (
+        result.output + (result.stderr or "")
+    )
+    assert not called
+
+    cfg = load_config(bootstrap_repo)
+    refs = list_tasks(cfg)
+    assert len(refs) == 1
+    assert not TaskLock(refs[0].path).path.exists()
+    assert "launched in interactive mode" not in (refs[0].path / "log.md").read_text()
+
+
 def test_launch_bootstrap_skips_status_and_lock(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     captured: dict[str, object] = {}
+    _allow_interactive_tty(monkeypatch)
 
     class _Result:
         returncode = 0
@@ -634,6 +724,7 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     captured: dict[str, object] = {}
+    _allow_interactive_tty(monkeypatch)
 
     class _Result:
         returncode = 0
@@ -662,6 +753,7 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     captured: dict[str, object] = {}
+    _allow_interactive_tty(monkeypatch)
 
     class _Result:
         returncode = 0
@@ -706,6 +798,7 @@ def test_launch_bootstrap_factory_scaffolds_and_launches(
     """`relay launch bootstrap/ticket "title"` scaffolds a draft task
     seeded from the shim, then launches the agent against the new task."""
     captured: dict[str, object] = {}
+    _allow_interactive_tty(monkeypatch)
 
     class _Result:
         returncode = 0

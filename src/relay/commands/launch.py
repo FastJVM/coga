@@ -115,6 +115,13 @@ def launch(
     if mode not in ("interactive", "auto"):
         _bail(f"Unknown mode: {mode!r}")
 
+    if mode == "interactive" and not _interactive_stdio_has_tty():
+        _bail(
+            f"Cannot launch {ref.id_slug!r}: mode=interactive requires a TTY "
+            "(stdin and stdout must both be terminals). Run from a real "
+            "shell, or change the ticket to mode: auto / mode: script."
+        )
+
     launch_assignee = agent_override or assignee
 
     # Resolve agent for this launch assignee (under current user's config).
@@ -351,6 +358,10 @@ def _launch_log_message(
         f"launched in {mode} mode "
         f"(assignee={assignee}, launch_assignee={launch_assignee}, agent={agent_name})"
     )
+
+
+def _interactive_stdio_has_tty() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
 
 
 def _bail(msg: str) -> None:

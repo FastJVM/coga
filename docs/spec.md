@@ -603,7 +603,7 @@ The dream/drift validation script reads the `acquired` timestamp to detect stale
 
 **Prompt composition.** `relay launch` builds a single composed prompt containing: global rules, repo context, ticket contexts, current workflow step skill, and the blackboard. This prompt is written to a temp file and passed to the agent via the appropriate CLI flag. The temp file is cleaned up after the session ends (interactive) or the command exits (auto). 
 
-**Three launch modes.** Tasks declare their mode in ticket frontmatter (`mode: interactive`, `mode: auto`, or `mode: script`). Interactive (default): human-attended session. Auto: autonomous execution — agent runs to completion without human input. Script: direct execution — no agent, just a script with secrets injected. See `relay launch` spec below.
+**Three launch modes.** Tasks declare their mode in ticket frontmatter (`mode: interactive`, `mode: auto`, or `mode: script`). Interactive (default): human-attended session, requiring stdin and stdout to both be terminals. Auto: autonomous execution — agent runs to completion without human input. Script: direct execution — no agent, just a script with secrets injected. See `relay launch` spec below.
 
 **Secrets.** Credentials in `relay.local.toml`, injected as env vars at launch time by `relay launch`.
 
