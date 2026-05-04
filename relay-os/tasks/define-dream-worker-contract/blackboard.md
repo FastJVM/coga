@@ -48,3 +48,4 @@ pr: https://github.com/FastJVM/relay/pull/93
 - `/home/n/Code/relay/.venv/bin/python -m pytest tests/test_dream_worker_templates.py`
   passed: 3 tests.
 - `/home/n/Code/relay/.venv/bin/python -m pytest` passed: 217 tests.
+- `gh pr checks 93` reported no checks on the branch.
