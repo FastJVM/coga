@@ -247,7 +247,10 @@ description: Use for any external communication — posts, emails, newsletters, 
 - Always cite specific data over vague claims
 ```
 
-Frontmatter has `name` and `description`. That's it. The body is free-text knowledge — whatever the agent needs to understand the domain.
+Frontmatter has `name` and `description` for ordinary skills. Executable
+skills may also declare `script: <filename>` so `mode: script` can run the
+tooling directly. The body is free-text knowledge - whatever the agent needs to
+understand the domain.
 
 Skills with scripts bundle knowledge and tooling together:
 
@@ -635,22 +638,83 @@ The system improves itself using its own primitives. They are CLI commands execu
 
 #### Dream skill
 
-A skill (`relay-os/skills/bootstrap/dream`) that tells the agent: scan the repo and improve skills and context.
+Dream is Relay's bootstrap maintenance feature. It is a recurring orchestrator
+for a small set of known shipped skills, not a project extension framework and
+not one large cleanup script. The shipped skill lives at
+`relay-os/skills/bootstrap/dream/SKILL.md`.
 
-The agent reads all tickets, blackboards, contexts, skills, and workflows. It looks for:
+Dream runs only the skills explicitly listed in its own SKILL.md. Adding an
+arbitrary file under `relay-os/skills/bootstrap/dream/tasks/` does not enable
+it. There is no hidden registry, recursive discovery rule, daemon, database, or
+cache.
 
-- Context gaps — tickets that reference domain knowledge with no matching context. Patterns that repeat across tickets but aren't captured anywhere.
-- Skill gaps — workflow steps with no skill, or steps where the blackboard shows agents consistently struggling.
-- Workflow gaps — groups of tickets that follow the same ad-hoc pattern but have no formalized workflow.
-- Stale content — contexts or skills that contradict what's in recent blackboards.
+This does not prevent user-space maintenance loops. A repo can define `rem`,
+`ops/dream`, or any other ordinary skill/workflow/recurring task directly in
+user space. That loop owns its own dispatch rules, state, naming, and
+conventions. It is separate from bootstrap Dream rather than plugged into it.
+Relay's shipped Dream stays explicit.
 
-Output: proposals written to the blackboard. Each proposal is a concrete suggestion — "create context `infra/retry-patterns` covering: ..." — not a vague recommendation. Human reviews and accepts or rejects.
+The current known skill set is:
 
-Intended usage: a recurring task (`mode: auto`, scheduled weekly or ad-hoc) assigned to an agent. Standard `relay launch`.
+| Skill | When to run | Result |
+| --- | --- | --- |
+| `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
+| `bootstrap/dream/tasks/dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
 
-It's also reading contexts and look for contradictions/things to resolve. It produces a report on Slack for the admin to check.
+Every known Dream skill is an ordinary SKILL.md. Standard frontmatter stays
+small: `name`, `description`, and optional `script` for executable skills. The
+body includes a `## Known Skill Contract` section:
 
-It's a persistent memory system (and we can probably use one of the opensource one) but it produces a report that a human is responsible for (to detect mistakes and contradictions).
+```markdown
+## Known Skill Contract
+
+- Purpose: <what maintenance question this skill answers>
+- Runs: <exact command, manual instructions, or script entry point>
+- Inputs: <files, commands, APIs, or task state the skill may read>
+- May change: <none | exact files/refs the skill may edit>
+- Action: <report-only | proposal-only | pr-required | direct-fix>
+- Idempotency: <marker or proof that a unit was already handled>
+- Stop and ask: <conditions that require human review before continuing>
+- Output: <blackboard section, PR link, created ticket, or no-op result>
+```
+
+Action values are part of the contract:
+
+- `report-only` reads state and writes a result to the Dream run blackboard.
+- `proposal-only` writes evidence and proposed commands/edits, but does not
+  mutate the repo or external systems.
+- `pr-required` makes durable file changes only on a branch and opens a PR.
+- `direct-fix` may make only the narrow deterministic change named in
+  `May change`.
+
+Destructive behavior is never implicit. Deleting task directories, deleting
+git refs, removing locks, changing lifecycle state, or touching secrets
+requires exact evidence and human review by default. A skill may declare direct
+destructive behavior only when the rule is deterministic, narrow, and named in
+`May change`; otherwise it uses `proposal-only` or `pr-required`.
+
+Each known skill writes its own `## Dream Skill: <name>` blackboard section. At the
+end of the run, the orchestrator appends one `## Dream Run Summary` section
+with a skill result table (`no-op`, `reported`, `proposed`, `direct-fixed`,
+`pr-opened`, or `human-needed`), knowledge-gap proposal counts, and any human
+review gates. Slack gets one short summary line for the run.
+
+After dispatching known skills, Dream still performs the higher-judgment scan:
+
+- Context gaps: tickets that reference domain knowledge with no matching
+  context, or repeated patterns not captured anywhere.
+- Skill gaps: workflow steps with no skill, or blackboards showing repeated
+  agent struggle.
+- Workflow gaps: groups of tickets that follow the same ad-hoc sequence with
+  no formalized workflow.
+- Stale content: contexts or skills that contradict recent blackboards.
+
+Those findings are proposals written to the blackboard. Each proposal is
+concrete - "create context `infra/retry-patterns` covering: ..." - not a vague
+recommendation. A human reviews and accepts or rejects.
+
+Intended usage: a recurring task (`mode: auto`, scheduled weekly or ad-hoc)
+assigned to an agent. Standard `relay launch`.
 
 #### Create skill
 
@@ -879,7 +943,7 @@ A thin command for side effects. The agent calls this when it completes a workfl
 
 Repo validation (stale locks, broken references, invalid status values, stuck tasks) is handled by a deterministic validation script, not an LLM. `relay validate --fix` may apply only conservative file-presence repairs: create missing `blackboard.md` from the standard template and create missing `log.md` as an empty append-only file. It never rewrites existing files, reconstructs `ticket.md`, freezes workflows, deletes locks, or changes lifecycle/assignee state.
 
-The Dream `validate-drift` worker runs the same validator surface, usually as `relay validate --json --fix`, classifies remaining issues into `direct-fix`, `pr-proposal`, or `human-needed`, writes a concise result to the Dream run blackboard, and can post a one-line Slack summary for the run. When a Dream run is already on a repair branch, the worker can also commit and push the files it repaired; that push path is intentionally outside plain `relay validate`. The broader Dream scan can then interpret remaining drift alongside knowledge gaps, stale content, and workflow patterns.
+The Dream `validate-drift` skill runs the same validator surface, usually as `relay validate --json --fix`, classifies remaining issues into `direct-fix`, `pr-proposal`, or `human-needed`, writes a concise result to the Dream run blackboard, and can post a one-line Slack summary for the run. When a Dream run is already on a repair branch, the skill can also commit and push the files it repaired; that push path is intentionally outside plain `relay validate`. The broader Dream scan can then interpret remaining drift alongside knowledge gaps, stale content, and workflow patterns.
 
 Checks include:
 

@@ -5,12 +5,30 @@ description: Inspect local and remote git branches and write a reviewable stale-
 
 # Dev Stale Branches
 
-This is a project-specific Dream worker template for code repos. It inspects
-git branch state and writes a cleanup proposal. It does not delete branches.
+This is a known Dream skill for code repos. It inspects git branch state and
+writes a cleanup proposal. It does not delete branches.
 
 Branch deletion is destructive because branch refs are a human recovery surface.
-The first version of this worker is proposal-only: collect evidence, classify
+The first version of this skill is proposal-only: collect evidence, classify
 risk, and hand a human exact commands to review.
+
+## Known Skill Contract
+
+- Purpose: produce reviewable stale-branch cleanup evidence for a git code repo
+- Runs: manual evidence commands from the repo root; no direct mutation command
+  is run by this skill
+- Inputs: local refs, remote-tracking refs, configured upstreams, worktree
+  attachments, branch commit history, and dry-run prune output
+- May change: none
+- Action: `proposal-only`
+- Idempotency: the skill does not mutate refs, so reruns regenerate a proposal
+  from current git evidence; if a prior proposal is still open, update or link
+  it instead of opening a duplicate
+- Stop and ask: unknown default branch, protected branch ambiguity, worktree
+  ownership ambiguity, missing remote evidence, or any request to delete refs
+  directly
+- Output: append `## Dream Skill: dev/stale-branches` to the Dream run
+  blackboard with exact evidence, classifications, and proposed commands
 
 ## Safety Rules
 
@@ -27,7 +45,7 @@ Protected branches are never deletion candidates:
 - the remote default branch, for example `origin/main`
 - any branch currently attached to a git worktree
 
-Never run these commands from this worker:
+Never run these commands from this skill:
 
 ```
 git branch -D <branch>
@@ -135,7 +153,7 @@ git remote prune origin
 ```
 
 Do not convert this category into `git push origin --delete`; that deletes a
-server branch and is outside this worker's authority.
+server branch and is outside this skill's authority.
 
 ### Old Topic Branches
 
@@ -157,7 +175,7 @@ Do not propose a deletion command for old topic branches. Propose one of:
 Append a section to the Dream run blackboard:
 
 ```
-## Dream Worker: dev/stale-branches
+## Dream Skill: dev/stale-branches
 Generated: <timestamp>
 Remote default: <remote-default>
 Review threshold: <N days>
@@ -189,7 +207,7 @@ cannot delete git refs by itself.
 
 Direct deletion is not implemented in this template.
 
-A future tightened worker may delete only local branches with all of these
+A future tightened skill may delete only local branches with all of these
 properties:
 
 - the branch is not protected
