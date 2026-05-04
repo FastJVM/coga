@@ -49,3 +49,8 @@ pr: https://github.com/FastJVM/relay/pull/93
   passed: 3 tests.
 - `/home/n/Code/relay/.venv/bin/python -m pytest` passed: 217 tests.
 - `gh pr checks 93` reported no checks on the branch.
+- `relay bump define-dream-worker-contract --message "PR opened: ..."` advanced
+  the ticket to review, then failed only on Slack DNS inside the sandbox. A
+  follow-up `relay slack` was run with network approval and posted the handoff.
+  The failed Slack log entry was redacted to remove the webhook path before
+  staging.
