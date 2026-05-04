@@ -3,6 +3,8 @@ title: Replace with a one-line task title
 status: draft
 mode: interactive
 owner: replace-with-human-name
+human: replace-with-human-name
+agent: replace-with-agent-nickname
 assignee: replace-with-human-or-agent-nickname
 ---
 

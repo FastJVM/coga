@@ -3,6 +3,8 @@ title: Add bootstrap/retro skill for knowledge extraction on done tickets
 status: draft
 mode: interactive
 owner: nick
+human: nick
+agent: claude1
 assignee: claude1
 skill: bootstrap/ticket
 ---

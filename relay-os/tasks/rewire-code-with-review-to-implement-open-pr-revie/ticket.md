@@ -1,18 +1,20 @@
 ---
 title: Rewire code/with-review to implement → open-pr → review
-status: active
+status: done
 mode: interactive
 owner: nick
-assignee: claude1
+human: nick
+agent: claude1
+assignee: nick
 workflow:
   name: code/with-review
   steps:
   - name: implement
     skill: code/implement-and-pr
   - name: review
-step: 1 (implement)
+step: 2 (review)
 contexts:
-  - relay/codebase
+- relay/codebase
 ---
 
 ## Description

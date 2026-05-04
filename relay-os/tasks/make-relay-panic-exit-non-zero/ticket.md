@@ -3,6 +3,7 @@ title: Make relay panic exit non-zero
 status: done
 mode: interactive
 owner: nick
+human: nick
 assignee: nick
 contexts:
 - relay/architecture

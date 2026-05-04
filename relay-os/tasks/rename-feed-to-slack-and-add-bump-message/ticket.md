@@ -1,8 +1,10 @@
 ---
 title: Rename `relay feed` → `relay slack` and add `bump --message`
-status: active
+status: done
 mode: interactive
 owner: nick
+human: nick
+agent: claude1
 assignee: claude1
 ---
 

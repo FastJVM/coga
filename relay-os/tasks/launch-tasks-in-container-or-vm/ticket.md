@@ -3,6 +3,8 @@ title: Launch tasks in a container or VM instead of locally
 status: draft
 mode: interactive
 owner: nick
+human: nick
+agent: claude1
 assignee: claude1
 ---
 
