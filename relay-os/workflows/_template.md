@@ -4,8 +4,11 @@ description: Starter workflow. Copy this file to workflows/<namespace>/<your-wor
 steps:
   - name: first-step
     skill: namespace/some-skill
+    assignee: agent
   - name: second-step
+    assignee: agent
   - name: last-step
+    assignee: human
 ---
 
 ## second-step
@@ -17,3 +20,10 @@ match the step name. One paragraph is plenty for inline instructions.
 
 Wrap-up. `relay step` past the last step marks the task `done` and
 notifies Slack — no explicit "close" step is needed.
+
+## On `assignee:`
+
+Each step's `assignee:` is a *role token* (`owner` | `human` | `agent`),
+not a literal nickname. On bump, relay reads the ticket's matching role
+field (`owner:`, `human:`, `agent:`) and rewrites `assignee:` to that
+nickname. Steps that omit `assignee:` leave the assignee unchanged.

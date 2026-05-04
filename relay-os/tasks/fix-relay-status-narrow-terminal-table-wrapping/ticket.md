@@ -3,6 +3,7 @@ title: Fix relay status narrow terminal table wrapping
 status: done
 mode: interactive
 owner: nick
+human: nick
 assignee: nick
 contexts:
 - relay/architecture

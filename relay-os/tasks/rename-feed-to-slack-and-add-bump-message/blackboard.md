@@ -91,3 +91,13 @@ The vendored `relay-os/.relay/...` copies refresh via
 - `python -m relay --help` — lists `slack`, no `feed`.
 - `python -m relay bump --help` — shows `--message`.
 - `python -m relay slack --help` — same surface as the old `feed`.
+
+## Final re-verification
+
+- `.venv/bin/python -m pytest tests/test_commands.py tests/test_smoke.py`
+  — 34 passed.
+- `.venv/bin/python -m pytest` — 212 passed.
+- `.venv/bin/python -m relay --help` — lists `slack`; no `feed`.
+- `.venv/bin/python -m relay bump --help` — shows `--message`.
+- `.venv/bin/python -m relay slack --help` — shows the manual FYI surface.
+- `.venv/bin/python -m relay feed --help` — exits 2 with `No such command 'feed'`.

@@ -1,20 +1,22 @@
 ---
 title: Fail loud when relay launch starts an interactive session without a TTY
-status: active
+status: done
 mode: interactive
 owner: nick
-assignee: claude1
+human: nick
+agent: claude1
+assignee: nick
 workflow:
   name: code/with-review
   steps:
   - name: implement
     skill: code/implement-and-pr
   - name: review
-step: 1 (implement)
+step: 2 (review)
 contexts:
-  - relay/codebase
-  - relay/cli
-  - relay/principles
+- relay/codebase
+- relay/cli
+- relay/principles
 ---
 
 ## Description

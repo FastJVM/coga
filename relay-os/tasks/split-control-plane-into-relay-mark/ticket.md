@@ -3,6 +3,8 @@ title: Split control plane into `relay mark`; decouple launch and bump from stat
 status: draft
 mode: interactive
 owner: nick
+human: nick
+agent: claude1
 assignee: claude1
 contexts:
 - relay/codebase

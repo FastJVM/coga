@@ -3,6 +3,7 @@ title: Diagnose Slack notifications not firing in practice
 status: done
 mode: interactive
 owner: nick
+human: nick
 assignee: nick
 contexts:
 - relay/architecture

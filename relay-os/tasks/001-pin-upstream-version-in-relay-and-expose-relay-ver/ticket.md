@@ -3,6 +3,7 @@ title: Pin upstream version in .relay/ and expose relay --version
 status: draft
 mode: interactive
 owner: nick
+human: nick
 assignee: nick
 ---
 
