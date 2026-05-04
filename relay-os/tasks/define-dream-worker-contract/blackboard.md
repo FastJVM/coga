@@ -3,6 +3,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 
 branch: codex/dream-worker-contract
+pr: https://github.com/FastJVM/relay/pull/93
 
 ## Findings
 
@@ -37,6 +38,8 @@ branch: codex/dream-worker-contract
 - Added concrete `## Worker Contract` sections to the existing
   `validate-drift` and `dev/stale-branches` worker templates.
 - Added focused tests in `tests/test_dream_worker_templates.py`.
+- Opened PR https://github.com/FastJVM/relay/pull/93. GitHub connector PR
+  creation returned 404, so the PR was created with `gh pr create`.
 
 ## Verification
 
