@@ -22,6 +22,7 @@ Run these known skills in this order:
 | Skill | When to run | Result |
 | --- | --- | --- |
 | `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
+| `bootstrap/dream/tasks/retro-done-ticket` | When a completed task is ready to archive. Run one done ticket at a time. | Context-block extraction, done-task deletion, and safe merged-branch cleanup. |
 | `bootstrap/dream/tasks/dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
 
 That list is the dispatch contract. Dream does not recursively discover skill files
@@ -126,6 +127,37 @@ Validator issue kinds include:
 Stale-lock rule: never delete a `task.lock` from age alone. The skill reports
 stale locks as `human-needed`. A human must verify that no live terminal or
 agent still owns the task, then remove the lock or relaunch with `--force`.
+
+## Known skill - retro-done-ticket
+
+For each completed task that is ready to archive, run exactly one ticket at a
+time:
+
+```
+python relay-os/skills/bootstrap/dream/tasks/retro-done-ticket/run.py <done-task-slug> --apply --delete-remote-branch --blackboard relay-os/tasks/<this-dream-task>/blackboard.md --slack-task <this-dream-task>
+```
+
+Replace `<done-task-slug>` with the done task being retired. The skill reads
+that task's `ticket.md`, `blackboard.md`, and `log.md`, appends a
+`## Dream Worker: retro-done-ticket` report to this Dream run's blackboard, and
+deletes `relay-os/tasks/<done-task-slug>/` only when the target status is
+`done`. In `--apply` mode it also appends warranted context blocks to the
+ticket's attached context files and deletes the merged local branch named by
+the ticket's `## Dev` / `branch:` line. With `--delete-remote-branch`, it also
+deletes `origin/<branch>` when that remote-tracking branch is proven merged
+into `HEAD`.
+
+The report includes concrete context blocks written or drafted from the ticket
+evidence, branch cleanup actions, evidence highlights, an intentionally-dropped
+section for routine task noise, and a PR body snippet with a durable source ref
+like `abc123def456:relay-os/tasks/<done-task-slug>/`. If you are already on a
+Dream cleanup branch and want the worker to publish the deletion/report
+immediately, add `--commit-and-push`; it refuses to push from `main`/`master`
+by default.
+
+Non-`done` tickets are a no-op. Missing task files or uncommitted changes inside
+the target task directory are errors, because cleanup must not discard evidence
+that git history will not preserve.
 
 The known `tasks/dev/stale-branches` skill inspects git branches and writes a
 reviewable cleanup proposal with exact evidence. It is `proposal-only` and does
