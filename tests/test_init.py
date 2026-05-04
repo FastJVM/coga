@@ -35,7 +35,7 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     templates = clone_dir / update_cmd.TEMPLATE_SUBPATH
     templates.mkdir(parents=True)
     (templates / ".gitignore").write_text(
-        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\nskills/bootstrap/\n**/_template/\n**/_template.md\n"
+        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\nskills/bootstrap/\nskills/retro/\n**/_template/\n**/_template.md\n"
     )
     (templates / "relay.toml").write_text("version = 1\n")
     (templates / "rules.md").write_text("rules\n")
@@ -288,6 +288,8 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap shim\n")
     (templates / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
     (templates / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text("NEW bootstrap/ticket skill\n")
+    (templates / "skills" / "retro" / "done-ticket").mkdir(parents=True)
+    (templates / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text("NEW retro/done-ticket skill\n")
     for ctx in ("architecture", "principles", "cli"):
         (templates / "contexts" / "relay" / ctx).mkdir(parents=True)
         (templates / "contexts" / "relay" / ctx / "SKILL.md").write_text(
@@ -295,6 +297,7 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
         )
     (templates / ".gitignore").write_text(
         "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\nskills/bootstrap/\n"
+        "skills/retro/\n"
         "contexts/relay/architecture/\ncontexts/relay/principles/\ncontexts/relay/cli/\n"
         "**/_template/\n**/_template.md\n"
     )
@@ -341,6 +344,10 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert (
         (relay_os / "skills" / "bootstrap" / "ticket" / "SKILL.md").read_text()
         == "NEW bootstrap/ticket skill\n"
+    )
+    assert (
+        (relay_os / "skills" / "retro" / "done-ticket" / "SKILL.md").read_text()
+        == "NEW retro/done-ticket skill\n"
     )
     # Canonical relay/* contexts (architecture, principles, cli) ship
     # with relay and refresh wholesale on update.
@@ -412,6 +419,7 @@ def test_init_commits_relay_os_when_target_is_git_repo(
     assert not any(".relay/" in p for p in tracked)
     assert not any(p.endswith("relay.local.toml") for p in tracked)
     assert not any("/bootstrap/" in p for p in tracked)
+    assert not any("/skills/retro/" in p for p in tracked)
     assert not any("/_template" in p for p in tracked)
 
 
@@ -723,6 +731,7 @@ def test_init_update_refreshes_inner_gitignore(
     assert update_cmd.RELAY_GITIGNORE_BEGIN in gi
     assert update_cmd.RELAY_GITIGNORE_END in gi
     assert "bootstrap/" in gi
+    assert "skills/retro/" in gi
     assert "_template/" in gi
     assert "_template.md" in gi
     # User-added rule survives outside the block.

@@ -118,6 +118,8 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> tuple[list[str], list[
       - `bootstrap/` shims and the `skills/bootstrap/` skills they reference —
         relay-owned infra, not user content. Mirrored as a unit by
         `_copy_bootstrap`.
+      - `skills/retro/` — shipped prompt-only retro skills. Mirrored by
+        `_copy_retro_skills`.
       - `contexts/relay/{architecture,principles,cli}/` — the canonical
         relay-the-tool contexts that ship with relay. Mirrored by
         `_copy_relay_contexts`.
@@ -137,6 +139,7 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> tuple[list[str], list[
         sys.exit(2)
     copied = _copy_templates(src_root, relay_os)
     copied.extend(_copy_bootstrap(src_root, relay_os))
+    copied.extend(_copy_retro_skills(src_root, relay_os))
     copied.extend(_copy_relay_contexts(src_root, relay_os))
     copied.extend(_copy_relay_hooks(src_root, relay_os))
     copied.extend(_copy_upstream_files(src_root, relay_os))
@@ -472,6 +475,11 @@ def _copy_bootstrap(src_root: Path, dst_root: Path) -> list[str]:
     `skills/` (e.g. `skills/code/...`).
     """
     return _wholesale_mirror(src_root, dst_root, ("bootstrap", "skills/bootstrap"))
+
+
+def _copy_retro_skills(src_root: Path, dst_root: Path) -> list[str]:
+    """Mirror Relay-owned retro prompt skills."""
+    return _wholesale_mirror(src_root, dst_root, ("skills/retro",))
 
 
 # Canonical relay-the-tool contexts: same content shipped to every relay-os/.
