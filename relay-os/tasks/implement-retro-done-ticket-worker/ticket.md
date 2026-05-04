@@ -5,20 +5,20 @@ mode: interactive
 owner: nick
 human: nick
 agent: claude1
-assignee: claude1
+assignee: nick
 contexts:
-  - relay/architecture
-  - relay/principles
-  - relay/codebase
-  - relay/current-direction
-  - relay/project-stage
+- relay/architecture
+- relay/principles
+- relay/codebase
+- relay/current-direction
+- relay/project-stage
 workflow:
   name: code/with-review
   steps:
-    - name: implement
-      skill: code/implement-and-pr
-    - name: review
-step: 1 (implement)
+  - name: implement
+    skill: code/implement-and-pr
+  - name: review
+step: 2 (review)
 ---
 
 ## Description

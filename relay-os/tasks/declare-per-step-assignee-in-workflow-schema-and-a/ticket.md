@@ -1,8 +1,10 @@
 ---
 title: Declare per-step assignee in workflow schema and apply on bump
-status: active
+status: done
 mode: interactive
 owner: nick
+human: nick
+agent: claude1
 assignee: claude1
 workflow:
   name: code/with-review

@@ -3,19 +3,21 @@ title: Fail loud on missing context or skill at launch
 status: draft
 mode: interactive
 owner: nick
+human: nick
+agent: claude1
 assignee: claude1
 contexts:
-  - relay/architecture
-  - relay/principles
-  - relay/codebase
-  - relay/current-direction
-  - relay/project-stage
+- relay/architecture
+- relay/principles
+- relay/codebase
+- relay/current-direction
+- relay/project-stage
 workflow:
   name: code/with-review
   steps:
-    - name: implement
-      skill: code/implement-and-pr
-    - name: review
+  - name: implement
+    skill: code/implement-and-pr
+  - name: review
 step: 1 (implement)
 ---
 

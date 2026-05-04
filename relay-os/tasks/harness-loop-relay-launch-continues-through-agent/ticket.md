@@ -1,21 +1,23 @@
 ---
 title: 'Harness loop: relay launch continues through agent steps until blocked'
-status: active
+status: done
 mode: interactive
 owner: nick
-assignee: claude1
+human: nick
+agent: claude1
+assignee: nick
 workflow:
   name: code/with-review
   steps:
   - name: implement
     skill: code/implement-and-pr
   - name: review
-step: 1 (implement)
+step: 2 (review)
 contexts:
-  - relay/codebase
-  - relay/cli
-  - relay/architecture
-  - relay/principles
+- relay/codebase
+- relay/cli
+- relay/architecture
+- relay/principles
 ---
 
 ## Description

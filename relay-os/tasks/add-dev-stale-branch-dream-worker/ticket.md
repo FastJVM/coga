@@ -1,25 +1,24 @@
 ---
 title: Add dev stale-branch Dream worker template
-status: active
+status: done
 mode: interactive
 owner: nick
 human: nick
 agent: claude1
 assignee: nick
 contexts:
-  - relay/architecture
-  - relay/principles
-  - relay/codebase
-  - relay/current-direction
-  - relay/project-stage
-  - dev/code
+- relay/architecture
+- relay/principles
+- relay/codebase
+- relay/current-direction
+- relay/project-stage
+- dev/code
 workflow:
   name: code/with-review
   steps:
-    - name: implement
-      skill: code/implement-and-pr
-    - name: review
-step: 1 (implement)
+  - name: implement
+    skill: code/implement-and-pr
+  - name: review
 ---
 
 ## Description

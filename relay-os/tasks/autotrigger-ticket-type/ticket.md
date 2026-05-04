@@ -3,6 +3,8 @@ title: autotrigger ticket type
 status: draft
 mode: interactive
 owner: nick
+human: nick
+agent: claude1
 assignee: claude1
 skill: bootstrap/ticket
 ---

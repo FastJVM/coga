@@ -3,6 +3,8 @@ title: Rewrite Slack messages — owner suffix, prev → new transitions, PR lin
 status: draft
 mode: interactive
 owner: nick
+human: nick
+agent: claude1
 assignee: claude1
 contexts:
 - relay/codebase
