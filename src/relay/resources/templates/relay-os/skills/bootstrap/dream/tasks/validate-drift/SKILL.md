@@ -19,6 +19,25 @@ It then classifies every validator issue into one of three buckets:
 - `pr-proposal` - a file-backed fix that needs a reviewable PR after reading the target.
 - `human-needed` - lifecycle, ownership, lock, secret, or ambiguous state decision.
 
+## Worker Contract
+
+- Scope: relay-core
+- Unit: one validation pass over the current repo's `relay-os/`
+- Inputs: `relay.toml`, `relay.local.toml`, task directories, workflow refs,
+  context refs, skill refs, lock files, and optional Slack webhook reachability
+- May change: missing `blackboard.md` and `log.md` files only when `--fix` is
+  passed; repaired files may be committed and pushed only from a non-main repair
+  branch when `--commit-and-push` is passed
+- Action: `direct-fix`
+- Risk: low for safe file-presence repairs; review for PR proposals;
+  destructive or lifecycle-sensitive issues are always `human-needed`
+- Idempotency: `relay validate --fix` only creates missing standard files and
+  leaves existing files unchanged, so reruns converge on the same repo state
+- Stop and ask: invalid validator JSON, validator process failure, unsafe push
+  branch, stale locks, lifecycle changes, unknown ownership, or secret access
+- Output: append `## Dream Worker: validate-drift` to the Dream run blackboard
+  and optionally post a one-line Slack summary
+
 ## How to Run
 
 From the host repo root:

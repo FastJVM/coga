@@ -48,10 +48,10 @@ their own incompatible conventions.
 
 ## Acceptance criteria
 
-- [ ] `skills/dream/orchestrate` has explicit instructions for discovering
+- [x] `skills/dream/orchestrate` has explicit instructions for discovering
       enabled workers.
-- [ ] Worker SKILL.md files have a documented metadata/body convention.
-- [ ] Dream can summarize worker results in one run-level blackboard section.
-- [ ] Destructive worker behavior requires evidence and review by default.
-- [ ] The contract is documented somewhere durable enough for project authors
+- [x] Worker SKILL.md files have a documented metadata/body convention.
+- [x] Dream can summarize worker results in one run-level blackboard section.
+- [x] Destructive worker behavior requires evidence and review by default.
+- [x] The contract is documented somewhere durable enough for project authors
       to add their own `dev/*` workers.

@@ -12,6 +12,25 @@ Branch deletion is destructive because branch refs are a human recovery surface.
 The first version of this worker is proposal-only: collect evidence, classify
 risk, and hand a human exact commands to review.
 
+## Worker Contract
+
+- Scope: dev/code
+- Unit: one git branch inventory for the current repo
+- Inputs: local refs, remote-tracking refs, configured upstreams, worktree
+  attachments, branch commit history, and dry-run prune output
+- May change: none
+- Action: `proposal-only`
+- Risk: destructive if the proposed commands are later accepted; the worker
+  itself is read-only
+- Idempotency: the worker does not mutate refs, so reruns regenerate a proposal
+  from current git evidence; if a prior proposal is still open, update or link
+  it instead of opening a duplicate
+- Stop and ask: unknown default branch, protected branch ambiguity, worktree
+  ownership ambiguity, missing remote evidence, or any request to delete refs
+  directly
+- Output: append `## Dream Worker: dev/stale-branches` to the Dream run
+  blackboard with exact evidence, classifications, and proposed commands
+
 ## Safety Rules
 
 Protected branches are never deletion candidates:
