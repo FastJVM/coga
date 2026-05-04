@@ -8,6 +8,7 @@ the durable knowledge candidates from `ticket.md`, `blackboard.md`, and
 from __future__ import annotations
 
 import argparse
+import re
 import shlex
 import shutil
 import subprocess
@@ -24,6 +25,13 @@ from relay.ticket import Ticket, TicketError
 
 REQUIRED_TASK_FILES = ("ticket.md", "blackboard.md", "log.md")
 MAX_EVIDENCE_ITEMS = 12
+MAX_CONTEXT_ITEMS = 8
+BRANCH_LINE_RE = re.compile(r"^\s*branch:\s*(\S+)\s*$", re.MULTILINE)
+PR_LINE_RE = re.compile(r"^\s*pr:\s*(\S+)\s*$", re.MULTILINE)
+DEV_SECTION_RE = re.compile(
+    r"^##\s+Dev\s*\n(.*?)(?=\n##\s|\Z)",
+    re.MULTILINE | re.DOTALL,
+)
 
 
 @dataclass(frozen=True)
@@ -33,6 +41,7 @@ class RetroInput:
     ticket_text: str
     blackboard_text: str
     log_text: str
+    relay_root: Path
     git_root: Path
     task_rel_path: str
     source_ref: str
@@ -43,10 +52,30 @@ class RetroInput:
 
 
 @dataclass(frozen=True)
-class KnowledgeProposal:
-    kind: str
+class EvidenceItem:
+    source: str
+    text: str
+
+    def render(self) -> str:
+        return f"{self.source}: {self.text}"
+
+
+@dataclass(frozen=True)
+class ContextBlock:
     target: str
-    reason: str
+    content: str
+    written: bool
+
+
+@dataclass(frozen=True)
+class BranchCleanup:
+    branch: str | None
+    pr_url: str | None
+    actions: list[str]
+
+    @property
+    def deleted(self) -> bool:
+        return any(action.startswith("deleted ") for action in self.actions)
 
 
 @dataclass(frozen=True)
@@ -57,7 +86,8 @@ class RetroResult:
     report: str
     pr_body: str
     deleted: bool
-    proposals: list[KnowledgeProposal]
+    context_blocks: list[ContextBlock]
+    branch_cleanup: BranchCleanup
 
 
 def load_worker_config(cwd: Path | None) -> Config:
@@ -100,6 +130,7 @@ def read_retro_input(cfg: Config, task_arg: str) -> RetroInput:
         ticket_text=ticket_text,
         blackboard_text=(ref.path / "blackboard.md").read_text(),
         log_text=(ref.path / "log.md").read_text(),
+        relay_root=cfg.repo_root,
         git_root=git_root,
         task_rel_path=task_rel_path,
         source_ref=source_ref,
@@ -122,127 +153,147 @@ def relative_to_git_root(path: Path, git_root: Path) -> str:
         raise RuntimeError(f"path is outside git root: {path}") from exc
 
 
-def build_knowledge_proposals(retro: RetroInput) -> list[KnowledgeProposal]:
-    proposals: list[KnowledgeProposal] = []
+def build_context_blocks(
+    retro: RetroInput,
+    items: list[EvidenceItem],
+    *,
+    apply: bool,
+) -> list[ContextBlock]:
+    if not items:
+        return []
 
     contexts = retro.ticket.contexts
-    if contexts:
-        for context in contexts:
-            proposals.append(
-                KnowledgeProposal(
-                    kind="context",
-                    target=f"relay-os/contexts/{context}/SKILL.md",
-                    reason=(
-                        "Ticket loaded this context; review the evidence highlights "
-                        "for facts or conventions that should outlive the task."
-                    ),
-                )
+    if not contexts:
+        content = render_context_block(retro, items)
+        return [
+            ContextBlock(
+                target=f"relay-os/contexts/<review-needed>/{retro.slug}/SKILL.md",
+                content=content,
+                written=False,
             )
-    else:
-        proposals.append(
-            KnowledgeProposal(
-                kind="context",
-                target="relay-os/contexts/<domain>/<name>/SKILL.md",
-                reason=(
-                    "Ticket had no context refs. If the evidence repeats in future "
-                    "work, lift it into a focused context instead of preserving the task."
-                ),
-            )
-        )
+        ]
 
-    skills = workflow_skills(retro.ticket)
-    if skills:
-        for skill in skills:
-            proposals.append(
-                KnowledgeProposal(
-                    kind="skill",
-                    target=f"relay-os/skills/{skill}/SKILL.md",
-                    reason=(
-                        "Ticket used this skill; review the evidence for process "
-                        "instructions, gotchas, or verification steps the next worker "
-                        "should inherit."
-                    ),
-                )
-            )
-    else:
-        proposals.append(
-            KnowledgeProposal(
-                kind="skill",
-                target="relay-os/skills/<domain>/<name>/SKILL.md",
-                reason=(
-                    "No step skill was attached. If the task invented a repeatable "
-                    "process, capture it as a skill before relying on git history."
-                ),
-            )
-        )
-
-    workflow = workflow_name(retro.ticket)
-    if workflow:
-        proposals.append(
-            KnowledgeProposal(
-                kind="workflow",
-                target=f"relay-os/workflows/{workflow}.md",
-                reason=(
-                    "Ticket used this workflow; compare the log/blackboard against "
-                    "the frozen steps and adjust only if the workflow repeatedly "
-                    "misroutes work."
-                ),
-            )
-        )
-    else:
-        proposals.append(
-            KnowledgeProposal(
-                kind="workflow",
-                target="relay-os/workflows/<domain>/<name>.md",
-                reason=(
-                    "Ticket had no workflow. If the same ad-hoc sequence appears "
-                    "again, propose a workflow rather than preserving one-off task state."
-                ),
-            )
-        )
-
-    return proposals
+    blocks: list[ContextBlock] = []
+    for context in contexts:
+        target_path = safe_context_path(retro, context)
+        target = f"relay-os/contexts/{context}/SKILL.md"
+        if target_path is not None:
+            target = relative_to_git_root(target_path, retro.git_root)
+        content = render_context_block(retro, items)
+        written = False
+        if apply and target_path is not None and target_path.is_file():
+            append_context_block(target_path, content)
+            written = True
+        blocks.append(ContextBlock(target=target, content=content, written=written))
+    return blocks
 
 
-def workflow_name(ticket: Ticket) -> str | None:
-    workflow = ticket.workflow
-    if isinstance(workflow, dict):
-        value = workflow.get("name")
-        return str(value) if value else None
-    if isinstance(workflow, str):
-        return workflow
-    return None
+def safe_context_path(retro: RetroInput, context: str) -> Path | None:
+    contexts_root = (retro.relay_root / "contexts").resolve()
+    target_path = (contexts_root / context / "SKILL.md").resolve()
+    try:
+        target_path.relative_to(contexts_root)
+    except ValueError:
+        return None
+    return target_path
 
 
-def workflow_skills(ticket: Ticket) -> list[str]:
-    out: list[str] = []
-    if ticket.skill:
-        out.append(ticket.skill)
-    workflow = ticket.workflow
-    if isinstance(workflow, dict):
-        for step in workflow.get("steps", []):
-            if not isinstance(step, dict):
-                continue
-            skill = step.get("skill")
-            if skill:
-                out.append(str(skill))
-    return sorted(set(out))
+def render_context_block(retro: RetroInput, items: list[EvidenceItem]) -> str:
+    title = retro.ticket.title or retro.slug
+    lines = [
+        f"## Retro: {title}",
+        "",
+        f"Source: `{retro.source_ref}`.",
+        "",
+    ]
+    for item in items[:MAX_CONTEXT_ITEMS]:
+        lines.append(f"- {item.text} (`{item.source}`)")
+    return "\n".join(lines).rstrip() + "\n"
 
 
-def extract_evidence(retro: RetroInput) -> list[str]:
-    evidence: list[str] = []
+def append_context_block(path: Path, content: str) -> None:
+    existing = path.read_text()
+    separator = "\n\n" if existing.rstrip() else ""
+    path.write_text(existing.rstrip() + separator + content)
+
+
+def extract_evidence(retro: RetroInput) -> list[EvidenceItem]:
+    evidence: list[EvidenceItem] = []
+    seen: set[str] = set()
     for source, text in (
         ("ticket.md", retro.ticket.body),
         ("blackboard.md", retro.blackboard_text),
         ("log.md", retro.log_text),
     ):
         for line in candidate_lines(text):
-            item = f"{source}: {line}"
-            if item not in evidence:
-                evidence.append(item)
+            key = f"{source}: {line}"
+            if key not in seen:
+                evidence.append(EvidenceItem(source=source, text=line))
+                seen.add(key)
             if len(evidence) >= MAX_EVIDENCE_ITEMS:
                 return evidence
     return evidence
+
+
+def context_evidence_items(evidence: list[EvidenceItem]) -> list[EvidenceItem]:
+    out: list[EvidenceItem] = []
+    for item in evidence:
+        if is_context_worthy(item.text):
+            out.append(item)
+        if len(out) >= MAX_CONTEXT_ITEMS:
+            break
+    return out
+
+
+def is_context_worthy(line: str) -> bool:
+    lower = line.lower()
+    routine_prefixes = (
+        "branch:",
+        "pr:",
+        "command:",
+        "generated:",
+        "source task:",
+        "source ref:",
+        "status:",
+        "result:",
+        "files changed:",
+        "apply mode:",
+        "git:",
+    )
+    if lower.startswith(routine_prefixes):
+        return False
+    routine_exact = {
+        "acceptance criteria",
+        "description",
+        "dev",
+        "implementation notes",
+        "plan",
+        "pr body snippet",
+        "review",
+        "test plan",
+    }
+    if lower in routine_exact:
+        return False
+    markers = (
+        "because",
+        "blocked",
+        "blocker",
+        "decision",
+        "decided",
+        "do not",
+        "failed",
+        "failure",
+        "follow-up",
+        "followup",
+        "lesson",
+        "must",
+        "never",
+        "prefer",
+        "should",
+        "verified",
+        "warranted",
+    )
+    return any(marker in lower for marker in markers)
 
 
 def candidate_lines(text: str) -> list[str]:
@@ -290,15 +341,140 @@ def candidate_lines(text: str) -> list[str]:
     return out
 
 
-def render_pr_body(retro: RetroInput, proposals: list[KnowledgeProposal]) -> str:
-    kinds = sorted({proposal.kind for proposal in proposals})
+def plan_branch_cleanup(retro: RetroInput) -> BranchCleanup:
+    branch = parse_branch_name(retro.blackboard_text) or parse_branch_name(
+        retro.ticket.body + "\n" + retro.log_text
+    )
+    pr_url = parse_pr_url(retro.blackboard_text) or parse_pr_url(
+        retro.ticket.body + "\n" + retro.log_text
+    )
+    if not branch:
+        return BranchCleanup(
+            branch=None,
+            pr_url=pr_url,
+            actions=["no `branch:` line found in the ticket evidence"],
+        )
+
+    actions: list[str] = []
+    if not valid_branch_name(retro.git_root, branch):
+        actions.append(f"skipped invalid branch name `{branch}`")
+        return BranchCleanup(branch=branch, pr_url=pr_url, actions=actions)
+
+    local_ref = f"refs/heads/{branch}"
+    remote_ref = f"refs/remotes/origin/{branch}"
+    current = current_branch(retro.git_root)
+
+    if ref_exists(retro.git_root, local_ref):
+        if branch == current:
+            actions.append(f"skipped local `{branch}` because it is the current branch")
+        elif is_ancestor(retro.git_root, local_ref, "HEAD"):
+            actions.append(f"local `{branch}` is merged into `HEAD`")
+        else:
+            actions.append(f"skipped local `{branch}` because it is not merged into `HEAD`")
+    else:
+        actions.append(f"local `{branch}` not found")
+
+    if ref_exists(retro.git_root, remote_ref):
+        if is_ancestor(retro.git_root, remote_ref, "HEAD"):
+            actions.append(f"remote `origin/{branch}` is merged into `HEAD`")
+        else:
+            actions.append(
+                f"skipped remote `origin/{branch}` because it is not merged into `HEAD`"
+            )
+    else:
+        actions.append(f"remote `origin/{branch}` not found")
+
+    return BranchCleanup(branch=branch, pr_url=pr_url, actions=actions)
+
+
+def cleanup_branch(retro: RetroInput, *, delete_remote_branch: bool) -> BranchCleanup:
+    planned = plan_branch_cleanup(retro)
+    if not planned.branch:
+        return planned
+
+    branch = planned.branch
+    actions: list[str] = []
+    current = current_branch(retro.git_root)
+    local_ref = f"refs/heads/{branch}"
+    remote_ref = f"refs/remotes/origin/{branch}"
+
+    if not valid_branch_name(retro.git_root, branch):
+        actions.append(f"skipped invalid branch name `{branch}`")
+        return BranchCleanup(branch=branch, pr_url=planned.pr_url, actions=actions)
+
+    if ref_exists(retro.git_root, local_ref):
+        if branch == current:
+            actions.append(f"skipped local `{branch}` because it is the current branch")
+        elif is_ancestor(retro.git_root, local_ref, "HEAD"):
+            error = delete_local_branch(retro.git_root, branch)
+            if error:
+                actions.append(f"failed to delete local `{branch}`: {error}")
+            else:
+                actions.append(f"deleted local `{branch}`")
+        else:
+            actions.append(f"skipped local `{branch}` because it is not merged into `HEAD`")
+    else:
+        actions.append(f"local `{branch}` not found")
+
+    if ref_exists(retro.git_root, remote_ref):
+        if not is_ancestor(retro.git_root, remote_ref, "HEAD"):
+            actions.append(
+                f"skipped remote `origin/{branch}` because it is not merged into `HEAD`"
+            )
+        elif delete_remote_branch:
+            error = delete_remote_branch_ref(retro.git_root, branch)
+            if error:
+                actions.append(f"failed to delete remote `origin/{branch}`: {error}")
+            else:
+                actions.append(f"deleted remote `origin/{branch}`")
+        else:
+            actions.append(
+                f"remote `origin/{branch}` is merged; pass --delete-remote-branch "
+                "to delete it"
+            )
+    else:
+        actions.append(f"remote `origin/{branch}` not found")
+
+    return BranchCleanup(branch=branch, pr_url=planned.pr_url, actions=actions)
+
+
+def parse_branch_name(text: str) -> str | None:
+    section = DEV_SECTION_RE.search(text)
+    if section:
+        match = BRANCH_LINE_RE.search(section.group(1))
+        if match:
+            return match.group(1)
+    match = BRANCH_LINE_RE.search(text)
+    return match.group(1) if match else None
+
+
+def parse_pr_url(text: str) -> str | None:
+    section = DEV_SECTION_RE.search(text)
+    if section:
+        match = PR_LINE_RE.search(section.group(1))
+        if match:
+            return match.group(1)
+    match = PR_LINE_RE.search(text)
+    return match.group(1) if match else None
+
+
+def render_pr_body(
+    retro: RetroInput,
+    context_blocks: list[ContextBlock],
+    branch_cleanup: BranchCleanup,
+) -> str:
+    if context_blocks:
+        context_summary = ", ".join(f"`{block.target}`" for block in context_blocks)
+    else:
+        context_summary = "none warranted"
+    branch_summary = "; ".join(branch_cleanup.actions)
     return "\n".join(
         [
             "## Summary",
             "",
-            f"- Retro extracted durable knowledge candidates from `{retro.slug}`.",
+            f"- Retro extracted context blocks from `{retro.slug}`: {context_summary}.",
             f"- Deleted `relay-os/tasks/{retro.slug}/` after reviewable extraction.",
-            f"- Proposed update kinds: {', '.join(kinds)}.",
+            f"- Branch cleanup: {branch_summary}.",
             "",
             "## Source Archive",
             "",
@@ -320,8 +496,9 @@ def render_report(
     command: list[str],
     apply: bool,
     deleted: bool,
-    proposals: list[KnowledgeProposal],
-    evidence: list[str],
+    context_blocks: list[ContextBlock],
+    evidence: list[EvidenceItem],
+    branch_cleanup: BranchCleanup,
     pr_body: str,
     git_result: str | None = None,
 ) -> str:
@@ -356,11 +533,31 @@ def render_report(
         lines.append(f"Git: {git_result}")
     lines.append("")
 
-    lines.append("### Proposed Knowledge Updates")
+    lines.append("### Context Blocks")
     lines.append("")
-    for proposal in proposals:
-        lines.append(f"- **{proposal.kind}** `{proposal.target}`")
-        lines.append(f"  Reason: {proposal.reason}")
+    if context_blocks:
+        for block in context_blocks:
+            state = "written" if block.written else "draft"
+            lines.append(f"#### {block.target}")
+            lines.append("")
+            lines.append(f"State: {state}")
+            lines.append("")
+            lines.append("```markdown")
+            lines.append(block.content.rstrip())
+            lines.append("```")
+            lines.append("")
+    else:
+        lines.append("No warranted context block was extracted from the ticket evidence.")
+        lines.append("")
+
+    lines.append("### Branch Cleanup")
+    lines.append("")
+    if branch_cleanup.branch:
+        lines.append(f"- Branch: `{branch_cleanup.branch}`")
+    if branch_cleanup.pr_url:
+        lines.append(f"- PR: {branch_cleanup.pr_url}")
+    for action in branch_cleanup.actions:
+        lines.append(f"- {action}")
     lines.append("")
 
     lines.append("### Evidence Read")
@@ -374,18 +571,18 @@ def render_report(
         lines.append("### Evidence Highlights")
         lines.append("")
         for item in evidence:
-            lines.append(f"- {item}")
+            lines.append(f"- {item.render()}")
         lines.append("")
 
     lines.append("### Intentionally Dropped")
     lines.append("")
     lines.append(
         "- Routine lifecycle noise stays in git history and the PR deletion diff; "
-        "only durable lessons should move into contexts, skills, or workflows."
+        "only durable lessons should move into context blocks."
     )
     lines.append(
-        "- One-off implementation details stay archived unless the review identifies "
-        "a reusable convention."
+        "- Skill edits are intentionally rare; create one only when the ticket shows "
+        "a repeatable process that is not already covered by the workflow skill."
     )
     lines.append("")
 
@@ -407,6 +604,7 @@ def run_retro(
     commit_and_push: bool = False,
     allow_main_push: bool = False,
     commit_message: str | None = None,
+    delete_remote_branch: bool = False,
 ) -> RetroResult:
     retro = read_retro_input(cfg, task_arg)
     if commit_and_push and not apply:
@@ -416,16 +614,23 @@ def run_retro(
 
     deleted = False
     git_result = None
-    proposals = build_knowledge_proposals(retro)
     evidence = extract_evidence(retro)
-    pr_body = render_pr_body(retro, proposals)
+    context_items = context_evidence_items(evidence)
+    context_blocks = build_context_blocks(retro, context_items, apply=False)
+    branch_cleanup = plan_branch_cleanup(retro)
 
     if retro.ticket.status == "done" and apply:
         ensure_report_survives_deletion(blackboard, retro.ref.path)
         ensure_task_clean(retro)
+        context_blocks = build_context_blocks(retro, context_items, apply=True)
         shutil.rmtree(retro.ref.path)
         deleted = True
+        branch_cleanup = cleanup_branch(
+            retro,
+            delete_remote_branch=delete_remote_branch,
+        )
 
+    pr_body = render_pr_body(retro, context_blocks, branch_cleanup)
     generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     report = render_report(
         retro,
@@ -433,8 +638,9 @@ def run_retro(
         command=command,
         apply=apply,
         deleted=deleted,
-        proposals=proposals,
+        context_blocks=context_blocks,
         evidence=evidence,
+        branch_cleanup=branch_cleanup,
         pr_body=pr_body,
     )
 
@@ -445,6 +651,7 @@ def run_retro(
         git_result = commit_and_push_changes(
             retro,
             blackboard=blackboard,
+            context_blocks=context_blocks,
             message=commit_message or f"Dream: retro done ticket {retro.slug}",
             allow_main_push=allow_main_push,
         )
@@ -455,8 +662,9 @@ def run_retro(
                 command=command,
                 apply=apply,
                 deleted=deleted,
-                proposals=proposals,
+                context_blocks=context_blocks,
                 evidence=evidence,
+                branch_cleanup=branch_cleanup,
                 pr_body=pr_body,
                 git_result=git_result,
             )
@@ -468,7 +676,8 @@ def run_retro(
         report=report,
         pr_body=pr_body,
         deleted=deleted,
-        proposals=proposals,
+        context_blocks=context_blocks,
+        branch_cleanup=branch_cleanup,
     )
 
 
@@ -529,11 +738,13 @@ def commit_and_push_changes(
     retro: RetroInput,
     *,
     blackboard: Path | None,
+    context_blocks: list[ContextBlock],
     message: str,
     allow_main_push: bool = False,
 ) -> str | None:
     preflight_commit_and_push(retro.git_root, allow_main_push=allow_main_push)
     rel_paths = [retro.task_rel_path]
+    rel_paths.extend(block.target for block in context_blocks if block.written)
     if blackboard is not None:
         try:
             rel_paths.append(relative_to_git_root(blackboard, retro.git_root))
@@ -566,6 +777,54 @@ def current_branch(git_root: Path) -> str:
     return _run_git(["branch", "--show-current"], cwd=git_root).strip()
 
 
+def valid_branch_name(git_root: Path, branch: str) -> bool:
+    result = subprocess.run(
+        ["git", "check-ref-format", "--branch", branch],
+        cwd=git_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def ref_exists(git_root: Path, ref: str) -> bool:
+    result = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", ref],
+        cwd=git_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0
+
+
+def is_ancestor(git_root: Path, ancestor: str, descendant: str) -> bool:
+    result = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", ancestor, descendant],
+        cwd=git_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    detail = result.stderr.strip() or result.stdout.strip() or "no output"
+    raise RuntimeError(
+        f"`git merge-base --is-ancestor {ancestor} {descendant}` failed: {detail}"
+    )
+
+
+def delete_local_branch(git_root: Path, branch: str) -> str | None:
+    return _run_git_error(["branch", "-d", branch], cwd=git_root)
+
+
+def delete_remote_branch_ref(git_root: Path, branch: str) -> str | None:
+    return _run_git_error(["push", "origin", "--delete", branch], cwd=git_root)
+
+
 def build_slack_summary(result: RetroResult) -> str:
     if result.status != "done":
         return (
@@ -573,9 +832,11 @@ def build_slack_summary(result: RetroResult) -> str:
             f"(status `{result.status}`)"
         )
     action = "deleted" if result.deleted else "planned"
+    branch = result.branch_cleanup.branch or "no branch"
     return (
         f"Dream retro-done-ticket: `{result.slug}` {action}; "
-        f"{len(result.proposals)} proposal(s); source `{result.source_ref}`"
+        f"{len(result.context_blocks)} context block(s); {branch}; "
+        f"source `{result.source_ref}`"
     )
 
 
@@ -599,6 +860,19 @@ def _run_git(args: list[str], *, cwd: Path) -> str:
         detail = result.stderr.strip() or result.stdout.strip() or "no output"
         raise RuntimeError(f"`git {shlex.join(args)}` failed: {detail}")
     return result.stdout
+
+
+def _run_git_error(args: list[str], *, cwd: Path) -> str | None:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return None
+    return result.stderr.strip() or result.stdout.strip() or "no output"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -632,6 +906,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Commit the deletion/report and push the current non-main branch.",
     )
     parser.add_argument(
+        "--delete-remote-branch",
+        action="store_true",
+        help=(
+            "Also delete origin/<branch> when the task's branch is proven "
+            "merged into HEAD."
+        ),
+    )
+    parser.add_argument(
         "--allow-main-push",
         action="store_true",
         help="Allow --commit-and-push while on main/master.",
@@ -654,6 +936,7 @@ def main(argv: list[str] | None = None) -> int:
             commit_and_push=args.commit_and_push,
             allow_main_push=args.allow_main_push,
             commit_message=args.commit_message,
+            delete_remote_branch=args.delete_remote_branch,
         )
         if args.blackboard is None:
             sys.stdout.write(result.report)

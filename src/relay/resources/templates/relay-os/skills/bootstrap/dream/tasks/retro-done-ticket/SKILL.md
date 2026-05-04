@@ -1,6 +1,6 @@
 ---
 name: bootstrap/dream/tasks/retro-done-ticket
-description: Extract reviewable knowledge proposals from one done ticket and delete that task directory in the same cleanup PR.
+description: Extract warranted context blocks from one done ticket, delete the ticket, and clean up its merged branch.
 script: run.py
 ---
 
@@ -8,15 +8,17 @@ script: run.py
 
 This worker is Dream's done-ticket cleanup unit. It accepts exactly one Relay
 task slug. It reads that task's `ticket.md`, `blackboard.md`, and `log.md`,
-turns the evidence into reviewable context/skill/workflow update proposals, and
-can delete the task directory in the same PR.
+extracts warranted durable lessons into concrete context blocks, deletes the
+task directory, and cleans up the task branch when git can prove it is merged.
+Skill extraction is intentionally rare; use it only when the ticket shows a
+repeatable process that is not already covered by the workflow skill.
 
 ## How to Run
 
 From the host repo root, on a Dream cleanup branch:
 
 ```
-python relay-os/skills/bootstrap/dream/tasks/retro-done-ticket/run.py <done-task-slug> --apply --blackboard relay-os/tasks/<dream-run-task>/blackboard.md --slack-task <dream-run-task>
+python relay-os/skills/bootstrap/dream/tasks/retro-done-ticket/run.py <done-task-slug> --apply --delete-remote-branch --blackboard relay-os/tasks/<dream-run-task>/blackboard.md --slack-task <dream-run-task>
 ```
 
 Replace `<done-task-slug>` with one done ticket. Do not pass a list of tasks;
@@ -24,13 +26,17 @@ Dream should run one retro per ticket so each deletion stays reviewable.
 
 Without `--apply`, the worker writes the retro report but leaves the task
 directory in place. With `--apply`, it deletes only
-`relay-os/tasks/<done-task-slug>/`.
+`relay-os/tasks/<done-task-slug>/`, appends extracted context blocks to attached
+context files when the ticket evidence warrants it, and deletes a merged local
+branch named by the ticket's `## Dev` / `branch:` line. With
+`--delete-remote-branch`, it also deletes `origin/<branch>` when that
+remote-tracking branch is proven merged into `HEAD`.
 
 If the Dream run is already on a cleanup branch and the deletion/report should
 be published immediately, add `--commit-and-push`. That mode stages only the
-deleted task directory and the Dream run blackboard report, commits them, and
-pushes the current branch. It refuses `main`/`master` unless a human explicitly
-passes `--allow-main-push`.
+deleted task directory, written context blocks, and the Dream run blackboard
+report, commits them, and pushes the current branch. It refuses `main`/`master`
+unless a human explicitly passes `--allow-main-push`.
 
 ## Output
 
@@ -44,7 +50,8 @@ The section includes:
 
 - `Source ref`, a source task slug and git ref, for example
   `abc123def456:relay-os/tasks/<done-task-slug>/`;
-- context, skill, and workflow update proposals based on ticket evidence;
+- concrete context blocks written or drafted from ticket evidence;
+- branch cleanup evidence and actions for the ticket's `branch:` / `pr:` lines;
 - `ticket.md`, `blackboard.md`, and `log.md` evidence counts/highlights;
 - what was intentionally dropped as routine task noise;
 - a PR body snippet that links back to the source ticket archive.
@@ -62,6 +69,8 @@ run task.
   git history would not archive the current on-disk evidence.
 - The blackboard report must be written outside the task directory being
   deleted.
-- The worker does not pretend heuristic Python can choose final knowledge edits.
-  It creates reviewable context/skill/workflow proposals; the Dream agent or
-  human reviewer applies the actual durable edits in the same PR when warranted.
+- Branch cleanup only deletes branches that are not current and are proven
+  merged into `HEAD`.
+- If a ticket has attached contexts, warranted context blocks are appended there
+  in `--apply` mode. If it has no contexts, the worker renders a draft context
+  block in the Dream blackboard and leaves the target as review-needed.

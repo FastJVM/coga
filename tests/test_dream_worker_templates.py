@@ -76,7 +76,8 @@ def test_retro_done_ticket_worker_template_requires_one_done_ticket() -> None:
     assert "accepts exactly one Relay" in text
     assert "Non-`done` tickets are a no-op" in text
     assert "`ticket.md`, `blackboard.md`, and `log.md`" in text
-    assert "--apply --blackboard relay-os/tasks/<dream-run-task>/blackboard.md" in text
+    assert "--apply --delete-remote-branch --blackboard relay-os/tasks/<dream-run-task>/blackboard.md" in text
     assert "Source ref" in text
-    assert "context/skill/workflow proposals" in text
+    assert "concrete context blocks" in text
+    assert "Branch cleanup" in text
     assert "from relay.dream_retro_done_ticket import main" in run_py
