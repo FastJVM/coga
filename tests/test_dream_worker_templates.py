@@ -25,6 +25,7 @@ def test_dream_orchestrator_documents_worker_contract() -> None:
     assert "Dream is Relay's bootstrap maintenance feature" in text
     assert "## Step 1 - Run the known Dream skills" in text
     assert "`bootstrap/dream/tasks/validate-drift`" in text
+    assert "`bootstrap/dream/tasks/retro-done-ticket`" in text
     assert "`bootstrap/dream/tasks/dev/stale-branches`" in text
     assert "Dream does not recursively discover skill files" in text
     assert "project-level plugin API" in text
@@ -73,11 +74,15 @@ def test_retro_done_ticket_worker_template_requires_one_done_ticket() -> None:
     run_py = (TEMPLATES / "retro-done-ticket" / "run.py").read_text()
 
     assert "name: bootstrap/dream/tasks/retro-done-ticket" in text
+    assert "## Known Skill Contract" in text
     assert "accepts exactly one Relay" in text
     assert "Non-`done` tickets are a no-op" in text
     assert "`ticket.md`, `blackboard.md`, and `log.md`" in text
-    assert "--apply --delete-remote-branch --blackboard relay-os/tasks/<dream-run-task>/blackboard.md" in text
+    assert "--commit-and-push --create-pr --blackboard relay-os/tasks/<dream-run-task>/blackboard.md" in text
     assert "Source ref" in text
-    assert "concrete context blocks" in text
-    assert "Branch cleanup" in text
-    assert "from relay.dream_retro_done_ticket import main" in run_py
+    assert "context or skill artifacts" in text
+    assert "The source task directory is never deleted" in text
+    assert "Task branch cleanup belongs to separate Dream branch-cleanup skills" in text
+    assert "def main(" in run_py
+    assert "from relay.tasks import TaskNotFoundError" in run_py
+    assert "relay.dream_retro_done_ticket" not in run_py
