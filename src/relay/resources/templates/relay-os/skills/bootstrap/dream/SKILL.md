@@ -5,58 +5,48 @@ description: Scan the Relay repo for knowledge gaps, broken references, stale lo
 
 # Dream
 
-Dream is the repo's recurring maintenance orchestrator. It discovers enabled
-workers, runs each worker within its declared contract, then summarizes what
-happened for a human reviewer. Do not turn Dream into one large cleanup script:
-each maintenance concern lives in its own worker under `tasks/`.
+Dream is Relay's bootstrap maintenance feature. It runs a small set of known
+maintenance skills, then summarizes what happened for a human reviewer. Do not
+turn Dream into one large cleanup script, and do not treat it as a project
+extension registry.
 
-The current shipped template lives at `relay-os/skills/bootstrap/dream/`. When
-Dream moves to the project-owned namespace, the same contract applies with the
-orchestrator at `relay-os/skills/dream/orchestrate/SKILL.md` and workers under
-`relay-os/skills/dream/tasks/`.
+The shipped skill lives at `relay-os/skills/bootstrap/dream/SKILL.md`. Known
+skills may live under `relay-os/skills/bootstrap/dream/tasks/`, but they run
+only when this orchestrator names them. Adding arbitrary files under `tasks/`
+does not enable them.
 
-## Step 1 - Discover enabled workers
+## Step 1 - Run the known Dream skills
 
-Treat every `SKILL.md` under this Dream root's `tasks/` directory as an enabled
-worker. In the current template that means:
+Run these known skills in this order:
 
-```
-relay-os/skills/bootstrap/dream/tasks/**/SKILL.md
-```
+| Skill | When to run | Result |
+| --- | --- | --- |
+| `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
+| `bootstrap/dream/tasks/dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
 
-After the namespace move, the same discovery rule becomes:
+That list is the dispatch contract. Dream does not recursively discover skill files
+and it does not offer a project-level plugin API. If a repo wants a different
+maintenance loop, it can define one directly in user space, for example `rem`,
+`ops/dream`, or another normal skill/workflow/recurring task. That user-space
+loop owns its own dispatch rules, state, naming, and conventions; it is not
+plugged into bootstrap Dream. Relay's shipped Dream remains this explicit
+bootstrap feature.
 
-```
-relay-os/skills/dream/tasks/**/SKILL.md
-```
+## Known Skill Contract
 
-Project authors enable a worker by adding its `SKILL.md`; they disable one by
-removing or moving that file. There is no hidden registry, service, database, or
-cache. Skip `_template` scaffolds. Run `tasks/validate-drift` first when present
-so deterministic repo health is visible before higher-judgment workers. Run the
-remaining workers in path order unless a worker's own contract says it must be
-run only after another worker.
-
-Before dispatching a worker, read its `SKILL.md`. If it does not contain the
-required `## Worker Contract` section, do not run it. Record the malformed
-worker as `human-needed` in the run summary so the convention fails loud.
-
-## Worker Contract
-
-Every Dream worker is an ordinary SKILL.md file. Keep standard frontmatter
-small: `name`, `description`, and optional `script` when `mode: script` or a
-direct runner needs one. Worker-specific metadata belongs in the body under:
+Each known Dream skill is an ordinary SKILL.md file. Keep standard frontmatter
+small: `name`, `description`, and optional `script` when a direct runner needs
+one. The body must include:
 
 ```
-## Worker Contract
+## Known Skill Contract
 
-- Scope: <relay-core | dev/code | project-specific domain>
-- Unit: <one repo pass | one done ticket | one branch inventory | ...>
-- Inputs: <files, commands, APIs, or task state the worker may read>
-- May change: <none | exact files/refs the worker may edit>
+- Purpose: <what maintenance question this skill answers>
+- Runs: <exact command, manual instructions, or script entry point>
+- Inputs: <files, commands, APIs, or task state the skill may read>
+- May change: <none | exact files/refs the skill may edit>
 - Action: <report-only | proposal-only | pr-required | direct-fix>
-- Risk: <low | review | destructive>
-- Idempotency: <marker or proof that a unit was already handled>
+- Idempotency: <why rerunning avoids duplicate work>
 - Stop and ask: <conditions that require human review before continuing>
 - Output: <blackboard section, PR link, created ticket, or no-op result>
 ```
@@ -67,36 +57,36 @@ Use these action values consistently:
 - `proposal-only` - write evidence and proposed commands/edits, but do not
   mutate the repo or external systems.
 - `pr-required` - make durable file changes only on a branch and open a PR.
-- `direct-fix` - may make the narrow deterministic change named by the worker.
+- `direct-fix` - may make the narrow deterministic change named by the skill.
 
 Destructive behavior is never implicit. Deleting task directories, deleting
 git refs, removing locks, changing lifecycle state, or touching secrets requires
-exact evidence and human review by default. A worker may declare direct
+exact evidence and human review by default. A skill may declare direct
 destructive behavior only when the rule is deterministic, narrow, and named in
 `May change`; otherwise use `proposal-only` or `pr-required`.
 
-Each worker must also define its idempotency proof. Examples: a PR body marker
+Each known skill must also define its idempotency proof. Examples: a PR body marker
 for a done-ticket retro, a deterministic validation command whose safe fixes are
 idempotent, or "no repo mutation; rerun regenerates the same proposal."
 
-## Step 2 - Dispatch workers independently
+## Step 2 - Dispatch the known skills
 
-For each enabled worker:
+For each known skill in the dispatch table:
 
-1. Read the worker's `## Worker Contract`.
-2. Run the worker exactly as its `How to Run` or `script:` contract says.
-3. Keep the worker's reads, writes, and decisions inside its declared scope.
-4. Let the worker write its own `## Dream Worker: <name>` section to this
+1. Read the skill's `## Known Skill Contract`.
+2. Run the skill exactly as its contract says.
+3. Keep the skill's reads, writes, and decisions inside its declared scope.
+4. Let the skill write its own `## Dream Skill: <name>` section to this
    Dream run's blackboard.
 5. Record one result line for the run summary:
    `no-op`, `reported`, `proposed`, `direct-fixed`, `pr-opened`, or
    `human-needed`.
 
-One worker failing does not give you permission to improvise another worker's
-behavior. If a worker stops for human review, record that result and continue
-only with workers whose inputs do not depend on the blocked one.
+One known skill failing does not give you permission to invent a replacement or
+scan for new skills. If a skill stops for human review, record that result and
+continue only with known skills whose inputs do not depend on the blocked one.
 
-## Built-in worker - validate-drift
+## Known skill - validate-drift
 
 Run:
 
@@ -104,16 +94,16 @@ Run:
 python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py --fix --blackboard relay-os/tasks/<this-dream-task>/blackboard.md --slack-task <this-dream-task>
 ```
 
-Replace `<this-dream-task>` with the slug of this Dream run. The worker runs
+Replace `<this-dream-task>` with the slug of this Dream run. The skill runs
 the same deterministic surface as `relay validate --json`, classifies every
-issue, and appends a concise `## Dream Worker: validate-drift` section to this
+issue, and appends a concise `## Dream Skill: validate-drift` section to this
 run's blackboard. It uses three action buckets:
 
 - `direct-fix` — safe to apply in a small Dream PR without changing task state.
 - `pr-proposal` — file-backed fix that needs a reviewable PR after reading the target.
 - `human-needed` — lifecycle, ownership, lock, secret, or ambiguous state decision.
 
-With `--fix`, the worker applies only the deterministic safe repairs currently
+With `--fix`, the skill applies only the deterministic safe repairs currently
 supported by `relay validate --fix`: create missing `blackboard.md` from the
 standard template and create missing `log.md` as an empty append-only file. It
 does not rewrite existing files, synthesize `ticket.md`, freeze workflows,
@@ -121,7 +111,7 @@ delete locks, or change lifecycle/assignee state.
 
 If the Dream run is already on a repair branch and the safe fixes should be
 published immediately, add `--commit-and-push`. That mode commits only the
-files repaired by the worker and pushes the current branch. It refuses to push
+files repaired by the skill and pushes the current branch. It refuses to push
 from `main`/`master` unless a human explicitly passes `--allow-main-push`.
 
 Validator issue kinds include:
@@ -133,18 +123,17 @@ Validator issue kinds include:
 - `broken-context` / `broken-skill` — a reference points to a file that doesn't exist.
 - `stuck-active` — task is `active` but `log.md` hasn't been written to in a while.
 
-Stale-lock rule: never delete a `task.lock` from age alone. The worker reports
+Stale-lock rule: never delete a `task.lock` from age alone. The skill reports
 stale locks as `human-needed`. A human must verify that no live terminal or
 agent still owns the task, then remove the lock or relaunch with `--force`.
 
-Optional dev/code worker templates live under `tasks/dev/`. For example,
-`tasks/dev/stale-branches` inspects git branches and writes a reviewable cleanup
-proposal with exact evidence; it is `proposal-only` and does not delete
-branches.
+The known `tasks/dev/stale-branches` skill inspects git branches and writes a
+reviewable cleanup proposal with exact evidence. It is `proposal-only` and does
+not delete branches.
 
 ## Step 3 - Scan for knowledge gaps
 
-After worker dispatch, do the higher-judgment Dream scan yourself. Read every
+After known skill dispatch, do the higher-judgment Dream scan yourself. Read every
 ticket (its body and blackboard). Compare against existing contexts, skills,
 and workflows. Look for:
 
@@ -189,8 +178,8 @@ blackboard:
 ## Dream Run Summary
 Generated: <timestamp>
 
-### Worker Results
-| Worker | Result | Output |
+### Skill Results
+| Skill | Result | Output |
 | --- | --- | --- |
 | validate-drift | direct-fixed | 2 files repaired; 1 stale lock human-needed |
 | dev/stale-branches | proposed | 3 merged local branches proposed |
@@ -202,18 +191,18 @@ Generated: <timestamp>
 <short list of decisions or review gates>
 ```
 
-Do not scatter run status across unrelated sections. Worker-specific evidence
+Do not scatter run status across unrelated sections. Skill-specific evidence
 can be long, but the run summary should be short enough for a human to scan.
 
 ## Step 6 - Summarize for Slack
 
-The validate-drift worker posts its own one-line Slack summary when run with
+The validate-drift skill posts its own one-line Slack summary when run with
 `--slack-task`. For the broader Dream scan, call `relay slack --task
 <your-task-id> --message "<summary>"`. One line. Example: `Dream scan:
 3 broken refs, 2 context proposals, 1 stale lock.`
 
-## Step 7 - Don't take action outside a worker contract
+## Step 7 - Don't take action outside a known skill contract
 
 Your default role is to propose, not to edit files directly outside of your own
-blackboard. A worker may edit only when its contract explicitly allows it and
+blackboard. A skill may edit only when its contract explicitly allows it and
 the action stays inside `May change`. The human decides what to accept.

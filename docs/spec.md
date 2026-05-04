@@ -638,32 +638,41 @@ The system improves itself using its own primitives. They are CLI commands execu
 
 #### Dream skill
 
-Dream is a recurring maintenance orchestrator, not one large cleanup script.
-Today the shipped template still lives at `relay-os/skills/bootstrap/dream/`;
-the project-owned target shape is `relay-os/skills/dream/orchestrate/SKILL.md`
-with workers under `relay-os/skills/dream/tasks/`. The contract below applies
-to both paths.
+Dream is Relay's bootstrap maintenance feature. It is a recurring orchestrator
+for a small set of known shipped skills, not a project extension framework and
+not one large cleanup script. The shipped skill lives at
+`relay-os/skills/bootstrap/dream/SKILL.md`.
 
-The orchestrator discovers enabled workers by walking its `tasks/**/SKILL.md`
-tree. Presence of a worker file enables it; removing or moving the file
-disables it. There is no hidden registry, daemon, database, or cache. The
-deterministic repo-health worker (`validate-drift`) runs first when present;
-other workers run in path order unless their own contract declares a narrower
-dependency.
+Dream runs only the skills explicitly listed in its own SKILL.md. Adding an
+arbitrary file under `relay-os/skills/bootstrap/dream/tasks/` does not enable
+it. There is no hidden registry, recursive discovery rule, daemon, database, or
+cache.
 
-Every worker is an ordinary SKILL.md. Standard frontmatter stays small:
-`name`, `description`, and optional `script` for executable workers. Dream
-metadata lives in the body under a required `## Worker Contract` section:
+This does not prevent user-space maintenance loops. A repo can define `rem`,
+`ops/dream`, or any other ordinary skill/workflow/recurring task directly in
+user space. That loop owns its own dispatch rules, state, naming, and
+conventions. It is separate from bootstrap Dream rather than plugged into it.
+Relay's shipped Dream stays explicit.
+
+The current known skill set is:
+
+| Skill | When to run | Result |
+| --- | --- | --- |
+| `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
+| `bootstrap/dream/tasks/dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
+
+Every known Dream skill is an ordinary SKILL.md. Standard frontmatter stays
+small: `name`, `description`, and optional `script` for executable skills. The
+body includes a `## Known Skill Contract` section:
 
 ```markdown
-## Worker Contract
+## Known Skill Contract
 
-- Scope: <relay-core | dev/code | project-specific domain>
-- Unit: <one repo pass | one done ticket | one branch inventory | ...>
-- Inputs: <files, commands, APIs, or task state the worker may read>
-- May change: <none | exact files/refs the worker may edit>
+- Purpose: <what maintenance question this skill answers>
+- Runs: <exact command, manual instructions, or script entry point>
+- Inputs: <files, commands, APIs, or task state the skill may read>
+- May change: <none | exact files/refs the skill may edit>
 - Action: <report-only | proposal-only | pr-required | direct-fix>
-- Risk: <low | review | destructive>
 - Idempotency: <marker or proof that a unit was already handled>
 - Stop and ask: <conditions that require human review before continuing>
 - Output: <blackboard section, PR link, created ticket, or no-op result>
@@ -680,17 +689,17 @@ Action values are part of the contract:
 
 Destructive behavior is never implicit. Deleting task directories, deleting
 git refs, removing locks, changing lifecycle state, or touching secrets
-requires exact evidence and human review by default. A worker may declare direct
+requires exact evidence and human review by default. A skill may declare direct
 destructive behavior only when the rule is deterministic, narrow, and named in
 `May change`; otherwise it uses `proposal-only` or `pr-required`.
 
-Each worker writes its own `## Dream Worker: <name>` blackboard section. At the
+Each known skill writes its own `## Dream Skill: <name>` blackboard section. At the
 end of the run, the orchestrator appends one `## Dream Run Summary` section
-with a worker result table (`no-op`, `reported`, `proposed`, `direct-fixed`,
+with a skill result table (`no-op`, `reported`, `proposed`, `direct-fixed`,
 `pr-opened`, or `human-needed`), knowledge-gap proposal counts, and any human
 review gates. Slack gets one short summary line for the run.
 
-After dispatching workers, Dream still performs the higher-judgment scan:
+After dispatching known skills, Dream still performs the higher-judgment scan:
 
 - Context gaps: tickets that reference domain knowledge with no matching
   context, or repeated patterns not captured anywhere.
@@ -934,7 +943,7 @@ A thin command for side effects. The agent calls this when it completes a workfl
 
 Repo validation (stale locks, broken references, invalid status values, stuck tasks) is handled by a deterministic validation script, not an LLM. `relay validate --fix` may apply only conservative file-presence repairs: create missing `blackboard.md` from the standard template and create missing `log.md` as an empty append-only file. It never rewrites existing files, reconstructs `ticket.md`, freezes workflows, deletes locks, or changes lifecycle/assignee state.
 
-The Dream `validate-drift` worker runs the same validator surface, usually as `relay validate --json --fix`, classifies remaining issues into `direct-fix`, `pr-proposal`, or `human-needed`, writes a concise result to the Dream run blackboard, and can post a one-line Slack summary for the run. When a Dream run is already on a repair branch, the worker can also commit and push the files it repaired; that push path is intentionally outside plain `relay validate`. The broader Dream scan can then interpret remaining drift alongside knowledge gaps, stale content, and workflow patterns.
+The Dream `validate-drift` skill runs the same validator surface, usually as `relay validate --json --fix`, classifies remaining issues into `direct-fix`, `pr-proposal`, or `human-needed`, writes a concise result to the Dream run blackboard, and can post a one-line Slack summary for the run. When a Dream run is already on a repair branch, the skill can also commit and push the files it repaired; that push path is intentionally outside plain `relay validate`. The broader Dream scan can then interpret remaining drift alongside knowledge gaps, stale content, and workflow patterns.
 
 Checks include:
 

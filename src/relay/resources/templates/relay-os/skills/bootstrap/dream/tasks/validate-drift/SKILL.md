@@ -6,7 +6,7 @@ script: run.py
 
 # Validate Drift
 
-This worker is Dream's deterministic repo-health pass. It runs the same
+This skill is Dream's deterministic repo-health pass. It runs the same
 validation surface as:
 
 ```
@@ -19,23 +19,22 @@ It then classifies every validator issue into one of three buckets:
 - `pr-proposal` - a file-backed fix that needs a reviewable PR after reading the target.
 - `human-needed` - lifecycle, ownership, lock, secret, or ambiguous state decision.
 
-## Worker Contract
+## Known Skill Contract
 
-- Scope: relay-core
-- Unit: one validation pass over the current repo's `relay-os/`
+- Purpose: deterministic repo-health validation and conservative safe repair
+- Runs: `python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py`
+  with Dream-run flags such as `--fix`, `--blackboard`, and `--slack-task`
 - Inputs: `relay.toml`, `relay.local.toml`, task directories, workflow refs,
   context refs, skill refs, lock files, and optional Slack webhook reachability
 - May change: missing `blackboard.md` and `log.md` files only when `--fix` is
   passed; repaired files may be committed and pushed only from a non-main repair
   branch when `--commit-and-push` is passed
 - Action: `direct-fix`
-- Risk: low for safe file-presence repairs; review for PR proposals;
-  destructive or lifecycle-sensitive issues are always `human-needed`
 - Idempotency: `relay validate --fix` only creates missing standard files and
   leaves existing files unchanged, so reruns converge on the same repo state
 - Stop and ask: invalid validator JSON, validator process failure, unsafe push
   branch, stale locks, lifecycle changes, unknown ownership, or secret access
-- Output: append `## Dream Worker: validate-drift` to the Dream run blackboard
+- Output: append `## Dream Skill: validate-drift` to the Dream run blackboard
   and optionally post a one-line Slack summary
 
 ## How to Run
@@ -53,16 +52,16 @@ create missing `blackboard.md` and `log.md` only. To publish those repairs from
 a Dream repair branch, add `--commit-and-push`; it commits only repaired files
 and pushes the current branch, refusing `main`/`master` by default.
 
-The worker exits `0` when validation completed, even if the validator found
+The skill exits `0` when validation completed, even if the validator found
 issues. It exits non-zero only when the validator itself failed or emitted
 invalid JSON.
 
 ## Output
 
-The worker appends a concise section to the Dream run blackboard:
+The skill appends a concise section to the Dream run blackboard:
 
 ```
-## Dream Worker: validate-drift
+## Dream Skill: validate-drift
 ```
 
 The section includes the exact command, issue counts by bucket, and one

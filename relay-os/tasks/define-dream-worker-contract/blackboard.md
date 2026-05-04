@@ -12,32 +12,45 @@ pr: https://github.com/FastJVM/relay/pull/93
   The actual project `relay-os/skills/bootstrap/` path is ignored user
   scaffolding, so the durable source edit belongs in `src/relay/resources/`
   and docs/tests, not in the ignored project copy.
-- `move-dream-out-of-bootstrap` is a separate active ticket. For this ticket,
-  the least risky contract path is to define discovery/dispatch in the current
-  Dream template and document the future `skills/dream/orchestrate` naming in
-  the spec without moving files here.
+- Human review rejected the project-extension shape. Dream should stay a
+  bootstrap feature and execute only a known list of shipped skills.
 
 ## Proposed Plan
 
-1. Update the shipped Dream template so orchestration discovers enabled workers
-   by walking `tasks/**/SKILL.md`, reads a small metadata convention, dispatches
-   workers independently, and writes one run-level summary.
-2. Add a durable spec section for the worker SKILL.md contract: metadata,
-   body sections, output, idempotency, and destructive-action safety.
-3. Tighten existing worker templates and tests so `validate-drift` and
-   `dev/stale-branches` match the new contract language.
+1. Keep Dream at `bootstrap/dream`.
+2. Make `bootstrap/dream/SKILL.md` the explicit known-skill dispatcher.
+3. Drop recursive `tasks/**/SKILL.md` discovery and user/plugin API language.
+4. Keep per-known-skill contracts for allowed changes, output, idempotency, and
+   safety.
+
+## Design-First Reset
+
+The human clarified that we are designing from the ticket first, not continuing
+implementation yet. The ticket body now carries the intended design:
+
+- Dream is a bootstrap feature at `bootstrap/dream`.
+- Dream runs a set of known shipped skills named in `bootstrap/dream/SKILL.md`.
+- Files under `tasks/` are inert unless the bootstrap Dream skill explicitly
+  names them.
+- The contract is `## Known Skill Contract`, not a user-extension API.
+- User space can still define a separate maintenance loop directly, e.g. `rem`
+  or another normal skill/workflow/recurring task, with its own state and
+  conventions.
+- User confirmed updating the existing PR is acceptable, so the PR now carries
+  this design instead of the recursive-discovery design.
 
 ## Implementation
 
-- Updated the shipped Dream template to define worker discovery by
-  `tasks/**/SKILL.md`, a required `## Worker Contract` body section, independent
-  dispatch, run-level summary shape, and destructive-action review defaults.
-- Documented the durable contract in `docs/spec.md`, including the current
-  `bootstrap/dream` location and the intended
-  `skills/dream/orchestrate/SKILL.md` target for the namespace-move ticket.
-- Added concrete `## Worker Contract` sections to the existing
-  `validate-drift` and `dev/stale-branches` worker templates.
-- Added focused tests in `tests/test_dream_worker_templates.py`.
+- Replaced recursive worker discovery with an explicit known-skill dispatch
+  table for `validate-drift` and `dev/stale-branches`.
+- Renamed the body convention to `## Known Skill Contract` and reduced it to
+  purpose, run instructions, allowed changes, action mode, idempotency, stop
+  conditions, and output.
+- Updated `docs/spec.md`, the task ticket body, and template tests to make
+  bootstrap Dream the canonical shape.
+- Added the explicit user-space escape hatch: repos may define `rem`,
+  `ops/dream`, or another normal skill/workflow/recurring task with its own
+  state and conventions, separate from bootstrap Dream.
 - Opened PR https://github.com/FastJVM/relay/pull/93. GitHub connector PR
   creation returned 404, so the PR was created with `gh pr create`.
 
@@ -48,6 +61,11 @@ pr: https://github.com/FastJVM/relay/pull/93
 - `/home/n/Code/relay/.venv/bin/python -m pytest tests/test_dream_worker_templates.py`
   passed: 3 tests.
 - `/home/n/Code/relay/.venv/bin/python -m pytest` passed: 217 tests.
+- After the bootstrap/user-space boundary rewrite,
+  `/home/n/Code/relay/.venv/bin/python -m pytest tests/test_dream_worker_templates.py`
+  passed: 3 tests.
+- After the bootstrap/user-space boundary rewrite,
+  `/home/n/Code/relay/.venv/bin/python -m pytest` passed: 217 tests.
 - `gh pr checks 93` reported no checks on the branch.
 - `relay bump define-dream-worker-contract --message "PR opened: ..."` advanced
   the ticket to review, then failed only on Slack DNS inside the sandbox. A
