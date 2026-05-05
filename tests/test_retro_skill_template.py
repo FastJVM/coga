@@ -30,4 +30,6 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "Repeatable process knowledge" in text
     assert "Update an existing skill, or create a focused skill if none fits." in text
     assert "Open the PR" in text
-    assert "Retro <ticket-slug>: extracted knowledge PR <url>" in text
+    assert "The title should carry the new finding." in text
+    assert "Prefer\n   `New context: <finding>` or `New skill: <finding>`" in text
+    assert "`<PR title>. PR: <url>`" in text

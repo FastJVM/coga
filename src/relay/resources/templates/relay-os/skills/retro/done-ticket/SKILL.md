@@ -23,7 +23,8 @@ Do:
 - update or create a skill only when the ticket contains repeatable process
   knowledge that is not already covered;
 - open a PR containing the knowledge-base changes;
-- post a one-line Slack FYI with the PR link when Slack is available.
+- post a one-line Slack FYI with the PR title and link when Slack is
+  available. The title should carry the new finding.
 
 Do not:
 
@@ -103,11 +104,14 @@ any required task evidence file is missing.
 
 7. **Open the PR.**
    Commit the knowledge edits on a branch such as
-   `codex/retro-<ticket-slug>-knowledge`, push it, and open a PR.
+   `codex/retro-<ticket-slug>-knowledge`, push it, and open a PR. Title the
+   PR for the knowledge change, not the act of running Retro. Prefer
+   `New context: <finding>` or `New skill: <finding>`.
 
 8. **Post Slack FYI.**
-   If Slack is configured, post one short message:
-   `Retro <ticket-slug>: extracted knowledge PR <url>`.
+   If Slack is configured, post one short message that is useful without
+   opening GitHub:
+   `<PR title>. PR: <url>`.
 
 ## PR Body
 
