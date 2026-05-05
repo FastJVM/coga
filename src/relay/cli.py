@@ -9,6 +9,7 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 import typer
 
 from relay.commands import automerge as automerge_cmd
+from relay.commands import delete as delete_cmd
 from relay.commands import init as init_cmd
 from relay.commands import launch as launch_cmd
 from relay.commands import panic as panic_cmd
@@ -67,6 +68,7 @@ app.command("status")(status_cmd.status)
 app.command("show")(show_cmd.show)
 app.command("bump")(bump_cmd.bump)
 app.command("automerge")(automerge_cmd.automerge)
+app.command("delete")(delete_cmd.delete)
 app.command("panic")(panic_cmd.panic)
 app.command("slack")(slack_cmd.slack)
 app.command("validate")(validate_cmd.validate)
@@ -79,7 +81,7 @@ app.add_typer(recurring_cmd.app, name="recurring")
 _BUILTIN_COMMANDS = frozenset(
     {
         "init", "launch", "status", "show", "bump", "automerge",
-        "panic", "slack", "recurring", "validate",
+        "delete", "panic", "slack", "recurring", "validate",
     }
 )
 

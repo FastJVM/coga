@@ -3,7 +3,7 @@
 Primary references — read these first:
 
 - [`relay-os/contexts/relay/`](/home/n/Code/relay/relay-os/contexts/relay/) — the agent-loaded mental model. `principles` (non-negotiables, fail-loud, classical mode), `architecture` (primitives, planes, composition, locking), `codebase` (where source lives + how to test), `current-direction` (open decisions), `project-stage` (stage-specific posture). These are the *same* contexts that get composed into every launched ticket — they are canon for day-to-day reasoning.
-- [`README.md`](/home/n/Code/relay/README.md) — CLI surface: `relay init / create / launch / status / bump / panic / slack / recurring`. One-screen reference per command.
+- [`README.md`](/home/n/Code/relay/README.md) — CLI surface: `relay init / create / launch / status / bump / delete / panic / slack / recurring`. One-screen reference per command.
 
 Deeper reference (open when relevant):
 

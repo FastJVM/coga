@@ -136,6 +136,54 @@ def test_panic_writes_blocker_and_releases_lock(repo: Path) -> None:
     assert "panic:" in (task_path / "log.md").read_text()
 
 
+# --- delete -------------------------------------------------------------------
+
+
+def test_delete_removes_task_directory(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    assert task_path.is_dir()
+    runner = CliRunner()
+    result = runner.invoke(app, ["delete", slug])
+    assert result.exit_code == 0, result.output
+    assert not task_path.exists()
+    assert "deleted" in result.output
+
+
+def test_delete_resolves_prefix(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["delete", slug[:6]])
+    assert result.exit_code == 0, result.output
+    assert not task_path.exists()
+
+
+def test_delete_unknown_task_exits_nonzero(repo: Path) -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["delete", "no-such-task-xyz"])
+    assert result.exit_code == 2
+
+
+def test_delete_refuses_when_locked(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    from relay.lock import TaskLock
+    TaskLock(task_path).acquire("claude1")
+    runner = CliRunner()
+    result = runner.invoke(app, ["delete", slug])
+    assert result.exit_code == 2, result.output
+    assert task_path.is_dir()
+    assert "task.lock" in result.output
+
+
+def test_delete_force_overrides_lock(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    from relay.lock import TaskLock
+    TaskLock(task_path).acquire("claude1")
+    runner = CliRunner()
+    result = runner.invoke(app, ["delete", slug, "--force"])
+    assert result.exit_code == 0, result.output
+    assert not task_path.exists()
+
+
 # --- slack --------------------------------------------------------------------
 
 
