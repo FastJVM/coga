@@ -5,19 +5,19 @@ description: Scan the Relay repo for knowledge gaps, broken references, stale lo
 
 # Dream
 
-Dream is per-repo recurring maintenance. A Dream run is an ordinary task in
-one project repo: it runs a small set of known maintenance workers, writes
-their results to the run blackboard, and summarizes what happened for a human
-reviewer. Do not turn Dream into one large cleanup script, a global service, or
-a project extension registry.
+Dream is the recurring maintenance pass for this Relay repo. A Dream run is an
+ordinary scheduled task that uses these `bootstrap/dream` instructions to scan
+the ticket set, run a small fixed list of known maintenance skills in order,
+write their results to the run blackboard, and summarize what happened for a
+human reviewer. Do not turn Dream into one large cleanup script, a global
+service, a workflow engine, or a project extension registry.
 
-Bootstrap is for stateless launch helpers. Dream is not a bootstrap shim; if a
-repo still carries this skill under `skills/bootstrap/dream`, treat that as the
-current template location, not the model to copy for new recurring maintenance.
-Known workers run only when this orchestrator names them. Adding arbitrary
-files under a Dream task directory does not enable them.
+This file is the shipped instruction surface for the recurring task. Dream
+itself is the ordered maintenance pass, not this file and not an arbitrary
+folder of plugins. Known skills run only when this dispatch table names them.
+Adding arbitrary files under a Dream task directory does not enable them.
 
-## Step 1 - Run the known Dream skills
+## Step 1 - Run the ordered maintenance skills
 
 Run these known skills in this order:
 
@@ -27,17 +27,17 @@ Run these known skills in this order:
 | `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
 | `dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
 
-That list is the dispatch contract. Dream does not recursively discover skill files
-and it does not offer a project-level plugin API. If a repo wants a different
-maintenance loop, it can define one directly as another normal
-skill/workflow/recurring task. That loop owns its own dispatch rules, state,
-naming, and conventions; it is separate from this Dream orchestrator.
+That list is the dispatch contract. Dream does not auto-discover skills and it
+does not offer a project-level plugin API. If a repo wants a different
+maintenance loop, it can define one directly as another recurring task with its
+own instructions. That loop owns its own dispatch rules, state, naming, and
+conventions; it is separate from this Dream pass.
 
 ## Known Skill Contract
 
-Each known Dream skill is an ordinary SKILL.md file. Keep standard frontmatter
-small: `name`, `description`, and optional `script` when a direct runner needs
-one. The body must include:
+Each called maintenance skill is an ordinary SKILL.md file. Keep standard
+frontmatter small: `name`, `description`, and optional `script` when a direct
+runner needs one. The body must include:
 
 ```
 ## Known Skill Contract
@@ -66,14 +66,14 @@ exact evidence and human review by default. A skill may declare direct
 destructive behavior only when the rule is deterministic, narrow, and named in
 `May change`; otherwise use `proposal-only` or `pr-required`.
 
-Each known skill must also define its idempotency proof. Examples: a
+Each called skill must also define its idempotency proof. Examples: a
 source-task blackboard `## Retro` marker with `skill: retro/done-ticket`, a
 deterministic validation command whose safe fixes are idempotent, or "no repo
 mutation; rerun regenerates the same proposal."
 
-## Step 2 - Dispatch the known skills
+## Step 2 - Dispatch across the ticket set
 
-For each known skill in the dispatch table:
+For each known skill in the dispatch table, in order:
 
 1. Read the skill's `## Known Skill Contract`.
 2. Run the skill exactly as its contract says.
@@ -129,7 +129,7 @@ Stale-lock rule: never delete a `task.lock` from age alone. The skill reports
 stale locks as `human-needed`. A human must verify that no live terminal or
 agent still owns the task, then remove the lock or relaunch with `--force`.
 
-The known `tasks/dev/stale-branches` skill inspects git branches and writes a
+The known `dev/stale-branches` skill inspects git branches and writes a
 reviewable cleanup proposal with exact evidence. It is `proposal-only` and does
 not delete branches.
 
@@ -175,9 +175,9 @@ or old Dream run notes.
 
 ## Step 3 - Scan for knowledge gaps
 
-After known skill dispatch, do the higher-judgment Dream scan yourself. Read every
-ticket (its body and blackboard). Compare against existing contexts, skills,
-and workflows. Look for:
+After the ordered skill pass, do the higher-judgment Dream scan yourself. Read
+every ticket (its body and blackboard). Compare against existing contexts,
+skills, and workflows. Look for:
 
 - **Context gaps** — patterns that repeat across multiple tickets but aren't
   captured in any context. Example: three different tickets mention "429 retry

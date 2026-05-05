@@ -94,7 +94,7 @@ Acquires the lock. Same one-task-one-worker invariant applies — a long-running
 
 ### Stale detection
 
-POC threshold: **24 hours**. Any lock with `acquired` older than 24h is flagged by Dream's validate-drift worker. Humans clear stale locks with `--force` on relaunch or by deleting the file. No automatic clearing.
+POC threshold: **24 hours**. Any lock with `acquired` older than 24h is flagged by Dream's `validate-drift` skill. Humans clear stale locks with `--force` on relaunch or by deleting the file. No automatic clearing.
 
 ### Lock file format
 
@@ -110,5 +110,5 @@ Two keys, newline-separated. Parsed leniently (strip whitespace).
 ## Scope notes for the POC build
 
 - Full Slack integration: webhook POST is implemented; offline/test mode falls back to stdout when no webhook is configured.
-- `bootstrap/ticket` ships with SKILL.md content and templates, while Dream is recurring per-project maintenance with its own orchestrator and workers. Their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
+- `bootstrap/ticket` ships with SKILL.md content and templates, while Dream is a recurring maintenance task that launches `bootstrap/dream` instructions and runs a fixed ordered skill pass across tickets. Their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
 - `status` starts scoped to "one project per invocation"; cross-project scan lands in M3 if trivial, otherwise deferred.

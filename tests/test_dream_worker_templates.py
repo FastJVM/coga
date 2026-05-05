@@ -19,20 +19,20 @@ TEMPLATES = (
 DREAM = TEMPLATES.parent
 
 
-def test_dream_orchestrator_documents_worker_contract() -> None:
+def test_dream_documents_ordered_skill_pass() -> None:
     text = (DREAM / "SKILL.md").read_text()
 
-    assert "Dream is per-repo recurring maintenance" in text
-    assert "Dream is not a bootstrap shim" in text
-    assert "## Step 1 - Run the known Dream skills" in text
+    assert "Dream is the recurring maintenance pass" in text
+    assert "run a small fixed list of known maintenance skills in order" in text
+    assert "## Step 1 - Run the ordered maintenance skills" in text
     assert "`validate-drift`" in text
     assert "`retro/done-ticket`" in text
     assert "`dev/stale-branches`" in text
     assert "retro-first, delete-second cleanup rule" in text
-    assert "Dream does not recursively discover skill files" in text
+    assert "Dream does not auto-discover skills" in text
     assert "project-level plugin API" in text
-    assert "skill/workflow/recurring task" in text
-    assert "separate from this Dream orchestrator" in text
+    assert "another recurring task with its\nown instructions" in text
+    assert "separate from this Dream pass" in text
     assert "## Known Skill Contract" in text
     assert "report-only | proposal-only | pr-required | direct-fix" in text
     assert "source-task blackboard `## Retro` marker with `skill: retro/done-ticket`" in text

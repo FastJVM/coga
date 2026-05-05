@@ -122,10 +122,10 @@ not two. Slack is required (see `relay/sync`); commands crash if
 Scan `relay-os/recurring/` and scaffold any due tasks. Cron entry point;
 called from `relay-os/scripts/cron.sh`.
 
-Dream is the canonical per-repo maintenance loop built on this surface:
-a recurring template creates a normal Dream task, `relay launch` runs the
-orchestrator, and worker results land on that task's blackboard. Do not treat
-Dream as a bootstrap shim; bootstrap is for stateless launch helpers.
+Dream is the canonical maintenance pass built on this surface: a recurring
+template creates a normal Dream task, `relay launch` runs the
+`bootstrap/dream` instructions, and the ordered skill results land on that
+task's blackboard.
 
 ## relay --version
 
@@ -176,8 +176,9 @@ repo + config diagnostic. `--fix` is deliberately narrow: it creates missing
 `blackboard.md` and empty `log.md` files, then reports the remaining issues.
 It does not rewrite existing files, freeze workflows, delete locks, or push
 git state. Reach for validation when a command is misbehaving or
-slack/webhook setup looks broken; Dream's validate-drift worker is the normal
-place to apply safe fixes and broadcast a summary during per-repo maintenance.
+slack/webhook setup looks broken; Dream's validate-drift skill is the normal
+place to apply safe fixes and broadcast a summary during the recurring
+maintenance pass.
 
 ## What this context does NOT cover
 

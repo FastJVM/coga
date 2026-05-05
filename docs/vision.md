@@ -149,15 +149,15 @@ Most recurring operational work in a technical company passes all three question
 
 ## Self-bootstrapping
 
-The methodology describes itself using its own primitives. Two meta-skills make this possible.
+The methodology describes itself using its own primitives. Two self-bootstrapping mechanisms make this possible.
 
-**Dream** is per-repo recurring maintenance that scans one Relay project and proposes improvements. Gaps in context coverage, workflows that should exist but don't, skills referenced but not written, contexts that contradict recent blackboards. It is not a global service or a bootstrap shim; each repo owns its Dream run, workers, blackboard, and review cadence. It writes proposals; we accept or reject. The contexts stay current not because we maintain them on a schedule, but because the system surfaces gaps in the flow of work.
+**Dream** is the recurring maintenance pass that scans one Relay project and proposes improvements. A scheduled Dream task launches the shipped `bootstrap/dream` instructions, walks the ticket set, runs the known maintenance skills in order, and then looks for gaps in context coverage, workflows that should exist but don't, skills referenced but not written, and contexts that contradict recent blackboards. It is not a global service, daemon, workflow, or plugin registry; each repo owns its Dream run, blackboard, ordered skill list, and review cadence. It writes proposals; we accept or reject. The contexts stay current not because we maintain them on a schedule, but because the system surfaces gaps in the flow of work.
 
 **Create** is a skill that runs during task creation. Give it a title and description, it asks clarifying questions, proposes which contexts and workflows apply, and drafts the ticket. We review before confirming. Most of our task creation goes through this — it's how new work gets slotted into the existing substrate without us having to remember what's there.
 
 Hofstadter spent *Gödel, Escher, Bach* arguing that strange loops — systems that contain representations of themselves and can reason about their own structure — are where interesting things happen. Relay isn't intelligent in any Hofstadter sense, but the pattern is similar at a workaday level: the system's rules are files, the files can be read by the same agents the rules govern, and the agents can propose changes to the rules they're about to follow. Dream is Relay reasoning about Relay, using Relay. Create-suggest is Relay extending Relay, from within Relay.
 
-This is the reason the methodology doesn't rot. Without these meta-skills, Relay would be a task list with a documentation convention — useful but bound to drift. With them, the system is actively pushing us to maintain it, and the maintenance happens as a byproduct of using it, not as a separate activity. Quality, in Pirsig's sense, requires continuous attention to the machine. The strange loop is how we get that attention for free.
+This is the reason the methodology doesn't rot. Without these self-bootstrapping mechanisms, Relay would be a task list with a documentation convention — useful but bound to drift. With them, the system is actively pushing us to maintain it, and the maintenance happens as a byproduct of using it, not as a separate activity. Quality, in Pirsig's sense, requires continuous attention to the machine. The strange loop is how we get that attention for free.
 
 ---
 

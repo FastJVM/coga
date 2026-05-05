@@ -131,17 +131,17 @@ frontmatter.
 
 ### Dream
 
-Dream is per-repo recurring maintenance: a scheduled task in one `relay-os/`
-that runs known workers, writes results to that run's blackboard, and leaves a
-human-reviewable trail. It is not a global service and not a bootstrap shim.
-Bootstrap remains for stateless launch helpers such as `bootstrap/ticket`.
+Dream is a recurring maintenance pass for one `relay-os/`. A scheduled Dream
+task launches the shipped `bootstrap/dream` instructions, scans the ticket set,
+runs a fixed ordered list of known maintenance skills, writes results to that
+run's blackboard, and leaves a human-reviewable trail. It is not a workflow, a
+daemon, a global service, or a plugin registry.
 
-Dream orchestration and Dream workers are separate. The orchestrator decides
-which known workers apply and summarizes their results; workers such as
-`validate-drift`, `retro/done-ticket`, and `dev/stale-branches` own their
-inputs, allowed changes, and idempotency rules. Done-ticket cleanup is
-retro-first: extract durable knowledge and mark the source task before deleting
-the task directory in a reviewable PR.
+The ordered skill list is the contract. Skills such as `validate-drift`,
+`retro/done-ticket`, and `dev/stale-branches` own their inputs, allowed
+changes, and idempotency rules; Dream owns the order, ticket iteration, and run
+summary. Done-ticket cleanup is retro-first: extract durable knowledge and mark
+the source task before deleting the task directory in a reviewable PR.
 
 ### `relay launch <target> [title]`
 

@@ -7,17 +7,17 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 Last updated: 2026-05-05.
 
-## Recent decisions (per-project Dream)
+## Recent decisions (Dream maintenance pass)
 
-- **Dream is per-repo recurring maintenance, not a bootstrap shim.** Each
-  repo/project owns its Dream recurring template, run tasks, blackboard output,
-  and worker list. There is no global Dream service or cross-repo state.
-  Bootstrap remains for stateless launch helpers such as `bootstrap/ticket`.
-- **Dream orchestrates independent workers.** The orchestrator decides which
-  known workers apply, keeps one run-level summary, and does the
-  higher-judgment scan for knowledge and workflow gaps. Workers own their own
-  inputs, allowed changes, idempotency proof, and output section.
-- **First enabled worker set:** `validate-drift` for deterministic repo
+- **Dream is a recurring maintenance task, not a workflow.** Each repo owns
+  its Dream recurring template, run tasks, blackboard output, and ordered skill
+  list. There is no global Dream service or cross-repo state.
+- **Dream launches `bootstrap/dream` and runs known skills in order.** The
+  Dream pass scans the ticket set, calls the fixed maintenance skills, keeps
+  one run-level summary, and does the higher-judgment scan for knowledge and
+  workflow gaps. Each called skill owns its own inputs, allowed changes,
+  idempotency proof, and output section.
+- **First enabled skill pass:** `validate-drift` for deterministic repo
   validation and safe file-presence repairs; `retro/done-ticket` for
   durable-knowledge extraction from completed tasks; `dev/stale-branches` for
   proposal-only branch cleanup evidence.
@@ -80,9 +80,9 @@ ones that affect implementation:
   the recurring flag on it stopped making sense. Cron scripts and docs
   now call `relay recurring check` directly.
 - **Lock cleanup is human-needed by default.** `relay validate`
-  reports stale locks but doesn't auto-clean. Dream's validate-drift worker
-  classifies stale locks for human review unless a narrower worker contract
-  has exact evidence that deletion is safe.
+  reports stale locks but doesn't auto-clean. Dream's `validate-drift` skill
+  classifies stale locks for human review unless a narrower skill contract has
+  exact evidence that deletion is safe.
 - **`relay launch` auto-activates drafts.** Running launch on a
   `draft` ticket flips it to `active` and logs the transition.
   No separate `relay activate` command. Bootstrap-skill tickets

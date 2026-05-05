@@ -1,10 +1,10 @@
 ---
 name: bootstrap/dream-run
-description: Single-step workflow that runs per-repo Dream maintenance.
+description: Single-step workflow that runs the recurring Dream maintenance pass.
 steps:
   - name: scan
     skill: bootstrap/dream
 ---
 
 ## scan
-Run the Dream maintenance skill. See its SKILL.md for the process.
+Run the Dream maintenance pass. See `bootstrap/dream` for the process.

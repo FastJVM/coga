@@ -283,7 +283,7 @@ footnote.
 
 ### `relay validate` (`commands/validate.py` → `validate.py`)
 
-Per spec Dream's validate-drift worker consumes a deterministic validator. The
+Per spec Dream's ordered `validate-drift` skill consumes a deterministic validator. The
 validator is exposed as `relay validate [--json] [--check-slack]`
 (thin Typer wrapper) and as `python -m relay.validate` (the underlying
 module entry point).
@@ -300,9 +300,9 @@ module entry point).
 | `--json` output | ✅ | |
 | Exit 0 / 1 / 2 (clean / issues / tool error) | ✅ | |
 
-✅ Validator integration is modeled through the independent validate-drift
-worker. Dream owns orchestration and result summary; the validator remains the
-deterministic CLI surface.
+✅ Validator integration is modeled through the ordered `validate-drift` skill.
+Dream owns the maintenance-pass order and result summary; the validator remains
+the deterministic CLI surface.
 
 ---
 
@@ -372,21 +372,21 @@ workflows or contexts.
 
 ### Dream recurring maintenance
 
-🟡 Implemented as the first-wave recurring maintenance model:
+🟡 Implemented as the first-wave recurring maintenance pass:
 
-- Dream orchestrator skill and known workers in the Relay-owned skill
-  templates
+- `bootstrap/dream` instructions plus known maintenance skills in the
+  Relay-owned templates
 - `src/relay/resources/recurring/weekly-dream.md`
 
 Wiring gaps to verify:
 
-- Dream should be documented as per-repo recurring maintenance, not a
-  bootstrap shim. Bootstrap remains for stateless launch helpers.
+- Dream should be documented as a recurring task that launches
+  `bootstrap/dream` and runs a fixed ordered skill pass across tickets.
 - The recurring template and workflow names should match the current Dream
   model when the resource move lands.
 - The deterministic validator (`relay validate`) is now the surface consumed by
-  the `validate-drift` Dream worker; Dream owns orchestration and worker
-  summary, not validator internals.
+  the `validate-drift` skill; Dream owns pass ordering and the run summary, not
+  validator internals.
 
 ### Bootstrap shim tickets
 
@@ -398,8 +398,8 @@ works at `launch.py:54-63` via `_scaffold_from_shim`.
 
 ### `bootstrap/ticket` is the only shim shipped
 
-Future recurring maintenance loops should be modeled as recurring tasks and
-skills, not bootstrap shims.
+Future recurring maintenance loops should be modeled as recurring tasks that
+launch explicit instructions and call known skills in a documented order.
 
 ---
 
