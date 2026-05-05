@@ -27,10 +27,18 @@ no in-memory state.
   `agent`); on bump, the token resolves against the ticket's
   matching role field and rewrites `assignee:`. Steps without one
   leave the assignee unchanged.
+- **Recurring templates** live in `relay-os/recurring/`. They scaffold
+  ordinary tasks on a schedule via `relay recurring check`; the created tasks
+  then use the same ticket, workflow, launch, bump, and blackboard machinery as
+  any other task.
 - **Bootstrap shims** in `relay-os/bootstrap/<name>/ticket.md` are
   stateless launch targets for skills. No status, no workflow, no
   lock. `relay launch bootstrap/ticket "title"` is the factory
   shorthand to scaffold a new draft + run the bootstrap skill on it.
+- **Dream** is the recurring maintenance pass for one repo. A Dream run is an
+  ordinary recurring task whose body scans the ticket set, runs a fixed ordered
+  list of known maintenance skills, and writes reviewable results to its
+  blackboard.
 
 Contexts and skills both use the SKILL.md format (frontmatter `name`
 + `description`, then body). Zero proprietary extensions — same format
@@ -79,13 +87,14 @@ loading.
 `task.lock` is a file-existence lock, local-only, one per task
 directory. Under one-task-one-worker (deliberate v1 constraint for
 small teams) it's enough. No distributed locking. Stale locks are
-cleaned by the dream/drift validation script.
+reported by Dream's validate-drift worker; deletion still requires human
+confirmation that no live worker owns the task.
 
-## Six commands
+## Command Surface
 
-`relay create`, `relay launch`, `relay status`, `relay bump`,
-`relay panic`, `relay slack`. That's the whole CLI. Everything else
-is a flag or a subcommand on these.
+The command reference lives in `relay/cli`. The important architectural split
+is that foreground commands operate on files in the current `relay-os/`; there
+is no server-side state behind them.
 
 ## What this context does NOT cover
 

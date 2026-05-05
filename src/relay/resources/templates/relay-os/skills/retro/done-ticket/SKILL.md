@@ -5,10 +5,13 @@ description: Extract durable knowledge from one done ticket into Relay contexts 
 
 # Retro Done Ticket
 
-Retro is a prompt-only Codex skill. It is not Dream, not a Python worker, and
-not a cleanup command. Its job is to read one completed ticket, compare it
-against the repo's context and skill corpus, and open a PR that moves new
-durable knowledge into the right markdown block.
+Retro is a prompt-only Codex skill and the knowledge-extraction gate for
+done-ticket cleanup. Dream may call it for eligible completed tasks, but Retro
+is not Dream, not a Python worker, and not a cleanup command. Its job is to
+read one completed ticket, compare it against the repo's context and skill
+corpus, and open a reviewable PR that records durable knowledge plus the
+source-task `## Retro` marker. Dream may later use that marker to delete the
+task directory without rerunning Retro.
 
 ## Known Skill Contract
 
@@ -73,8 +76,9 @@ Required files:
 - `relay-os/contexts/**/SKILL.md`
 - `relay-os/skills/**/SKILL.md`
 
-Stop and ask if the task slug is ambiguous, the task is not `status: done`, or
-any required task evidence file is missing.
+Stop and ask if the task slug is ambiguous, the task is not `status: done`, any
+required task evidence file is missing, or there is already an open PR adding a
+`## Retro` marker for the same source task.
 
 ## Workflow
 

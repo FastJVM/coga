@@ -5,7 +5,26 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 # Relay — current direction
 
-Last updated: 2026-04-28.
+Last updated: 2026-05-05.
+
+## Recent decisions (Dream maintenance pass)
+
+- **Dream is a recurring maintenance task, not a workflow.** Each repo owns
+  its Dream recurring template, run tasks, blackboard output, and ordered skill
+  list. There is no global Dream service or cross-repo state.
+- **Dream runs known skills in order from the recurring task body.** The Dream
+  pass scans the ticket set, calls the fixed maintenance skills, keeps one
+  run-level summary, and does the higher-judgment scan for knowledge and
+  workflow gaps. Each called skill owns its own inputs, allowed changes,
+  idempotency proof, and output section.
+- **First enabled skill pass:** `validate-drift` for deterministic repo
+  validation and safe file-presence repairs; `retro/done-ticket` for
+  durable-knowledge extraction from completed tasks; `dev/stale-branches` for
+  proposal-only branch cleanup evidence.
+- **Done-ticket cleanup is retro-first, delete-second.** A done task without a
+  `## Retro` marker needs Retro. An open PR adding that marker means Retro is
+  in flight. A processed marker means the task can be deleted under the worker
+  contract; after deletion, git history is the audit trail.
 
 ## Recent decisions (small-team Slack simplification)
 
@@ -60,8 +79,10 @@ ones that affect implementation:
   is canonical" call: once `relay create` became a thin alias, hanging
   the recurring flag on it stopped making sense. Cron scripts and docs
   now call `relay recurring check` directly.
-- **Lock cleanup is the dream skill's job.** `relay validate`
-  reports stale locks but doesn't auto-clean. Dream/drift removes.
+- **Lock cleanup is human-needed by default.** `relay validate`
+  reports stale locks but doesn't auto-clean. Dream's `validate-drift` skill
+  classifies stale locks for human review unless a narrower skill contract has
+  exact evidence that deletion is safe.
 - **`relay launch` auto-activates drafts.** Running launch on a
   `draft` ticket flips it to `active` and logs the transition.
   No separate `relay activate` command. Bootstrap-skill tickets

@@ -129,6 +129,21 @@ Scan `relay-os/recurring/` and scaffold any due tasks. Called from
 `scaffold_task()` in `relay.scaffold` directly with the template's full
 frontmatter.
 
+### Dream
+
+Dream is a recurring maintenance pass for one `relay-os/`. The scheduled Dream
+task body is the instruction surface: scan the ticket set, run a fixed ordered
+list of known maintenance skills, write results to that run's blackboard, and
+leave a human-reviewable trail. It is not a workflow, a standalone skill, a
+daemon, a global service, or a plugin registry.
+
+The ordered skill list is the contract. Skills such as `validate-drift`,
+`retro/done-ticket`, and `dev/stale-branches` own their inputs, allowed
+changes, and idempotency rules; the Dream task owns the order, ticket
+iteration, and run summary. Done-ticket cleanup is retro-first: extract durable
+knowledge and mark the source task before deleting the task directory in a
+reviewable PR.
+
 ### `relay launch <target> [title]`
 
 Compose every relevant file for a task — rules, project context, ticket,
