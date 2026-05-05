@@ -33,9 +33,16 @@ def post(
     message: str,
     *,
     task_path: Path | None = None,
+    owner: str | None = None,
     image_url: str | None = None,
 ) -> None:
     """Post a message to Slack, or crash trying.
+
+    Every message is prefixed with `[<project>]` so a Slack channel shared
+    across multiple relay repos stays disambiguated. When `owner` is given,
+    `[<owner>]` follows — that's the human accountable for the ticket, so
+    teammates can tell whose agent (e.g. `claude1`) just acted when several
+    teammates share an agent nickname.
 
     `image_url`, if given, attaches a single image (GIF or PNG) below the
     text via Slack's `attachments` field — used for milestone events
@@ -43,8 +50,13 @@ def post(
 
     See module docstring for the three branches and why we crash.
     """
+    prefix = f"[{cfg.project_name}]"
+    if owner:
+        prefix += f" [{owner}]"
+    full_message = f"{prefix} {message}"
+
     if not cfg.slack_enabled:
-        sys.stderr.write(f"[slack] disabled (post suppressed): {message}\n")
+        sys.stderr.write(f"[slack] disabled (post suppressed): {full_message}\n")
         return
 
     if not cfg.slack_webhook:
@@ -54,9 +66,9 @@ def post(
         )
         raise typer.Exit(1)
 
-    payload: dict[str, object] = {"text": message}
+    payload: dict[str, object] = {"text": full_message}
     if image_url:
-        payload["attachments"] = [{"image_url": image_url, "fallback": message}]
+        payload["attachments"] = [{"image_url": image_url, "fallback": full_message}]
 
     try:
         requests.post(
@@ -65,7 +77,7 @@ def post(
             timeout=5,
         )
     except requests.RequestException as exc:
-        sys.stderr.write(f"[slack] post failed: {exc}. Message was: {message}\n")
+        sys.stderr.write(f"[slack] post failed: {exc}. Message was: {full_message}\n")
         if task_path is not None:
             append_log(task_path, "slack", f"post failed: {type(exc).__name__}: {exc}")
         raise typer.Exit(1)

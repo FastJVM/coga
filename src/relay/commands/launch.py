@@ -86,9 +86,10 @@ def launch(
         post(
             cfg,
             f"✨ {cfg.current_user} scaffolded *{ref.id_slug}* "
-            f"\"{ticket.title}\" in {cfg.project_name} — "
+            f"\"{ticket.title}\" — "
             f"assignee {ticket.assignee or 'unassigned'}",
             task_path=ref.path,
+            owner=ticket.owner or cfg.current_user,
         )
 
     if not is_bootstrap and ticket.status not in _LAUNCHABLE_STATUSES:
@@ -163,6 +164,7 @@ def launch(
             f"\"{ticket.title}\" — assignee {assignee}"
             f"{_agent_override_note(agent_override, assignee)}",
             task_path=ref.path,
+            owner=ticket.owner or cfg.current_user,
         )
 
     # Inject secrets as env vars.

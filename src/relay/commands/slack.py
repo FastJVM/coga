@@ -50,6 +50,7 @@ def slack(
         f"💬 {ticket.assignee or cfg.current_user} on *{ref.id_slug}*: "
         f"{message}",
         task_path=ref.path,
+        owner=ticket.owner or cfg.current_user,
     )
     append_log(ref.path, actor, f"slack: {message}")
     typer.echo("posted")
