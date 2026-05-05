@@ -10,6 +10,27 @@ not a cleanup command. Its job is to read one completed ticket, compare it
 against the repo's context and skill corpus, and open a PR that moves new
 durable knowledge into the right markdown block.
 
+## Known Skill Contract
+
+- Purpose: extract durable knowledge from one done ticket and mark that Retro
+  has processed it.
+- Runs: `retro/done-ticket <task-slug>` after Dream or a human chooses one
+  exact done ticket.
+- Inputs: the source task's `ticket.md`, `blackboard.md`, and `log.md`, plus
+  every context and skill file under `relay-os/contexts/` and
+  `relay-os/skills/`.
+- May change: warranted context files, warranted skill files, and the source
+  task's `blackboard.md` only.
+- Action: `pr-required`
+- Idempotency: the source task blackboard contains a `## Retro` section with
+  `skill: retro/done-ticket` and `status: processed`. An open PR adding that
+  same marker counts as in flight.
+- Stop and ask: the slug is ambiguous, the task is not `status: done`, any
+  required evidence file is missing, or the diff would touch anything outside
+  the allowed files.
+- Output: a PR with knowledge edits or a marker-only "no new durable
+  knowledge" result, plus a Slack FYI when Slack is available.
+
 ## Scope
 
 Do:
@@ -21,6 +42,8 @@ Do:
 - update, create, split, merge, or delete context blocks when warranted;
 - update or create a skill only when the ticket contains repeatable process
   knowledge that is not already covered;
+- append or update exactly one `## Retro` marker in the source task's
+  `blackboard.md`;
 - open a PR containing the knowledge-base changes;
 - post a one-line Slack FYI with the PR title and link when Slack is
   available. The title should carry the new finding.
@@ -97,18 +120,37 @@ any required task evidence file is missing.
    Delete a context or skill block only when it is obsolete, duplicated, or
    replaced by the new edit.
 
-6. **Self-review the diff.**
-   Confirm the PR changes only context or warranted skill files unless the human
-   explicitly asked for something else. Make sure the source ticket remains in
-   place.
+6. **Mark the source blackboard.**
+   Append or update exactly one `## Retro` section in
+   `relay-os/tasks/<slug>/blackboard.md`:
 
-7. **Open the PR.**
+   ```markdown
+   ## Retro
+
+   status: processed
+   skill: retro/done-ticket
+   result: <knowledge-pr | no-new-durable-knowledge>
+   title: <PR title>
+   ```
+
+   This is the idempotency marker Dream reads on later runs. If no durable
+   knowledge is found, still write the marker with
+   `result: no-new-durable-knowledge`.
+
+7. **Self-review the diff.**
+   Confirm the PR changes only context files, warranted skill files, and the
+   source task blackboard unless the human explicitly asked for something else.
+   Make sure the source task directory remains in place.
+
+8. **Open the PR.**
    Commit the knowledge edits on a branch such as
    `codex/retro-<ticket-slug>-knowledge`, push it, and open a PR. Title the
    PR for the knowledge change, not the act of running Retro. Prefer
-   `New context: <finding>` or `New skill: <finding>`.
+   `New context: <finding>` or `New skill: <finding>`. If the only change is
+   the blackboard marker, use `Retro processed: no new durable knowledge for
+   <ticket-slug>`.
 
-8. **Post Slack FYI.**
+9. **Post Slack FYI.**
    If Slack is configured, post one short message that is useful without
    opening GitHub:
    `<PR title>. PR: <url>`.
@@ -124,6 +166,8 @@ Use this shape:
 
 ## Source
 - Ticket: `relay-os/tasks/<slug>/`
+- Marker: `relay-os/tasks/<slug>/blackboard.md` contains `## Retro` with
+  `status: processed`.
 
 ## Classification
 - Moved into context: <bullets>
@@ -137,6 +181,6 @@ Use this shape:
 
 ## Quality Bar
 
-The PR should make future task prompts better. If the ticket has no new durable
-knowledge, do not edit files just to prove Retro ran; report that no PR is
-warranted.
+The PR should make future task prompts better when there is durable knowledge
+to extract. If the ticket has no new durable knowledge, open a marker-only PR
+so Dream can delete the task without rerunning Retro forever.

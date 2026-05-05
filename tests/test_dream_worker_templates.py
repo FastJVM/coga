@@ -25,6 +25,7 @@ def test_dream_orchestrator_documents_worker_contract() -> None:
     assert "Dream is Relay's bootstrap maintenance feature" in text
     assert "## Step 1 - Run the known Dream skills" in text
     assert "`bootstrap/dream/tasks/validate-drift`" in text
+    assert "`retro/done-ticket`" in text
     assert "`bootstrap/dream/tasks/dev/stale-branches`" in text
     assert "Dream does not recursively discover skill files" in text
     assert "project-level plugin API" in text
@@ -32,6 +33,13 @@ def test_dream_orchestrator_documents_worker_contract() -> None:
     assert "plugged into bootstrap Dream" in text
     assert "## Known Skill Contract" in text
     assert "report-only | proposal-only | pr-required | direct-fix" in text
+    assert "source-task blackboard `## Retro` marker with `skill: retro/done-ticket`" in text
+    assert "## Known skill - retro/done-ticket" in text
+    assert "status: processed" in text
+    assert "skill: retro/done-ticket" in text
+    assert "An open\n   PR counts as in flight" in text
+    assert "Absence of the marker on an existing done ticket" in text
+    assert "git history for the deleted `blackboard.md`" in text
     assert "## Dream Run Summary" in text
     assert "relay-os/skills/dream/orchestrate/SKILL.md" not in text
     assert "tasks/**/SKILL.md" not in text
