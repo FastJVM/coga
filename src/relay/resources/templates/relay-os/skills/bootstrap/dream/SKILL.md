@@ -22,6 +22,7 @@ Run these known skills in this order:
 | Skill | When to run | Result |
 | --- | --- | --- |
 | `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
+| `retro/done-ticket` | When an existing done ticket lacks a `## Retro` / `status: processed` blackboard marker and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
 | `bootstrap/dream/tasks/dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
 
 That list is the dispatch contract. Dream does not recursively discover skill files
@@ -65,9 +66,10 @@ exact evidence and human review by default. A skill may declare direct
 destructive behavior only when the rule is deterministic, narrow, and named in
 `May change`; otherwise use `proposal-only` or `pr-required`.
 
-Each known skill must also define its idempotency proof. Examples: a PR body marker
-for a done-ticket retro, a deterministic validation command whose safe fixes are
-idempotent, or "no repo mutation; rerun regenerates the same proposal."
+Each known skill must also define its idempotency proof. Examples: a
+source-task blackboard `## Retro` marker for a done-ticket retro, a
+deterministic validation command whose safe fixes are idempotent, or "no repo
+mutation; rerun regenerates the same proposal."
 
 ## Step 2 - Dispatch the known skills
 
@@ -131,6 +133,43 @@ The known `tasks/dev/stale-branches` skill inspects git branches and writes a
 reviewable cleanup proposal with exact evidence. It is `proposal-only` and does
 not delete branches.
 
+## Known skill - retro/done-ticket
+
+The `retro/done-ticket` skill is prompt-only. Dream's job is to choose a
+candidate and avoid duplicates; Retro owns the knowledge extraction PR.
+
+Idempotency marker:
+
+```markdown
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: <knowledge-pr | no-new-durable-knowledge>
+title: <PR title>
+```
+
+Selection rules:
+
+1. Read every existing task with `status: done`.
+2. Read `relay-os/tasks/<slug>/blackboard.md`.
+3. If the blackboard has `## Retro` with `status: processed`, do not run
+   Retro again. The ticket is processed and can be deleted when the cleanup
+   gate is satisfied.
+4. If the marker is absent, inspect open PRs before launching Retro. An open
+   PR counts as in flight when its diff adds the same `## Retro` /
+   `status: processed` marker to `relay-os/tasks/<slug>/blackboard.md`.
+5. If no current marker and no open PR marker exists, run `retro/done-ticket
+   <slug>` for one selected done ticket. Prefer one Retro PR per Dream run
+   unless a human asks for a batch.
+6. If `relay-os/tasks/<slug>/` is already gone, it is not a Retro candidate.
+   For audit, use git history for the deleted `blackboard.md`; the deleted
+   marker is the record that Retro processed the task before cleanup.
+
+Absence of the marker on an existing done ticket means the task has not been
+processed by Retro. Do not infer completion from branch names, stale comments,
+or old Dream run notes.
+
 ## Step 3 - Scan for knowledge gaps
 
 After known skill dispatch, do the higher-judgment Dream scan yourself. Read every
@@ -182,6 +221,7 @@ Generated: <timestamp>
 | Skill | Result | Output |
 | --- | --- | --- |
 | validate-drift | direct-fixed | 2 files repaired; 1 stale lock human-needed |
+| retro/done-ticket | pr-opened | New context PR opened for one done ticket |
 | dev/stale-branches | proposed | 3 merged local branches proposed |
 
 ### Findings

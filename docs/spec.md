@@ -659,6 +659,7 @@ The current known skill set is:
 | Skill | When to run | Result |
 | --- | --- | --- |
 | `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
+| `retro/done-ticket` | When an existing done ticket lacks a `## Retro` / `status: processed` blackboard marker and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
 | `bootstrap/dream/tasks/dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
 
 Every known Dream skill is an ordinary SKILL.md. Standard frontmatter stays
@@ -692,6 +693,26 @@ git refs, removing locks, changing lifecycle state, or touching secrets
 requires exact evidence and human review by default. A skill may declare direct
 destructive behavior only when the rule is deterministic, narrow, and named in
 `May change`; otherwise it uses `proposal-only` or `pr-required`.
+
+Done-ticket Retro uses the source task blackboard as its idempotency marker.
+Retro appends or updates exactly one section:
+
+```markdown
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: <knowledge-pr | no-new-durable-knowledge>
+title: <PR title>
+```
+
+For an existing `status: done` task, absence of that marker means Retro has
+not processed the task. Presence of the marker means Dream must not run Retro
+again and may delete the task when the cleanup gate is satisfied. Before
+launching Retro for an unmarked done ticket, Dream checks open PRs; a PR whose
+diff adds the same marker to `relay-os/tasks/<slug>/blackboard.md` counts as
+in flight. If the task directory is already gone, it is not a Retro candidate;
+git history for the deleted blackboard remains the audit trail.
 
 Each known skill writes its own `## Dream Skill: <name>` blackboard section. At the
 end of the run, the orchestrator appends one `## Dream Run Summary` section
