@@ -18,7 +18,7 @@ from typing import Any
 
 from relay.config import Config, ConfigError, find_repo_root, load_config
 from relay.slack import post
-from relay.tasks import TaskNotFoundError, resolve_task
+from relay.tasks import TaskNotFoundError, read_ticket, resolve_task
 
 
 ACTION_DIRECT_FIX = "direct-fix"
@@ -358,7 +358,8 @@ def post_slack_summary(cfg: Config, task_slug: str, summary: str) -> None:
         ref = resolve_task(cfg, task_slug)
     except TaskNotFoundError as exc:
         raise RuntimeError(str(exc)) from exc
-    post(cfg, f"🧹 {summary}", task_path=ref.path)
+    ticket = read_ticket(ref)
+    post(cfg, f"🧹 {summary}", task_path=ref.path, owner=ticket.owner or cfg.current_user)
 
 
 def infer_task_slug_from_blackboard(cfg: Config, blackboard: Path | None) -> str | None:

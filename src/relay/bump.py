@@ -66,6 +66,7 @@ def mark_done(
     outcome is visible even if Slack crashes). Pass `None` to suppress —
     used by the quiet auto-bump path inside `relay status`.
     """
+    owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "done"
     ticket.frontmatter.pop("step", None)
     ticket.write(ref.path / "ticket.md")
@@ -73,7 +74,7 @@ def mark_done(
     TaskLock(ref.path).release()
     if echo is not None:
         typer.echo(echo)
-    post(cfg, slack_text, task_path=ref.path, image_url=image_url)
+    post(cfg, slack_text, task_path=ref.path, owner=owner, image_url=image_url)
 
 
 def advance_step(
@@ -95,6 +96,7 @@ def advance_step(
     nickname. Caller is responsible for resolving role tokens against the
     ticket beforehand (see `resolve_step_assignee`).
     """
+    owner = ticket.owner or cfg.current_user
     ticket.frontmatter["step"] = f"{next_step} ({new_step_name})"
     if new_assignee is not None:
         ticket.frontmatter["assignee"] = new_assignee
@@ -102,7 +104,7 @@ def advance_step(
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    post(cfg, slack_text, task_path=ref.path)
+    post(cfg, slack_text, task_path=ref.path, owner=owner)
 
 
 __all__ = [

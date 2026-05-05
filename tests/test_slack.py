@@ -56,7 +56,21 @@ def test_post_calls_webhook(cfg_with_webhook, monkeypatch: pytest.MonkeyPatch) -
     post(cfg_with_webhook, "task done")
     assert len(calls) == 1
     assert calls[0]["url"] == "https://hooks.slack.com/services/test"
-    assert calls[0]["json"] == {"text": "task done"}
+    assert calls[0]["json"] == {"text": f"[{cfg_with_webhook.project_name}] task done"}
+
+
+def test_post_with_owner_prefixes_human(
+    cfg_with_webhook, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        "relay.slack.requests.post",
+        lambda url, json=None, timeout=None: (calls.append({"json": json}), type("R", (), {})())[1],
+    )
+    post(cfg_with_webhook, "task done", owner="marc")
+    assert calls[0]["json"]["text"] == (
+        f"[{cfg_with_webhook.project_name}] [marc] task done"
+    )
 
 
 def test_post_with_image_url_attaches(
@@ -73,9 +87,10 @@ def test_post_with_image_url_attaches(
     monkeypatch.setattr("relay.slack.requests.post", fake_post)
     post(cfg_with_webhook, "🎉 done", image_url="https://media.giphy.com/x.gif")
     payload = calls[0]["json"]
-    assert payload["text"] == "🎉 done"
+    expected_text = f"[{cfg_with_webhook.project_name}] 🎉 done"
+    assert payload["text"] == expected_text
     assert payload["attachments"] == [
-        {"image_url": "https://media.giphy.com/x.gif", "fallback": "🎉 done"}
+        {"image_url": "https://media.giphy.com/x.gif", "fallback": expected_text}
     ]
 
 
@@ -268,10 +283,10 @@ def test_disabled_post_writes_to_stderr_no_crash(
     )
     _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
     cfg = load_config(tmp_path)
-    post(cfg, "muted hello")
+    post(cfg, "muted hello", owner="marc")
     err = capsys.readouterr().err
     assert "[slack] disabled" in err
-    assert "muted hello" in err
+    assert f"[{cfg.project_name}] [marc] muted hello" in err
 
 
 def test_enabled_but_no_webhook_crashes(
@@ -300,7 +315,7 @@ def test_post_failure_crashes(
 
     err = capsys.readouterr().err
     assert "post failed" in err
-    assert "lost message" in err
+    assert f"[{cfg_with_webhook.project_name}] lost message" in err
 
 
 def test_post_failure_with_task_path_appends_to_log_then_crashes(

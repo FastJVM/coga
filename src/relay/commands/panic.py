@@ -50,8 +50,9 @@ def panic(
     post(
         cfg,
         f"🚨 {panicker} needs help on *{ref.id_slug}* "
-        f"\"{ticket.title}\" — \"{reason}\" (cc {owner})",
+        f"\"{ticket.title}\" — \"{reason}\"",
         task_path=ref.path,
+        owner=owner,
         image_url=cfg.gif_for("panic"),
     )
     typer.echo(f"{ref.id_slug}: panicked (owner {owner} notified)")
