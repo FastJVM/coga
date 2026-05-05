@@ -897,3 +897,170 @@ def test_install_venv_keeps_matching_venv(
 
     assert venv_calls == []  # no recreate
     assert sentinel.read_text() == "preserve me"
+
+
+# --- running_cli_location / upgrade_global_cli --------------------------------
+
+
+def _stub_executable_in(venv: Path) -> Path:
+    """Create a venv-shaped tree with `bin/python` and return the python path."""
+    (venv / "bin").mkdir(parents=True, exist_ok=True)
+    py = venv / "bin" / "python"
+    py.write_text("#!/bin/sh\n")
+    py.chmod(0o755)
+    return py
+
+
+def test_running_cli_location_detects_vendored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    relay_os = tmp_path / "relay-os"
+    venv = relay_os / ".relay" / ".venv"
+    py = _stub_executable_in(venv)
+    monkeypatch.setattr(update_cmd.sys, "executable", str(py))
+
+    kind, where = update_cmd.running_cli_location(relay_os)
+    assert kind == "vendored"
+    assert where == venv.resolve()
+
+
+def test_running_cli_location_detects_pipx(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    relay_os = tmp_path / "project" / "relay-os"
+    relay_os.mkdir(parents=True)
+    pipx_venv = tmp_path / "home" / ".local" / "share" / "pipx" / "venvs" / "relay"
+    py = _stub_executable_in(pipx_venv)
+    (pipx_venv / "pipx_metadata.json").write_text("{}\n")
+    monkeypatch.setattr(update_cmd.sys, "executable", str(py))
+
+    kind, where = update_cmd.running_cli_location(relay_os)
+    assert kind == "pipx"
+    assert where == pipx_venv.resolve()
+
+
+def test_running_cli_location_falls_through_to_other(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    relay_os = tmp_path / "project" / "relay-os"
+    relay_os.mkdir(parents=True)
+    other_venv = tmp_path / "some-other-venv"
+    py = _stub_executable_in(other_venv)
+    monkeypatch.setattr(update_cmd.sys, "executable", str(py))
+
+    kind, where = update_cmd.running_cli_location(relay_os)
+    assert kind == "other"
+    assert where == other_venv.resolve()
+
+
+def test_upgrade_global_cli_vendored_is_noop() -> None:
+    assert update_cmd.upgrade_global_cli("vendored") == ("vendored", None)
+
+
+def test_upgrade_global_cli_other_is_noop() -> None:
+    assert update_cmd.upgrade_global_cli("other") == ("other", None)
+
+
+def test_upgrade_global_cli_pipx_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(update_cmd.shutil, "which", lambda name: "/usr/bin/pipx")
+    captured: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        captured.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, stdout="upgraded relay 0.2.0 -> 0.3.0\n", stderr="")
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    status, detail = update_cmd.upgrade_global_cli("pipx")
+    assert status == "pipx-upgraded"
+    assert detail == "upgraded relay 0.2.0 -> 0.3.0"
+    assert captured == [["/usr/bin/pipx", "upgrade", "relay"]]
+
+
+def test_upgrade_global_cli_pipx_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(update_cmd.shutil, "which", lambda name: "/usr/bin/pipx")
+
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="boom\n")
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    status, detail = update_cmd.upgrade_global_cli("pipx")
+    assert status == "pipx-failed"
+    assert detail == "boom"
+
+
+def test_upgrade_global_cli_pipx_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(update_cmd.shutil, "which", lambda name: None)
+    assert update_cmd.upgrade_global_cli("pipx") == ("pipx-missing", None)
+
+
+def test_init_update_warns_when_running_relay_is_not_vendored(
+    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The colleague-on-macOS bug: pipx install runs the same `init --update`,
+    but `sys.executable` lives in the pipx venv, not the vendored one. We must
+    surface that — and try to upgrade the pipx install for them."""
+    relay_os = _seed_local_relay_os(tmp_path)
+    monkeypatch.chdir(relay_os)
+
+    pipx_venv = tmp_path / "home" / ".local" / "share" / "pipx" / "venvs" / "relay"
+    py = _stub_executable_in(pipx_venv)
+    (pipx_venv / "pipx_metadata.json").write_text("{}\n")
+    monkeypatch.setattr(update_cmd.sys, "executable", str(py))
+
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            _seed_fake_upstream_for_update(Path(cmd[-1]))
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if (
+            cmd[:2] == ["git", "-C"]
+            and cmd[3:] == ["rev-parse", "HEAD"]
+            and "relay-init-update-" in cmd[2]
+        ):
+            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
+        if cmd[:1] == ["/usr/bin/pipx"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout="upgraded\n", stderr="")
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+    monkeypatch.setattr(update_cmd.shutil, "which", lambda name: "/usr/bin/pipx")
+
+    result = CliRunner().invoke(app, ["init", "--update"])
+    assert result.exit_code == 0, result.output
+    assert "Upgraded global `relay` (pipx)" in result.output
+
+
+def test_init_update_silent_when_running_vendored(
+    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When sys.executable is the vendored venv, no warning, no pipx call."""
+    relay_os = _seed_local_relay_os(tmp_path)
+    monkeypatch.chdir(relay_os)
+
+    vendored_venv = relay_os / ".relay" / ".venv"
+    py = _stub_executable_in(vendored_venv)
+    monkeypatch.setattr(update_cmd.sys, "executable", str(py))
+
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            _seed_fake_upstream_for_update(Path(cmd[-1]))
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if (
+            cmd[:2] == ["git", "-C"]
+            and cmd[3:] == ["rev-parse", "HEAD"]
+            and "relay-init-update-" in cmd[2]
+        ):
+            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    result = CliRunner().invoke(app, ["init", "--update"])
+    assert result.exit_code == 0, result.output
+    assert "global `relay`" not in result.output
+    assert "pipx" not in result.output

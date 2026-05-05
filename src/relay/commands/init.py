@@ -19,6 +19,7 @@ from pathlib import Path
 import typer
 
 from relay.commands.update import (
+    RELAY_REPO_URL,
     TEMPLATE_SUBPATH,
     _refresh_relay_gitignore,
     clone_upstream,
@@ -27,6 +28,8 @@ from relay.commands.update import (
     prune_obsolete,
     refresh_cli,
     refresh_templates,
+    running_cli_location,
+    upgrade_global_cli,
     upstream_sha,
     write_bin_wrapper,
     write_pin,
@@ -195,6 +198,8 @@ def _do_update() -> None:
     hook_status, hook_blocker = _install_post_merge_hook(relay_os.parent, relay_os)
     host_gitignore_changed = ensure_host_gitignore(relay_os.parent)
     retrofitted = _run_retrofits(relay_os)
+    cli_kind, cli_venv = running_cli_location(relay_os)
+    cli_status, cli_detail = upgrade_global_cli(cli_kind)
 
     typer.echo("")
     typer.echo(f"Refreshed CLI at {relay_os / '.relay'}")
@@ -224,6 +229,53 @@ def _do_update() -> None:
         typer.echo(f"Backfilled `human:`/`agent:` on {len(retrofitted)} ticket(s):")
         for slug in retrofitted:
             typer.echo(f"  {slug}")
+    _print_global_cli_status(cli_status, cli_detail, cli_venv)
+
+
+def _print_global_cli_status(status: str, detail: str | None, venv: Path) -> None:
+    """Surface what `--update` did (or didn't) about the running `relay` itself.
+
+    `init --update` always refreshes the vendored copy in `.relay/`, but the
+    `relay` on the user's PATH is usually a separate install (pipx is the
+    macOS default; pip-editable on Linux). Silently leaving that one stale
+    is the bug colleagues actually hit.
+    """
+    if status == "vendored":
+        return
+    if status == "pipx-upgraded":
+        typer.secho(
+            "Upgraded global `relay` (pipx).",
+            fg=typer.colors.GREEN,
+        )
+        if detail:
+            typer.echo(detail)
+        return
+    if status == "pipx-failed":
+        typer.secho(
+            "Tried to upgrade your pipx-installed `relay` but it failed:\n"
+            f"{detail or '(no output)'}\n"
+            "Try `pipx upgrade relay` (or `pipx reinstall relay`) by hand.",
+            fg=typer.colors.YELLOW,
+        )
+        return
+    if status == "pipx-missing":
+        typer.secho(
+            f"Your `relay` looks pipx-installed (venv at {venv}), but `pipx`\n"
+            f"isn't on PATH so we can't upgrade it. Install pipx and run\n"
+            f"`pipx upgrade relay`.",
+            fg=typer.colors.YELLOW,
+        )
+        return
+    typer.secho(
+        f"Heads-up: your `relay` on PATH lives in {venv}, not the vendored\n"
+        f"copy this command just refreshed. The vendored .relay/ is up-to-date,\n"
+        f"but the binary you actually run isn't. Upgrade it however you\n"
+        f"installed it — e.g.\n"
+        f"  pipx upgrade relay\n"
+        f"  cd <your relay source clone> && git pull && pip install -e .\n"
+        f"  pip install --upgrade git+{RELAY_REPO_URL}",
+        fg=typer.colors.YELLOW,
+    )
 
 
 # Agents we wire skill discovery for. Each entry is the project-level dir

@@ -295,6 +295,60 @@ def install_venv(relay_os: Path) -> Path:
     return venv_dir
 
 
+def running_cli_location(relay_os: Path) -> tuple[str, Path]:
+    """Identify which install of `relay` is currently executing.
+
+    Returns `(kind, venv_root)`:
+      - `("vendored", <relay_os>/.relay/.venv)` — running the vendored copy
+        the just-completed `init --update` already refreshed.
+      - `("pipx", <pipx-venv>)` — installed via pipx; we can offer to upgrade.
+      - `("other", <venv_root>)` — pip / system python / something else; the
+        caller should print a manual-upgrade hint.
+
+    Detection uses `sys.executable`'s parent venv. pipx leaves a
+    `pipx_metadata.json` at every managed venv's root — that's the canonical
+    marker, and what `pipx upgrade` itself relies on.
+    """
+    venv = Path(sys.executable).resolve().parent.parent
+    try:
+        vendored = (relay_os / ".relay" / ".venv").resolve()
+    except OSError:
+        vendored = relay_os / ".relay" / ".venv"
+    if venv == vendored:
+        return ("vendored", venv)
+    if (venv / "pipx_metadata.json").is_file():
+        return ("pipx", venv)
+    return ("other", venv)
+
+
+def upgrade_global_cli(kind: str) -> tuple[str, str | None]:
+    """Best-effort upgrade of the running `relay` install. Never raises.
+
+    Returns `(status, detail)`:
+      - `("vendored", None)` — running the vendored copy; no-op.
+      - `("pipx-upgraded", stdout)` — `pipx upgrade relay` succeeded.
+      - `("pipx-failed", stderr)` — pipx ran but returned non-zero.
+      - `("pipx-missing", None)` — looked like pipx but `pipx` isn't on PATH.
+      - `("other", None)` — caller prints manual instructions.
+    """
+    if kind == "vendored":
+        return ("vendored", None)
+    if kind == "other":
+        return ("other", None)
+    pipx = shutil.which("pipx")
+    if pipx is None:
+        return ("pipx-missing", None)
+    typer.echo("Upgrading your global `relay` (pipx)…")
+    result = subprocess.run(
+        [pipx, "upgrade", "relay"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return ("pipx-failed", (result.stderr or result.stdout).strip() or None)
+    return ("pipx-upgraded", result.stdout.strip() or None)
+
+
 def _venv_python_version(venv_dir: Path) -> tuple[int, int] | None:
     """Read `pyvenv.cfg` and return the (major, minor) Python the venv was built with."""
     cfg = venv_dir / "pyvenv.cfg"
