@@ -36,9 +36,9 @@ no in-memory state.
   lock. `relay launch bootstrap/ticket "title"` is the factory
   shorthand to scaffold a new draft + run the bootstrap skill on it.
 - **Dream** is the recurring maintenance pass for one repo. A Dream run is an
-  ordinary recurring task that launches the shipped `bootstrap/dream`
-  instructions, scans the ticket set, runs a fixed ordered list of known
-  maintenance skills, and writes reviewable results to its blackboard.
+  ordinary recurring task whose body scans the ticket set, runs a fixed ordered
+  list of known maintenance skills, and writes reviewable results to its
+  blackboard.
 
 Contexts and skills both use the SKILL.md format (frontmatter `name`
 + `description`, then body). Zero proprietary extensions — same format

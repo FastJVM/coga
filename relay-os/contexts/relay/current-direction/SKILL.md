@@ -12,9 +12,9 @@ Last updated: 2026-05-05.
 - **Dream is a recurring maintenance task, not a workflow.** Each repo owns
   its Dream recurring template, run tasks, blackboard output, and ordered skill
   list. There is no global Dream service or cross-repo state.
-- **Dream launches `bootstrap/dream` and runs known skills in order.** The
-  Dream pass scans the ticket set, calls the fixed maintenance skills, keeps
-  one run-level summary, and does the higher-judgment scan for knowledge and
+- **Dream runs known skills in order from the recurring task body.** The Dream
+  pass scans the ticket set, calls the fixed maintenance skills, keeps one
+  run-level summary, and does the higher-judgment scan for knowledge and
   workflow gaps. Each called skill owns its own inputs, allowed changes,
   idempotency proof, and output section.
 - **First enabled skill pass:** `validate-drift` for deterministic repo

@@ -640,17 +640,18 @@ The system improves itself using its own primitives. They are CLI commands execu
 
 Dream is the recurring maintenance pass for one Relay repo. A Dream run is an
 ordinary scheduled task, usually `mode: auto`, created by
-`relay recurring check` and launched like any other task. The task uses the
-shipped `bootstrap/dream` instructions to scan the ticket set, run known
-maintenance skills in a fixed order, and write a reviewable summary to that
-run's blackboard. There is no global Dream service, cross-repo scheduler,
-daemon, database, hidden cache, or plugin registry.
+`relay recurring check` and launched like any other task. The recurring task
+body is the instruction surface: scan the ticket set, run known maintenance
+skills in a fixed order, and write a reviewable summary to that run's
+blackboard. There is no global Dream service, cross-repo scheduler, daemon,
+database, hidden cache, or plugin registry.
 
-Dream is not a workflow and not one large cleanup script. The recurring task
-owns the order of the pass and the run-level summary; the skills it calls own
-their inputs, allowed changes, idempotency proof, and output format. Adding an
-arbitrary file under a Dream task directory does not enable it. The ordered
-skill list in `bootstrap/dream` is the dispatch contract.
+Dream is not a workflow, not a standalone skill, and not one large cleanup
+script. The recurring task owns the order of the pass and the run-level
+summary; the skills it calls own their inputs, allowed changes, idempotency
+proof, and output format. Adding an arbitrary file under a Dream task directory
+does not enable it. The ordered skill list in the recurring Dream task body is
+the dispatch contract.
 
 The current first-wave skill pass is:
 

@@ -17,32 +17,38 @@ TEMPLATES = (
 )
 
 DREAM = TEMPLATES.parent
+RESOURCES = Path(__file__).resolve().parents[1] / "src" / "relay" / "resources"
+WEEKLY_DREAM = RESOURCES / "recurring" / "weekly-dream.md"
+BOOTSTRAP_DREAM_RUN = RESOURCES / "workflows" / "bootstrap" / "dream-run.md"
 
 
 def test_dream_documents_ordered_skill_pass() -> None:
-    text = (DREAM / "SKILL.md").read_text()
+    text = WEEKLY_DREAM.read_text()
+    workflow = BOOTSTRAP_DREAM_RUN.read_text()
 
-    assert "Dream is the recurring maintenance pass" in text
-    assert "run a small fixed list of known maintenance skills in order" in text
-    assert "## Step 1 - Run the ordered maintenance skills" in text
-    assert "`validate-drift`" in text
+    assert not (DREAM / "SKILL.md").exists()
+    assert not (DREAM / "scan.py").exists()
+    assert "skill: bootstrap/dream" not in workflow
+    assert "Run the Dream maintenance pass described directly" in workflow
+    assert "Run the Dream maintenance pass for this Relay repo" in text
+    assert "Dream is this recurring task, not a workflow" in text
+    assert "### Ordered Skill Pass" in text
+    assert "`bootstrap/dream/tasks/validate-drift`" in text
     assert "`retro/done-ticket`" in text
-    assert "`dev/stale-branches`" in text
-    assert "retro-first, delete-second cleanup rule" in text
-    assert "Dream does not auto-discover skills" in text
-    assert "project-level plugin API" in text
-    assert "another recurring task with its\nown instructions" in text
-    assert "separate from this Dream pass" in text
-    assert "## Known Skill Contract" in text
-    assert "report-only | proposal-only | pr-required | direct-fix" in text
-    assert "source-task blackboard `## Retro` marker with `skill: retro/done-ticket`" in text
-    assert "## Known skill - retro/done-ticket" in text
+    assert "`bootstrap/dream/tasks/dev/stale-branches`" in text
+    assert "That table is the dispatch contract" in text
+    assert "Do not auto-discover skills" in text
+    assert "another recurring task with its own\nbody and ordered skill list" in text
+    assert "### Skill: validate-drift" in text
+    assert "### Skill: retro/done-ticket" in text
+    assert "### Skill: dev/stale-branches" in text
     assert "status: processed" in text
     assert "skill: retro/done-ticket" in text
     assert "An open\n   PR counts as in flight" in text
     assert "Absence of the marker on an existing done ticket" in text
     assert "git history for the deleted `blackboard.md`" in text
     assert "## Dream Run Summary" in text
+    assert "relay slack --task <this-dream-task>" in text
     assert "relay-os/skills/dream/orchestrate/SKILL.md" not in text
     assert "tasks/**/SKILL.md" not in text
 

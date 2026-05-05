@@ -123,9 +123,8 @@ Scan `relay-os/recurring/` and scaffold any due tasks. Cron entry point;
 called from `relay-os/scripts/cron.sh`.
 
 Dream is the canonical maintenance pass built on this surface: a recurring
-template creates a normal Dream task, `relay launch` runs the
-`bootstrap/dream` instructions, and the ordered skill results land on that
-task's blackboard.
+template creates a normal Dream task, `relay launch` composes the task body,
+and the ordered skill results land on that task's blackboard.
 
 ## relay --version
 
