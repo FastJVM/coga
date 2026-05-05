@@ -5,7 +5,7 @@ description: The relay CLI surface — what each command does, the flags that ma
 
 # Relay CLI
 
-Eight built-in commands plus a config-driven alias mechanism. Everything
+Nine built-in commands plus a config-driven alias mechanism. Everything
 else is a flag or subcommand. The model beneath them lives in
 `relay/architecture` — read that for primitives and prompt composition.
 This context is just the operator's reference.
@@ -90,6 +90,16 @@ Posts a distinct Slack line — `🎉 *<slug>* "<title>" auto-bumped on
 merge of PR #<N>` — so the team can tell auto-bumps apart from manual
 ones.
 
+## relay delete \<slug\> [--force]
+
+Remove a task directory from the working tree — ticket, blackboard,
+log, and the directory itself. Recovery is via `git restore`; the
+git history is the audit trail, no Slack broadcast.
+
+Refuses if `task.lock` is held; pass `--force` to delete a locked
+task anyway. Bootstrap shims aren't user-deletable — they're managed
+by `relay init --update`.
+
 ## relay panic --task \<slug\> --reason "..."
 
 Agent gives up. Writes a blocker to the ticket, posts to Slack naming
@@ -154,6 +164,7 @@ only; they don't accept their own flags.
 - Surfacing a non-blocker note tied to a step transition → `relay bump --message`.
 - Surfacing a non-blocker note that doesn't fit a transition → `relay slack`.
 - Surfacing a blocker → `relay panic`.
+- Throwing away an abandoned ticket → `relay delete <slug>`.
 
 There's also `relay validate [--json] [--fix] [--check-slack]`, a static
 repo + config diagnostic. `--fix` is deliberately narrow: it creates missing

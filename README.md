@@ -235,6 +235,20 @@ the explicit command surfaces the error.
 relay automerge   # one-shot. Safe to run by hand.
 ```
 
+### `relay delete <slug> [--force]`
+
+Throw away an abandoned ticket. Removes the whole task directory —
+ticket, blackboard, log. Recovery is via `git restore`; the git
+history is the audit trail, no Slack broadcast.
+
+Refuses if `task.lock` is held; pass `--force` to delete a locked
+task anyway. Bootstrap shims aren't user-deletable — they're managed
+by `relay init --update`.
+
+```sh
+relay delete add-retry
+```
+
 ### `relay panic --task <slug> --reason "..."`
 
 The agent gives up. Writes a blocker entry to the ticket, posts to the
