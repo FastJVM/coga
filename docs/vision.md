@@ -151,7 +151,7 @@ Most recurring operational work in a technical company passes all three question
 
 The methodology describes itself using its own primitives. Two meta-skills make this possible.
 
-**Dream** is a recurring task that scans the repo and proposes improvements. Gaps in context coverage, workflows that should exist but don't, skills referenced but not written, contexts that contradict recent blackboards. It writes proposals; we accept or reject. The contexts stay current not because we maintain them on a schedule, but because the system surfaces gaps in the flow of work.
+**Dream** is per-repo recurring maintenance that scans one Relay project and proposes improvements. Gaps in context coverage, workflows that should exist but don't, skills referenced but not written, contexts that contradict recent blackboards. It is not a global service or a bootstrap shim; each repo owns its Dream run, workers, blackboard, and review cadence. It writes proposals; we accept or reject. The contexts stay current not because we maintain them on a schedule, but because the system surfaces gaps in the flow of work.
 
 **Create** is a skill that runs during task creation. Give it a title and description, it asks clarifying questions, proposes which contexts and workflows apply, and drafts the ticket. We review before confirming. Most of our task creation goes through this — it's how new work gets slotted into the existing substrate without us having to remember what's there.
 
@@ -169,7 +169,7 @@ When an agent gets something wrong, we update the relevant context before closin
 
 Panic thresholds get tuned per task, not set globally. An agent that never panics silently ships wrong answers. One that panics on every ambiguity is useless. Each auto-mode task gets its own calibration, revisited when we see failures.
 
-Dream runs weekly, with a human reviewing every proposal. Not "eventually." Weekly. If we skip it, drift compounds and we notice three months later when the system starts failing in ways we don't understand.
+Dream runs weekly per repo, with a human reviewing every proposal. Not "eventually." Weekly. If we skip it, drift compounds and we notice three months later when the system starts failing in ways we don't understand.
 
 Skills and contexts stay separate. Process knowledge in skills, domain knowledge in contexts. When a new piece of knowledge straddles the line, we split it. The distinction holds only because we enforce it in review.
 

@@ -22,6 +22,7 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
 
     assert "name: retro/done-ticket" in text
     assert "prompt-only Codex skill" in text
+    assert "knowledge-extraction gate for" in text
     assert "## Known Skill Contract" in text
     assert "- Action: `pr-required`" in text
     assert "the source task blackboard contains a `## Retro` section" in text
@@ -31,6 +32,9 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "This skill is invoked with one parameter: the done ticket slug" in text
     assert "Do not:" in text
     assert "delete the source ticket directory" in text
+    assert "## Retro" in text
+    assert "status: processed" in text
+    assert "result: <knowledge-pr | no-new-durable-knowledge>" in text
     assert "delete local or remote git branches" in text
     assert "Repeatable process knowledge" in text
     assert "Inventory skills." in text

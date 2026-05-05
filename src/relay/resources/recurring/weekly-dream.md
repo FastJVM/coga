@@ -10,8 +10,9 @@ owner: marc
 
 ## Description
 
-Run the dream skill: scan the Relay repo for knowledge gaps, broken references,
-stale locks, and workflow patterns. Write proposals to this task's blackboard.
-Post a one-line summary to Slack.
+Run Dream for this Relay repo: scan for knowledge gaps, broken references,
+stale locks, done-ticket Retro cleanup needs, and workflow patterns. Write
+worker results and proposals to this task's blackboard. Post a one-line summary
+to Slack.
 
-See `skills/bootstrap/dream/SKILL.md` for the full instructions.
+See the repo's Dream skill for the full instructions.

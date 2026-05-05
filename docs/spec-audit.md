@@ -283,7 +283,7 @@ footnote.
 
 ### `relay validate` (`commands/validate.py` → `validate.py`)
 
-Per spec the dream/drift skill embeds a deterministic validator. The
+Per spec Dream's validate-drift worker consumes a deterministic validator. The
 validator is exposed as `relay validate [--json] [--check-slack]`
 (thin Typer wrapper) and as `python -m relay.validate` (the underlying
 module entry point).
@@ -300,7 +300,9 @@ module entry point).
 | `--json` output | ✅ | |
 | Exit 0 / 1 / 2 (clean / issues / tool error) | ✅ | |
 
-⚠️ Validator is **not invoked by the dream skill yet** — `bootstrap/dream/scan.py` exists but the spec links validation to the dream skill. Confirm wiring or rephrase spec.
+✅ Validator integration is modeled through the independent validate-drift
+worker. Dream owns orchestration and result summary; the validator remains the
+deterministic CLI surface.
 
 ---
 
@@ -368,25 +370,23 @@ Behavior matches spec: interview, scan inventory, edit frontmatter, edit
 description, note rationale on blackboard, stop at draft, never invent
 workflows or contexts.
 
-### `bootstrap/dream` skill
+### Dream recurring maintenance
 
-🟡 Implemented:
+🟡 Implemented as the first-wave recurring maintenance model:
 
-- `src/relay/resources/skills/bootstrap/dream/SKILL.md`
-- `src/relay/resources/skills/bootstrap/dream/scan.py`
-- `src/relay/resources/workflows/bootstrap/dream-run.md`
+- Dream orchestrator skill and known workers in the Relay-owned skill
+  templates
 - `src/relay/resources/recurring/weekly-dream.md`
 
 Wiring gaps to verify:
 
-- The recurring template `weekly-dream.md` is in `resources/`, not
-  copied into a fresh `relay-os/` by `init` (only `_template.md`
-  scaffolds get installed). Either ship the active template or
-  document that users opt in.
-- The deterministic validator (`relay.validate`) is mentioned in spec
-  as belonging to the dream skill, but `scan.py` is a separate piece of
-  Python and doesn't call `relay.validate`. Decide whether dream owns
-  validation or just consumes it.
+- Dream should be documented as per-repo recurring maintenance, not a
+  bootstrap shim. Bootstrap remains for stateless launch helpers.
+- The recurring template and workflow names should match the current Dream
+  model when the resource move lands.
+- The deterministic validator (`relay validate`) is now the surface consumed by
+  the `validate-drift` Dream worker; Dream owns orchestration and worker
+  summary, not validator internals.
 
 ### Bootstrap shim tickets
 
@@ -398,8 +398,8 @@ works at `launch.py:54-63` via `_scaffold_from_shim`.
 
 ### `bootstrap/ticket` is the only shim shipped
 
-Future shims (`bootstrap/dream`, etc.) are anticipated by spec but not
-yet present.
+Future recurring maintenance loops should be modeled as recurring tasks and
+skills, not bootstrap shims.
 
 ---
 
@@ -572,7 +572,7 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
 28. **Archival of done tasks** — none; `relay status` lists everything,
     grep filters as needed.
 29. **Task dependencies** — none; freeform on blackboard.
-30. **Context/skill staleness** — only via dream skill review.
+30. **Context/skill staleness** — only via Dream review.
 31. **Git merge conflicts** — manual. One-task-one-worker keeps this
     rare.
 32. **Prompt-size detection** — none.

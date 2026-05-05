@@ -5,15 +5,17 @@ description: Scan the Relay repo for knowledge gaps, broken references, stale lo
 
 # Dream
 
-Dream is Relay's bootstrap maintenance feature. It runs a small set of known
-maintenance skills, then summarizes what happened for a human reviewer. Do not
-turn Dream into one large cleanup script, and do not treat it as a project
-extension registry.
+Dream is per-repo recurring maintenance. A Dream run is an ordinary task in
+one project repo: it runs a small set of known maintenance workers, writes
+their results to the run blackboard, and summarizes what happened for a human
+reviewer. Do not turn Dream into one large cleanup script, a global service, or
+a project extension registry.
 
-The shipped skill lives at `relay-os/skills/bootstrap/dream/SKILL.md`. Known
-skills may live under `relay-os/skills/bootstrap/dream/tasks/`, but they run
-only when this orchestrator names them. Adding arbitrary files under `tasks/`
-does not enable them.
+Bootstrap is for stateless launch helpers. Dream is not a bootstrap shim; if a
+repo still carries this skill under `skills/bootstrap/dream`, treat that as the
+current template location, not the model to copy for new recurring maintenance.
+Known workers run only when this orchestrator names them. Adding arbitrary
+files under a Dream task directory does not enable them.
 
 ## Step 1 - Run the known Dream skills
 
@@ -21,17 +23,15 @@ Run these known skills in this order:
 
 | Skill | When to run | Result |
 | --- | --- | --- |
-| `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
+| `validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
 | `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
-| `bootstrap/dream/tasks/dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
+| `dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
 
 That list is the dispatch contract. Dream does not recursively discover skill files
 and it does not offer a project-level plugin API. If a repo wants a different
-maintenance loop, it can define one directly in user space, for example `rem`,
-`ops/dream`, or another normal skill/workflow/recurring task. That user-space
-loop owns its own dispatch rules, state, naming, and conventions; it is not
-plugged into bootstrap Dream. Relay's shipped Dream remains this explicit
-bootstrap feature.
+maintenance loop, it can define one directly as another normal
+skill/workflow/recurring task. That loop owns its own dispatch rules, state,
+naming, and conventions; it is separate from this Dream orchestrator.
 
 ## Known Skill Contract
 
@@ -137,6 +137,8 @@ not delete branches.
 
 The `retro/done-ticket` skill is prompt-only. Dream's job is to choose a
 candidate and avoid duplicates; Retro owns the knowledge extraction PR.
+This is the retro-first, delete-second cleanup rule: Retro marks first, then
+Dream may delete later only when the cleanup gate is satisfied.
 
 Idempotency marker:
 

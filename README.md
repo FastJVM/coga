@@ -129,6 +129,20 @@ Scan `relay-os/recurring/` and scaffold any due tasks. Called from
 `scaffold_task()` in `relay.scaffold` directly with the template's full
 frontmatter.
 
+### Dream
+
+Dream is per-repo recurring maintenance: a scheduled task in one `relay-os/`
+that runs known workers, writes results to that run's blackboard, and leaves a
+human-reviewable trail. It is not a global service and not a bootstrap shim.
+Bootstrap remains for stateless launch helpers such as `bootstrap/ticket`.
+
+Dream orchestration and Dream workers are separate. The orchestrator decides
+which known workers apply and summarizes their results; workers such as
+`validate-drift`, `retro/done-ticket`, and `dev/stale-branches` own their
+inputs, allowed changes, and idempotency rules. Done-ticket cleanup is
+retro-first: extract durable knowledge and mark the source task before deleting
+the task directory in a reviewable PR.
+
 ### `relay launch <target> [title]`
 
 Compose every relevant file for a task — rules, project context, ticket,

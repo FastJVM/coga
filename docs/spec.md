@@ -407,7 +407,7 @@ fix-retry-logic/
 
 **One task, one worker.** A task has exactly one assignee at a time — one human or one agent. Multiple workers never write to the same task concurrently. This is a deliberate v1 constraint for small teams (2-5 people). It means the lock file doesn't need to handle contention beyond accidental overlap (e.g., a human and an agent both running a CLI command on the same task at the same moment).
 
-**Locks are local-only.** Lock files use file existence on the local filesystem. They serialize concurrent access on a single machine — they do not provide distributed locking across machines. This is sufficient under the one-task-one-worker constraint: if Marc's agent is working on task 003, Pierre's agent is not. Git merge conflicts on lock files are not expected in normal operation. If they occur, delete the lock and re-acquire — the dream/drift validation script covers stale lock detection.
+**Locks are local-only.** Lock files use file existence on the local filesystem. They serialize concurrent access on a single machine — they do not provide distributed locking across machines. This is sufficient under the one-task-one-worker constraint: if Marc's agent is working on task 003, Pierre's agent is not. Git merge conflicts on lock files are not expected in normal operation. If they occur, delete the lock and re-acquire — Dream's validate-drift worker covers stale lock detection.
 
 **log.md** is append-only and structured. Written exclusively by CLI commands as a side effect — `relay launch`, `relay bump`, `relay panic`, and `relay create` all append to `log.md` when they execute. Agents and humans do not write to `log.md` directly. If agents need to record unstructured observations, they write to the blackboard. Format:
 
@@ -458,7 +458,7 @@ The default template:
 
 ## Blockers
 <!-- Anything stalling progress. Human or agent can write. -->
-<!-- The dream/drift validation script will flag tasks with open blockers and no recent log activity. -->
+<!-- Dream's validate-drift worker will flag tasks with open blockers and no recent log activity. -->
 
 ---
 
@@ -596,7 +596,7 @@ holder: claude1
 acquired: 2025-01-14T10:32:00Z
 ```
 
-The dream/drift validation script reads the `acquired` timestamp to detect stale locks (likely a crashed agent). Two fields, that's it.
+The validate-drift worker reads the `acquired` timestamp to detect stale locks (likely a crashed agent). Two fields, that's it.
 
 ---
 
@@ -628,7 +628,7 @@ The dream/drift validation script reads the `acquired` timestamp to detect stale
 
 The blackboard is the persistence layer between sessions. An agent that writes to the blackboard frequently (findings, plan updates, decisions) is recoverable. An agent that doesn't write is not. The relay base prompt includes instructions telling the agent to write to the blackboard after meaningful progress.
 
-No automatic crash detection or restart in v1. The dream/drift validation script flags stale locks (suggesting a crash), but recovery is always human-initiated.
+No automatic crash detection or restart in v1. Dream's validate-drift worker flags stale locks (suggesting a crash), but recovery is always human-initiated.
 
 ---
 
@@ -636,31 +636,35 @@ No automatic crash detection or restart in v1. The dream/drift validation script
 
 The system improves itself using its own primitives. They are CLI commands executed as recurring tasks: they're regular tasks that use Relay's existing primitives.
 
-#### Dream skill
+#### Dream
 
-Dream is Relay's bootstrap maintenance feature. It is a recurring orchestrator
-for a small set of known shipped skills, not a project extension framework and
-not one large cleanup script. The shipped skill lives at
-`relay-os/skills/bootstrap/dream/SKILL.md`.
-
-Dream runs only the skills explicitly listed in its own SKILL.md. Adding an
-arbitrary file under `relay-os/skills/bootstrap/dream/tasks/` does not enable
-it. There is no hidden registry, recursive discovery rule, daemon, database, or
+Dream is per-repo recurring maintenance. Each Relay repo owns its Dream
+recurring template, Dream run tasks, blackboard output, and worker list. There
+is no global Dream service, cross-repo scheduler, daemon, database, or hidden
 cache.
 
-This does not prevent user-space maintenance loops. A repo can define `rem`,
-`ops/dream`, or any other ordinary skill/workflow/recurring task directly in
-user space. That loop owns its own dispatch rules, state, naming, and
-conventions. It is separate from bootstrap Dream rather than plugged into it.
-Relay's shipped Dream stays explicit.
+Bootstrap is reserved for stateless launch helpers under
+`relay-os/bootstrap/<name>/ticket.md`. Dream is not a bootstrap shim. It is a
+normal recurring project task, usually `mode: auto`, created by
+`relay recurring check` and launched like any other task.
 
-The current known skill set is:
+Dream is an orchestrator, not one large cleanup script. It runs a small set of
+known maintenance workers, records each worker's result on the Dream run
+blackboard, then performs the higher-judgment scan for knowledge gaps,
+workflow gaps, and stale content. Workers stay independent: each one owns its
+inputs, allowed changes, idempotency proof, and output format.
+
+Dream runs only the workers explicitly listed in its own SKILL.md. Adding an
+arbitrary file under a Dream task directory does not enable it. There is no
+recursive discovery rule or project-extension registry.
+
+The current first-wave worker set is:
 
 | Skill | When to run | Result |
 | --- | --- | --- |
-| `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
+| `validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
 | `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
-| `bootstrap/dream/tasks/dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
+| `dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
 
 Every known Dream skill is an ordinary SKILL.md. Standard frontmatter stays
 small: `name`, `description`, and optional `script` for executable skills. The
@@ -694,8 +698,10 @@ requires exact evidence and human review by default. A skill may declare direct
 destructive behavior only when the rule is deterministic, narrow, and named in
 `May change`; otherwise it uses `proposal-only` or `pr-required`.
 
-Done-ticket Retro uses the source task blackboard as its idempotency marker.
-Retro appends or updates exactly one section:
+Done-ticket cleanup is retro-first, delete-second: Retro marks first, Dream
+deletes later only when the cleanup gate is satisfied. Done-ticket Retro uses
+the source task blackboard as its idempotency marker. Retro appends or updates
+exactly one section:
 
 ```markdown
 ## Retro
@@ -750,7 +756,7 @@ When a human runs `relay create "<title>"` (or says "make me a ticket for X" ins
 5. Notes the rationale in the blackboard's Notes section.
 6. Stops. Status stays at `draft` until the human approves and runs `relay launch`. The skill never launches the task itself.
 
-If nothing in the inventory fits, the skill flags the gap on the blackboard for the dream skill to act on later — it never invents a workflow or context that doesn't exist.
+If nothing in the inventory fits, the skill flags the gap on the blackboard for Dream to act on later — it never invents a workflow or context that doesn't exist.
 
 #### Bootstrap tickets
 
@@ -772,8 +778,9 @@ remembering the prompt by heart, Relay ships persistent shim tickets under
   writes notes there. It does not participate in `relay status`.
 
 `bootstrap/ticket` is the canonical example: it's how a fresh `relay-os/`
-gets a "type one command and start authoring tasks" entry point. Future
-shims (`bootstrap/dream`, etc.) follow the same shape.
+gets a "type one command and start authoring tasks" entry point. Recurring
+maintenance such as Dream does not follow this shape; it is modeled as
+scheduled project work under `relay-os/recurring/`.
 
 #### Why this matters
 
@@ -836,7 +843,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 ### Who edits what
 
-**Humans** edit files directly — reassign a task, adjust context refs, tweak a workflow, update skills. The dream/drift skill includes a validation script that checks repo consistency (stale locks, broken references, invalid state) as part of its recurring run.
+**Humans** edit files directly — reassign a task, adjust context refs, tweak a workflow, update skills. Dream's validate-drift worker checks repo consistency (stale locks, broken references, invalid state) as part of the recurring maintenance run.
 
 **Agents** edit files directly — write to the blackboard, update frontmatter fields (contexts, blockers). Agents call background commands within their self-service boundary, as taught by the relay base prompt.
 
@@ -1147,7 +1154,7 @@ Items to evaluate after v1 is built and used. Not designed yet.
 
 **`relay recurring`** — kept as a real subcommand. `relay recurring check` scans templates and scaffolds any due tasks; the cron job calls it directly. (Earlier draft absorbed it into `relay create --check-recurring`; once `relay create` became a thin alias, hanging the recurring flag on it stopped making sense.)
 
-**`relay check`** — removed as standalone command. Repo validation (stale locks, broken references, invalid state) is now a deterministic script inside the dream/drift skill. The skill runs the script, the agent interprets the output.
+**`relay check`** — removed as standalone command. Repo validation (stale locks, broken references, invalid state) is now the deterministic `relay validate` surface consumed by Dream's validate-drift worker. The worker runs the command, and the Dream run summarizes the output.
 
 **`relay sync`** — removed. Was a ghost reference in the error model with no spec. Git push/pull is manual.
 
@@ -1190,7 +1197,7 @@ Lock format is defined (holder + acquired timestamp, file-existence based). The 
 - When is it released? On process exit? On `relay bump` to `done`? On `relay panic`?
 - What happens on Ctrl+C in interactive mode — is release tied to a signal handler?
 - Does `mode: script` acquire a lock?
-- Stale lock detection threshold — how long before the dream/drift script considers a lock stale?
+- Stale lock detection threshold — how long before validate-drift considers a lock stale?
 
 #### Interactive and auto prompt blocks
 
@@ -1214,7 +1221,7 @@ When `relay bump` advances to a step where a different person should take over (
 
 - What happens to the workflow step when status moves to `paused` then back to `active`? (Expected: resumes at same step. Confirm.)
 - What happens to the workflow step when status moves to `draft`? (Expected: preserves step. Confirm.)
-- Should invalid transitions be rejected or just warned about by the dream/drift validation script?
+- Should invalid transitions be rejected or just warned about by validate-drift?
 
 #### Workflow-less tasks
 
@@ -1280,8 +1287,8 @@ Open: should `relay bump`, `relay panic`, `relay slack` infer the task from the 
 
 #### Context/skill staleness
 
-- No mechanism to flag stale skills or contexts beyond the dream skill's periodic scan.
-- Dream skill likely handles this. Revisit if it doesn't.
+- No mechanism to flag stale skills or contexts beyond Dream's periodic scan.
+- Dream likely handles this. Revisit if it doesn't.
 
 #### Git merge conflicts
 
