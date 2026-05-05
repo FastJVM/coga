@@ -10,10 +10,14 @@ nothing, this step is a no-op — bump and move on.
 
 ## Order of operations
 
-1. **Read `## Self-review` on the blackboard.** If it says "no findings",
-   note that under a `## Fix` section ("nothing to apply") and bump.
-2. **Apply must-fix and should-fix items.** Skip optional items unless
-   the change is trivial and obviously worth it.
+1. **Read `## Self-review` on the blackboard.** Also read `branch:` and
+   `worktree:` under `## Dev`. If review says "no findings", note that
+   under a `## Fix` section ("nothing to apply") and bump from the
+   primary checkout.
+2. **Apply must-fix and should-fix items in the feature worktree.**
+   Change into the recorded worktree, confirm it is on the recorded
+   branch with a clean working tree, and apply fixes there. Skip optional
+   items unless the change is trivial and obviously worth it.
 3. **Push back** on any finding you disagree with by writing a one-line
    rebuttal under `## Fix` on the blackboard. Don't silently ignore.
 4. **Test.** Re-run `python -m pytest`. If validation changed, re-run
@@ -21,7 +25,8 @@ nothing, this step is a no-op — bump and move on.
 5. **Commit.** One commit summarizing the review fixes is fine
    ("review: address self-review findings"). Reference the ticket slug
    in the body.
-6. **Bump.** Run `relay bump <slug>` to advance to `pr`.
+6. **Bump from the primary checkout.** Return to the primary checkout
+   and run `relay bump <slug>` to advance to `pr`.
 
 ## Acceptance for this step
 
