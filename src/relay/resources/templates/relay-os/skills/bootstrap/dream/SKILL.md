@@ -22,7 +22,7 @@ Run these known skills in this order:
 | Skill | When to run | Result |
 | --- | --- | --- |
 | `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
-| `retro/done-ticket` | When an existing done ticket lacks a `## Retro` / `status: processed` blackboard marker and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
+| `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
 | `bootstrap/dream/tasks/dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
 
 That list is the dispatch contract. Dream does not recursively discover skill files
@@ -67,7 +67,7 @@ destructive behavior only when the rule is deterministic, narrow, and named in
 `May change`; otherwise use `proposal-only` or `pr-required`.
 
 Each known skill must also define its idempotency proof. Examples: a
-source-task blackboard `## Retro` marker for a done-ticket retro, a
+source-task blackboard `## Retro` marker with `skill: retro/done-ticket`, a
 deterministic validation command whose safe fixes are idempotent, or "no repo
 mutation; rerun regenerates the same proposal."
 
@@ -153,12 +153,13 @@ Selection rules:
 
 1. Read every existing task with `status: done`.
 2. Read `relay-os/tasks/<slug>/blackboard.md`.
-3. If the blackboard has `## Retro` with `status: processed`, do not run
-   Retro again. The ticket is processed and can be deleted when the cleanup
-   gate is satisfied.
+3. If the blackboard has `## Retro` with `skill: retro/done-ticket` and
+   `status: processed`, do not run Retro again. The ticket is processed and can
+   be deleted when the cleanup gate is satisfied.
 4. If the marker is absent, inspect open PRs before launching Retro. An open
    PR counts as in flight when its diff adds the same `## Retro` /
-   `status: processed` marker to `relay-os/tasks/<slug>/blackboard.md`.
+   `skill: retro/done-ticket` / `status: processed` marker to
+   `relay-os/tasks/<slug>/blackboard.md`.
 5. If no current marker and no open PR marker exists, run `retro/done-ticket
    <slug>` for one selected done ticket. Prefer one Retro PR per Dream run
    unless a human asks for a batch.

@@ -33,9 +33,10 @@ def test_dream_orchestrator_documents_worker_contract() -> None:
     assert "plugged into bootstrap Dream" in text
     assert "## Known Skill Contract" in text
     assert "report-only | proposal-only | pr-required | direct-fix" in text
-    assert "source-task blackboard `## Retro` marker" in text
+    assert "source-task blackboard `## Retro` marker with `skill: retro/done-ticket`" in text
     assert "## Known skill - retro/done-ticket" in text
     assert "status: processed" in text
+    assert "skill: retro/done-ticket" in text
     assert "An open\n   PR counts as in flight" in text
     assert "Absence of the marker on an existing done ticket" in text
     assert "git history for the deleted `blackboard.md`" in text

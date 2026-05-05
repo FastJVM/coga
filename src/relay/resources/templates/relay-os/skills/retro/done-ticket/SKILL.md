@@ -23,7 +23,8 @@ durable knowledge into the right markdown block.
   task's `blackboard.md` only.
 - Action: `pr-required`
 - Idempotency: the source task blackboard contains a `## Retro` section with
-  `status: processed`. An open PR adding that same marker counts as in flight.
+  `skill: retro/done-ticket` and `status: processed`. An open PR adding that
+  same marker counts as in flight.
 - Stop and ask: the slug is ambiguous, the task is not `status: done`, any
   required evidence file is missing, or the diff would touch anything outside
   the allowed files.

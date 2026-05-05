@@ -25,6 +25,7 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "## Known Skill Contract" in text
     assert "- Action: `pr-required`" in text
     assert "the source task blackboard contains a `## Retro` section" in text
+    assert "`skill: retro/done-ticket` and `status: processed`" in text
     assert "read every context file under `relay-os/contexts/**/SKILL.md`" in text
     assert "read every skill file under `relay-os/skills/**/SKILL.md`" in text
     assert "This skill is invoked with one parameter: the done ticket slug" in text

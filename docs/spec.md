@@ -659,7 +659,7 @@ The current known skill set is:
 | Skill | When to run | Result |
 | --- | --- | --- |
 | `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
-| `retro/done-ticket` | When an existing done ticket lacks a `## Retro` / `status: processed` blackboard marker and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
+| `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
 | `bootstrap/dream/tasks/dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
 
 Every known Dream skill is an ordinary SKILL.md. Standard frontmatter stays
