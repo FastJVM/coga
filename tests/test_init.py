@@ -921,7 +921,7 @@ def test_running_cli_location_detects_vendored(
 
     kind, where = update_cmd.running_cli_location(relay_os)
     assert kind == "vendored"
-    assert where == venv.resolve()
+    assert where == venv.absolute()
 
 
 def test_running_cli_location_detects_pipx(
@@ -929,14 +929,14 @@ def test_running_cli_location_detects_pipx(
 ) -> None:
     relay_os = tmp_path / "project" / "relay-os"
     relay_os.mkdir(parents=True)
-    pipx_venv = tmp_path / "home" / ".local" / "share" / "pipx" / "venvs" / "relay"
+    pipx_venv = tmp_path / "home" / ".local" / "share" / "pipx" / "venvs" / "relay-os"
     py = _stub_executable_in(pipx_venv)
     (pipx_venv / "pipx_metadata.json").write_text("{}\n")
     monkeypatch.setattr(update_cmd.sys, "executable", str(py))
 
     kind, where = update_cmd.running_cli_location(relay_os)
     assert kind == "pipx"
-    assert where == pipx_venv.resolve()
+    assert where == pipx_venv.absolute()
 
 
 def test_running_cli_location_falls_through_to_other(
@@ -950,7 +950,42 @@ def test_running_cli_location_falls_through_to_other(
 
     kind, where = update_cmd.running_cli_location(relay_os)
     assert kind == "other"
-    assert where == other_venv.resolve()
+    assert where == other_venv.absolute()
+
+
+def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression for the macOS-Homebrew pipx case.
+
+    pipx creates `<venv>/bin/python` as a symlink to whatever Python it was
+    invoked with (Homebrew, pyenv, system). Following the symlink lands in
+    the host Python's framework dir, which doesn't have `pipx_metadata.json`.
+    Detection must work off the unresolved venv path.
+    """
+    relay_os = tmp_path / "project" / "relay-os"
+    relay_os.mkdir(parents=True)
+
+    # Mimic Homebrew's framework Python at a totally unrelated path.
+    host_py_dir = tmp_path / "opt" / "homebrew" / "Cellar" / "python@3.14" / "bin"
+    host_py_dir.mkdir(parents=True)
+    host_py = host_py_dir / "python3.14"
+    host_py.write_text("#!/bin/sh\n")
+    host_py.chmod(0o755)
+
+    pipx_venv = tmp_path / "home" / ".local" / "pipx" / "venvs" / "relay-os"
+    (pipx_venv / "bin").mkdir(parents=True)
+    (pipx_venv / "pipx_metadata.json").write_text("{}\n")
+    pipx_python = pipx_venv / "bin" / "python"
+    pipx_python.symlink_to(host_py)
+    monkeypatch.setattr(update_cmd.sys, "executable", str(pipx_python))
+
+    kind, where = update_cmd.running_cli_location(relay_os)
+    assert kind == "pipx", (
+        "symlink resolution would land in homebrew Cellar; detection must "
+        "stay on the unresolved venv path so pipx_metadata.json is found"
+    )
+    assert where == pipx_venv.absolute()
 
 
 def test_upgrade_global_cli_vendored_is_noop() -> None:
@@ -974,7 +1009,7 @@ def test_upgrade_global_cli_pipx_success(monkeypatch: pytest.MonkeyPatch) -> Non
     status, detail = update_cmd.upgrade_global_cli("pipx")
     assert status == "pipx-upgraded"
     assert detail == "upgraded relay 0.2.0 -> 0.3.0"
-    assert captured == [["/usr/bin/pipx", "upgrade", "relay"]]
+    assert captured == [["/usr/bin/pipx", "upgrade", "relay-os"]]
 
 
 def test_upgrade_global_cli_pipx_failure(monkeypatch: pytest.MonkeyPatch) -> None:
