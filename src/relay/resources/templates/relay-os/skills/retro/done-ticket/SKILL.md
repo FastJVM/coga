@@ -16,8 +16,7 @@ Do:
 
 - read the done ticket directory named by the slug passed to this skill;
 - read every context file under `relay-os/contexts/**/SKILL.md`;
-- read every skill file under `relay-os/skills/**/SKILL.md` when the ticket
-  contains process-looking knowledge;
+- read every skill file under `relay-os/skills/**/SKILL.md`;
 - decide whether the ticket contains new, useful durable knowledge;
 - update, create, split, merge, or delete context blocks when warranted;
 - update or create a skill only when the ticket contains repeatable process
@@ -49,7 +48,7 @@ Required files:
 - `relay-os/tasks/<slug>/blackboard.md`
 - `relay-os/tasks/<slug>/log.md`
 - `relay-os/contexts/**/SKILL.md`
-- `relay-os/skills/**/SKILL.md` when skill-like process knowledge is present
+- `relay-os/skills/**/SKILL.md`
 
 Stop and ask if the task slug is ambiguous, the task is not `status: done`, or
 any required task evidence file is missing.
@@ -61,10 +60,11 @@ any required task evidence file is missing.
    `name`, `description`, headings, and the knowledge it already covers. This
    inventory is the baseline for deciding whether ticket knowledge is new.
 
-2. **Inventory skills if needed.**
-   If the ticket appears to contain repeatable process knowledge, read
-   `relay-os/skills/**/SKILL.md` before proposing skill edits. Do not edit or
-   create a skill until you know the process is not already covered.
+2. **Inventory skills.**
+   Read all `relay-os/skills/**/SKILL.md`. For each skill, note its path,
+   `name`, `description`, headings, and the process it already covers. This
+   inventory is the baseline for deciding whether ticket knowledge belongs in a
+   skill and whether the process is already covered.
 
 3. **Read the ticket evidence.**
    Read `ticket.md`, `blackboard.md`, and `log.md`. Extract candidate durable
