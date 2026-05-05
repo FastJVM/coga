@@ -14,11 +14,17 @@ later `code/open-pr` step does that, after self-review and fixes.
 1. **Read the ticket carefully.** Description, acceptance criteria,
    referenced files. If anything is ambiguous, write the ambiguity to
    the blackboard and stop — do not guess.
-2. **Branch.** `git checkout -b <branch-name>` from `main`. Pick a
-   short descriptive name — it does *not* have to match the slug.
-   Then write `branch: <branch-name>` under a `## Dev` section on the
-   blackboard. See the `dev/code` context for the full convention.
-3. **Implement.** Match existing code style. Keep changes scoped to the
+2. **Create a feature worktree.** From the primary checkout on `main`,
+   create a feature branch in a separate worktree outside the repo
+   directory, for example:
+   `git worktree add ../relay-<branch-name> -b <branch-name> main`.
+   Pick a short descriptive branch name — it does
+   *not* have to match the slug. Then return to the primary checkout and
+   write `branch: <branch-name>` and `worktree: <path>` under a `## Dev`
+   section on the blackboard. See the `dev/code` context for the full
+   convention.
+3. **Implement in the worktree.** Change into the feature worktree and
+   match existing code style. Keep changes scoped to the
    ticket — no opportunistic refactors. If you find a real adjacent bug,
    write it on the blackboard for a follow-up ticket; don't fix it here.
 4. **Test.** Add a regression test before the fix when the ticket is a
@@ -28,11 +34,13 @@ later `code/open-pr` step does that, after self-review and fixes.
    prompt composition, or workflow semantics (per CLAUDE.md).
 6. **Commit.** Conventional, present-tense summary line. Reference the
    ticket slug in the body. One commit per logical change is fine.
-7. **Bump.** Run `relay bump <slug>` to advance to `review`.
+7. **Bump from the primary checkout.** Return to the primary checkout
+   and run `relay bump <slug>` to advance to `review`.
 
 ## Acceptance for this step
 
-- Local branch exists; its name is recorded under `## Dev` on the blackboard.
+- Local branch and feature worktree exist; both are recorded under `## Dev`
+  on the blackboard.
 - Tests pass locally.
 - Changes committed (no working-tree modifications left).
 - No push, no PR yet.

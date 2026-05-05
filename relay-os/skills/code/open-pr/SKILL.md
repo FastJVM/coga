@@ -12,20 +12,26 @@ yourself.
 
 ## Order of operations
 
-1. **Push** the branch.
-2. **Open the PR** with `gh pr create`. If the `code/self-review` step
+1. **Find the feature worktree.** Read `branch:` and `worktree:` under
+   `## Dev` on the blackboard. Change into that worktree and confirm
+   it is on the recorded branch with a clean working tree.
+2. **Push** the branch from the feature worktree.
+3. **Open the PR** with `gh pr create`. If the `code/self-review` step
    already opened a draft, run `gh pr ready <PR#>` instead. Title =
    ticket title. Body = short summary + "Closes ticket: `<slug>`" + a
    one-line test plan.
-3. **Blackboard the URL.** Add `pr: <url>` under the `## Dev`
-   section on the blackboard (see the `dev/code` context).
-4. **Bump.** Run `relay bump <slug>` to advance to the next step.
+4. **Blackboard the URL from the primary checkout.** Return to the
+   primary checkout and add `pr: <url>` under the `## Dev` section on
+   the blackboard (see the `dev/code` context).
+5. **Bump from the primary checkout.** Run `relay bump <slug>` to
+   advance to the next step.
 
 ## Acceptance for this step
 
 - A PR exists, links the ticket, and is green on CI (or the failure is
   noted on the blackboard with a reason).
-- The blackboard has `pr: <url>` under `## Dev`.
+- The blackboard has `branch:`, `worktree:`, and `pr: <url>` under
+  `## Dev`.
 - `relay bump` has advanced the workflow.
 
 ## What this skill does NOT do

@@ -17,14 +17,26 @@ The fix is small and explicit: the agent records the branch and PR
 on the ticket's blackboard in a known shape. Anything that needs the
 link reads it directly.
 
+## Checkout boundary
+
+Treat the primary repo checkout as the Relay control-plane checkout.
+Keep it on `main` when possible. Do code changes in a feature worktree
+outside the primary checkout, then return to the primary checkout for
+blackboard updates, `relay bump`, `relay slack`, and `relay panic`.
+
+This keeps task-state edits (`ticket.md`, `blackboard.md`, `log.md`)
+from mixing with source changes on a feature branch. If task-state
+changes need to be committed, commit them separately from the code PR.
+
 ## The `## Dev` blackboard section
 
 Every code-style ticket gets a `## Dev` section near the top of its
-blackboard, with named lines. Two are canonical:
+blackboard, with named lines. Three are canonical:
 
 ```
 ## Dev
 branch: <branch-name>
+worktree: <path-to-feature-worktree>
 pr: <pr-url>
 ```
 
@@ -33,12 +45,16 @@ When to write each:
 - **`branch:`** — the moment you create the branch. Don't wait until
   the PR is open. If you crash or hand off mid-step, the next agent
   needs to know which branch your work is on.
+- **`worktree:`** — the moment you create the feature worktree. Use a
+  path outside the primary checkout so it does not appear as an
+  untracked directory in the control-plane checkout.
 - **`pr:`** — as soon as `gh pr create` returns the URL. One line,
   the full URL.
 
 Update in place, don't append. If you rebase onto a renamed branch
-or open a fresh PR, overwrite the existing line. The blackboard
-records *current* state, not history (that's `log.md`'s job).
+or create a fresh worktree or PR, overwrite the existing line. The
+blackboard records *current* state, not history (that's `log.md`'s
+job).
 
 ## Why a section, not frontmatter
 
