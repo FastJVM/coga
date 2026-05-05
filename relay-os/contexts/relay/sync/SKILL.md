@@ -42,6 +42,19 @@ panics, slack FYIs) each broadcast on their own. A "started work" line per
 launch would turn the channel into a session log instead of a state
 log.
 
+## First diagnostic for missing posts
+
+When a Slack notification appears not to fire, first verify that a
+Slack-posting Relay command actually ran. Slack posts are side effects
+of state-changing commands such as `relay bump`, `relay panic`,
+`relay slack`, launch draft activation, recurring scaffolds,
+script-mode failures, and automerge. If an agent finishes local work
+but skips `relay bump`, there is no Slack post to debug; the sync path
+was never exercised.
+
+Only move on to webhook, config, network, or Slack channel debugging
+after confirming that the command reached `slack.post(...)`.
+
 ## Required by default
 
 When `[slack].enabled` is true (the default), commands crash on any
