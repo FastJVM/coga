@@ -638,13 +638,13 @@ The system improves itself using its own primitives. They are CLI commands execu
 
 #### Dream
 
-Dream is the recurring maintenance pass for one Relay repo. A Dream run is an
-ordinary scheduled task, usually `mode: auto`, created by
+Dream is Relay's generic ticket cleanup pass for one Relay repo. A Dream run is
+an ordinary scheduled task, usually `mode: auto`, created by
 `relay recurring check` and launched like any other task. The recurring task
-body is the instruction surface: scan the ticket set, run known maintenance
-skills in a fixed order, and write a reviewable summary to that run's
-blackboard. There is no global Dream service, cross-repo scheduler, daemon,
-database, hidden cache, or plugin registry.
+body is the instruction surface: scan every ticket, run known Relay
+housekeeping skills in a fixed order, propose cleanup, and write a reviewable
+summary to that run's blackboard. There is no global Dream service, cross-repo
+scheduler, daemon, database, hidden cache, or plugin registry.
 
 Dream is not a workflow, not a standalone skill, and not one large cleanup
 script. The recurring task owns the order of the pass and the run-level
@@ -653,13 +653,15 @@ proof, and output format. Adding an arbitrary file under a Dream task directory
 does not enable it. The ordered skill list in the recurring Dream task body is
 the dispatch contract.
 
-The current first-wave skill pass is:
+The current first-wave Dream skill pass is:
 
 | Skill | When to run | Result |
 | --- | --- | --- |
 | `validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
 | `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
-| `dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
+
+Branch hygiene, test hygiene, and other code-repo maintenance are dev
+maintenance, not Dream. Put them in a separate dev recurring task or workflow.
 
 Every known maintenance skill is an ordinary SKILL.md. Standard frontmatter
 stays small: `name`, `description`, and optional `script` for executable skills. The
@@ -737,6 +739,24 @@ recommendation. A human reviews and accepts or rejects.
 
 Intended usage: a recurring task (`mode: auto`, scheduled weekly or ad-hoc)
 assigned to an agent. Standard `relay launch`.
+
+#### REM
+
+REM is repo/user-specific recurring maintenance. It is not Relay's generic
+cleanup pass. A REM run is an ordinary recurring task whose body defines the
+repo-specific operational checks to run, which tickets or blackboards to scan,
+which domain skills to call, what outputs to write, and which decisions need
+human review.
+
+Relay ships an inert `relay-os/recurring/_rem.md` starter template. Because the
+filename starts with `_`, `relay recurring check` ignores it until a human
+copies or renames it to a real recurring template and fills in the schedule,
+workflow, owner, assignee, and process body.
+
+REM examples include customer follow-ups, payment or email health checks,
+deployment reviews, domain-specific context audits, and recurring reports.
+Branch hygiene is not part of Dream; if a repo wants it, make a separate dev
+maintenance REM or dev workflow with its own review gates.
 
 #### Create skill
 

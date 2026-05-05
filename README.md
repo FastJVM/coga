@@ -129,20 +129,18 @@ Scan `relay-os/recurring/` and scaffold any due tasks. Called from
 `scaffold_task()` in `relay.scaffold` directly with the template's full
 frontmatter.
 
-### Dream
+### Dream and REM
 
-Dream is a recurring maintenance pass for one `relay-os/`. The scheduled Dream
-task body is the instruction surface: scan the ticket set, run a fixed ordered
-list of known maintenance skills, write results to that run's blackboard, and
-leave a human-reviewable trail. It is not a workflow, a standalone skill, a
-daemon, a global service, or a plugin registry.
+Dream is Relay's generic ticket cleanup pass for one `relay-os/`. The scheduled
+Dream task scans all tickets, runs fixed Relay housekeeping skills such as
+`validate-drift` and `retro/done-ticket`, proposes cleanup, writes results to
+that run's blackboard, and leaves a human-reviewable trail.
 
-The ordered skill list is the contract. Skills such as `validate-drift`,
-`retro/done-ticket`, and `dev/stale-branches` own their inputs, allowed
-changes, and idempotency rules; the Dream task owns the order, ticket
-iteration, and run summary. Done-ticket cleanup is retro-first: extract durable
-knowledge and mark the source task before deleting the task directory in a
-reviewable PR.
+REM is repo/user-specific recurring maintenance. It is opt-in user space: copy
+the inert `relay-os/recurring/_rem.md` template, give it a schedule and
+workflow, and define the operational checks that matter to that repo. Stale
+branch cleanup belongs in a dev maintenance loop, not in Dream's generic ticket
+cleanup pass.
 
 ### `relay launch <target> [title]`
 

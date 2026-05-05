@@ -35,10 +35,12 @@ no in-memory state.
   stateless launch targets for skills. No status, no workflow, no
   lock. `relay launch bootstrap/ticket "title"` is the factory
   shorthand to scaffold a new draft + run the bootstrap skill on it.
-- **Dream** is the recurring maintenance pass for one repo. A Dream run is an
-  ordinary recurring task whose body scans the ticket set, runs a fixed ordered
-  list of known maintenance skills, and writes reviewable results to its
-  blackboard.
+- **Dream** is Relay's generic ticket cleanup pass. A Dream run is an ordinary
+  recurring task whose body scans the ticket set, runs fixed Relay housekeeping
+  skills, proposes cleanup, and writes reviewable results to its blackboard.
+- **REM** is repo/user-specific recurring maintenance. A REM run is an
+  ordinary recurring task whose body defines that repo's operational checks,
+  domain skills, output conventions, and review gates.
 
 Contexts and skills both use the SKILL.md format (frontmatter `name`
 + `description`, then body). Zero proprietary extensions — same format

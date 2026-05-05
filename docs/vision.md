@@ -151,7 +151,9 @@ Most recurring operational work in a technical company passes all three question
 
 The methodology describes itself using its own primitives. Two self-bootstrapping mechanisms make this possible.
 
-**Dream** is the recurring maintenance pass that scans one Relay project and proposes improvements. A scheduled Dream task carries the process directly in its body: walk the ticket set, run the known maintenance skills in order, and then look for gaps in context coverage, workflows that should exist but don't, skills referenced but not written, and contexts that contradict recent blackboards. It is not a global service, daemon, workflow, standalone skill, or plugin registry; each repo owns its Dream run, blackboard, ordered skill list, and review cadence. It writes proposals; we accept or reject. The contexts stay current not because we maintain them on a schedule, but because the system surfaces gaps in the flow of work.
+**Dream** is Relay's generic cleanup pass. A scheduled Dream task walks the ticket set, runs known Relay housekeeping skills in order, finds done-ticket cleanup work, and looks for gaps in context coverage, workflows that should exist but don't, skills referenced but not written, and contexts that contradict recent blackboards. It is not a global service, daemon, workflow, standalone skill, or plugin registry. It writes proposals; we accept or reject. The contexts stay current not because we maintain them on a schedule, but because the system surfaces gaps in the flow of work.
+
+**REM** is repo/user-specific recurring maintenance. A REM task owns its own schedule, ticket scan, domain skills, output conventions, and review gates. Customer follow-ups, payment checks, deployment reviews, and repo-specific reports belong in REM, not in Dream.
 
 **Create** is a skill that runs during task creation. Give it a title and description, it asks clarifying questions, proposes which contexts and workflows apply, and drafts the ticket. We review before confirming. Most of our task creation goes through this — it's how new work gets slotted into the existing substrate without us having to remember what's there.
 
