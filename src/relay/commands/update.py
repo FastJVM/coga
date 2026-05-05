@@ -295,6 +295,14 @@ def install_venv(relay_os: Path) -> Path:
     return venv_dir
 
 
+# pipx tracks installs by the package distribution name from `pyproject.toml`,
+# not the entry-point binary name. Our binary is `relay`, our package is
+# `relay-os`. Confusingly: `pipx upgrade relay` errors with "Package is not
+# installed" even when the user definitely has it via pipx — they installed
+# `relay-os`. Always pass the distribution name to `pipx`.
+RELAY_PIPX_PACKAGE = "relay-os"
+
+
 def running_cli_location(relay_os: Path) -> tuple[str, Path]:
     """Identify which install of `relay` is currently executing.
 
@@ -305,15 +313,16 @@ def running_cli_location(relay_os: Path) -> tuple[str, Path]:
       - `("other", <venv_root>)` — pip / system python / something else; the
         caller should print a manual-upgrade hint.
 
-    Detection uses `sys.executable`'s parent venv. pipx leaves a
-    `pipx_metadata.json` at every managed venv's root — that's the canonical
-    marker, and what `pipx upgrade` itself relies on.
+    Detection uses the *unresolved* `sys.executable` parent venv. A pipx
+    venv's `bin/python` is a symlink to the host Python (Homebrew, pyenv,
+    system). Resolving the symlink lands in the host's framework dir and
+    misses the `pipx_metadata.json` marker that lives in the venv root.
+    Same trap for vendored — `.venv/bin/python` symlinks to the host too,
+    so resolving makes vendored and pipx and other all collapse onto the
+    same host-python directory and detection silently breaks.
     """
-    venv = Path(sys.executable).resolve().parent.parent
-    try:
-        vendored = (relay_os / ".relay" / ".venv").resolve()
-    except OSError:
-        vendored = relay_os / ".relay" / ".venv"
+    venv = Path(sys.executable).absolute().parent.parent
+    vendored = (relay_os / ".relay" / ".venv").absolute()
     if venv == vendored:
         return ("vendored", venv)
     if (venv / "pipx_metadata.json").is_file():
@@ -326,7 +335,7 @@ def upgrade_global_cli(kind: str) -> tuple[str, str | None]:
 
     Returns `(status, detail)`:
       - `("vendored", None)` — running the vendored copy; no-op.
-      - `("pipx-upgraded", stdout)` — `pipx upgrade relay` succeeded.
+      - `("pipx-upgraded", stdout)` — `pipx upgrade relay-os` succeeded.
       - `("pipx-failed", stderr)` — pipx ran but returned non-zero.
       - `("pipx-missing", None)` — looked like pipx but `pipx` isn't on PATH.
       - `("other", None)` — caller prints manual instructions.
@@ -338,9 +347,9 @@ def upgrade_global_cli(kind: str) -> tuple[str, str | None]:
     pipx = shutil.which("pipx")
     if pipx is None:
         return ("pipx-missing", None)
-    typer.echo("Upgrading your global `relay` (pipx)…")
+    typer.echo(f"Upgrading your global `relay` (pipx upgrade {RELAY_PIPX_PACKAGE})…")
     result = subprocess.run(
-        [pipx, "upgrade", "relay"],
+        [pipx, "upgrade", RELAY_PIPX_PACKAGE],
         capture_output=True,
         text=True,
     )
