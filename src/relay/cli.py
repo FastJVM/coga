@@ -86,6 +86,17 @@ _BUILTIN_COMMANDS = frozenset(
 )
 
 
+# Aliases registered for every user, regardless of whether their `relay.toml`
+# has an `[aliases]` section. Anything in the user's `[aliases]` overrides
+# (same key wins). Keeps `relay create` and `relay chat` discoverable in
+# `--help` — and actually dispatchable — for repos init'd before the alias
+# defaults convention, or where the user dropped the section.
+_DEFAULT_ALIASES: dict[str, str] = {
+    "chat": "launch bootstrap/orient",
+    "create": "launch bootstrap/ticket",
+}
+
+
 def _validate_aliases(aliases: dict[str, str]) -> None:
     """Reject aliases that collide with built-ins or expand to unknown commands."""
     for name, expansion in aliases.items():
@@ -138,15 +149,15 @@ def main() -> None:
             typer.secho(msg, fg=typer.colors.RED, err=True)
             sys.exit(2)
 
-    aliases = cfg.aliases if cfg else {}
-    if aliases:
-        try:
-            _validate_aliases(aliases)
-        except ConfigError as exc:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-            sys.exit(2)
-        for name, expansion in aliases.items():
-            _register_alias_placeholder(name, expansion)
+    user_aliases = cfg.aliases if cfg else {}
+    aliases = {**_DEFAULT_ALIASES, **user_aliases}
+    try:
+        _validate_aliases(aliases)
+    except ConfigError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        sys.exit(2)
+    for name, expansion in aliases.items():
+        _register_alias_placeholder(name, expansion)
 
     if len(sys.argv) > 1 and sys.argv[1] in aliases:
         name = sys.argv[1]
