@@ -1,6 +1,6 @@
 ---
 title: Design Dream known-skill dispatch contract
-status: active
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -18,7 +18,6 @@ workflow:
   - name: implement
     skill: code/implement-and-pr
   - name: review
-step: 2 (review)
 ---
 
 ## Description
