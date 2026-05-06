@@ -32,6 +32,9 @@ Interactive launches require stdin and stdout to both be terminals; use
 - `relay launch <slug> --force` — break a stale lock.
 - `relay launch <slug> --agent <nickname>` — one-off agent override;
   does not rewrite the ticket's `assignee:`.
+- `relay launch <slug> --prompt-report` — print composed prompt layers,
+  exact context/skill refs, bytes, and approximate token counts without
+  activating, locking, or spawning an agent.
 - `relay launch bootstrap/<name>` — stateless shim; no lock, concurrent
   launches safe. With a title arg, acts as a factory: scaffolds a new
   ticket from the shim's frontmatter and launches on it.
@@ -45,6 +48,10 @@ it re-reads the ticket and continues only if the task is still active, the
 step advanced, the new current step has `skill:`, and the concrete assignee
 did not change. It stops at human/no-skill steps, assignee handoffs, done or
 paused tasks, no-progress exits, and panic/non-zero exits.
+
+`--prompt-report` is for prompt-scope inspection. Its token counts use a
+dependency-light `characters / 4` estimate, so treat them as a prompt-bloat
+guardrail and task-to-task comparison, not exact provider billing.
 
 ## relay status
 
