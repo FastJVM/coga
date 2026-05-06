@@ -2,7 +2,7 @@
 
 branch: codex/relay-prompt-scope-report
 worktree: /home/n/Code/relay
-pr:
+pr: https://github.com/FastJVM/relay/pull/114
 
 ## Notes
 
