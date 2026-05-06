@@ -11,13 +11,21 @@ relay.local.toml
 # Vendored CLI — refreshed by `relay init --update` from upstream.
 .relay/
 
-# Upstream-managed scaffolding — overwritten on every `relay init --update`.
-# User content lives outside these paths; edits inside will be lost on update.
+# Single relay-vendored umbrella. Everything inside is upstream-managed and
+# overwritten on every `relay init --update` — your edits will be lost.
+# User content goes outside this dir (skills/<your-ns>/, contexts/<your-ns>/).
 bootstrap/
-skills/bootstrap/
-contexts/relay/architecture/
-contexts/relay/principles/
-contexts/relay/cli/
+
+# Back-compat symlinks pointing into bootstrap/ above. Recreated by
+# `relay init [--update]`; safe to delete locally — they get regenerated.
+skills/bootstrap
+skills/retro
+contexts/relay/architecture
+contexts/relay/principles
+contexts/relay/cli
+
+# Per-domain scaffolding templates (bare `_template`, `_template.md`).
+# Refreshed wholesale on update.
 **/_template/
 **/_template.md
 # <<< relay-managed <<<

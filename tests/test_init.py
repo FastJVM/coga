@@ -21,7 +21,7 @@ EXPECTED_FILES = {
     "relay-os/rules.md",
     "relay-os/context.md",
     "relay-os/scripts/cron.sh",
-    "relay-os/hooks/post-merge",
+    "relay-os/bootstrap/hooks/post-merge",
     "relay-os/contexts/_template/SKILL.md",
     "relay-os/skills/_template/SKILL.md",
     "relay-os/workflows/_template.md",
@@ -35,17 +35,34 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     templates = clone_dir / update_cmd.TEMPLATE_SUBPATH
     templates.mkdir(parents=True)
     (templates / ".gitignore").write_text(
-        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\nskills/bootstrap/\nskills/retro/\n**/_template/\n**/_template.md\n"
+        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\n"
+        "skills/bootstrap\nskills/retro\n"
+        "contexts/relay/architecture\ncontexts/relay/principles\ncontexts/relay/cli\n"
+        "**/_template/\n**/_template.md\n"
     )
     (templates / "relay.toml").write_text("version = 1\n")
     (templates / "rules.md").write_text("rules\n")
     (templates / "context.md").write_text("context\n")
     (templates / "scripts").mkdir()
     (templates / "scripts" / "cron.sh").write_text("#!/bin/sh\n")
-    (templates / "hooks").mkdir()
-    hook = templates / "hooks" / "post-merge"
+    (templates / "bootstrap" / "hooks").mkdir(parents=True)
+    hook = templates / "bootstrap" / "hooks" / "post-merge"
     hook.write_text("#!/bin/sh\nrelay automerge || true\n")
     hook.chmod(0o755)
+    # Vendored skills + canonical relay/* contexts both live under bootstrap/.
+    (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
+    (templates / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text(
+        "bootstrap/ticket skill\n"
+    )
+    (templates / "bootstrap" / "skills" / "retro" / "done-ticket").mkdir(parents=True)
+    (templates / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
+        "retro/done-ticket skill\n"
+    )
+    for ctx in ("architecture", "principles", "cli"):
+        (templates / "bootstrap" / "contexts" / "relay" / ctx).mkdir(parents=True)
+        (templates / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").write_text(
+            f"relay/{ctx} context\n"
+        )
     for kind, fname in [
         ("contexts", "_template/SKILL.md"),
         ("skills", "_template/SKILL.md"),
@@ -286,19 +303,29 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "rules.md").write_text("NEW upstream rules — should NOT be copied (no _ prefix)\n")
     (templates / "bootstrap" / "create").mkdir(parents=True)
     (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap shim\n")
-    (templates / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
-    (templates / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text("NEW bootstrap/ticket skill\n")
-    (templates / "skills" / "retro" / "done-ticket").mkdir(parents=True)
-    (templates / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text("NEW retro/done-ticket skill\n")
+    # All vendored skills, contexts, and hooks now live under `bootstrap/`.
+    (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
+    (templates / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text(
+        "NEW bootstrap/ticket skill\n"
+    )
+    (templates / "bootstrap" / "skills" / "retro" / "done-ticket").mkdir(parents=True)
+    (templates / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
+        "NEW retro/done-ticket skill\n"
+    )
     for ctx in ("architecture", "principles", "cli"):
-        (templates / "contexts" / "relay" / ctx).mkdir(parents=True)
-        (templates / "contexts" / "relay" / ctx / "SKILL.md").write_text(
+        (templates / "bootstrap" / "contexts" / "relay" / ctx).mkdir(parents=True)
+        (templates / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").write_text(
             f"NEW relay/{ctx} context\n"
         )
+    (templates / "bootstrap" / "hooks").mkdir(parents=True)
+    (templates / "bootstrap" / "hooks" / "post-merge").write_text(
+        "#!/bin/sh\nrelay automerge || true\n"
+    )
+    (templates / "bootstrap" / "hooks" / "post-merge").chmod(0o755)
     (templates / ".gitignore").write_text(
-        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\nskills/bootstrap/\n"
-        "skills/retro/\n"
-        "contexts/relay/architecture/\ncontexts/relay/principles/\ncontexts/relay/cli/\n"
+        "relay.local.toml\n.relay/\n**/task.lock\nbootstrap/\n"
+        "skills/bootstrap\nskills/retro\n"
+        "contexts/relay/architecture\ncontexts/relay/principles\ncontexts/relay/cli\n"
         "**/_template/\n**/_template.md\n"
     )
 
@@ -339,8 +366,8 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert (relay_os / "tasks" / "_template" / "ticket.md").read_text() == "NEW ticket template\n"
     # Bootstrap shims are infra — the whole tree mirrors upstream on --update.
     assert (relay_os / "bootstrap" / "create" / "ticket.md").read_text() == "NEW bootstrap shim\n"
-    # Bootstrap-namespace skills mirror the same way (skills/bootstrap/ is
-    # relay-managed; refreshes wholesale alongside the shims).
+    # Vendored skills + canonical relay/* contexts now live under bootstrap/
+    # and resolve through back-compat symlinks at the legacy paths.
     assert (
         (relay_os / "skills" / "bootstrap" / "ticket" / "SKILL.md").read_text()
         == "NEW bootstrap/ticket skill\n"
@@ -349,26 +376,35 @@ def test_init_update_refreshes_cli_and_underscore_templates(
         (relay_os / "skills" / "retro" / "done-ticket" / "SKILL.md").read_text()
         == "NEW retro/done-ticket skill\n"
     )
-    # Canonical relay/* contexts (architecture, principles, cli) ship
-    # with relay and refresh wholesale on update.
     for ctx in ("architecture", "principles", "cli"):
         assert (
             (relay_os / "contexts" / "relay" / ctx / "SKILL.md").read_text()
             == f"NEW relay/{ctx} context\n"
         )
+    # Legacy paths are symlinks into bootstrap/.
+    assert (relay_os / "skills" / "bootstrap").is_symlink()
+    assert (relay_os / "skills" / "retro").is_symlink()
+    for ctx in ("architecture", "principles", "cli"):
+        assert (relay_os / "contexts" / "relay" / ctx).is_symlink()
     # Shims dropped upstream (renamed/removed) are pruned locally.
     assert not (relay_os / "bootstrap" / "stale").exists()
     # Top-level paths upstream once shipped but no longer does are pruned.
     assert not (relay_os / "counter").exists()
     assert not (relay_os / "meta").exists()
-    # Renamed bootstrap-namespace skills go away too — wiped by the
-    # `skills/bootstrap/` wholesale mirror (not by `prune_obsolete`).
-    assert not (relay_os / "skills" / "bootstrap" / "create").exists()
+    # Stale bootstrap-namespace nested skill goes away — the legacy
+    # `skills/bootstrap/` directory (which used to hold it) is itself
+    # now an obsolete path replaced by a symlink into bootstrap/.
+    legacy_bootstrap_skill = relay_os / "skills" / "bootstrap"
+    assert legacy_bootstrap_skill.is_symlink()
+    assert (legacy_bootstrap_skill / "create").exists() is False
     # `_*` scaffolds upstream no longer ships are also pruned.
     assert not (relay_os / "recurring" / "_template_old.md").exists()
-    assert "Pruned 3 obsolete path(s)" in result.output
+    # Per-update prune count: counter, meta, skills/bootstrap, skills/retro
+    # (consolidation), plus the underscore-template prune.
+    assert "Pruned" in result.output
     assert "  counter" in result.output
     assert "  meta" in result.output
+    assert "  skills/bootstrap" in result.output
     assert "recurring/_template_old.md" in result.output
     # User-edited content untouched.
     assert (relay_os / "skills" / "myteam" / "real-skill" / "SKILL.md").read_text() == "user content\n"
@@ -484,6 +520,79 @@ def test_init_link_skills_is_idempotent(tmp_path: Path) -> None:
     assert wired1 == wired2 == ["Claude Code", "Codex"]
     assert blocked1 == blocked2 == []
     assert (target / ".claude" / "skills" / "relay").is_symlink()
+
+
+# --- back-compat symlinks for bootstrap/-consolidation -----------------------
+
+
+def test_link_compat_paths_creates_relative_symlinks(tmp_path: Path) -> None:
+    relay_os = tmp_path / "relay-os"
+    # `_link_compat_paths` doesn't require the target to exist (it lays down
+    # the symlink unconditionally), but a real upstream init populates this.
+    (relay_os / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
+    (relay_os / "bootstrap" / "skills" / "retro").mkdir(parents=True)
+    for ctx in ("architecture", "principles", "cli"):
+        (relay_os / "bootstrap" / "contexts" / "relay" / ctx).mkdir(parents=True)
+
+    created = init_cmd._link_compat_paths(relay_os)
+    assert "skills/bootstrap" in created
+    assert "skills/retro" in created
+    assert "contexts/relay/architecture" in created
+
+    # Symlinks resolve into bootstrap/ — relative so the repo is portable.
+    sb = relay_os / "skills" / "bootstrap"
+    assert sb.is_symlink()
+    assert os.readlink(sb) == "../bootstrap/skills/bootstrap"
+    sb_target = sb.resolve()
+    assert sb_target == (relay_os / "bootstrap" / "skills" / "bootstrap").resolve()
+
+    cr = relay_os / "contexts" / "relay" / "architecture"
+    assert cr.is_symlink()
+    assert os.readlink(cr) == "../../bootstrap/contexts/relay/architecture"
+
+
+def test_link_compat_paths_is_idempotent(tmp_path: Path) -> None:
+    relay_os = tmp_path / "relay-os"
+    (relay_os / "bootstrap" / "skills" / "bootstrap").mkdir(parents=True)
+
+    first = init_cmd._link_compat_paths(relay_os)
+    second = init_cmd._link_compat_paths(relay_os)
+    # Already-correct symlinks aren't recreated, so they're not in `created`
+    # the second time around. The symlink itself must still be in place.
+    assert "skills/bootstrap" in first
+    assert "skills/bootstrap" not in second
+    assert (relay_os / "skills" / "bootstrap").is_symlink()
+
+
+def test_link_compat_paths_replaces_wrong_symlink(tmp_path: Path) -> None:
+    relay_os = tmp_path / "relay-os"
+    (relay_os / "bootstrap" / "skills" / "bootstrap").mkdir(parents=True)
+    # Pre-existing symlink that points somewhere else.
+    (relay_os / "skills").mkdir(parents=True)
+    bad = relay_os / "skills" / "bootstrap"
+    bad.symlink_to("../wrong/target")
+
+    init_cmd._link_compat_paths(relay_os)
+    assert os.readlink(bad) == "../bootstrap/skills/bootstrap"
+
+
+def test_link_compat_paths_skips_real_dir(tmp_path: Path) -> None:
+    """If a real dir is sitting at the legacy path (pre-update), don't clobber.
+
+    `prune_obsolete` is what's expected to clear those — the symlinker just
+    refuses to overwrite. Verifies the safety rail.
+    """
+    relay_os = tmp_path / "relay-os"
+    (relay_os / "bootstrap" / "skills" / "bootstrap").mkdir(parents=True)
+    real_dir = relay_os / "skills" / "bootstrap"
+    real_dir.mkdir(parents=True)
+    (real_dir / "marker.txt").write_text("user content")
+
+    init_cmd._link_compat_paths(relay_os)
+
+    # Real dir untouched; no symlink laid down on top.
+    assert real_dir.is_dir() and not real_dir.is_symlink()
+    assert (real_dir / "marker.txt").read_text() == "user content"
 
 
 # --- agent-guide files (CLAUDE.md / AGENTS.md) -------------------------------
@@ -709,7 +818,7 @@ def test_init_installs_post_merge_hook_in_git_repo(
     assert result.exit_code == 0, result.output
 
     link = target / ".git" / "hooks" / "post-merge"
-    src = target / "relay-os" / "hooks" / "post-merge"
+    src = target / "relay-os" / "bootstrap" / "hooks" / "post-merge"
     assert link.is_symlink()
     assert link.resolve() == src.resolve()
     assert "Installed post-merge hook" in result.output
@@ -751,8 +860,8 @@ def test_install_post_merge_hook_is_idempotent(tmp_path: Path) -> None:
     target = tmp_path / "company"
     relay_os = target / "relay-os"
     (target / ".git" / "hooks").mkdir(parents=True)
-    (relay_os / "hooks").mkdir(parents=True)
-    src = relay_os / "hooks" / "post-merge"
+    (relay_os / "bootstrap" / "hooks").mkdir(parents=True)
+    src = relay_os / "bootstrap" / "hooks" / "post-merge"
     src.write_text("#!/bin/sh\nrelay automerge || true\n")
     src.chmod(0o755)
 
@@ -829,7 +938,9 @@ def test_init_update_refreshes_inner_gitignore(
     assert update_cmd.RELAY_GITIGNORE_BEGIN in gi
     assert update_cmd.RELAY_GITIGNORE_END in gi
     assert "bootstrap/" in gi
-    assert "skills/retro/" in gi
+    # The legacy paths now ship as back-compat symlink entries.
+    assert "skills/retro" in gi
+    assert "contexts/relay/architecture" in gi
     assert "_template/" in gi
     assert "_template.md" in gi
     # User-added rule survives outside the block.

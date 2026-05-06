@@ -10,6 +10,7 @@ RETRO_SKILL = (
     / "resources"
     / "templates"
     / "relay-os"
+    / "bootstrap"
     / "skills"
     / "retro"
     / "done-ticket"
