@@ -6,7 +6,7 @@ from textwrap import dedent
 import pytest
 
 from relay.scaffold import scaffold_task
-from relay.compose import compose_prompt, write_prompt_file
+from relay.compose import compose_prompt, compose_prompt_report, write_prompt_file
 from relay.config import load_config
 from relay.tasks import list_tasks, read_ticket
 
@@ -98,6 +98,34 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     assert "Current step: implement" in prompt
     # Blackboard present
     assert "Blackboard" in prompt
+
+
+def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg,
+        title="Fix retry logic",
+        workflow_name="code/with-review",
+        contexts=["email/payment-flow"],
+        mode="interactive",
+        owner="marc",
+        assignee="claude1",
+        watchers=[],
+        status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+
+    composition = compose_prompt_report(cfg, ref, ticket)
+    assert composition.prompt == compose_prompt(cfg, ref, ticket)
+    assert composition.byte_count > 0
+    assert composition.approx_tokens > 0
+
+    layers = {(layer.layer, layer.ref): layer for layer in composition.layers}
+    assert ("ticket_context", "email/payment-flow") in layers
+    assert ("workflow_skill", "infra/testing-conventions") in layers
+    assert ("blackboard", "blackboard.md") in layers
+    assert layers[("ticket_context", "email/payment-flow")].approx_tokens > 0
 
 
 def test_compose_auto_mode_uses_auto_block(repo: Path) -> None:

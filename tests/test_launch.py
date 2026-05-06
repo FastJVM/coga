@@ -519,6 +519,72 @@ def test_launch_warns_for_large_blackboard(
     assert "blackboard.md is" in (result.output + (result.stderr or ""))
 
 
+def test_launch_prompt_report_prints_layers_without_launching(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(
+        active_task / "contexts" / "email" / "payment-flow" / "SKILL.md",
+        """
+        ---
+        name: email/payment-flow
+        description: Payment context.
+        ---
+
+        Stripe retries on 429.
+        """,
+    )
+    _write(
+        active_task / "workflows" / "code" / "measure.md",
+        """
+        ---
+        name: code/measure
+        description: Measure prompt scope.
+        steps:
+          - name: implement
+            skill: code/implement
+        ---
+        """,
+    )
+    _write_skill(active_task, "code/implement", "Implement the change.")
+    cfg = load_config(active_task)
+    ref = scaffold_task(
+        cfg=cfg,
+        title="Measure prompt scope",
+        workflow_name="code/measure",
+        contexts=["email/payment-flow"],
+        mode="interactive",
+        owner="marc",
+        human="marc",
+        agent="claude1",
+        assignee="claude1",
+        watchers=[],
+        status="draft",
+    )
+
+    def fail_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        raise AssertionError("prompt report must not spawn an agent")
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fail_run)
+    monkeypatch.setattr("relay.commands.launch._interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: None)
+
+    result = CliRunner().invoke(app, ["launch", str(ref["slug"]), "--prompt-report"])
+    assert result.exit_code == 0, result.output
+    assert "Prompt report for measure-prompt-scope" in result.output
+    assert "ticket_context" in result.output
+    assert "email/payment-flow" in result.output
+    assert "workflow_skill" in result.output
+    assert "code/implement" in result.output
+    assert "Total composed prompt" in result.output
+
+    from relay.ticket import Ticket
+    ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
+    assert ticket.status == "draft"
+    assert "launched in interactive mode" not in (Path(ref["path"]) / "log.md").read_text()
+    assert not TaskLock(Path(ref["path"])).path.exists()
+
+
 # --- bootstrap shims -----------------------------------------------------------
 
 

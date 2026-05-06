@@ -771,6 +771,14 @@ When a human runs `relay create "<title>"` (or says "make me a ticket for X" ins
 5. Notes the rationale in the blackboard's Notes section.
 6. Stops. Status stays at `draft` until the human approves and runs `relay launch`. The skill never launches the task itself.
 
+Context selection is intentionally narrow. A `contexts:` entry is prompt
+payload, not a tag: the full context body is inlined at launch. The creation
+skill must attach only context refs whose full body the future launched agent
+needs. If a task only needs one fact from a broad context, the skill writes that
+fact into the ticket's `## Context` body instead of attaching the whole context.
+Reusable process knowledge belongs in workflow step `skill:` refs; skills are
+not copied into `contexts:`.
+
 If nothing in the inventory fits, the skill flags the gap on the blackboard for Dream to act on later — it never invents a workflow or context that doesn't exist.
 
 #### Bootstrap tickets
@@ -866,7 +874,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 ### `relay launch` — decided spec
 
-`relay launch <task-id> [title] [--agent <nickname>]`
+`relay launch <task-id> [title] [--agent <nickname>] [--prompt-report]`
 
 `<task-id>` is a positional argument: a task slug (full or any unique
 prefix, git-short-SHA-style) or a `bootstrap/<name>` shim. The optional
@@ -922,6 +930,8 @@ Later content overrides earlier content when they conflict. The agent sees the m
 #### Multi-task per repo
 
 `relay launch` takes one task target as a positional arg. It launches exactly one task per invocation. If you have two active tasks in the same repo, you launch them separately in separate terminal sessions.
+
+`--prompt-report` is a read-only inspection mode. It composes the prompt for the target and prints each included layer with exact context/skill refs, bytes, and approximate token counts, then exits without activating a draft, acquiring a lock, requiring a TTY, checking the agent binary, appending to `log.md`, posting to Slack, or spawning an agent. It is not valid with bootstrap factory title mode because that would scaffold a new task.
 
 #### Errors
 
@@ -1311,7 +1321,7 @@ Git is the sync layer. The one-task-one-worker constraint means two people rarel
 
 #### Prompt size / token limits
 
-No full composed-prompt token budgeting yet. A task with multiple contexts, a rich skill, a long blackboard, and a detailed ticket body could exceed limits. Relay warns on the most obvious controllable case — `blackboard.md` larger than 32 KiB — but broader prompt measurement and mitigation remain future work.
+No hard composed-prompt token budget yet. A task with multiple contexts, a rich skill, a long blackboard, and a detailed ticket body could exceed limits. Relay warns on the most obvious controllable case — `blackboard.md` larger than 32 KiB — and `relay launch --prompt-report` prints composed prompt size by layer. Token counts are approximate (`characters / 4`) by design: enough to catch prompt bloat and compare tasks, not a provider billing oracle. The intended model remains scoped composition: ticket-selected contexts and the current workflow step's skill, not a global dump of every available context.
 
 #### Blackboard growth
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import tempfile
+from dataclasses import dataclass
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
@@ -24,63 +25,185 @@ from relay.workflow import Workflow
 _SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 
 
+@dataclass(frozen=True)
+class PromptLayer:
+    """One included layer of a composed Relay prompt."""
+
+    layer: str
+    title: str
+    text: str
+    ref: str | None = None
+    path: str | None = None
+    raw: bool = False
+
+    @property
+    def rendered(self) -> str:
+        if self.raw:
+            return self.text
+        return _section(self.title, self.text)
+
+    @property
+    def byte_count(self) -> int:
+        return len(self.rendered.encode())
+
+    @property
+    def char_count(self) -> int:
+        return len(self.rendered)
+
+    @property
+    def approx_tokens(self) -> int:
+        return estimate_tokens(self.rendered)
+
+
+@dataclass(frozen=True)
+class PromptComposition:
+    """Composed prompt plus layer metadata for prompt-scope reporting."""
+
+    layers: list[PromptLayer]
+
+    @property
+    def prompt(self) -> str:
+        return "\n\n---\n\n".join(
+            layer.rendered.strip() for layer in self.layers if layer.rendered.strip()
+        ) + "\n"
+
+    @property
+    def byte_count(self) -> int:
+        return len(self.prompt.encode())
+
+    @property
+    def char_count(self) -> int:
+        return len(self.prompt)
+
+    @property
+    def approx_tokens(self) -> int:
+        return estimate_tokens(self.prompt)
+
+
+def estimate_tokens(text: str) -> int:
+    """Dependency-free approximation: about one token per four characters."""
+    if not text:
+        return 0
+    return (len(text) + 3) // 4
+
+
 def compose_prompt(cfg: Config, task_ref: TargetRef, ticket: Ticket) -> str:
     """Assemble the composed prompt in spec order (§compose)."""
-    parts: list[str] = []
+    return compose_prompt_report(cfg, task_ref, ticket).prompt
+
+
+def compose_prompt_report(
+    cfg: Config,
+    task_ref: TargetRef,
+    ticket: Ticket,
+) -> PromptComposition:
+    """Assemble the prompt and keep per-layer measurement metadata."""
+    layers: list[PromptLayer] = []
 
     header = f"# Relay task — {task_ref.id_slug}\n\nTitle: {ticket.title}\nMode: {ticket.mode}"
     if ticket.status:
         header += f"\nStatus: {ticket.status}"
-    parts.append(header)
+    layers.append(PromptLayer("header", "Header", header, raw=True))
 
     # 1. Base prompt
-    parts.append(_resource("prompt.md"))
+    layers.append(PromptLayer(
+        "base_prompt",
+        "Relay base prompt",
+        _resource("prompt.md"),
+        ref="prompt.md",
+    ))
 
     # 2. Mode-specific prompt
     if ticket.mode == "interactive":
-        parts.append(_resource("prompt-interactive.md"))
+        layers.append(PromptLayer(
+            "mode_prompt",
+            "Interactive mode",
+            _resource("prompt-interactive.md"),
+            ref="prompt-interactive.md",
+        ))
     elif ticket.mode == "auto":
-        parts.append(_resource("prompt-auto.md"))
+        layers.append(PromptLayer(
+            "mode_prompt",
+            "Auto mode",
+            _resource("prompt-auto.md"),
+            ref="prompt-auto.md",
+        ))
     # script mode never gets composed; enforced by launch.py
 
     # 3. rules.md
     rules = rules_path(cfg)
     if rules.is_file():
-        parts.append(_section("Global rules", rules.read_text()))
+        layers.append(PromptLayer(
+            "global_rules",
+            "Global rules",
+            rules.read_text(),
+            ref="rules.md",
+            path=str(rules),
+        ))
 
     # 4. repo context.md
     pctx = repo_context_path(cfg)
     if pctx.is_file():
-        parts.append(_section("Repo context", pctx.read_text()))
+        layers.append(PromptLayer(
+            "repo_context",
+            "Repo context",
+            pctx.read_text(),
+            ref="context.md",
+            path=str(pctx),
+        ))
 
     # 5. ticket-attached contexts
     for ref in ticket.contexts:
         cp = context_path(cfg, ref)
         if cp.is_file():
-            parts.append(_section(f"Context — {ref}", cp.read_text()))
+            layers.append(PromptLayer(
+                "ticket_context",
+                f"Context — {ref}",
+                cp.read_text(),
+                ref=ref,
+                path=str(cp),
+            ))
 
     # 6. inline `## Context` from ticket body
     inline_ctx = _extract_section(ticket.body, "Context")
     if inline_ctx:
-        parts.append(_section("Task-specific context", inline_ctx))
+        layers.append(PromptLayer(
+            "task_context",
+            "Task-specific context",
+            inline_ctx,
+            ref="ticket.md##Context",
+            path=str(task_ref.path / "ticket.md"),
+        ))
 
     # 7. top-level skill (bootstrap tickets) or current workflow step
     if ticket.skill:
-        parts.extend(_skill_sections(cfg, ticket.skill))
+        layers.extend(_skill_layers(cfg, ticket.skill))
     else:
-        parts.extend(_step_sections(cfg, ticket))
+        layers.extend(_step_layers(cfg, ticket))
 
     # 8. blackboard
     bb = task_ref.path / "blackboard.md"
     if bb.is_file():
-        parts.append(_section("Blackboard (current state)", bb.read_text()))
+        layers.append(PromptLayer(
+            "blackboard",
+            "Blackboard (current state)",
+            bb.read_text(),
+            ref="blackboard.md",
+            path=str(bb),
+        ))
 
     # Trailing task description from ticket body
     desc = _extract_section(ticket.body, "Description")
     if desc:
-        parts.append(_section("Task description", desc))
+        layers.append(PromptLayer(
+            "task_description",
+            "Task description",
+            desc,
+            ref="ticket.md##Description",
+            path=str(task_ref.path / "ticket.md"),
+        ))
 
-    return "\n\n---\n\n".join(p.strip() for p in parts if p.strip()) + "\n"
+    return PromptComposition(layers)
 
 
 def write_prompt_file(prompt: str, task_ref: TargetRef, dest_dir: Path | None = None) -> Path:
@@ -120,17 +243,26 @@ def _extract_section(body: str, heading: str) -> str:
     return ""
 
 
-def _skill_sections(cfg: Config, skill_ref: str) -> list[str]:
+def _skill_layers(cfg: Config, skill_ref: str) -> list[PromptLayer]:
     sp = skill_path(cfg, skill_ref)
     if sp.is_file():
-        return [_section(f"Skill: {skill_ref}", sp.read_text())]
-    return [_section(
+        return [PromptLayer(
+            "top_level_skill",
+            f"Skill: {skill_ref}",
+            sp.read_text(),
+            ref=skill_ref,
+            path=str(sp),
+        )]
+    return [PromptLayer(
+        "top_level_skill",
         f"Skill: {skill_ref}",
         f"*Skill file not found at {sp}.*",
+        ref=skill_ref,
+        path=str(sp),
     )]
 
 
-def _step_sections(cfg: Config, ticket: Ticket) -> list[str]:
+def _step_layers(cfg: Config, ticket: Ticket) -> list[PromptLayer]:
     current = ticket.current_step()
     if not current:
         return []
@@ -141,13 +273,19 @@ def _step_sections(cfg: Config, ticket: Ticket) -> list[str]:
     if skill_ref:
         sp = skill_path(cfg, skill_ref)
         if sp.is_file():
-            return [_section(
+            return [PromptLayer(
+                "workflow_skill",
                 f"Current step: {name} (skill: {skill_ref})",
                 sp.read_text(),
+                ref=skill_ref,
+                path=str(sp),
             )]
-        return [_section(
+        return [PromptLayer(
+            "workflow_skill",
             f"Current step: {name} (skill: {skill_ref})",
             f"*Skill file not found at {sp}.*",
+            ref=skill_ref,
+            path=str(sp),
         )]
 
     # Inline: load workflow, pull the matching heading
@@ -157,17 +295,37 @@ def _step_sections(cfg: Config, ticket: Ticket) -> list[str]:
     try:
         wf = Workflow.load(workflow_path(cfg, wf_name))
     except Exception:  # workflow may have been deleted after ticket was created
-        return [_section(
+        wp = workflow_path(cfg, wf_name)
+        return [PromptLayer(
+            "workflow_inline",
             f"Current step: {name}",
             "*Workflow definition not found; using frozen snapshot only.*",
+            ref=wf_name,
+            path=str(wp),
         )]
     inline = wf.inline_instructions.get(name)
     if inline:
-        return [_section(f"Current step: {name}", inline)]
-    return [_section(
+        return [PromptLayer(
+            "workflow_inline",
+            f"Current step: {name}",
+            inline,
+            ref=wf_name,
+            path=str(workflow_path(cfg, wf_name)),
+        )]
+    return [PromptLayer(
+        "workflow_inline",
         f"Current step: {name}",
         "*No instructions attached to this step.*",
+        ref=wf_name,
+        path=str(workflow_path(cfg, wf_name)),
     )]
 
 
-__all__ = ["compose_prompt", "write_prompt_file"]
+__all__ = [
+    "PromptComposition",
+    "PromptLayer",
+    "compose_prompt",
+    "compose_prompt_report",
+    "estimate_tokens",
+    "write_prompt_file",
+]

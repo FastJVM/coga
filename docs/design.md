@@ -45,6 +45,12 @@ Deduplicated silently, order preserved (first occurrence wins). If any context r
 
 `relay create` is intentionally mechanical — it scaffolds the directory and writes whatever frontmatter the caller passes. The judgment about *which* workflow / contexts / assignee fit is in the `bootstrap/ticket` skill (`relay-os/skills/bootstrap/ticket/SKILL.md`). A human invokes that skill ("make me a task for X"), the skill interviews, calls `relay create` to scaffold, then edits the ticket frontmatter to fill in the rest.
 
+The creation skill treats `contexts:` as launch-prompt payload, not labels. It
+should attach only context bodies that must be inlined for the future task run.
+When one fact from a broad context is enough, that fact belongs in the ticket's
+inline `## Context` body; repeated narrow needs should become smaller focused
+contexts. Reusable process knowledge stays in workflow step `skill:` refs.
+
 There's no `--suggest` flag. If you want the authoring flow, run the skill. If you just want bytes on disk, call `relay create` directly with the flags above.
 
 ### Skills at creation time

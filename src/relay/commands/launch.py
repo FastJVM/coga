@@ -12,8 +12,13 @@ from pathlib import Path
 
 import typer
 
-from relay.blackboard import blackboard_size_warning
-from relay.compose import compose_prompt, write_prompt_file
+from relay.blackboard import blackboard_size_warning, format_bytes
+from relay.compose import (
+    PromptComposition,
+    compose_prompt,
+    compose_prompt_report,
+    write_prompt_file,
+)
 from relay.config import Config, ConfigError, load_config
 from relay.lock import LockHeldError, TaskLock
 from relay.logfile import append_log
@@ -43,6 +48,11 @@ def launch(
         "--agent",
         help="Agent nickname to use for this launch instead of the ticket/shim assignee.",
     ),
+    prompt_report: bool = typer.Option(
+        False,
+        "--prompt-report",
+        help="Print composed prompt layers and approximate token counts, then exit without launching.",
+    ),
     force: bool = typer.Option(False, "--force", help="Break a stale lock."),
 ) -> None:
     """Compose context, start work on a task."""
@@ -62,6 +72,22 @@ def launch(
             cfg.agent_type_for(cfg.current_user, agent_override)
         except ConfigError as exc:
             _bail(str(exc))
+
+    if prompt_report and title is not None:
+        _bail("--prompt-report cannot be used with a title argument.")
+
+    if prompt_report:
+        ticket = read_ticket(ref)
+        if agent_override is not None and is_bootstrap:
+            ticket.frontmatter["assignee"] = agent_override
+        if ticket.mode == "script":
+            _bail("mode=script tasks do not compose an agent prompt.")
+        composition = compose_prompt_report(cfg, ref, ticket)
+        typer.echo(_format_prompt_report(ref.id_slug, composition))
+        warning = blackboard_size_warning(ref.path / "blackboard.md")
+        if warning:
+            typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
+        return
 
     # Factory mode: bootstrap shim + title → scaffold a new draft task
     # seeded from the shim's frontmatter, then launch on the new task.
@@ -346,6 +372,30 @@ def _agent_override_note(agent_override: str | None, assignee: str) -> str:
     if agent_override is None or agent_override == assignee:
         return ""
     return f" (launched with {agent_override})"
+
+
+def _format_prompt_report(id_slug: str, composition: PromptComposition) -> str:
+    lines = [
+        f"Prompt report for {id_slug}",
+        "Approximate tokens use characters / 4; exact tokenizer parity is not assumed.",
+        "",
+        f"{'layer':<20} {'ref':<34} {'bytes':>10} {'approx_tokens':>14}",
+        f"{'-' * 20} {'-' * 34} {'-' * 10} {'-' * 14}",
+    ]
+    for layer in composition.layers:
+        ref = layer.ref or "-"
+        if len(ref) > 34:
+            ref = ref[:31] + "..."
+        lines.append(
+            f"{layer.layer:<20} {ref:<34} "
+            f"{format_bytes(layer.byte_count):>10} {layer.approx_tokens:>14}"
+        )
+    lines.extend([
+        "",
+        f"Total composed prompt: {format_bytes(composition.byte_count)} "
+        f"(~{composition.approx_tokens} tokens)",
+    ])
+    return "\n".join(lines)
 
 
 def _launch_log_message(

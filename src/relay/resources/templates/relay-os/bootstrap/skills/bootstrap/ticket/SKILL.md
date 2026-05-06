@@ -52,6 +52,28 @@ Before suggesting anything, ground yourself in what actually exists:
 Don't propose a workflow, context, skill, or assignee that isn't in this
 list — create it (step 4) or pick from the list.
 
+## Context and skill selection contract
+
+Treat `contexts:` as prompt payload, not labels. Every context attached to the
+ticket is inlined into the future launch prompt, so broad context choices are a
+token and precision cost.
+
+Rules:
+
+- Attach only context refs whose full body the future launched agent needs to
+  do this task correctly.
+- Do not attach broad orientation contexts by default. Use contexts like
+  `relay/architecture`, `relay/principles`, `relay/current-direction`, or
+  `relay/project-stage` only when the task directly depends on that knowledge.
+- If the task needs one fact from a broad context, copy that specific fact into
+  the ticket's `## Context` body instead of attaching the whole context.
+- If the same narrow fact recurs across tickets, create or propose a smaller
+  focused context rather than repeatedly attaching a broad one.
+- Skills are process knowledge. Select them through the workflow's step
+  `skill:` refs, not by putting skill text into `contexts:`. If a relevant
+  skill exists but no workflow uses it yet, mention the skill ref in the body
+  or propose the workflow change.
+
 ## Step 3 — Interview the human
 
 Cover these, in this order, in plain conversation. Stop pulling once you
@@ -67,8 +89,9 @@ answer.
    for a code change shipped via PR.) If the work is concept-capture or
    one-off discussion with no clear sequence, no workflow is fine — leave
    the field off.
-4. **Contexts to attach** — which existing contexts apply? Don't over-attach;
-   if a context isn't directly relevant, skip it.
+4. **Contexts to attach** — which exact context bodies must be included in the
+   future prompt? Keep the list narrow. If only a specific fact is needed, put
+   it in `## Context` instead of attaching the whole context.
 5. **Assignee** — default to whatever the shim seeded (usually the human's
    primary agent). Confirm if the work clearly fits a different agent or
    needs to go to a human.
@@ -108,6 +131,8 @@ Edit `ticket.md` in place. YAML discipline (from the base prompt) applies:
   `code/with-review`); `relay bump` will freeze the snapshot when the human
   launches.
 - Add `contexts:` as a YAML list (one item per line with `- `).
+- Do not add a context just because it is generally related. If in doubt, leave
+  it out and write the one needed fact into `## Context`.
 - Update `assignee:` only if it changed.
 - **Remove `skill: bootstrap/ticket`** from the frontmatter. That field is
   what keeps the draft from auto-activating on launch (see `launch.py`); the
@@ -135,6 +160,8 @@ Hand the evaluator the path to the ticket and ask it to assess:
   start work?
 - Does the chosen workflow fit the shape of the work? Any obvious mismatch?
 - Are the attached contexts relevant? Anything important missing?
+- Are any attached contexts broad enough that the needed fact should have been
+  copied into `## Context` instead?
 - Is the scope reasonable, or does it bundle multiple tickets' worth of
   work?
 - Any assumptions that should be questioned before launch?

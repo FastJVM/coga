@@ -113,6 +113,11 @@ interviews you, scans the inventory, and fills in workflow, contexts,
 assignee, and description directly in the ticket. If the slug already
 exists, the new task gets `-2`, `-3`, … appended.
 
+Context selection is part of ticket authoring. `contexts:` entries are inlined
+into the future launch prompt, so the bootstrap skill should attach only context
+bodies the task actually needs. Workflow step `skill:` refs carry reusable
+process knowledge; they are references, not context payload.
+
 ```sh
 relay create "Add retry to webhook handler"
 ```
@@ -154,6 +159,7 @@ relay launch add-retry-to-webhook-handler          # full slug
 relay launch add-retry                              # any unique prefix works
 relay launch add-retry --force                      # break a stale lock
 relay launch add-retry --agent codex1               # one-off agent override
+relay launch add-retry --prompt-report              # show prompt layer sizes, no launch
 relay launch bootstrap/ticket                       # stateless shim → run a skill
 relay launch bootstrap/orient --agent codex1        # choose a bootstrap agent
 relay launch bootstrap/ticket "Add retry to webhook handler"
@@ -182,6 +188,12 @@ continues in a fresh agent process only when the task is still active, the step
 advanced, the new current step has a `skill:`, and the concrete `assignee:`
 did not change. It stops at human/no-skill steps, assignee handoffs, done or
 paused tasks, no-progress exits, and panic/non-zero exits.
+
+Use `--prompt-report` to inspect the composed prompt without activating a draft,
+acquiring a lock, checking for a TTY, or spawning an agent. The report lists each
+included layer, exact context/skill refs, bytes, and approximate token counts.
+The token estimate is intentionally dependency-light (`characters / 4`), so use
+it to catch prompt bloat and compare tasks, not to predict exact provider billing.
 
 `bootstrap/<name>` tickets are stateless re-entry points for skills. Without
 a title arg they run as authoring sessions and don't acquire a lock —
