@@ -7,20 +7,20 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 Last updated: 2026-05-05.
 
-## Recent decisions (Dream maintenance pass)
+## Recent decisions (Dream and REM)
 
-- **Dream is a recurring maintenance task, not a workflow.** Each repo owns
-  its Dream recurring template, run tasks, blackboard output, and ordered skill
-  list. There is no global Dream service or cross-repo state.
-- **Dream runs known skills in order from the recurring task body.** The Dream
-  pass scans the ticket set, calls the fixed maintenance skills, keeps one
-  run-level summary, and does the higher-judgment scan for knowledge and
-  workflow gaps. Each called skill owns its own inputs, allowed changes,
-  idempotency proof, and output section.
-- **First enabled skill pass:** `validate-drift` for deterministic repo
+- **Dream is Relay's generic ticket cleanup pass.** It scans all tickets, runs
+  fixed Relay housekeeping skills, proposes done-ticket cleanup, keeps one
+  run-level summary, and surfaces context/skill/workflow drift.
+- **First enabled Dream skill pass:** `validate-drift` for deterministic repo
   validation and safe file-presence repairs; `retro/done-ticket` for
-  durable-knowledge extraction from completed tasks; `dev/stale-branches` for
-  proposal-only branch cleanup evidence.
+  durable-knowledge extraction from completed tasks.
+- **REM is repo/user-specific recurring maintenance.** It is opt-in user space:
+  each repo can copy `recurring/_rem.md`, define its own cadence, scan, domain
+  skills, output conventions, and review gates.
+- **Dev hygiene is outside Dream.** Stale branches, tests, and other code-repo
+  cleanup belong in a dev maintenance task or workflow, not the generic Dream
+  cleanup pass.
 - **Done-ticket cleanup is retro-first, delete-second.** A done task without a
   `## Retro` marker needs Retro. An open PR adding that marker means Retro is
   in flight. A processed marker means the task can be deleted under the worker

@@ -370,18 +370,20 @@ Behavior matches spec: interview, scan inventory, edit frontmatter, edit
 description, note rationale on blackboard, stop at draft, never invent
 workflows or contexts.
 
-### Dream recurring maintenance
+### Dream cleanup and REM recurring maintenance
 
-🟡 Implemented as the first-wave recurring maintenance pass:
+🟡 Implemented as the first-wave cleanup model:
 
 - `weekly-dream.md` task instructions plus known maintenance skills in the
   Relay-owned templates
 - `src/relay/resources/recurring/weekly-dream.md`
+- `relay-os/recurring/_rem.md` as the inert user/repo-specific maintenance
+  template
 
 Wiring gaps to verify:
 
-- Dream should be documented as a recurring task whose body runs a fixed
-  ordered skill pass across tickets.
+- Dream should be documented as Relay ticket cleanup, not user/repo operations.
+- REM should be documented as the user/repo-specific recurring task template.
 - The recurring template and workflow names should match the current Dream
   model when the resource move lands.
 - The deterministic validator (`relay validate`) is now the surface consumed by

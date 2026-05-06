@@ -122,9 +122,10 @@ not two. Slack is required (see `relay/sync`); commands crash if
 Scan `relay-os/recurring/` and scaffold any due tasks. Cron entry point;
 called from `relay-os/scripts/cron.sh`.
 
-Dream is the canonical maintenance pass built on this surface: a recurring
+Dream is Relay's generic cleanup pass built on this surface: a recurring
 template creates a normal Dream task, `relay launch` composes the task body,
-and the ordered skill results land on that task's blackboard.
+and the ordered housekeeping results land on that task's blackboard. REM uses
+the same recurring-task mechanics for repo/user-specific maintenance.
 
 ## relay --version
 

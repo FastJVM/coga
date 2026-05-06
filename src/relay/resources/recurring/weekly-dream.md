@@ -10,12 +10,15 @@ owner: marc
 
 ## Description
 
-Run the Dream maintenance pass for this Relay repo.
+Run the Dream cleanup pass for this Relay repo.
 
-Dream is this recurring task, not a workflow, daemon, global service, plugin
-registry, or standalone skill. The task scans the ticket set, calls a fixed
-ordered list of known maintenance skills, writes each result to this task's
-blackboard, then writes one human-reviewable run summary.
+Dream is Relay's generic cleanup pass. It scans every ticket, runs the
+fixed Relay housekeeping skills, proposes cleanup, writes each result to this
+task's blackboard, then writes one human-reviewable run summary.
+
+Dream is not REM. Repo/user-specific recurring maintenance belongs in a
+separate REM task under `relay-os/recurring/`, with its own cadence, skill
+order, and output conventions.
 
 ### Ordered Skill Pass
 
@@ -25,7 +28,6 @@ Run these known skills in this order:
 | --- | --- | --- |
 | `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
 | `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
-| `bootstrap/dream/tasks/dev/stale-branches` | When the repo is a git code repo and branch cleanup evidence is useful. | Proposal-only branch cleanup evidence. |
 
 That table is the dispatch contract. Do not auto-discover skills, scan a
 plugin folder, or invent another maintenance step during the run. If a repo
@@ -93,12 +95,19 @@ Absence of the marker on an existing done ticket means the task has not been
 processed by Retro. Do not infer completion from branch names, stale comments,
 or old Dream run notes.
 
-### Skill: dev/stale-branches
+### Done-Ticket Cleanup
 
-Run `bootstrap/dream/tasks/dev/stale-branches` only when this repo is a git code
-repo and branch cleanup evidence is useful. The skill is `proposal-only`: it
-collects exact branch evidence and proposed commands, but it does not delete
-local branches, remote branches, or remote-tracking refs.
+For each existing `status: done` task whose blackboard already contains the
+processed Retro marker, propose deleting the task directory. The cleanup gate:
+
+- the marker is present in `relay-os/tasks/<slug>/blackboard.md`;
+- no open PR is currently editing that task directory;
+- the exact task slug is known; do not use prefix matching for deletion;
+- the PR deletes only `relay-os/tasks/<slug>/`;
+- the PR body states that git history is the audit trail.
+
+If any gate is unclear, write `human-needed` in the Dream run summary instead
+of deleting.
 
 ### Higher-Judgment Scan
 
@@ -137,7 +146,6 @@ Generated: <timestamp>
 | --- | --- | --- |
 | validate-drift | direct-fixed | 2 files repaired; 1 stale lock human-needed |
 | retro/done-ticket | pr-opened | New context PR opened for one done ticket |
-| dev/stale-branches | proposed | 3 merged local branches proposed |
 
 ### Findings
 <count and one-line summary of knowledge-gap proposals>
