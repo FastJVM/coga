@@ -48,6 +48,56 @@ user = ""
 """
 
 
+# Orientation file dropped at the host repo root for agent CLIs that look for
+# it there (Claude Code reads CLAUDE.md, Codex reads AGENTS.md, and recent
+# Claude Code also picks up AGENTS.md). Identical content in both — three
+# similar lines beats a clever symlink that breaks on Windows. Created only
+# when missing; user edits are preserved across `relay init --update`.
+AGENT_GUIDE_TEMPLATE = """\
+# Agent guide
+
+This repo uses [relay](https://github.com/FastJVM/relay) to coordinate shared
+task and context state between humans and agents. Everything coordinated lives
+under `relay-os/`.
+
+## Start here
+
+Run `relay launch bootstrap/orient` to drop into a relay-aware session — the
+canonical contexts get composed into the prompt automatically. For ticket-bound
+work, prefer `relay launch <slug>` so the ticket's own contexts and current
+workflow step are loaded too.
+
+## Common commands
+
+- `relay status` — triage view of all tasks
+- `relay create "<title>"` — scaffold a new task
+- `relay launch <slug>` — resume a task (any unique prefix works)
+- `relay show <slug>` — read a task's ticket / blackboard / log
+- `relay bump <slug>` — advance one workflow step (final bump marks `done`)
+- `relay panic --task <slug> --reason "..."` — escalate when blocked
+- `relay --help` — full CLI surface
+
+## Mental model
+
+The canonical contexts live in `relay-os/contexts/relay/` — read in order:
+
+- `principles/SKILL.md` — non-negotiables (markdown-first, fail-loud, classical mode)
+- `architecture/SKILL.md` — primitives, planes, prompt composition, locking
+- `cli/SKILL.md` — full command reference
+
+These are the exact files composed into every launched ticket; if they
+disagree with anything else in the repo, they win.
+
+## Don't
+
+- Don't hand-edit `status` / `step` / `workflow` in ticket frontmatter — the
+  CLI manages them. Use `relay bump` / `relay panic` instead.
+- Don't write to `task.lock` or `log.md` — also CLI-managed.
+- Don't commit secrets. Use `relay.local.toml` (gitignored) for machine-local
+  values, and `env:VAR_NAME` references in `relay.toml` for shared ones.
+"""
+
+
 def init(
     path: Path = typer.Argument(
         Path("."),
@@ -115,7 +165,10 @@ def _do_init(path: Path) -> None:
     wired_agents, blocked_agents = _link_skills_for_agents(target, relay_os)
     hook_status, hook_blocker = _install_post_merge_hook(target, relay_os)
     host_gitignore_changed = ensure_host_gitignore(target)
-    commit_sha = _git_commit_relay_os(target, relay_os, host_gitignore_changed)
+    written_guides = _write_agent_guides(target)
+    commit_sha = _git_commit_relay_os(
+        target, relay_os, host_gitignore_changed, written_guides
+    )
 
     typer.echo("")
     typer.echo(f"Initialized relay repo at {relay_os}")
@@ -134,6 +187,10 @@ def _do_init(path: Path) -> None:
     _print_post_merge_status(hook_status, hook_blocker, target)
     if host_gitignore_changed:
         typer.echo(f"Updated {target / '.gitignore'} (relay-managed block).")
+    if written_guides:
+        typer.echo(
+            f"Wrote {', '.join(written_guides)} (agent orientation — Claude Code / Codex)."
+        )
     if commit_sha is not None:
         typer.echo(f"Committed relay-os/ as {commit_sha[:12]} (push when ready).")
 
@@ -197,6 +254,7 @@ def _do_update() -> None:
     wired_agents, blocked_agents = _link_skills_for_agents(relay_os.parent, relay_os)
     hook_status, hook_blocker = _install_post_merge_hook(relay_os.parent, relay_os)
     host_gitignore_changed = ensure_host_gitignore(relay_os.parent)
+    written_guides = _write_agent_guides(relay_os.parent)
     retrofitted = _run_retrofits(relay_os)
     cli_kind, cli_venv = running_cli_location(relay_os)
     cli_status, cli_detail = upgrade_global_cli(cli_kind)
@@ -225,6 +283,10 @@ def _do_update() -> None:
             typer.echo(f"  {rel}")
     if host_gitignore_changed:
         typer.echo(f"Updated {relay_os.parent / '.gitignore'} (relay-managed block).")
+    if written_guides:
+        typer.echo(
+            f"Wrote {', '.join(written_guides)} (agent orientation — Claude Code / Codex)."
+        )
     if retrofitted:
         typer.echo(f"Backfilled `human:`/`agent:` on {len(retrofitted)} ticket(s):")
         for slug in retrofitted:
@@ -453,10 +515,36 @@ def _try_install_shim(wrapper: Path) -> Path | None:
     return target
 
 
+_AGENT_GUIDE_FILES: tuple[str, ...] = ("CLAUDE.md", "AGENTS.md")
+
+
+def _write_agent_guides(target: Path) -> list[str]:
+    """Drop CLAUDE.md and AGENTS.md at the host repo root if either is missing.
+
+    Both files get the same content. We never overwrite an existing one — a
+    user's hand-edited orientation always wins. Returns the basenames we wrote
+    so the caller can echo and stage them.
+    """
+    written: list[str] = []
+    for name in _AGENT_GUIDE_FILES:
+        path = target / name
+        if path.exists():
+            continue
+        try:
+            path.write_text(AGENT_GUIDE_TEMPLATE)
+        except OSError:
+            continue
+        written.append(name)
+    return written
+
+
 def _git_commit_relay_os(
-    target: Path, relay_os: Path, include_host_gitignore: bool
+    target: Path,
+    relay_os: Path,
+    include_host_gitignore: bool,
+    extra_host_paths: list[str] | None = None,
 ) -> str | None:
-    """If `target` is a git repo, stage relay-os/ (+ host .gitignore) and commit.
+    """If `target` is a git repo, stage relay-os/ (+ host .gitignore + extras) and commit.
 
     Returns the new commit SHA on success, None if we skipped (not a git repo,
     nothing to stage, or git invocation failed). Never raises.
@@ -467,6 +555,9 @@ def _git_commit_relay_os(
         paths = ["relay-os"]
         if include_host_gitignore and (target / ".gitignore").is_file():
             paths.append(".gitignore")
+        for extra in extra_host_paths or []:
+            if (target / extra).is_file():
+                paths.append(extra)
         subprocess.run(
             ["git", "-C", str(target), "add", "--", *paths],
             check=True,

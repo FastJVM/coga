@@ -486,6 +486,104 @@ def test_init_link_skills_is_idempotent(tmp_path: Path) -> None:
     assert (target / ".claude" / "skills" / "relay").is_symlink()
 
 
+# --- agent-guide files (CLAUDE.md / AGENTS.md) -------------------------------
+
+
+def test_init_writes_agent_guides(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    for name in ("CLAUDE.md", "AGENTS.md"):
+        path = target / name
+        assert path.is_file(), f"missing {name}"
+        body = path.read_text()
+        # Identical content for both — orientation that points at canonical contexts.
+        assert body == init_cmd.AGENT_GUIDE_TEMPLATE
+        assert "relay-os/contexts/relay/" in body
+        assert "relay launch bootstrap/orient" in body
+
+    assert "Wrote CLAUDE.md, AGENTS.md" in result.output
+
+
+def test_init_preserves_existing_agent_guides(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    (target / "CLAUDE.md").write_text("# my hand-written guide\n")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    # Pre-existing CLAUDE.md untouched; AGENTS.md still scaffolded.
+    assert (target / "CLAUDE.md").read_text() == "# my hand-written guide\n"
+    assert (target / "AGENTS.md").read_text() == init_cmd.AGENT_GUIDE_TEMPLATE
+    assert "Wrote AGENTS.md" in result.output
+    assert "CLAUDE.md" not in result.output.split("Wrote ", 1)[1].splitlines()[0]
+
+
+def test_init_update_tops_up_missing_agent_guides(
+    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    relay_os = _seed_local_relay_os(tmp_path)
+    monkeypatch.chdir(relay_os)
+    # Simulate a repo init'd before agent guides shipped: CLAUDE.md absent,
+    # AGENTS.md user-written. Update should scaffold the missing one and
+    # leave the existing one alone.
+    (tmp_path / "AGENTS.md").write_text("# pre-existing AGENTS\n")
+
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            _seed_fake_upstream_for_update(Path(cmd[-1]))
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if (
+            cmd[:2] == ["git", "-C"]
+            and cmd[3:] == ["rev-parse", "HEAD"]
+            and "relay-init-update-" in cmd[2]
+        ):
+            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    result = CliRunner().invoke(app, ["init", "--update"])
+    assert result.exit_code == 0, result.output
+
+    assert (tmp_path / "AGENTS.md").read_text() == "# pre-existing AGENTS\n"
+    assert (tmp_path / "CLAUDE.md").read_text() == init_cmd.AGENT_GUIDE_TEMPLATE
+    assert "Wrote CLAUDE.md" in result.output
+
+
+def test_init_commits_agent_guides_in_git_repo(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
+    monkeypatch.setenv("PATH", os.environ["PATH"])
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    tracked = subprocess.run(
+        ["git", "-C", str(target), "ls-files"],
+        capture_output=True, text=True, check=True,
+    ).stdout.splitlines()
+    assert "CLAUDE.md" in tracked
+    assert "AGENTS.md" in tracked
+
+
 def test_init_writes_pin_file(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
