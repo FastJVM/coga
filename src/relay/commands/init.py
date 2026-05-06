@@ -153,6 +153,12 @@ def _do_init(path: Path) -> None:
         refresh_cli(clone_dir, relay_os)
         sha = upstream_sha(clone_dir)
 
+    # Lay down the back-compat symlinks (`skills/bootstrap`,
+    # `contexts/relay/architecture`, …). The upstream template ships
+    # everything under `bootstrap/`; copytree resolves symlinks by
+    # default so we recreate them locally on every init.
+    _link_compat_paths(relay_os)
+
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
@@ -248,6 +254,11 @@ def _do_update() -> None:
         sha = upstream_sha(clone_dir)
 
     pruned = prune_obsolete(relay_os) + pruned_templates
+    # `prune_obsolete` clears the legacy real dirs (e.g. an existing
+    # `skills/bootstrap/`); re-laying the back-compat symlinks afterwards
+    # is what makes path-based references (`skill:`, `contexts:`,
+    # `_AGENT_SKILL_DIRS`) keep resolving.
+    _link_compat_paths(relay_os)
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
@@ -340,6 +351,68 @@ def _print_global_cli_status(status: str, detail: str | None, venv: Path) -> Non
     )
 
 
+# Back-compat symlinks for the bootstrap/-consolidation. Each entry is
+# `(symlink, target)` *relative to relay-os/*. The symlink lives at the
+# legacy path that workflow `skill:` refs, ticket `contexts:` refs, and
+# `_AGENT_SKILL_DIRS` discovery all assume; the target is the consolidated
+# location under `bootstrap/` where the actual files now live.
+#
+# Symlinks aren't shipped in the upstream template (shutil.copytree resolves
+# them to copies); they're created on every `relay init` and `relay init
+# --update` so the host repo doesn't carry symlinks across machines.
+_COMPAT_SYMLINKS: tuple[tuple[str, str], ...] = (
+    ("skills/bootstrap", "../bootstrap/skills/bootstrap"),
+    ("skills/retro", "../bootstrap/skills/retro"),
+    ("contexts/relay/architecture", "../../bootstrap/contexts/relay/architecture"),
+    ("contexts/relay/principles", "../../bootstrap/contexts/relay/principles"),
+    ("contexts/relay/cli", "../../bootstrap/contexts/relay/cli"),
+)
+
+
+def _link_compat_paths(relay_os: Path) -> list[str]:
+    """Recreate the `skills/<name>` and `contexts/relay/<name>` back-compat symlinks.
+
+    Vendored content lives under `relay-os/bootstrap/` (single mirror target).
+    The legacy paths it used to live at — `skills/bootstrap/`, `skills/retro/`,
+    `contexts/relay/architecture/`, etc. — are still what workflow steps,
+    ticket frontmatter, and agent skill-discovery scan, so we lay relative
+    symlinks down at every init/update run.
+
+    Idempotent: leaves a correct existing symlink alone, replaces a wrong one,
+    skips if a real file/dir is sitting at the target (caller can then prune
+    via `OBSOLETE_PATHS`). Returns the list of symlink paths created or
+    refreshed (for the echo line).
+    """
+    created: list[str] = []
+    for rel, target in _COMPAT_SYMLINKS:
+        link = relay_os / rel
+        target_path = Path(target)
+
+        if link.is_symlink():
+            try:
+                if Path(os.readlink(link)) == target_path:
+                    continue
+            except OSError:
+                pass
+            try:
+                link.unlink()
+            except OSError:
+                continue
+        elif link.exists():
+            # Real file/dir in the way — `prune_obsolete` removes these
+            # during `--update`; on a fresh init the path shouldn't exist
+            # at all (the upstream template no longer ships these dirs).
+            continue
+
+        try:
+            link.parent.mkdir(parents=True, exist_ok=True)
+            link.symlink_to(target_path, target_is_directory=True)
+        except OSError:
+            continue
+        created.append(rel)
+    return created
+
+
 # Agents we wire skill discovery for. Each entry is the project-level dir
 # that the agent's CLI scans for skills (e.g. Claude Code reads `.claude/skills/`,
 # Codex reads `.codex/skills/`). We symlink `<agent>/skills/relay` -> `relay-os/skills`
@@ -411,13 +484,13 @@ def _find_git_dir(start: Path) -> Path | None:
 def _install_post_merge_hook(
     host_repo: Path, relay_os: Path
 ) -> tuple[str, Path | None]:
-    """Symlink `<host>/.git/hooks/post-merge` → `relay-os/hooks/post-merge`.
+    """Symlink `<host>/.git/hooks/post-merge` → `relay-os/bootstrap/hooks/post-merge`.
 
     Returns `(status, blocker)`:
       - `("installed", None)` — newly created.
       - `("present", None)` — symlink already correct (idempotent re-run).
       - `("not-a-git-repo", None)` — host has no `.git/`. Nothing to do.
-      - `("no-hook-template", None)` — relay-os/hooks/post-merge missing.
+      - `("no-hook-template", None)` — bootstrap/hooks/post-merge missing.
       - `("blocked", path)` — something else lives at the target. We don't
         clobber user hooks.
       - `("failed", None)` — the symlink call itself failed (e.g. Windows
@@ -428,7 +501,7 @@ def _install_post_merge_hook(
     git_dir = _find_git_dir(host_repo)
     if git_dir is None:
         return ("not-a-git-repo", None)
-    src = relay_os / "hooks" / "post-merge"
+    src = relay_os / "bootstrap" / "hooks" / "post-merge"
     if not src.is_file():
         return ("no-hook-template", None)
     # Mode bits don't always survive `shutil.copytree` cleanly across

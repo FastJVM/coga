@@ -10,6 +10,7 @@ TEMPLATES = (
     / "resources"
     / "templates"
     / "relay-os"
+    / "bootstrap"
     / "skills"
     / "bootstrap"
     / "dream"

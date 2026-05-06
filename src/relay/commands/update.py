@@ -23,10 +23,21 @@ CLI_SRC_SUBPATH = Path("src/relay")
 # `init --update` prunes these from existing repos so removed scaffolding doesn't
 # linger after a migration. Keep entries narrow — only files we know we shipped
 # and now want gone, never user-owned paths.
+#
+# Note on the bootstrap/-consolidation entries below: those paths used to live
+# at the relay-os/ root and are now mirrored under `bootstrap/`. Existing repos
+# need them pruned so the now-empty originals don't shadow the back-compat
+# symlinks `_link_compat_paths` lays down.
 OBSOLETE_PATHS: tuple[str, ...] = (
     "counter",  # numeric task ID counter, dropped in the slug-only migration
     "meta",  # renamed to bootstrap/ — pre-bootstrap upstreams shipped meta/
     "skills/bootstrap/create",  # renamed to bootstrap/ticket in 350c4ed
+    "skills/bootstrap",  # consolidated under bootstrap/skills/bootstrap
+    "skills/retro",  # consolidated under bootstrap/skills/retro
+    "contexts/relay/architecture",  # consolidated under bootstrap/contexts/relay/architecture
+    "contexts/relay/principles",  # consolidated under bootstrap/contexts/relay/principles
+    "contexts/relay/cli",  # consolidated under bootstrap/contexts/relay/cli
+    "hooks",  # consolidated under bootstrap/hooks
 )
 
 
@@ -113,16 +124,14 @@ def refresh_cli(clone_dir: Path, relay_os: Path) -> None:
 def refresh_templates(clone_dir: Path, relay_os: Path) -> tuple[list[str], list[str]]:
     """Refresh relay-owned scaffolds under `relay_os/` from the clone.
 
-    Four things are treated as upstream-owned (always overwritten on update):
+    Three things are treated as upstream-owned (always overwritten on update):
       - `_*` template scaffolds (`_template/` etc.)
-      - `bootstrap/` shims and the `skills/bootstrap/` skills they reference —
-        relay-owned infra, not user content. Mirrored as a unit by
-        `_copy_bootstrap`.
-      - `skills/retro/` — shipped prompt-only retro skills. Mirrored by
-        `_copy_retro_skills`.
-      - `contexts/relay/{architecture,principles,cli}/` — the canonical
-        relay-the-tool contexts that ship with relay. Mirrored by
-        `_copy_relay_contexts`.
+      - `bootstrap/` — the single relay-vendored umbrella. Holds launch shims
+        plus all upstream-managed skills, contexts, and git hooks
+        (`bootstrap/skills/`, `bootstrap/contexts/relay/*`, `bootstrap/hooks/`).
+        Mirrored as one unit by `_copy_vendored_bootstrap`. The user-facing
+        paths (`skills/bootstrap`, `contexts/relay/architecture`, etc.) are
+        symlinks into this tree, recreated by `_link_compat_paths`.
       - `.gitignore` — must track upstream so new ignore entries land in
         existing repos without manual edits.
 
@@ -138,10 +147,7 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> tuple[list[str], list[
         )
         sys.exit(2)
     copied = _copy_templates(src_root, relay_os)
-    copied.extend(_copy_bootstrap(src_root, relay_os))
-    copied.extend(_copy_retro_skills(src_root, relay_os))
-    copied.extend(_copy_relay_contexts(src_root, relay_os))
-    copied.extend(_copy_relay_hooks(src_root, relay_os))
+    copied.extend(_copy_vendored_bootstrap(src_root, relay_os))
     copied.extend(_copy_upstream_files(src_root, relay_os))
     pruned = _prune_removed_templates(src_root, relay_os)
     return copied, pruned
@@ -525,57 +531,25 @@ def _drop_matching_lines(text: str, drop: set[str]) -> str:
     return "".join(kept)
 
 
-def _copy_bootstrap(src_root: Path, dst_root: Path) -> list[str]:
-    """Mirror the `bootstrap/`-namespace tree from upstream — wipe, copy fresh.
+def _copy_vendored_bootstrap(src_root: Path, dst_root: Path) -> list[str]:
+    """Mirror the `bootstrap/` umbrella — wipe, copy fresh.
 
-    Covers two paths, both relay-owned infra (not user content):
-      - `bootstrap/` — launch shims for relay-owned skills.
-      - `skills/bootstrap/` — the skills those shims reference.
+    `bootstrap/` is the single home for everything relay vendors and updates
+    wholesale: launch shims (`bootstrap/<name>/ticket.md`), the skills they
+    reference (`bootstrap/skills/`), the canonical relay-the-tool contexts
+    (`bootstrap/contexts/relay/*`), and git-hook scripts (`bootstrap/hooks/`).
+    User-facing paths like `skills/bootstrap` and `contexts/relay/architecture`
+    are symlinks pointing into this tree; `_link_compat_paths` (in init.py)
+    creates them after this mirror runs.
 
-    Each is wholesale-replaced on update so renames and removals propagate
-    cleanly. Don't put custom shims or custom skills under `bootstrap/`
-    namespaces — they'll be pruned. Custom skills go elsewhere under
-    `skills/` (e.g. `skills/code/...`).
+    Wholesale replacement means renames and removals propagate cleanly. Don't
+    put custom content under `bootstrap/` — it'll be wiped. Custom skills
+    belong in `skills/<your-ns>/`, custom contexts in `contexts/<your-ns>/`.
     """
-    return _wholesale_mirror(src_root, dst_root, ("bootstrap", "skills/bootstrap"))
-
-
-def _copy_retro_skills(src_root: Path, dst_root: Path) -> list[str]:
-    """Mirror Relay-owned retro prompt skills."""
-    return _wholesale_mirror(src_root, dst_root, ("skills/retro",))
-
-
-# Canonical relay-the-tool contexts: same content shipped to every relay-os/.
-# Other namespaces under `contexts/` are user-owned and never touched here.
-_RELAY_OWNED_CONTEXTS: tuple[str, ...] = (
-    "contexts/relay/architecture",
-    "contexts/relay/principles",
-    "contexts/relay/cli",
-)
-
-
-def _copy_relay_contexts(src_root: Path, dst_root: Path) -> list[str]:
-    """Mirror the canonical `contexts/relay/*` contexts from upstream.
-
-    These describe relay-the-tool (mental model, principles, CLI surface) and
-    ship as-is to every relay-os/ so the `bootstrap/orient` shim's references
-    resolve. User-authored contexts under other `contexts/<namespace>/` paths
-    are untouched.
-    """
-    return _wholesale_mirror(src_root, dst_root, _RELAY_OWNED_CONTEXTS)
-
-
-def _copy_relay_hooks(src_root: Path, dst_root: Path) -> list[str]:
-    """Mirror `hooks/` from upstream — the git-hook scripts relay installs.
-
-    Currently just `post-merge` (auto-bumps tickets whose PR has merged).
-    Symlinked into `.git/hooks/` by `relay init`; the file lives here so it
-    travels with the repo and updates land via `init --update`.
-    """
-    copied = _wholesale_mirror(src_root, dst_root, ("hooks",))
+    copied = _wholesale_mirror(src_root, dst_root, ("bootstrap",))
     # `_wholesale_mirror` uses `shutil.copytree` whose default `copy2` honors
     # mode bits, but be defensive: hooks are useless if not executable.
-    hooks_dir = dst_root / "hooks"
+    hooks_dir = dst_root / "bootstrap" / "hooks"
     if hooks_dir.is_dir():
         for hook in hooks_dir.iterdir():
             if hook.is_file():
