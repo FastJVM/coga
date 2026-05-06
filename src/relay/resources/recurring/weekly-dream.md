@@ -86,7 +86,11 @@ For each done task:
    `relay-os/tasks/<slug>/blackboard.md`.
 4. If no current marker and no open PR marker exists, run `retro/done-ticket
    <slug>` for one selected done ticket. Prefer one Retro PR per Dream run
-   unless a human asks for a batch.
+   unless a human asks for a batch. **Run Retro in a subagent.** The full
+   ticket evidence (`ticket.md`, `blackboard.md`, `log.md`, plus every context
+   and skill file) would otherwise bloat the main Dream context. The subagent
+   should return only the PR URL and a one-line result; the raw evidence stays
+   inside the subagent.
 5. If `relay-os/tasks/<slug>/` is already gone, it is not a Retro candidate.
    For audit, use git history for the deleted `blackboard.md`; the deleted
    marker is the record that Retro processed the task before cleanup.
@@ -111,8 +115,14 @@ of deleting.
 
 ### Higher-Judgment Scan
 
-After the ordered skill pass, read every ticket body and blackboard. Compare
-against existing contexts, skills, and workflows. Look for:
+After the ordered skill pass, delegate this step to a subagent. The scan reads
+every ticket body and blackboard and compares them against existing contexts,
+skills, and workflows — that's exactly the kind of large read that would
+otherwise dominate the main Dream context. The subagent should return only
+the findings list (the `### Proposal:` blocks below); the raw ticket and
+blackboard contents stay inside the subagent.
+
+Look for:
 
 - **Context gaps** - repeated task knowledge with no matching context.
 - **Skill gaps** - repeated process struggle with no skill to teach it.
