@@ -5,7 +5,19 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 # Relay — current direction
 
-Last updated: 2026-05-05.
+Last updated: 2026-05-06.
+
+## Recent decisions (Dream — manual triggering for now)
+
+- **Recurring tasks are run manually, not scheduled.** No `weekly-dream.md`
+  template gets vendored into `relay-os/recurring/` yet, and no crontab
+  entry calls `scripts/cron.sh`. To run Dream, invoke
+  `relay-os/scripts/dream-run.sh` from the repo root — it scaffolds a
+  fresh `dream-run-<timestamp>` task wired to the `bootstrap/dream-run`
+  workflow and launches it. Same intent for REM (no manual script yet —
+  copy the Dream pattern when needed). Wire up the schedule later, once
+  the worker pass is shaken out and we trust an unattended Monday
+  morning run.
 
 ## Recent decisions (Dream and REM)
 
