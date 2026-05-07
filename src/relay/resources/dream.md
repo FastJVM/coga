@@ -8,6 +8,15 @@ Dream is not REM. Repo/user-specific recurring maintenance belongs in a
 separate REM task under `relay-os/recurring/`, with its own cadence, skill
 order, and output conventions.
 
+### Console Progress
+
+Write short progress updates to the console before and after each major phase:
+validate-drift, done-ticket classification, Retro handoff, cleanup proposal,
+higher-judgment scan, Slack, and final bump. Include the command or file path
+being acted on and the result count when available. If a phase is skipped,
+say why. The blackboard remains the durable record; console progress is for
+the human watching the run.
+
 ### Ordered Skill Pass
 
 Run these known skills in this order:

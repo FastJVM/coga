@@ -104,11 +104,17 @@ def launch(
     if agent_override is not None and is_bootstrap:
         ticket.frontmatter["assignee"] = agent_override
 
+    typer.echo(
+        f"Launch: task {ref.id_slug} "
+        f"(status={ticket.status}, mode={ticket.mode}, assignee={ticket.assignee or 'unassigned'})"
+    )
+
     # Announce ticket creation when the factory mode just scaffolded one.
     # `title is not None` was the factory-mode signal above; we re-derive
     # it here rather than threading another local because the post needs
     # the read ticket either way.
     if title is not None:
+        typer.echo("Launch: posting scaffold notification")
         post(
             cfg,
             f"✨ {cfg.current_user} scaffolded *{ref.id_slug}* "
@@ -117,6 +123,7 @@ def launch(
             task_path=ref.path,
             owner=ticket.owner or cfg.current_user,
         )
+        typer.echo("Launch: scaffold notification posted")
 
     if not is_bootstrap and ticket.status not in _LAUNCHABLE_STATUSES:
         _bail(
@@ -156,21 +163,31 @@ def launch(
         agent = cfg.agent_type_for(cfg.current_user, launch_assignee)
     except ConfigError as exc:
         _bail(str(exc))
+    typer.echo(
+        f"Launch: agent {launch_assignee} -> {agent.name} "
+        f"(cli={agent.cli})"
+    )
 
     # Verify CLI binary exists.
-    if shutil.which(agent.cli) is None:
+    agent_path = shutil.which(agent.cli)
+    if agent_path is None:
         _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
+    typer.echo(f"Launch: found agent CLI at {agent_path}")
 
     # Acquire lock for normal tasks. Bootstrap shims are stateless re-entry
     # points — concurrent launches are fine, no lock to release.
     lock = None if is_bootstrap else TaskLock(ref.path)
     if lock is not None:
         try:
+            typer.echo(f"Launch: acquiring lock {lock.path}")
             lock.acquire(holder=launch_assignee, force=force)
+            typer.echo("Launch: lock acquired")
         except LockHeldError as exc:
             _bail(
                 f"{exc}\nPass --force to break the lock (e.g. after a crashed session)."
             )
+    else:
+        typer.echo("Launch: bootstrap target; no lock needed")
 
     # Launching is the approval gesture: a draft becomes active.
     # Skip for tickets carrying a top-level skill ref (bootstrap-style):
@@ -184,6 +201,8 @@ def launch(
             f"human:{cfg.current_user}",
             "activated (draft → active)",
         )
+        typer.echo("Launch: activated draft task")
+        typer.echo("Launch: posting activation notification")
         post(
             cfg,
             f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
@@ -192,6 +211,7 @@ def launch(
             task_path=ref.path,
             owner=ticket.owner or cfg.current_user,
         )
+        typer.echo("Launch: activation notification posted")
 
     # Inject secrets as env vars.
     env = os.environ.copy()
@@ -234,9 +254,18 @@ def launch(
             if warning:
                 typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
 
+            typer.echo("Launch: composing prompt")
             prompt = compose_prompt(cfg, ref, ticket)
             prompt_file = write_prompt_file(prompt, ref)
+            typer.echo(
+                f"Launch: prompt written to {prompt_file} "
+                f"({len(prompt)} chars)"
+            )
             cmd = build_agent_command(agent, mode, prompt, prompt_file)
+            typer.echo(
+                f"Launch: command: "
+                f"{_format_agent_command_for_console(cmd, prompt, prompt_file)}"
+            )
 
             append_log(
                 ref.path,
@@ -259,6 +288,7 @@ def launch(
             finally:
                 _cleanup_prompt()
 
+            typer.echo(f"Launch: agent exited with code {exit_code}")
             if exit_code != 0:
                 typer.secho(
                     f"Agent exited with code {exit_code}.",
@@ -270,6 +300,7 @@ def launch(
             if is_bootstrap or ticket.skill:
                 break
 
+            typer.echo("Launch: reading task state after agent exit")
             updated_ticket = read_ticket(ref)
             stop_reason = _harness_stop_reason(ref, ticket, updated_ticket)
             if stop_reason is not None:
@@ -338,9 +369,29 @@ def _flag_takes_file(flag: str) -> bool:
 def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:
     current = ticket.current_step()
     if current is None:
-        typer.echo(f"→ launching {ref.id_slug}")
+        typer.echo(
+            f"→ launching {ref.id_slug} "
+            f"(status={ticket.status}, mode={ticket.mode}, assignee={ticket.assignee or 'unassigned'})"
+        )
         return
-    typer.echo(f"→ entering step {ticket.step}: {current['name']}")
+    typer.echo(
+        f"→ entering step {ticket.step}: {current['name']} "
+        f"(status={ticket.status}, mode={ticket.mode}, assignee={ticket.assignee or 'unassigned'})"
+    )
+
+
+def _format_agent_command_for_console(
+    cmd: list[str],
+    prompt: str,
+    prompt_file: Path,
+) -> str:
+    display = list(cmd)
+    for idx, value in enumerate(display):
+        if value == prompt:
+            display[idx] = f"<prompt-text {len(prompt)} chars>"
+        elif value == str(prompt_file):
+            display[idx] = f"<prompt-file {prompt_file}>"
+    return shlex.join(display)
 
 
 def _harness_stop_reason(ref: TaskRef, before: Ticket, after: Ticket) -> str | None:
