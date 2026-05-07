@@ -62,6 +62,14 @@ def test_launch_auto_mode(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "auto-run"])
     assert result.exit_code == 0, result.output
+    assert "Launch: task auto-run (status=active, mode=auto, assignee=claude1)" in result.output
+    assert "Launch: agent claude1 -> claude (cli=claude)" in result.output
+    assert "Launch: found agent CLI at /usr/bin/claude" in result.output
+    assert "Launch: lock acquired" in result.output
+    assert "Launch: prompt written to" in result.output
+    assert "Launch: command: claude -p '<prompt-text " in result.output
+    assert "Launch: agent exited with code 0" in result.output
+    assert "Launch: reading task state after agent exit" in result.output
 
     cmd = captured["cmd"]
     assert cmd[0] == "claude"
