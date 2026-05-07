@@ -36,8 +36,9 @@ no in-memory state.
   lock. `relay launch bootstrap/ticket "title"` is the factory
   shorthand to scaffold a new draft + run the bootstrap skill on it.
 - **Dream** is Relay's generic ticket cleanup pass. A Dream run is an ordinary
-  recurring task whose body scans the ticket set, runs fixed Relay housekeeping
-  skills, proposes cleanup, and writes reviewable results to its blackboard.
+  ad-hoc task created by `relay dream`; its body scans the ticket set, runs
+  fixed Relay housekeeping skills, proposes cleanup, and writes reviewable
+  results to its blackboard.
 - **REM** is repo/user-specific recurring maintenance. A REM run is an
   ordinary recurring task whose body defines that repo's operational checks,
   domain skills, output conventions, and review gates.

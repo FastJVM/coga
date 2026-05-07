@@ -7,16 +7,14 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 Last updated: 2026-05-06.
 
-## Recent decisions (Dream — manual triggering for now)
+## Recent decisions (Dream — ad-hoc triggering for now)
 
-- **Recurring tasks fire manually, not on a schedule.** `weekly-dream.md`
-  lives in `relay-os/recurring/` with its weekly schedule, but no crontab
-  entry calls `scripts/cron.sh` — so nothing fires on its own. The manual
-  trigger is `relay recurring check && relay launch <slug>`: the scaffolder
-  is idempotent per ISO week, so re-running the same week is a no-op, and
-  the slug is `weekly-dream-YYYY-Wnn`. Wire up the schedule later, once
-  the worker pass is shaken out and we trust an unattended Monday morning
-  run. Same intent for REM.
+- **Dream is manual and ad-hoc for now.** Run `relay dream` to create a normal
+  Dream task (`dream`, `dream-2`, etc.) and launch the cleanup pass. Dream does
+  not need a weekly bucket or schedule-derived slug: it scans current Relay
+  state, writes to its own blackboard, and finishes through `relay bump`.
+  Recurring scheduling stays separate until the worker pass is trusted enough
+  to run unattended. Same intent for REM.
 
 ## Recent decisions (Dream and REM)
 

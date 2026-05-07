@@ -134,10 +134,16 @@ Scan `relay-os/recurring/` and scaffold any due tasks. Called from
 `scaffold_task()` in `relay.scaffold` directly with the template's full
 frontmatter.
 
+### `relay dream`
+
+Create an ad-hoc Dream cleanup task for this Relay repo and launch it. The
+slug is allocated like any other task (`dream`, `dream-2`, etc.); it is not
+derived from a schedule or timestamp.
+
 ### Dream and REM
 
-Dream is Relay's generic ticket cleanup pass for one `relay-os/`. The scheduled
-Dream task scans all tickets, runs fixed Relay housekeeping skills such as
+Dream is Relay's generic ticket cleanup pass for one `relay-os/`. A Dream task
+scans all tickets, runs fixed Relay housekeeping skills such as
 `validate-drift` and `retro/done-ticket`, proposes cleanup, writes results to
 that run's blackboard, and leaves a human-reviewable trail.
 
