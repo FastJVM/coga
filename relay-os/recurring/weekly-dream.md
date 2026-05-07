@@ -1,3 +1,15 @@
+---
+schedule: "0 9 * * 1"
+schedule_comment: "Every Monday at 9am"
+title: "Weekly dream scan"
+mode: auto
+workflow: bootstrap/dream-run
+assignee: claude1
+owner: nick
+---
+
+## Description
+
 Run the Dream cleanup pass for this Relay repo.
 
 Dream is Relay's generic cleanup pass. It scans every ticket, runs the

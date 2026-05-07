@@ -9,15 +9,14 @@ Last updated: 2026-05-06.
 
 ## Recent decisions (Dream — manual triggering for now)
 
-- **Recurring tasks are run manually, not scheduled.** No `weekly-dream.md`
-  template gets vendored into `relay-os/recurring/` yet, and no crontab
-  entry calls `scripts/cron.sh`. To run Dream, invoke
-  `relay-os/scripts/dream-run.sh` from the repo root — it scaffolds a
-  fresh `dream-run-<timestamp>` task wired to the `bootstrap/dream-run`
-  workflow and launches it. Same intent for REM (no manual script yet —
-  copy the Dream pattern when needed). Wire up the schedule later, once
-  the worker pass is shaken out and we trust an unattended Monday
-  morning run.
+- **Recurring tasks fire manually, not on a schedule.** `weekly-dream.md`
+  lives in `relay-os/recurring/` with its weekly schedule, but no crontab
+  entry calls `scripts/cron.sh` — so nothing fires on its own. The manual
+  trigger is `relay recurring check && relay launch <slug>`: the scaffolder
+  is idempotent per ISO week, so re-running the same week is a no-op, and
+  the slug is `weekly-dream-YYYY-Wnn`. Wire up the schedule later, once
+  the worker pass is shaken out and we trust an unattended Monday morning
+  run. Same intent for REM.
 
 ## Recent decisions (Dream and REM)
 
