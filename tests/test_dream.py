@@ -4,6 +4,7 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
 from relay.cli import app
@@ -51,6 +52,11 @@ def test_dream_no_launch_scaffolds_ad_hoc_task_without_time_bucket(
 
     assert first.exit_code == 0, first.output
     assert second.exit_code == 0, second.output
+    assert "Dream: repo root" in first.output
+    assert "Dream: using assignee claude1 (agent type claude, mode auto)" in first.output
+    assert "Dream: scaffolding task 'Dream'" in first.output
+    assert "Dream: created task dream at" in first.output
+    assert "Dream: launch skipped (--no-launch)" in first.output
     assert "Created dream" in first.output
     assert "Created dream-2" in second.output
     assert (repo / "tasks" / "dream").is_dir()
@@ -64,3 +70,50 @@ def test_dream_no_launch_scaffolds_ad_hoc_task_without_time_bucket(
     assert ticket.assignee == "claude1"
     assert ticket.workflow is None
     assert "Run the Dream cleanup pass for this Relay repo." in ticket.body
+
+
+def test_dream_logs_before_launching(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(repo)
+    calls: list[dict[str, object]] = []
+
+    def fake_launch(
+        task: str,
+        title: str | None,
+        agent_override: str | None,
+        prompt_report: bool,
+        force: bool,
+    ) -> None:
+        calls.append(
+            {
+                "task": task,
+                "title": title,
+                "agent_override": agent_override,
+                "prompt_report": prompt_report,
+                "force": force,
+            }
+        )
+        typer.echo("fake launch called")
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+
+    result = CliRunner().invoke(app, ["dream", "--mode", "interactive"])
+
+    assert result.exit_code == 0, result.output
+    assert "Dream: repo root" in result.output
+    assert "Dream: using assignee claude1 (agent type claude, mode interactive)" in result.output
+    assert "Dream: scaffolding task 'Dream'" in result.output
+    assert "Dream: created task dream at" in result.output
+    assert "Dream: launching dream" in result.output
+    assert "fake launch called" in result.output
+    assert calls == [
+        {
+            "task": "dream",
+            "title": None,
+            "agent_override": None,
+            "prompt_report": False,
+            "force": False,
+        }
+    ]

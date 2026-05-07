@@ -39,12 +39,18 @@ def dream(
 
     try:
         cfg = load_config()
+        typer.echo(f"Dream: repo root {cfg.repo_root}")
         assignee = agent or _default_agent(cfg)
-        cfg.agent_type_for(cfg.current_user, assignee)
+        agent_type = cfg.agent_type_for(cfg.current_user, assignee)
+        typer.echo(
+            f"Dream: using assignee {assignee} "
+            f"(agent type {agent_type.name}, mode {mode})"
+        )
     except ConfigError as exc:
         _bail(str(exc))
 
     try:
+        typer.echo(f"Dream: scaffolding task {title!r}")
         result = scaffold_task(
             cfg=cfg,
             title=title,
@@ -62,11 +68,14 @@ def dream(
         _bail(str(exc))
 
     slug = result["slug"]
+    typer.echo(f"Dream: created task {slug} at {result['path']}")
     typer.echo(f"Created {slug}")
     if no_launch:
+        typer.echo("Dream: launch skipped (--no-launch)")
         typer.echo(f"Run `relay launch {slug}` to start the Dream pass.")
         return
 
+    typer.echo(f"Dream: launching {slug}")
     from relay.commands.launch import launch
 
     launch(slug, title=None, agent_override=None, prompt_report=False, force=False)
@@ -89,4 +98,3 @@ def _dream_body() -> str:
 def _bail(msg: str) -> None:
     typer.secho(msg, fg=typer.colors.RED, err=True)
     sys.exit(2)
-

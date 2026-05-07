@@ -41,6 +41,8 @@ def test_dream_documents_ordered_skill_pass() -> None:
     assert "Run the Dream cleanup pass for this Relay repo" in text
     assert "Dream is Relay's generic cleanup pass" in text
     assert "Dream is not REM" in text
+    assert "### Console Progress" in text
+    assert "Write short progress updates to the console" in text
     assert "### Ordered Skill Pass" in text
     assert "`bootstrap/dream/tasks/validate-drift`" in text
     assert "`retro/done-ticket`" in text
