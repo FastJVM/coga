@@ -19,8 +19,7 @@ TEMPLATES = (
 
 DREAM = TEMPLATES.parent
 RESOURCES = Path(__file__).resolve().parents[1] / "src" / "relay" / "resources"
-WEEKLY_DREAM = RESOURCES / "recurring" / "weekly-dream.md"
-BOOTSTRAP_DREAM_RUN = RESOURCES / "workflows" / "bootstrap" / "dream-run.md"
+DREAM_PROMPT = RESOURCES / "dream.md"
 REM_TEMPLATE = (
     Path(__file__).resolve().parents[1]
     / "src"
@@ -34,14 +33,11 @@ REM_TEMPLATE = (
 
 
 def test_dream_documents_ordered_skill_pass() -> None:
-    text = WEEKLY_DREAM.read_text()
-    workflow = BOOTSTRAP_DREAM_RUN.read_text()
+    text = DREAM_PROMPT.read_text()
 
     assert not (DREAM / "SKILL.md").exists()
     assert not (DREAM / "scan.py").exists()
     assert not (TEMPLATES / "dev" / "stale-branches" / "SKILL.md").exists()
-    assert "skill: bootstrap/dream" not in workflow
-    assert "Run the Dream maintenance pass described directly" in workflow
     assert "Run the Dream cleanup pass for this Relay repo" in text
     assert "Dream is Relay's generic cleanup pass" in text
     assert "Dream is not REM" in text
@@ -52,7 +48,7 @@ def test_dream_documents_ordered_skill_pass() -> None:
     assert "dev/stale-branches" not in text
     assert "That table is the dispatch contract" in text
     assert "Do not auto-discover skills" in text
-    assert "another recurring task with its own\nbody and ordered skill list" in text
+    assert "make another task with its own body and\nordered skill list" in text
     assert "### Skill: validate-drift" in text
     assert "### Skill: retro/done-ticket" in text
     assert "### Skill: dev/stale-branches" not in text
@@ -62,7 +58,7 @@ def test_dream_documents_ordered_skill_pass() -> None:
     assert "An open\n   PR counts as in flight" in text
     assert "Absence of the marker on an existing done ticket" in text
     assert "git history for the deleted `blackboard.md`" in text
-    assert "## Dream Run Summary" in text
+    assert "Dream Run Summary" in text
     assert "relay slack --task <this-dream-task>" in text
     assert "stale branch" not in text.lower()
     assert "relay-os/skills/dream/orchestrate/SKILL.md" not in text

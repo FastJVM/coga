@@ -5,7 +5,7 @@ description: The relay CLI surface — what each command does, the flags that ma
 
 # Relay CLI
 
-Nine built-in commands plus a config-driven alias mechanism. Everything
+Built-in commands plus a config-driven alias mechanism. Everything
 else is a flag or subcommand. The model beneath them lives in
 `relay/architecture` — read that for primitives and prompt composition.
 This context is just the operator's reference.
@@ -124,15 +124,30 @@ not two. Slack is required (see `relay/sync`); commands crash if
 `$SLACK_WEBHOOK_URL` is unset and the user hasn't opted out via
 `[slack].enabled = false`.
 
+## relay dream [--agent <nickname>] [--no-launch]
+
+Create an ad-hoc Dream cleanup task for the current Relay repo. The task slug
+is plain slug allocation (`dream`, `dream-2`, etc.), not a schedule or time
+bucket. By default the command immediately launches the new task in `auto`
+mode using the current user's first configured agent nickname.
+
+- `relay dream` — create and launch a Dream cleanup run now.
+- `relay dream --agent codex1` — assign the run to a specific agent nickname.
+- `relay dream --no-launch` — scaffold the run and print the explicit
+  `relay launch <slug>` command.
+
+Dream scans current task state, runs the known Relay housekeeping pass, writes
+its results to that run's blackboard, and should finish with `relay bump`.
+It is not the recurring scheduler and does not use `relay-os/recurring/`.
+
 ## relay recurring check
 
 Scan `relay-os/recurring/` and scaffold any due tasks. Cron entry point;
 called from `relay-os/scripts/cron.sh`.
 
-Dream is Relay's generic cleanup pass built on this surface: a recurring
-template creates a normal Dream task, `relay launch` composes the task body,
-and the ordered housekeeping results land on that task's blackboard. REM uses
-the same recurring-task mechanics for repo/user-specific maintenance.
+REM and other user-defined recurring maintenance loops use this surface.
+Dream currently uses `relay dream` directly so manual cleanup runs do not
+depend on a schedule-derived slug.
 
 ## relay --version
 
@@ -166,6 +181,7 @@ only; they don't accept their own flags.
   `launch bootstrap/ticket`).
 - Ticket-less chat session → `relay chat` (alias for
   `launch bootstrap/orient`).
+- Running Relay cleanup now → `relay dream`.
 - Continuing a known task → `relay launch <slug>`.
 - Other bootstrap shim → `relay launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `relay bump`.
@@ -184,8 +200,7 @@ repo + config diagnostic. `--fix` is deliberately narrow: it creates missing
 It does not rewrite existing files, freeze workflows, delete locks, or push
 git state. Reach for validation when a command is misbehaving or
 slack/webhook setup looks broken; Dream's validate-drift skill is the normal
-place to apply safe fixes and broadcast a summary during the recurring
-maintenance pass.
+place to apply safe fixes and broadcast a summary during a Dream run.
 
 ## What this context does NOT cover
 

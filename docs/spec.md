@@ -91,7 +91,8 @@ indirection is visible.
 Validated at config load — fail loud, not silent:
 
 - Alias names cannot collide with built-in commands (`init`, `launch`,
-  `status`, `bump`, `panic`, `slack`, `recurring`).
+  `status`, `show`, `bump`, `automerge`, `delete`, `dream`, `panic`,
+  `slack`, `validate`, `recurring`).
 - The first token of the expansion must be a known built-in.
 - Aliases are pass-through only. Arguments and flags after the alias name
   are forwarded to the expanded command.
@@ -634,24 +635,26 @@ No automatic crash detection or restart in v1. Dream's `validate-drift` skill fl
 
 ### Self-bootstrapping
 
-The system improves itself using its own primitives. They are CLI commands executed as recurring tasks: they're regular tasks that use Relay's existing primitives.
+The system improves itself using its own primitives. They are CLI commands
+that create regular Relay tasks using Relay's existing primitives.
 
 #### Dream
 
 Dream is Relay's generic ticket cleanup pass for one Relay repo. A Dream run is
-an ordinary scheduled task, usually `mode: auto`, created by
-`relay recurring check` and launched like any other task. The recurring task
-body is the instruction surface: scan every ticket, run known Relay
-housekeeping skills in a fixed order, propose cleanup, and write a reviewable
-summary to that run's blackboard. There is no global Dream service, cross-repo
+an ordinary task, usually `mode: auto`, created by `relay dream` and launched
+immediately unless `--no-launch` is passed. The task body is the instruction
+surface: scan every ticket, run known Relay housekeeping skills in a fixed
+order, propose cleanup, and write a reviewable summary to that run's
+blackboard. The slug is normal task slug allocation (`dream`, `dream-2`, etc.),
+not a schedule or time bucket. There is no global Dream service, cross-repo
 scheduler, daemon, database, hidden cache, or plugin registry.
 
 Dream is not a workflow, not a standalone skill, and not one large cleanup
-script. The recurring task owns the order of the pass and the run-level
-summary; the skills it calls own their inputs, allowed changes, idempotency
-proof, and output format. Adding an arbitrary file under a Dream task directory
-does not enable it. The ordered skill list in the recurring Dream task body is
-the dispatch contract.
+script. The Dream task owns the order of the pass and the run-level summary;
+the skills it calls own their inputs, allowed changes, idempotency proof, and
+output format. Adding an arbitrary file under a Dream task directory does not
+enable it. The ordered skill list in the Dream task body is the dispatch
+contract.
 
 The current first-wave Dream skill pass is:
 
@@ -737,8 +740,8 @@ Those findings are proposals written to the blackboard. Each proposal is
 concrete - "create context `infra/retry-patterns` covering: ..." - not a vague
 recommendation. A human reviews and accepts or rejects.
 
-Intended usage: a recurring task (`mode: auto`, scheduled weekly or ad-hoc)
-assigned to an agent. Standard `relay launch`.
+Intended usage: `relay dream` for an ad-hoc run now. Use `relay dream
+--no-launch` when you want to inspect or edit the task before launching it.
 
 #### REM
 
@@ -851,6 +854,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 | Command | What it does |
 |---|---|
 | `relay create "<title>"` | Default alias for `relay launch bootstrap/ticket "<title>"` — scaffolds a `draft` ticket and runs the bootstrap skill on it to interview the human and fill in workflow / contexts / description. See [Aliases](#aliases). For scripted scaffolding, call `scaffold_task()` in `relay.scaffold`. |
+| `relay dream` | Create and launch an ad-hoc Dream cleanup task now. Slugs use normal task allocation, not a schedule bucket. |
 | `relay recurring check` | Scan recurring templates and scaffold any due tasks. |
 | `relay launch` | Compose prompt from all context, inject secrets, start work on a task. Handles all three modes: interactive, auto, and script. |
 | `relay status` | Show all active tasks in this repo. One line per task: id, title, assignee, step, mode. |
@@ -866,7 +870,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 ### Who edits what
 
-**Humans** edit files directly — reassign a task, adjust context refs, tweak a workflow, update skills. Dream's `validate-drift` skill checks repo consistency (stale locks, broken references, invalid state) as part of the recurring maintenance run.
+**Humans** edit files directly — reassign a task, adjust context refs, tweak a workflow, update skills. Dream's `validate-drift` skill checks repo consistency (stale locks, broken references, invalid state) as part of a Dream run.
 
 **Agents** edit files directly — write to the blackboard, update frontmatter fields (contexts, blockers). Agents call background commands within their self-service boundary, as taught by the relay base prompt.
 

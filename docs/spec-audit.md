@@ -374,9 +374,9 @@ workflows or contexts.
 
 🟡 Implemented as the first-wave cleanup model:
 
-- `weekly-dream.md` task instructions plus known maintenance skills in the
-  Relay-owned templates
-- `src/relay/resources/recurring/weekly-dream.md`
+- `relay dream` creates an ad-hoc Dream cleanup task from the packaged
+  Dream prompt and known maintenance skills
+- `src/relay/resources/dream.md`
 - `relay-os/recurring/_rem.md` as the inert user/repo-specific maintenance
   template
 
@@ -384,8 +384,8 @@ Wiring gaps to verify:
 
 - Dream should be documented as Relay ticket cleanup, not user/repo operations.
 - REM should be documented as the user/repo-specific recurring task template.
-- The recurring template and workflow names should match the current Dream
-  model when the resource move lands.
+- Dream should stay independent of recurring schedule buckets unless a later
+  unattended runner explicitly reintroduces scheduling.
 - The deterministic validator (`relay validate`) is now the surface consumed by
   the `validate-drift` skill; Dream owns pass ordering and the run summary, not
   validator internals.
@@ -554,11 +554,10 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
     requires it (lines 942-943).
 24. **Validator → dream wiring.** Spec implies dream calls the
     validator; implementation has both as separate pieces.
-25. ~~`weekly-dream.md` recurring template not installed by `init`.~~
-    **Resolved (PR review):** `relay init` drops `weekly-dream.md` into
-    `relay-os/recurring/` by default (alongside `_template.md`
-    scaffolds). No opt-in. Vision discipline section is binding —
-    skipping invites the drift it warns against.
+25. ~~Dream depended on the recurring template path.~~
+    **Resolved:** `relay dream` creates ad-hoc Dream tasks directly from the
+    packaged Dream prompt. `relay-os/recurring/` remains for REM and other
+    user-defined recurring loops.
 26. **Slug containing all digits / pure-digit titles.** `slugify("001")
     → "001"`; tasks like `001-pin-...` exist in this repo because the
     title started with `001`. The earlier numeric-counter design was
@@ -611,7 +610,7 @@ What the suite doesn't cover yet (matches the gaps above):
 - watchers fan-out
 - assignee/status-change notifications
 - pidfile contents of `cron.sh`
-- `weekly-dream.md` end-to-end (template → due → scaffolded)
+- `relay dream --no-launch` end-to-end (prompt → ad-hoc task scaffolded)
 
 ---
 
@@ -654,7 +653,7 @@ agent-driven events.
 11. Rename `relay step` → `relay bump` — **landed** (was §D.27).
 12. `mode: script` acquires `task.lock` briefly (was §B.7 sub-bullet).
 13. Agent-to-human handoff via base-prompt discipline (was §C.9).
-14. Ship `weekly-dream.md` installed by default (was §D.25).
+14. Ship `relay dream` as the ad-hoc Dream entry point (was §D.25).
 15. Fix `relay status` narrow-terminal title-wrap; defer filters
     (was §C.13).
 
