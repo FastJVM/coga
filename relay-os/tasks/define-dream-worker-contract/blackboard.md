@@ -72,3 +72,10 @@ implementation yet. The ticket body now carries the intended design:
   follow-up `relay slack` was run with network approval and posted the handoff.
   The failed Slack log entry was redacted to remove the webhook path before
   staging.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New context: Dream's known-skill contract
