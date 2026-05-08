@@ -46,6 +46,7 @@ def test_dream_documents_ordered_skill_pass() -> None:
     assert "### Ordered Skill Pass" in text
     assert "`bootstrap/dream/tasks/validate-drift`" in text
     assert "`retro/done-ticket`" in text
+    assert "`bootstrap/dream/tasks/cleanup-orphan-markers`" in text
     assert "`bootstrap/dream/tasks/dev/stale-branches`" not in text
     assert "dev/stale-branches" not in text
     assert "That table is the dispatch contract" in text
@@ -53,8 +54,8 @@ def test_dream_documents_ordered_skill_pass() -> None:
     assert "make another task with its own body and\nordered skill list" in text
     assert "### Skill: validate-drift" in text
     assert "### Skill: retro/done-ticket" in text
+    assert "### Skill: cleanup-orphan-markers" in text
     assert "### Skill: dev/stale-branches" not in text
-    assert "### Done-Ticket Cleanup" in text
     assert "status: processed" in text
     assert "skill: retro/done-ticket" in text
     assert "deletes the source task directory in the same PR" in text
@@ -77,6 +78,23 @@ def test_validate_drift_worker_declares_contract() -> None:
     assert "- May change: missing `blackboard.md` and `log.md` files only" in text
     assert "- Idempotency: `relay validate --fix`" in text
     assert "- Output: append `## Dream Skill: validate-drift`" in text
+
+
+def test_cleanup_orphan_markers_worker_declares_contract() -> None:
+    skill = TEMPLATES / "cleanup-orphan-markers" / "SKILL.md"
+    text = skill.read_text()
+    run_py = (TEMPLATES / "cleanup-orphan-markers" / "run.py").read_text()
+
+    assert (TEMPLATES / "cleanup-orphan-markers" / "run.py").exists()
+    assert "from relay.dream_cleanup_orphan_markers import main" in run_py
+    assert "## Known Skill Contract" in text
+    assert "- Purpose: complete cleanup for done tickets with the processed Retro marker" in text
+    assert "- Action: `pr-required`" in text
+    assert "skill: retro/done-ticket" in text
+    assert "status: processed" in text
+    assert "exact slug match (no prefix matching)" in text
+    assert "no open PR already touching" in text
+    assert "- Output: append `## Dream Worker: cleanup-orphan-markers`" in text
 
 
 def test_rem_template_documents_user_specific_recurring_maintenance() -> None:

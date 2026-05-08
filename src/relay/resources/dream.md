@@ -25,6 +25,7 @@ Run these known skills in this order:
 | --- | --- | --- |
 | `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
 | `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting that task directory. | PR-required knowledge extraction; records the marker in PR history and deletes the source task directory in the same PR. |
+| `bootstrap/dream/tasks/cleanup-orphan-markers` | Always. | Deterministic detection and PR-required deletion of done tickets whose blackboard already carries the processed Retro marker but whose task directory still exists. |
 
 That table is the dispatch contract. Do not auto-discover skills, scan a
 plugin folder, or invent another maintenance step during the run. If a repo
@@ -97,26 +98,29 @@ processed by Retro unless an open PR is already deleting that exact task
 directory. Do not infer completion from branch names, stale comments, or old
 Dream run notes.
 
-### Done-Ticket Cleanup
+### Skill: cleanup-orphan-markers
 
-Recovery path for done tickets whose blackboard carries the processed Retro
-marker but whose task directory was not deleted by the Retro PR. New Retro
-PRs delete the source task directory in the same PR, so this pass should
-usually find nothing.
+Run from the repo root:
 
-For each such ticket, open a PR that deletes only `relay-os/tasks/<slug>/`.
-The deletion goes in the PR (not the working tree directly) so the human can
-review or edit it before merge. Cleanup gate:
+`python relay-os/skills/bootstrap/dream/tasks/cleanup-orphan-markers/run.py --open-prs --blackboard relay-os/tasks/<this-dream-task>/blackboard.md --slack-task <this-dream-task>`
 
-- the marker is present in `relay-os/tasks/<slug>/blackboard.md`;
-- no open PR is currently editing that task directory;
-- the exact task slug is known; do not use prefix matching for deletion;
-- the PR deletes only `relay-os/tasks/<slug>/`;
-- the PR body states that git history is the audit trail.
+Replace `<this-dream-task>` with this Dream run task slug. The script enforces
+the cleanup gate deterministically and opens a delete-only PR for each
+orphan-marker ticket. Detection rules — no LLM judgment:
 
-Result line: `pr-opened` when the PR is opened. If any gate is unclear, write
-`human-needed` in the Dream run summary instead of opening the PR. Do not
-auto-merge.
+- exact `status: done` in ticket frontmatter;
+- a `## Retro` block in the blackboard containing both
+  `skill: retro/done-ticket` and `status: processed`;
+- exact slug match (no prefix matching);
+- no open PR already touching `relay-os/tasks/<slug>/`.
+
+The deletion lives in the PR (not the working tree) so the human reviews or
+edits before merge. Result line for the Dream summary: `pr-opened` when at
+least one PR is opened, `no-op` when no candidates exist, `human-needed` when
+the script reports an error. Do not auto-merge.
+
+Drop `--open-prs` for a dry-run that only reports candidates to the
+blackboard.
 
 ### Higher-Judgment Scan
 
