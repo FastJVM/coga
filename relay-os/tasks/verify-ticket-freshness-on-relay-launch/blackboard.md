@@ -83,3 +83,8 @@ fresh branch (suggested name:
 
 Sibling ticket `move-automerge-out-of-relay-status` is still open —
 the recurring sweep half hasn't been touched.
+
+## Dev
+
+branch: verify-ticket-freshness-on-relay-launch
+pr: https://github.com/FastJVM/relay/pull/127

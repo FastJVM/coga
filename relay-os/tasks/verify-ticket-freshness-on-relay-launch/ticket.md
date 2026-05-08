@@ -1,6 +1,6 @@
 ---
 title: Verify ticket freshness at the start of relay launch (auto-bump if PR merged)
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
