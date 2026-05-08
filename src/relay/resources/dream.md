@@ -99,11 +99,14 @@ Dream run notes.
 
 ### Done-Ticket Cleanup
 
-For each existing `status: done` task whose blackboard already contains the
-processed Retro marker, propose deleting the task directory. This is a recovery
-path for already-marked tasks that were not deleted by their Retro PR; new
-Retro PRs must delete the source task directory in the same PR. The cleanup
-gate:
+Recovery path for done tickets whose blackboard carries the processed Retro
+marker but whose task directory was not deleted by the Retro PR. New Retro
+PRs delete the source task directory in the same PR, so this pass should
+usually find nothing.
+
+For each such ticket, open a PR that deletes only `relay-os/tasks/<slug>/`.
+The deletion goes in the PR (not the working tree directly) so the human can
+review or edit it before merge. Cleanup gate:
 
 - the marker is present in `relay-os/tasks/<slug>/blackboard.md`;
 - no open PR is currently editing that task directory;
@@ -111,8 +114,9 @@ gate:
 - the PR deletes only `relay-os/tasks/<slug>/`;
 - the PR body states that git history is the audit trail.
 
-If any gate is unclear, write `human-needed` in the Dream run summary instead
-of deleting.
+Result line: `pr-opened` when the PR is opened. If any gate is unclear, write
+`human-needed` in the Dream run summary instead of opening the PR. Do not
+auto-merge.
 
 ### Higher-Judgment Scan
 
