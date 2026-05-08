@@ -24,6 +24,7 @@ from relay.lock import LockHeldError, TaskLock
 from relay.logfile import append_log
 from relay.scaffold import scaffold_task
 from relay.slack import post
+from relay.stream_render import is_stream_json_command, render_stream
 from relay.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -280,9 +281,13 @@ def launch(
 
             try:
                 # Interactive: inherit stdio (human sits with agent).
-                # Auto: capture nothing, let agent print to our stdout.
-                result = subprocess.run(cmd, env=env, check=False)
-                exit_code = result.returncode
+                # Auto with stream-json: capture stdout, render events live.
+                # Auto without streaming: inherit stdio and let claude buffer.
+                if mode == "auto" and is_stream_json_command(cmd):
+                    exit_code = _run_with_stream_render(cmd, env)
+                else:
+                    result = subprocess.run(cmd, env=env, check=False)
+                    exit_code = result.returncode
             except FileNotFoundError:
                 _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
             finally:
@@ -341,6 +346,29 @@ def _scaffold_from_shim(
         created_by=f"bootstrap:{shim.name}",
     )
     return resolve_task(cfg, result["slug"])
+
+
+def _run_with_stream_render(cmd: list[str], env: dict[str, str]) -> int:
+    """Run `cmd` capturing stdout and pretty-print stream-json events live.
+
+    stderr is left attached to the parent terminal so claude's diagnostic
+    output (auth errors, MCP startup, etc.) still surfaces.
+    """
+    proc = subprocess.Popen(
+        cmd,
+        env=env,
+        stdout=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+    )
+    try:
+        assert proc.stdout is not None
+        render_stream(proc.stdout, sys.stdout)
+    except KeyboardInterrupt:
+        proc.terminate()
+        proc.wait()
+        raise
+    return proc.wait()
 
 
 def build_agent_command(agent, mode: str, prompt: str, prompt_file: Path) -> list[str]:
