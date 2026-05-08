@@ -922,6 +922,13 @@ shims" above.
 
    Each continued step re-composes the prompt from disk, including the newly updated ticket and blackboard. Stop cleanly when the task is `done` or `paused`, the next step has no skill, the assignee changed, or the agent exited cleanly without advancing the step. Stop with the agent's exit code on non-zero exits; `relay panic` already releases the lock and posts its blocker.
 
+   This supervisor loop is only the `relay launch` process path. API/manual
+   sessions that receive a composed prompt without a live launch supervisor
+   still follow the base prompt: after `relay bump`, inspect the new ticket
+   state and continue any immediately runnable same-assignee step with a
+   `skill:` by reading that skill directly. They do not call `relay launch`
+   from inside the agent session.
+
 #### Composition order
 
 The order is deliberate — it follows specificity:
@@ -1038,7 +1045,7 @@ This is the most important piece of the spec. When commands like `relay bump` we
 1. **Identity** — you're an agent working on a ticket inside Relay.
 2. **Files** — what ticket.md, blackboard.md, and log.md are for. Which you read, which you write, which you don't touch.
 3. **Blackboard discipline** — write frequently (plan, findings, decisions, blockers). The blackboard is unstructured by design and is the crash recovery mechanism. An agent that writes to it is recoverable; one that doesn't is not.
-4. **Step transitions** — do the work for your current step. When done, call `relay bump`. Do not go back. If a previous step needs rework, panic.
+4. **Step transitions** — do the work for your current step. When done, call `relay bump`, then inspect the new ticket state. Continue any still-active, same-assignee next step that has a `skill:` until the task is done, blocked, handed to a different assignee, or waiting on a no-skill/human step. Do not go back. If a previous step needs rework, panic.
 5. **Escalation** — call `relay panic` when stuck. Be specific about the reason. Write the blocker to the blackboard before panicking. After panicking, stop.
 6. **FYIs** — `relay slack` posts a standalone FYI; `relay bump --message` piggy-backs an FYI onto a state-transition broadcast. Keep messages short. Do not use either for blockers.
 7. **YAML discipline** — preserve existing fields, use exact syntax, don't invent formats.

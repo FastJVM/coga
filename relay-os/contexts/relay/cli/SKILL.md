@@ -51,6 +51,12 @@ step advanced, the new current step has `skill:`, and the concrete assignee
 did not change. It stops at human/no-skill steps, assignee handoffs, done or
 paused tasks, no-progress exits, and panic/non-zero exits.
 
+That supervisor loop only exists when a live `relay launch` process is
+running around the agent. API/manual sessions still follow the base prompt:
+after `relay bump`, inspect the new ticket state and continue any still-active,
+same-assignee next step with a `skill:` directly instead of stopping after the
+first bump.
+
 `--prompt-report` is for prompt-scope inspection. Its token counts use a
 dependency-light `characters / 4` estimate, so treat them as a prompt-bloat
 guardrail and task-to-task comparison, not exact provider billing.
