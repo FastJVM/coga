@@ -57,6 +57,7 @@ def test_dream_documents_ordered_skill_pass() -> None:
     assert "### Done-Ticket Cleanup" in text
     assert "status: processed" in text
     assert "skill: retro/done-ticket" in text
+    assert "deletes the source task directory in the same PR" in text
     assert "An open\n   PR counts as in flight" in text
     assert "Absence of the marker on an existing done ticket" in text
     assert "git history for the deleted `blackboard.md`" in text
