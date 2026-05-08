@@ -24,7 +24,10 @@ review bars.
   `launch.py` / `launch_script.py` run agents. `slack.py` (in
   `commands/`) posts an explicit FYI. `panic.py` surfaces agent
   distress. `bump.py`
-  advances workflow steps. `validate.py` checks repo consistency.
+  advances workflow steps. `automerge.py` walks active tickets and
+  bumps any whose `## Dev` PR has merged (called by `relay automerge`,
+  the `relay-os/hooks/post-merge` shim, and `relay status`'s quiet
+  fallback). `validate.py` checks repo consistency.
 - `tests/` — pytest. Run with `python -m pytest`.
 - `example/` — seeded fixture used by tests. **Update this when
   you change task layout, prompt composition, or workflow

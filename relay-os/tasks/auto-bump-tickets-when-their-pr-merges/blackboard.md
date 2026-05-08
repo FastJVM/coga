@@ -59,3 +59,10 @@ double-bump.
 
 branch: auto-bump-on-pr-merge
 pr: https://github.com/FastJVM/relay/pull/76
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: "Document src/relay/automerge.py in relay/codebase context"
