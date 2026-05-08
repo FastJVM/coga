@@ -488,7 +488,7 @@ The default template:
 |---|---|---|
 | `title` | string | Human-readable name. No `id` field — the task directory path is the unique identifier. |
 | `status` | string | Control plane. One of: draft, active, paused, done. |
-| `mode` | string | `interactive`, `auto`, or `script`. Default: `interactive`. Controls how `relay launch` starts work. `interactive`: human-attended session — agent starts with composed context, human present in terminal. `auto`: autonomous execution — agent receives composed context as one-shot prompt, runs without human input. `script`: direct execution — no agent spawned, script runs with secrets injected as env vars. |
+| `mode` | string | `interactive`, `auto`, or `script`. Default: `interactive`. Controls how `relay launch` starts work. `interactive`: human-attended session — agent starts with composed context, human present in terminal. `auto`: autonomous execution — agent receives composed context as one-shot prompt, runs without human input. `script`: direct execution — no agent spawned, script runs with secrets and task metadata injected as env vars. |
 | `owner` | string | Human accountable. Stable over the task's life. |
 | `human` | string | Human worker on this ticket. Resolved from a workflow step's `assignee: human` token on bump. |
 | `agent` | string | Agent (LLM coder) on this ticket. Resolved from a workflow step's `assignee: agent` token on bump. |
@@ -607,7 +607,7 @@ The `validate-drift` skill reads the `acquired` timestamp to detect stale locks 
 
 **Prompt composition.** `relay launch` builds a single composed prompt containing: global rules, repo context, ticket contexts, current workflow step skill, and the blackboard. This prompt is written to a temp file and passed to the agent via the appropriate CLI flag. The temp file is cleaned up after the session ends (interactive) or the command exits (auto). 
 
-**Three launch modes.** Tasks declare their mode in ticket frontmatter (`mode: interactive`, `mode: auto`, or `mode: script`). Interactive (default): human-attended session, requiring stdin and stdout to both be terminals. Auto: autonomous execution — agent runs to completion without human input. Script: direct execution — no agent, just a script with secrets injected. See `relay launch` spec below.
+**Three launch modes.** Tasks declare their mode in ticket frontmatter (`mode: interactive`, `mode: auto`, or `mode: script`). Interactive (default): human-attended session, requiring stdin and stdout to both be terminals. Auto: autonomous execution — agent runs to completion without human input. Script: direct execution — no agent, just a script with secrets and task metadata injected. See `relay launch` spec below.
 
 **Secrets.** Credentials in `relay.local.toml`, injected as env vars at launch time by `relay launch`.
 
@@ -656,12 +656,16 @@ output format. Adding an arbitrary file under a Dream task directory does not
 enable it. The ordered skill list in the Dream task body is the dispatch
 contract.
 
+Dream-owned scripts are skills attached to Relay tasks; they are never
+standalone execution units.
+
 The current first-wave Dream skill pass is:
 
 | Skill | When to run | Result |
 | --- | --- | --- |
 | `validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
 | `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting that task directory. | PR-required knowledge extraction; records the marker in PR history and deletes the source task directory in the same PR. |
+| `cleanup-orphan-markers` | When an existing done ticket already has the processed Retro marker but its task directory still exists. | PR-required delete-only cleanup through the public delete-task skill; reports `human-needed` until that skill is installed. |
 
 Branch hygiene, test hygiene, and other code-repo maintenance are dev
 maintenance, not Dream. Put them in a separate dev recurring task or workflow.
@@ -722,8 +726,8 @@ diff adds the same marker to `relay-os/tasks/<slug>/blackboard.md` or deletes
 gone, it is not a Retro candidate; git history for the deleted blackboard
 remains the audit trail.
 
-Each known skill writes its own `## Dream Skill: <name>` blackboard section. At
-the end of the run, Dream appends one `## Dream Run Summary` section with a
+Each known script skill writes its own `## Dream Skill: <name>` section to its
+child task blackboard. At the end of the run, Dream appends one `## Dream Run Summary` section with a
 skill result table (`no-op`, `reported`, `proposed`, `direct-fixed`,
 `pr-opened`, or `human-needed`), knowledge-gap proposal counts, and any human
 review gates. Slack gets one short summary line for the run.
@@ -908,7 +912,7 @@ shims" above.
 9. Launch based on mode:
    - **Interactive:** `{cli} {interactive-flag} /tmp/relay-<task-id>.md` — opens an interactive session with composed context loaded. Human is present.
    - **Auto:** `{cli} {auto-flag} "$(cat /tmp/relay-<task-id>.md)"` — sends composed prompt, agent runs to completion. CLI waits for exit.
-   - **Script:** No agent spawned. Reads the current workflow step's skill, finds the script, executes it directly with secrets injected as env vars. No prompt composition, no LLM token cost. Script mode is single-shot; it does not enter the agent-step loop.
+   - **Script:** No agent spawned. Reads the current workflow step's skill, finds the script, executes it directly with secrets and task metadata injected as env vars. No prompt composition, no LLM token cost. Script mode is single-shot; it does not enter the agent-step loop. Task metadata includes `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 10. Log each agent process launch: append to `log.md` — `"launched in {mode} mode"`. The session start itself doesn't post to Slack; the surrounding state changes (factory create, draft → active flip, bump, panic, slack, script failure) each post on their own — see "What posts and when" below.
 11. For workflow-bound interactive/auto tasks, re-read the ticket after a clean agent exit. Continue in a fresh agent process only when all of these are true:
    - the task is still `active`;
@@ -1002,7 +1006,7 @@ A thin command for side effects. The agent calls this when it completes a workfl
 
 Repo validation (stale locks, broken references, invalid status values, stuck tasks) is handled by a deterministic validation script, not an LLM. `relay validate --fix` may apply only conservative file-presence repairs: create missing `blackboard.md` from the standard template and create missing `log.md` as an empty append-only file. It never rewrites existing files, reconstructs `ticket.md`, freezes workflows, deletes locks, or changes lifecycle/assignee state.
 
-The Dream `validate-drift` skill runs the same validator surface, usually as `relay validate --json --fix`, classifies remaining issues into `direct-fix`, `pr-proposal`, or `human-needed`, writes a concise result to the Dream run blackboard, and can post a one-line Slack summary for the run. When a Dream run is already on a repair branch, the skill can also commit and push the files it repaired; that push path is intentionally outside plain `relay validate`. The broader Dream scan can then interpret remaining drift alongside knowledge gaps, stale content, and workflow patterns.
+The Dream `validate-drift` skill runs the same validator surface, usually as `relay validate --json --fix`, classifies remaining issues into `direct-fix`, `pr-proposal`, or `human-needed`, writes a concise result to its script task blackboard, and can post a one-line Slack summary for the run. When a Dream run is already on a repair branch, the skill can also commit and push the files it repaired; that push path is intentionally outside plain `relay validate`. The broader Dream scan can then interpret remaining drift alongside knowledge gaps, stale content, and workflow patterns.
 
 Checks include:
 
@@ -1181,7 +1185,7 @@ Items to evaluate after v1 is built and used. Not designed yet.
 
 **`relay status`** — moved to convenience command. Shows one-line-per-task summary for the current repo.
 
-**`relay run`** — removed. Absorbed into `relay launch`. Script execution is handled by `mode: script` — `relay launch` reads the step's skill, finds the script, runs it directly with secrets injected as env vars. No separate command needed; the agent calls scripts natively during interactive/auto sessions.
+**`relay run`** — removed. Absorbed into `relay launch`. Script execution is handled by `mode: script` — `relay launch` reads the step's skill, finds the script, runs it directly with secrets and task metadata injected as env vars. No separate command needed; the agent calls scripts natively during interactive/auto sessions.
 
 **`relay recurring`** — kept as a real subcommand. `relay recurring check` scans templates and scaffolds any due tasks; the cron job calls it directly. (Earlier draft absorbed it into `relay create --check-recurring`; once `relay create` became a thin alias, hanging the recurring flag on it stopped making sense.)
 

@@ -108,6 +108,9 @@ and is the only control point. Dropping a SKILL.md under
 no registry, and no daemon. Adding another Dream skill is a normal Relay
 code/docs change to that list.
 
+Dream-owned scripts are skills attached to Relay tasks; they are never
+standalone execution units.
+
 Each known skill's `SKILL.md` carries a `## Known Skill Contract` section
 with these fields:
 
@@ -121,8 +124,8 @@ with these fields:
 - `Stop and ask` — conditions that require human review before continuing.
 - `Output` — blackboard section, PR link, created ticket, or no-op.
 
-Each known skill writes its own `## Dream Skill: <name>` section to the
-Dream run blackboard. The orchestrator appends one `## Dream Run Summary`
+Each known script skill writes its own `## Dream Skill: <name>` section to its
+child task blackboard. The orchestrator appends one `## Dream Run Summary`
 that lists each skill's result using a small fixed vocabulary:
 `no-op`, `reported`, `proposed`, `direct-fixed`, `pr-opened`,
 `human-needed`.

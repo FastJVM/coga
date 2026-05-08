@@ -27,6 +27,8 @@ current step's skill + blackboard + ticket body) into one prompt and
 start the configured agent. Acquires `task.lock`.
 Interactive launches require stdin and stdout to both be terminals; use
 `mode: auto` or `mode: script` for non-interactive wrappers and CI.
+Script launches inject task metadata env vars including `RELAY_TASK_SLUG`,
+`RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
 - `relay launch <slug> --force` — break a stale lock.
