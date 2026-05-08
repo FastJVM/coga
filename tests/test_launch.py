@@ -234,6 +234,162 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert not Path(calls[0][2]).exists()
 
 
+# --- pre-launch freshness check (auto_bump_one) ------------------------------
+
+
+def _attach_pr(active_task: Path, slug: str, pr_url: str) -> None:
+    bb = active_task / "tasks" / slug / "blackboard.md"
+    bb.write_text(bb.read_text().rstrip() + f"\n\n## Dev\n\nbranch: foo\npr: {pr_url}\n")
+
+
+def _stub_merged(monkeypatch: pytest.MonkeyPatch, url: str, state: str = "MERGED") -> None:
+    from relay import automerge as am
+    monkeypatch.setattr(am, "pr_state", lambda u: state if u == url else "OPEN")
+
+
+def test_launch_freshness_check_bumps_to_done_and_skips_agent(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the linked PR has merged, launch auto-bumps and exits clean
+    without spawning the agent or acquiring the lock."""
+    _attach_pr(active_task, "fix-retry-logic", "https://github.com/o/r/pull/77")
+    _stub_merged(monkeypatch, "https://github.com/o/r/pull/77", "MERGED")
+    _allow_interactive_tty(monkeypatch)
+    _allow_slack(monkeypatch)
+
+    spawned: list[list[str]] = []
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        spawned.append(cmd)
+        class R: returncode = 0
+        return R()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+    assert spawned == []  # no agent spawn
+    assert "auto-bumped to done before launch" in result.output
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    from relay.ticket import Ticket
+    assert Ticket.read(ref.path / "ticket.md").status == "done"
+    assert not TaskLock(ref.path).path.exists()
+
+
+def test_launch_freshness_check_no_op_when_pr_open(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Open PR → freshness check no-ops, launch proceeds."""
+    _attach_pr(active_task, "fix-retry-logic", "https://github.com/o/r/pull/78")
+    _stub_merged(monkeypatch, "https://github.com/o/r/pull/78", "OPEN")
+    _allow_interactive_tty(monkeypatch)
+
+    spawned: list[list[str]] = []
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        spawned.append(cmd)
+        class R: returncode = 0
+        return R()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+    assert len(spawned) == 1  # agent did spawn
+
+
+def test_launch_freshness_check_warns_on_gh_error_then_continues(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`gh` missing/unauthed → warning to stderr, launch proceeds."""
+    from relay import automerge as am
+    _attach_pr(active_task, "fix-retry-logic", "https://github.com/o/r/pull/79")
+
+    def boom(url: str) -> str:
+        raise am.GhError("gh: not authenticated")
+
+    monkeypatch.setattr(am, "pr_state", boom)
+    _allow_interactive_tty(monkeypatch)
+
+    spawned: list[list[str]] = []
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        spawned.append(cmd)
+        class R: returncode = 0
+        return R()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+    assert len(spawned) == 1  # launch continued
+    combined = result.output + (result.stderr or "")
+    assert "skipping pre-launch freshness check" in combined
+    assert "gh auth login" in combined
+
+
+def test_launch_no_verify_skips_freshness_check(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--no-verify` skips the check entirely — gh is never called."""
+    from relay import automerge as am
+    _attach_pr(active_task, "fix-retry-logic", "https://github.com/o/r/pull/80")
+
+    pr_state_calls: list[str] = []
+
+    def track(url: str) -> str:
+        pr_state_calls.append(url)
+        return "MERGED"
+
+    monkeypatch.setattr(am, "pr_state", track)
+    _allow_interactive_tty(monkeypatch)
+
+    spawned: list[list[str]] = []
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        spawned.append(cmd)
+        class R: returncode = 0
+        return R()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic", "--no-verify"])
+    assert result.exit_code == 0, result.output
+    assert pr_state_calls == []  # freshness check entirely skipped
+    assert len(spawned) == 1
+
+
+def test_launch_freshness_check_no_op_without_pr_link(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default-scaffold blackboard has no `## Dev` section → no gh call."""
+    from relay import automerge as am
+    pr_state_calls: list[str] = []
+    monkeypatch.setattr(am, "pr_state", lambda u: pr_state_calls.append(u) or "OPEN")
+    _allow_interactive_tty(monkeypatch)
+
+    spawned: list[list[str]] = []
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        spawned.append(cmd)
+        class R: returncode = 0
+        return R()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+    assert pr_state_calls == []  # no PR link → no gh lookup
+    assert len(spawned) == 1
+
+
 def test_launch_interactive_without_tty_fails_before_lock(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,

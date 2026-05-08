@@ -12,6 +12,7 @@ from pathlib import Path
 
 import typer
 
+from relay.automerge import GhError, auto_bump_one
 from relay.blackboard import blackboard_size_warning, format_bytes
 from relay.compose import (
     PromptComposition,
@@ -55,6 +56,11 @@ def launch(
         help="Print composed prompt layers and approximate token counts, then exit without launching.",
     ),
     force: bool = typer.Option(False, "--force", help="Break a stale lock."),
+    no_verify: bool = typer.Option(
+        False,
+        "--no-verify",
+        help="Skip the pre-launch PR-merge freshness check.",
+    ),
 ) -> None:
     """Compose context, start work on a task."""
     try:
@@ -100,6 +106,32 @@ def launch(
         except (ConfigError, ValueError) as exc:
             _bail(str(exc))
         is_bootstrap = False
+
+    # Pre-launch freshness check: if this ticket's linked PR has merged,
+    # auto-bump to done before spinning up an agent against stale state.
+    # Bootstrap shims have no status / PR link — `_try_bump_one` no-ops
+    # on them via the candidate filter, but skip for clarity. Same with
+    # `--no-verify`.
+    if not is_bootstrap and not no_verify and isinstance(ref, TaskRef):
+        try:
+            if auto_bump_one(cfg, ref):
+                typer.echo(
+                    f"Launch: {ref.id_slug} auto-bumped to done before launch — "
+                    "nothing to do."
+                )
+                return
+        except GhError as exc:
+            typer.secho(
+                f"Warning: skipping pre-launch freshness check: {exc}",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
+            typer.secho(
+                "  Run `gh auth login` to enable PR-merge auto-bump on launch, "
+                "or pass --no-verify to silence this.",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
 
     ticket = read_ticket(ref)
     if agent_override is not None and is_bootstrap:
