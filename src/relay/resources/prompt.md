@@ -40,15 +40,29 @@ and signals the next step (or human reviewer) to pick up. If you stop
 without bumping, the team sees nothing, the workflow stalls, and your
 work is invisible — even if the code is on disk and the PR is open.
 
-Run `bump` as the *last* thing in the step, after any code/PR work
-and after the blackboard is up to date. If something stops you from
-reaching it, that's `relay panic` — never a silent stop.
+Run `bump` as the *last* thing in the current step, after any code/PR work
+and after the blackboard is up to date. A successful `bump` finishes that
+step; it does not automatically mean your session is over. If something stops
+you from reaching it, that's `relay panic` — never a silent stop.
 
 Rules:
 
 - **`relay bump` advances exactly one step.** It reads the current step from
   ticket frontmatter and moves to the next one. There is no number to pass;
   you cannot skip ahead.
+- **After bumping, inspect the new state.** Re-read `ticket.md` or run
+  `relay show <id>` after a successful bump. If the task is still `active`,
+  the concrete assignee is still you/the same agent, and the new current step
+  has a `skill:`, continue that next step in this same session: read the
+  skill from `relay-os/skills/...`, follow it, update the blackboard, and
+  bump again when done. Repeat until the workflow reaches `done`, a human or
+  different assignee owns the next step, the next step has no skill, or you
+  are blocked and must `relay panic`.
+- **Do not stop at a runnable agent step.** A live `relay launch` supervisor
+  may also respawn consecutive agent-owned skill steps in fresh processes
+  after your agent process exits. That is a safety net, not permission to end
+  an API/manual session after the first bump. Never call `relay launch` from
+  inside your own session to continue the chain.
 - **Do not go backward.** If a previous step was wrong and needs rework, call
   `relay panic` with a clear reason. The human decides whether to rewind.
 - The workflow is frozen into ticket frontmatter at creation time. Your own

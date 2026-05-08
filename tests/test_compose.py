@@ -100,6 +100,34 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     assert "Blackboard" in prompt
 
 
+def test_base_prompt_teaches_post_bump_continuation(repo: Path) -> None:
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg,
+        title="Chain work",
+        workflow_name="code/with-review",
+        contexts=[],
+        mode="interactive",
+        owner="marc",
+        assignee="claude1",
+        watchers=[],
+        status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+    prompt = compose_prompt(cfg, ref, ticket)
+
+    assert "Run `bump` as the *last* thing in the current step" in prompt
+    assert "After bumping, inspect the new state" in prompt
+    assert "the task is still `active`" in prompt
+    assert "new current step" in prompt
+    assert "has a `skill:`" in prompt
+    assert "continue that next step in this same session" in prompt
+    assert "Do not stop at a runnable agent step" in prompt
+    assert "Never call `relay launch`" in prompt
+    assert "inside your own session to continue the chain" in prompt
+
+
 def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
