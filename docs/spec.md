@@ -642,26 +642,31 @@ that create regular Relay tasks using Relay's existing primitives.
 
 Dream is Relay's generic ticket cleanup pass for one Relay repo. A Dream run is
 an ordinary task, usually `mode: auto`, created by `relay dream` and launched
-immediately unless `--no-launch` is passed. The task body is the instruction
-surface: scan every ticket, run known Relay housekeeping skills in a fixed
-order, propose cleanup, and write a reviewable summary to that run's
+immediately unless `--no-launch` is passed. `relay dream` is the orchestrator:
+it scaffolds the parent task, launches deterministic workers as child
+`mode: script` tasks, copies their results into the parent blackboard, then
+launches the agent for judgment-heavy cleanup. The task body is the human-legible
+instruction surface: scan every ticket, run known Relay housekeeping skills in
+a fixed order, propose cleanup, and write a reviewable summary to that run's
 blackboard. The slug is normal task slug allocation (`dream`, `dream-2`, etc.),
 not a schedule or time bucket. There is no global Dream service, cross-repo
 scheduler, daemon, database, hidden cache, or plugin registry.
 
-Dream is not a workflow, not a standalone skill, and not one large cleanup
-script. The Dream task owns the order of the pass and the run-level summary;
-the skills it calls own their inputs, allowed changes, idempotency proof, and
-output format. Adding an arbitrary file under a Dream task directory does not
-enable it. The ordered skill list in the Dream task body is the dispatch
-contract.
+Dream is not a workflow, not a standalone skill, and not one opaque cleanup
+script. The Dream command owns launch orchestration, child script tasks own
+deterministic execution state, the Dream task owns the
+order of the pass and the run-level summary, and the skills it calls own their
+inputs, allowed changes, idempotency proof, and output format. Adding an
+arbitrary file under a Dream task directory does not enable it. The ordered
+skill list in the Dream task body is the dispatch contract.
 
 The current first-wave Dream skill pass is:
 
-| Skill | When to run | Result |
-| --- | --- | --- |
-| `validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
-| `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting that task directory. | PR-required knowledge extraction; records the marker in PR history and deletes the source task directory in the same PR. |
+| Skill | Runner | When to run | Result |
+| --- | --- | --- | --- |
+| `bootstrap/dream/tasks/validate-drift` | `relay dream` launcher | Always, before agent launch. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
+| `bootstrap/dream/tasks/cleanup-orphan-markers` | `relay dream` launcher | Always, before agent launch. | Deterministic detection and PR-required deletion of done tickets whose blackboard already carries the processed Retro marker but whose task directory still exists. Deletes through `relay delete --exact` inside the cleanup PR worktree. |
+| `retro/done-ticket` | Agent subagent | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting that task directory. | PR-required knowledge extraction; records the marker in PR history and deletes the source task directory in the same PR. |
 
 Branch hygiene, test hygiene, and other code-repo maintenance are dev
 maintenance, not Dream. Put them in a separate dev recurring task or workflow.
@@ -722,7 +727,7 @@ diff adds the same marker to `relay-os/tasks/<slug>/blackboard.md` or deletes
 gone, it is not a Retro candidate; git history for the deleted blackboard
 remains the audit trail.
 
-Each known skill writes its own `## Dream Skill: <name>` blackboard section. At
+Each known skill writes its own `## Dream Worker: <name>` blackboard section. At
 the end of the run, Dream appends one `## Dream Run Summary` section with a
 skill result table (`no-op`, `reported`, `proposed`, `direct-fixed`,
 `pr-opened`, or `human-needed`), knowledge-gap proposal counts, and any human
@@ -856,7 +861,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 | Command | What it does |
 |---|---|
 | `relay create "<title>"` | Default alias for `relay launch bootstrap/ticket "<title>"` — scaffolds a `draft` ticket and runs the bootstrap skill on it to interview the human and fill in workflow / contexts / description. See [Aliases](#aliases). For scripted scaffolding, call `scaffold_task()` in `relay.scaffold`. |
-| `relay dream` | Create and launch an ad-hoc Dream cleanup task now. Slugs use normal task allocation, not a schedule bucket. |
+| `relay dream` | Create an ad-hoc Dream cleanup task now, run launcher-owned deterministic workers, then launch the agent phase. Slugs use normal task allocation, not a schedule bucket. |
 | `relay recurring check` | Scan recurring templates and scaffold any due tasks. |
 | `relay launch` | Compose prompt from all context, inject secrets, start work on a task. Handles all three modes: interactive, auto, and script. |
 | `relay status` | Show all active tasks in this repo. One line per task: id, title, assignee, step, mode. |
@@ -908,7 +913,7 @@ shims" above.
 9. Launch based on mode:
    - **Interactive:** `{cli} {interactive-flag} /tmp/relay-<task-id>.md` — opens an interactive session with composed context loaded. Human is present.
    - **Auto:** `{cli} {auto-flag} "$(cat /tmp/relay-<task-id>.md)"` — sends composed prompt, agent runs to completion. CLI waits for exit.
-   - **Script:** No agent spawned. Reads the current workflow step's skill, finds the script, executes it directly with secrets injected as env vars. No prompt composition, no LLM token cost. Script mode is single-shot; it does not enter the agent-step loop.
+   - **Script:** No agent spawned. Reads the current workflow step's skill, finds the script, executes it directly with secrets and task metadata injected as env vars. No prompt composition, no LLM token cost. Script mode is single-shot; it does not enter the agent-step loop. Script env includes `RELAY_REPO_ROOT`, `RELAY_HOST_ROOT`, `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, `RELAY_TASK_BLACKBOARD`, `RELAY_WORKFLOW_STEP`, and `RELAY_SKILL` so scripts can read/write their own task surfaces instead of taking ad-hoc flags.
 10. Log each agent process launch: append to `log.md` — `"launched in {mode} mode"`. The session start itself doesn't post to Slack; the surrounding state changes (factory create, draft → active flip, bump, panic, slack, script failure) each post on their own — see "What posts and when" below.
 11. For workflow-bound interactive/auto tasks, re-read the ticket after a clean agent exit. Continue in a fresh agent process only when all of these are true:
    - the task is still `active`;

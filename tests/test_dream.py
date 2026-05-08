@@ -8,6 +8,8 @@ import typer
 from typer.testing import CliRunner
 
 from relay.cli import app
+from relay.config import load_config
+from relay.tasks import resolve_task
 from relay.ticket import Ticket
 
 
@@ -78,6 +80,17 @@ def test_dream_logs_before_launching(
 ) -> None:
     monkeypatch.chdir(repo)
     calls: list[dict[str, object]] = []
+    workers: list[dict[str, object]] = []
+
+    def fake_workers(cfg, slug: str, task_path: Path, *, assignee: str) -> None:
+        workers.append(
+            {
+                "repo_root": cfg.repo_root,
+                "slug": slug,
+                "task_path": task_path,
+                "assignee": assignee,
+            }
+        )
 
     def fake_launch(
         task: str,
@@ -97,6 +110,7 @@ def test_dream_logs_before_launching(
         )
         typer.echo("fake launch called")
 
+    monkeypatch.setattr("relay.commands.dream._run_deterministic_workers", fake_workers)
     monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["dream", "--mode", "interactive"])
@@ -106,8 +120,16 @@ def test_dream_logs_before_launching(
     assert "Dream: using assignee claude1 (agent type claude, mode interactive)" in result.output
     assert "Dream: scaffolding task 'Dream'" in result.output
     assert "Dream: created task dream at" in result.output
-    assert "Dream: launching dream" in result.output
+    assert "Dream: launching agent for dream" in result.output
     assert "fake launch called" in result.output
+    assert workers == [
+        {
+            "repo_root": repo,
+            "slug": "dream",
+            "task_path": repo / "tasks" / "dream",
+            "assignee": "claude1",
+        }
+    ]
     assert calls == [
         {
             "task": "dream",
@@ -117,3 +139,95 @@ def test_dream_logs_before_launching(
             "force": False,
         }
     ]
+
+
+def test_dream_worker_failure_skips_agent_launch(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(repo)
+    launched: list[str] = []
+
+    def fake_workers(cfg, slug: str, task_path: Path, *, assignee: str) -> None:
+        raise SystemExit(2)
+
+    def fake_launch(
+        task: str,
+        title: str | None,
+        agent_override: str | None,
+        prompt_report: bool,
+        force: bool,
+    ) -> None:
+        launched.append(task)
+
+    monkeypatch.setattr("relay.commands.dream._run_deterministic_workers", fake_workers)
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+
+    result = CliRunner().invoke(app, ["dream"])
+
+    assert result.exit_code == 2
+    assert launched == []
+
+
+def test_dream_runs_deterministic_workers_before_agent_phase(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from relay.commands import dream as dream_cmd
+
+    task_path = repo / "tasks" / "dream"
+    task_path.mkdir(parents=True)
+    (task_path / "blackboard.md").write_text("")
+    cfg = load_config(repo)
+    launched: list[str] = []
+    bumped: list[tuple[str, str | None]] = []
+
+    def fake_launch(
+        task: str,
+        title: str | None,
+        agent_override: str | None,
+        prompt_report: bool,
+        force: bool,
+    ) -> None:
+        launched.append(task)
+        ref = resolve_task(cfg, task)
+        (ref.path / "blackboard.md").write_text(
+            f"## Dream Worker: {task}\n\nResult: ok.\n"
+        )
+
+    def fake_bump(task: str, message: str | None = None) -> None:
+        bumped.append((task, message))
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("relay.commands.bump.bump", fake_bump)
+
+    dream_cmd._run_deterministic_workers(cfg, "dream", task_path, assignee="claude1")
+
+    assert launched == ["dream-validate-drift", "dream-cleanup-orphan-markers"]
+    assert bumped == [
+        ("dream-validate-drift", "parent Dream run: dream"),
+        ("dream-cleanup-orphan-markers", "parent Dream run: dream"),
+    ]
+
+    validate_ticket = Ticket.read(
+        repo / "tasks" / "dream-validate-drift" / "ticket.md"
+    )
+    cleanup_ticket = Ticket.read(
+        repo / "tasks" / "dream-cleanup-orphan-markers" / "ticket.md"
+    )
+    assert validate_ticket.mode == "script"
+    assert validate_ticket.workflow == {
+        "name": "dream/script-worker",
+        "steps": [{"name": "run", "skill": "bootstrap/dream/tasks/validate-drift"}],
+    }
+    assert cleanup_ticket.mode == "script"
+    assert cleanup_ticket.workflow == {
+        "name": "dream/script-worker",
+        "steps": [
+            {"name": "run", "skill": "bootstrap/dream/tasks/cleanup-orphan-markers"}
+        ],
+    }
+
+    parent_blackboard = (task_path / "blackboard.md").read_text()
+    assert "## Dream Child Worker: dream-validate-drift" in parent_blackboard
+    assert "## Dream Child Worker: dream-cleanup-orphan-markers" in parent_blackboard

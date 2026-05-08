@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -130,8 +131,9 @@ def open_cleanup_pr(repo_root: Path, slug: str, *, base_branch: str = "main") ->
     """Open a delete-only PR for the slug and return the PR URL.
 
     Operates inside a fresh worktree off origin/<base_branch> so the running
-    repo's working tree is never touched. Cleans the worktree on success or
-    failure.
+    repo's working tree is never touched. Deletion goes through
+    `relay delete --exact`; this worker only adds the PR wrapper. Cleans the
+    worktree on success or failure.
     """
     target_rel = f"relay-os/tasks/{slug}/"
     branch = f"dream/cleanup-orphan-{slug}"
@@ -153,12 +155,23 @@ def open_cleanup_pr(repo_root: Path, slug: str, *, base_branch: str = "main") ->
                 f"task dir `{target_rel}` does not exist on origin/{base_branch}; "
                 f"nothing to clean up"
             )
-        _git(worktree, ["rm", "-r", target_rel])
+        result = subprocess.run(
+            [sys.executable, "-m", "relay.cli", "delete", slug, "--exact"],
+            cwd=worktree,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            detail = result.stderr.strip() or result.stdout.strip() or "no output"
+            raise RuntimeError(f"`relay delete --exact {slug}` failed: {detail}")
+        _git(worktree, ["add", "-A", "relay-os/tasks"])
         commit_msg = (
             f"Dream cleanup: delete orphan-marker task {slug}\n\n"
             "Source task carried the processed Retro marker "
             "(skill: retro/done-ticket / status: processed) but the Retro PR did "
-            "not delete the task directory. Git history is the audit trail."
+            "not delete the task directory. Deletion uses `relay delete --exact`; "
+            "git history is the audit trail."
         )
         _git(worktree, ["commit", "-m", commit_msg])
         _git(worktree, ["push", "-u", "origin", branch])
@@ -167,7 +180,8 @@ def open_cleanup_pr(repo_root: Path, slug: str, *, base_branch: str = "main") ->
             f"The source task's blackboard already carries the processed Retro "
             f"marker (`skill: retro/done-ticket` / `status: processed`), but the "
             f"task directory was not deleted by the Retro PR. This PR completes "
-            f"the cleanup by deleting only `{target_rel}`.\n\n"
+            f"the cleanup by deleting only `{target_rel}` via "
+            f"`relay delete --exact {slug}`.\n\n"
             f"Git history for the deleted files is the audit trail."
         )
         result = subprocess.run(
@@ -345,7 +359,23 @@ def load_worker_config(cwd: Path | None) -> Config:
     return load_config(find_repo_root(cwd))
 
 
+def _script_task_argv_from_env() -> list[str] | None:
+    blackboard = os.environ.get("RELAY_TASK_BLACKBOARD")
+    repo_root = os.environ.get("RELAY_REPO_ROOT")
+    if not blackboard and not repo_root:
+        return None
+    argv = ["--open-prs"]
+    if repo_root:
+        argv.extend(["--cwd", repo_root])
+    if blackboard:
+        argv.extend(["--blackboard", blackboard])
+    return argv
+
+
 def main(argv: list[str] | None = None) -> int:
+    if argv is None and len(sys.argv) == 1:
+        argv = _script_task_argv_from_env()
+
     parser = argparse.ArgumentParser(description="Run the cleanup-orphan-markers Dream worker.")
     parser.add_argument(
         "--cwd",

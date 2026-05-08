@@ -97,15 +97,16 @@ Posts a distinct Slack line — `🎉 *<slug>* "<title>" auto-bumped on
 merge of PR #<N>` — so the team can tell auto-bumps apart from manual
 ones.
 
-## relay delete \<slug\> [--force]
+## relay delete \<slug\> [--force] [--exact]
 
 Remove a task directory from the working tree — ticket, blackboard,
 log, and the directory itself. Recovery is via `git restore`; the
 git history is the audit trail, no Slack broadcast.
 
 Refuses if `task.lock` is held; pass `--force` to delete a locked
-task anyway. Bootstrap shims aren't user-deletable — they're managed
-by `relay init --update`.
+task anyway. By default `<slug>` accepts the same unique-prefix resolution as
+other task commands; pass `--exact` for scripted destructive paths. Bootstrap
+shims aren't user-deletable — they're managed by `relay init --update`.
 
 ## relay panic --task \<slug\> --reason "..."
 
@@ -128,16 +129,22 @@ not two. Slack is required (see `relay/sync`); commands crash if
 
 Create an ad-hoc Dream cleanup task for the current Relay repo. The task slug
 is plain slug allocation (`dream`, `dream-2`, etc.), not a schedule or time
-bucket. By default the command immediately launches the new task in `auto`
-mode using the current user's first configured agent nickname.
+bucket. By default the command launches deterministic Dream workers as child
+`mode: script` tasks, copies their blackboard results into the parent task,
+then launches the parent task's agent phase in `auto` mode using the current
+user's first configured agent nickname.
 
-- `relay dream` — create and launch a Dream cleanup run now.
-- `relay dream --agent codex1` — assign the run to a specific agent nickname.
+- `relay dream` — create a Dream cleanup run, launch deterministic child script
+  tasks, then launch the parent agent phase now.
+- `relay dream --agent codex1` — assign the agent phase to a specific agent
+  nickname.
 - `relay dream --no-launch` — scaffold the run and print the explicit
   `relay launch <slug>` command.
 
-Dream scans current task state, runs the known Relay housekeeping pass, writes
-its results to that run's blackboard, and should finish with `relay bump`.
+Dream scans current task state, launches deterministic child script tasks
+before parent-agent launch, writes their results to the parent run's
+blackboard, then starts the agent phase for Retro and higher-judgment cleanup.
+The agent phase should finish with `relay bump`.
 It is not the recurring scheduler and does not use `relay-os/recurring/`.
 
 ## relay recurring check

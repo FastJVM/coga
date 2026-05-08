@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
 import subprocess
 import sys
@@ -380,6 +381,19 @@ def load_worker_config(cwd: Path | None) -> Config:
     return load_config(find_repo_root(cwd))
 
 
+def _script_task_argv_from_env() -> list[str] | None:
+    blackboard = os.environ.get("RELAY_TASK_BLACKBOARD")
+    repo_root = os.environ.get("RELAY_REPO_ROOT")
+    if not blackboard and not repo_root:
+        return None
+    argv = ["--fix"]
+    if repo_root:
+        argv.extend(["--cwd", repo_root])
+    if blackboard:
+        argv.extend(["--blackboard", blackboard])
+    return argv
+
+
 def commit_and_push_fixes(
     *,
     cwd: Path,
@@ -448,6 +462,9 @@ def _run_git(args: list[str], *, cwd: Path) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None and len(sys.argv) == 1:
+        argv = _script_task_argv_from_env()
+
     parser = argparse.ArgumentParser(description="Run the validate-drift Dream worker.")
     parser.add_argument(
         "--blackboard",

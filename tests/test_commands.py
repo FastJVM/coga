@@ -157,6 +157,15 @@ def test_delete_resolves_prefix(repo: Path) -> None:
     assert not task_path.exists()
 
 
+def test_delete_exact_rejects_prefix(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["delete", slug[:-1], "--exact"])
+    assert result.exit_code == 2
+    assert task_path.exists()
+    assert "No exact task slug matches" in result.output
+
+
 def test_delete_unknown_task_exits_nonzero(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["delete", "no-such-task-xyz"])

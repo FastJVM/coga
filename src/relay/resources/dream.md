@@ -1,8 +1,11 @@
 Run the Dream cleanup pass for this Relay repo.
 
-Dream is Relay's generic cleanup pass. It scans every ticket, runs the fixed
-Relay housekeeping skills, proposes cleanup, writes each result to this task's
-blackboard, then writes one human-reviewable run summary.
+Dream is Relay's generic cleanup pass. The `relay dream` command is the
+orchestrator: it scaffolds this Dream task, launches deterministic workers as
+child `mode: script` tasks, copies their results into this blackboard, then
+launches the agent for judgment-heavy work. The run scans every ticket, runs
+the fixed Relay housekeeping skills, proposes cleanup, writes each result to
+this task's blackboard, then writes one human-reviewable run summary.
 
 Dream is not REM. Repo/user-specific recurring maintenance belongs in a
 separate REM task under `relay-os/recurring/`, with its own cadence, skill
@@ -10,51 +13,56 @@ order, and output conventions.
 
 ### Console Progress
 
-Write short progress updates to the console before and after each major phase:
-validate-drift, done-ticket classification, Retro handoff, cleanup proposal,
+`relay dream` writes console progress while it scaffolds and launches
+launcher-owned child script tasks before this prompt is ever composed. During
+the agent phase, write short progress updates to the console before and after
+each major judgment phase: done-ticket classification, Retro handoff,
 higher-judgment scan, Slack, and final bump. Include the command or file path
-being acted on and the result count when available. If a phase is skipped,
-say why. The blackboard remains the durable record; console progress is for
-the human watching the run.
+being acted on and the result count when available. If a phase is skipped, say
+why. The blackboard remains the durable record; console progress is for the
+human watching the run.
 
 ### Ordered Skill Pass
 
-Run these known skills in this order:
+Run these known skills in this order. The runner column is part of the
+contract: deterministic scripts run in the `relay dream` launcher, not by the
+agent reading prose.
 
-| Skill | When to run | Result |
-| --- | --- | --- |
-| `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
-| `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting that task directory. | PR-required knowledge extraction; records the marker in PR history and deletes the source task directory in the same PR. |
-| `bootstrap/dream/tasks/cleanup-orphan-markers` | Always. | Deterministic detection and PR-required deletion of done tickets whose blackboard already carries the processed Retro marker but whose task directory still exists. |
+| Skill | Runner | When to run | Result |
+| --- | --- | --- | --- |
+| `bootstrap/dream/tasks/validate-drift` | `relay dream` launcher | Always, before agent launch. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
+| `bootstrap/dream/tasks/cleanup-orphan-markers` | `relay dream` launcher | Always, before agent launch. | Deterministic detection and PR-required deletion of done tickets whose blackboard already carries the processed Retro marker but whose task directory still exists. Deletes through `relay delete --exact` inside the cleanup PR worktree. |
+| `retro/done-ticket` | Agent subagent | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting that task directory. | PR-required knowledge extraction; records the marker in PR history and deletes the source task directory in the same PR. |
 
 That table is the dispatch contract. Do not auto-discover skills, scan a
 plugin folder, or invent another maintenance step during the run. If a repo
 wants a different maintenance loop, make another task with its own body and
 ordered skill list.
 
-For each known skill:
+For each known skill the current runner owns:
 
 1. Read the skill's `## Known Skill Contract`.
 2. Run the skill exactly as its contract says.
 3. Keep the skill's reads, writes, and decisions inside its declared scope.
-4. Let the skill write its own `## Dream Skill: <name>` section to this
+4. Let the skill write its own `## Dream Worker: <name>` section to this
    Dream run's blackboard.
 5. Record one result line for the run summary:
    `no-op`, `reported`, `proposed`, `direct-fixed`, `pr-opened`, or
    `human-needed`.
 
-One known skill failing does not permit a replacement. Record the result and
-continue only with known skills whose inputs do not depend on the blocked one.
+One known skill failing does not permit a replacement. Launcher-owned script
+failures stop before agent launch; agent-owned failures are recorded in the
+Dream run summary and should not be worked around with an invented substitute.
 
 ### Skill: validate-drift
 
-Run from the repo root:
+Launcher-owned. `relay dream` creates a child `mode: script` task for this
+skill and launches that task before launching the parent Dream agent. The agent
+should read the copied `## Dream Worker: validate-drift` blackboard section and
+must not rerun it unless the human explicitly asks.
 
-`python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py --fix --blackboard relay-os/tasks/<this-dream-task>/blackboard.md --slack-task <this-dream-task>`
-
-Replace `<this-dream-task>` with this Dream run task slug. The skill runs the
-same deterministic surface as `relay validate --json`, classifies every issue,
-and appends `## Dream Skill: validate-drift` to this run's blackboard.
+The skill runs the same deterministic surface as `relay validate --json`,
+classifies every issue, and appends its result to this run's blackboard.
 
 With `--fix`, the skill applies only deterministic safe repairs currently
 supported by `relay validate --fix`: create missing `blackboard.md` from the
@@ -100,13 +108,13 @@ Dream run notes.
 
 ### Skill: cleanup-orphan-markers
 
-Run from the repo root:
+Launcher-owned. `relay dream` creates a child `mode: script` task for this
+skill and launches that task before launching the parent Dream agent. The agent
+should read the copied `## Dream Worker: cleanup-orphan-markers` blackboard
+section and must not rerun it unless the human explicitly asks.
 
-`python relay-os/skills/bootstrap/dream/tasks/cleanup-orphan-markers/run.py --open-prs --blackboard relay-os/tasks/<this-dream-task>/blackboard.md --slack-task <this-dream-task>`
-
-Replace `<this-dream-task>` with this Dream run task slug. The script enforces
-the cleanup gate deterministically and opens a delete-only PR for each
-orphan-marker ticket. Detection rules — no LLM judgment:
+The script enforces the cleanup gate deterministically and opens a delete-only
+PR for each orphan-marker ticket. Detection rules — no LLM judgment:
 
 - exact `status: done` in ticket frontmatter;
 - a `## Retro` block in the blackboard containing both
@@ -114,13 +122,11 @@ orphan-marker ticket. Detection rules — no LLM judgment:
 - exact slug match (no prefix matching);
 - no open PR already touching `relay-os/tasks/<slug>/`.
 
-The deletion lives in the PR (not the working tree) so the human reviews or
-edits before merge. Result line for the Dream summary: `pr-opened` when at
+The deletion lives in the PR (not the running working tree) so the human
+reviews or edits before merge. Inside the PR worktree, deletion uses
+`relay delete --exact <slug>`. Result line for the Dream summary: `pr-opened` when at
 least one PR is opened, `no-op` when no candidates exist, `human-needed` when
 the script reports an error. Do not auto-merge.
-
-Drop `--open-prs` for a dry-run that only reports candidates to the
-blackboard.
 
 ### Higher-Judgment Scan
 

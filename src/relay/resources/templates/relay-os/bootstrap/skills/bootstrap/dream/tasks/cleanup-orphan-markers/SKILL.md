@@ -22,19 +22,23 @@ The detection rules are deterministic — no LLM judgment, no fuzzy matching:
 
 When all gates pass and `--open-prs` is set, the worker opens a delete-only PR
 against `--base-branch` (default `main`). Without `--open-prs`, it reports
-candidates only. The deletion happens in the PR (not the working tree
-directly) so the human can review or edit the PR before merge.
+candidates only. The deletion happens in the PR (not the running working tree
+directly) so the human can review or edit the PR before merge. Inside the PR
+worktree, deletion uses `relay delete --exact <slug>`.
 
 ## Known Skill Contract
 
 - Purpose: complete cleanup for done tickets with the processed Retro marker
   whose source task directory still exists.
-- Runs: `python relay-os/skills/bootstrap/dream/tasks/cleanup-orphan-markers/run.py`
-  with Dream-run flags such as `--open-prs`, `--blackboard`, and `--slack-task`.
+- Runs: launcher-owned; `relay dream` creates a child `mode: script` task for
+  this skill and launches it. The script entry point is
+  `python relay-os/skills/bootstrap/dream/tasks/cleanup-orphan-markers/run.py`
+  and script mode provides the task blackboard through `RELAY_TASK_BLACKBOARD`.
 - Inputs: `relay-os/tasks/*/ticket.md`, `relay-os/tasks/*/blackboard.md`, and
   open PR file lists from `gh pr list`.
-- May change: nothing in the running repo; cleanup PRs delete only the
-  matched `relay-os/tasks/<slug>/` directory on a fresh worktree off
+- May change: nothing in the running repo; cleanup PRs run
+  `relay delete --exact <slug>` to delete only the matched
+  `relay-os/tasks/<slug>/` directory on a fresh worktree off
   `origin/<base-branch>`.
 - Action: `pr-required`
 - Idempotency: skips any candidate whose task dir is already touched by an

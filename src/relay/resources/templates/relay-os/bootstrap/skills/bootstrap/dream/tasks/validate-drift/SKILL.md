@@ -22,8 +22,10 @@ It then classifies every validator issue into one of three buckets:
 ## Known Skill Contract
 
 - Purpose: deterministic repo-health validation and conservative safe repair
-- Runs: `python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py`
-  with Dream-run flags such as `--fix`, `--blackboard`, and `--slack-task`
+- Runs: launcher-owned; `relay dream` creates a child `mode: script` task for
+  this skill and launches it. The script entry point is
+  `python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py`
+  and script mode provides the task blackboard through `RELAY_TASK_BLACKBOARD`
 - Inputs: `relay.toml`, `relay.local.toml`, task directories, workflow refs,
   context refs, skill refs, lock files, and optional Slack webhook reachability
 - May change: missing `blackboard.md` and `log.md` files only when `--fix` is
@@ -34,7 +36,7 @@ It then classifies every validator issue into one of three buckets:
   leaves existing files unchanged, so reruns converge on the same repo state
 - Stop and ask: invalid validator JSON, validator process failure, unsafe push
   branch, stale locks, lifecycle changes, unknown ownership, or secret access
-- Output: append `## Dream Skill: validate-drift` to the Dream run blackboard
+- Output: append `## Dream Worker: validate-drift` to the Dream run blackboard
   and optionally post a one-line Slack summary
 
 ## How to Run
@@ -61,7 +63,7 @@ invalid JSON.
 The skill appends a concise section to the Dream run blackboard:
 
 ```
-## Dream Skill: validate-drift
+## Dream Worker: validate-drift
 ```
 
 The section includes the exact command, issue counts by bucket, and one

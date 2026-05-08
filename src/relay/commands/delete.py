@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import shutil
 import sys
+import shutil
 
 import typer
 
@@ -11,6 +11,7 @@ from relay.config import ConfigError, load_config
 from relay.lock import TaskLock
 from relay.tasks import (
     TaskNotFoundError,
+    list_tasks,
     resolve_task,
 )
 
@@ -22,6 +23,11 @@ def delete(
         "--force",
         help="Delete even if task.lock is held.",
     ),
+    exact: bool = typer.Option(
+        False,
+        "--exact",
+        help="Require an exact task slug. Use this for scripted deletion.",
+    ),
 ) -> None:
     """Remove a task directory. Recovery is via `git restore`."""
     try:
@@ -30,7 +36,13 @@ def delete(
         _bail(str(exc))
 
     try:
-        ref = resolve_task(cfg, task)
+        if exact:
+            exact_refs = [ref for ref in list_tasks(cfg) if ref.slug == task]
+            if not exact_refs:
+                raise TaskNotFoundError(f"No exact task slug matches {task!r}")
+            ref = exact_refs[0]
+        else:
+            ref = resolve_task(cfg, task)
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
@@ -38,7 +50,7 @@ def delete(
     if lock is not None and not force:
         _bail(
             f"{ref.id_slug}: task.lock held by {lock.holder!r} "
-            f"since {lock.acquired.isoformat()} — pass --force to delete anyway."
+            f"since {lock.acquired.isoformat()} - pass --force to delete anyway."
         )
 
     shutil.rmtree(ref.path)

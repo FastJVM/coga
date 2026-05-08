@@ -36,9 +36,11 @@ no in-memory state.
   lock. `relay launch bootstrap/ticket "title"` is the factory
   shorthand to scaffold a new draft + run the bootstrap skill on it.
 - **Dream** is Relay's generic ticket cleanup pass. A Dream run is an ordinary
-  ad-hoc task created by `relay dream`; its body scans the ticket set, runs
-  fixed Relay housekeeping skills, proposes cleanup, and writes reviewable
-  results to its blackboard.
+  ad-hoc task created by `relay dream`. The command is the orchestrator: it
+  scaffolds the parent task, launches deterministic workers as child
+  `mode: script` tasks, copies their results into the parent blackboard, then
+  launches the agent for judgment-heavy cleanup. The task body owns the
+  ordered pass and run summary.
 - **REM** is repo/user-specific recurring maintenance. A REM run is an
   ordinary recurring task whose body defines that repo's operational checks,
   domain skills, output conventions, and review gates.
@@ -102,8 +104,10 @@ is no server-side state behind them.
 ## Dream's known-skill contract
 
 Dream is not a plugin host. The body of `bootstrap/dream` (the `dream.md`
-prompt resource) owns an explicit, ordered list of known skills it will run
-and is the only control point. Dropping a SKILL.md under
+prompt resource) owns an explicit, ordered list of known skills and runners,
+and is the only control point. Deterministic scripts are launcher-owned child
+Relay tasks, so they still get task composition, blackboards, logs, locks, and
+recovery; judgment-heavy work is agent-owned. Dropping a SKILL.md under
 `bootstrap/dream/tasks/` does not enable it; there is no recursive discovery,
 no registry, and no daemon. Adding another Dream skill is a normal Relay
 code/docs change to that list.
@@ -121,7 +125,7 @@ with these fields:
 - `Stop and ask` — conditions that require human review before continuing.
 - `Output` — blackboard section, PR link, created ticket, or no-op.
 
-Each known skill writes its own `## Dream Skill: <name>` section to the
+Each known skill writes its own `## Dream Worker: <name>` section to the
 Dream run blackboard. The orchestrator appends one `## Dream Run Summary`
 that lists each skill's result using a small fixed vocabulary:
 `no-op`, `reported`, `proposed`, `direct-fixed`, `pr-opened`,

@@ -42,11 +42,13 @@ def test_dream_documents_ordered_skill_pass() -> None:
     assert "Dream is Relay's generic cleanup pass" in text
     assert "Dream is not REM" in text
     assert "### Console Progress" in text
-    assert "Write short progress updates to the console" in text
+    assert "scaffolds and launches\nlauncher-owned child script tasks" in text
     assert "### Ordered Skill Pass" in text
+    assert "runner column is part of the\ncontract" in text
     assert "`bootstrap/dream/tasks/validate-drift`" in text
     assert "`retro/done-ticket`" in text
     assert "`bootstrap/dream/tasks/cleanup-orphan-markers`" in text
+    assert "Deletes through `relay delete --exact`" in text
     assert "`bootstrap/dream/tasks/dev/stale-branches`" not in text
     assert "dev/stale-branches" not in text
     assert "That table is the dispatch contract" in text
@@ -74,10 +76,11 @@ def test_validate_drift_worker_declares_contract() -> None:
 
     assert "## Known Skill Contract" in text
     assert "- Purpose: deterministic repo-health validation" in text
+    assert "- Runs: launcher-owned; `relay dream` creates a child `mode: script` task" in text
     assert "- Action: `direct-fix`" in text
     assert "- May change: missing `blackboard.md` and `log.md` files only" in text
     assert "- Idempotency: `relay validate --fix`" in text
-    assert "- Output: append `## Dream Skill: validate-drift`" in text
+    assert "- Output: append `## Dream Worker: validate-drift`" in text
 
 
 def test_cleanup_orphan_markers_worker_declares_contract() -> None:
@@ -89,11 +92,13 @@ def test_cleanup_orphan_markers_worker_declares_contract() -> None:
     assert "from relay.dream_cleanup_orphan_markers import main" in run_py
     assert "## Known Skill Contract" in text
     assert "- Purpose: complete cleanup for done tickets with the processed Retro marker" in text
+    assert "- Runs: launcher-owned; `relay dream` creates a child `mode: script` task" in text
     assert "- Action: `pr-required`" in text
     assert "skill: retro/done-ticket" in text
     assert "status: processed" in text
     assert "exact slug match (no prefix matching)" in text
     assert "no open PR already touching" in text
+    assert "deletion uses `relay delete --exact <slug>`" in text
     assert "- Output: append `## Dream Worker: cleanup-orphan-markers`" in text
 
 

@@ -61,10 +61,21 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = 
 
     env = os.environ.copy()
     env.update(cfg.secrets)
+    env.update(
+        {
+            "RELAY_REPO_ROOT": str(cfg.repo_root),
+            "RELAY_TASK_SLUG": ref.id_slug,
+            "RELAY_TASK_DIR": str(ref.path),
+            "RELAY_TASK_BLACKBOARD": str(ref.path / "blackboard.md"),
+            "RELAY_WORKFLOW_STEP": str(current["name"]),
+            "RELAY_SKILL": skill.name,
+        }
+    )
 
     # The repo root for relay-os/ inside a host repo is `repo/relay-os`; scripts
     # almost always want the host repo (its parent), so prefer that when present.
     cwd = cfg.repo_root.parent if cfg.repo_root.name == "relay-os" else cfg.repo_root
+    env["RELAY_HOST_ROOT"] = str(cwd)
 
     append_log(
         ref.path,
