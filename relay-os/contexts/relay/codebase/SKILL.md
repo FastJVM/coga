@@ -59,6 +59,11 @@ relay-os/
 - Validate config + tasks: `relay validate --json`
   (or `python -m relay.validate --json` if `relay` isn't on PATH).
 
+If edits to `src/relay/` (especially `resources/*.md` like `dream.md`) don't
+appear when you run the CLI, the venv likely has a non-editable install.
+Reinstall against the venv that backs your `relay` shim:
+`<that venv's python> -m pip install -e .` from the repo root.
+
 ## Secrets
 
 Never commit. Shared config goes in `relay.toml`; per-machine paths
