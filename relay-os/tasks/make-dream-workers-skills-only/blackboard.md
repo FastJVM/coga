@@ -4,7 +4,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: codex/dream-workers-skills-only
 worktree: /home/n/Code/relay
-pr:
+pr: https://github.com/FastJVM/relay/pull/125
 
 ## Origin
 
