@@ -5,7 +5,7 @@ mode: interactive
 owner: nick
 human: nick
 agent: claude1
-assignee: claude1
+assignee: nick
 contexts:
 - relay/architecture
 - relay/principles
@@ -20,7 +20,7 @@ workflow:
     skill: code/open-pr
   - name: review
     assignee: owner
-step: 2 (open-pr)
+step: 3 (review)
 ---
 
 ## Description
