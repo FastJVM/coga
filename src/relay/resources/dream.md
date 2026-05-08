@@ -25,6 +25,7 @@ Run these known skills in this order:
 | --- | --- | --- |
 | `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
 | `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting that task directory. | PR-required knowledge extraction; records the marker in PR history and deletes the source task directory in the same PR. |
+| `bootstrap/dream/tasks/cleanup-orphan-markers` | When an existing done ticket already has the processed Retro marker but its task directory still exists. | PR-required delete-only cleanup through the public `bootstrap/delete-task` skill; reports `human-needed` until that skill is installed. |
 
 That table is the dispatch contract. Do not auto-discover skills, scan a
 plugin folder, or invent another maintenance step during the run. If a repo
@@ -34,10 +35,14 @@ ordered skill list.
 For each known skill:
 
 1. Read the skill's `## Known Skill Contract`.
-2. Run the skill exactly as its contract says.
+2. For executable Dream-owned skills, scaffold and launch a child
+   `mode: script` task whose workflow step references the skill.
+   Dream-owned scripts are skills attached to Relay tasks; they are never
+   standalone execution units.
 3. Keep the skill's reads, writes, and decisions inside its declared scope.
 4. Let the skill write its own `## Dream Skill: <name>` section to this
-   Dream run's blackboard.
+   child task blackboard, then summarize that child result in this Dream run's
+   blackboard.
 5. Record one result line for the run summary:
    `no-op`, `reported`, `proposed`, `direct-fixed`, `pr-opened`, or
    `human-needed`.
@@ -47,19 +52,16 @@ continue only with known skills whose inputs do not depend on the blocked one.
 
 ### Skill: validate-drift
 
-Run from the repo root:
+Launch a child `mode: script` task whose current workflow step references
+`bootstrap/dream/tasks/validate-drift`. The skill runs the same deterministic
+surface as `relay validate --json`, classifies every issue, and appends
+`## Dream Skill: validate-drift` to the child task's blackboard.
 
-`python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py --fix --blackboard relay-os/tasks/<this-dream-task>/blackboard.md --slack-task <this-dream-task>`
-
-Replace `<this-dream-task>` with this Dream run task slug. The skill runs the
-same deterministic surface as `relay validate --json`, classifies every issue,
-and appends `## Dream Skill: validate-drift` to this run's blackboard.
-
-With `--fix`, the skill applies only deterministic safe repairs currently
-supported by `relay validate --fix`: create missing `blackboard.md` from the
-standard template and create missing `log.md` as an empty append-only file. It
-does not rewrite existing files, synthesize `ticket.md`, freeze workflows,
-delete locks, or change lifecycle/assignee state.
+The skill's default safe-repair pass applies only deterministic repairs
+currently supported by `relay validate --fix`: create missing `blackboard.md`
+from the standard template and create missing `log.md` as an empty append-only
+file. It does not rewrite existing files, synthesize `ticket.md`, freeze
+workflows, delete locks, or change lifecycle/assignee state.
 
 Stale-lock rule: never delete a `task.lock` from age alone. The skill reports
 stale locks as `human-needed`. A human must verify that no live terminal or
@@ -97,16 +99,21 @@ processed by Retro unless an open PR is already deleting that exact task
 directory. Do not infer completion from branch names, stale comments, or old
 Dream run notes.
 
-### Done-Ticket Cleanup
+### Skill: cleanup-orphan-markers
 
 Recovery path for done tickets whose blackboard carries the processed Retro
 marker but whose task directory was not deleted by the Retro PR. New Retro
 PRs delete the source task directory in the same PR, so this pass should
 usually find nothing.
 
-For each such ticket, open a PR that deletes only `relay-os/tasks/<slug>/`.
-The deletion goes in the PR (not the working tree directly) so the human can
-review or edit it before merge. Cleanup gate:
+Launch a child `mode: script` task whose current workflow step references
+`bootstrap/dream/tasks/cleanup-orphan-markers`. The skill detects cleanup
+candidates and gates deletion through `bootstrap/delete-task`. Until that
+delete skill exists, it reports `human-needed` and does not delete anything.
+
+For each such ticket, cleanup must open a PR that deletes only
+`relay-os/tasks/<slug>/`. The deletion goes in the PR (not the working tree
+directly) so the human can review or edit it before merge. Cleanup gate:
 
 - the marker is present in `relay-os/tasks/<slug>/blackboard.md`;
 - no open PR is currently editing that task directory;
@@ -145,8 +152,8 @@ review gates. Keep the run summary short enough for a human to scan.
 
 ### Slack
 
-The validate-drift skill posts its own one-line Slack summary when run with
-`--slack-task`. For the broader Dream scan, call:
+Child script tasks write their durable result to their own blackboard; the
+parent Dream run sends the broader one-line summary. Call:
 
 `relay slack --task <this-dream-task> --message "<summary>"`
 

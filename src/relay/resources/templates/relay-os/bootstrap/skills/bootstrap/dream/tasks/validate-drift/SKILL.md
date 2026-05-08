@@ -22,13 +22,14 @@ It then classifies every validator issue into one of three buckets:
 ## Known Skill Contract
 
 - Purpose: deterministic repo-health validation and conservative safe repair
-- Runs: `python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py`
-  with Dream-run flags such as `--fix`, `--blackboard`, and `--slack-task`
+- Runs: a `mode: script` Relay task whose workflow step references
+  `bootstrap/dream/tasks/validate-drift`
 - Inputs: `relay.toml`, `relay.local.toml`, task directories, workflow refs,
   context refs, skill refs, lock files, and optional Slack webhook reachability
 - May change: missing `blackboard.md` and `log.md` files only when `--fix` is
-  passed; repaired files may be committed and pushed only from a non-main repair
-  branch when `--commit-and-push` is passed
+  enabled by the script's default safe-repair pass; repaired files may be
+  committed and pushed only from a non-main repair branch when
+  `--commit-and-push` is passed manually
 - Action: `direct-fix`
 - Idempotency: `relay validate --fix` only creates missing standard files and
   leaves existing files unchanged, so reruns converge on the same repo state
@@ -42,15 +43,19 @@ It then classifies every validator issue into one of three buckets:
 From the host repo root:
 
 ```
-python relay-os/skills/bootstrap/dream/tasks/validate-drift/run.py --fix --blackboard relay-os/tasks/<dream-run-task>/blackboard.md --slack-task <dream-run-task>
+relay launch <validate-drift-child-task>
 ```
 
-Replace `<dream-run-task>` with the current Dream run task slug.
+The child task must be `mode: script` and its current workflow step must
+reference `bootstrap/dream/tasks/validate-drift`. Relay injects
+`RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`; the script
+uses that metadata to append its result to the child task blackboard.
 
-`--fix` applies the same conservative repair set as `relay validate --fix`:
-create missing `blackboard.md` and `log.md` only. To publish those repairs from
-a Dream repair branch, add `--commit-and-push`; it commits only repaired files
-and pushes the current branch, refusing `main`/`master` by default.
+The default safe-repair pass applies the same conservative repair set as
+`relay validate --fix`: create missing `blackboard.md` and `log.md` only. To
+publish those repairs from a Dream repair branch, run the script manually with
+`--commit-and-push`; it commits only repaired files and pushes the current
+branch, refusing `main`/`master` by default.
 
 The skill exits `0` when validation completed, even if the validator found
 issues. It exits non-zero only when the validator itself failed or emitted

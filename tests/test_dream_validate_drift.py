@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -7,16 +9,44 @@ from textwrap import dedent
 
 import pytest
 
-from relay.dream_validate_drift import (
-    ACTION_DIRECT_FIX,
-    ACTION_HUMAN_NEEDED,
-    ACTION_PR_PROPOSAL,
-    ValidationFix,
-    ValidationIssue,
-    build_validate_command,
-    classify_issue,
-    commit_and_push_fixes,
+VALIDATE_DRIFT = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "relay"
+    / "resources"
+    / "templates"
+    / "relay-os"
+    / "bootstrap"
+    / "skills"
+    / "bootstrap"
+    / "dream"
+    / "tasks"
+    / "validate-drift"
 )
+
+
+def _load_validate_drift_module():
+    spec = importlib.util.spec_from_file_location(
+        "validate_drift_skill", VALIDATE_DRIFT / "run.py"
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+validate_drift = _load_validate_drift_module()
+
+ACTION_DIRECT_FIX = validate_drift.ACTION_DIRECT_FIX
+ACTION_HUMAN_NEEDED = validate_drift.ACTION_HUMAN_NEEDED
+ACTION_PR_PROPOSAL = validate_drift.ACTION_PR_PROPOSAL
+ValidationFix = validate_drift.ValidationFix
+ValidationIssue = validate_drift.ValidationIssue
+build_validate_command = validate_drift.build_validate_command
+classify_issue = validate_drift.classify_issue
+commit_and_push_fixes = validate_drift.commit_and_push_fixes
 
 
 def _write(path: Path, text: str) -> None:
@@ -124,25 +154,35 @@ def test_classifies_broken_refs_as_pr_proposal() -> None:
 def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
     relay_os = _seed_repo(tmp_path)
     blackboard = relay_os / "tasks" / "broken-context" / "blackboard.md"
+    env = os.environ.copy()
+    env.update(
+        {
+            "RELAY_TASK_SLUG": "validate-drift-child",
+            "RELAY_TASK_DIR": str((relay_os / "tasks" / "broken-context").resolve()),
+            "RELAY_TASK_BLACKBOARD": str(blackboard.resolve()),
+            "RELAY_RELAY_OS_ROOT": str(relay_os.resolve()),
+            "RELAY_REPO_ROOT": str(tmp_path.resolve()),
+        }
+    )
 
     result = subprocess.run(
         [
             sys.executable,
-            "-m",
-            "relay.dream_validate_drift",
+            str(VALIDATE_DRIFT / "run.py"),
             "--cwd",
             str(tmp_path),
-            "--blackboard",
-            str(blackboard),
+            "--no-fix",
         ],
         check=False,
         capture_output=True,
         text=True,
+        env=env,
     )
 
     assert result.returncode == 0, result.stderr
     text = blackboard.read_text()
-    assert "## Dream Worker: validate-drift" in text
+    assert "## Dream Skill: validate-drift" in text
+    assert "Task: `validate-drift-child`" in text
     assert "`broken-context`: `broken-context` (error)" in text
     assert "PR Proposal" in text
     assert "Command: `" in text
@@ -153,29 +193,33 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
     task = relay_os / "tasks" / "broken-context"
     (task / "blackboard.md").unlink()
     (task / "log.md").unlink()
+    env = os.environ.copy()
+    env.update(
+        {
+            "RELAY_TASK_SLUG": "validate-drift-child",
+            "RELAY_TASK_DIR": str(task.resolve()),
+            "RELAY_TASK_BLACKBOARD": str((task / "blackboard.md").resolve()),
+            "RELAY_RELAY_OS_ROOT": str(relay_os.resolve()),
+            "RELAY_REPO_ROOT": str(tmp_path.resolve()),
+        }
+    )
 
     result = subprocess.run(
         [
             sys.executable,
-            "-m",
-            "relay.dream_validate_drift",
+            str(VALIDATE_DRIFT / "run.py"),
             "--cwd",
             str(tmp_path),
-            "--fix",
-            "--blackboard",
-            str(task / "blackboard.md"),
-            "--slack-task",
-            "broken-context",
         ],
         check=False,
         capture_output=True,
         text=True,
+        env=env,
     )
 
     assert result.returncode == 0, result.stderr
     assert (task / "blackboard.md").is_file()
     assert (task / "log.md").is_file()
-    assert "[slack] disabled" in result.stderr
     text = (task / "blackboard.md").read_text()
     assert "Applied fixes: 2." in text
     assert "created blackboard.md" in text

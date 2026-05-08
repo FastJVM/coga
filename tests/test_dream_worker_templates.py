@@ -46,6 +46,7 @@ def test_dream_documents_ordered_skill_pass() -> None:
     assert "### Ordered Skill Pass" in text
     assert "`bootstrap/dream/tasks/validate-drift`" in text
     assert "`retro/done-ticket`" in text
+    assert "`bootstrap/dream/tasks/cleanup-orphan-markers`" in text
     assert "`bootstrap/dream/tasks/dev/stale-branches`" not in text
     assert "dev/stale-branches" not in text
     assert "That table is the dispatch contract" in text
@@ -53,14 +54,16 @@ def test_dream_documents_ordered_skill_pass() -> None:
     assert "make another task with its own body and\nordered skill list" in text
     assert "### Skill: validate-drift" in text
     assert "### Skill: retro/done-ticket" in text
+    assert "### Skill: cleanup-orphan-markers" in text
     assert "### Skill: dev/stale-branches" not in text
-    assert "### Done-Ticket Cleanup" in text
     assert "status: processed" in text
     assert "skill: retro/done-ticket" in text
     assert "deletes the source task directory in the same PR" in text
     assert "An open\n   PR counts as in flight" in text
     assert "Absence of the marker on an existing done ticket" in text
     assert "git history for the deleted `blackboard.md`" in text
+    assert "Dream-owned scripts are skills attached to Relay tasks" in text
+    assert "--blackboard" not in text
     assert "Dream Run Summary" in text
     assert "relay slack --task <this-dream-task>" in text
     assert "stale branch" not in text.lower()
@@ -77,6 +80,22 @@ def test_validate_drift_worker_declares_contract() -> None:
     assert "- May change: missing `blackboard.md` and `log.md` files only" in text
     assert "- Idempotency: `relay validate --fix`" in text
     assert "- Output: append `## Dream Skill: validate-drift`" in text
+    assert "RELAY_TASK_BLACKBOARD" in text
+    assert "--blackboard" not in text
+
+
+def test_cleanup_orphan_markers_declares_contract() -> None:
+    text = (TEMPLATES / "cleanup-orphan-markers" / "SKILL.md").read_text()
+
+    assert "## Known Skill Contract" in text
+    assert "- Purpose: detect already-processed done tickets" in text
+    assert "- Action: `pr-required`" in text
+    assert "`bootstrap/delete-task`" in text
+    assert "exact `status: done`" in text
+    assert "`skill: retro/done-ticket`" in text
+    assert "`status: processed`" in text
+    assert "not a prefix match" in text
+    assert "reports eligible candidates as `human-needed`" in text
 
 
 def test_rem_template_documents_user_specific_recurring_maintenance() -> None:

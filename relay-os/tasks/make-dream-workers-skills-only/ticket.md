@@ -20,6 +20,7 @@ workflow:
     skill: code/open-pr
   - name: review
     assignee: owner
+step: 2 (open-pr)
 ---
 
 ## Description

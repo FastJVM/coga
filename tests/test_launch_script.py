@@ -68,7 +68,15 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """,
     )
     script = company / "skills" / "ops" / "checker" / "check.sh"
-    script.write_text("#!/bin/sh\necho \"token=$token\" > \"$PWD/script-output.txt\"\n")
+    script.write_text(
+        "#!/bin/sh\n"
+        "{\n"
+        "  echo \"token=$token\"\n"
+        "  echo \"slug=$RELAY_TASK_SLUG\"\n"
+        "  echo \"dir=$RELAY_TASK_DIR\"\n"
+        "  echo \"blackboard=$RELAY_TASK_BLACKBOARD\"\n"
+        "} > \"$PWD/script-output.txt\"\n"
+    )
     script.chmod(0o755)
 
     monkeypatch.chdir(company)
@@ -92,6 +100,9 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     # Script wrote to the host repo (parent of relay-os/) with the secret
     output = (cfg.repo_root.parent / "script-output.txt").read_text()
     assert "token=secret-abc" in output
+    assert "slug=check" in output
+    assert f"dir={ref.path.resolve()}" in output
+    assert f"blackboard={(ref.path / 'blackboard.md').resolve()}" in output
 
     # Log records launch + exit
     log = (ref.path / "log.md").read_text()
