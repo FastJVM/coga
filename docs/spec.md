@@ -661,7 +661,7 @@ The current first-wave Dream skill pass is:
 | Skill | When to run | Result |
 | --- | --- | --- |
 | `validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
-| `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
+| `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting that task directory. | PR-required knowledge extraction; records the marker in PR history and deletes the source task directory in the same PR. |
 
 Branch hygiene, test hygiene, and other code-repo maintenance are dev
 maintenance, not Dream. Put them in a separate dev recurring task or workflow.
@@ -698,10 +698,10 @@ requires exact evidence and human review by default. A skill may declare direct
 destructive behavior only when the rule is deterministic, narrow, and named in
 `May change`; otherwise it uses `proposal-only` or `pr-required`.
 
-Done-ticket cleanup is retro-first, delete-second: Retro marks first, Dream
-deletes later only when the cleanup gate is satisfied. Done-ticket Retro uses
-the source task blackboard as its idempotency marker. Retro appends or updates
-exactly one section:
+Done-ticket cleanup is retro-first, same-PR-delete: Retro records the marker and
+deletes the source task directory in the same PR. Done-ticket Retro uses the
+source task blackboard marker as its idempotency proof while the directory
+exists. Retro appends or updates exactly one section before deleting the task:
 
 ```markdown
 ## Retro
@@ -712,13 +712,15 @@ result: <knowledge-pr | no-new-durable-knowledge>
 title: <PR title>
 ```
 
-For an existing `status: done` task, absence of that marker means Retro has
-not processed the task. Presence of the marker means Dream must not run Retro
-again and may delete the task when the cleanup gate is satisfied. Before
+For an existing `status: done` task, absence of that marker means Retro has not
+processed the task unless an open PR already deletes that exact task directory.
+Presence of the marker means Dream must not run Retro again; if the directory is
+still present, Dream may open a cleanup PR for that exact task directory. Before
 launching Retro for an unmarked done ticket, Dream checks open PRs; a PR whose
-diff adds the same marker to `relay-os/tasks/<slug>/blackboard.md` counts as
-in flight. If the task directory is already gone, it is not a Retro candidate;
-git history for the deleted blackboard remains the audit trail.
+diff adds the same marker to `relay-os/tasks/<slug>/blackboard.md` or deletes
+`relay-os/tasks/<slug>/` counts as in flight. If the task directory is already
+gone, it is not a Retro candidate; git history for the deleted blackboard
+remains the audit trail.
 
 Each known skill writes its own `## Dream Skill: <name>` blackboard section. At
 the end of the run, Dream appends one `## Dream Run Summary` section with a

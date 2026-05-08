@@ -99,6 +99,43 @@ The command reference lives in `relay/cli`. The important architectural split
 is that foreground commands operate on files in the current `relay-os/`; there
 is no server-side state behind them.
 
+## Dream's known-skill contract
+
+Dream is not a plugin host. The body of `bootstrap/dream` (the `dream.md`
+prompt resource) owns an explicit, ordered list of known skills it will run
+and is the only control point. Dropping a SKILL.md under
+`bootstrap/dream/tasks/` does not enable it; there is no recursive discovery,
+no registry, and no daemon. Adding another Dream skill is a normal Relay
+code/docs change to that list.
+
+Each known skill's `SKILL.md` carries a `## Known Skill Contract` section
+with these fields:
+
+- `Purpose` — the maintenance question this skill answers.
+- `Runs` — exact command, manual instructions, or script entry point.
+- `Inputs` — files, commands, APIs, or task state the skill may read.
+- `May change` — exact files/refs/state the skill may edit, or `none`.
+- `Action` — one of `report-only`, `proposal-only`, `pr-required`,
+  `direct-fix`.
+- `Idempotency` — how reruns avoid duplicate work.
+- `Stop and ask` — conditions that require human review before continuing.
+- `Output` — blackboard section, PR link, created ticket, or no-op.
+
+Each known skill writes its own `## Dream Skill: <name>` section to the
+Dream run blackboard. The orchestrator appends one `## Dream Run Summary`
+that lists each skill's result using a small fixed vocabulary:
+`no-op`, `reported`, `proposed`, `direct-fixed`, `pr-opened`,
+`human-needed`.
+
+Destructive behavior (deleting task directories, deleting git refs,
+removing locks, changing lifecycle state, touching secrets) is never
+implicit. A known skill may declare a direct destructive change only when
+the rule is deterministic, narrow, and named in `May change`; otherwise it
+must use `proposal-only` or `pr-required`. Repos that want a different
+maintenance loop define their own task (e.g. `rem` under
+`relay-os/recurring/`) with its own dispatch rules — that is user space and
+is not plugged into bootstrap Dream.
+
 ## What this context does NOT cover
 
 - Where files live in source / how to test (see `relay/codebase`).

@@ -24,7 +24,7 @@ Run these known skills in this order:
 | Skill | When to run | Result |
 | --- | --- | --- |
 | `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
-| `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker. | PR-required knowledge extraction; marks the source task blackboard so Dream can clean it later. |
+| `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting that task directory. | PR-required knowledge extraction; records the marker in PR history and deletes the source task directory in the same PR. |
 
 That table is the dispatch contract. Do not auto-discover skills, scan a
 plugin folder, or invent another maintenance step during the run. If a repo
@@ -73,31 +73,37 @@ For each done task:
 
 1. Read `relay-os/tasks/<slug>/blackboard.md`.
 2. If the blackboard has `## Retro` with `skill: retro/done-ticket` and
-   `status: processed`, do not run Retro again. The ticket is processed and can
-   be deleted when the cleanup gate is satisfied.
+   `status: processed`, do not run Retro again. The ticket is processed; if no
+   open PR already deletes it, it is eligible for the cleanup gate below.
 3. If the marker is absent, inspect open PRs before launching Retro. An open
    PR counts as in flight when its diff adds the same `## Retro` /
    `skill: retro/done-ticket` / `status: processed` marker to
-   `relay-os/tasks/<slug>/blackboard.md`.
+   `relay-os/tasks/<slug>/blackboard.md` or deletes
+   `relay-os/tasks/<slug>/`.
 4. If no current marker and no open PR marker exists, run `retro/done-ticket
    <slug>` for one selected done ticket. Prefer one Retro PR per Dream run
    unless a human asks for a batch. Run Retro in a subagent. The full ticket
    evidence (`ticket.md`, `blackboard.md`, `log.md`, plus every context and
    skill file) would otherwise bloat the main Dream context. The subagent
-   should return only the PR URL and a one-line result; the raw evidence stays
-   inside the subagent.
+   must open a PR that records the marker and deletes the source task directory
+   in that same PR, then return only the PR URL and a one-line result; the raw
+   evidence stays inside the subagent.
 5. If `relay-os/tasks/<slug>/` is already gone, it is not a Retro candidate.
    For audit, use git history for the deleted `blackboard.md`; the deleted
    marker is the record that Retro processed the task before cleanup.
 
 Absence of the marker on an existing done ticket means the task has not been
-processed by Retro. Do not infer completion from branch names, stale comments,
-or old Dream run notes.
+processed by Retro unless an open PR is already deleting that exact task
+directory. Do not infer completion from branch names, stale comments, or old
+Dream run notes.
 
 ### Done-Ticket Cleanup
 
 For each existing `status: done` task whose blackboard already contains the
-processed Retro marker, propose deleting the task directory. The cleanup gate:
+processed Retro marker, propose deleting the task directory. This is a recovery
+path for already-marked tasks that were not deleted by their Retro PR; new
+Retro PRs must delete the source task directory in the same PR. The cleanup
+gate:
 
 - the marker is present in `relay-os/tasks/<slug>/blackboard.md`;
 - no open PR is currently editing that task directory;
