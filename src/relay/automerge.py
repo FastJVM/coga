@@ -9,10 +9,13 @@ The PR link convention lives in the `dev/code` context: a `pr:` line
 under `## Dev` on the blackboard. We parse it directly; relay-the-CLI
 treats the blackboard as plain text on purpose.
 
-Two callers:
-  - `relay automerge` (post-merge git hook + manual invocation).
+Three callers:
+  - `relay automerge` (post-merge git hook + manual invocation) — uses
+    `auto_bump_merged` to sweep all active tickets.
   - `relay status` (opportunistic fallback, `quiet=True` — gh failures
     swallowed so the fast command stays fast).
+  - `relay launch <slug>` (pre-launch freshness check) — uses
+    `auto_bump_one` to check just the ticket about to be launched.
 """
 
 from __future__ import annotations
@@ -95,6 +98,59 @@ def _candidate(ticket: Ticket) -> bool:
     return ticket.status == "active" and _on_final_step(ticket)
 
 
+def _try_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool) -> bool:
+    """Check `ref`; bump to done iff its linked PR has merged.
+
+    Returns True iff the ticket was bumped. Always raises `GhError` on
+    `gh` failure — callers decide whether to swallow or surface.
+    """
+    try:
+        ticket = read_ticket(ref)
+    except TicketError:
+        return False
+    if not _candidate(ticket):
+        return False
+
+    url = _read_pr_url(ref.path)
+    if not url:
+        return False
+
+    state = pr_state(url)
+    if state != "MERGED":
+        return False
+
+    # Re-read in case a concurrent caller (other hook, status, manual
+    # bump) already handled this ticket. Mark_done is the gate.
+    try:
+        ticket = read_ticket(ref)
+    except TicketError:
+        return False
+    if not _candidate(ticket):
+        return False
+
+    number = parse_pr_number(url)
+    pr_label = f"PR #{number}" if number is not None else "the linked PR"
+    actor = f"human:{cfg.current_user}"
+    slack_text = (
+        f"🎉 *{ref.id_slug}* \"{ticket.title}\" "
+        f"auto-bumped on merge of {pr_label}"
+    )
+    log_message = f"auto-bumped on merge of {pr_label} → done"
+    echo = None if quiet else f"{ref.id_slug}: done (auto, {pr_label})"
+
+    mark_done(
+        cfg,
+        ref,
+        ticket,
+        actor=actor,
+        log_message=log_message,
+        slack_text=slack_text,
+        image_url=cfg.gif_for("done"),
+        echo=echo,
+    )
+    return True
+
+
 def auto_bump_merged(cfg: Config, *, quiet: bool = False) -> int:
     """Walk active tickets; bump those whose linked PR has merged.
 
@@ -109,59 +165,31 @@ def auto_bump_merged(cfg: Config, *, quiet: bool = False) -> int:
     bumped = 0
     for ref in list_tasks(cfg):
         try:
-            ticket = read_ticket(ref)
-        except TicketError:
-            continue
-        if not _candidate(ticket):
-            continue
-
-        url = _read_pr_url(ref.path)
-        if not url:
-            continue
-
-        try:
-            state = pr_state(url)
+            if _try_bump_one(cfg, ref, quiet=quiet):
+                bumped += 1
         except GhError:
             if quiet:
                 # Status fallback: don't break the fast command. The
                 # explicit `relay automerge` path will surface this.
                 return bumped
             raise
-
-        if state != "MERGED":
-            continue
-
-        # Re-read in case a concurrent caller (other hook, status, manual
-        # bump) already handled this ticket. Mark_done is the gate.
-        try:
-            ticket = read_ticket(ref)
-        except TicketError:
-            continue
-        if not _candidate(ticket):
-            continue
-
-        number = parse_pr_number(url)
-        pr_label = f"PR #{number}" if number is not None else "the linked PR"
-        actor = f"human:{cfg.current_user}"
-        slack_text = (
-            f"🎉 *{ref.id_slug}* \"{ticket.title}\" "
-            f"auto-bumped on merge of {pr_label}"
-        )
-        log_message = f"auto-bumped on merge of {pr_label} → done"
-        echo = None if quiet else f"{ref.id_slug}: done (auto, {pr_label})"
-
-        mark_done(
-            cfg,
-            ref,
-            ticket,
-            actor=actor,
-            log_message=log_message,
-            slack_text=slack_text,
-            image_url=cfg.gif_for("done"),
-            echo=echo,
-        )
-        bumped += 1
     return bumped
+
+
+def auto_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool = False) -> bool:
+    """Check a single ticket; bump to done iff its linked PR has merged.
+
+    Same gating as `auto_bump_merged`: ticket must be active, on its
+    final workflow step (or have no workflow), and have a `pr:` line
+    under `## Dev` in the blackboard.
+
+    Always raises `GhError` if the `gh` lookup fails. Callers (e.g.
+    `relay launch`) decide whether to surface as a hard failure or
+    warn-and-continue.
+
+    Returns True iff the ticket was bumped to done.
+    """
+    return _try_bump_one(cfg, ref, quiet=quiet)
 
 
 def _read_pr_url(task_path: Path) -> str | None:
@@ -179,6 +207,7 @@ def _read_pr_url(task_path: Path) -> str | None:
 __all__ = [
     "GhError",
     "auto_bump_merged",
+    "auto_bump_one",
     "parse_pr_number",
     "parse_pr_url",
     "pr_state",

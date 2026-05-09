@@ -367,3 +367,115 @@ def test_relay_status_swallows_gh_failure(
     result = runner.invoke(app, ["status"])
     # Status must not crash if gh isn't available.
     assert result.exit_code == 0, result.output
+
+
+# --- single-ticket helper (auto_bump_one) -------------------------------------
+
+
+def _ref_for(repo: Path, slug: str):
+    from relay.tasks import resolve_task
+    cfg = load_config(repo)
+    return resolve_task(cfg, slug)
+
+
+def test_auto_bump_one_bumps_when_pr_merged_on_final_step(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, path = _make_task(
+        repo, on_final=True, pr_url="https://github.com/o/r/pull/100"
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/100": "MERGED"})
+
+    cfg = load_config(repo)
+    ref = _ref_for(repo, slug)
+    assert am.auto_bump_one(cfg, ref, quiet=True) is True
+    assert Ticket.read(path / "ticket.md").status == "done"
+
+
+def test_auto_bump_one_no_workflow_marks_done(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, path = _make_task(
+        repo, workflow=None, pr_url="https://github.com/o/r/pull/101"
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/101": "MERGED"})
+
+    cfg = load_config(repo)
+    ref = _ref_for(repo, slug)
+    assert am.auto_bump_one(cfg, ref, quiet=True) is True
+    assert Ticket.read(path / "ticket.md").status == "done"
+
+
+def test_auto_bump_one_skips_non_final_step(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, path = _make_task(repo, pr_url="https://github.com/o/r/pull/102")
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/102": "MERGED"})
+
+    cfg = load_config(repo)
+    ref = _ref_for(repo, slug)
+    assert am.auto_bump_one(cfg, ref, quiet=True) is False
+    assert Ticket.read(path / "ticket.md").status == "active"
+
+
+def test_auto_bump_one_skips_open_pr(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, path = _make_task(
+        repo, on_final=True, pr_url="https://github.com/o/r/pull/103"
+    )
+    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/103": "OPEN"})
+
+    cfg = load_config(repo)
+    ref = _ref_for(repo, slug)
+    assert am.auto_bump_one(cfg, ref, quiet=True) is False
+    assert Ticket.read(path / "ticket.md").status == "active"
+
+
+def test_auto_bump_one_skips_when_no_pr_link(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, _ = _make_task(repo, on_final=True)  # no pr_url
+    calls = _stub_pr_state(monkeypatch, {})
+
+    cfg = load_config(repo)
+    ref = _ref_for(repo, slug)
+    assert am.auto_bump_one(cfg, ref, quiet=True) is False
+    assert calls == []  # no gh lookup at all
+
+
+def test_auto_bump_one_skips_already_done(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, _ = _make_task(
+        repo, on_final=True, status="done",
+        pr_url="https://github.com/o/r/pull/104",
+    )
+    calls = _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/104": "MERGED"})
+
+    cfg = load_config(repo)
+    ref = _ref_for(repo, slug)
+    assert am.auto_bump_one(cfg, ref, quiet=True) is False
+    assert calls == []
+
+
+def test_auto_bump_one_always_raises_gh_error(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Single-ticket caller decides how to handle gh failures, so the
+    helper always raises — quiet only affects stdout echo."""
+    slug, _ = _make_task(
+        repo, on_final=True, pr_url="https://github.com/o/r/pull/105"
+    )
+
+    def boom(url: str) -> str:
+        raise am.GhError("gh missing")
+
+    monkeypatch.setattr(am, "pr_state", boom)
+
+    cfg = load_config(repo)
+    ref = _ref_for(repo, slug)
+    with pytest.raises(am.GhError):
+        am.auto_bump_one(cfg, ref, quiet=True)
+    with pytest.raises(am.GhError):
+        am.auto_bump_one(cfg, ref, quiet=False)
