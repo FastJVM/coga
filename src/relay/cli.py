@@ -15,6 +15,7 @@ from relay.commands import init as init_cmd
 from relay.commands import launch as launch_cmd
 from relay.commands import panic as panic_cmd
 from relay.commands import recurring as recurring_cmd
+from relay.commands import retire as retire_cmd
 from relay.commands import show as show_cmd
 from relay.commands import slack as slack_cmd
 from relay.commands import status as status_cmd
@@ -71,6 +72,7 @@ app.command("bump")(bump_cmd.bump)
 app.command("automerge")(automerge_cmd.automerge)
 app.command("delete")(delete_cmd.delete)
 app.command("dream")(dream_cmd.dream)
+app.command("retire")(retire_cmd.retire)
 app.command("panic")(panic_cmd.panic)
 app.command("slack")(slack_cmd.slack)
 app.command("validate")(validate_cmd.validate)
@@ -83,7 +85,7 @@ app.add_typer(recurring_cmd.app, name="recurring")
 _BUILTIN_COMMANDS = frozenset(
     {
         "init", "launch", "status", "show", "bump", "automerge",
-        "delete", "dream", "panic", "slack", "recurring", "validate",
+        "delete", "dream", "retire", "panic", "slack", "recurring", "validate",
     }
 )
 

@@ -861,6 +861,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 |---|---|
 | `relay create "<title>"` | Default alias for `relay launch bootstrap/ticket "<title>"` — scaffolds a `draft` ticket and runs the bootstrap skill on it to interview the human and fill in workflow / contexts / description. See [Aliases](#aliases). For scripted scaffolding, call `scaffold_task()` in `relay.scaffold`. |
 | `relay dream` | Create and launch an ad-hoc Dream cleanup task now. Slugs use normal task allocation, not a schedule bucket. |
+| `relay retire <slug>` | Wrap up a `done` ticket. Scaffold and launch a one-shot `retire-<slug>` task whose body invokes `retro/done-ticket` against the named ticket and prunes the merged feature branch. Refuses if the target task is not `status: done`. |
 | `relay recurring check` | Scan recurring templates and scaffold any due tasks. |
 | `relay launch` | Compose prompt from all context, inject secrets, start work on a task. Handles all three modes: interactive, auto, and script. |
 | `relay status` | Show all active tasks in this repo. One line per task: id, title, assignee, step, mode. |

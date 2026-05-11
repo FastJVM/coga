@@ -280,6 +280,22 @@ by `relay init --update`.
 relay delete add-retry
 ```
 
+### `relay retire <slug>`
+
+Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose
+body invokes the `retro/done-ticket` skill against the named ticket and
+prunes the merged feature branch. The retro skill opens the PR that
+deletes the source task directory; this command is the launcher.
+
+Refuses if the target task is not `status: done`. Use `relay delete`
+for an abandoned ticket where retro has nothing to extract.
+
+```sh
+relay retire add-retry                       # auto mode by default
+relay retire add-retry --mode interactive    # supervise the run
+relay retire add-retry --no-launch           # scaffold without launching
+```
+
 ### `relay panic --task <slug> --reason "..."`
 
 The agent gives up. Writes a blocker entry to the ticket, posts to the
