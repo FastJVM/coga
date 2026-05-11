@@ -35,12 +35,14 @@ def retire(
         help="Create the retire task but do not launch it.",
     ),
 ) -> None:
-    """Wrap up a done task: extract retro, delete source dir, prune the branch.
+    """Wrap up a done task by running retro/done-ticket against it.
 
     Validates the named task is `status: done`, then scaffolds a one-shot
-    ad-hoc task whose body invokes the `retro/done-ticket` skill against it
-    and prunes the merged feature branch. The retro skill opens the PR that
-    deletes the source task directory.
+    ad-hoc task whose body invokes the `retro/done-ticket` skill against it.
+    The retro skill opens the PR that records the `## Retro` marker, edits the
+    knowledge base if warranted, and deletes the source task directory in the
+    same PR. Branch hygiene (local prune, stale-branch sweep) is a Dream
+    concern, not retire's.
     """
     if mode not in {"auto", "interactive"}:
         _bail("--mode must be 'auto' or 'interactive'")

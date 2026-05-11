@@ -283,12 +283,15 @@ relay delete add-retry
 ### `relay retire <slug>`
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose
-body invokes the `retro/done-ticket` skill against the named ticket and
-prunes the merged feature branch. The retro skill opens the PR that
-deletes the source task directory; this command is the launcher.
+body invokes the `retro/done-ticket` skill against the named ticket. The
+retro skill opens the PR that records the `## Retro` marker, edits the
+knowledge base if warranted, and deletes the source task directory in the
+same PR. This command is the launcher.
 
 Refuses if the target task is not `status: done`. Use `relay delete`
-for an abandoned ticket where retro has nothing to extract.
+for an abandoned ticket where retro has nothing to extract. Branch
+hygiene (pruning the merged feature branch, sweeping stale branches)
+belongs in a Dream worker, not here.
 
 ```sh
 relay retire add-retry                       # auto mode by default
