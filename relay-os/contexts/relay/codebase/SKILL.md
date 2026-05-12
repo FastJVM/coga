@@ -29,9 +29,6 @@ review bars.
 - `example/` — seeded fixture used by tests. **Update this when
   you change task layout, prompt composition, or workflow
   semantics** (CLAUDE.md rule).
-- `docs/spec.md` — canonical spec for config layout, ticket
-  structure, workflows, skills, contexts, agent integration. Read
-  before changing behavior.
 - `docs/vision.md` — non-negotiables. See also `relay/principles`.
 
 ## relay-os layout

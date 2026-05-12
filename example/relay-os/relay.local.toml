@@ -4,4 +4,4 @@
 user = "marc"
 
 [secrets]
-# Populated from env vars at launch time; see docs/spec.md.
+# Populated from env vars at launch time using env:VAR_NAME refs.

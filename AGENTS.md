@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Read First
-Treat [docs/vision.md](/home/n/Code/relay/docs/vision.md) as the product thesis and [docs/spec.md](/home/n/Code/relay/docs/spec.md) as the behavioral contract. Relay is intentionally markdown-first, git-backed, locally operated, and legible to humans; changes that hide state, move logic into opaque services, or blur the correction loop are usually the wrong direction.
+Treat [docs/vision.md](/home/n/Code/relay/docs/vision.md) as the product thesis and the `relay-os/contexts/relay/` contexts (architecture, principles, cli, codebase) as the behavioral contract. Relay is intentionally markdown-first, git-backed, locally operated, and legible to humans; changes that hide state, move logic into opaque services, or blur the correction loop are usually the wrong direction.
 
 ## Project Structure & Module Organization
 Core code lives in `src/relay/`. Keep CLI entrypoints thin in `src/relay/commands/` and move reusable behavior into focused modules such as `config.py`, `compose.py`, `tasks.py`, and `validate.py`. Prompt/protocol templates live in `src/relay/resources/`. Tests live in `tests/`. Use `example/relay-os/` and `example/projects/*/relay-os/` as the seeded fixture for end-to-end behavior.
