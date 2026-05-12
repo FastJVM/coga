@@ -65,6 +65,24 @@ and known failure modes belong in contexts; repeatable instructions for how an
 agent should do work belong in skills. If the process knowledge is already
 covered by an existing skill, do not duplicate it.
 
+## Comparison baseline
+
+The baseline you compare ticket evidence against is the **current working-tree
+state** of `relay-os/contexts/**` and `relay-os/skills/**`. The final state of
+those files is the entire learning record. Durable knowledge that was already
+captured by the source task's PR lives in those files now — not in commit
+messages, not in PR descriptions, not in diffs.
+
+Do not:
+
+- run `git log`, `git show`, `git diff`, or `git blame` to decide what is
+  already covered;
+- read prior PR descriptions or commit messages for the source task;
+- inspect old revisions of context or skill files.
+
+If a fact is present in the current file on disk, it is covered. If it is not,
+it is not. That is the only test.
+
 ## Inputs
 
 This skill is invoked with one parameter: the done ticket slug. Work from the
@@ -99,7 +117,8 @@ required task evidence file is missing, or there is already an open PR adding a
    Read `ticket.md`, `blackboard.md`, and `log.md`. Extract candidate durable
    knowledge: domain facts, repo conventions, sharp gotchas, durable decisions,
    corrected assumptions, known failure modes, and boundaries future agents
-   should inherit.
+   should inherit. Read the ticket files themselves — do not consult git
+   history, prior PRs, or old revisions for any of this.
 
 4. **Classify each candidate.**
    Use this table:
@@ -151,8 +170,10 @@ required task evidence file is missing, or there is already an open PR adding a
    directory is touched.
 
 8. **Open the PR.**
-   Commit the knowledge edits and source task deletion on a branch such as
-   `codex/retro-<ticket-slug>-knowledge`, push it, and open a PR. Title the
+   Work in the current checkout — do not create a `git worktree`. Branch
+   directly off `origin/main` with `git checkout -b
+   codex/retro-<ticket-slug>-knowledge origin/main`, make the edits and the
+   source-task deletion there, commit, push, and open a PR. Title the
    PR for the knowledge change, not the act of running Retro. Prefer
    `New context: <finding>` or `New skill: <finding>`. If the only change is
    the blackboard marker, use `Retro processed: no new durable knowledge for
