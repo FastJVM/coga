@@ -25,7 +25,12 @@ from relay.config import Config, ConfigError, load_config
 from relay.logfile import append_log, last_activity
 from relay.scaffold import scaffold_task
 from relay.slack import post
-from relay.stream_render import is_stream_json_command, render_stream
+from relay.stream_render import (
+    RunSummary,
+    format_run_summary_log,
+    is_stream_json_command,
+    render_stream,
+)
 from relay.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -299,12 +304,13 @@ def launch(
                 ),
             )
 
+            run_summary: RunSummary | None = None
             try:
                 # Interactive: inherit stdio (human sits with agent).
                 # Auto with stream-json: capture stdout, render events live.
                 # Auto without streaming: inherit stdio and let claude buffer.
                 if mode == "auto" and is_stream_json_command(cmd):
-                    exit_code = _run_with_stream_render(cmd, env)
+                    exit_code, run_summary = _run_with_stream_render(cmd, env)
                 else:
                     result = subprocess.run(cmd, env=env, check=False)
                     exit_code = result.returncode
@@ -312,6 +318,16 @@ def launch(
                 _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
             finally:
                 _cleanup_prompt()
+
+            # Token accounting: only the stream-json path can attribute usage
+            # to this task. Interactive launches inherit stdio so we never
+            # see the result event; skip silently rather than log a guess.
+            if run_summary is not None and not is_bootstrap:
+                append_log(
+                    ref.path,
+                    f"agent:{launch_assignee}",
+                    format_run_summary_log(run_summary),
+                )
 
             typer.echo(f"Launch: agent exited with code {exit_code}")
             if exit_code != 0:
@@ -368,8 +384,13 @@ def _scaffold_from_shim(
     return resolve_task(cfg, result["slug"])
 
 
-def _run_with_stream_render(cmd: list[str], env: dict[str, str]) -> int:
+def _run_with_stream_render(
+    cmd: list[str], env: dict[str, str]
+) -> tuple[int, RunSummary | None]:
     """Run `cmd` capturing stdout and pretty-print stream-json events live.
+
+    Returns `(exit_code, run_summary)`. `run_summary` is `None` if the agent
+    exited without emitting a `result` event (e.g. crash, signal).
 
     stderr is left attached to the parent terminal so claude's diagnostic
     output (auth errors, MCP startup, etc.) still surfaces.
@@ -381,14 +402,15 @@ def _run_with_stream_render(cmd: list[str], env: dict[str, str]) -> int:
         text=True,
         bufsize=1,
     )
+    summary: RunSummary | None = None
     try:
         assert proc.stdout is not None
-        render_stream(proc.stdout, sys.stdout)
+        summary = render_stream(proc.stdout, sys.stdout)
     except KeyboardInterrupt:
         proc.terminate()
         proc.wait()
         raise
-    return proc.wait()
+    return proc.wait(), summary
 
 
 def build_agent_command(agent, mode: str, prompt: str, prompt_file: Path) -> list[str]:

@@ -15,12 +15,36 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import dataclass
 from typing import IO
 
 
-def render_stream(stdin: IO[str], stdout: IO[str] | None = None) -> None:
-    """Read newline-delimited JSON events from stdin, write summaries to stdout."""
+@dataclass(frozen=True)
+class RunSummary:
+    """Token + cost + timing extracted from a stream-json `result` event.
+
+    Only populated for stream-json runs — interactive launches inherit stdio
+    so the parent has no way to attribute usage to the task.
+    """
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
+    total_cost_usd: float | None = None
+    num_turns: int | None = None
+    duration_ms: int | None = None
+    is_error: bool = False
+
+
+def render_stream(stdin: IO[str], stdout: IO[str] | None = None) -> RunSummary | None:
+    """Read newline-delimited JSON events from stdin, write summaries to stdout.
+
+    Returns a `RunSummary` extracted from the final `result` event, or None
+    if no result event was seen.
+    """
     out = stdout if stdout is not None else sys.stdout
+    summary: RunSummary | None = None
     for raw in stdin:
         line = raw.rstrip("\n")
         if not line.strip():
@@ -31,10 +55,39 @@ def render_stream(stdin: IO[str], stdout: IO[str] | None = None) -> None:
             out.write(line + "\n")
             out.flush()
             continue
+        if event.get("type") == "result":
+            summary = _extract_run_summary(event)
         rendered = render_event(event)
         if rendered:
             out.write(rendered + "\n")
             out.flush()
+    return summary
+
+
+def _extract_run_summary(event: dict) -> RunSummary:
+    usage = event.get("usage") or {}
+    return RunSummary(
+        input_tokens=_coerce_int(usage.get("input_tokens")),
+        output_tokens=_coerce_int(usage.get("output_tokens")),
+        cache_creation_input_tokens=_coerce_int(usage.get("cache_creation_input_tokens")),
+        cache_read_input_tokens=_coerce_int(usage.get("cache_read_input_tokens")),
+        total_cost_usd=_coerce_float_or_none(event.get("total_cost_usd")),
+        num_turns=_coerce_int_or_none(event.get("num_turns")),
+        duration_ms=_coerce_int_or_none(event.get("duration_ms")),
+        is_error=bool(event.get("is_error") or event.get("subtype") == "error"),
+    )
+
+
+def _coerce_int(value: object) -> int:
+    return int(value) if isinstance(value, (int, float)) else 0
+
+
+def _coerce_int_or_none(value: object) -> int | None:
+    return int(value) if isinstance(value, (int, float)) else None
+
+
+def _coerce_float_or_none(value: object) -> float | None:
+    return float(value) if isinstance(value, (int, float)) else None
 
 
 def render_event(event: dict) -> str | None:
@@ -147,6 +200,30 @@ def _truncate(s: str, n: int) -> str:
     if len(s) <= n:
         return s
     return s[: n - 1] + "…"
+
+
+def format_run_summary_log(summary: RunSummary) -> str:
+    """Format a `RunSummary` as a one-line `log.md` message.
+
+    Always starts with `tokens: ` so the line is greppable. Token counts
+    that are zero are still written (so summing by grep works); cost,
+    turns, and duration are only included when reported by the agent.
+    """
+    parts = [
+        f"in={summary.input_tokens}",
+        f"out={summary.output_tokens}",
+        f"cache_read={summary.cache_read_input_tokens}",
+        f"cache_create={summary.cache_creation_input_tokens}",
+    ]
+    if summary.total_cost_usd is not None:
+        parts.append(f"cost=${summary.total_cost_usd:.4f}")
+    if summary.num_turns is not None:
+        parts.append(f"turns={summary.num_turns}")
+    if summary.duration_ms is not None:
+        parts.append(f"duration={summary.duration_ms / 1000:.1f}s")
+    if summary.is_error:
+        parts.append("error=true")
+    return "tokens: " + " ".join(parts)
 
 
 def is_stream_json_command(cmd: list[str]) -> bool:
