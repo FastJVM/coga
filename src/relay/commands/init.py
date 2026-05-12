@@ -93,7 +93,7 @@ disagree with anything else in the repo, they win.
 
 - Don't hand-edit `status` / `step` / `workflow` in ticket frontmatter — the
   CLI manages them. Use `relay bump` / `relay panic` instead.
-- Don't write to `task.lock` or `log.md` — also CLI-managed.
+- Don't write to `log.md` — also CLI-managed.
 - Don't commit secrets. Use `relay.local.toml` (gitignored) for machine-local
   values, and `env:VAR_NAME` references in `relay.toml` for shared ones.
 """

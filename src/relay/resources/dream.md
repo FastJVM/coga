@@ -61,11 +61,7 @@ The skill's default safe-repair pass applies only deterministic repairs
 currently supported by `relay validate --fix`: create missing `blackboard.md`
 from the standard template and create missing `log.md` as an empty append-only
 file. It does not rewrite existing files, synthesize `ticket.md`, freeze
-workflows, delete locks, or change lifecycle/assignee state.
-
-Stale-lock rule: never delete a `task.lock` from age alone. The skill reports
-stale locks as `human-needed`. A human must verify that no live terminal or
-agent still owns the task, then remove the lock or relaunch with `--force`.
+workflows, or change lifecycle/assignee state.
 
 ### Skill: retro/done-ticket
 
@@ -158,7 +154,7 @@ parent Dream run sends the broader one-line summary. Call:
 `relay slack --task <this-dream-task> --message "<summary>"`
 
 Keep the message to one line, for example:
-`Dream scan: 3 broken refs, 2 context proposals, 1 stale lock.`
+`Dream scan: 3 broken refs, 2 context proposals.`
 
 Run `relay bump <this-dream-task>` as the last action after the blackboard is
 up to date.

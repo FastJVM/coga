@@ -3,7 +3,6 @@
 Both commands need to:
   - mutate ticket frontmatter (advance step OR mark done)
   - append a line to log.md
-  - release the lock when done
   - echo the local outcome to stdout
   - post to Slack
 
@@ -18,7 +17,6 @@ from __future__ import annotations
 import typer
 
 from relay.config import Config
-from relay.lock import TaskLock
 from relay.logfile import append_log
 from relay.slack import post
 from relay.tasks import TaskRef
@@ -60,7 +58,7 @@ def mark_done(
     image_url: str | None = None,
     echo: str | None = None,
 ) -> None:
-    """Flip a ticket to `done`: write frontmatter, log, release lock, post.
+    """Flip a ticket to `done`: write frontmatter, log, post.
 
     `echo` is the stdout line printed before the Slack post (so the local
     outcome is visible even if Slack crashes). Pass `None` to suppress —
@@ -71,7 +69,6 @@ def mark_done(
     ticket.frontmatter.pop("step", None)
     ticket.write(ref.path / "ticket.md")
     append_log(ref.path, actor, log_message)
-    TaskLock(ref.path).release()
     if echo is not None:
         typer.echo(echo)
     post(cfg, slack_text, task_path=ref.path, owner=owner, image_url=image_url)

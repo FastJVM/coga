@@ -17,7 +17,7 @@ It then classifies every validator issue into one of three buckets:
 
 - `direct-fix` - safe to repair in a small Dream PR without changing task state.
 - `pr-proposal` - a file-backed fix that needs a reviewable PR after reading the target.
-- `human-needed` - lifecycle, ownership, lock, secret, or ambiguous state decision.
+- `human-needed` - lifecycle, ownership, secret, or ambiguous state decision.
 
 ## Known Skill Contract
 
@@ -25,7 +25,7 @@ It then classifies every validator issue into one of three buckets:
 - Runs: a `mode: script` Relay task whose workflow step references
   `bootstrap/dream/tasks/validate-drift`
 - Inputs: `relay.toml`, `relay.local.toml`, task directories, workflow refs,
-  context refs, skill refs, lock files, and optional Slack webhook reachability
+  context refs, skill refs, and optional Slack webhook reachability
 - May change: missing `blackboard.md` and `log.md` files only when `--fix` is
   enabled by the script's default safe-repair pass; repaired files may be
   committed and pushed only from a non-main repair branch when
@@ -34,7 +34,7 @@ It then classifies every validator issue into one of three buckets:
 - Idempotency: `relay validate --fix` only creates missing standard files and
   leaves existing files unchanged, so reruns converge on the same repo state
 - Stop and ask: invalid validator JSON, validator process failure, unsafe push
-  branch, stale locks, lifecycle changes, unknown ownership, or secret access
+  branch, lifecycle changes, unknown ownership, or secret access
 - Output: append `## Dream Skill: validate-drift` to the Dream run blackboard
   and optionally post a one-line Slack summary
 
@@ -73,9 +73,3 @@ The section includes the exact command, issue counts by bucket, and one
 remediation line per issue. When `--fix` repairs files, it also lists the
 applied fixes. When `--slack-task` is provided, it posts a one-line Slack
 summary against that task.
-
-## Safety
-
-Stale locks are never deleted from age alone. A stale-lock issue is classified
-as `human-needed`; a human must verify no live terminal or agent owns the task
-before removing `task.lock` or relaunching with `--force`.

@@ -181,7 +181,6 @@ Skills, workflows, and recurring templates all support arbitrary depth nesting. 
         ticket.md           ← assignee, status, workflow step, description, context
         log.md              ← append-only, written by CLI commands only
         blackboard.md       ← shared workspace (see below)
-        task.lock           ← serializes concurrent access
     bootstrap/
       create/
         ticket.md           ← persistent launch shim → `relay launch bootstrap/ticket`
@@ -401,14 +400,11 @@ fix-retry-logic/
   ticket.md             ← assignee, status, workflow step, description, context
   log.md                ← append-only structured log (written by CLI commands only)
   blackboard.md         ← shared workspace for human and agent
-  task.lock             ← serializes concurrent access to all task files
 ```
 
-**Single lock.** `task.lock` serializes writes to all files in the task directory. Under the one-task-one-worker constraint, a separate lock per file is unnecessary complexity.
+**Status is the signal.** There is no filesystem mutex. The ticket's `status` field (`draft`, `active`, `paused`, `done`) is what tells the rest of the system whether a task is in flight. `relay launch` against a ticket that is already `active` soft-warns with the current assignee and the time of the last log entry; interactive launches confirm before proceeding, auto and script launches log the warning and continue.
 
-**One task, one worker.** A task has exactly one assignee at a time — one human or one agent. Multiple workers never write to the same task concurrently. This is a deliberate v1 constraint for small teams (2-5 people). It means the lock file doesn't need to handle contention beyond accidental overlap (e.g., a human and an agent both running a CLI command on the same task at the same moment).
-
-**Locks are local-only.** Lock files use file existence on the local filesystem. They serialize concurrent access on a single machine — they do not provide distributed locking across machines. This is sufficient under the one-task-one-worker constraint: if Marc's agent is working on task 003, Pierre's agent is not. Git merge conflicts on lock files are not expected in normal operation. If they occur, delete the lock and re-acquire — Dream's `validate-drift` skill covers stale lock detection.
+**One task, one worker.** A task has exactly one assignee at a time — one human or one agent. Multiple workers never write to the same task concurrently. This is a deliberate v1 constraint for small teams (2-5 people). The failure mode of two workers stepping on each other (two divergent blackboard edits, two PR branches) is visible in git and recoverable; the cost of a hard filesystem mutex (stale lock files, `--force` overrides, orphan cleanup) was worse than the rare collision it would have prevented.
 
 **log.md** is append-only and structured. Written exclusively by CLI commands as a side effect — `relay launch`, `relay bump`, `relay panic`, and `relay create` all append to `log.md` when they execute. Agents and humans do not write to `log.md` directly. If agents need to record unstructured observations, they write to the blackboard. Format:
 
@@ -422,7 +418,7 @@ fix-retry-logic/
 
 The blackboard pattern originates in AI research (Hearsay-II, CMU, 1970s) for problems where multiple independent specialist processes need to cooperate without direct coupling. The idea: all processes share a mutable workspace. One writes a partial result; another reads it and builds on it; a third sees the combined state and fires. Coordination is emergent — no process talks directly to another.
 
-Relay applies this pattern per task. `blackboard.md` is the shared workspace for the task. Any entity — human or agent — can write to it at any time (serialized via `task.lock`). There is no message passing between human and agent; they communicate through the board.
+Relay applies this pattern per task. `blackboard.md` is the shared workspace for the task. Any entity — human or agent — can write to it at any time. There is no message passing between human and agent; they communicate through the board.
 
 **blackboard.md** is unstructured by design. `relay create` scaffolds it as a near-empty file; the agent organizes it however fits the task — invent headings that make sense, or write flat. The base prompt teaches the agent what's worth capturing (plan, findings, decisions with reasons, blockers) without prescribing a section layout. Earlier drafts shipped a fixed Plan/Findings/Decisions/Blockers/Notes skeleton; it cost more in agent confusion than it bought in selective-load efficiency.
 
@@ -588,16 +584,15 @@ Flag any new blacklist entries.
 
 ---
 
-### Lock file format
+### Soft-warn on active
 
-`task.lock` follows standard Unix `.lock` convention — file existence is the lock. The file contains metadata for staleness detection:
+There is no `task.lock`. `relay launch` reads the ticket's `status` and treats `active` as "someone may already be working on this":
 
-```
-holder: claude1
-acquired: 2025-01-14T10:32:00Z
-```
+- **Interactive:** print `⚠ <slug> is already active (assignee: <name>, last log <Nm> ago)` to stderr and prompt before proceeding.
+- **Auto / script:** print the same warning and proceed (no human to ask).
+- **Bootstrap shims:** skip the check; they are stateless re-entry points.
 
-The `validate-drift` skill reads the `acquired` timestamp to detect stale locks (likely a crashed agent). Two fields, that's it.
+The "last log" line comes from `log.md`'s last entry. Bootstrap and freshly-scaffolded tasks (no log entries yet) report "never". A second worker stepping in produces two divergent blackboard edits and two PR branches — visible in git, recoverable by hand, and rare enough under one-task-one-worker that the cost of a hard mutex was not worth paying.
 
 ---
 
@@ -624,12 +619,11 @@ The `validate-drift` skill reads the `acquired` timestamp to detect stale locks 
 **Crash recovery is manual in v1.** If an agent crashes mid-task (session dies, machine reboots, process killed), the human is responsible for cleanup:
 
 1. Check the blackboard for last known state — the agent should have been writing findings and decisions as it worked.
-2. Check for stale locks — clear if the agent is no longer running.
-3. Relaunch with `relay launch` — the composed prompt includes the blackboard, so the new session picks up from the last written state.
+2. Relaunch with `relay launch` — the composed prompt includes the blackboard, so the new session picks up from the last written state. The ticket is still `active`, so the launch soft-warns; confirm and continue.
 
 The blackboard is the persistence layer between sessions. An agent that writes to the blackboard frequently (findings, plan updates, decisions) is recoverable. An agent that doesn't write is not. The relay base prompt includes instructions telling the agent to write to the blackboard after meaningful progress.
 
-No automatic crash detection or restart in v1. Dream's `validate-drift` skill flags stale locks (suggesting a crash), but recovery is always human-initiated.
+No automatic crash detection or restart in v1. Dream's `validate-drift` skill flags tasks stuck on `active` with no recent log activity, but recovery is always human-initiated.
 
 ---
 
@@ -799,9 +793,8 @@ remembering the prompt by heart, Relay ships persistent shim tickets under
 - Frontmatter pins `skill: bootstrap/<name>`. No `status`, no workflow, no
   step. The launcher composes the skill into the prompt at run time.
 - `relay launch bootstrap/<name>` runs without flipping status to
-  `active` and without acquiring `task.lock`. Concurrent launches by
-  different humans are fine — the ticket is a re-entry point, not a unit of
-  work.
+  `active`. Concurrent launches by different humans are fine — the
+  ticket is a re-entry point, not a unit of work.
 - `relay launch bootstrap/<name> "title"` is a factory shorthand: scaffold
   a new task seeded from the shim's frontmatter (mode, assignee, skill),
   status=draft, then launch the agent on the new task to fill in the rest.
@@ -877,7 +870,7 @@ This keeps the "no server, no daemon" constraint intact while closing the loop o
 
 ### Who edits what
 
-**Humans** edit files directly — reassign a task, adjust context refs, tweak a workflow, update skills. Dream's `validate-drift` skill checks repo consistency (stale locks, broken references, invalid state) as part of a Dream run.
+**Humans** edit files directly — reassign a task, adjust context refs, tweak a workflow, update skills. Dream's `validate-drift` skill checks repo consistency (broken references, invalid state, tasks stuck on active) as part of a Dream run.
 
 **Agents** edit files directly — write to the blackboard, update frontmatter fields (contexts, blockers). Agents call background commands within their self-service boundary, as taught by the relay base prompt.
 
@@ -1012,7 +1005,7 @@ A thin command for side effects. The agent calls this when it completes a workfl
 
 ### Repo consistency checks
 
-Repo validation (stale locks, broken references, invalid status values, stuck tasks) is handled by a deterministic validation script, not an LLM. `relay validate --fix` may apply only conservative file-presence repairs: create missing `blackboard.md` from the standard template and create missing `log.md` as an empty append-only file. It never rewrites existing files, reconstructs `ticket.md`, freezes workflows, deletes locks, or changes lifecycle/assignee state.
+Repo validation (broken references, invalid status values, stuck tasks) is handled by a deterministic validation script, not an LLM. `relay validate --fix` may apply only conservative file-presence repairs: create missing `blackboard.md` from the standard template and create missing `log.md` as an empty append-only file. It never rewrites existing files, reconstructs `ticket.md`, freezes workflows, or changes lifecycle/assignee state.
 
 The Dream `validate-drift` skill runs the same validator surface, usually as `relay validate --json --fix`, classifies remaining issues into `direct-fix`, `pr-proposal`, or `human-needed`, writes a concise result to its script task blackboard, and can post a one-line Slack summary for the run. When a Dream run is already on a repair branch, the skill can also commit and push the files it repaired; that push path is intentionally outside plain `relay validate`. The broader Dream scan can then interpret remaining drift alongside knowledge gaps, stale content, and workflow patterns.
 
@@ -1020,18 +1013,11 @@ Checks include:
 
 - Task directories have all required files (ticket.md, log.md, blackboard.md)
 - Blackboard files stay under the prompt-bloat warning threshold
-- Lock is not stale (held for unexpectedly long — likely a crashed agent)
 - Tasks stuck in `active` status with no recent log activity
 - Workflow step references point to skills that actually exist
 - Context references in tickets point to contexts that actually exist
 - Assignees in task files match known users in `relay.toml`
 - Status values are valid (one of: draft, active, paused, done)
-
-Stale locks are conservative by default. Validation can prove that a lock is
-older than the configured threshold, but it cannot prove from age alone that no
-live terminal or agent owns it. Dream reports stale locks as human-needed unless
-a human verifies that the task is not currently running, then removes
-`task.lock` or relaunches with `--force`.
 
 ---
 
@@ -1147,7 +1133,7 @@ Every CLI command can fail. The spec describes happy paths — this section defi
 
 | Scenario | Behavior |
 |---|---|
-| Lock can't be acquired (already held) | Error with holder identity and acquisition time. Agent/human decides whether to wait or force. `--force` flag to break stale locks. |
+| `relay launch` against `status: active` | Soft-warn: print `⚠ <slug> is already active (assignee: <name>, last log <Nm> ago)` to stderr. Interactive launches confirm before proceeding; auto/script launches log the warning and continue. |
 | `relay launch` with `mode: script` exits non-zero | Log the failure to log.md. Post to Slack. Task stays at current step. |
 | `relay bump` on a non-active task | Error. Task must be `active` to advance. |
 | `relay create` with missing context/skill references | Error. List the missing references. Do not create the task. |
@@ -1197,7 +1183,7 @@ Items to evaluate after v1 is built and used. Not designed yet.
 
 **`relay recurring`** — kept as a real subcommand. `relay recurring check` scans templates and scaffolds any due tasks; the cron job calls it directly. (Earlier draft absorbed it into `relay create --check-recurring`; once `relay create` became a thin alias, hanging the recurring flag on it stopped making sense.)
 
-**`relay check`** — removed as standalone command. Repo validation (stale locks, broken references, invalid state) is now the deterministic `relay validate` surface consumed by Dream's `validate-drift` skill. The skill runs the command, and the Dream run summarizes the output.
+**`relay check`** — removed as standalone command. Repo validation (broken references, invalid state, tasks stuck on active) is now the deterministic `relay validate` surface consumed by Dream's `validate-drift` skill. The skill runs the command, and the Dream run summarizes the output.
 
 **`relay sync`** — removed. Was a ghost reference in the error model with no spec. Git push/pull is manual.
 

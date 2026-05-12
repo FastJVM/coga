@@ -3,13 +3,12 @@
 Exposed as `relay validate` (see `relay.commands.validate`); also runnable
 directly as a module:
 
-    relay validate [--json] [--fix] [--max-lock-hours N] [--max-blackboard-kb N] [--check-slack]
-    python -m relay.validate [--json] [--fix] [--max-lock-hours N] [--max-blackboard-kb N] [--check-slack]
+    relay validate [--json] [--fix] [--max-blackboard-kb N] [--check-slack]
+    python -m relay.validate [--json] [--fix] [--max-blackboard-kb N] [--check-slack]
 
 Checks:
 - Task dirs have ticket.md, blackboard.md, log.md.
 - Blackboard files are not large enough to bloat composed prompts.
-- Lock files aren't stale (default threshold: 24h).
 - Tasks stuck in `active` with no recent log activity.
 - Workflow step skill refs point to files that exist.
 - Ticket context refs point to files that exist.
@@ -32,7 +31,6 @@ import requests
 
 from relay.blackboard import BLACKBOARD_WARN_BYTES, blackboard_size_warning, render_blackboard
 from relay.config import Config, ConfigError, load_config
-from relay.lock import TaskLock
 from relay.paths import context_path, skill_path
 from relay.tasks import list_tasks
 from relay.ticket import Ticket, TicketError
@@ -42,7 +40,7 @@ VALID_STATUSES = {"draft", "active", "paused", "done"}
 
 @dataclass
 class Issue:
-    kind: str            # "stale-lock", "missing-file", "broken-ref", ...
+    kind: str            # "missing-file", "broken-ref", ...
     task: str            # "id-slug"
     message: str
     severity: str = "warn"  # "warn" | "error"
@@ -69,7 +67,6 @@ class Report:
 
 def run(
     cfg: Config,
-    max_lock_hours: float = 24.0,
     idle_hours: float = 72.0,
     max_blackboard_bytes: int = BLACKBOARD_WARN_BYTES,
     check_slack: bool = False,
@@ -140,18 +137,6 @@ def run(
                 kind="large-blackboard",
                 task=task_label,
                 message=warning,
-                severity="warn",
-            ))
-
-        # Lock staleness
-        lock = TaskLock(ref.path)
-        info = lock.read()
-        if info and lock.is_stale(max_age_hours=max_lock_hours):
-            age = now - info.acquired
-            report.issues.append(Issue(
-                kind="stale-lock",
-                task=task_label,
-                message=f"lock held by {info.holder!r} for {age.total_seconds() / 3600:.1f}h",
                 severity="warn",
             ))
 
@@ -311,7 +296,6 @@ def _main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Apply conservative safe repairs before reporting.",
     )
-    parser.add_argument("--max-lock-hours", type=float, default=24.0)
     parser.add_argument("--idle-hours", type=float, default=72.0)
     parser.add_argument(
         "--max-blackboard-kb",
@@ -334,7 +318,6 @@ def _main(argv: list[str] | None = None) -> int:
 
     report = run(
         cfg,
-        max_lock_hours=args.max_lock_hours,
         idle_hours=args.idle_hours,
         max_blackboard_bytes=int(args.max_blackboard_kb * 1024),
         check_slack=args.check_slack,

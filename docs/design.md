@@ -78,38 +78,16 @@ This is idempotent — running `--check-recurring` twice inside the same period 
 
 ---
 
-## Lock lifecycle
+## Status is the signal
 
-### Acquisition
+There is no filesystem mutex. The ticket's `status` field is the only signal that a task is in flight.
 
-- `relay launch` acquires `task.lock` at start. Writes `holder: <assignee>` and `acquired: <ISO-8601 UTC>`.
-- If the lock exists, error with holder + age. `--force` overrides (prints a warning).
-- `relay create`, `relay bump`, `relay slack`, `relay panic` do **not** acquire the lock. They're short writes; the one-task-one-worker invariant and the running `relay launch` are sufficient serialization for the POC.
+- `relay launch` against `status: active` soft-warns: prints `⚠ <slug> is already active (assignee: <name>, last log <Nm> ago)` to stderr. Interactive launches confirm; auto and script launches log the warning and proceed.
+- `relay launch` flips a `draft` task to `active` as the approval gesture, and that's still the only state change at launch time.
+- Bootstrap shims are stateless and exempt from the soft-warn — they are re-entry points, not units of work.
+- Dream's `validate-drift` skill flags tasks stuck on `active` with no recent log activity. Recovery is human-initiated.
 
-### Release
-
-Three paths, all of which release:
-
-1. **Normal exit** — `relay launch` installs a try/finally and signal handlers (SIGINT, SIGTERM) that delete `task.lock` on exit. Covers interactive Ctrl+C, auto run completion, script exit.
-2. **Terminal step** — `relay bump` on the last step releases as a safety net (status flipping to `done` implies nothing else should hold the lock).
-3. **Panic** — `relay panic` releases. The agent is stopping; holding the lock blocks a human relaunch.
-
-### Script mode
-
-Acquires the lock. Same one-task-one-worker invariant applies — a long-running script must not overlap with another process touching the task dir.
-
-### Stale detection
-
-POC threshold: **24 hours**. Any lock with `acquired` older than 24h is flagged by Dream's `validate-drift` skill. Humans clear stale locks with `--force` on relaunch or by deleting the file. No automatic clearing.
-
-### Lock file format
-
-```
-holder: claude1
-acquired: 2025-01-14T10:32:00Z
-```
-
-Two keys, newline-separated. Parsed leniently (strip whitespace).
+We tried a `task.lock` file-existence mutex first. It cost a module of acquisition/release logic, `--force` flags on `launch` and `delete`, orphan-cleanup machinery, and two "don't touch task.lock" lines in the base prompt — to guarantee something (two concurrent workers on the same slug) that almost never happened under one-task-one-worker. The failure mode without the mutex is two divergent blackboard edits and two PR branches; both are visible in git and recoverable by hand. Dropping the lock simplified six call sites and removed all of the above.
 
 ---
 

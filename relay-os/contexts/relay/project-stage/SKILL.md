@@ -18,10 +18,10 @@ non-tester users, this context gets deleted, not edited.
   directory layout can change on a whim if the new design is
   better. No RFC, no migration window. Just change it and update
   affected tickets/configs in place.
-- Renaming `task.lock` to `lock` is fine. Moving `contexts/` to
-  live next to tasks would be fine if the design were better.
-  (We already shipped one such rename — `relay step` → `relay bump`
-  — without ceremony.)
+- Moving `contexts/` to live next to tasks would be fine if the
+  design were better. (We already shipped a rename — `relay step` →
+  `relay bump` — and a primitive removal — `task.lock` — without
+  ceremony.)
 
 ## No backwards-compat hacks
 

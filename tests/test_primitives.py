@@ -6,7 +6,6 @@ from textwrap import dedent
 import pytest
 
 from relay.blackboard import render_blackboard
-from relay.lock import LockHeldError, TaskLock
 from relay.logfile import append_log
 from relay.slugify import slugify
 from relay.ticket import Ticket, TicketError
@@ -27,47 +26,6 @@ def test_slugify_truncates() -> None:
 
 def test_slugify_empty() -> None:
     assert slugify("!!!") == "task"
-
-
-# --- lock ---------------------------------------------------------------------
-
-
-def test_lock_acquire_release(tmp_path: Path) -> None:
-    lock = TaskLock(tmp_path)
-    info = lock.acquire("claude1")
-    assert lock.path.exists()
-    assert lock.read().holder == "claude1"
-    lock.release()
-    assert not lock.path.exists()
-
-
-def test_lock_held_raises(tmp_path: Path) -> None:
-    lock = TaskLock(tmp_path)
-    lock.acquire("claude1")
-    with pytest.raises(LockHeldError):
-        lock.acquire("claude2")
-
-
-def test_lock_force_overrides(tmp_path: Path) -> None:
-    lock = TaskLock(tmp_path)
-    lock.acquire("claude1")
-    info = lock.acquire("claude2", force=True)
-    assert info.holder == "claude2"
-
-
-def test_lock_context_manager_releases(tmp_path: Path) -> None:
-    lock = TaskLock(tmp_path)
-    with lock.held("claude1"):
-        assert lock.path.exists()
-    assert not lock.path.exists()
-
-
-def test_lock_context_manager_releases_on_error(tmp_path: Path) -> None:
-    lock = TaskLock(tmp_path)
-    with pytest.raises(ValueError):
-        with lock.held("claude1"):
-            raise ValueError("boom")
-    assert not lock.path.exists()
 
 
 # --- ticket -------------------------------------------------------------------

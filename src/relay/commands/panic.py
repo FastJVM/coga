@@ -1,4 +1,4 @@
-"""`relay panic` — agent is stuck, write blocker + notify owner + release lock."""
+"""`relay panic` — agent is stuck, write blocker + notify owner."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ import typer
 
 from relay.blackboard import append_blocker
 from relay.config import ConfigError, load_config
-from relay.lock import TaskLock
 from relay.logfile import append_log
 from relay.slack import post
 from relay.tasks import (
@@ -22,7 +21,7 @@ def panic(
     task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
     reason: str = typer.Option(..., "--reason", help="Why the agent is stuck."),
 ) -> None:
-    """Agent is stuck. Write blocker, notify owner, release lock."""
+    """Agent is stuck. Write blocker, notify owner."""
     if not reason.strip():
         _bail("--reason cannot be empty")
 
@@ -41,9 +40,6 @@ def panic(
 
     append_blocker(ref.path, actor, reason)
     append_log(ref.path, actor, f"panic: {reason}")
-
-    # Release the lock so a human can relaunch.
-    TaskLock(ref.path).release()
 
     owner = ticket.owner or cfg.current_user
     panicker = ticket.assignee or cfg.current_user
