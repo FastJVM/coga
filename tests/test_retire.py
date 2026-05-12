@@ -152,7 +152,7 @@ def test_retire_launches_after_scaffold(
         title: str | None,
         agent_override: str | None,
         prompt_report: bool,
-        force: bool,
+        no_verify: bool,
     ) -> None:
         calls.append(
             {
@@ -160,7 +160,7 @@ def test_retire_launches_after_scaffold(
                 "title": title,
                 "agent_override": agent_override,
                 "prompt_report": prompt_report,
-                "force": force,
+                "no_verify": no_verify,
             }
         )
         typer.echo("fake launch called")
@@ -180,7 +180,7 @@ def test_retire_launches_after_scaffold(
             "title": None,
             "agent_override": None,
             "prompt_report": False,
-            "force": False,
+            "no_verify": False,
         }
     ]
 

@@ -84,7 +84,7 @@ def test_dream_logs_before_launching(
         title: str | None,
         agent_override: str | None,
         prompt_report: bool,
-        force: bool,
+        no_verify: bool,
     ) -> None:
         calls.append(
             {
@@ -92,7 +92,7 @@ def test_dream_logs_before_launching(
                 "title": title,
                 "agent_override": agent_override,
                 "prompt_report": prompt_report,
-                "force": force,
+                "no_verify": no_verify,
             }
         )
         typer.echo("fake launch called")
@@ -114,6 +114,6 @@ def test_dream_logs_before_launching(
             "title": None,
             "agent_override": None,
             "prompt_report": False,
-            "force": False,
+            "no_verify": False,
         }
     ]
