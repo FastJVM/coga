@@ -4,6 +4,8 @@ import io
 import json
 
 from relay.stream_render import (
+    RunSummary,
+    format_run_summary_log,
     is_stream_json_command,
     render_event,
     render_stream,
@@ -219,3 +221,104 @@ def test_render_stream_full_session() -> None:
         "done",
         "agent: ✓ done | 1.0s | $0.0100 | 1 turn",
     ]
+
+
+def test_render_stream_returns_run_summary_from_result_event() -> None:
+    events = [
+        {"type": "system", "subtype": "init", "model": "claude-opus-4-7", "session_id": "abc"},
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "duration_ms": 42300,
+            "total_cost_usd": 0.1234,
+            "num_turns": 8,
+            "usage": {
+                "input_tokens": 1234,
+                "output_tokens": 5678,
+                "cache_creation_input_tokens": 400,
+                "cache_read_input_tokens": 2000,
+            },
+        },
+    ]
+    src = io.StringIO("\n".join(json.dumps(e) for e in events) + "\n")
+    sink = io.StringIO()
+    summary = render_stream(src, sink)
+    assert summary == RunSummary(
+        input_tokens=1234,
+        output_tokens=5678,
+        cache_creation_input_tokens=400,
+        cache_read_input_tokens=2000,
+        total_cost_usd=0.1234,
+        num_turns=8,
+        duration_ms=42300,
+        is_error=False,
+    )
+
+
+def test_render_stream_returns_none_when_no_result_event() -> None:
+    events = [
+        {"type": "system", "subtype": "init", "model": "claude-opus-4-7", "session_id": "x"},
+    ]
+    src = io.StringIO("\n".join(json.dumps(e) for e in events) + "\n")
+    sink = io.StringIO()
+    assert render_stream(src, sink) is None
+
+
+def test_render_stream_run_summary_handles_missing_usage() -> None:
+    src = io.StringIO(
+        json.dumps({"type": "result", "subtype": "success", "duration_ms": 1000})
+        + "\n"
+    )
+    sink = io.StringIO()
+    summary = render_stream(src, sink)
+    assert summary == RunSummary(
+        input_tokens=0,
+        output_tokens=0,
+        cache_creation_input_tokens=0,
+        cache_read_input_tokens=0,
+        total_cost_usd=None,
+        num_turns=None,
+        duration_ms=1000,
+        is_error=False,
+    )
+
+
+def test_render_stream_run_summary_marks_error() -> None:
+    src = io.StringIO(
+        json.dumps({"type": "result", "subtype": "error", "is_error": True}) + "\n"
+    )
+    sink = io.StringIO()
+    summary = render_stream(src, sink)
+    assert summary is not None
+    assert summary.is_error is True
+
+
+def test_format_run_summary_log_full() -> None:
+    line = format_run_summary_log(
+        RunSummary(
+            input_tokens=100,
+            output_tokens=200,
+            cache_creation_input_tokens=10,
+            cache_read_input_tokens=20,
+            total_cost_usd=0.0125,
+            num_turns=3,
+            duration_ms=4500,
+        )
+    )
+    assert line == (
+        "tokens: in=100 out=200 cache_read=20 cache_create=10 "
+        "cost=$0.0125 turns=3 duration=4.5s"
+    )
+
+
+def test_format_run_summary_log_omits_unreported_fields() -> None:
+    line = format_run_summary_log(
+        RunSummary(input_tokens=10, output_tokens=20)
+    )
+    assert line == "tokens: in=10 out=20 cache_read=0 cache_create=0"
+
+
+def test_format_run_summary_log_marks_error() -> None:
+    line = format_run_summary_log(RunSummary(is_error=True))
+    assert "error=true" in line
