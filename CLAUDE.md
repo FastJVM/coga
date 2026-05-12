@@ -7,7 +7,6 @@ Primary references — read these first:
 
 Deeper reference (open when relevant):
 
-- [`docs/spec.md`](/home/n/Code/relay/docs/spec.md) — reference contract: config schemas, frontmatter shapes, error/failure tables. Use when implementing config or CLI changes. The architecture context is canon if the two disagree.
 - [`docs/vision.md`](/home/n/Code/relay/docs/vision.md) — public-facing essay. The `principles` context is the working form.
 
 Implementation rules:

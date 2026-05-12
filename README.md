@@ -3,9 +3,10 @@
 A blackboard for humans and agents. Markdown files in a git repo, a small CLI on
 top, no database. The substrate FastJVM uses to run the company.
 
-For the why, read [`docs/vision.md`](docs/vision.md). For the full data model
-and config reference, read [`docs/spec.md`](docs/spec.md). This README is the
-quickstart + a one-screen reference for each CLI command.
+For the why, read [`docs/vision.md`](docs/vision.md). For the working mental
+model — primitives, prompt composition, command surface — read the contexts
+under [`relay-os/contexts/relay/`](relay-os/contexts/relay/). This README is
+the quickstart + a one-screen reference for each CLI command.
 
 ## Install
 
