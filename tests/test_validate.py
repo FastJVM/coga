@@ -10,7 +10,6 @@ import requests
 
 from relay.scaffold import scaffold_task
 from relay.config import load_config
-from relay.lock import TaskLock
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
 from relay.validate import apply_safe_fixes, probe_slack, run
@@ -54,23 +53,6 @@ def test_clean_repo_has_no_issues(repo: Path) -> None:
     report = run(cfg)
     assert report.issues == []
     assert report.ok_count == 1
-
-
-def test_stale_lock_flagged(repo: Path) -> None:
-    cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
-        watchers=[], status="active",
-    )
-    ref = list_tasks(cfg)[0]
-    lock = TaskLock(ref.path)
-    lock.acquire("claude1")
-    # Rewrite the lock file with an old timestamp
-    lock.path.write_text("holder: claude1\nacquired: 2020-01-01T00:00:00Z\n")
-    report = run(cfg)
-    kinds = [i.kind for i in report.issues]
-    assert "stale-lock" in kinds
 
 
 def test_broken_skill_ref(repo: Path) -> None:

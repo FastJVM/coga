@@ -8,6 +8,7 @@ import shutil
 import signal
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import typer
@@ -21,8 +22,7 @@ from relay.compose import (
     write_prompt_file,
 )
 from relay.config import Config, ConfigError, load_config
-from relay.lock import LockHeldError, TaskLock
-from relay.logfile import append_log
+from relay.logfile import append_log, last_activity
 from relay.scaffold import scaffold_task
 from relay.slack import post
 from relay.stream_render import is_stream_json_command, render_stream
@@ -55,7 +55,6 @@ def launch(
         "--prompt-report",
         help="Print composed prompt layers and approximate token counts, then exit without launching.",
     ),
-    force: bool = typer.Option(False, "--force", help="Break a stale lock."),
     no_verify: bool = typer.Option(
         False,
         "--no-verify",
@@ -170,6 +169,12 @@ def launch(
 
     mode = ticket.mode
 
+    # Soft-warn if the ticket is already active — status is the signal
+    # that someone is already working on it. Bootstrap shims are stateless
+    # re-entry points, so this check doesn't apply.
+    if not is_bootstrap and ticket.status == "active":
+        _warn_already_active(ref, ticket, mode)
+
     if mode == "script":
         if agent_override is not None:
             _bail("--agent is only supported for interactive/auto launches.")
@@ -206,21 +211,6 @@ def launch(
     if agent_path is None:
         _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
     typer.echo(f"Launch: found agent CLI at {agent_path}")
-
-    # Acquire lock for normal tasks. Bootstrap shims are stateless re-entry
-    # points — concurrent launches are fine, no lock to release.
-    lock = None if is_bootstrap else TaskLock(ref.path)
-    if lock is not None:
-        try:
-            typer.echo(f"Launch: acquiring lock {lock.path}")
-            lock.acquire(holder=launch_assignee, force=force)
-            typer.echo("Launch: lock acquired")
-        except LockHeldError as exc:
-            _bail(
-                f"{exc}\nPass --force to break the lock (e.g. after a crashed session)."
-            )
-    else:
-        typer.echo("Launch: bootstrap target; no lock needed")
 
     # Launching is the approval gesture: a draft becomes active.
     # Skip for tickets carrying a top-level skill ref (bootstrap-style):
@@ -264,8 +254,6 @@ def launch(
         prompt_file = None
 
     def _cleanup() -> None:
-        if lock is not None:
-            lock.release()
         _cleanup_prompt()
 
     def _on_signal(signum, frame):  # type: ignore[no-untyped-def]
@@ -525,6 +513,44 @@ def _launch_log_message(
 
 def _interactive_stdio_has_tty() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _warn_already_active(ref: TaskRef, ticket: Ticket, mode: str) -> None:
+    """Status-is-signal soft warn: another worker may already be running.
+
+    Interactive: prompt the human to continue. Auto/script: log a warning
+    and proceed. No filesystem mutex — the failure mode (two divergent
+    blackboard edits, two PR branches) is visible and recoverable.
+    """
+    assignee = ticket.assignee or "unassigned"
+    last = last_activity(ref.path)
+    when = _format_last_activity(last)
+    line = (
+        f"⚠ {ref.id_slug} is already active "
+        f"(assignee: {assignee}, last log {when})"
+    )
+    if mode == "interactive" and sys.stdin.isatty():
+        typer.secho(line, fg=typer.colors.YELLOW, err=True)
+        if not typer.confirm("Continue anyway?", default=False):
+            _bail("aborted")
+        return
+    typer.secho(f"{line} — proceeding ({mode} mode)", fg=typer.colors.YELLOW, err=True)
+
+
+def _format_last_activity(last: datetime | None) -> str:
+    if last is None:
+        return "never"
+    delta = datetime.now() - last
+    minutes = int(delta.total_seconds() // 60)
+    if minutes < 1:
+        return "just now"
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h ago"
+    days = hours // 24
+    return f"{days}d ago"
 
 
 def _bail(msg: str) -> None:

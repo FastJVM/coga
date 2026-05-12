@@ -9,7 +9,6 @@ import sys
 import typer
 
 from relay.config import Config
-from relay.lock import LockHeldError, TaskLock
 from relay.logfile import append_log
 from relay.paths import skill_path
 from relay.skill import Skill
@@ -18,7 +17,7 @@ from relay.tasks import TaskRef
 from relay.ticket import Ticket
 
 
-def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = False) -> None:
+def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     """Execute the script attached to the current workflow step.
 
     - The current step must have `skill:` set.
@@ -52,13 +51,6 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = 
     if not script_path.is_file():
         _bail(f"Script not found: {script_path}")
 
-    # Acquire lock (script mode still single-worker).
-    lock = TaskLock(ref.path)
-    try:
-        lock.acquire(holder=f"script:{skill.name}", force=force)
-    except LockHeldError as exc:
-        _bail(f"{exc}\nPass --force to break the lock.")
-
     env = os.environ.copy()
     env.update(cfg.secrets)
 
@@ -85,17 +77,14 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket, *, force: bool = 
         f"launched in script mode (skill={skill.name}, script={skill.script})",
     )
 
-    try:
-        # Make script executable if needed — POC-friendly.
-        if not os.access(script_path, os.X_OK):
-            cmd = [sys.executable, str(script_path)] if script_path.suffix == ".py" else ["sh", str(script_path)]
-        else:
-            cmd = [str(script_path)]
+    # Make script executable if needed — POC-friendly.
+    if not os.access(script_path, os.X_OK):
+        cmd = [sys.executable, str(script_path)] if script_path.suffix == ".py" else ["sh", str(script_path)]
+    else:
+        cmd = [str(script_path)]
 
-        result = subprocess.run(cmd, env=env, cwd=cwd, check=False)
-        exit_code = result.returncode
-    finally:
-        lock.release()
+    result = subprocess.run(cmd, env=env, cwd=cwd, check=False)
+    exit_code = result.returncode
 
     append_log(ref.path, "system", f"script exited with code {exit_code}")
 

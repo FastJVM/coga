@@ -11,7 +11,6 @@ from relay.cli import app
 from relay.scaffold import scaffold_task
 from relay.commands.launch import build_agent_command
 from relay.config import AgentType, load_config
-from relay.lock import TaskLock
 from relay.tasks import list_tasks
 
 
@@ -227,11 +226,34 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     log = (ref.path / "log.md").read_text()
     assert "launched in interactive mode" in log
 
-    # Lock released after run
-    assert not TaskLock(ref.path).path.exists()
-
     # Prompt temp file cleaned up
     assert not Path(calls[0][2]).exists()
+
+
+# --- soft-warn-on-active -----------------------------------------------------
+
+
+def test_launch_active_task_emits_soft_warning(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Status-is-signal: launching an already-active task surfaces a warning
+    so a second worker can see the first is in flight."""
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    monkeypatch.setattr(
+        "relay.commands.launch.subprocess.run",
+        lambda cmd, env=None, check=False: _Result(),
+    )
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+    assert "fix-retry-logic is already active" in result.output
+    assert "assignee: claude1" in result.output
 
 
 # --- pre-launch freshness check (auto_bump_one) ------------------------------
@@ -251,7 +273,7 @@ def test_launch_freshness_check_bumps_to_done_and_skips_agent(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """When the linked PR has merged, launch auto-bumps and exits clean
-    without spawning the agent or acquiring the lock."""
+    without spawning the agent."""
     _attach_pr(active_task, "fix-retry-logic", "https://github.com/o/r/pull/77")
     _stub_merged(monkeypatch, "https://github.com/o/r/pull/77", "MERGED")
     _allow_interactive_tty(monkeypatch)
@@ -276,7 +298,6 @@ def test_launch_freshness_check_bumps_to_done_and_skips_agent(
     ref = list_tasks(cfg)[0]
     from relay.ticket import Ticket
     assert Ticket.read(ref.path / "ticket.md").status == "done"
-    assert not TaskLock(ref.path).path.exists()
 
 
 def test_launch_freshness_check_no_op_when_pr_open(
@@ -415,7 +436,6 @@ def test_launch_interactive_without_tty_fails_before_lock(
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    assert not TaskLock(ref.path).path.exists()
 
 
 @pytest.mark.parametrize("mode", ["interactive", "auto"])
@@ -451,7 +471,6 @@ def test_launch_harness_continues_through_consecutive_agent_steps(
     ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
     assert ticket.step == "3 (review)"
     assert ticket.assignee == "marc"
-    assert not TaskLock(Path(ref["path"])).path.exists()
 
 
 def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
@@ -548,7 +567,6 @@ def test_launch_harness_stops_on_agent_panic(
     assert len(calls) == 1
     assert "Agent exited with code 1" in (result.output + (result.stderr or ""))
     assert "test panic" in (Path(ref["path"]) / "blackboard.md").read_text()
-    assert not TaskLock(Path(ref["path"])).path.exists()
 
 
 def test_launch_flips_draft_to_active(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -738,7 +756,6 @@ def test_launch_prompt_report_prints_layers_without_launching(
     ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
     assert ticket.status == "draft"
     assert "launched in interactive mode" not in (Path(ref["path"]) / "log.md").read_text()
-    assert not TaskLock(Path(ref["path"])).path.exists()
 
 
 # --- bootstrap shims -----------------------------------------------------------
@@ -901,7 +918,6 @@ def test_launch_bootstrap_factory_without_tty_fails_before_agent(
     cfg = load_config(bootstrap_repo)
     refs = list_tasks(cfg)
     assert len(refs) == 1
-    assert not TaskLock(refs[0].path).path.exists()
     assert "launched in interactive mode" not in (refs[0].path / "log.md").read_text()
 
 
@@ -927,7 +943,6 @@ def test_launch_bootstrap_skips_status_and_lock(
     assert result.exit_code == 0, result.output
 
     # No lock file left behind; in fact none was ever written.
-    assert not (bootstrap_repo / "bootstrap" / "ticket" / "task.lock").exists()
 
     # Skill body composed into the prompt.
     prompt = captured["prompt"]
@@ -1075,7 +1090,6 @@ def test_launch_bootstrap_factory_scaffolds_and_launches(
     log = (new_ref.path / "log.md").read_text()
     assert "launched in interactive mode" in log
     # Lock for the new task was acquired and released.
-    assert not TaskLock(new_ref.path).path.exists()
 
 
 def test_launch_title_arg_rejected_for_regular_tasks(

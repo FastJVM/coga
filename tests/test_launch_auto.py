@@ -9,7 +9,6 @@ from typer.testing import CliRunner
 from relay.cli import app
 from relay.scaffold import scaffold_task
 from relay.config import load_config
-from relay.tasks import list_tasks
 
 
 def _write(path: Path, text: str) -> None:
@@ -65,7 +64,6 @@ def test_launch_auto_mode(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Launch: task auto-run (status=active, mode=auto, assignee=claude1)" in result.output
     assert "Launch: agent claude1 -> claude (cli=claude)" in result.output
     assert "Launch: found agent CLI at /usr/bin/claude" in result.output
-    assert "Launch: lock acquired" in result.output
     assert "Launch: prompt written to" in result.output
     assert "Launch: command: claude -p '<prompt-text " in result.output
     assert "Launch: agent exited with code 0" in result.output
@@ -78,6 +76,3 @@ def test_launch_auto_mode(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Relay task — auto-run" in cmd[2]
     assert "Auto mode" in cmd[2]
 
-    # Lock released
-    ref = list_tasks(cfg)[0]
-    assert not (ref.path / "task.lock").exists()

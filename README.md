@@ -157,13 +157,13 @@ cleanup pass.
 
 Compose every relevant file for a task — rules, project context, ticket,
 attached contexts, current workflow step, frozen skills — into a single
-prompt and start the configured agent against it. Acquires a `task.lock`
-so two agents don't grab the same ticket.
+prompt and start the configured agent against it. If the ticket is
+already `status: active`, soft-warns with the current assignee and last
+log activity; in interactive mode asks before proceeding.
 
 ```sh
 relay launch add-retry-to-webhook-handler          # full slug
 relay launch add-retry                              # any unique prefix works
-relay launch add-retry --force                      # break a stale lock
 relay launch add-retry --agent codex1               # one-off agent override
 relay launch add-retry --prompt-report              # show prompt layer sizes, no launch
 relay launch bootstrap/ticket                       # stateless shim → run a skill
@@ -266,15 +266,14 @@ the explicit command surfaces the error.
 relay automerge   # one-shot. Safe to run by hand.
 ```
 
-### `relay delete <slug> [--force]`
+### `relay delete <slug>`
 
 Throw away an abandoned ticket. Removes the whole task directory —
 ticket, blackboard, log. Recovery is via `git restore`; the git
 history is the audit trail, no Slack broadcast.
 
-Refuses if `task.lock` is held; pass `--force` to delete a locked
-task anyway. Bootstrap shims aren't user-deletable — they're managed
-by `relay init --update`.
+Bootstrap shims aren't user-deletable — they're managed by
+`relay init --update`.
 
 ```sh
 relay delete add-retry

@@ -56,7 +56,6 @@ class ClassifiedIssue:
 def build_validate_command(
     *,
     fix: bool = True,
-    max_lock_hours: float | None = None,
     idle_hours: float | None = None,
     max_blackboard_kb: float | None = None,
 ) -> list[str]:
@@ -64,8 +63,6 @@ def build_validate_command(
     cmd = [sys.executable, "-m", "relay.validate", "--json"]
     if fix:
         cmd.append("--fix")
-    if max_lock_hours is not None:
-        cmd.extend(["--max-lock-hours", str(max_lock_hours)])
     if idle_hours is not None:
         cmd.extend(["--idle-hours", str(idle_hours)])
     if max_blackboard_kb is not None:
@@ -77,7 +74,6 @@ def run_validate_json(
     *,
     cwd: Path | None = None,
     fix: bool = True,
-    max_lock_hours: float | None = None,
     idle_hours: float | None = None,
     max_blackboard_kb: float | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
@@ -88,7 +84,6 @@ def run_validate_json(
     """
     cmd = build_validate_command(
         fix=fix,
-        max_lock_hours=max_lock_hours,
         idle_hours=idle_hours,
         max_blackboard_kb=max_blackboard_kb,
     )
@@ -199,17 +194,6 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             remediation=(
                 "Propose a reviewed blackboard condensation that preserves "
                 "current decisions and blockers before removing detail."
-            ),
-        )
-
-    if kind == "stale-lock":
-        return ClassifiedIssue(
-            issue=issue,
-            action=ACTION_HUMAN_NEEDED,
-            remediation=(
-                "Conservative stale-lock rule: do not delete from age alone. A "
-                "human must verify there is no live worker/terminal for this "
-                "task, then remove `task.lock` or relaunch with `--force`."
             ),
         )
 
@@ -496,7 +480,6 @@ def main(argv: list[str] | None = None) -> int:
         default="Dream: repair validation drift",
         help="Commit subject used with --commit-and-push.",
     )
-    parser.add_argument("--max-lock-hours", type=float)
     parser.add_argument("--idle-hours", type=float)
     parser.add_argument("--max-blackboard-kb", type=float)
     args = parser.parse_args(argv)
@@ -509,7 +492,6 @@ def main(argv: list[str] | None = None) -> int:
         payload, command = run_validate_json(
             cwd=args.cwd,
             fix=fix,
-            max_lock_hours=args.max_lock_hours,
             idle_hours=args.idle_hours,
             max_blackboard_kb=args.max_blackboard_kb,
         )

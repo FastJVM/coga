@@ -1,6 +1,6 @@
 ---
 name: relay/architecture
-description: Mental model for relay — primitives, planes, composition, locking. What an agent needs to know to reason about how relay works as a system.
+description: Mental model for relay — primitives, planes, composition. What an agent needs to know to reason about how relay works as a system.
 ---
 
 # Relay architecture
@@ -13,8 +13,8 @@ no in-memory state.
 
 - **Tickets** live in `relay-os/tasks/<slug>/` as a directory. Each has
   `ticket.md` (frontmatter + body), `log.md` (append-only, written by
-  CLI commands only), `blackboard.md` (free-form workspace shared
-  between human and agent), and `task.lock` (filesystem mutex).
+  CLI commands only), and `blackboard.md` (free-form workspace shared
+  between human and agent).
 - **Contexts** are domain knowledge — what's true about the world.
   Live in `relay-os/contexts/`. Attached to tickets via `contexts:`
   frontmatter list.
@@ -32,9 +32,9 @@ no in-memory state.
   then use the same ticket, workflow, launch, bump, and blackboard machinery as
   any other task.
 - **Bootstrap shims** in `relay-os/bootstrap/<name>/ticket.md` are
-  stateless launch targets for skills. No status, no workflow, no
-  lock. `relay launch bootstrap/ticket "title"` is the factory
-  shorthand to scaffold a new draft + run the bootstrap skill on it.
+  stateless launch targets for skills. No status, no workflow.
+  `relay launch bootstrap/ticket "title"` is the factory shorthand
+  to scaffold a new draft + run the bootstrap skill on it.
 - **Dream** is Relay's generic ticket cleanup pass. A Dream run is an ordinary
   ad-hoc task created by `relay dream`; its body scans the ticket set, runs
   fixed Relay housekeeping skills, proposes cleanup, and writes reviewable
@@ -85,13 +85,17 @@ file. Layers, in order:
 The agent gets all of this as one input. There is no follow-up
 loading.
 
-## Locking
+## Status is the signal
 
-`task.lock` is a file-existence lock, local-only, one per task
-directory. Under one-task-one-worker (deliberate v1 constraint for
-small teams) it's enough. No distributed locking. Stale locks are
-reported by Dream's validate-drift worker; deletion still requires human
-confirmation that no live worker owns the task.
+There is no filesystem mutex. The ticket's `status` (`draft`, `active`,
+`paused`, `done`) is the signal that someone is — or isn't — working on
+a task. Under one-task-one-worker (deliberate v1 constraint for small
+teams), launching against `status: active` is the unusual case: `relay
+launch` soft-warns with the current assignee and last log activity, and
+in interactive mode asks before proceeding. The failure mode of two
+divergent workers (two blackboard edits, two PR branches) is visible
+and recoverable in git; the cost of a hard mutex (stale lock files,
+`--force` flags, orphan-lock cleanup) is not.
 
 ## Command Surface
 
@@ -131,8 +135,7 @@ that lists each skill's result using a small fixed vocabulary:
 `human-needed`.
 
 Destructive behavior (deleting task directories, deleting git refs,
-removing locks, changing lifecycle state, touching secrets) is never
-implicit. A known skill may declare a direct destructive change only when
+changing lifecycle state, touching secrets) is never implicit. A known skill may declare a direct destructive change only when
 the rule is deterministic, narrow, and named in `May change`; otherwise it
 must use `proposal-only` or `pr-required`. Repos that want a different
 maintenance loop define their own task (e.g. `rem` under

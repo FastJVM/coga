@@ -109,9 +109,6 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     assert "launched in script mode" in log
     assert "script exited with code 0" in log
 
-    # Lock released
-    assert not (ref.path / "task.lock").exists()
-
 
 def test_script_mode_rejects_agent_override(repo: Path) -> None:
     cfg = load_config(repo)

@@ -120,11 +120,8 @@ def test_bump_no_workflow_marks_done(repo: Path) -> None:
 # --- panic --------------------------------------------------------------------
 
 
-def test_panic_writes_blocker_and_releases_lock(repo: Path) -> None:
+def test_panic_writes_blocker(repo: Path) -> None:
     slug, task_path = _make_task(repo)
-    # Simulate a held lock
-    from relay.lock import TaskLock
-    TaskLock(task_path).acquire("claude1")
     runner = CliRunner()
     result = runner.invoke(app, ["panic", "--task", slug, "--reason", "unclear ceiling for 429 backoff"])
     # Panic exits non-zero so a parent process can detect agent distress.
@@ -132,7 +129,6 @@ def test_panic_writes_blocker_and_releases_lock(repo: Path) -> None:
     blackboard = (task_path / "blackboard.md").read_text()
     assert "unclear ceiling for 429 backoff" in blackboard
     assert "## Blockers" in blackboard
-    assert not TaskLock(task_path).path.exists()
     assert "panic:" in (task_path / "log.md").read_text()
 
 
@@ -161,27 +157,6 @@ def test_delete_unknown_task_exits_nonzero(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["delete", "no-such-task-xyz"])
     assert result.exit_code == 2
-
-
-def test_delete_refuses_when_locked(repo: Path) -> None:
-    slug, task_path = _make_task(repo)
-    from relay.lock import TaskLock
-    TaskLock(task_path).acquire("claude1")
-    runner = CliRunner()
-    result = runner.invoke(app, ["delete", slug])
-    assert result.exit_code == 2, result.output
-    assert task_path.is_dir()
-    assert "task.lock" in result.output
-
-
-def test_delete_force_overrides_lock(repo: Path) -> None:
-    slug, task_path = _make_task(repo)
-    from relay.lock import TaskLock
-    TaskLock(task_path).acquire("claude1")
-    runner = CliRunner()
-    result = runner.invoke(app, ["delete", slug, "--force"])
-    assert result.exit_code == 0, result.output
-    assert not task_path.exists()
 
 
 # --- slack --------------------------------------------------------------------

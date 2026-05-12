@@ -24,22 +24,23 @@ the relay-managed bits in the current repo.
 
 Compose every relevant file (rules + repo context + ticket contexts +
 current step's skill + blackboard + ticket body) into one prompt and
-start the configured agent. Acquires `task.lock`.
+start the configured agent. If the ticket is already `status: active`,
+soft-warns with the current assignee and last log activity, and in
+interactive mode asks before proceeding.
 Interactive launches require stdin and stdout to both be terminals; use
 `mode: auto` or `mode: script` for non-interactive wrappers and CI.
 Script launches inject task metadata env vars including `RELAY_TASK_SLUG`,
 `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
-- `relay launch <slug> --force` — break a stale lock.
 - `relay launch <slug> --agent <nickname>` — one-off agent override;
   does not rewrite the ticket's `assignee:`.
 - `relay launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
-  activating, locking, or spawning an agent.
-- `relay launch bootstrap/<name>` — stateless shim; no lock, concurrent
-  launches safe. With a title arg, acts as a factory: scaffolds a new
-  ticket from the shim's frontmatter and launches on it.
+  activating or spawning an agent.
+- `relay launch bootstrap/<name>` — stateless shim; concurrent launches
+  safe. With a title arg, acts as a factory: scaffolds a new ticket
+  from the shim's frontmatter and launches on it.
 
 Agent type comes from the ticket's `assignee`, resolved through
 `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
@@ -105,15 +106,14 @@ Posts a distinct Slack line — `🎉 *<slug>* "<title>" auto-bumped on
 merge of PR #<N>` — so the team can tell auto-bumps apart from manual
 ones.
 
-## relay delete \<slug\> [--force]
+## relay delete \<slug\>
 
 Remove a task directory from the working tree — ticket, blackboard,
 log, and the directory itself. Recovery is via `git restore`; the
 git history is the audit trail, no Slack broadcast.
 
-Refuses if `task.lock` is held; pass `--force` to delete a locked
-task anyway. Bootstrap shims aren't user-deletable — they're managed
-by `relay init --update`.
+Bootstrap shims aren't user-deletable — they're managed by
+`relay init --update`.
 
 ## relay retire \<slug\> [--mode auto|interactive] [--agent <nickname>] [--no-launch]
 

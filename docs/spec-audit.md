@@ -56,7 +56,7 @@ matching `[agents.<type>]` config.
 | `relay-os/contexts/<path>/SKILL.md` arbitrary depth | ✅ | `paths.py:26`. |
 | `relay-os/workflows/<path>.md` arbitrary depth | ✅ | `paths.py:14`, `workflow.py`. |
 | `relay-os/recurring/*.md` | ✅ | `paths.py:30`, `recurring.py`. |
-| `relay-os/tasks/<slug>/{ticket,log,blackboard}.md + task.lock` | ✅ | `tasks.py:50-70`, `lock.py`. |
+| `relay-os/tasks/<slug>/{ticket,log,blackboard}.md` | ✅ | `tasks.py:50-70`. (`task.lock` removed — status is the signal.) |
 | `relay-os/bootstrap/<name>/ticket.md` shims | ✅ | `paths.py:46-51`, `tasks.py:100-110`. |
 | `relay-os/scripts/cron.sh` | ⚠️ | Present, but invokes a non-existent flag. See §6. |
 
@@ -134,19 +134,14 @@ current template doesn't contain — a no-op replacement. Minor.
 Append-only, written only by CLI side-effects (`create`, `launch`,
 `step`, `panic`, `feed`).
 
-### Lock (`lock.py`)
+### Status is the signal (lock removed)
 
-| Spec | Status | Notes |
-|---|---|---|
-| File-existence is the lock | ✅ | |
-| `holder: <nickname>` + `acquired: <ISO Z>` body | ✅ | `lock.py:86-90`. |
-| Stale detection in validate (default 24h) | ✅ | `validate.py:54`, `lock.is_stale`. |
-| `--force` to break stale locks | ✅ | `launch.py:39, 102-108`. |
-| Released on `step` final, on `panic`, on launch exit | ✅ | Plus SIGINT/SIGTERM cleanup at `launch.py:141-146`. |
-
-❓ **Open in spec, observed in code:** acquire timing for `mode: script`
-is unspecified. Implementation: `launch_script.run_script_mode` does not
-acquire `task.lock` (script mode is one-shot). Worth pinning down.
+`task.lock` was removed in favor of status-based signaling: `relay launch`
+reads the ticket's `status` and soft-warns when it is already `active`
+(interactive launches confirm, auto/script launches log and continue).
+`lock.py`, `LockHeldError`, the `--force` flag family, and the
+`stale-lock` validator issue are gone. Bootstrap shims remain stateless
+re-entry points and are exempt from the soft-warn.
 
 ---
 
@@ -421,12 +416,13 @@ mode skips both base prompt and mode block (no agent spawned).
 
 ## 9. Crash recovery
 
-Per spec, manual in v1: blackboard is the persistence layer; humans
-clear stale locks; relaunch picks up from blackboard.
+Per spec, manual in v1: blackboard is the persistence layer; relaunch
+picks up from blackboard. The ticket stays `active` after a crash, so
+the next `relay launch` soft-warns and the human confirms.
 
 - ✅ Blackboard included in composed prompt at `compose.py:73-76`.
-- ✅ Stale locks flagged by `relay.validate`.
-- ✅ `relay launch --force` breaks stale locks.
+- ✅ `relay launch` soft-warns on `status: active`.
+- ✅ Validator flags tasks stuck on `active` with no recent log activity.
 
 No automatic crash detection. Matches spec.
 
@@ -436,7 +432,7 @@ No automatic crash detection. Matches spec.
 
 | Spec failure case | Status | Notes |
 |---|---|---|
-| Lock can't be acquired (held) | ✅ | `LockHeldError` includes holder + acquired ts. `--force` to break. |
+| `relay launch` against `status: active` | ✅ | Soft-warn with assignee + last log activity. Interactive confirms; auto/script proceeds. |
 | `relay launch mode:script` exits non-zero → log + Slack | 🟡 | Logging done in `launch_script.run_script_mode`; **no Slack notification on script failure**. Spec lines 942-943 require it. |
 | `relay bump` on non-active | ✅ | |
 | `relay create` with missing context/skill refs | ✅ | Validated in `scaffold_task`. |
@@ -480,14 +476,11 @@ this audit surfaced. Items marked **NEW** are not in spec.md today.
 ### B. Resolve before next milestone (spec called these blocking)
 
 6. **`relay create` arg interface.** Today: `relay create "<title>" [-d desc] [--no-launch]`. Spec asks for definitive list of fields auto-set vs CLI args. Document.
-7. **Lock lifecycle precision.** Acquire/release events for each command
-   (covered for normal tasks; spec says open). Decisions:
-   - **Resolved (PR review):** `mode: script` acquires `task.lock`
-     briefly during execution. One-task-one-worker invariant holds
-     across all modes.
-   - Stale-lock threshold default — currently 24h hard-coded; surface
-     as a flag and document.
-   - Spec mentions Ctrl+C signal handler — present (`launch.py:141-146`); add to spec.
+7. ~~Lock lifecycle precision.~~ **Resolved by removal.** `task.lock`
+   was dropped; status is the in-flight signal. `relay launch` soft-warns
+   on `status: active`, interactive confirms, auto/script proceeds.
+   One-task-one-worker invariant still holds — it just isn't enforced
+   by a filesystem mutex.
 
 ### C. Resolve when convenient (spec called these non-blocking)
 
@@ -651,7 +644,7 @@ agent-driven events.
 10. Manual ticket edits stay silent — no git hook, no diff logic
     (was §D.17).
 11. Rename `relay step` → `relay bump` — **landed** (was §D.27).
-12. `mode: script` acquires `task.lock` briefly (was §B.7 sub-bullet).
+12. `task.lock` removed; status is the in-flight signal, soft-warn on relaunch (was §B.7).
 13. Agent-to-human handoff via base-prompt discipline (was §C.9).
 14. Ship `relay dream` as the ad-hoc Dream entry point (was §D.25).
 15. Fix `relay status` narrow-terminal title-wrap; defer filters

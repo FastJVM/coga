@@ -20,8 +20,6 @@ Each task lives in `relay-os/tasks/<id>-<slug>/` and contains:
 - `log.md` — append-only audit trail. **Do not write to this file.** CLI
   commands (`relay launch`, `relay bump`, `relay panic`) are the only writers.
   Write observations in the blackboard instead.
-- `task.lock` — serializes concurrent access. **Do not touch.** `relay launch`
-  manages it.
 
 ## Blackboard
 
@@ -88,7 +86,7 @@ Before panicking: write the blocker to the blackboard so the human relaunching
 can read it without digging through history.
 
 After panicking: stop. Do not keep trying. The panic posts to Slack naming
-the task owner and releases the lock so a human can relaunch.
+the task owner so they can pick the task back up.
 
 `--reason` is required. Be specific. "Unclear what to do" is useless.
 "Retry logic ambiguous — spec says respect Retry-After headers but doesn't
@@ -134,7 +132,6 @@ When editing `ticket.md` frontmatter:
 ## What you don't do
 
 - Don't edit `log.md`.
-- Don't edit `task.lock`.
 - Don't `relay launch` another agent session from inside your own —
   there's no terminal for it inside your context and the human ends up
   tracking parallel agents. Use a subagent (e.g. the Agent tool) or

@@ -40,7 +40,6 @@ def _load_validate_drift_module():
 validate_drift = _load_validate_drift_module()
 
 ACTION_DIRECT_FIX = validate_drift.ACTION_DIRECT_FIX
-ACTION_HUMAN_NEEDED = validate_drift.ACTION_HUMAN_NEEDED
 ACTION_PR_PROPOSAL = validate_drift.ACTION_PR_PROPOSAL
 ValidationFix = validate_drift.ValidationFix
 ValidationIssue = validate_drift.ValidationIssue
@@ -101,26 +100,11 @@ def _seed_repo(root: Path) -> Path:
 
 
 def test_build_validate_command_uses_deterministic_json_surface() -> None:
-    cmd = build_validate_command(fix=True, max_lock_hours=12, idle_hours=48)
+    cmd = build_validate_command(fix=True, idle_hours=48)
     assert cmd[:4] == [sys.executable, "-m", "relay.validate", "--json"]
     assert "--fix" in cmd
     assert "--check-slack" not in cmd
-    assert "--max-lock-hours" in cmd
     assert "--idle-hours" in cmd
-
-
-def test_classifies_stale_lock_as_human_needed() -> None:
-    classified = classify_issue(
-        ValidationIssue(
-            kind="stale-lock",
-            task="slow-task",
-            message="lock held by 'claude1' for 25.0h",
-            severity="warn",
-        )
-    )
-
-    assert classified.action == ACTION_HUMAN_NEEDED
-    assert "do not delete from age alone" in classified.remediation
 
 
 def test_classifies_missing_log_as_direct_fix() -> None:

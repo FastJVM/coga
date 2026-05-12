@@ -23,9 +23,6 @@ def validate(
         "--fix",
         help="Apply conservative safe repairs before reporting.",
     ),
-    max_lock_hours: float = typer.Option(
-        24.0, "--max-lock-hours", help="Lock age above which to flag as stale."
-    ),
     idle_hours: float = typer.Option(
         72.0, "--idle-hours", help="Active-task idle threshold."
     ),
@@ -49,7 +46,6 @@ def validate(
 
     report = run(
         cfg,
-        max_lock_hours=max_lock_hours,
         idle_hours=idle_hours,
         max_blackboard_bytes=int(max_blackboard_kb * 1024),
         check_slack=check_slack,
