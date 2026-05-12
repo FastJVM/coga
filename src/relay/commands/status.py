@@ -135,3 +135,22 @@ def status(
         return
 
     console.print(table)
+
+    # Summary line so the totals are visible without eyeballing the table.
+    # Canonical statuses first in fixed order, then any other values seen
+    # (e.g. "-" for tickets missing a status field) sorted for stability.
+    counts: dict[str, int] = {}
+    for r in rows:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
+    canonical = ("active", "draft", "paused", "done")
+    parts = [f"{counts[s]} {s}" for s in canonical if counts.get(s)]
+    parts += [
+        f"{counts[s]} {s}"
+        for s in sorted(counts)
+        if s not in canonical
+    ]
+    label = "task" if len(rows) == 1 else "tasks"
+    summary = f"{len(rows)} {label}"
+    if parts:
+        summary += "  ·  " + " · ".join(parts)
+    console.print(summary, style="dim")
