@@ -51,17 +51,14 @@ Last updated: 2026-05-06.
 
 - **`[aliases]` table in `relay.toml`.** Maps a one-word name to an
   expanded relay command (free-form string). Positional args after
-  the alias name forward to the expansion. Default aliases:
-  `chat = "launch bootstrap/orient"` and
-  `create = "launch bootstrap/ticket"`. Validated at config load:
+  the alias name forward to the expansion. Default alias:
+  `chat = "launch bootstrap/orient"`. Validated at config load:
   alias names can't collide with built-ins; first token of expansion
   must be a known built-in.
-- **`relay create` is no longer a Python command.** It's now an alias.
-  Its `scaffold_task()` Python helper moved to `src/relay/scaffold.py`
-  and is shared by `launch`'s factory path and the recurring scaffolder.
-  The `--description` and `--no-launch` flags are gone (aliases are
-  positional pass-through only); use the `scaffold_task()` Python API
-  for scripted use.
+- **`relay create` is a built-in command again.** It scaffolds a
+  draft ticket and posts `✨` — no agent launch. Its `scaffold_task()`
+  helper lives in `src/relay/scaffold.py` and is shared with the
+  recurring scaffolder. Aliases stay positional-pass-through only.
 - **Aliases print their expansion to stderr.** `relay chat` prints
   `→ relay launch bootstrap/orient` before dispatching, so the
   indirection is visible. Users learn the long form by using the short
@@ -81,23 +78,24 @@ ones that affect implementation:
   No post-commit hooks watching task files.
 - **`relay step` renamed to `relay bump`.** The "advance" semantic
   stays; the name changed because "step" overloaded with "step in
-  workflow" was confusing. The new command takes no positional arg —
-  it derives the next step from the current `step:` frontmatter and
-  always advances by one. Bumping past the last step marks `done`.
+  workflow" was confusing. `bump` derives the next step from the
+  current `step:` frontmatter and always advances by one. It does
+  not finish tickets — bumping past the last step (or on a no-workflow
+  ticket) errors and points at `relay mark done`.
 - **`relay recurring check` is the canonical entry point** for the
-  cron scaffolder. Reverses the earlier "`relay create --check-recurring`
-  is canonical" call: once `relay create` became a thin alias, hanging
-  the recurring flag on it stopped making sense. Cron scripts and docs
-  now call `relay recurring check` directly.
+  cron scaffolder. Cron scripts and docs call it directly rather
+  than going through `relay create`.
 - **Lock cleanup is human-needed by default.** `relay validate`
   reports stale locks but doesn't auto-clean. Dream's `validate-drift` skill
   classifies stale locks for human review unless a narrower skill contract has
   exact evidence that deletion is safe.
-- **`relay launch` auto-activates drafts.** Running launch on a
-  `draft` ticket flips it to `active` and logs the transition.
-  No separate `relay activate` command. Bootstrap-skill tickets
-  (top-level `skill:` ref) are exempt — they stay `draft` until
-  the human launches the real ticket.
+- **Control plane and data plane are fully split.** `relay mark
+  active | paused | done` owns every `status:` transition; `relay
+  bump` owns every `step:` transition. `relay launch` reads status
+  (refuses anything other than `active`) and never writes it. The
+  three-step boot for a new task is explicit: `relay create
+  "<title>"` → edit the draft → `relay mark active <slug>` →
+  `relay launch <slug>`. There is no auto-flip from draft.
 
 ## Open ticket queue (audit-driven bugs)
 

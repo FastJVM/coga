@@ -82,9 +82,9 @@ This is idempotent — running `--check-recurring` twice inside the same period 
 
 There is no filesystem mutex. The ticket's `status` field is the only signal that a task is in flight.
 
-- `relay launch` against `status: active` soft-warns: prints `⚠ <slug> is already active (assignee: <name>, last log <Nm> ago)` to stderr. Interactive launches confirm; auto and script launches log the warning and proceed.
-- `relay launch` flips a `draft` task to `active` as the approval gesture, and that's still the only state change at launch time.
-- Bootstrap shims are stateless and exempt from the soft-warn — they are re-entry points, not units of work.
+- `relay launch` requires `status: active` and refuses anything else, pointing the operator at `relay mark active <slug>`. It does not flip status itself.
+- Status transitions are owned by `relay mark active | paused | done` exclusively. The control plane (`status`) and the data plane (`step`) never share a writer.
+- Bootstrap shims are stateless and exempt — they are re-entry points, not units of work.
 - Dream's `validate-drift` skill flags tasks stuck on `active` with no recent log activity. Recovery is human-initiated.
 
 We tried a `task.lock` file-existence mutex first. It cost a module of acquisition/release logic, `--force` flags on `launch` and `delete`, orphan-cleanup machinery, and two "don't touch task.lock" lines in the base prompt — to guarantee something (two concurrent workers on the same slug) that almost never happened under one-task-one-worker. The failure mode without the mutex is two divergent blackboard edits and two PR branches; both are visible in git and recoverable by hand. Dropping the lock simplified six call sites and removed all of the above.

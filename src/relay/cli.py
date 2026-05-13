@@ -9,10 +9,12 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 import typer
 
 from relay.commands import automerge as automerge_cmd
+from relay.commands import create as create_cmd
 from relay.commands import delete as delete_cmd
 from relay.commands import dream as dream_cmd
 from relay.commands import init as init_cmd
 from relay.commands import launch as launch_cmd
+from relay.commands import mark as mark_cmd
 from relay.commands import panic as panic_cmd
 from relay.commands import recurring as recurring_cmd
 from relay.commands import retire as retire_cmd
@@ -65,6 +67,7 @@ def _root(
 
 
 app.command("init")(init_cmd.init)
+app.command("create")(create_cmd.create)
 app.command("launch")(launch_cmd.launch)
 app.command("status")(status_cmd.status)
 app.command("show")(show_cmd.show)
@@ -76,6 +79,7 @@ app.command("retire")(retire_cmd.retire)
 app.command("panic")(panic_cmd.panic)
 app.command("slack")(slack_cmd.slack)
 app.command("validate")(validate_cmd.validate)
+app.add_typer(mark_cmd.app, name="mark")
 app.add_typer(recurring_cmd.app, name="recurring")
 
 
@@ -84,26 +88,48 @@ app.add_typer(recurring_cmd.app, name="recurring")
 # real commands.
 _BUILTIN_COMMANDS = frozenset(
     {
-        "init", "launch", "status", "show", "bump", "automerge",
-        "delete", "dream", "retire", "panic", "slack", "recurring", "validate",
+        "init", "create", "launch", "status", "show", "bump", "automerge",
+        "delete", "dream", "retire", "panic", "slack", "mark", "recurring",
+        "validate",
     }
 )
 
 
 # Aliases registered for every user, regardless of whether their `relay.toml`
 # has an `[aliases]` section. Anything in the user's `[aliases]` overrides
-# (same key wins). Keeps `relay create` and `relay chat` discoverable in
-# `--help` — and actually dispatchable — for repos init'd before the alias
-# defaults convention, or where the user dropped the section.
+# (same key wins). Keeps `relay chat` discoverable in `--help` — and actually
+# dispatchable — for repos init'd before the alias defaults convention, or
+# where the user dropped the section.
 _DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
+}
+
+
+_LEGACY_ALIASES: dict[str, str] = {
     "create": "launch bootstrap/ticket",
 }
 
 
 def _validate_aliases(aliases: dict[str, str]) -> None:
-    """Reject aliases that collide with built-ins or expand to unknown commands."""
-    for name, expansion in aliases.items():
+    """Reject aliases that collide with built-ins or expand to unknown commands.
+
+    Exactly one shape is soft-skipped instead of crashing: legacy default
+    aliases we shipped that later became built-ins (today: the
+    `create = "launch bootstrap/ticket"` line every pre-split repo carries).
+    We print a one-line stderr notice and drop the alias so the CLI keeps
+    working before the user has had a chance to clean up their `relay.toml`.
+    """
+    for name in list(aliases):
+        expansion = aliases[name]
+        if _LEGACY_ALIASES.get(name) == expansion:
+            print(
+                f"relay: dropping legacy alias {name!r} from relay.toml "
+                f"({name!r} is now a built-in command — remove the line "
+                f"under [aliases]).",
+                file=sys.stderr,
+            )
+            del aliases[name]
+            continue
         if name in _BUILTIN_COMMANDS:
             raise ConfigError(
                 f"alias {name!r} collides with built-in command — rename it."

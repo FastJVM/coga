@@ -13,14 +13,15 @@ the agents are doing. That channel, in relay, is Slack.
 State-changing CLI commands post to the same Slack channel via an
 incoming webhook. The current broadcast surface:
 
-- `relay create` (and any factory-mode `launch bootstrap/<shim> "title"`)
-  — a new draft ticket lands in the queue.
+- `relay create` — a new draft ticket lands in the queue.
 - `relay recurring check` — one post per scaffolded recurring task,
   plus an end-of-run summary when any templates failed to parse.
-- `relay launch` flipping a ticket draft → active — the moment work
-  is approved, distinct from the *session* opening.
-- `relay bump` — step advances and the final-step `done` transition.
-  Optional `--message` piggy-backs an FYI onto the broadcast.
+- `relay mark active` — the moment work is approved, distinct from
+  the *session* opening.
+- `relay mark paused` / `relay mark done` — control-plane transitions
+  away from active.
+- `relay bump` — step advances (workflow plane only).
+  Optional `--message` piggy-backs an FYI onto any transition broadcast.
 - `relay automerge` (and the `post-merge` hook + `relay status` callers
   that wrap it) — auto-bumps active tickets to `done` when their
   blackboard `## Dev` PR has merged. Posts a distinct

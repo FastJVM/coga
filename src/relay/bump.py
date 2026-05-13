@@ -1,15 +1,7 @@
-"""Step transitions — the shared core of `relay bump` and `relay automerge`.
+"""Step advancement — the workflow plane.
 
-Both commands need to:
-  - mutate ticket frontmatter (advance step OR mark done)
-  - append a line to log.md
-  - echo the local outcome to stdout
-  - post to Slack
-
-The CLI command (`relay bump`) and the auto-merge scanner reuse the
-finalizers below so the on-disk shape stays identical regardless of who
-triggered the transition. Only the log line, the Slack text, and the
-actor differ between the two callers — those come in as arguments.
+`relay bump` advances exactly one workflow step. Status transitions
+(active/paused/done) live in `relay.mark`.
 """
 
 from __future__ import annotations
@@ -47,33 +39,6 @@ def resolve_step_assignee(ticket: Ticket, role: str) -> str:
     return str(value)
 
 
-def mark_done(
-    cfg: Config,
-    ref: TaskRef,
-    ticket: Ticket,
-    *,
-    actor: str,
-    log_message: str,
-    slack_text: str,
-    image_url: str | None = None,
-    echo: str | None = None,
-) -> None:
-    """Flip a ticket to `done`: write frontmatter, log, post.
-
-    `echo` is the stdout line printed before the Slack post (so the local
-    outcome is visible even if Slack crashes). Pass `None` to suppress —
-    used by the quiet auto-bump path inside `relay status`.
-    """
-    owner = ticket.owner or cfg.current_user
-    ticket.frontmatter["status"] = "done"
-    ticket.frontmatter.pop("step", None)
-    ticket.write(ref.path / "ticket.md")
-    append_log(ref.path, actor, log_message)
-    if echo is not None:
-        typer.echo(echo)
-    post(cfg, slack_text, task_path=ref.path, owner=owner, image_url=image_url)
-
-
 def advance_step(
     cfg: Config,
     ref: TaskRef,
@@ -105,7 +70,6 @@ def advance_step(
 
 
 __all__ = [
-    "mark_done",
     "advance_step",
     "resolve_step_assignee",
     "AssigneeResolutionError",

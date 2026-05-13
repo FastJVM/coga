@@ -26,7 +26,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from relay.bump import mark_done
+from relay.mark import mark_done
 from relay.config import Config
 from relay.tasks import TaskRef, list_tasks, read_ticket
 from relay.ticket import Ticket, TicketError
