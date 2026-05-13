@@ -1,6 +1,6 @@
 ---
 title: Make Dream workers skills only
-status: active
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -20,7 +20,6 @@ workflow:
     skill: code/open-pr
   - name: review
     assignee: owner
-step: 3 (review)
 ---
 
 ## Description
