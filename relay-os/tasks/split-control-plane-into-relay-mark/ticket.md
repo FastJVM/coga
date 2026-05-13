@@ -1,6 +1,6 @@
 ---
 title: Split control plane into `relay mark`; decouple launch and bump from status
-status: draft
+status: done
 mode: interactive
 owner: nick
 human: nick

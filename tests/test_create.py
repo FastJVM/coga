@@ -401,6 +401,82 @@ def test_recurring_check_posts_error_summary(
     assert not any(str(repo_with_shim) in m for m in slack_msgs)
 
 
+# --- `relay create` CLI -------------------------------------------------------
+
+
+def test_cli_create_scaffolds_draft_and_posts(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay create "<title>"` scaffolds a draft ticket and posts ✨."""
+    monkeypatch.chdir(repo)
+    posts: list[str] = []
+
+    def _capture(url, json=None, timeout=None):
+        posts.append(json["text"])
+        class R:
+            status_code = 200
+            text = "ok"
+        return R()
+
+    monkeypatch.setattr("relay.slack.requests.post", _capture)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "Investigate retries"])
+    assert result.exit_code == 0, result.output
+
+    cfg = load_config(repo)
+    task_dir = repo / "tasks" / "investigate-retries"
+    assert task_dir.is_dir()
+    t = Ticket.read(task_dir / "ticket.md")
+    assert t.title == "Investigate retries"
+    assert t.status == "draft"
+    assert t.mode == "interactive"
+
+    assert any(
+        f"✨ {cfg.current_user} created *investigate-retries*" in m
+        and "Investigate retries" in m
+        and cfg.project_name in m
+        for m in posts
+    )
+
+
+def test_cli_create_does_not_spawn_agent(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay create` only scaffolds; it never spawns an agent."""
+    monkeypatch.chdir(repo)
+    called = False
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        nonlocal called
+        called = True
+        class R: returncode = 0
+        return R()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run, raising=False)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "Just a draft"])
+    assert result.exit_code == 0, result.output
+    assert not called
+
+
+def test_cli_create_mode_option(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "Auto job", "--mode", "auto"])
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(repo / "tasks" / "auto-job" / "ticket.md")
+    assert t.mode == "auto"
+
+
+def test_cli_create_rejects_empty_title(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "   "])
+    assert result.exit_code == 2
+
+
 def test_resolve_task_exact_then_prefix(repo: Path) -> None:
     """Resolve prefers exact slug match; falls back to unique prefix; errors on ambiguity."""
     from relay.tasks import resolve_task, TaskNotFoundError

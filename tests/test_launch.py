@@ -230,32 +230,6 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert not Path(calls[0][2]).exists()
 
 
-# --- soft-warn-on-active -----------------------------------------------------
-
-
-def test_launch_active_task_emits_soft_warning(
-    active_task: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Status-is-signal: launching an already-active task surfaces a warning
-    so a second worker can see the first is in flight."""
-    _allow_interactive_tty(monkeypatch)
-
-    class _Result:
-        returncode = 0
-
-    monkeypatch.setattr(
-        "relay.commands.launch.subprocess.run",
-        lambda cmd, env=None, check=False: _Result(),
-    )
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
-
-    runner = CliRunner()
-    result = runner.invoke(app, ["launch", "fix-retry-logic"])
-    assert result.exit_code == 0, result.output
-    assert "fix-retry-logic is already active" in result.output
-    assert "assignee: claude1" in result.output
-
-
 # --- pre-launch freshness check (auto_bump_one) ------------------------------
 
 
@@ -569,7 +543,10 @@ def test_launch_harness_stops_on_agent_panic(
     assert "test panic" in (Path(ref["path"]) / "blackboard.md").read_text()
 
 
-def test_launch_flips_draft_to_active(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_launch_rejects_draft_with_mark_active_hint(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Launch no longer flips draft → active. It errors with a hint."""
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     _allow_interactive_tty(monkeypatch)
@@ -578,71 +555,30 @@ def test_launch_flips_draft_to_active(active_task: Path, monkeypatch: pytest.Mon
     t.frontmatter["status"] = "draft"
     t.write(ref.path / "ticket.md")
 
-    class _Result:
-        returncode = 0
+    called = False
 
-    monkeypatch.setattr(
-        "relay.commands.launch.subprocess.run",
-        lambda cmd, env=None, check=False: _Result(),
-    )
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        nonlocal called
+        called = True
+        class R: returncode = 0
+        return R()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
-
-    slack_msgs: list[str] = []
-    monkeypatch.setattr(
-        "relay.slack.requests.post",
-        lambda url, json=None, timeout=None: _capture_slack(slack_msgs, json),
-    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 2, result.output
+    assert "draft" in (result.output + (result.stderr or ""))
+    assert "relay mark active fix-retry-logic" in (result.output + (result.stderr or ""))
+    assert not called  # agent never spawned
 
+    # Ticket stayed draft — launch did not mutate status.
     t = Ticket.read(ref.path / "ticket.md")
-    assert t.frontmatter["status"] == "active"
-
-    log = (ref.path / "log.md").read_text()
-    assert "activated (draft → active)" in log
-    assert "launched in interactive mode" in log
-
-    # The activation transition broadcasts; the session start does not.
-    assert any("activated *fix-retry-logic*" in m and "assignee" in m for m in slack_msgs)
-    assert not any("started work" in m for m in slack_msgs)
+    assert t.status == "draft"
 
 
-def test_launch_active_stays_active(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Re-launching an already-active task does not re-log activation or post."""
-    cfg = load_config(active_task)
-    ref = list_tasks(cfg)[0]
-    _allow_interactive_tty(monkeypatch)
-
-    class _Result:
-        returncode = 0
-
-    monkeypatch.setattr(
-        "relay.commands.launch.subprocess.run",
-        lambda cmd, env=None, check=False: _Result(),
-    )
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
-
-    slack_msgs: list[str] = []
-    monkeypatch.setattr(
-        "relay.slack.requests.post",
-        lambda url, json=None, timeout=None: _capture_slack(slack_msgs, json),
-    )
-
-    runner = CliRunner()
-    result = runner.invoke(app, ["launch", "fix-retry-logic"])
-    assert result.exit_code == 0, result.output
-
-    log = (ref.path / "log.md").read_text()
-    assert "activated" not in log
-
-    # No state change happened — Slack stays quiet.
-    assert slack_msgs == []
-
-
-def test_launch_rejects_non_launchable_status(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Flip status to paused — only draft/active are launchable.
+def test_launch_rejects_paused(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     from relay.ticket import Ticket
@@ -654,7 +590,9 @@ def test_launch_rejects_non_launchable_status(active_task: Path, monkeypatch: py
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 2
-    assert "'paused'" in result.output or "'paused'" in (result.stderr or "")
+    combined = result.output + (result.stderr or "")
+    assert "'paused'" in combined
+    assert "relay mark active fix-retry-logic" in combined
 
 
 def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -847,80 +785,6 @@ def test_launch_bare_bootstrap_does_not_post_to_slack(
     assert posts == []
 
 
-def test_launch_bootstrap_factory_posts_creation_with_repo_name(
-    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Factory mode (`relay create "X"`) posts a single scaffolded event that
-    includes the title and the host repo name."""
-    posts: list[str] = []
-    _allow_interactive_tty(monkeypatch)
-
-    def fake_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
-        posts.append((json or {}).get("text", ""))
-
-        class R:
-            status_code = 200
-
-        return R()
-
-    class _Result:
-        returncode = 0
-
-    monkeypatch.setattr("relay.slack.requests.post", fake_post)
-    monkeypatch.setattr(
-        "relay.commands.launch.subprocess.run",
-        lambda cmd, env=None, check=False: _Result(),
-    )
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
-
-    runner = CliRunner()
-    result = runner.invoke(app, ["launch", "bootstrap/ticket", "Investigate flaky tests"])
-    assert result.exit_code == 0, result.output
-
-    cfg = load_config(bootstrap_repo)
-    assert len(posts) == 1
-    assert "scaffolded" in posts[0]
-    assert "Investigate flaky tests" in posts[0]
-    assert cfg.project_name in posts[0]
-    assert "started work" not in posts[0]
-
-
-def test_launch_bootstrap_factory_without_tty_fails_before_agent(
-    bootstrap_repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    called = False
-    _deny_interactive_tty(monkeypatch)
-
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
-        nonlocal called
-        called = True
-        raise AssertionError("bootstrap factory should fail before spawning agent")
-
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(
-        "relay.slack.requests.post",
-        lambda url, json=None, timeout=None: _capture_slack([], json),
-    )
-
-    result = CliRunner().invoke(
-        app,
-        ["launch", "bootstrap/ticket", "Investigate flaky tests"],
-    )
-
-    assert result.exit_code == 2
-    assert "Cannot launch 'investigate-flaky-tests': mode=interactive requires a TTY" in (
-        result.output + (result.stderr or "")
-    )
-    assert not called
-
-    cfg = load_config(bootstrap_repo)
-    refs = list_tasks(cfg)
-    assert len(refs) == 1
-    assert "launched in interactive mode" not in (refs[0].path / "log.md").read_text()
-
-
 def test_launch_bootstrap_skips_status_and_lock(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1029,74 +893,3 @@ def test_launch_bootstrap_unknown_shim(
     assert "bootstrap/does-not-exist" in (result.output + (result.stderr or ""))
 
 
-def test_launch_bootstrap_factory_scaffolds_and_launches(
-    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """`relay launch bootstrap/ticket "title"` scaffolds a draft task
-    seeded from the shim, then launches the agent against the new task."""
-    captured: dict[str, object] = {}
-    _allow_interactive_tty(monkeypatch)
-
-    class _Result:
-        returncode = 0
-
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
-        captured["cmd"] = cmd
-        captured["prompt"] = Path(cmd[2]).read_text()
-        return _Result()
-
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
-
-    slack_msgs: list[str] = []
-    monkeypatch.setattr(
-        "relay.slack.requests.post",
-        lambda url, json=None, timeout=None: _capture_slack(slack_msgs, json),
-    )
-
-    runner = CliRunner()
-    result = runner.invoke(app, ["launch", "bootstrap/ticket", "Investigate flaky tests"])
-    assert result.exit_code == 0, result.output
-
-    # Factory mode broadcasts the new draft. No draft → active flip
-    # because the bootstrap-skill ticket stays draft.
-    assert len(slack_msgs) == 1
-    assert "scaffolded *investigate-flaky-tests*" in slack_msgs[0]
-    assert "assignee claude1" in slack_msgs[0]
-
-    # A new task dir got scaffolded under tasks/.
-    cfg = load_config(bootstrap_repo)
-    refs = list_tasks(cfg)
-    assert len(refs) == 1
-    new_ref = refs[0]
-    assert new_ref.slug == "investigate-flaky-tests"
-
-    # Frontmatter inherited from the shim, status=draft, title set.
-    from relay.ticket import Ticket
-    t = Ticket.read(new_ref.path / "ticket.md")
-    assert t.frontmatter["title"] == "Investigate flaky tests"
-    assert t.frontmatter["status"] == "draft"
-    assert t.frontmatter["mode"] == "interactive"
-    assert t.frontmatter["assignee"] == "claude1"
-    assert t.frontmatter["skill"] == "bootstrap/ticket"
-
-    # Skill body composed into the prompt for the new task.
-    prompt = captured["prompt"]
-    assert isinstance(prompt, str)
-    assert "Skill: bootstrap/ticket" in prompt
-    assert "Interview, scaffold, fill in the ticket." in prompt
-
-    # Launch went against the new task, not the shim.
-    log = (new_ref.path / "log.md").read_text()
-    assert "launched in interactive mode" in log
-    # Lock for the new task was acquired and released.
-
-
-def test_launch_title_arg_rejected_for_regular_tasks(
-    active_task: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
-    runner = CliRunner()
-    result = runner.invoke(app, ["launch", "fix-retry-logic", "Some title"])
-    assert result.exit_code == 2
-    assert "bootstrap" in (result.output + (result.stderr or ""))
