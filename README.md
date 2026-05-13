@@ -40,6 +40,21 @@ re-exec): with multiple operational repos that quickly turns into a mess of
 relay assumes everyone keeps their global install reasonably current — a
 periodic `git pull && pip install -e .` in the source repo is enough.
 
+## External CLI Tools
+
+`requirements.txt` is only for Python packages. Relay also shells out to a few
+human-installed command line tools:
+
+- `git` — required. Relay stores state in the current git repo and uses normal
+  working-tree diffs as the review surface.
+- `python` 3.11+ — required for the Relay CLI and the vendored `.relay/` copy.
+- `gh` — required for GitHub-backed PR workflows such as opening PRs,
+  checking merged PRs, and automerge. Run `gh auth login` before relying on
+  those paths.
+- `gh` 2.90.0+ with `gh skill` — required for Relay-managed skill install and
+  update workflows once those commands land. Older `gh` versions should fail
+  loud with an upgrade hint.
+
 After init, edit the freshly-written `relay-os/relay.toml` to declare your
 agents and assignees, and set `user = "<you>"` in
 `relay-os/relay.local.toml`. Then create your first ticket:
