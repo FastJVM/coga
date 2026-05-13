@@ -1,4 +1,12 @@
-"""`relay launch` — compose context and start work on a task."""
+"""`relay launch` — compose context and start work on a task.
+
+Launch never mutates `status`. Drafts must be activated via
+`relay mark active <slug>` first; paused / done tickets must be marked
+back to `active` before they can be launched.
+
+Bootstrap shims are stateless re-entry points (no status, no log of state
+changes) — launch is the only way to run a skill against one.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +16,6 @@ import shutil
 import signal
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
 
 import typer
@@ -21,10 +28,8 @@ from relay.compose import (
     compose_prompt_report,
     write_prompt_file,
 )
-from relay.config import Config, ConfigError, load_config
-from relay.logfile import append_log, last_activity
-from relay.scaffold import scaffold_task
-from relay.slack import post
+from relay.config import ConfigError, load_config
+from relay.logfile import append_log
 from relay.stream_render import (
     RunSummary,
     format_run_summary_log,
@@ -37,19 +42,12 @@ from relay.tasks import (
     TaskRef,
     read_ticket,
     resolve_target,
-    resolve_task,
 )
 from relay.ticket import Ticket
-
-_LAUNCHABLE_STATUSES = {"draft", "active"}
 
 
 def launch(
     task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` shim."),
-    title: str = typer.Argument(
-        None,
-        help="With a bootstrap shim, scaffold a new draft task with this title and launch on it.",
-    ),
     agent_override: str | None = typer.Option(
         None,
         "--agent",
@@ -84,9 +82,6 @@ def launch(
         except ConfigError as exc:
             _bail(str(exc))
 
-    if prompt_report and title is not None:
-        _bail("--prompt-report cannot be used with a title argument.")
-
     if prompt_report:
         ticket = read_ticket(ref)
         if agent_override is not None and is_bootstrap:
@@ -100,20 +95,9 @@ def launch(
             typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
         return
 
-    # Factory mode: bootstrap shim + title → scaffold a new draft task
-    # seeded from the shim's frontmatter, then launch on the new task.
-    if title is not None:
-        if not is_bootstrap:
-            _bail("Title arg is only valid when launching a `bootstrap/<name>` shim.")
-        try:
-            ref = _scaffold_from_shim(cfg, ref, title, assignee_override=agent_override)
-        except (ConfigError, ValueError) as exc:
-            _bail(str(exc))
-        is_bootstrap = False
-
     # Pre-launch freshness check: if this ticket's linked PR has merged,
     # auto-bump to done before spinning up an agent against stale state.
-    # Bootstrap shims have no status / PR link — `_try_bump_one` no-ops
+    # Bootstrap shims have no status / PR link — `auto_bump_one` no-ops
     # on them via the candidate filter, but skip for clarity. Same with
     # `--no-verify`.
     if not is_bootstrap and not no_verify and isinstance(ref, TaskRef):
@@ -143,42 +127,27 @@ def launch(
 
     typer.echo(
         f"Launch: task {ref.id_slug} "
-        f"(status={ticket.status}, mode={ticket.mode}, assignee={ticket.assignee or 'unassigned'})"
+        f"(status={ticket.status if not is_bootstrap else 'n/a'}, mode={ticket.mode}, "
+        f"assignee={ticket.assignee or 'unassigned'})"
     )
 
-    # Announce ticket creation when the factory mode just scaffolded one.
-    # `title is not None` was the factory-mode signal above; we re-derive
-    # it here rather than threading another local because the post needs
-    # the read ticket either way.
-    if title is not None:
-        typer.echo("Launch: posting scaffold notification")
-        post(
-            cfg,
-            f"✨ {cfg.current_user} scaffolded *{ref.id_slug}* "
-            f"\"{ticket.title}\" — "
-            f"assignee {ticket.assignee or 'unassigned'}",
-            task_path=ref.path,
-            owner=ticket.owner or cfg.current_user,
-        )
-        typer.echo("Launch: scaffold notification posted")
-
-    if not is_bootstrap and ticket.status not in _LAUNCHABLE_STATUSES:
-        _bail(
-            f"Task {ref.id_slug} is {ticket.status!r}. "
-            f"Set status to 'draft' or 'active' before launching."
-        )
+    if not is_bootstrap:
+        if ticket.status == "draft":
+            _bail(
+                f"Task {ref.id_slug} is draft. "
+                f"Run `relay mark active {ref.id_slug}` first."
+            )
+        if ticket.status != "active":
+            _bail(
+                f"Task {ref.id_slug} is {ticket.status!r}. "
+                f"Run `relay mark active {ref.id_slug}` to relaunch."
+            )
 
     assignee = ticket.assignee
     if not assignee:
         _bail(f"Task {ref.id_slug} has no assignee")
 
     mode = ticket.mode
-
-    # Soft-warn if the ticket is already active — status is the signal
-    # that someone is already working on it. Bootstrap shims are stateless
-    # re-entry points, so this check doesn't apply.
-    if not is_bootstrap and ticket.status == "active":
-        _warn_already_active(ref, ticket, mode)
 
     if mode == "script":
         if agent_override is not None:
@@ -216,30 +185,6 @@ def launch(
     if agent_path is None:
         _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
     typer.echo(f"Launch: found agent CLI at {agent_path}")
-
-    # Launching is the approval gesture: a draft becomes active.
-    # Skip for tickets carrying a top-level skill ref (bootstrap-style):
-    # the bootstrap skill leaves the new task as `draft` so the human's
-    # *next* launch is what approves the real work (spec L611).
-    if not is_bootstrap and not ticket.skill and ticket.status == "draft":
-        ticket.frontmatter["status"] = "active"
-        ticket.write(ref.path / "ticket.md")
-        append_log(
-            ref.path,
-            f"human:{cfg.current_user}",
-            "activated (draft → active)",
-        )
-        typer.echo("Launch: activated draft task")
-        typer.echo("Launch: posting activation notification")
-        post(
-            cfg,
-            f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
-            f"\"{ticket.title}\" — assignee {assignee}"
-            f"{_agent_override_note(agent_override, assignee)}",
-            task_path=ref.path,
-            owner=ticket.owner or cfg.current_user,
-        )
-        typer.echo("Launch: activation notification posted")
 
     # Inject secrets as env vars.
     env = os.environ.copy()
@@ -354,36 +299,6 @@ def launch(
 # --- helpers ------------------------------------------------------------------
 
 
-def _scaffold_from_shim(
-    cfg: Config,
-    shim: BootstrapRef,
-    title: str,
-    *,
-    assignee_override: str | None = None,
-) -> TaskRef:
-    """Scaffold a new draft task seeded from a bootstrap shim's frontmatter.
-
-    The shim ticket carries the `mode`, `assignee`, and `skill` ref the new
-    task should inherit; the agent will fill in workflow/contexts/description
-    during its first launch.
-    """
-    shim_ticket = read_ticket(shim)
-    result = scaffold_task(
-        cfg=cfg,
-        title=title,
-        workflow_name=None,
-        contexts=[],
-        mode=shim_ticket.mode,
-        owner=cfg.current_user,
-        assignee=assignee_override or shim_ticket.assignee,
-        watchers=[],
-        status="draft",
-        skill=shim_ticket.skill,
-        created_by=f"bootstrap:{shim.name}",
-    )
-    return resolve_task(cfg, result["slug"])
-
-
 def _run_with_stream_render(
     cmd: list[str], env: dict[str, str]
 ) -> tuple[int, RunSummary | None]:
@@ -489,12 +404,6 @@ def _harness_stop_reason(ref: TaskRef, before: Ticket, after: Ticket) -> str | N
     return None
 
 
-def _agent_override_note(agent_override: str | None, assignee: str) -> str:
-    if agent_override is None or agent_override == assignee:
-        return ""
-    return f" (launched with {agent_override})"
-
-
 def _format_prompt_report(id_slug: str, composition: PromptComposition) -> str:
     lines = [
         f"Prompt report for {id_slug}",
@@ -535,44 +444,6 @@ def _launch_log_message(
 
 def _interactive_stdio_has_tty() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
-
-
-def _warn_already_active(ref: TaskRef, ticket: Ticket, mode: str) -> None:
-    """Status-is-signal soft warn: another worker may already be running.
-
-    Interactive: prompt the human to continue. Auto/script: log a warning
-    and proceed. No filesystem mutex — the failure mode (two divergent
-    blackboard edits, two PR branches) is visible and recoverable.
-    """
-    assignee = ticket.assignee or "unassigned"
-    last = last_activity(ref.path)
-    when = _format_last_activity(last)
-    line = (
-        f"⚠ {ref.id_slug} is already active "
-        f"(assignee: {assignee}, last log {when})"
-    )
-    if mode == "interactive" and sys.stdin.isatty():
-        typer.secho(line, fg=typer.colors.YELLOW, err=True)
-        if not typer.confirm("Continue anyway?", default=False):
-            _bail("aborted")
-        return
-    typer.secho(f"{line} — proceeding ({mode} mode)", fg=typer.colors.YELLOW, err=True)
-
-
-def _format_last_activity(last: datetime | None) -> str:
-    if last is None:
-        return "never"
-    delta = datetime.now() - last
-    minutes = int(delta.total_seconds() // 60)
-    if minutes < 1:
-        return "just now"
-    if minutes < 60:
-        return f"{minutes}m ago"
-    hours = minutes // 60
-    if hours < 24:
-        return f"{hours}h ago"
-    days = hours // 24
-    return f"{days}d ago"
 
 
 def _bail(msg: str) -> None:

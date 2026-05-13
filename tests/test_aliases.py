@@ -52,6 +52,31 @@ def test_validate_accepts_well_formed() -> None:
     _validate_aliases({"chat": "launch bootstrap/orient"})
 
 
+def test_validate_soft_skips_legacy_create_alias(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Every pre-split repo has the legacy `create = "launch bootstrap/ticket"`
+    line. Now that `create` is a built-in, that line would crash the CLI on
+    every invocation. The validator drops it with a stderr notice instead."""
+    aliases = {
+        "chat": "launch bootstrap/orient",
+        "create": "launch bootstrap/ticket",
+    }
+    _validate_aliases(aliases)
+    assert "create" not in aliases
+    assert aliases == {"chat": "launch bootstrap/orient"}
+    err = capsys.readouterr().err
+    assert "dropping legacy alias 'create'" in err
+
+
+def test_validate_still_rejects_non_legacy_create_collision() -> None:
+    """A user who *renames* `create` to something else and points it at
+    a different target still gets the hard collision error — only the
+    exact legacy default is soft-skipped."""
+    with pytest.raises(ConfigError, match="collides with built-in"):
+        _validate_aliases({"create": "launch bootstrap/something-else"})
+
+
 def test_main_rewrites_argv_for_alias(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -121,40 +146,12 @@ def test_builtin_set_matches_registered_commands() -> None:
     assert _BUILTIN_COMMANDS == registered
 
 
-def test_default_aliases_dispatch_without_user_aliases_section(
+def test_default_chat_alias_dispatches_without_user_aliases_section(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A repo whose `relay.toml` has no `[aliases]` still routes `relay create`.
-
-    Pre-default-aliases repos (no `[aliases]` section in `relay.toml`) used
-    to silently swallow `relay create "..."`. With code-level defaults the
-    rewriting kicks in.
-    """
+    """A repo whose `relay.toml` has no `[aliases]` still routes `relay chat`."""
     monkeypatch.chdir(repo)
-    monkeypatch.setattr("sys.argv", ["relay", "create", "First task"])
-    monkeypatch.setattr("relay.cli._register_alias_placeholder", lambda *_: None)
-
-    captured: dict[str, list[str]] = {}
-
-    def fake_app() -> None:
-        import sys
-        captured["argv"] = list(sys.argv)
-
-    monkeypatch.setattr("relay.cli.app", fake_app)
-    main()
-    assert captured["argv"] == ["relay", "launch", "bootstrap/ticket", "First task"]
-
-
-def test_user_alias_overrides_default(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """User `[aliases]` wins on key conflicts with the defaults."""
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
-        + '\n[aliases]\ncreate = "launch bootstrap/orient"\n'  # absurd override, but legal
-    )
-    monkeypatch.chdir(repo)
-    monkeypatch.setattr("sys.argv", ["relay", "create"])
+    monkeypatch.setattr("sys.argv", ["relay", "chat"])
     monkeypatch.setattr("relay.cli._register_alias_placeholder", lambda *_: None)
 
     captured: dict[str, list[str]] = {}
@@ -168,12 +165,16 @@ def test_user_alias_overrides_default(
     assert captured["argv"] == ["relay", "launch", "bootstrap/orient"]
 
 
-def test_default_aliases_register_outside_repo(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_user_alias_overrides_default(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay --help` from a non-relay-os dir still shows `chat` and `create`."""
-    monkeypatch.chdir(tmp_path)  # no relay-os here
-    monkeypatch.setattr("sys.argv", ["relay", "create", "Some title"])
+    """User `[aliases]` wins on key conflicts with the defaults."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[aliases]\nchat = "launch bootstrap/something-else"\n'
+    )
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr("sys.argv", ["relay", "chat"])
     monkeypatch.setattr("relay.cli._register_alias_placeholder", lambda *_: None)
 
     captured: dict[str, list[str]] = {}
@@ -184,7 +185,26 @@ def test_default_aliases_register_outside_repo(
 
     monkeypatch.setattr("relay.cli.app", fake_app)
     main()
-    assert captured["argv"] == ["relay", "launch", "bootstrap/ticket", "Some title"]
+    assert captured["argv"] == ["relay", "launch", "bootstrap/something-else"]
+
+
+def test_default_chat_alias_registers_outside_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay --help` from a non-relay-os dir still shows `chat`."""
+    monkeypatch.chdir(tmp_path)  # no relay-os here
+    monkeypatch.setattr("sys.argv", ["relay", "chat"])
+    monkeypatch.setattr("relay.cli._register_alias_placeholder", lambda *_: None)
+
+    captured: dict[str, list[str]] = {}
+
+    def fake_app() -> None:
+        import sys
+        captured["argv"] = list(sys.argv)
+
+    monkeypatch.setattr("relay.cli.app", fake_app)
+    main()
+    assert captured["argv"] == ["relay", "launch", "bootstrap/orient"]
 
 
 def test_default_aliases_pass_validation() -> None:

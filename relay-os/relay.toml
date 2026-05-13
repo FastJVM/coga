@@ -104,4 +104,3 @@ panic = [
 chat = "launch bootstrap/orient"
 claude = "launch bootstrap/orient --agent claude1"
 codex = "launch bootstrap/orient --agent codex1"
-create = "launch bootstrap/ticket"

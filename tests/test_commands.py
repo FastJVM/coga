@@ -81,18 +81,19 @@ def test_bump_advances(repo: Path) -> None:
     assert "advanced to step 2" in (ref.path / "log.md").read_text()
 
 
-def test_bump_to_done_marks_done(repo: Path) -> None:
+def test_bump_past_final_step_errors_with_mark_done_hint(repo: Path) -> None:
     slug, task_path = _make_task(repo)
     runner = CliRunner()
-    # Workflow has 3 steps; bumping past the last marks done.
+    # Workflow has 3 steps; advance to the final step.
     runner.invoke(app, ["bump", slug])
     runner.invoke(app, ["bump", slug])
     result = runner.invoke(app, ["bump", slug])
-    assert result.exit_code == 0
+    assert result.exit_code == 2, result.output
+    assert "final step" in result.output
+    assert f"relay mark done {slug}" in result.output
+    # Ticket stays active — bump does not mark done.
     t = Ticket.read(task_path / "ticket.md")
-    assert t.status == "done"
-    assert t.step is None
-    assert "task done" in (task_path / "log.md").read_text()
+    assert t.status == "active"
 
 
 def test_bump_rejects_non_active(repo: Path) -> None:
@@ -102,19 +103,15 @@ def test_bump_rejects_non_active(repo: Path) -> None:
     assert result.exit_code == 2
 
 
-def test_bump_no_workflow_marks_done(repo: Path) -> None:
+def test_bump_no_workflow_errors_with_mark_done_hint(repo: Path) -> None:
     slug, task_path = _make_task(repo, workflow=None)
-    t = Ticket.read(task_path / "ticket.md")
-    t.frontmatter["step"] = "1 (legacy)"
-    t.write(task_path / "ticket.md")
-
     runner = CliRunner()
     result = runner.invoke(app, ["bump", slug])
-    assert result.exit_code == 0, result.output
-    assert "done" in result.output
+    assert result.exit_code == 2, result.output
+    assert "no workflow" in result.output
+    assert f"relay mark done {slug}" in result.output
     t = Ticket.read(task_path / "ticket.md")
-    assert t.status == "done"
-    assert t.step is None
+    assert t.status == "active"
 
 
 # --- panic --------------------------------------------------------------------
@@ -185,24 +182,24 @@ def test_bump_message_appended_to_log(repo: Path) -> None:
     assert "advanced to step 2 (pr) — PR opened: https://example/142" in log
 
 
-def test_bump_message_on_no_workflow_done(repo: Path) -> None:
+def test_mark_done_message_on_no_workflow(repo: Path) -> None:
     slug, task_path = _make_task(repo, workflow=None)
     runner = CliRunner()
     result = runner.invoke(
-        app, ["bump", slug, "--message", "talked to marc, scope ok"]
+        app, ["mark", "done", slug, "--message", "talked to marc, scope ok"]
     )
     assert result.exit_code == 0, result.output
     log = (task_path / "log.md").read_text()
     assert "task done — talked to marc, scope ok" in log
 
 
-def test_bump_message_on_final_step_done(repo: Path) -> None:
+def test_mark_done_message_on_final_step(repo: Path) -> None:
     slug, task_path = _make_task(repo)
     runner = CliRunner()
     runner.invoke(app, ["bump", slug])
     runner.invoke(app, ["bump", slug])
     result = runner.invoke(
-        app, ["bump", slug, "--message", "shipped to prod"]
+        app, ["mark", "done", slug, "--message", "shipped to prod"]
     )
     assert result.exit_code == 0, result.output
     log = (task_path / "log.md").read_text()

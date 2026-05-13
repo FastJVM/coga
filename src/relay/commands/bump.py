@@ -1,4 +1,4 @@
-"""`relay bump` — advance one workflow step (or mark done)."""
+"""`relay bump` — advance one workflow step."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import typer
 from relay.bump import (
     AssigneeResolutionError,
     advance_step,
-    mark_done,
     resolve_step_assignee,
 )
 from relay.config import ConfigError, load_config
@@ -30,7 +29,11 @@ def bump(
         help="Optional FYI to piggy-back on the state-transition broadcast.",
     ),
 ) -> None:
-    """Advance one workflow step (or mark done if past the last step)."""
+    """Advance one workflow step.
+
+    Bumping past the last step is an error — call `relay mark done <slug>`
+    to finish. Tickets without a workflow can't be bumped at all.
+    """
     if message is not None and not message.strip():
         _bail("--message cannot be empty")
 
@@ -65,23 +68,12 @@ def bump(
         ticket.write(ref.path / "ticket.md")
 
     wf = ticket.workflow
-    actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
-    finisher = ticket.assignee or cfg.current_user
-    done_slack = (
-        f"🎉 {finisher} finished *{ref.id_slug}* \"{ticket.title}\"{suffix}"
-    )
 
-    # No workflow → bump marks done. The only "step" is the whole ticket.
     if not wf or not wf.get("steps"):
-        mark_done(
-            cfg, ref, ticket,
-            actor=actor,
-            log_message=f"task done{suffix}",
-            slack_text=done_slack,
-            image_url=cfg.gif_for("done"),
-            echo=f"{ref.id_slug}: done",
+        _bail(
+            f"Task {ref.id_slug} has no workflow. "
+            f"Run `relay mark done {ref.id_slug}` to finish."
         )
-        return
 
     steps = wf["steps"]
     total = len(steps)
@@ -89,16 +81,10 @@ def bump(
     next_step = current_idx + 1
 
     if current_idx >= total:
-        # Already on the final step: bump marks done.
-        mark_done(
-            cfg, ref, ticket,
-            actor=actor,
-            log_message=f"task done{suffix}",
-            slack_text=done_slack,
-            image_url=cfg.gif_for("done"),
-            echo=f"{ref.id_slug}: done",
+        _bail(
+            f"Task {ref.id_slug} is on the final step. "
+            f"Run `relay mark done {ref.id_slug}` to finish."
         )
-        return
 
     new_step = steps[next_step - 1]
     new_step_name = new_step["name"]
@@ -114,6 +100,9 @@ def bump(
             new_assignee = resolved
 
     handoff = f" → assigned to {new_assignee}" if new_assignee else ""
+
+    actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
+    finisher = ticket.assignee or cfg.current_user
 
     advance_step(
         cfg, ref, ticket,

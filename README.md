@@ -109,24 +109,47 @@ agent and prints what to clear.
 ### `relay create "<title>"`
 
 Scaffold a new `draft` ticket under `relay-os/tasks/<slug>/` (slug derived
-from the title) and launch the `bootstrap/ticket` skill on it. The skill
-interviews you, scans the inventory, and fills in workflow, contexts,
-assignee, and description directly in the ticket. If the slug already
-exists, the new task gets `-2`, `-3`, … appended.
-
-Context selection is part of ticket authoring. `contexts:` entries are inlined
-into the future launch prompt, so the bootstrap skill should attach only context
-bodies the task actually needs. Workflow step `skill:` refs carry reusable
-process knowledge; they are references, not context payload.
+from the title) and post `✨` to Slack. Does **not** spawn an agent.
+The new ticket is empty — title, owner, mode, and timestamp set; workflow,
+contexts, assignee, and description still need to be filled in. If the
+slug already exists, the new task gets `-2`, `-3`, … appended.
 
 ```sh
 relay create "Add retry to webhook handler"
+relay create "Nightly cleanup" --mode auto
 ```
 
-`relay create` is shipped as a default alias for
-`relay launch bootstrap/ticket` — see [Aliases](#aliases). Programmatic
-callers (e.g. the recurring scaffolder) call `scaffold_task()` in
-`relay.scaffold` directly with the full keyword surface.
+`create` is one third of the boot sequence:
+
+1. `relay create "<title>"` — scaffold the draft.
+2. Edit the ticket body (workflow, contexts, description).
+3. `relay mark active <slug>` — flip status to active.
+4. `relay launch <slug>` — spawn the agent.
+
+The split keeps the moment of authoring distinct from the moment of
+starting work. Tickets you mean to draft now and start later get the
+same `create` call; nothing fires until you choose to.
+
+Programmatic callers (e.g. the recurring scaffolder) call
+`scaffold_task()` in `relay.scaffold` directly with the full keyword
+surface.
+
+### `relay mark <state> <slug> [--message "..."]`
+
+Change a ticket's `status`. Three subcommands:
+
+```sh
+relay mark active add-retry         # draft / paused → active. Posts 🚀.
+relay mark paused add-retry         # active → paused. Posts ⏸️. Preserves step.
+relay mark done   add-retry         # active → done.   Posts 🎉. Clears step.
+```
+
+`relay mark` is the only command that writes `status:`. `relay launch`
+no longer activates drafts; `relay bump` no longer marks final-step
+tickets done. The two state machines are entirely separated.
+
+`--message` piggy-backs an FYI onto the state-transition Slack
+broadcast — one post instead of two.
 
 ### `relay recurring check`
 
@@ -154,25 +177,24 @@ workflow, and define the operational checks that matter to that repo. Stale
 branch cleanup belongs in a dev maintenance loop, not in Dream's generic ticket
 cleanup pass.
 
-### `relay launch <target> [title]`
+### `relay launch <target>`
 
 Compose every relevant file for a task — rules, project context, ticket,
 attached contexts, current workflow step, frozen skills — into a single
-prompt and start the configured agent against it. If the ticket is
-already `status: active`, soft-warns with the current assignee and last
-log activity; in interactive mode asks before proceeding.
+prompt and start the configured agent against it.
+
+`launch` requires `status: active`. Drafts must be activated with
+`relay mark active <slug>` first; paused / done tickets must be marked
+back to active before they can be launched. `launch` no longer mutates
+status itself.
 
 ```sh
 relay launch add-retry-to-webhook-handler          # full slug
 relay launch add-retry                              # any unique prefix works
 relay launch add-retry --agent codex1               # one-off agent override
 relay launch add-retry --prompt-report              # show prompt layer sizes, no launch
-relay launch bootstrap/ticket                       # stateless shim → run a skill
+relay launch bootstrap/orient                       # stateless shim → run a skill
 relay launch bootstrap/orient --agent codex1        # choose a bootstrap agent
-relay launch bootstrap/ticket "Add retry to webhook handler"
-                                                    # factory: scaffold a draft task
-                                                    # with that title and launch the
-                                                    # bootstrap/ticket skill on it
 ```
 
 Tasks are addressed by slug — there is no numeric ID. Pass any unique prefix
@@ -186,9 +208,6 @@ Bootstrap shims use the same flag for one-off sessions, so `relay chat --agent
 codex1` can open the orient shim with Codex while `relay chat --agent claude1`
 opens it with Claude.
 
-A task is launchable in `draft` (agent is authoring) or `active` (agent is
-executing) status. `paused` and `done` require a flip first.
-
 For workflow-bound interactive/auto tasks, one `relay launch` can run multiple
 agent-owned steps. After each clean agent exit, Relay re-reads the ticket and
 continues in a fresh agent process only when the task is still active, the step
@@ -196,21 +215,17 @@ advanced, the new current step has a `skill:`, and the concrete `assignee:`
 did not change. It stops at human/no-skill steps, assignee handoffs, done or
 paused tasks, no-progress exits, and panic/non-zero exits.
 
-Use `--prompt-report` to inspect the composed prompt without activating a draft,
-acquiring a lock, checking for a TTY, or spawning an agent. The report lists each
-included layer, exact context/skill refs, bytes, and approximate token counts.
-The token estimate is intentionally dependency-light (`characters / 4`), so use
-it to catch prompt bloat and compare tasks, not to predict exact provider billing.
+Use `--prompt-report` to inspect the composed prompt without checking for a
+TTY or spawning an agent. The report lists each included layer, exact
+context/skill refs, bytes, and approximate token counts. The token estimate is
+intentionally dependency-light (`characters / 4`), so use it to catch prompt
+bloat and compare tasks, not to predict exact provider billing.
 
-`bootstrap/<name>` tickets are stateless re-entry points for skills. Without
-a title arg they run as authoring sessions and don't acquire a lock —
-concurrent launches are safe. With a title, they act as factories: scaffold
-a new task seeded from the shim's frontmatter (mode, assignee, skill),
-status=draft, then launch the agent on the new task to fill in the details.
-
-Init ships `bootstrap/ticket` (authoring flow); the `relay-os/bootstrap/`
-tree is upstream-managed and refreshed wholesale by `relay init --update`,
-so don't add custom shims there — write your own launch wrappers elsewhere.
+`bootstrap/<name>` tickets are stateless re-entry points for skills.
+Concurrent launches are safe — they have no status, no log of state changes,
+and no lock. The `relay-os/bootstrap/` tree is upstream-managed and refreshed
+wholesale by `relay init --update`, so don't add custom shims there — write
+your own launch wrappers elsewhere.
 
 ### `relay status`
 
@@ -236,18 +251,22 @@ relay show bootstrap/orient
 ### `relay bump <slug> [--message "..."]`
 
 Advance a workflow-bound task one step. Updates the ticket's `step:`
-field and appends a log entry. Bumping past the last step marks the task
-`done`. The workflow itself is frozen into the ticket at create time, so
-step semantics don't drift mid-task.
+field and appends a log entry. The workflow itself is frozen into the
+ticket at create time, so step semantics don't drift mid-task.
+
+`bump` no longer finishes tickets. Bumping past the last step is an
+error pointing you at `relay mark done <slug>`. Bumping a ticket
+without a workflow is the same error — `mark done` is how you finish
+those.
 
 `--message` piggy-backs an FYI onto the state-transition Slack
-broadcast — useful for "advanced to (pr) — PR opened: <link>" or
-"finished — talked to marc, scope ok" without firing a second message.
+broadcast — useful for "advanced to (pr) — PR opened: <link>" without
+firing a second message.
 
 ```sh
 relay bump add-retry                         # advance one step
 relay bump add-retry --message "PR: https://example/142"
-relay bump add-retry                         # again, until past the last → done
+relay mark done add-retry                    # finish (on final step, or no workflow)
 ```
 
 ### `relay automerge`
@@ -389,14 +408,12 @@ chat = "launch bootstrap/orient"
 # Optional once those nicknames exist for the current user:
 # claude = "launch bootstrap/orient --agent claude1"
 # codex = "launch bootstrap/orient --agent codex1"
-create = "launch bootstrap/ticket"
 ```
 
-So `relay create "Add retry"` runs as
-`relay launch bootstrap/ticket "Add retry"` (and prints the expansion to
-stderr — `→ relay launch bootstrap/ticket "Add retry"` — so the
-indirection is visible). Add your own for shims or skills you launch
-often.
+`create` is a built-in command, not an alias — it has its own
+scaffolding behavior. Add your own aliases for shims or skills you
+launch often; running an alias prints the expansion to stderr —
+`→ relay launch bootstrap/orient` — so the indirection is visible.
 
 Rules, checked at config load — fail loud, not silent:
 - Alias names cannot collide with built-in commands.
