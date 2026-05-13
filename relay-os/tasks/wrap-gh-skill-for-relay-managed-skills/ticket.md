@@ -1,17 +1,17 @@
 ---
 title: Wrap gh skill for Relay-managed skills
-status: draft
+status: done
 mode: interactive
 owner: nick
 human: nick
-assignee: nick
+assignee: codex1
 contexts:
-  - relay/architecture
-  - relay/principles
-  - relay/codebase
-  - relay/current-direction
-  - relay/project-stage
-  - dev/code
+- relay/architecture
+- relay/principles
+- relay/codebase
+- relay/current-direction
+- relay/project-stage
+- dev/code
 ---
 
 ## Description
@@ -98,25 +98,25 @@ locally, and local directory.
 
 ## Acceptance criteria
 
-- [ ] `relay skill install` can install a GitHub-backed skill into
+- [x] `relay skill install` can install a GitHub-backed skill into
       `relay-os/skills` through `gh skill`.
-- [ ] `relay skill install-url` can install a skill from a non-GitHub URL by
+- [x] `relay skill install-url` can install a skill from a non-GitHub URL by
       downloading locally, validating `SKILL.md`, and preserving original URL
       metadata.
-- [ ] `relay skill install-local` can install from an already-downloaded local
+- [x] `relay skill install-local` can install from an already-downloaded local
       directory.
-- [ ] `relay skill update --all` handles both GitHub-backed skills and
+- [x] `relay skill update --all` handles both GitHub-backed skills and
       URL-backed skills, while skipping locally adapted skills with clear
       evidence.
-- [ ] `relay skill remove <skill>` removes only an exact installed skill path
+- [x] `relay skill remove <skill>` removes only an exact installed skill path
       and is reviewable through git diff.
-- [ ] `relay skill status` summarizes installed skills by source type, current
+- [x] `relay skill status` summarizes installed skills by source type, current
       ref/digest, update availability, and conflict/fetch failures.
-- [ ] Dream can run the update-all workflow and open/update one PR with command
+- [x] Dream can run the update-all workflow and open/update one PR with command
       output, verification, and a human-readable skill-change summary.
-- [ ] The README external CLI tool list stays accurate for the `gh skill`
+- [x] The README external CLI tool list stays accurate for the `gh skill`
       dependency.
-- [ ] Tests cover GitHub delegation command construction, URL download/local
+- [x] Tests cover GitHub delegation command construction, URL download/local
       install, local adaptation skip, exact remove, missing `gh skill`, and the
       Dream PR summary path.
 
