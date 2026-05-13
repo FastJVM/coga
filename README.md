@@ -192,6 +192,31 @@ workflow, and define the operational checks that matter to that repo. Stale
 branch cleanup belongs in a dev maintenance loop, not in Dream's generic ticket
 cleanup pass.
 
+### `relay skill`
+
+Manage skills under `relay-os/skills/` without inventing a second package
+manager. GitHub-backed installs and updates delegate to GitHub CLI's public
+preview `gh skill` command; Relay adds exact removal, URL-backed provenance,
+local-adaptation checks, and a PR-ready update summary for Dream.
+
+```sh
+relay skill install owner/repo skill-name
+relay skill install-url https://example.com/skill.zip
+relay skill install-local ./downloaded-skill
+relay skill update skill-name
+relay skill update --all
+relay skill update --all --pr --verify "relay validate --json"
+relay skill remove skill-name
+relay skill status --check
+```
+
+URL-backed installs are downloaded into a temporary directory, validated for a
+`SKILL.md`, installed through `gh skill install --from-local`, then recorded in
+`relay-os/skills/<name>/.relay-source.json` with the original URL and content
+digests. URL-backed updates re-fetch that source and skip locally adapted
+skills instead of overwriting them. Removal is exact-name only and leaves a
+normal git delete for review.
+
 ### `relay launch <target>`
 
 Compose every relevant file for a task — rules, project context, ticket,
