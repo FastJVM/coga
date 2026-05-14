@@ -364,6 +364,63 @@ def test_install_url_checks_gh_skill_before_downloading(
     assert GH_SKILL_REQUIRED in str(exc.value)
 
 
+def test_install_github_multi_skill_repo_translates_gh_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+
+    def multi_skill_runner(args, cwd=None):
+        command = list(args)
+        if command == ["gh", "skill", "--help"]:
+            return _completed(command, stdout="gh skill help")
+        return _completed(
+            command,
+            returncode=1,
+            stderr=(
+                "Using ref v0.1.3 (f73062ca)\n"
+                "must specify a skill name when not running interactively\n"
+            ),
+        )
+
+    with pytest.raises(SkillManagerError) as exc:
+        install_github_skill(
+            cfg,
+            "https://github.com/google/agents-cli",
+            runner=multi_skill_runner,
+        )
+
+    message = str(exc.value)
+    assert "https://github.com/google/agents-cli" in message
+    assert "relay skill install https://github.com/google/agents-cli <skill>" in message
+    assert "gh api repos/google/agents-cli/contents/skills" in message
+    assert "Usage:" not in message
+
+
+def test_install_local_multi_skill_dir_translates_gh_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    source = tmp_path / "local-skills"
+    source.mkdir()
+
+    def multi_skill_runner(args, cwd=None):
+        command = list(args)
+        if command == ["gh", "skill", "--help"]:
+            return _completed(command, stdout="gh skill help")
+        return _completed(
+            command,
+            returncode=1,
+            stderr="must specify a skill name when not running interactively",
+        )
+
+    with pytest.raises(SkillManagerError) as exc:
+        install_local_skill(cfg, source, runner=multi_skill_runner)
+
+    message = str(exc.value)
+    assert str(source) in message
+    assert f"ls {source}" in message
+
+
 def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
