@@ -81,7 +81,6 @@ def test_dream_logs_before_launching(
 
     def fake_launch(
         task: str,
-        title: str | None,
         agent_override: str | None,
         prompt_report: bool,
         no_verify: bool,
@@ -89,7 +88,6 @@ def test_dream_logs_before_launching(
         calls.append(
             {
                 "task": task,
-                "title": title,
                 "agent_override": agent_override,
                 "prompt_report": prompt_report,
                 "no_verify": no_verify,
@@ -111,7 +109,6 @@ def test_dream_logs_before_launching(
     assert calls == [
         {
             "task": "dream",
-            "title": None,
             "agent_override": None,
             "prompt_report": False,
             "no_verify": False,
