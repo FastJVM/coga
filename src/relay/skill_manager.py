@@ -267,16 +267,18 @@ def status_skills(
             )
             continue
         source_type = _infer_non_relay_source_type(skill_dir)
+        if source_type == "github":
+            status = "delegated"
+            message = "managed by gh skill metadata"
+        else:
+            status = "unmanaged"
+            message = "no Relay source metadata"
         results.append(
             SkillResult(
                 name=ref,
                 source_type=source_type,
-                status="not-checked",
-                message=(
-                    "managed by gh skill metadata"
-                    if source_type == "github"
-                    else "no Relay source metadata"
-                ),
+                status=status,
+                message=message,
             )
         )
     return results

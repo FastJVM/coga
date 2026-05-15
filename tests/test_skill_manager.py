@@ -309,6 +309,29 @@ def test_status_check_reports_url_update_availability(
     assert results[0].status == "upstream-changed"
 
 
+def test_status_labels_non_relay_skill_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    _write(
+        cfg.repo_root / "skills" / "custom" / "SKILL.md",
+        "---\nname: custom\n---\nlocal-only\n",
+    )
+    _write(
+        cfg.repo_root / "skills" / "github-tool" / "SKILL.md",
+        "---\nname: github-tool\n---\nhttps://github.com/example/skill\n",
+    )
+
+    results = {result.name: result for result in status_skills(cfg)}
+
+    assert results["custom"].source_type == "unknown"
+    assert results["custom"].status == "unmanaged"
+    assert results["custom"].message == "no Relay source metadata"
+    assert results["github-tool"].source_type == "github"
+    assert results["github-tool"].status == "delegated"
+    assert results["github-tool"].message == "managed by gh skill metadata"
+
+
 def test_remove_requires_exact_installed_skill_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -417,9 +417,11 @@ def test_status_narrow_terminal_keeps_each_task_on_one_line(
     runner = CliRunner()
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0, result.output
-    # Header + one data row + separator. Anything more means Rich wrapped.
+    # Header + one data row + separator, followed by the summary footer.
+    # Anything more in the table means Rich wrapped.
     body = [line for line in result.output.splitlines() if line.strip()]
-    assert len(body) <= 3, result.output
+    assert body[-1] == "1 task  ·  1 active"
+    assert len(body[:-1]) <= 3, result.output
 
 
 def test_status_does_not_show_title_column(repo: Path) -> None:
