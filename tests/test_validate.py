@@ -263,12 +263,12 @@ def test_run_no_slack_check_by_default(
     run(cfg)  # must not raise
 
 
-def test_stuck_active_flagged(repo: Path) -> None:
+def test_stuck_in_progress_flagged(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude1",
-        watchers=[], status="active",
+        watchers=[], status="in_progress",
     )
     ref = list_tasks(cfg)[0]
     # Backdate log.md's mtime
@@ -276,4 +276,4 @@ def test_stuck_active_flagged(repo: Path) -> None:
     import os
     os.utime(ref.path / "log.md", (old, old))
     report = run(cfg, idle_hours=72.0)
-    assert any(i.kind == "stuck-active" for i in report.issues)
+    assert any(i.kind == "stuck-in-progress" for i in report.issues)

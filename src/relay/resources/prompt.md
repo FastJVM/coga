@@ -18,7 +18,8 @@ Each task lives in `relay-os/tasks/<slug>/` and contains:
 - `blackboard.md` — shared workspace for you and the human. Write here often.
   Read here first when picking up after a blocker or relaunch.
 - `log.md` — append-only audit trail. **Do not write to this file.** CLI
-  commands (`relay create`, `relay mark`, `relay bump`, `relay panic`) are the only writers.
+  commands (`relay draft`, `relay ticket`, `relay mark`, `relay launch`,
+  `relay bump`, `relay panic`) are the only writers.
   Write observations in the blackboard instead.
 
 ## Blackboard
@@ -49,7 +50,8 @@ Rules:
   ticket frontmatter and moves to the next one. There is no number to pass;
   you cannot skip ahead.
 - **After bumping, inspect the new state.** Re-read `ticket.md` or run
-  `relay show <id>` after a successful bump. If the task is still `active`,
+  `relay show <id>` after a successful bump. If the task is still
+  `in_progress`,
   the concrete assignee is still you/the same agent, and the new current step
   has a `skill:`, continue that next step in this same session: read the
   skill from `relay-os/skills/...`, follow it, update the blackboard, and

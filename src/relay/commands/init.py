@@ -70,13 +70,14 @@ workflow step are loaded too.
 ## Common commands
 
 - `relay status` — triage view of all tasks
-- `relay create "<title>"` — scaffold a new task
+- `relay ticket "<title>"` — guided task authoring
+- `relay draft "<title>"` — raw draft scaffold
 - `relay dream` — run the Relay cleanup pass now
 - `relay mark active <slug>` — activate a draft before launch
-- `relay launch <slug>` — resume a task (any unique prefix works)
+- `relay launch <slug>` — start or resume a task (any unique prefix works)
 - `relay show <slug>` — read a task's ticket / blackboard / log
 - `relay bump <slug>` — advance one workflow step
-- `relay mark done <slug>` — finish an active task
+- `relay mark done <slug>` — finish active or in-progress work
 - `relay panic --task <slug> --reason "..."` — escalate when blocked
 - `relay --help` — full CLI surface
 

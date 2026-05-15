@@ -10,6 +10,7 @@ import typer
 
 from relay.config import Config
 from relay.logfile import append_log
+from relay.mark import mark_in_progress
 from relay.paths import skill_path
 from relay.skill import Skill
 from relay.slack import post
@@ -50,6 +51,20 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     script_path = skill.dir / skill.script
     if not script_path.is_file():
         _bail(f"Script not found: {script_path}")
+
+    if ticket.status == "active":
+        mark_in_progress(
+            cfg,
+            ref,
+            ticket,
+            actor="system",
+            log_message="started (active → in_progress) via relay launch",
+            slack_text=(
+                f"▶️ script started on *{ref.id_slug}* \"{ticket.title}\" "
+                f"— step {ticket.step}"
+            ),
+            echo=f"{ref.id_slug}: in_progress",
+        )
 
     env = os.environ.copy()
     env.update(cfg.secrets)

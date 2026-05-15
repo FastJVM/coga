@@ -35,7 +35,7 @@ from relay.paths import context_path, skill_path
 from relay.tasks import list_tasks
 from relay.ticket import Ticket, TicketError
 
-VALID_STATUSES = {"draft", "active", "paused", "done"}
+VALID_STATUSES = {"draft", "active", "in_progress", "paused", "done"}
 
 
 @dataclass
@@ -194,17 +194,17 @@ def run(
                 severity="warn",
             ))
 
-        # Stuck-active: status=active but log.md hasn't been touched in `idle_hours`.
-        if ticket.status == "active":
+        # Stuck in progress: work started but log.md has not moved in `idle_hours`.
+        if ticket.status == "in_progress":
             log_path = ref.path / "log.md"
             if log_path.is_file():
                 mtime = datetime.fromtimestamp(log_path.stat().st_mtime, tz=timezone.utc)
                 idle = now - mtime
                 if idle > timedelta(hours=idle_hours):
                     report.issues.append(Issue(
-                        kind="stuck-active",
+                        kind="stuck-in-progress",
                         task=task_label,
-                        message=f"active but idle for {idle.total_seconds() / 3600:.1f}h",
+                        message=f"in_progress but idle for {idle.total_seconds() / 3600:.1f}h",
                         severity="warn",
                     ))
 

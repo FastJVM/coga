@@ -55,10 +55,11 @@ Last updated: 2026-05-06.
   `chat = "launch bootstrap/orient"`. Validated at config load:
   alias names can't collide with built-ins; first token of expansion
   must be a known built-in.
-- **`relay create` is a built-in command again.** It scaffolds a
-  draft ticket and posts `✨` — no agent launch. Its `scaffold_task()`
-  helper lives in `src/relay/scaffold.py` and is shared with the
-  recurring scaffolder. Aliases stay positional-pass-through only.
+- **`relay draft` and `relay ticket` split raw scaffolding from guided
+  authoring.** `relay draft` scaffolds a raw draft and posts `✨`;
+  `relay create` remains a compatibility spelling. `relay ticket`
+  runs the `bootstrap/ticket` interview against a new or existing
+  draft/active/paused ticket. Aliases stay positional-pass-through only.
 - **Aliases print their expansion to stderr.** `relay chat` prints
   `→ relay launch bootstrap/orient` before dispatching, so the
   indirection is visible. Users learn the long form by using the short
@@ -84,18 +85,17 @@ ones that affect implementation:
   ticket) errors and points at `relay mark done`.
 - **`relay recurring check` is the canonical entry point** for the
   cron scaffolder. Cron scripts and docs call it directly rather
-  than going through `relay create`.
+  than going through `relay draft` / `scaffold_task()`.
 - **Lock cleanup is human-needed by default.** `relay validate`
   reports stale locks but doesn't auto-clean. Dream's `validate-drift` skill
   classifies stale locks for human review unless a narrower skill contract has
   exact evidence that deletion is safe.
-- **Control plane and data plane are fully split.** `relay mark
-  active | paused | done` owns every `status:` transition; `relay
-  bump` owns every `step:` transition. `relay launch` reads status
-  (refuses anything other than `active`) and never writes it. The
-  three-step boot for a new task is explicit: `relay create
-  "<title>"` → edit the draft → `relay mark active <slug>` →
-  `relay launch <slug>`. There is no auto-flip from draft.
+- **Control plane and data plane are fully split.** `draft` is unapproved,
+  `active` is approved/queued, and `in_progress` is launched work. `relay
+  launch` owns the `active` → `in_progress` start transition; `relay bump`
+  owns `step:` movement and only runs while the task is `in_progress`.
+  The normal boot is `relay ticket "<title>"` → review the draft →
+  `relay mark active <slug>` → `relay launch <slug>`.
 
 ## Open ticket queue (audit-driven bugs)
 

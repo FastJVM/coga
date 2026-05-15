@@ -56,7 +56,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return company
 
 
-def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "active") -> tuple[str, Path]:
+def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "in_progress") -> tuple[str, Path]:
     cfg = load_config(repo)
     ref = scaffold_task(
         cfg=cfg, title="Work", workflow_name=workflow,
@@ -91,12 +91,12 @@ def test_bump_past_final_step_errors_with_mark_done_hint(repo: Path) -> None:
     assert result.exit_code == 2, result.output
     assert "final step" in result.output
     assert f"relay mark done {slug}" in result.output
-    # Ticket stays active — bump does not mark done.
+    # Ticket stays in progress — bump does not mark done.
     t = Ticket.read(task_path / "ticket.md")
-    assert t.status == "active"
+    assert t.status == "in_progress"
 
 
-def test_bump_rejects_non_active(repo: Path) -> None:
+def test_bump_rejects_non_in_progress(repo: Path) -> None:
     slug, _ = _make_task(repo, status="paused")
     runner = CliRunner()
     result = runner.invoke(app, ["bump", slug])
@@ -111,7 +111,7 @@ def test_bump_no_workflow_errors_with_mark_done_hint(repo: Path) -> None:
     assert "no workflow" in result.output
     assert f"relay mark done {slug}" in result.output
     t = Ticket.read(task_path / "ticket.md")
-    assert t.status == "active"
+    assert t.status == "in_progress"
 
 
 # --- panic --------------------------------------------------------------------
@@ -244,7 +244,7 @@ def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
         contexts=[], mode="interactive",
         owner="marc", assignee="claude1",
         human="marc", agent="claude1",
-        watchers=[], status="active",
+        watchers=[], status="in_progress",
     )
     slug = ref["slug"]
     task_path = ref["path"]
@@ -293,7 +293,7 @@ def test_bump_role_token_with_missing_field_fails_loud(repo: Path) -> None:
         contexts=[], mode="interactive",
         owner="marc", assignee="claude1",
         human="marc", agent="claude1",
-        watchers=[], status="active",
+        watchers=[], status="in_progress",
     )
     # Hand-edit the ticket to remove the `human` field, then bump into the
     # human step. Bump must refuse rather than silently skip.
@@ -315,7 +315,7 @@ def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
         """
         ---
         title: Legacy
-        status: active
+        status: in_progress
         mode: interactive
         owner: marc
         assignee: claude1
@@ -343,7 +343,7 @@ def test_bump_handoff_appears_in_slack_text(repo: Path) -> None:
         contexts=[], mode="interactive",
         owner="marc", assignee="claude1",
         human="marc", agent="claude1",
-        watchers=[], status="active",
+        watchers=[], status="in_progress",
     )
     runner = CliRunner()
     result = runner.invoke(app, ["bump", ref["slug"]])

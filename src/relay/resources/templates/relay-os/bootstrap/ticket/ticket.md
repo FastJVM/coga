@@ -9,10 +9,10 @@ assignee: claude1
 
 Persistent launch shim for an interactive ticket-authoring session.
 
-Use `relay create "<title>"` when you already know the task title and want a
-draft immediately. Use `relay launch bootstrap/ticket` when you want the
-skill to interview the human first; once it has enough information, it calls
-`relay create` itself to scaffold a draft.
+Use `relay draft "<title>"` when you already know the task title and want raw
+draft bytes immediately. Use `relay ticket` or `relay launch bootstrap/ticket`
+when you want the skill to interview the human first; the skill can scaffold a
+draft with `relay draft` and then edit it.
 
 This shim is stateless. It has no status and acquires no lock — every
 launch is independent. Don't edit the ticket itself except to swap the

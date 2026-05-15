@@ -22,6 +22,7 @@ from relay.commands import show as show_cmd
 from relay.commands import slack as slack_cmd
 from relay.commands import status as status_cmd
 from relay.commands import skill as skill_cmd
+from relay.commands import ticket as ticket_cmd
 from relay.commands import bump as bump_cmd
 from relay.commands import validate as validate_cmd
 from relay.commands.update import read_pin
@@ -69,6 +70,8 @@ def _root(
 
 app.command("init")(init_cmd.init)
 app.command("create")(create_cmd.create)
+app.command("draft")(create_cmd.draft)
+app.command("ticket")(ticket_cmd.ticket)
 app.command("launch")(launch_cmd.launch)
 app.command("status")(status_cmd.status)
 app.command("show")(show_cmd.show)
@@ -91,8 +94,8 @@ app.add_typer(recurring_cmd.app, name="recurring")
 _BUILTIN_COMMANDS = frozenset(
     {
         "init", "create", "launch", "status", "show", "bump", "automerge",
-        "delete", "dream", "retire", "panic", "slack", "skill", "mark",
-        "recurring", "validate",
+        "delete", "draft", "dream", "retire", "panic", "slack", "skill",
+        "mark", "recurring", "ticket", "validate",
     }
 )
 

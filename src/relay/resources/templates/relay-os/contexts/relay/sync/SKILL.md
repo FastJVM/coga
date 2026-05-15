@@ -13,17 +13,21 @@ the agents are doing. That channel, in relay, is Slack.
 State-changing CLI commands post to the same Slack channel via an
 incoming webhook. The current broadcast surface:
 
-- `relay create` — a new draft ticket lands in the queue.
+- `relay draft` / `relay create` — a new raw draft ticket lands in the queue.
+- `relay ticket "<title>"` — also posts the raw draft creation before the
+  authoring interview starts.
 - `relay recurring check` — one post per scaffolded recurring task,
   plus an end-of-run summary when any templates failed to parse.
 - `relay mark active` — the moment work is approved, distinct from
   the *session* opening.
-- `relay mark paused` / `relay mark done` — control-plane transitions
-  away from active.
+- `relay launch` — an approved `active` ticket starts and becomes
+  `in_progress`.
+- `relay mark paused` / `relay mark done` — control-plane transitions away
+  from active or in-progress work.
 - `relay bump` — step advances (workflow plane only).
   Optional `--message` piggy-backs an FYI onto the broadcast.
 - `relay automerge` (and the `post-merge` hook + `relay status` callers
-  that wrap it) — auto-bumps active tickets to `done` when their
+  that wrap it) — auto-bumps active/in-progress tickets to `done` when their
   blackboard `## Dev` PR has merged. Posts a distinct
   `🎉 *<slug>* "<title>" auto-bumped on merge of PR #<N>` line.
 - `relay panic` — blocker, owner named.
@@ -35,13 +39,10 @@ Slack is not an "FYI nice-to-have" — it's the synchronization point
 between async agents and the people approving, unblocking, or watching
 their work.
 
-What deliberately does *not* post: opening an interactive or auto
-session on an already-active ticket. That isn't a sync-relevant
-transition — tickets are assigned, collision risk between teammates is
-low, and the actual state changes (creation, activation, bumps,
-panics, slack FYIs) each broadcast on their own. A "started work" line per
-launch would turn the channel into a session log instead of a state
-log.
+What deliberately does *not* post: relaunching an already-`in_progress`
+interactive or auto ticket. The sync-relevant start transition already
+happened when the ticket moved `active` → `in_progress`; subsequent launches
+are resume attempts.
 
 ## Required by default
 
@@ -95,7 +96,8 @@ opt-out is active. Quiet opt-outs become forgotten opt-outs.
   (`str | None`) — both come from `relay.config`. `[slack].enabled` in
   `relay.local.toml` overrides shared.
 - Callers that post: `commands/create.py` (ticket created),
-  `commands/mark.py` (active / paused / done), `commands/recurring.py`
+  `commands/launch.py` (active → in_progress), `commands/mark.py`
+  (active / paused / done), `commands/recurring.py`
   (per-scaffold + error summary), `commands/bump.py`, `commands/slack.py`,
   `commands/panic.py`, `commands/launch_script.py` (failure path only), and
   `automerge.auto_bump_merged` (called by `commands/automerge.py` and

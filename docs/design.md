@@ -4,25 +4,18 @@ Resolves the "must resolve before building" items flagged in `relay-spec-updated
 
 ---
 
-## `relay create` — CLI + behavior
+## `relay draft` / `relay ticket` — CLI + behavior
 
 ### CLI
 
 ```
-relay create [OPTIONS]
+relay draft "<title>" [--mode interactive|auto|script]
+relay ticket [<title-or-slug>] [--agent <nickname>]
 
 Options
-  --project TEXT            Project name from relay.toml. Required unless --check-recurring.
-  --title TEXT              Human-readable title. Required unless --check-recurring.
-  --workflow TEXT           Workflow name (e.g. code/with-review). Optional.
-  --context TEXT            Context ref (e.g. email/payment-flow). Repeatable. Optional.
   --mode [interactive|auto|script]
-                            Default: interactive.
-  --owner TEXT              Default: current user from relay.local.toml.
-  --assignee TEXT           Default: owner.
-  --watcher TEXT            Additional watcher. Repeatable.
-  --status TEXT             Default: project's default_status from relay.toml.
-  --check-recurring         Instead of creating a new task, scan recurring templates and create any due tasks.
+                            Draft mode. Default: interactive.
+  --agent TEXT              Ticket-authoring agent nickname.
 ```
 
 ### Frontmatter generation
@@ -41,9 +34,18 @@ Options
 
 Deduplicated silently, order preserved (first occurrence wins). If any context ref doesn't resolve on disk, the command errors and lists every unresolved ref. No task is created.
 
-### Authoring lives in a skill, not the CLI
+### Raw scaffolding and guided authoring are separate
 
-`relay create` is intentionally mechanical — it scaffolds the directory and writes whatever frontmatter the caller passes. The judgment about *which* workflow / contexts / assignee fit is in the `bootstrap/ticket` skill (`relay-os/skills/bootstrap/ticket/SKILL.md`). A human invokes that skill ("make me a task for X"), the skill interviews, calls `relay create` to scaffold, then edits the ticket frontmatter to fill in the rest.
+`relay draft` is intentionally mechanical — it scaffolds the directory and
+writes the raw default frontmatter. `relay create` remains a compatibility
+spelling for that raw operation.
+
+The judgment about *which* workflow / contexts / assignee fit is in the
+`bootstrap/ticket` skill (`relay-os/skills/bootstrap/ticket/SKILL.md`). A
+human invokes that skill through `relay ticket`: with no argument it asks for
+a title, with a title it drafts then edits, and with an existing draft/active
+slug it edits that ticket in place. It refuses `in_progress` and `done`
+tickets by default.
 
 The creation skill treats `contexts:` as launch-prompt payload, not labels. It
 should attach only context bodies that must be inlined for the future task run.
@@ -51,7 +53,8 @@ When one fact from a broad context is enough, that fact belongs in the ticket's
 inline `## Context` body; repeated narrow needs should become smaller focused
 contexts. Reusable process knowledge stays in workflow step `skill:` refs.
 
-There's no `--suggest` flag. If you want the authoring flow, run the skill. If you just want bytes on disk, call `relay create` directly with the flags above.
+There's no `--suggest` flag. If you want the authoring flow, run `relay
+ticket`. If you just want bytes on disk, call `relay draft`.
 
 ### Skills at creation time
 
@@ -82,10 +85,11 @@ This is idempotent — running `--check-recurring` twice inside the same period 
 
 There is no filesystem mutex. The ticket's `status` field is the only signal that a task is in flight.
 
-- `relay launch` requires `status: active` and refuses anything else, pointing the operator at `relay mark active <slug>`. It does not flip status itself.
-- Status transitions are owned by `relay mark active | paused | done` exclusively. The control plane (`status`) and the data plane (`step`) never share a writer.
+- `draft` means unapproved, `active` means approved/queued, and `in_progress` means launched work.
+- `relay launch` accepts `status: active` or `status: in_progress`. Launching active work marks it `in_progress`; launching already-in-progress work resumes it.
+- `relay bump` advances only `in_progress` workflow tasks.
 - Bootstrap shims are stateless and exempt — they are re-entry points, not units of work.
-- Dream's `validate-drift` skill flags tasks stuck on `active` with no recent log activity. Recovery is human-initiated.
+- Dream's `validate-drift` skill flags tasks stuck in `in_progress` with no recent log activity. Recovery is human-initiated.
 
 We tried a `task.lock` file-existence mutex first. It cost a module of acquisition/release logic, `--force` flags on `launch` and `delete`, orphan-cleanup machinery, and two "don't touch task.lock" lines in the base prompt — to guarantee something (two concurrent workers on the same slug) that almost never happened under one-task-one-worker. The failure mode without the mutex is two divergent blackboard edits and two PR branches; both are visible in git and recoverable by hand. Dropping the lock simplified six call sites and removed all of the above.
 

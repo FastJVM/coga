@@ -12,6 +12,7 @@ from relay.scaffold import scaffold_task
 from relay.commands.launch import build_agent_command
 from relay.config import AgentType, load_config
 from relay.tasks import list_tasks
+from relay.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -223,11 +224,42 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     # Log entry written
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.path / "ticket.md")
+    assert ticket.status == "in_progress"
     log = (ref.path / "log.md").read_text()
+    assert "started (active → in_progress) via relay launch" in log
     assert "launched in interactive mode" in log
 
     # Prompt temp file cleaned up
     assert not Path(calls[0][2]).exists()
+
+
+def test_launch_in_progress_resumes_without_status_transition(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.write(ref.path / "ticket.md")
+    calls: list[list[str]] = []
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    log = (ref.path / "log.md").read_text()
+    assert "started (active → in_progress) via relay launch" not in log
 
 
 # --- pre-launch freshness check (auto_bump_one) ------------------------------
@@ -891,5 +923,3 @@ def test_launch_bootstrap_unknown_shim(
     result = runner.invoke(app, ["launch", "bootstrap/does-not-exist"])
     assert result.exit_code == 2
     assert "bootstrap/does-not-exist" in (result.output + (result.stderr or ""))
-
-

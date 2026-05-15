@@ -119,7 +119,7 @@ def test_base_prompt_teaches_post_bump_continuation(repo: Path) -> None:
 
     assert "Run `bump` as the *last* thing in the current step" in prompt
     assert "After bumping, inspect the new state" in prompt
-    assert "the task is still `active`" in prompt
+    assert "the task is still\n  `in_progress`" in prompt
     assert "new current step" in prompt
     assert "has a `skill:`" in prompt
     assert "continue that next step in this same session" in prompt
