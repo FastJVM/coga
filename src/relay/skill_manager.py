@@ -362,11 +362,56 @@ def run_gh_skill(
     command = ["gh", "skill", *args]
     result = (runner or run_subprocess)(command, None)
     if result.returncode != 0:
+        stderr = (result.stderr or result.stdout).strip()
+        translated = _translate_gh_skill_error(args, stderr)
+        if translated is not None:
+            raise SkillManagerError(translated)
         raise SkillManagerError(
             f"`{shlex.join(command)}` failed with exit {result.returncode}:\n"
-            f"{(result.stderr or result.stdout).strip()}"
+            f"{stderr}"
         )
     return result
+
+
+def _translate_gh_skill_error(args: Sequence[str], stderr: str) -> str | None:
+    if "must specify a skill name when not running interactively" not in stderr:
+        return None
+    if len(args) < 2 or args[0] != "install":
+        return None
+    source = args[1]
+    lines = [
+        f"`gh skill install {source}` could not pick a skill: the source "
+        "exposes more than one, and `gh` only auto-picks in interactive mode.",
+        f"Rerun with a skill name: `relay skill install {source} <skill>`.",
+    ]
+    if "--from-local" in args:
+        lines.append(f"List candidates with `ls {source}`.")
+    else:
+        repo = _github_owner_repo(source)
+        if repo is not None:
+            lines.append(
+                f"List candidates with `gh api repos/{repo}/contents/skills`."
+            )
+    return "\n".join(lines)
+
+
+def _github_owner_repo(source: str) -> str | None:
+    if "://" not in source and source.count("/") == 1:
+        return source
+    for prefix in ("https://github.com/", "http://github.com/"):
+        if source.startswith(prefix):
+            path = source[len(prefix) :]
+            break
+    else:
+        if source.startswith("git@github.com:"):
+            path = source[len("git@github.com:") :]
+        else:
+            return None
+    parts = path.split("/")
+    if len(parts) < 2:
+        return None
+    owner, repo = parts[0], parts[1]
+    return f"{owner}/{repo.removesuffix('.git')}"
 
 
 def ensure_gh_skill(*, runner: Runner | None = None) -> None:
