@@ -9,7 +9,7 @@ stale-branch sweep) is a Dream concern, not retire's.
 ### Console Progress
 
 Write short progress updates to the console before and after each phase: retro
-PR open, final bump. Include the slug or PR link being acted on. The
+PR open, final status mark. Include the slug or PR link being acted on. The
 blackboard remains the durable record; console progress is for the human
 watching the run.
 
@@ -25,7 +25,7 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
    `relay-os/tasks/{slug}/` in the same PR. Do not delete the directory
    outside the PR.
 
-2. **Bump this retire task to done.** Run `relay bump <this-task-slug>`
+2. **Mark this retire task done.** Run `relay mark done <this-task-slug>`
    with a `--message` summarizing what happened: the retro PR link, or
    "no-op" if retro found no durable knowledge.
 

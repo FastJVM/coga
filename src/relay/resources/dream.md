@@ -12,7 +12,7 @@ order, and output conventions.
 
 Write short progress updates to the console before and after each major phase:
 validate-drift, done-ticket classification, Retro handoff, cleanup proposal,
-higher-judgment scan, Slack, and final bump. Include the command or file path
+higher-judgment scan, Slack, and final status mark. Include the command or file path
 being acted on and the result count when available. If a phase is skipped,
 say why. The blackboard remains the durable record; console progress is for
 the human watching the run.
@@ -156,5 +156,5 @@ parent Dream run sends the broader one-line summary. Call:
 Keep the message to one line, for example:
 `Dream scan: 3 broken refs, 2 context proposals.`
 
-Run `relay bump <this-dream-task>` as the last action after the blackboard is
+Run `relay mark done <this-dream-task>` as the last action after the blackboard is
 up to date.

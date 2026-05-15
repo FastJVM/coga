@@ -94,10 +94,10 @@ opt-out is active. Quiet opt-outs become forgotten opt-outs.
 - `cfg.slack_enabled` (`bool`, default `True`) and `cfg.slack_webhook`
   (`str | None`) — both come from `relay.config`. `[slack].enabled` in
   `relay.local.toml` overrides shared.
-- Callers that post: `commands/launch.py` (factory create + draft →
-  active flip), `commands/recurring.py` (per-scaffold + error
-  summary), `commands/bump.py`, `commands/slack.py`, `commands/panic.py`,
-  `commands/launch_script.py` (failure path only), and
+- Callers that post: `commands/create.py` (ticket created),
+  `commands/mark.py` (active / paused / done), `commands/recurring.py`
+  (per-scaffold + error summary), `commands/bump.py`, `commands/slack.py`,
+  `commands/panic.py`, `commands/launch_script.py` (failure path only), and
   `automerge.auto_bump_merged` (called by `commands/automerge.py` and
   opportunistically by `commands/status.py`). Each passes
   `task_path=ref.path` (when a task exists) so failure traces also

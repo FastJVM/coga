@@ -126,6 +126,8 @@ def test_base_prompt_teaches_post_bump_continuation(repo: Path) -> None:
     assert "Do not stop at a runnable agent step" in prompt
     assert "Never call `relay launch`" in prompt
     assert "inside your own session to continue the chain" in prompt
+    assert "relay mark done" in prompt
+    assert "relay bump` marks the task `done`" not in prompt
 
 
 def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:

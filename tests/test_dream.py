@@ -37,7 +37,14 @@ def repo(tmp_path: Path) -> Path:
         agents = {"claude1" = "claude"}
         """,
     )
-    _write(relay_os / "relay.local.toml", 'user = "marc"\n')
+    _write(
+        relay_os / "relay.local.toml",
+        """
+        user = "marc"
+        [slack]
+        enabled = false
+        """,
+    )
     return relay_os
 
 
@@ -57,6 +64,7 @@ def test_dream_no_launch_scaffolds_ad_hoc_task_without_time_bucket(
     assert "Dream: scaffolding task 'Dream'" in first.output
     assert "Dream: created task dream at" in first.output
     assert "Dream: launch skipped (--no-launch)" in first.output
+    assert "relay mark active dream" in first.output
     assert "Created dream" in first.output
     assert "Created dream-2" in second.output
     assert (repo / "tasks" / "dream").is_dir()
@@ -85,6 +93,8 @@ def test_dream_logs_before_launching(
         prompt_report: bool,
         no_verify: bool,
     ) -> None:
+        ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
+        assert ticket.status == "active"
         calls.append(
             {
                 "task": task,
@@ -104,8 +114,11 @@ def test_dream_logs_before_launching(
     assert "Dream: using assignee claude1 (agent type claude, mode interactive)" in result.output
     assert "Dream: scaffolding task 'Dream'" in result.output
     assert "Dream: created task dream at" in result.output
+    assert "Dream: activating dream" in result.output
     assert "Dream: launching dream" in result.output
     assert "fake launch called" in result.output
+    log = (repo / "tasks" / "dream" / "log.md").read_text()
+    assert "activated (draft → active) via relay dream" in log
     assert calls == [
         {
             "task": "dream",

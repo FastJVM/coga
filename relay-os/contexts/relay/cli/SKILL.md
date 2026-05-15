@@ -20,13 +20,45 @@ the relay-managed bits in the current repo.
   + `skills/bootstrap/` from upstream. Leaves `relay.toml`, `rules.md`,
   user contexts, and user skills untouched.
 
-## relay launch \<target\> [title]
+## relay create "\<title\>" [--mode interactive|auto|script]
+
+Scaffold a new `draft` ticket and post `✨` to Slack. Does not launch an
+agent. Use this as step one of the three-step boot: `create` → edit the
+draft body / workflow / contexts as needed → `relay mark active <slug>`
+→ `relay launch <slug>`.
+
+The deliberate separation keeps the moment of authorship distinct from
+the moment of starting work. Tickets you mean to draft now and start
+later get the same `create` call; nothing fires the agent until you
+choose to.
+
+## relay mark \<state\> \<slug\> [--message "..."]
+
+Change a ticket's `status`. Three subcommands: `mark active`,
+`mark paused`, `mark done`. The verb mirrors the frontmatter field, so
+the command shape is `<status field value> on disk` = `<mark
+subcommand>`.
+
+- `mark active <slug>` — allowed from `draft` or `paused`. Posts `🚀`.
+- `mark paused <slug>` — allowed from `active`. Preserves `step:`.
+  Posts `⏸️`.
+- `mark done <slug>` — allowed from `active`. Clears `step:`. Posts
+  `🎉`. Use this to finish a workflow on its final step, or to finish
+  any ticket without a workflow.
+
+`--message` piggy-backs an FYI onto the Slack broadcast.
+
+Status transitions live nowhere else. `relay launch` no longer activates
+drafts; `relay bump` no longer marks final-step tickets done. The two
+state machines are completely separated.
+
+## relay launch \<target\>
 
 Compose every relevant file (rules + repo context + ticket contexts +
 current step's skill + blackboard + ticket body) into one prompt and
-start the configured agent. If the ticket is already `status: active`,
-soft-warns with the current assignee and last log activity, and in
-interactive mode asks before proceeding.
+start the configured agent. Requires `status: active` — drafts must be
+activated via `relay mark active <slug>` first; paused / done tickets
+must be marked back to active before they can be launched.
 Interactive launches require stdin and stdout to both be terminals; use
 `mode: auto` or `mode: script` for non-interactive wrappers and CI.
 Script launches inject task metadata env vars including `RELAY_TASK_SLUG`,
@@ -37,10 +69,9 @@ Script launches inject task metadata env vars including `RELAY_TASK_SLUG`,
   does not rewrite the ticket's `assignee:`.
 - `relay launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
-  activating or spawning an agent.
+  spawning an agent.
 - `relay launch bootstrap/<name>` — stateless shim; concurrent launches
-  safe. With a title arg, acts as a factory: scaffolds a new ticket
-  from the shim's frontmatter and launches on it.
+  safe.
 
 Agent type comes from the ticket's `assignee`, resolved through
 `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
@@ -79,10 +110,13 @@ is for human eyes.
 ## relay bump \<slug\> [--message "..."]
 
 Advance a workflow-bound task one step. Updates `step:`, appends a log
-entry. Bumping past the last step marks the task `done`. The workflow
-is frozen into the ticket at create time, so step semantics don't drift
-mid-task. On a ticket without a workflow, `bump` marks it `done`
-directly — the whole ticket is the only "step".
+entry. The workflow is frozen into the ticket at create time, so step
+semantics don't drift mid-task.
+
+`bump` no longer finishes tickets. Bumping past the last step is an
+error pointing you at `relay mark done <slug>`. Bumping a ticket
+without a workflow is the same error — those tickets only have one
+"step" (the whole ticket), and `mark done` is how you finish them.
 
 `--message` piggy-backs an FYI onto the state-transition Slack
 broadcast — one post instead of two. Use it for transition-tied notes
@@ -121,12 +155,13 @@ Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
 invokes the `retro/done-ticket` skill against the named ticket. The retro
 skill opens the PR that records the `## Retro` marker, edits the knowledge
 base if warranted, and deletes the source task directory in the same PR.
-`relay retire` is the launcher.
+`relay retire` activates and launches the retire task unless `--no-launch` is
+passed.
 
 - `relay retire <slug>` — scaffold and launch in `auto` mode.
 - `relay retire <slug> --mode interactive` — supervise the run.
 - `relay retire <slug> --no-launch` — scaffold the retire task and print the
-  explicit `relay launch <slug>` command.
+  explicit `relay mark active` / `relay launch` sequence.
 
 Refuses if the target task is not `status: done`. Use `relay delete` for an
 abandoned ticket where retro has nothing to extract. Branch hygiene (pruning
@@ -154,16 +189,16 @@ not two. Slack is required (see `relay/sync`); commands crash if
 
 Create an ad-hoc Dream cleanup task for the current Relay repo. The task slug
 is plain slug allocation (`dream`, `dream-2`, etc.), not a schedule or time
-bucket. By default the command immediately launches the new task in `auto`
+bucket. By default the command activates and launches the new task in `auto`
 mode using the current user's first configured agent nickname.
 
 - `relay dream` — create and launch a Dream cleanup run now.
 - `relay dream --agent codex1` — assign the run to a specific agent nickname.
 - `relay dream --no-launch` — scaffold the run and print the explicit
-  `relay launch <slug>` command.
+  `relay mark active` / `relay launch` sequence.
 
 Dream scans current task state, runs the known Relay housekeeping pass, writes
-its results to that run's blackboard, and should finish with `relay bump`.
+its results to that run's blackboard, and should finish with `relay mark done`.
 It is not the recurring scheduler and does not use `relay-os/recurring/`.
 
 ## relay recurring check
@@ -189,12 +224,11 @@ Default aliases shipped by `relay init`:
 ```toml
 [aliases]
 chat = "launch bootstrap/orient"
-create = "launch bootstrap/ticket"
 ```
 
-So `relay create "Investigate flaky tests"` runs as
-`relay launch bootstrap/ticket "Investigate flaky tests"` (and prints
-the expansion to stderr so the indirection is visible).
+`create` is a built-in command, not an alias (it has its own
+scaffolding behavior beyond what a `launch bootstrap/...` expansion
+would give it).
 
 Rules: alias names can't collide with built-in commands; the first
 token of the expansion must be a known built-in. Both checked at
@@ -203,12 +237,14 @@ only; they don't accept their own flags.
 
 ## Pick which command
 
-- Starting a fresh task → `relay create "<title>"` (alias for
-  `launch bootstrap/ticket`).
+- Scaffolding a new draft → `relay create "<title>"`.
+- Activating a draft to start work → `relay mark active <slug>`.
+- Pausing a task → `relay mark paused <slug>`.
+- Finishing a task (final step, or no workflow) → `relay mark done <slug>`.
 - Ticket-less chat session → `relay chat` (alias for
   `launch bootstrap/orient`).
 - Running Relay cleanup now → `relay dream`.
-- Continuing a known task → `relay launch <slug>`.
+- Spawning the agent on an active task → `relay launch <slug>`.
 - Other bootstrap shim → `relay launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `relay bump`.
 - Catching up tickets after a teammate merged a PR → `relay automerge`
@@ -216,6 +252,7 @@ only; they don't accept their own flags.
 - Triage view → `relay status`.
 - Reading a single task without opening the file → `relay show <slug>`.
 - Surfacing a non-blocker note tied to a step transition → `relay bump --message`.
+- Surfacing a non-blocker note tied to a status transition → `relay mark <state> --message`.
 - Surfacing a non-blocker note that doesn't fit a transition → `relay slack`.
 - Surfacing a blocker → `relay panic`.
 - Throwing away an abandoned ticket → `relay delete <slug>`.
