@@ -9,7 +9,7 @@ Read this once. Follow it throughout the session.
 
 ## Files in the task directory
 
-Each task lives in `relay-os/tasks/<id>-<slug>/` and contains:
+Each task lives in `relay-os/tasks/<slug>/` and contains:
 
 - `ticket.md` — source of truth for task state. YAML frontmatter + markdown
   body. You **may** edit frontmatter when the spec says so (e.g. update
@@ -18,7 +18,7 @@ Each task lives in `relay-os/tasks/<id>-<slug>/` and contains:
 - `blackboard.md` — shared workspace for you and the human. Write here often.
   Read here first when picking up after a blocker or relaunch.
 - `log.md` — append-only audit trail. **Do not write to this file.** CLI
-  commands (`relay launch`, `relay bump`, `relay panic`) are the only writers.
+  commands (`relay create`, `relay mark`, `relay bump`, `relay panic`) are the only writers.
   Write observations in the blackboard instead.
 
 ## Blackboard
@@ -65,12 +65,12 @@ Rules:
   `relay panic` with a clear reason. The human decides whether to rewind.
 - The workflow is frozen into ticket frontmatter at creation time. Your own
   edits to `workflow` are not supported — that's a human-only operation.
-- On the final step, `relay bump` marks the task `done`. That's the correct
-  way to complete a task; do not manually set `status: done`.
+- On the final step, run `relay mark done <id>` after the step's work is
+  complete. That's the correct way to complete a task; do not manually set
+  `status: done`.
 - **Tickets without a workflow.** If the ticket has no `workflow:` field,
-  there are no steps. When you finish the work, call `relay bump <id>`
-  anyway — it marks the task `done` directly. Do not set `status: done` by
-  hand.
+  there are no steps. When you finish the work, call `relay mark done <id>`.
+  Do not set `status: done` by hand.
 
 ## Escalation — `relay panic`
 
@@ -94,8 +94,8 @@ specify max backoff ceiling for 429s" is actionable.
 
 ## FYIs — `bump --message` and `relay slack`
 
-State-transition broadcasts already fire on their own (`launch`, `bump`,
-`panic`, recurring scaffolds). The two ways to add an FYI on top:
+State-transition broadcasts already fire on their own (`create`, `mark`,
+`bump`, `panic`, recurring scaffolds). The two ways to add an FYI on top:
 
 **`relay bump <id> --message "<short FYI>"`** — when the FYI
 naturally coincides with the step transition you're about to do anyway.
@@ -139,6 +139,7 @@ When editing `ticket.md` frontmatter:
   not an agent) are fine.
 - Don't touch `relay.toml` or `relay.local.toml`.
 - Don't edit the workflow snapshot in ticket frontmatter.
-- Don't set `status: done` manually — use `relay bump` on the final step.
-- Don't end the step without running `relay bump`. If you're blocked,
-  `relay panic` with a reason — never stop silently.
+- Don't set `status: done` manually — use `relay mark done`.
+- Don't end a workflow step without running `relay bump`, and don't finish a
+  task without running `relay mark done`. If you're blocked, `relay panic`
+  with a reason — never stop silently.

@@ -296,8 +296,7 @@ def test_create_log_entry_written(repo: Path) -> None:
 
 @pytest.fixture
 def repo_with_shim(repo: Path) -> Path:
-    """Same fixture as `repo`, plus the bootstrap/ticket shim + skill that
-    `relay create` needs in order to seed defaults and auto-launch."""
+    """Same fixture as `repo`, plus the bootstrap/ticket shim + skill."""
     _write(
         repo / "bootstrap" / "ticket" / "ticket.md",
         """

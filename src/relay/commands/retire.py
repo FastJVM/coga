@@ -8,9 +8,11 @@ from importlib.resources import files
 import typer
 
 from relay.config import Config, ConfigError, load_config
+from relay.mark import mark_active
 from relay.scaffold import scaffold_task
 from relay.slugify import slugify
 from relay.tasks import (
+    TaskRef,
     TaskNotFoundError,
     read_ticket,
     resolve_task,
@@ -101,9 +103,13 @@ def retire(
     typer.echo(f"Created {slug}")
     if no_launch:
         typer.echo("Retire: launch skipped (--no-launch)")
-        typer.echo(f"Run `relay launch {slug}` to start the retire pass.")
+        typer.echo(
+            f"Run `relay mark active {slug}` then `relay launch {slug}` "
+            "to start the retire pass."
+        )
         return
 
+    _activate_created_task(cfg, TaskRef(slug=slug, path=result["path"]))
     typer.echo(f"Retire: launching {slug}")
     from relay.commands.launch import launch
 
@@ -123,6 +129,23 @@ def _default_agent(cfg: Config) -> str:
 def _retire_body(target_slug: str) -> str:
     template = files("relay.resources").joinpath("retire.md").read_text()
     return template.format(slug=target_slug).strip()
+
+
+def _activate_created_task(cfg: Config, ref: TaskRef) -> None:
+    ticket = read_ticket(ref)
+    typer.echo(f"Retire: activating {ref.id_slug}")
+    mark_active(
+        cfg,
+        ref,
+        ticket,
+        actor=f"human:{cfg.current_user}",
+        log_message="activated (draft → active) via relay retire",
+        slack_text=(
+            f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
+            f"\"{ticket.title}\" — relay retire"
+        ),
+        echo=f"{ref.id_slug}: active",
+    )
 
 
 def _bail(msg: str) -> None:

@@ -175,9 +175,11 @@ frontmatter.
 
 ### `relay dream`
 
-Create an ad-hoc Dream cleanup task for this Relay repo and launch it. The
-slug is allocated like any other task (`dream`, `dream-2`, etc.); it is not
-derived from a schedule or timestamp.
+Create an ad-hoc Dream cleanup task for this Relay repo, activate it, and
+launch it. The slug is allocated like any other task (`dream`, `dream-2`,
+etc.); it is not derived from a schedule or timestamp. With `--no-launch`,
+Relay only scaffolds the draft and prints the `relay mark active` /
+`relay launch` sequence.
 
 ### Dream and REM
 
@@ -345,7 +347,8 @@ Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose
 body invokes the `retro/done-ticket` skill against the named ticket. The
 retro skill opens the PR that records the `## Retro` marker, edits the
 knowledge base if warranted, and deletes the source task directory in the
-same PR. This command is the launcher.
+same PR. This command activates and launches the retire task unless
+`--no-launch` is passed.
 
 Refuses if the target task is not `status: done`. Use `relay delete`
 for an abandoned ticket where retro has nothing to extract. Branch

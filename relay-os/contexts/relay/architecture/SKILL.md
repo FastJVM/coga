@@ -32,9 +32,10 @@ no in-memory state.
   then use the same ticket, workflow, launch, bump, and blackboard machinery as
   any other task.
 - **Bootstrap shims** in `relay-os/bootstrap/<name>/ticket.md` are
-  stateless launch targets for skills. No status, no workflow.
-  `relay launch bootstrap/ticket "title"` is the factory shorthand
-  to scaffold a new draft + run the bootstrap skill on it.
+  stateless launch targets for skills. No status, no workflow. Used for
+  ticket-less re-entry points like `relay launch bootstrap/orient`
+  (the `chat` alias). They are never factories — `relay launch` no
+  longer scaffolds new tickets from shims; use `relay create` for that.
 - **Dream** is Relay's generic ticket cleanup pass. A Dream run is an ordinary
   ad-hoc task created by `relay dream`; its body scans the ticket set, runs
   fixed Relay housekeeping skills, proposes cleanup, and writes reviewable
@@ -50,14 +51,21 @@ Claude Code and Codex use.
 ## Two state machines per ticket
 
 - **Control plane (`status`)** — `draft → active → done`, plus
-  `paused`. Governs *whether* work happens. Transitions are not
-  enforced by code; convention is the authority.
+  `paused`. Governs *whether* work happens. Owned entirely by
+  `relay mark active | paused | done`. No other command writes to
+  `status:` — `launch` reads it (refuses non-active) and `bump` ignores
+  it (it owns `step:`, not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
-  Format `N (step-name)`. Only advances when status is `active`.
-  Pausing freezes step. Sending back to draft preserves step.
+  Format `N (step-name)`. Owned entirely by `relay bump`. Only advances
+  when status is `active`. Pausing preserves the step; marking done
+  clears it.
 
 Tickets without a `workflow` field have no steps and move through
-statuses directly.
+statuses directly via `relay mark`. `relay bump` refuses them.
+
+The split is deliberate: each command owns one plane. `relay create`
+authors a draft, `relay mark` flips status, `relay bump` advances
+steps, `relay launch` spawns the agent. None of them overlap.
 
 ## Three modes
 
@@ -89,13 +97,11 @@ loading.
 
 There is no filesystem mutex. The ticket's `status` (`draft`, `active`,
 `paused`, `done`) is the signal that someone is — or isn't — working on
-a task. Under one-task-one-worker (deliberate v1 constraint for small
-teams), launching against `status: active` is the unusual case: `relay
-launch` soft-warns with the current assignee and last log activity, and
-in interactive mode asks before proceeding. The failure mode of two
-divergent workers (two blackboard edits, two PR branches) is visible
-and recoverable in git; the cost of a hard mutex (stale lock files,
-`--force` flags, orphan-lock cleanup) is not.
+a task. `relay launch` refuses any non-active ticket and points the
+operator at `relay mark active <slug>` — there is no auto-flip from
+draft. The failure mode of two divergent workers (two blackboard edits,
+two PR branches) is visible and recoverable in git; the cost of a hard
+mutex (stale lock files, `--force` flags, orphan-lock cleanup) is not.
 
 ## Command Surface
 

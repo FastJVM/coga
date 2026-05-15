@@ -12,7 +12,7 @@ Last updated: 2026-05-06.
 - **Dream is manual and ad-hoc for now.** Run `relay dream` to create a normal
   Dream task (`dream`, `dream-2`, etc.) and launch the cleanup pass. Dream does
   not need a weekly bucket or schedule-derived slug: it scans current Relay
-  state, writes to its own blackboard, and finishes through `relay bump`.
+  state, writes to its own blackboard, and finishes through `relay mark done`.
   Recurring scheduling stays separate until the worker pass is trusted enough
   to run unattended. Same intent for REM.
 

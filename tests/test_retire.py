@@ -37,7 +37,14 @@ def repo(tmp_path: Path) -> Path:
         agents = {"claude1" = "claude"}
         """,
     )
-    _write(relay_os / "relay.local.toml", 'user = "marc"\n')
+    _write(
+        relay_os / "relay.local.toml",
+        """
+        user = "marc"
+        [slack]
+        enabled = false
+        """,
+    )
     return relay_os
 
 
@@ -79,6 +86,7 @@ def test_retire_no_launch_scaffolds_task_with_target_slug(
     assert "Retire: scaffolding task 'Retire fix-retry-logic'" in result.output
     assert "Retire: created task retire-fix-retry-logic" in result.output
     assert "Retire: launch skipped (--no-launch)" in result.output
+    assert "relay mark active retire-fix-retry-logic" in result.output
 
     new_task = repo / "tasks" / "retire-fix-retry-logic"
     assert new_task.is_dir()
@@ -153,6 +161,8 @@ def test_retire_launches_after_scaffold(
         prompt_report: bool,
         no_verify: bool,
     ) -> None:
+        ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
+        assert ticket.status == "active"
         calls.append(
             {
                 "task": task,
@@ -170,8 +180,11 @@ def test_retire_launches_after_scaffold(
     )
 
     assert result.exit_code == 0, result.output
+    assert "Retire: activating retire-fix-retry-logic" in result.output
     assert "Retire: launching retire-fix-retry-logic" in result.output
     assert "fake launch called" in result.output
+    log = (repo / "tasks" / "retire-fix-retry-logic" / "log.md").read_text()
+    assert "activated (draft → active) via relay retire" in log
     assert calls == [
         {
             "task": "retire-fix-retry-logic",

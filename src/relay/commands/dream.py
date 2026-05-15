@@ -8,7 +8,9 @@ from importlib.resources import files
 import typer
 
 from relay.config import Config, ConfigError, load_config
+from relay.mark import mark_active
 from relay.scaffold import scaffold_task
+from relay.tasks import TaskRef, read_ticket
 
 
 def dream(
@@ -72,9 +74,13 @@ def dream(
     typer.echo(f"Created {slug}")
     if no_launch:
         typer.echo("Dream: launch skipped (--no-launch)")
-        typer.echo(f"Run `relay launch {slug}` to start the Dream pass.")
+        typer.echo(
+            f"Run `relay mark active {slug}` then `relay launch {slug}` "
+            "to start the Dream pass."
+        )
         return
 
+    _activate_created_task(cfg, TaskRef(slug=slug, path=result["path"]))
     typer.echo(f"Dream: launching {slug}")
     from relay.commands.launch import launch
 
@@ -93,6 +99,23 @@ def _default_agent(cfg: Config) -> str:
 
 def _dream_body() -> str:
     return files("relay.resources").joinpath("dream.md").read_text().strip()
+
+
+def _activate_created_task(cfg: Config, ref: TaskRef) -> None:
+    ticket = read_ticket(ref)
+    typer.echo(f"Dream: activating {ref.id_slug}")
+    mark_active(
+        cfg,
+        ref,
+        ticket,
+        actor=f"human:{cfg.current_user}",
+        log_message="activated (draft → active) via relay dream",
+        slack_text=(
+            f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
+            f"\"{ticket.title}\" — relay dream"
+        ),
+        echo=f"{ref.id_slug}: active",
+    )
 
 
 def _bail(msg: str) -> None:
