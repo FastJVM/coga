@@ -138,7 +138,7 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
 
         status: processed
         skill: retro/done-ticket
-        result: no-new-durable-knowledge
+        result: knowledge-pr
         """,
     )
     _write(repo / "tasks" / "processed-ticket" / "log.md", "")
@@ -165,4 +165,67 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
     assert "Result: human-needed." in blackboard
     assert "Required delete skill is missing" in blackboard
     assert "`processed-ticket`: processed marker present; deletion skipped." in blackboard
+    assert (repo / "tasks" / "processed-ticket").is_dir()
+
+
+def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> None:
+    _install_dream_skill(repo, "cleanup-orphan-markers")
+    _write_workflow(
+        repo,
+        "cleanup-orphan-markers",
+        "bootstrap/dream/tasks/cleanup-orphan-markers",
+    )
+    _write(
+        repo / "tasks" / "processed-ticket" / "ticket.md",
+        """
+        ---
+        title: Processed Ticket
+        status: done
+        mode: interactive
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Already processed.
+        """,
+    )
+    _write(
+        repo / "tasks" / "processed-ticket" / "blackboard.md",
+        """
+        Notes.
+
+        ## Retro
+
+        status: processed
+        skill: retro/done-ticket
+        result: no-new-durable-knowledge
+        """,
+    )
+    _write(repo / "tasks" / "processed-ticket" / "log.md", "")
+
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg,
+        title="Cleanup Orphan Markers",
+        workflow_name="cleanup-orphan-markers",
+        contexts=[],
+        mode="script",
+        owner="marc",
+        assignee="claude1",
+        watchers=[],
+        status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "cleanup-orphan-markers"])
+
+    assert result.exit_code == 0, result.output
+    refs = {ref.slug: ref for ref in list_tasks(cfg)}
+    blackboard = (refs["cleanup-orphan-markers"].path / "blackboard.md").read_text()
+    assert "## Dream Skill: cleanup-orphan-markers" in blackboard
+    assert "Result: no-op." in blackboard
+    assert "cleanup-eligible processed done tickets" in blackboard
+    assert "Required delete skill is missing" not in blackboard
+    assert "`processed-ticket`: processed marker present" not in blackboard
     assert (repo / "tasks" / "processed-ticket").is_dir()

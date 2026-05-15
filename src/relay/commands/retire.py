@@ -1,4 +1,4 @@
-"""`relay retire` — wrap up a done task: retro + delete + prune branch."""
+"""`relay retire` — run Retro against a done task."""
 
 from __future__ import annotations
 
@@ -41,10 +41,11 @@ def retire(
 
     Validates the named task is `status: done`, then scaffolds a one-shot
     ad-hoc task whose body invokes the `retro/done-ticket` skill against it.
-    The retro skill opens the PR that records the `## Retro` marker, edits the
-    knowledge base if warranted, and deletes the source task directory in the
-    same PR. Branch hygiene (local prune, stale-branch sweep) is a Dream
-    concern, not retire's.
+    The retro skill opens a PR when it extracts new durable knowledge; that PR
+    records the `## Retro` marker, edits the knowledge base, and deletes the
+    source task directory in the same PR. If no new durable knowledge exists,
+    Retro records a no-op marker and opens no PR. Branch hygiene (local prune,
+    stale-branch sweep) is a Dream concern, not retire's.
     """
     if mode not in {"auto", "interactive"}:
         _bail("--mode must be 'auto' or 'interactive'")

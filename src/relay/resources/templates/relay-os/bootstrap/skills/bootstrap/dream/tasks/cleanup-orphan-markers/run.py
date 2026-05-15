@@ -18,6 +18,7 @@ import yaml
 RETRO_HEADING = "## Retro"
 RETRO_SKILL = "skill: retro/done-ticket"
 RETRO_STATUS = "status: processed"
+RETRO_NO_NEW = "result: no-new-durable-knowledge"
 DELETE_SKILL = "bootstrap/delete-task"
 
 
@@ -92,11 +93,11 @@ def retro_block(text: str) -> str:
     return rest[:next_heading]
 
 
-def has_processed_retro_marker(blackboard: Path) -> bool:
+def has_cleanup_eligible_retro_marker(blackboard: Path) -> bool:
     if not blackboard.is_file():
         return False
     block = retro_block(blackboard.read_text())
-    return RETRO_SKILL in block and RETRO_STATUS in block
+    return RETRO_SKILL in block and RETRO_STATUS in block and RETRO_NO_NEW not in block
 
 
 def find_candidates(relay_os: Path) -> list[Candidate]:
@@ -112,7 +113,7 @@ def find_candidates(relay_os: Path) -> list[Candidate]:
             continue
         if load_status(ticket) != "done":
             continue
-        if not has_processed_retro_marker(task_dir / "blackboard.md"):
+        if not has_cleanup_eligible_retro_marker(task_dir / "blackboard.md"):
             continue
         candidates.append(Candidate(slug=task_dir.name, path=task_dir))
     return candidates
@@ -191,7 +192,10 @@ def render_report(
     lines.append("")
 
     if not candidates:
-        lines.append("Result: no-op. No processed done tickets still have task directories.")
+        lines.append(
+            "Result: no-op. No cleanup-eligible processed done tickets still have "
+            "task directories."
+        )
         return "\n".join(lines) + "\n"
 
     lines.append(f"Candidates: {len(candidates)} processed done task(s).")

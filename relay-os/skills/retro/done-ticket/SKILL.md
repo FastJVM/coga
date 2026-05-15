@@ -1,6 +1,6 @@
 ---
 name: retro/done-ticket
-description: Extract durable knowledge from one done ticket into Relay contexts or skills and open a reviewable PR.
+description: Extract durable knowledge from one done ticket into Relay contexts or skills and open a reviewable PR only when new knowledge exists.
 ---
 
 # Retro Done Ticket
@@ -9,30 +9,35 @@ Retro is a prompt-only Codex skill and the knowledge-extraction gate for
 done-ticket cleanup. Dream may call it for eligible completed tasks, but Retro
 is not Dream, not a Python worker, and not a cleanup command. Its job is to
 read one completed ticket, compare it against the repo's context and skill
-corpus, and open a reviewable PR that records durable knowledge plus the
-source-task `## Retro` marker, then deletes the source task directory in that
-same PR. Git history for the deleted task remains the audit trail.
+corpus, and decide whether the task contains durable knowledge worth adding to
+Relay. When it does, Retro opens a reviewable PR that records the source-task
+`## Retro` marker, updates the knowledge base, and deletes the source task
+directory in that same PR. When it does not, Retro records a no-op marker on
+the source blackboard and stops without opening a marker-only PR.
 
 ## Known Skill Contract
 
 - Purpose: extract durable knowledge from one done ticket, mark that Retro has
-  processed it, and remove the source task directory in the same PR.
+  processed it, and avoid marker-only cleanup PRs when no new knowledge exists.
 - Runs: `retro/done-ticket <task-slug>` after Dream or a human chooses one
   exact done ticket.
 - Inputs: the source task's `ticket.md`, `blackboard.md`, and `log.md`, plus
   every context and skill file under `relay-os/contexts/` and
   `relay-os/skills/`.
-- May change: warranted context files, warranted skill files, and the exact
-  source task directory `relay-os/tasks/<slug>/`.
-- Action: `pr-required`
+- May change: warranted context files, warranted skill files, the exact source
+  task directory `relay-os/tasks/<slug>/` when a knowledge PR is opened, or
+  only `relay-os/tasks/<slug>/blackboard.md` when no new durable knowledge is
+  found.
+- Action: `pr-required` for knowledge edits; `direct-fix` for a
+  no-new-durable-knowledge marker only.
 - Idempotency: the source task is gone, the source task blackboard contains a
   `## Retro` section with `skill: retro/done-ticket` and `status: processed`,
   or an open PR is adding that marker or deleting the source task directory.
 - Stop and ask: the slug is ambiguous, the task is not `status: done`, any
   required evidence file is missing, or the diff would touch anything outside
   the allowed files or the exact source task directory.
-- Output: a PR with knowledge edits or a "no new durable knowledge" result that
-  deletes the source task directory, plus a Slack FYI when Slack is available.
+- Output: a PR with knowledge edits and source task deletion, or a direct
+  `no-new-durable-knowledge` marker with no PR and no source deletion.
 
 ## Scope
 
@@ -47,8 +52,12 @@ Do:
   knowledge that is not already covered;
 - append or update exactly one `## Retro` marker in the source task's
   `blackboard.md`;
-- delete the source ticket directory in the same PR after recording the marker;
-- open a PR containing the knowledge-base changes and source task deletion;
+- when new durable knowledge exists, delete the source ticket directory in the
+  same PR after recording the marker;
+- when new durable knowledge exists, open a PR containing the knowledge-base
+  changes and source task deletion;
+- when no new durable knowledge exists, record the marker directly and leave
+  the source task directory in place;
 - post a one-line Slack FYI with the PR title and link when Slack is
   available. The title should carry the new finding.
 
@@ -56,6 +65,8 @@ Do not:
 
 - delete any task directory except the exact source ticket directory;
 - delete local or remote git branches;
+- open a marker-only or delete-only PR when no new durable knowledge exists;
+- delete the source task directory when no new durable knowledge exists;
 - mutate ticket frontmatter, `log.md`, or `task.lock` before deleting the
   source task directory;
 - preserve one-off execution noise as context.
@@ -126,7 +137,7 @@ required task evidence file is missing, or there is already an open PR adding a
    Delete a context or skill block only when it is obsolete, duplicated, or
    replaced by the new edit.
 
-6. **Mark and delete the source task.**
+6. **Record the Retro marker.**
    Append or update exactly one `## Retro` section in
    `relay-os/tasks/<slug>/blackboard.md`:
 
@@ -136,29 +147,34 @@ required task evidence file is missing, or there is already an open PR adding a
    status: processed
    skill: retro/done-ticket
    result: <knowledge-pr | no-new-durable-knowledge>
-   title: <PR title>
+   title: <PR title or no-op title>
    ```
 
-   This is the idempotency marker preserved in PR history. If no durable
-   knowledge is found, still write the marker with
-   `result: no-new-durable-knowledge`. Then delete
-   `relay-os/tasks/<slug>/` in the same PR.
+   If no durable knowledge is found, write the marker with
+   `result: no-new-durable-knowledge`, use a title such as
+   `No new durable knowledge for <slug>`, leave `relay-os/tasks/<slug>/` in
+   place, and do not open a PR. Return a one-line no-op result to the caller.
 
-7. **Self-review the diff.**
+7. **Delete the source task only for knowledge PRs.**
+   If new durable knowledge was added to a context or skill, delete
+   `relay-os/tasks/<slug>/` in the same PR after recording the marker. The
+   marker is preserved in PR history, and after merge git history is the audit
+   trail for the deleted task.
+
+8. **Self-review the diff.**
    Confirm the PR changes only context files, warranted skill files, and the
    exact source task directory unless the human explicitly asked for something
-   else. Make sure the source task directory is deleted and no other task
-   directory is touched.
+   else. For no-new-durable-knowledge results, confirm the only source-task
+   edit is the `blackboard.md` marker and that no PR will be opened.
 
-8. **Open the PR.**
+9. **Open the PR only when knowledge changed.**
    Commit the knowledge edits and source task deletion on a branch such as
    `codex/retro-<ticket-slug>-knowledge`, push it, and open a PR. Title the
    PR for the knowledge change, not the act of running Retro. Prefer
-   `New context: <finding>` or `New skill: <finding>`. If the only change is
-   the blackboard marker, use `Retro processed: no new durable knowledge for
-   <ticket-slug>`.
+   `New context: <finding>` or `New skill: <finding>`. If the only change
+   would be the blackboard marker, do not open a PR.
 
-9. **Post Slack FYI.**
+10. **Post Slack FYI for PRs.**
    If Slack is configured, post one short message that is useful without
    opening GitHub:
    `<PR title>. PR: <url>`.
@@ -190,5 +206,6 @@ Use this shape:
 ## Quality Bar
 
 The PR should make future task prompts better when there is durable knowledge
-to extract. If the ticket has no new durable knowledge, open a PR that records
-the marker and deletes the source task so Dream does not rerun Retro forever.
+to extract. If the ticket has no new durable knowledge, do not open an empty
+PR; record the `no-new-durable-knowledge` marker directly and leave the source
+task directory in place so Dream does not rerun Retro.

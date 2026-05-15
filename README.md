@@ -345,10 +345,12 @@ relay delete add-retry
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose
 body invokes the `retro/done-ticket` skill against the named ticket. The
-retro skill opens the PR that records the `## Retro` marker, edits the
-knowledge base if warranted, and deletes the source task directory in the
-same PR. This command activates and launches the retire task unless
-`--no-launch` is passed.
+retro skill opens a PR only when it extracts new durable knowledge; that PR
+records the `## Retro` marker, edits the knowledge base, and deletes the source
+task directory in the same PR. If no new durable knowledge exists, Retro
+records `result: no-new-durable-knowledge` on the source blackboard and opens
+no PR. This command activates and launches the retire task unless `--no-launch`
+is passed.
 
 Refuses if the target task is not `status: done`. Use `relay delete`
 for an abandoned ticket where retro has nothing to extract. Branch
