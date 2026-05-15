@@ -58,7 +58,8 @@ def test_dream_documents_ordered_skill_pass() -> None:
     assert "### Skill: dev/stale-branches" not in text
     assert "status: processed" in text
     assert "skill: retro/done-ticket" in text
-    assert "deletes the source task directory in the same PR" in text
+    assert "opens a PR only when new durable knowledge exists" in text
+    assert "`no-new-durable-knowledge` markers are terminal no-ops" in text
     assert "An open\n   PR counts as in flight" in text
     assert "Absence of the marker on an existing done ticket" in text
     assert "git history for the deleted `blackboard.md`" in text
@@ -94,6 +95,7 @@ def test_cleanup_orphan_markers_declares_contract() -> None:
     assert "exact `status: done`" in text
     assert "`skill: retro/done-ticket`" in text
     assert "`status: processed`" in text
+    assert "`result: no-new-durable-knowledge`" in text
     assert "not a prefix match" in text
     assert "reports eligible candidates as `human-needed`" in text
 

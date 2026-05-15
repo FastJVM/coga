@@ -30,11 +30,13 @@ Last updated: 2026-05-06.
 - **Dev hygiene is outside Dream.** Stale branches, tests, and other code-repo
   cleanup belong in a dev maintenance task or workflow, not the generic Dream
   cleanup pass.
-- **Done-ticket cleanup is retro-first, same-PR-delete.** A done task without a
-  `## Retro` marker needs Retro. An open PR adding that marker or deleting the
-  exact task directory means Retro is in flight. The Retro PR records the marker
-  and deletes the source task directory in the same PR; after deletion, git
-  history is the audit trail.
+- **Done-ticket cleanup is retro-first, PR only when knowledge changes.** A done
+  task without a `## Retro` marker needs Retro. An open PR adding that marker or
+  deleting the exact task directory means Retro is in flight. If Retro extracts
+  durable knowledge, its PR records the marker, updates the knowledge base, and
+  deletes the source task directory in the same PR; after deletion, git history
+  is the audit trail. If Retro finds no new durable knowledge, it records
+  `result: no-new-durable-knowledge` on the source blackboard and opens no PR.
 
 ## Recent decisions (small-team Slack simplification)
 

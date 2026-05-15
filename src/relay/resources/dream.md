@@ -24,8 +24,8 @@ Run these known skills in this order:
 | Skill | When to run | Result |
 | --- | --- | --- |
 | `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
-| `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting that task directory. | PR-required knowledge extraction; records the marker in PR history and deletes the source task directory in the same PR. |
-| `bootstrap/dream/tasks/cleanup-orphan-markers` | When an existing done ticket already has the processed Retro marker but its task directory still exists. | PR-required delete-only cleanup through the public `bootstrap/delete-task` skill; reports `human-needed` until that skill is installed. |
+| `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting that task directory. | Knowledge extraction; opens a PR only when new durable knowledge exists. If no new durable knowledge exists, records a `no-new-durable-knowledge` marker directly and opens no PR. |
+| `bootstrap/dream/tasks/cleanup-orphan-markers` | When an existing done ticket already has the processed Retro marker from a knowledge PR, but its task directory still exists. | PR-required delete-only cleanup through the public `bootstrap/delete-task` skill; reports `human-needed` until that skill is installed. `no-new-durable-knowledge` markers are terminal no-ops, not cleanup candidates. |
 
 That table is the dispatch contract. Do not auto-discover skills, scan a
 plugin folder, or invent another maintenance step during the run. If a repo
@@ -71,8 +71,10 @@ For each done task:
 
 1. Read `relay-os/tasks/<slug>/blackboard.md`.
 2. If the blackboard has `## Retro` with `skill: retro/done-ticket` and
-   `status: processed`, do not run Retro again. The ticket is processed; if no
-   open PR already deletes it, it is eligible for the cleanup gate below.
+   `status: processed`, do not run Retro again. If that Retro block also has
+   `result: no-new-durable-knowledge`, the ticket is intentionally left in
+   place and is not eligible for cleanup. Otherwise, if no open PR already
+   deletes it, it is eligible for the cleanup gate below.
 3. If the marker is absent, inspect open PRs before launching Retro. An open
    PR counts as in flight when its diff adds the same `## Retro` /
    `skill: retro/done-ticket` / `status: processed` marker to
@@ -83,9 +85,10 @@ For each done task:
    unless a human asks for a batch. Run Retro in a subagent. The full ticket
    evidence (`ticket.md`, `blackboard.md`, `log.md`, plus every context and
    skill file) would otherwise bloat the main Dream context. The subagent
-   must open a PR that records the marker and deletes the source task directory
-   in that same PR, then return only the PR URL and a one-line result; the raw
-   evidence stays inside the subagent.
+   must either open a PR when it found new durable knowledge, or record a
+   `no-new-durable-knowledge` marker directly and return a one-line no-op
+   result. It must not open a marker-only or delete-only PR; the raw evidence
+   stays inside the subagent.
 5. If `relay-os/tasks/<slug>/` is already gone, it is not a Retro candidate.
    For audit, use git history for the deleted `blackboard.md`; the deleted
    marker is the record that Retro processed the task before cleanup.
@@ -97,10 +100,12 @@ Dream run notes.
 
 ### Skill: cleanup-orphan-markers
 
-Recovery path for done tickets whose blackboard carries the processed Retro
-marker but whose task directory was not deleted by the Retro PR. New Retro
-PRs delete the source task directory in the same PR, so this pass should
-usually find nothing.
+Recovery path for done tickets whose blackboard carries a processed Retro
+marker from a knowledge PR but whose task directory was not deleted by that
+Retro PR. New Retro PRs delete the source task directory in the same PR, so
+this pass should usually find nothing. Retro blocks with
+`result: no-new-durable-knowledge` are terminal no-ops and must be ignored by
+this cleanup gate.
 
 Launch a child `mode: script` task whose current workflow step references
 `bootstrap/dream/tasks/cleanup-orphan-markers`. The skill detects cleanup
@@ -112,6 +117,7 @@ For each such ticket, cleanup must open a PR that deletes only
 directly) so the human can review or edit it before merge. Cleanup gate:
 
 - the marker is present in `relay-os/tasks/<slug>/blackboard.md`;
+- the marker does not have `result: no-new-durable-knowledge`;
 - no open PR is currently editing that task directory;
 - the exact task slug is known; do not use prefix matching for deletion;
 - the PR deletes only `relay-os/tasks/<slug>/`;

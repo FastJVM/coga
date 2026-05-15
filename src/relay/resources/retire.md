@@ -1,17 +1,19 @@
 Retire the done ticket `{slug}`.
 
 Retire is the slug-targeted launcher for `retro/done-ticket`: extract durable
-knowledge from one finished task and delete the source task directory in the
-same PR. This task is the ad-hoc shell that drives that single skill against
-the named slug. Do not invent additional steps. Branch hygiene (local prune,
-stale-branch sweep) is a Dream concern, not retire's.
+knowledge from one finished task and open a PR only when new durable knowledge
+exists. If no new durable knowledge exists, Retro records a no-op marker on
+the source blackboard and leaves the task directory in place. This task is the
+ad-hoc shell that drives that single skill against the named slug. Do not
+invent additional steps. Branch hygiene (local prune, stale-branch sweep) is a
+Dream concern, not retire's.
 
 ### Console Progress
 
 Write short progress updates to the console before and after each phase: retro
-PR open, final status mark. Include the slug or PR link being acted on. The
-blackboard remains the durable record; console progress is for the human
-watching the run.
+result, PR open when applicable, final status mark. Include the slug or PR link
+being acted on. The blackboard remains the durable record; console progress is
+for the human watching the run.
 
 ### Ordered Pass
 
@@ -20,10 +22,11 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
 1. **Run `retro/done-ticket` against `{slug}`.** Read the skill at
    `relay-os/skills/retro/done-ticket/SKILL.md` and follow it. The skill
    stops and asks if the slug is ambiguous, the task is not `status: done`,
-   or any required evidence file is missing. It opens a PR that records the
-   `## Retro` marker, edits the knowledge base if warranted, and deletes
-   `relay-os/tasks/{slug}/` in the same PR. Do not delete the directory
-   outside the PR.
+   or any required evidence file is missing. When new durable knowledge exists,
+   it opens a PR that records the `## Retro` marker, edits the knowledge base,
+   and deletes `relay-os/tasks/{slug}/` in the same PR. When no new durable
+   knowledge exists, it records `result: no-new-durable-knowledge` directly on
+   the source blackboard and does not open a PR or delete the directory.
 
 2. **Mark this retire task done.** Run `relay mark done <this-task-slug>`
    with a `--message` summarizing what happened: the retro PR link, or
