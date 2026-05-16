@@ -11,6 +11,7 @@ from relay.config import Config, ConfigError, load_config
 from relay.mark import mark_active
 from relay.scaffold import scaffold_task
 from relay.tasks import TaskRef, read_ticket
+from relay.validate import TaskValidationError
 
 
 def dream(
@@ -104,18 +105,21 @@ def _dream_body() -> str:
 def _activate_created_task(cfg: Config, ref: TaskRef) -> None:
     ticket = read_ticket(ref)
     typer.echo(f"Dream: activating {ref.id_slug}")
-    mark_active(
-        cfg,
-        ref,
-        ticket,
-        actor=f"human:{cfg.current_user}",
-        log_message="activated (draft → active) via relay dream",
-        slack_text=(
-            f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
-            f"\"{ticket.title}\" — relay dream"
-        ),
-        echo=f"{ref.id_slug}: active",
-    )
+    try:
+        mark_active(
+            cfg,
+            ref,
+            ticket,
+            actor=f"human:{cfg.current_user}",
+            log_message="activated (draft → active) via relay dream",
+            slack_text=(
+                f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
+                f"\"{ticket.title}\" — relay dream"
+            ),
+            echo=f"{ref.id_slug}: active",
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
 
 
 def _bail(msg: str) -> None:

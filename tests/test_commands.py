@@ -318,7 +318,11 @@ def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
         status: in_progress
         mode: interactive
         owner: marc
+        human: marc
+        agent: claude1
         assignee: claude1
+        contexts: []
+        skills: []
         workflow: code
         ---
         """

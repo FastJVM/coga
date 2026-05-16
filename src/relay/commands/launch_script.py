@@ -16,6 +16,7 @@ from relay.skill import Skill
 from relay.slack import post
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
+from relay.validate import TaskValidationError
 
 
 def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
@@ -31,13 +32,20 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     current = ticket.current_step()
     if not current:
         _bail(f"Task {ref.id_slug} has no current workflow step.")
-    if not current.get("skill"):
+    skills_refs = list(current.get("skills") or [])
+    if not skills_refs:
         _bail(
-            f"Step {current['name']!r} has no skill attached. "
-            "Script mode requires a skill with a `script:` field."
+            f"Step {current['name']!r} has no skills attached. "
+            "Script mode requires exactly one skill with a `script:` field."
+        )
+    if len(skills_refs) > 1:
+        _bail(
+            f"Step {current['name']!r} has multiple skills; script mode requires "
+            f"exactly one skill (got {skills_refs!r})."
         )
 
-    skill_file = skill_path(cfg, current["skill"])
+    skill_ref = skills_refs[0]
+    skill_file = skill_path(cfg, skill_ref)
     if not skill_file.is_file():
         _bail(f"Skill file not found: {skill_file}")
     skill = Skill.load(skill_file)
@@ -53,18 +61,21 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         _bail(f"Script not found: {script_path}")
 
     if ticket.status == "active":
-        mark_in_progress(
-            cfg,
-            ref,
-            ticket,
-            actor="system",
-            log_message="started (active → in_progress) via relay launch",
-            slack_text=(
-                f"▶️ script started on *{ref.id_slug}* \"{ticket.title}\" "
-                f"— step {ticket.step}"
-            ),
-            echo=f"{ref.id_slug}: in_progress",
-        )
+        try:
+            mark_in_progress(
+                cfg,
+                ref,
+                ticket,
+                actor="system",
+                log_message="started (active → in_progress) via relay launch",
+                slack_text=(
+                    f"▶️ script started on *{ref.id_slug}* \"{ticket.title}\" "
+                    f"— step {ticket.step}"
+                ),
+                echo=f"{ref.id_slug}: in_progress",
+            )
+        except TaskValidationError as exc:
+            _bail(str(exc))
 
     env = os.environ.copy()
     env.update(cfg.secrets)

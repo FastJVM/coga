@@ -6,6 +6,9 @@ owner: replace-with-human-name
 human: replace-with-human-name
 agent: replace-with-agent-nickname
 assignee: replace-with-human-or-agent-nickname
+contexts: []
+skills: []
+workflow: null
 ---
 
 ## Description

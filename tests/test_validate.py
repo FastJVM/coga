@@ -71,7 +71,8 @@ def test_broken_skill_ref(repo: Path) -> None:
           name: x
           steps:
             - name: a
-              skill: does/not/exist
+              skills:
+                - does/not/exist
         step: 1 (a)
         ---
 

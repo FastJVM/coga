@@ -3,7 +3,8 @@ name: code/with-review
 description: Standard code workflow with PR and approval gate.
 steps:
   - name: implement
-    skill: infra/testing-conventions
+    skills:
+      - infra/testing-conventions
     assignee: agent
   - name: pr
     assignee: agent

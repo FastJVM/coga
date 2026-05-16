@@ -17,6 +17,7 @@ from relay.tasks import (
     read_ticket,
     resolve_task,
 )
+from relay.validate import TaskValidationError
 
 
 def retire(
@@ -135,18 +136,21 @@ def _retire_body(target_slug: str) -> str:
 def _activate_created_task(cfg: Config, ref: TaskRef) -> None:
     ticket = read_ticket(ref)
     typer.echo(f"Retire: activating {ref.id_slug}")
-    mark_active(
-        cfg,
-        ref,
-        ticket,
-        actor=f"human:{cfg.current_user}",
-        log_message="activated (draft → active) via relay retire",
-        slack_text=(
-            f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
-            f"\"{ticket.title}\" — relay retire"
-        ),
-        echo=f"{ref.id_slug}: active",
-    )
+    try:
+        mark_active(
+            cfg,
+            ref,
+            ticket,
+            actor=f"human:{cfg.current_user}",
+            log_message="activated (draft → active) via relay retire",
+            slack_text=(
+                f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
+                f"\"{ticket.title}\" — relay retire"
+            ),
+            echo=f"{ref.id_slug}: active",
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
 
 
 def _bail(msg: str) -> None:

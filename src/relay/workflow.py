@@ -24,7 +24,7 @@ VALID_ASSIGNEE_ROLES: frozenset[str] = frozenset({"owner", "human", "agent"})
 @dataclass(frozen=True)
 class WorkflowStep:
     name: str
-    skill: str | None = None
+    skills: tuple[str, ...] = ()
     assignee: str | None = None  # role token: "owner" | "human" | "agent"
 
 
@@ -34,7 +34,7 @@ class Workflow:
     description: str
     steps: list[WorkflowStep] = field(default_factory=list)
     body: str = ""
-    # step name -> markdown section body (used when step has no skill ref)
+    # step name -> markdown section body (used when step has no skills ref)
     inline_instructions: dict[str, str] = field(default_factory=dict)
 
     # --- io --------------------------------------------------------------------
@@ -77,9 +77,7 @@ class Workflow:
             "steps": [],
         }
         for step in self.steps:
-            entry: dict[str, Any] = {"name": step.name}
-            if step.skill:
-                entry["skill"] = step.skill
+            entry: dict[str, Any] = {"name": step.name, "skills": list(step.skills)}
             if step.assignee:
                 entry["assignee"] = step.assignee
             out["steps"].append(entry)
@@ -91,14 +89,32 @@ class Workflow:
 
 def _parse_step(raw: Any, source: Path) -> WorkflowStep:
     if not isinstance(raw, dict) or "name" not in raw:
-        raise WorkflowError(f"{source}: step must be a mapping with a `name` field, got {raw!r}")
+        raise WorkflowError(
+            f"{source}: step must be a mapping with a `name` field, got {raw!r}"
+        )
+    name = raw["name"]
+    if "skill" in raw:
+        raise WorkflowError(
+            f"{source}: step {name!r} uses legacy singular `skill:` — "
+            f"rewrite as `skills: [<ref>]` (a list)."
+        )
+    skills_raw = raw.get("skills", [])
+    if not isinstance(skills_raw, list):
+        raise WorkflowError(
+            f"{source}: step {name!r} `skills:` must be a list, got {skills_raw!r}"
+        )
+    for s in skills_raw:
+        if not isinstance(s, str) or not s:
+            raise WorkflowError(
+                f"{source}: step {name!r} `skills` entry must be a non-empty string, got {s!r}"
+            )
     assignee = raw.get("assignee")
     if assignee is not None and assignee not in VALID_ASSIGNEE_ROLES:
         raise WorkflowError(
-            f"{source}: step {raw['name']!r} assignee {assignee!r} must be one of "
+            f"{source}: step {name!r} assignee {assignee!r} must be one of "
             f"{sorted(VALID_ASSIGNEE_ROLES)} (role token only — literal nicknames not allowed)"
         )
-    return WorkflowStep(name=raw["name"], skill=raw.get("skill"), assignee=assignee)
+    return WorkflowStep(name=name, skills=tuple(skills_raw), assignee=assignee)
 
 
 def _parse_inline_sections(body: str, step_names: set[str]) -> dict[str, str]:

@@ -3,13 +3,17 @@ name: dev/with-self-review
 description: Code change with an agent self-review pass before the human sees a PR. Four agent steps (implement, review, fix, pr) then human merge.
 steps:
   - name: implement
-    skill: code/implement
+    skills:
+      - code/implement
   - name: review
-    skill: code/self-review
+    skills:
+      - code/self-review
   - name: fix
-    skill: code/apply-review
+    skills:
+      - code/apply-review
   - name: pr
-    skill: code/open-pr
+    skills:
+      - code/open-pr
   - name: merge
 ---
 

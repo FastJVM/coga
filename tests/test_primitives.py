@@ -43,10 +43,12 @@ TICKET_EXAMPLE = dedent(
       name: code/with-review
       steps:
         - name: implement
-          skill: infra/testing-conventions
+          skills:
+            - infra/testing-conventions
         - name: pr
         - name: approve
-          skill: process/approve
+          skills:
+            - process/approve
         - name: merge
     step: 1 (implement)
     contexts:
@@ -66,7 +68,7 @@ def test_ticket_roundtrip(tmp_path: Path) -> None:
     assert t.mode == "interactive"
     assert t.contexts == ["email/payment-flow"]
     assert t.step_index() == 1
-    assert t.current_step() == {"name": "implement", "skill": "infra/testing-conventions"}
+    assert t.current_step() == {"name": "implement", "skills": ["infra/testing-conventions"]}
     path = tmp_path / "ticket.md"
     t.write(path)
     again = Ticket.read(path)
@@ -112,8 +114,8 @@ def test_workflow_step_assignee_role_token_round_trips(tmp_path: Path) -> None:
     wf = Workflow.load(path)
     assert wf.steps[0].assignee == "agent"
     frozen = wf.freeze()
-    assert frozen["steps"][0] == {"name": "implement", "assignee": "agent"}
-    assert frozen["steps"][1] == {"name": "review", "assignee": "human"}
+    assert frozen["steps"][0] == {"name": "implement", "skills": [], "assignee": "agent"}
+    assert frozen["steps"][1] == {"name": "review", "skills": [], "assignee": "human"}
 
 
 def test_workflow_rejects_non_role_token_assignee(tmp_path: Path) -> None:

@@ -1,7 +1,8 @@
 ---
 title: Create a new ticket
 mode: interactive
-skill: bootstrap/ticket
+skills:
+  - bootstrap/ticket
 assignee: claude1
 ---
 

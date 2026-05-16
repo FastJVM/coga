@@ -45,6 +45,7 @@ from relay.tasks import (
     resolve_target,
 )
 from relay.ticket import Ticket
+from relay.validate import TaskValidationError
 
 
 def launch(
@@ -188,18 +189,21 @@ def launch(
     typer.echo(f"Launch: found agent CLI at {agent_path}")
 
     if isinstance(ref, TaskRef) and ticket.status == "active":
-        mark_in_progress(
-            cfg,
-            ref,
-            ticket,
-            actor=f"human:{cfg.current_user}",
-            log_message="started (active → in_progress) via relay launch",
-            slack_text=(
-                f"▶️ {cfg.current_user} started *{ref.id_slug}* "
-                f"\"{ticket.title}\" — assignee {launch_assignee}"
-            ),
-            echo=f"{ref.id_slug}: in_progress",
-        )
+        try:
+            mark_in_progress(
+                cfg,
+                ref,
+                ticket,
+                actor=f"human:{cfg.current_user}",
+                log_message="started (active → in_progress) via relay launch",
+                slack_text=(
+                    f"▶️ {cfg.current_user} started *{ref.id_slug}* "
+                    f"\"{ticket.title}\" — assignee {launch_assignee}"
+                ),
+                echo=f"{ref.id_slug}: in_progress",
+            )
+        except TaskValidationError as exc:
+            _bail(str(exc))
 
     # Inject secrets as env vars.
     env = os.environ.copy()
@@ -298,7 +302,7 @@ def launch(
                 )
                 sys.exit(exit_code)
 
-            if is_bootstrap or ticket.skill:
+            if is_bootstrap or ticket.skills:
                 break
 
             typer.echo("Launch: reading task state after agent exit")
@@ -410,8 +414,8 @@ def _harness_stop_reason(ref: TaskRef, before: Ticket, after: Ticket) -> str | N
     if current is None:
         return f"{ref.id_slug}: no current workflow step; stopping"
 
-    if not current.get("skill"):
-        return f"{ref.id_slug}: next step has no skill — handoff to human"
+    if not current.get("skills"):
+        return f"{ref.id_slug}: next step has no skills — handoff to human"
 
     if after.assignee != before.assignee:
         return f"{ref.id_slug}: next step assignee changed: {before.assignee} → {after.assignee}"

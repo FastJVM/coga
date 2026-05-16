@@ -29,6 +29,7 @@ from relay.tasks import (
     resolve_task,
 )
 from relay.ticket import Ticket
+from relay.validate import format_task_issues, validate_task_dir
 
 
 AUTHORING_SKILL = "bootstrap/ticket"
@@ -117,7 +118,7 @@ def _resolve_or_create_target(cfg: Config, target: str) -> tuple[TaskRef, Ticket
 def _authoring_ticket(ticket: Ticket) -> Ticket:
     fm = dict(ticket.frontmatter)
     fm["mode"] = "interactive"
-    fm["skill"] = AUTHORING_SKILL
+    fm["skills"] = [AUTHORING_SKILL]
     return Ticket(frontmatter=fm, body=ticket.body)
 
 
@@ -178,6 +179,21 @@ def _run_authoring_session(
             err=True,
         )
         sys.exit(result.returncode)
+
+    # Post-authoring validation: the agent edited the ticket directly during
+    # the session. Surface schema breakage now, while the user is at the
+    # terminal and can fix it before launch / Dream picks it up later.
+    if isinstance(ref, TaskRef):
+        issues = validate_task_dir(cfg, ref)
+        errors = [i for i in issues if i.severity == "error"]
+        if errors:
+            typer.secho(
+                "Ticket validation failed after authoring:\n"
+                + format_task_issues(errors),
+                fg=typer.colors.RED,
+                err=True,
+            )
+            sys.exit(2)
 
 
 def _bail(msg: str) -> None:

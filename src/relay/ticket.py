@@ -95,6 +95,14 @@ class Ticket:
         return list(value)
 
     @property
+    def skills(self) -> list[str]:
+        """Ticket-level skill refs (plural). Used by bootstrap shims that
+        aren't workflow-bound and by normal tickets that want extra process
+        instructions on top of the current workflow step."""
+        value = self.frontmatter.get("skills") or []
+        return list(value)
+
+    @property
     def workflow(self) -> dict[str, Any] | str | None:
         # Frozen as a dict post-launch; can be a bare string ref on
         # hand-authored / draft tickets that haven't been launched yet.
@@ -103,11 +111,6 @@ class Ticket:
     @property
     def step(self) -> str | None:
         return self.frontmatter.get("step")
-
-    @property
-    def skill(self) -> str | None:
-        """Top-level skill ref for bootstrap tickets that aren't workflow-bound."""
-        return self.frontmatter.get("skill")
 
     def step_index(self) -> int | None:
         """Return 1-indexed step number, or None if no workflow."""

@@ -7,18 +7,21 @@ human: nick
 agent: codex1
 assignee: codex1
 contexts:
-  - relay/principles
-  - relay/codebase
-  - dev/code
+- relay/principles
+- relay/codebase
+- dev/code
+skills: []
 workflow:
   name: code/with-review
   steps:
-    - name: implement
-      skill: code/implement
-    - name: open-pr
-      skill: code/open-pr
-    - name: review
-      assignee: owner
+  - name: implement
+    skills:
+    - code/implement
+  - name: open-pr
+    skills:
+    - code/open-pr
+  - name: review
+    assignee: owner
 step: 1 (implement)
 ---
 

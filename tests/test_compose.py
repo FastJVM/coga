@@ -44,7 +44,8 @@ def repo(tmp_path: Path) -> Path:
         description: Standard.
         steps:
           - name: implement
-            skill: infra/testing-conventions
+            skills:
+              - infra/testing-conventions
           - name: pr
         ---
 

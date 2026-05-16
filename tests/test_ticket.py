@@ -33,15 +33,8 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
         mode = "local"
 
-        [agents.codex]
-        cli = "codex"
-        interactive = ""
-        auto = "exec"
-        file = "AGENTS.md"
-        mode = "local"
-
         [assignees.marc]
-        agents = {"claude1" = "claude", "codex1" = "codex"}
+        agents = {"claude1" = "claude"}
         """,
     )
     _write(relay_os / "relay.local.toml", 'user = "marc"\n')
@@ -51,7 +44,8 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         ---
         title: Create a new ticket
         mode: interactive
-        skill: bootstrap/ticket
+        skills:
+          - bootstrap/ticket
         assignee: claude1
         ---
 
@@ -102,7 +96,7 @@ def test_ticket_title_creates_draft_and_launches_authoring(
     ticket = Ticket.read(task_dir / "ticket.md")
     assert ticket.status == "draft"
     assert ticket.title == "Investigate retries"
-    assert ticket.skill is None
+    assert ticket.skills == []
     assert "ticket authoring launched" in (task_dir / "log.md").read_text()
 
     assert len(prompts) == 1
@@ -135,7 +129,7 @@ def test_ticket_existing_active_task_is_editable_without_status_change(
 
     ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
     assert ticket.status == "active"
-    assert ticket.skill is None
+    assert ticket.skills == []
     assert "Status: active" in prompts[0]
     assert "Skill: bootstrap/ticket" in prompts[0]
 
