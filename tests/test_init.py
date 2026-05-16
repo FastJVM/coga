@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -294,6 +295,17 @@ def _seed_local_relay_os(root: Path) -> Path:
     return relay_os
 
 
+def _seed_relay_source_checkout(root: Path) -> None:
+    """Add the source-tree markers `init --update` uses to protect this repo."""
+    (root / "pyproject.toml").write_text('[project]\nname = "relay-os"\n')
+    (root / "src" / "relay" / "commands").mkdir(parents=True)
+    (root / "src" / "relay" / "commands" / "init.py").write_text("# source init\n")
+    (root / "src" / "relay" / "commands" / "update.py").write_text("# source update\n")
+    (root / "src" / "relay" / "resources" / "templates" / "relay-os").mkdir(
+        parents=True
+    )
+
+
 def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     templates = clone_dir / update_cmd.TEMPLATE_SUBPATH
     (templates / "skills" / "_template").mkdir(parents=True)
@@ -423,6 +435,67 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert pin.is_file()
     assert FAKE_SHA in pin.read_text()
     assert f"Pinned to upstream {FAKE_SHA[:12]}" in result.output
+
+
+def test_init_update_in_relay_source_checkout_skips_template_prune(
+    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Running the installer refresh from Relay's own repo must not rewrite fixtures."""
+    relay_os = _seed_local_relay_os(tmp_path)
+    shutil.rmtree(relay_os / "bootstrap")
+    _seed_relay_source_checkout(tmp_path)
+    for ctx in ("architecture", "principles", "cli"):
+        path = relay_os / "contexts" / "relay" / ctx
+        path.mkdir(parents=True)
+        (path / "SKILL.md").write_text(f"SOURCE relay/{ctx}\n")
+    (relay_os / "skills" / "retro" / "done-ticket").mkdir(parents=True)
+    (relay_os / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
+        "SOURCE retro/done-ticket\n"
+    )
+    (relay_os / "hooks").mkdir()
+    (relay_os / "hooks" / "post-merge").write_text("SOURCE hook\n")
+
+    monkeypatch.chdir(relay_os)
+
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            _seed_fake_upstream_for_update(Path(cmd[-1]))
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if (
+            cmd[:2] == ["git", "-C"]
+            and cmd[3:] == ["rev-parse", "HEAD"]
+            and "relay-init-update-" in cmd[2]
+        ):
+            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    result = CliRunner().invoke(app, ["init", "--update"])
+    assert result.exit_code == 0, result.output
+
+    assert (
+        (relay_os / ".relay" / "src" / "relay" / "cli.py").read_text()
+        == "# NEW vendored cli\n"
+    )
+    assert fake_venv == [relay_os]
+    assert "Skipped relay-os template refresh/prune in Relay source checkout" in result.output
+    assert "Pruned" not in result.output
+
+    for ctx in ("architecture", "principles", "cli"):
+        path = relay_os / "contexts" / "relay" / ctx
+        assert path.is_dir() and not path.is_symlink()
+        assert (path / "SKILL.md").read_text() == f"SOURCE relay/{ctx}\n"
+    retro = relay_os / "skills" / "retro"
+    assert retro.is_dir() and not retro.is_symlink()
+    assert (
+        relay_os / "skills" / "retro" / "done-ticket" / "SKILL.md"
+    ).read_text() == "SOURCE retro/done-ticket\n"
+    assert (relay_os / "hooks" / "post-merge").read_text() == "SOURCE hook\n"
+    assert not (relay_os / "recurring" / "_rem.md").exists()
+    assert not (relay_os / "bootstrap").exists()
 
 
 def test_init_commits_relay_os_when_target_is_git_repo(

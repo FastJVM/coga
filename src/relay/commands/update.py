@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 import typer
@@ -165,6 +166,36 @@ def prune_obsolete(relay_os: Path) -> list[str]:
             shutil.rmtree(target)
             pruned.append(rel)
     return pruned
+
+
+def is_relay_source_checkout(relay_os: Path) -> bool:
+    """Return True when `relay_os` belongs to Relay's own source checkout.
+
+    `relay init --update` is also the installer refresh command developers run
+    from this repo. In installed repos, obsolete upstream-managed paths should
+    be pruned and replaced by bootstrap/ compat symlinks. In the Relay source
+    repo, those same paths are source fixtures tracked by git, so pruning them
+    damages the checkout.
+    """
+    root = relay_os.parent
+    pyproject = root / "pyproject.toml"
+    if not pyproject.is_file():
+        return False
+
+    try:
+        data = tomllib.loads(pyproject.read_text())
+    except (OSError, tomllib.TOMLDecodeError):
+        return False
+
+    project = data.get("project")
+    if not isinstance(project, dict) or project.get("name") != "relay-os":
+        return False
+
+    return (
+        (root / "src" / "relay" / "commands" / "init.py").is_file()
+        and (root / "src" / "relay" / "commands" / "update.py").is_file()
+        and (root / "src" / "relay" / "resources" / "templates" / "relay-os").is_dir()
+    )
 
 
 HOST_GITIGNORE_BEGIN = "# >>> relay-managed >>>"
