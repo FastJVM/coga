@@ -1,12 +1,12 @@
 """End-to-end smoke test: run the full lifecycle against the seeded `example/` repo.
 
 Verifies:
-- `relay create` scaffolds a task with a frozen workflow snapshot.
+- task scaffolding creates a task with a frozen workflow snapshot.
 - Prompt composition includes every expected section.
 - `relay bump` advances; `relay mark done` finishes the final step.
 - `relay panic` writes to blackboard + releases the lock.
 - `relay slack` logs a message.
-- `relay status` lists the active task.
+- `relay status` lists the task queue.
 - The validator runs cleanly against a healthy repo.
 """
 
@@ -53,7 +53,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         owner="marc",
         assignee="claude1",
         watchers=["pierre"],
-        status="active",
+        status="in_progress",
     )
     task_path = ref["path"]
     for name in ("ticket.md", "blackboard.md", "log.md"):
@@ -92,7 +92,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     ref2 = scaffold_task(
         cfg=cfg, title="Investigate slow DNS",
         workflow_name=None, contexts=[], mode="interactive",
-        owner="marc", assignee="claude1", watchers=[], status="active",
+        owner="marc", assignee="claude1", watchers=[], status="in_progress",
     )
     r = runner.invoke(app, [
         "panic",

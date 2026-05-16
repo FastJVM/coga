@@ -197,7 +197,7 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
-    if kind == "stuck-active":
+    if kind == "stuck-in-progress":
         return ClassifiedIssue(
             issue=issue,
             action=ACTION_HUMAN_NEEDED,

@@ -57,10 +57,10 @@ human-installed command line tools:
 
 After init, edit the freshly-written `relay-os/relay.toml` to declare your
 agents and assignees, and set `user = "<you>"` in
-`relay-os/relay.local.toml`. Then create your first ticket:
+`relay-os/relay.local.toml`. Then draft your first ticket:
 
 ```sh
-relay create "First task"
+relay ticket "First task"
 ```
 
 Multi-surface companies (e.g. an admin repo + a code repo) run multiple
@@ -121,29 +121,45 @@ yourself if you use them. If init finds something non-directory in the way
 (e.g. an empty `.codex` sentinel file from an older setup), it skips that
 agent and prints what to clear.
 
-### `relay create "<title>"`
+### `relay draft "<title>"`
 
-Scaffold a new `draft` ticket under `relay-os/tasks/<slug>/` (slug derived
-from the title) and post `✨` to Slack. Does **not** spawn an agent.
-The new ticket is empty — title, owner, mode, and timestamp set; workflow,
-contexts, assignee, and description still need to be filled in. If the
-slug already exists, the new task gets `-2`, `-3`, … appended.
+Scaffold a new raw `draft` ticket under `relay-os/tasks/<slug>/` (slug
+derived from the title) and post `✨` to Slack. Does **not** spawn an agent
+and does **not** run the guided authoring interview. The new ticket is empty
+— title, owner, mode, and timestamp set; workflow, contexts, assignee, and
+description still need to be filled in. If the slug already exists, the new
+task gets `-2`, `-3`, … appended.
 
 ```sh
-relay create "Add retry to webhook handler"
-relay create "Nightly cleanup" --mode auto
+relay draft "Add retry to webhook handler"
+relay draft "Nightly cleanup" --mode auto
 ```
 
-`create` is one third of the boot sequence:
+`relay create "<title>"` remains as a compatibility spelling for this raw
+draft operation.
 
-1. `relay create "<title>"` — scaffold the draft.
-2. Edit the ticket body (workflow, contexts, description).
-3. `relay mark active <slug>` — flip status to active.
-4. `relay launch <slug>` — spawn the agent.
+### `relay ticket [<title-or-slug>] [--agent <nickname>]`
 
-The split keeps the moment of authoring distinct from the moment of
-starting work. Tickets you mean to draft now and start later get the
-same `create` call; nothing fires until you choose to.
+Run the guided ticket-authoring skill. This is the normal path when you want
+Relay to ask clarifying questions, choose a workflow/context/assignee shape,
+and edit the ticket before work starts.
+
+```sh
+relay ticket                                  # ask for title, then fill a draft
+relay ticket "Add retry to webhook handler"  # create draft, then interview
+relay ticket add-retry                        # edit existing draft/active/paused
+relay ticket add-retry --agent codex1         # choose authoring agent
+```
+
+`relay ticket` refuses `in_progress` and `done` tickets by default. Editing a
+draft/active/paused ticket leaves its status unchanged.
+
+The usual boot sequence is:
+
+1. `relay ticket "<title>"` — scaffold and fill the draft.
+2. Review or edit the ticket.
+3. `relay mark active <slug>` — approve it into the queue.
+4. `relay launch <slug>` — mark it `in_progress` and spawn the agent.
 
 Programmatic callers (e.g. the recurring scaffolder) call
 `scaffold_task()` in `relay.scaffold` directly with the full keyword
@@ -155,13 +171,12 @@ Change a ticket's `status`. Three subcommands:
 
 ```sh
 relay mark active add-retry         # draft / paused → active. Posts 🚀.
-relay mark paused add-retry         # active → paused. Posts ⏸️. Preserves step.
-relay mark done   add-retry         # active → done.   Posts 🎉. Clears step.
+relay mark paused add-retry         # active / in_progress → paused. Preserves step.
+relay mark done   add-retry         # active / in_progress → done. Clears step.
 ```
 
-`relay mark` is the only command that writes `status:`. `relay launch`
-no longer activates drafts; `relay bump` no longer marks final-step
-tickets done. The two state machines are entirely separated.
+`relay launch` owns the `active` → `in_progress` start transition. `relay
+bump` no longer marks final-step tickets done.
 
 `--message` piggy-backs an FYI onto the state-transition Slack
 broadcast — one post instead of two.
@@ -225,10 +240,11 @@ Compose every relevant file for a task — rules, project context, ticket,
 attached contexts, current workflow step, frozen skills — into a single
 prompt and start the configured agent against it.
 
-`launch` requires `status: active`. Drafts must be activated with
-`relay mark active <slug>` first; paused / done tickets must be marked
-back to active before they can be launched. `launch` no longer mutates
-status itself.
+`launch` accepts `status: active` or `status: in_progress`. Drafts must be
+activated with `relay mark active <slug>` first; paused / done tickets must
+be marked back to active before they can be launched. Launching an active
+ticket marks it `in_progress`; launching an already-`in_progress` ticket
+resumes it.
 
 ```sh
 relay launch add-retry-to-webhook-handler          # full slug
@@ -252,7 +268,7 @@ opens it with Claude.
 
 For workflow-bound interactive/auto tasks, one `relay launch` can run multiple
 agent-owned steps. After each clean agent exit, Relay re-reads the ticket and
-continues in a fresh agent process only when the task is still active, the step
+continues in a fresh agent process only when the task is still `in_progress`, the step
 advanced, the new current step has a `skill:`, and the concrete `assignee:`
 did not change. It stops at human/no-skill steps, assignee handoffs, done or
 paused tasks, no-progress exits, and panic/non-zero exits.
@@ -271,7 +287,7 @@ your own launch wrappers elsewhere.
 
 ### `relay status`
 
-Show every task in the repo — `draft`, `active`, `paused`, and `done`.
+Show every task in the repo — `draft`, `active`, `in_progress`, `paused`, and `done`.
 One line per task. Bootstrap shims have no status and don't appear.
 
 ```sh
@@ -313,7 +329,7 @@ relay mark done add-retry                    # finish (on final step, or no work
 
 ### `relay automerge`
 
-Walk active tickets, find ones on their final workflow step (or with no
+Walk active/in-progress tickets, find ones on their final workflow step (or with no
 workflow) whose blackboard `## Dev` section names a merged PR, and
 auto-bump them to `done`. Looks the PR up via `gh pr view`. Posts to
 Slack with a distinct `auto-bumped on merge of PR #<N>` line.
@@ -390,9 +406,9 @@ relay slack --task add-retry --message "Reassigned to pierre"
 
 Slack is required by default. Every state change posts to the channel
 pointed at by `$SLACK_WEBHOOK_URL`: ticket created, draft → active,
-`bump`, `panic`, `slack`, script-mode failure, and each recurring
-scaffold. Opening a session on an already-active ticket does *not*
-post — that isn't a state change. Failures are loud: if Slack is
+active → in_progress, `bump`, `panic`, `slack`, script-mode failure, and each
+recurring scaffold. Relaunching an already-`in_progress` ticket does *not*
+post — that isn't a new state change. Failures are loud: if Slack is
 unreachable or the webhook isn't set, the command exits non-zero
 rather than silently dropping the message — a missed FYI becomes a
 stale mental model on the human side, and that's worse than a noisy
@@ -455,9 +471,9 @@ chat = "launch bootstrap/orient"
 # codex = "launch bootstrap/orient --agent codex1"
 ```
 
-`create` is a built-in command, not an alias — it has its own
-scaffolding behavior. Add your own aliases for shims or skills you
-launch often; running an alias prints the expansion to stderr —
+`draft`, `ticket`, and `create` are built-in commands, not aliases. Add your
+own aliases for shims or skills you launch often; running an alias prints the
+expansion to stderr —
 `→ relay launch bootstrap/orient` — so the indirection is visible.
 
 Rules, checked at config load — fail loud, not silent:

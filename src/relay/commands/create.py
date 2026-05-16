@@ -1,8 +1,8 @@
-"""`relay create "<title>"` — scaffold a new draft ticket.
+"""Raw draft-ticket scaffolding for `relay draft` / legacy `relay create`.
 
 Posts ✨ to Slack and leaves the new ticket as `draft`. Does not launch
-an agent. To start work, edit the draft (workflow, contexts, description),
-then `relay mark active <slug>` and `relay launch <slug>`.
+an agent. For guided authoring use `relay ticket`; to start work, mark the
+ticket active and then launch it.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from relay.scaffold import scaffold_task
 from relay.slack import post
 
 
-def create(
+def draft(
     title: str = typer.Argument(..., help="Short human title for the new ticket."),
     mode: str = typer.Option(
         "interactive",
@@ -25,6 +25,23 @@ def create(
     ),
 ) -> None:
     """Scaffold a new draft ticket and post ✨ to Slack."""
+    scaffold_draft(title=title, mode=mode)
+
+
+def create(
+    title: str = typer.Argument(..., help="Short human title for the new ticket."),
+    mode: str = typer.Option(
+        "interactive",
+        "--mode",
+        help="Ticket mode: interactive, auto, or script.",
+    ),
+) -> None:
+    """Compatibility spelling for `relay draft`."""
+    scaffold_draft(title=title, mode=mode)
+
+
+def scaffold_draft(*, title: str, mode: str) -> dict[str, object]:
+    """Scaffold a raw draft ticket and post the create notification."""
     if not title.strip():
         _bail("title cannot be empty")
 
@@ -57,6 +74,7 @@ def create(
         task_path=result["path"],
         owner=cfg.current_user,
     )
+    return result
 
 
 def _bail(msg: str) -> None:

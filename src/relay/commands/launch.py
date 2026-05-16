@@ -1,8 +1,8 @@
 """`relay launch` — compose context and start work on a task.
 
-Launch never mutates `status`. Drafts must be activated via
-`relay mark active <slug>` first; paused / done tickets must be marked
-back to `active` before they can be launched.
+Launching an `active` task moves it to `in_progress`. Drafts must be
+activated via `relay mark active <slug>` first; paused / done tickets must be
+marked back to `active` before they can be launched.
 
 Bootstrap shims are stateless re-entry points (no status, no log of state
 changes) — launch is the only way to run a skill against one.
@@ -30,6 +30,7 @@ from relay.compose import (
 )
 from relay.config import ConfigError, load_config
 from relay.logfile import append_log
+from relay.mark import mark_in_progress
 from relay.stream_render import (
     RunSummary,
     format_run_summary_log,
@@ -137,7 +138,7 @@ def launch(
                 f"Task {ref.id_slug} is draft. "
                 f"Run `relay mark active {ref.id_slug}` first."
             )
-        if ticket.status != "active":
+        if ticket.status not in {"active", "in_progress"}:
             _bail(
                 f"Task {ref.id_slug} is {ticket.status!r}. "
                 f"Run `relay mark active {ref.id_slug}` to relaunch."
@@ -185,6 +186,20 @@ def launch(
     if agent_path is None:
         _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
     typer.echo(f"Launch: found agent CLI at {agent_path}")
+
+    if isinstance(ref, TaskRef) and ticket.status == "active":
+        mark_in_progress(
+            cfg,
+            ref,
+            ticket,
+            actor=f"human:{cfg.current_user}",
+            log_message="started (active → in_progress) via relay launch",
+            slack_text=(
+                f"▶️ {cfg.current_user} started *{ref.id_slug}* "
+                f"\"{ticket.title}\" — assignee {launch_assignee}"
+            ),
+            echo=f"{ref.id_slug}: in_progress",
+        )
 
     # Inject secrets as env vars.
     env = os.environ.copy()
@@ -380,7 +395,7 @@ def _format_agent_command_for_console(
 
 
 def _harness_stop_reason(ref: TaskRef, before: Ticket, after: Ticket) -> str | None:
-    if after.status != "active":
+    if after.status != "in_progress":
         if after.status == "done":
             return f"{ref.id_slug}: task is done"
         if after.status == "paused":

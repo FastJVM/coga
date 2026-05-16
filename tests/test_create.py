@@ -400,7 +400,43 @@ def test_recurring_check_posts_error_summary(
     assert not any(str(repo_with_shim) in m for m in slack_msgs)
 
 
-# --- `relay create` CLI -------------------------------------------------------
+# --- `relay draft` / legacy `relay create` CLI --------------------------------
+
+
+def test_cli_draft_scaffolds_draft_and_posts(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay draft "<title>"` scaffolds a raw draft ticket and posts ✨."""
+    monkeypatch.chdir(repo)
+    posts: list[str] = []
+
+    def _capture(url, json=None, timeout=None):
+        posts.append(json["text"])
+        class R:
+            status_code = 200
+            text = "ok"
+        return R()
+
+    monkeypatch.setattr("relay.slack.requests.post", _capture)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["draft", "Investigate retries"])
+    assert result.exit_code == 0, result.output
+
+    cfg = load_config(repo)
+    task_dir = repo / "tasks" / "investigate-retries"
+    assert task_dir.is_dir()
+    t = Ticket.read(task_dir / "ticket.md")
+    assert t.title == "Investigate retries"
+    assert t.status == "draft"
+    assert t.mode == "interactive"
+
+    assert any(
+        f"✨ {cfg.current_user} created *investigate-retries*" in m
+        and "Investigate retries" in m
+        and cfg.project_name in m
+        for m in posts
+    )
 
 
 def test_cli_create_scaffolds_draft_and_posts(

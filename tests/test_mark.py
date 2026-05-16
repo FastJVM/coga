@@ -124,7 +124,7 @@ def test_mark_paused_from_active(repo: Path) -> None:
 
 
 def test_mark_paused_preserves_step(repo: Path) -> None:
-    slug, task_path = _make_task(repo, status="active")
+    slug, task_path = _make_task(repo, status="in_progress")
     # Advance to step 2.
     runner = CliRunner()
     runner.invoke(app, ["bump", slug])
@@ -208,14 +208,14 @@ def test_mark_active_message_appended(repo: Path) -> None:
 
 
 def test_mark_paused_message_appended(repo: Path) -> None:
-    slug, task_path = _make_task(repo, status="active")
+    slug, task_path = _make_task(repo, status="in_progress")
     runner = CliRunner()
     result = runner.invoke(
         app, ["mark", "paused", slug, "--message", "blocked on review"]
     )
     assert result.exit_code == 0, result.output
     log = (task_path / "log.md").read_text()
-    assert "paused (active → paused) — blocked on review" in log
+    assert "paused (in_progress → paused) — blocked on review" in log
 
 
 def test_mark_done_message_appended(repo: Path) -> None:

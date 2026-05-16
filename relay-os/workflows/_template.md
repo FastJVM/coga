@@ -18,8 +18,8 @@ match the step name. One paragraph is plenty for inline instructions.
 
 ## last-step
 
-Wrap-up. `relay step` past the last step marks the task `done` and
-notifies Slack — no explicit "close" step is needed.
+Wrap-up. `relay bump` stops at the last step; finish with
+`relay mark done <slug>` when the work is complete.
 
 ## On `assignee:`
 

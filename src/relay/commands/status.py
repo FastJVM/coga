@@ -142,7 +142,7 @@ def status(
     counts: dict[str, int] = {}
     for r in rows:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
-    canonical = ("active", "draft", "paused", "done")
+    canonical = ("in_progress", "active", "draft", "paused", "done")
     parts = [f"{counts[s]} {s}" for s in canonical if counts.get(s)]
     parts += [
         f"{counts[s]} {s}"

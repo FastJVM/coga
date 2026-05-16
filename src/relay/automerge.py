@@ -1,4 +1,4 @@
-"""Auto-bump active tickets whose linked PR has merged.
+"""Auto-bump started tickets whose linked PR has merged.
 
 Scope: tickets whose `## Dev` blackboard section names a PR, where the PR
 is merged on GitHub, and where the ticket is on its final workflow step
@@ -11,7 +11,7 @@ treats the blackboard as plain text on purpose.
 
 Three callers:
   - `relay automerge` (post-merge git hook + manual invocation) — uses
-    `auto_bump_merged` to sweep all active tickets.
+    `auto_bump_merged` to sweep all active/in-progress tickets.
   - `relay status` (opportunistic fallback, `quiet=True` — gh failures
     swallowed so the fast command stays fast).
   - `relay launch <slug>` (pre-launch freshness check) — uses
@@ -95,7 +95,7 @@ def _on_final_step(ticket: Ticket) -> bool:
 
 
 def _candidate(ticket: Ticket) -> bool:
-    return ticket.status == "active" and _on_final_step(ticket)
+    return ticket.status in {"active", "in_progress"} and _on_final_step(ticket)
 
 
 def _try_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool) -> bool:
@@ -152,7 +152,7 @@ def _try_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool) -> bool:
 
 
 def auto_bump_merged(cfg: Config, *, quiet: bool = False) -> int:
-    """Walk active tickets; bump those whose linked PR has merged.
+    """Walk active/in-progress tickets; finish those whose linked PR has merged.
 
     Returns the count of bumped tickets.
 
@@ -179,8 +179,8 @@ def auto_bump_merged(cfg: Config, *, quiet: bool = False) -> int:
 def auto_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool = False) -> bool:
     """Check a single ticket; bump to done iff its linked PR has merged.
 
-    Same gating as `auto_bump_merged`: ticket must be active, on its
-    final workflow step (or have no workflow), and have a `pr:` line
+    Same gating as `auto_bump_merged`: ticket must be active/in-progress, on
+    its final workflow step (or have no workflow), and have a `pr:` line
     under `## Dev` in the blackboard.
 
     Always raises `GhError` if the `gh` lookup fails. Callers (e.g.

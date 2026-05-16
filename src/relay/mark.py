@@ -66,6 +66,27 @@ def mark_active(
     post(cfg, slack_text, task_path=ref.path, owner=owner)
 
 
+def mark_in_progress(
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+    *,
+    actor: str,
+    log_message: str,
+    slack_text: str | None = None,
+    echo: str | None = None,
+) -> None:
+    """Flip a ticket to `in_progress`: write frontmatter, log, optionally post."""
+    owner = ticket.owner or cfg.current_user
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.write(ref.path / "ticket.md")
+    append_log(ref.path, actor, log_message)
+    if echo is not None:
+        typer.echo(echo)
+    if slack_text is not None:
+        post(cfg, slack_text, task_path=ref.path, owner=owner)
+
+
 def mark_paused(
     cfg: Config,
     ref: TaskRef,
@@ -86,4 +107,4 @@ def mark_paused(
     post(cfg, slack_text, task_path=ref.path, owner=owner)
 
 
-__all__ = ["mark_active", "mark_paused", "mark_done"]
+__all__ = ["mark_active", "mark_in_progress", "mark_paused", "mark_done"]

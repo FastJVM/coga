@@ -1,4 +1,4 @@
-"""`relay automerge` — bump active tickets whose linked PR has merged.
+"""`relay automerge` — finish started tickets whose linked PR has merged.
 
 Thin wrapper over `automerge.auto_bump_merged`. Designed to be called by
 the post-merge git hook (which `relay init` installs) and to be safe to
@@ -20,7 +20,7 @@ from relay.config import ConfigError, load_config
 
 
 def automerge() -> None:
-    """Scan active tickets; bump any whose linked PR has merged."""
+    """Scan active/in-progress tickets; finish any whose linked PR has merged."""
     try:
         cfg = load_config()
     except ConfigError as exc:

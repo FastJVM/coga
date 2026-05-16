@@ -51,7 +51,7 @@ def bump(
 
     ticket = read_ticket(ref)
 
-    if ticket.status != "active":
+    if ticket.status != "in_progress":
         _bail(f"Task {ref.id_slug} is {ticket.status!r}. Cannot advance.")
 
     # Hand-authored / pre-freeze tickets carry `workflow:` as a bare string

@@ -4,9 +4,8 @@ Three subcommands: `mark active`, `mark paused`, `mark done`. Each verb is
 the literal `status` value it sets, so the command shape mirrors the
 frontmatter field.
 
-Status transitions are the only way to flip `status`. `relay launch` no
-longer activates drafts; `relay bump` no longer marks final-step tickets
-done. One command, one concern.
+`relay launch` owns the `active` → `in_progress` start transition. `relay
+bump` no longer marks final-step tickets done.
 """
 
 from __future__ import annotations
@@ -30,8 +29,8 @@ app = typer.Typer(
 
 
 _ACTIVE_FROM = {"draft", "paused"}
-_PAUSED_FROM = {"active"}
-_DONE_FROM = {"active"}
+_PAUSED_FROM = {"active", "in_progress"}
+_DONE_FROM = {"active", "in_progress"}
 
 
 @app.command("active")
@@ -74,14 +73,14 @@ def paused(
         help="Optional FYI to piggy-back on the state-transition broadcast.",
     ),
 ) -> None:
-    """Set status to `paused`. Allowed from `active`."""
+    """Set status to `paused`. Allowed from `active` or `in_progress`."""
     cfg, ref, ticket = _load(task)
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _PAUSED_FROM, "paused")
 
     suffix = f" — {message}" if message else ""
     actor = f"human:{cfg.current_user}"
-    log_message = f"paused (active → paused){suffix}"
+    log_message = f"paused ({ticket.status} → paused){suffix}"
     slack_text = (
         f"⏸️ {cfg.current_user} paused *{ref.id_slug}* "
         f"\"{ticket.title}\"{suffix}"
@@ -105,7 +104,7 @@ def done(
         help="Optional FYI to piggy-back on the state-transition broadcast.",
     ),
 ) -> None:
-    """Set status to `done`. Allowed from `active`."""
+    """Set status to `done`. Allowed from `active` or `in_progress`."""
     cfg, ref, ticket = _load(task)
     _require_message_nonempty(message)
     _check_transition(ref.id_slug, ticket.status, _DONE_FROM, "done")

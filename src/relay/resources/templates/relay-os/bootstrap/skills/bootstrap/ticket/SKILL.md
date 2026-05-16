@@ -27,16 +27,21 @@ Match this shape exactly. Don't invent fields the template doesn't define
 
 ## Step 1 — Detect launch shape
 
-Two ways this skill runs:
+Four ways this skill runs:
 
-- **Seeded launch** (the common case) — `relay create "<title>"` or
-  `relay launch bootstrap/ticket "<title>"` already scaffolded a task. Your
-  current working task has a `title:` set, `status: draft`, and an empty
-  `## Description` / `## Context` body. Skip to step 2.
-- **Empty launch** — `relay launch bootstrap/ticket` with no title. You're
-  inside the stateless shim. Ask the human for a one-line title, then run
-  `relay create "<title>"` and stop. The new task auto-launches this skill
-  and continues from step 2 in a fresh session.
+- **Empty interview** — `relay ticket` or `relay launch bootstrap/ticket`
+  with no target. You're inside the stateless shim. Ask the human for a
+  one-line title, run `relay draft "<title>"`, then edit the new draft
+  directly in this same session.
+- **New-title launch** — `relay ticket "<title>"` already scaffolded a draft
+  and launched you against it. The current task has a `title:`, `status:
+  draft`, and usually an empty `## Description` / `## Context` body.
+- **Existing draft/active edit** — `relay ticket <slug>` launched you against
+  an existing `draft`, `active`, or `paused` task. Preserve existing useful
+  body text and frontmatter; ask only for the missing or ambiguous pieces.
+- **Raw draft** — `relay draft "<title>"` only creates bytes on disk and does
+  not run this skill. If the human expected the interview, tell them to run
+  `relay ticket <slug>`.
 
 ## Step 2 — Survey what's available
 
@@ -100,6 +105,11 @@ While interviewing, watch for **gaps** — domain knowledge that recurs across
 recent tickets but isn't captured anywhere, or process steps that workflows
 keep needing inline. Surface them in step 4.
 
+For existing `active` or `paused` tickets, treat this as refinement of an
+approved ticket, not a new ticket. Preserve the current intent unless the
+human explicitly changes it. Do not change `status:`, `step:`, or an existing
+frozen workflow snapshot.
+
 ## Step 4 — Create missing contexts and skills
 
 If the interview reveals a gap that should be a reusable context or skill,
@@ -134,11 +144,11 @@ Edit `ticket.md` in place. YAML discipline (from the base prompt) applies:
 - Do not add a context just because it is generally related. If in doubt, leave
   it out and write the one needed fact into `## Context`.
 - Update `assignee:` only if it changed.
-- **Remove `skill: bootstrap/ticket`** from the frontmatter. That field is
-  what keeps the draft from auto-activating on launch (see `launch.py`); the
-  human's next `relay launch <slug>` is the approval gesture and should flip
-  the ticket draft → active.
-- Keep `status: draft`. You do not activate the ticket — the human does.
+- If the target file actually has `skill: bootstrap/ticket` in frontmatter
+  from an older seeded flow, remove it. Modern `relay ticket` injects this
+  skill only into the prompt; it should not persist on normal tasks.
+- Preserve the current `status:`. You do not activate or start the ticket —
+  the human does that with `relay mark active` / `relay launch`.
 - Fill the `## Description` and `## Context` body sections from the
   interview.
 
@@ -172,11 +182,18 @@ it directly.
 
 ## Step 7 — Hand back to the human
 
-Print a one-line summary of what you did and what's next:
+Print a one-line summary of what you did and what's next. For a draft ticket:
 
 ```
-Filled <slug>. Evaluator review on blackboard. Run `relay launch <slug>` to
-approve and start work.
+Filled <slug>. Evaluator review on blackboard. Review the draft, then run
+`relay mark active <slug>` and `relay launch <slug>` when ready.
+```
+
+For an already-active ticket, say:
+
+```
+Updated <slug>. Evaluator review on blackboard. Run `relay launch <slug>` when
+ready to start work.
 ```
 
 Optionally `relay feed --task <slug> --message "<short>"` if the ticket
