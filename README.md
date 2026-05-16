@@ -90,6 +90,42 @@ mycompany/
         └── RELAY_PIN           # upstream commit SHA this .relay/ was vendored from
 ```
 
+## Task lifecycle
+
+Relay now separates ticket authoring, queue approval, and launched work:
+
+```text
+draft -> active -> in_progress -> done
+             \          /
+              -> paused
+```
+
+- `draft` is unapproved work. Use `relay ticket "<title>"` for the guided
+  authoring interview, or `relay draft "<title>"` when you only want the raw
+  files.
+- `active` is approved and queued. Humans can still refine active tickets with
+  `relay ticket <slug>` before work starts.
+- `in_progress` is launched work. `relay launch <slug>` moves an active ticket
+  into this state, and `relay bump <slug>` only advances workflow steps from
+  here.
+- `paused` preserves the current workflow step while taking the task out of
+  execution.
+- `done` clears the workflow step and closes the task.
+
+The normal path for a new ticket is:
+
+```sh
+relay ticket "Add retry to webhook handler"
+relay mark active add-retry
+relay launch add-retry
+# agent works, writes blackboard, and bumps workflow steps
+relay mark done add-retry
+```
+
+For old scripts or muscle memory, `relay create "<title>"` still works as a
+compatibility spelling for `relay draft "<title>"`; it does not run the
+authoring interview.
+
 ## Commands
 
 ### `relay init [PATH] [--update]`
