@@ -237,7 +237,10 @@ Relay only scaffolds the draft and prints the `relay mark active` /
 Dream is Relay's generic ticket cleanup pass for one `relay-os/`. A Dream task
 scans all tickets, runs fixed Relay housekeeping skills such as
 `validate-drift` and `retro/done-ticket`, proposes cleanup, writes results to
-that run's blackboard, and leaves a human-reviewable trail.
+that run's blackboard, and leaves a human-reviewable trail. Retro work is
+batched for done tickets: Dream loads the context/skill corpus once, processes
+up to five coherent tickets with a running knowledge delta, and opens one small
+PR only when durable knowledge changed.
 
 REM is repo/user-specific recurring maintenance. It is opt-in user space: copy
 the inert `relay-os/recurring/_rem.md` template, give it a schedule and
@@ -396,10 +399,11 @@ relay delete add-retry
 ### `relay retire <slug>`
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose
-body invokes the `retro/done-ticket` skill against the named ticket. The
-retro skill opens a PR only when it extracts new durable knowledge; that PR
-records the `## Retro` marker, edits the knowledge base, and deletes the source
-task directory in the same PR. If no new durable knowledge exists, Retro
+body invokes the `retro/done-ticket` skill against the named ticket. `retire`
+keeps the single-ticket path; Dream owns batched Retro runs. The retro skill
+opens a PR only when it extracts new durable knowledge; that PR records the
+`## Retro` marker, edits the knowledge base, and deletes the source task
+directory in the same PR. If no new durable knowledge exists, Retro
 records `result: no-new-durable-knowledge` on the source blackboard and opens
 no PR. This command activates and launches the retire task unless `--no-launch`
 is passed.

@@ -5,7 +5,7 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 # Relay — current direction
 
-Last updated: 2026-05-06.
+Last updated: 2026-05-16.
 
 ## Recent decisions (Dream — ad-hoc triggering for now)
 
@@ -22,8 +22,11 @@ Last updated: 2026-05-06.
   fixed Relay housekeeping skills, proposes done-ticket cleanup, keeps one
   run-level summary, and surfaces context/skill/workflow drift.
 - **First enabled Dream skill pass:** `validate-drift` for deterministic repo
-  validation and safe file-presence repairs; `retro/done-ticket` for
-  durable-knowledge extraction from completed tasks.
+  validation and safe file-presence repairs; `retro/done-ticket` for batched
+  durable-knowledge extraction from completed tasks. Dream loads the
+  context/skill corpus once per Retro batch, processes up to five coherent done
+  tickets with a running knowledge delta, and keeps each knowledge PR small
+  enough to describe with one clear title.
 - **REM is repo/user-specific recurring maintenance.** It is opt-in user space:
   each repo can copy `recurring/_rem.md`, define its own cadence, scan, domain
   skills, output conventions, and review gates.
