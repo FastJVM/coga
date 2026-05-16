@@ -1,11 +1,14 @@
 """Bootstrap helpers used by `relay init` (with or without --update).
 
-Pulls upstream into `relay-os/.relay/` and stands up the self-contained venv
+Pulls upstream CLI source into `relay-os/.relay/`, refreshes relay templates
+from the installed package resources, and stands up the self-contained venv
 the vendored CLI runs out of. No Typer commands live here.
 """
 
 from __future__ import annotations
 
+from importlib.resources import files
+from importlib.resources.abc import Traversable
 import shutil
 import subprocess
 import sys
@@ -19,6 +22,8 @@ import typer
 RELAY_REPO_URL = "https://github.com/FastJVM/relay"
 TEMPLATE_SUBPATH = Path("src/relay/resources/templates/relay-os")
 CLI_SRC_SUBPATH = Path("src/relay")
+TEMPLATE_RESOURCE_PACKAGE = "relay.resources"
+TEMPLATE_RESOURCE_PATH = ("templates", "relay-os")
 
 # Paths (relative to relay-os/) that earlier upstreams shipped but no longer do.
 # `init --update` prunes these from existing repos so removed scaffolding doesn't
@@ -122,8 +127,29 @@ def refresh_cli(clone_dir: Path, relay_os: Path) -> None:
             shutil.copy2(upstream_file, dst_relay / fname)
 
 
-def refresh_templates(clone_dir: Path, relay_os: Path) -> tuple[list[str], list[str]]:
-    """Refresh relay-owned scaffolds under `relay_os/` from the clone.
+def packaged_template_root() -> Traversable:
+    """Return the relay-os template tree embedded in the installed package."""
+    root = files(TEMPLATE_RESOURCE_PACKAGE).joinpath(*TEMPLATE_RESOURCE_PATH)
+    if not root.is_dir():
+        typer.secho(
+            "Installed relay package is missing templates/relay-os resources.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    return root
+
+
+def copy_fresh_templates(src_root: Traversable, relay_os: Path) -> None:
+    """Copy the full packaged relay-os template tree into a fresh repo."""
+    _copy_resource_tree(src_root, relay_os)
+    _chmod_packaged_executables(relay_os)
+
+
+def refresh_templates(
+    relay_os: Path, src_root: Traversable | None = None
+) -> tuple[list[str], list[str]]:
+    """Refresh relay-owned scaffolds under `relay_os` from package resources.
 
     Three things are treated as upstream-owned (always overwritten on update):
       - `_*` template scaffolds (`_template/` etc.)
@@ -139,14 +165,7 @@ def refresh_templates(clone_dir: Path, relay_os: Path) -> tuple[list[str], list[
     Returns `(copied, pruned)`: `pruned` lists `_*` scaffolds removed because
     upstream no longer ships them (renames, deletions).
     """
-    src_root = clone_dir / TEMPLATE_SUBPATH
-    if not src_root.is_dir():
-        typer.secho(
-            f"Upstream layout changed — {TEMPLATE_SUBPATH} not found in clone.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        sys.exit(2)
+    src_root = src_root or packaged_template_root()
     copied = _copy_templates(src_root, relay_os)
     copied.extend(_copy_vendored_bootstrap(src_root, relay_os))
     copied.extend(_copy_upstream_files(src_root, relay_os))
@@ -410,44 +429,41 @@ def _venv_python_version(venv_dir: Path) -> tuple[int, int] | None:
     return None
 
 
-def _copy_templates(src_root: Path, dst_root: Path) -> list[str]:
+def _copy_templates(src_root: Traversable, dst_root: Path) -> list[str]:
     """Copy every `_*` scaffold under `src_root` into `dst_root`.
 
     Always overwrites; matches nested under another `_*` ancestor are skipped
     so each scaffold is processed once.
     """
     copied: list[str] = []
-    for src in src_root.rglob("_*"):
-        rel = src.relative_to(src_root)
+    for rel, src in _walk_resources(src_root):
+        if not rel.name.startswith("_"):
+            continue
         if any(part.startswith("_") for part in rel.parts[:-1]):
             continue
 
         dst = dst_root / rel
         if src.is_dir():
-            if dst.exists():
-                shutil.rmtree(dst)
-            shutil.copytree(src, dst)
-            for f in src.rglob("*"):
-                if f.is_file():
-                    copied.append(str(f.relative_to(src_root)))
+            _remove_existing(dst)
+            _copy_resource_tree(src, dst)
+            copied.extend(str(file_rel) for file_rel, _ in _walk_resource_files(src, rel))
         else:
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dst)
+            _copy_resource_file(src, dst)
             copied.append(str(rel))
 
     return copied
 
 
-def _prune_removed_templates(src_root: Path, dst_root: Path) -> list[str]:
+def _prune_removed_templates(src_root: Traversable, dst_root: Path) -> list[str]:
     """Remove top-level `_*` scaffolds in `dst_root` that upstream no longer ships.
 
-    Catches renames and deletions: a `_template/` removed upstream stays in user
-    repos forever otherwise, since `_copy_templates` is purely additive. Only
-    inspects top-level `_*` matches (same convention as `_copy_templates`) so
-    nested entries inside a scaffold are owned by their parent. Skips trees that
-    are managed by a different mechanism — `.relay/` is vendored wholesale by
-    `refresh_cli` and ships its own template fixtures, and `bootstrap/` is
-    mirrored as a unit by `_copy_bootstrap`.
+    Catches renames and deletions: a `_template/` removed from package resources
+    stays in user repos forever otherwise, since `_copy_templates` is purely
+    additive. Only inspects top-level `_*` matches (same convention as
+    `_copy_templates`) so nested entries inside a scaffold are owned by their
+    parent. Skips trees that are managed by a different mechanism — `.relay/` is
+    vendored wholesale by `refresh_cli` and ships its own template fixtures, and
+    `bootstrap/` is mirrored as a unit by `_copy_bootstrap`.
     """
     if not dst_root.is_dir():
         return []
@@ -463,7 +479,7 @@ def _prune_removed_templates(src_root: Path, dst_root: Path) -> list[str]:
     pruned: list[str] = []
     for dst in candidates:
         rel = dst.relative_to(dst_root)
-        if (src_root / rel).exists():
+        if _resource_exists(src_root, rel):
             continue
         if dst.is_dir():
             shutil.rmtree(dst)
@@ -482,7 +498,7 @@ _RELAY_GITIGNORE_HEADER = (
 )
 
 
-def _copy_upstream_files(src_root: Path, dst_root: Path) -> list[str]:
+def _copy_upstream_files(src_root: Traversable, dst_root: Path) -> list[str]:
     """Refresh upstream-managed root files inside `dst_root`.
 
     Currently just `.gitignore`, which is merged into a relay-managed marker
@@ -494,7 +510,7 @@ def _copy_upstream_files(src_root: Path, dst_root: Path) -> list[str]:
     return []
 
 
-def _refresh_relay_gitignore(src_root: Path, dst_root: Path) -> bool:
+def _refresh_relay_gitignore(src_root: Traversable, dst_root: Path) -> bool:
     """Insert/refresh the relay-managed block in `relay-os/.gitignore`.
 
     Pattern mirrors `ensure_host_gitignore`: the block is fenced by markers
@@ -505,7 +521,7 @@ def _refresh_relay_gitignore(src_root: Path, dst_root: Path) -> bool:
 
     Returns True iff the file was modified.
     """
-    src = src_root / ".gitignore"
+    src = _resource_join(src_root, Path(".gitignore"))
     if not src.is_file():
         return False
 
@@ -562,7 +578,7 @@ def _drop_matching_lines(text: str, drop: set[str]) -> str:
     return "".join(kept)
 
 
-def _copy_vendored_bootstrap(src_root: Path, dst_root: Path) -> list[str]:
+def _copy_vendored_bootstrap(src_root: Traversable, dst_root: Path) -> list[str]:
     """Mirror the `bootstrap/` umbrella — wipe, copy fresh.
 
     `bootstrap/` is the single home for everything relay vendors and updates
@@ -578,36 +594,95 @@ def _copy_vendored_bootstrap(src_root: Path, dst_root: Path) -> list[str]:
     belong in `skills/<your-ns>/`, custom contexts in `contexts/<your-ns>/`.
     """
     copied = _wholesale_mirror(src_root, dst_root, ("bootstrap",))
-    # `_wholesale_mirror` uses `shutil.copytree` whose default `copy2` honors
-    # mode bits, but be defensive: hooks are useless if not executable.
-    hooks_dir = dst_root / "bootstrap" / "hooks"
-    if hooks_dir.is_dir():
-        for hook in hooks_dir.iterdir():
-            if hook.is_file():
-                try:
-                    hook.chmod(0o755)
-                except OSError:
-                    pass
+    _chmod_packaged_executables(dst_root)
     return copied
 
 
 def _wholesale_mirror(
-    src_root: Path, dst_root: Path, rels: tuple[str, ...]
+    src_root: Traversable, dst_root: Path, rels: tuple[str, ...]
 ) -> list[str]:
     """Wipe-and-copy each `rel` from `src_root` into `dst_root`. Skip missing srcs."""
     copied: list[str] = []
     for rel in rels:
-        src = src_root / rel
+        src = _resource_join(src_root, Path(rel))
         if not src.is_dir():
             continue
         dst = dst_root / rel
-        if dst.exists():
-            shutil.rmtree(dst)
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(src, dst)
-        copied.extend(
-            str(f.relative_to(src_root))
-            for f in src.rglob("*")
-            if f.is_file()
-        )
+        _remove_existing(dst)
+        _copy_resource_tree(src, dst)
+        copied.extend(str(file_rel) for file_rel, _ in _walk_resource_files(src, Path(rel)))
     return copied
+
+
+def _resource_join(root: Traversable, rel: Path) -> Traversable:
+    node = root
+    for part in rel.parts:
+        node = node.joinpath(part)
+    return node
+
+
+def _resource_exists(root: Traversable, rel: Path) -> bool:
+    node = _resource_join(root, rel)
+    return node.is_dir() or node.is_file()
+
+
+def _walk_resources(
+    root: Traversable, base: Path = Path()
+) -> list[tuple[Path, Traversable]]:
+    found: list[tuple[Path, Traversable]] = []
+    for child in root.iterdir():
+        rel = base / child.name
+        found.append((rel, child))
+        if child.is_dir():
+            found.extend(_walk_resources(child, rel))
+    return found
+
+
+def _walk_resource_files(
+    root: Traversable, base: Path = Path()
+) -> list[tuple[Path, Traversable]]:
+    return [(rel, node) for rel, node in _walk_resources(root, base) if node.is_file()]
+
+
+def _copy_resource_tree(src: Traversable, dst: Path) -> None:
+    dst.mkdir(parents=True, exist_ok=True)
+    for child in src.iterdir():
+        child_dst = dst / child.name
+        if child.is_dir():
+            _copy_resource_tree(child, child_dst)
+        elif child.is_file():
+            _copy_resource_file(child, child_dst)
+
+
+def _copy_resource_file(src: Traversable, dst: Path) -> None:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    with src.open("rb") as source, dst.open("wb") as target:
+        shutil.copyfileobj(source, target)
+
+
+def _remove_existing(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
+
+
+def _chmod_packaged_executables(relay_os: Path) -> None:
+    scripts_dir = relay_os / "scripts"
+    if scripts_dir.is_dir():
+        for script in scripts_dir.glob("*.sh"):
+            _chmod_executable(script)
+
+    hooks_dir = relay_os / "bootstrap" / "hooks"
+    if not hooks_dir.is_dir():
+        return
+    for hook in hooks_dir.iterdir():
+        if hook.is_file():
+            _chmod_executable(hook)
+
+
+def _chmod_executable(path: Path) -> None:
+    try:
+        path.chmod(0o755)
+    except OSError:
+        pass

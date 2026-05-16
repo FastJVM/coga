@@ -1,4 +1,4 @@
-"""`relay init` — scaffolds a relay-os/ from upstream, or refreshes one with --update."""
+"""`relay init` — scaffolds relay-os/ from package templates, or refreshes one."""
 
 from __future__ import annotations
 
@@ -87,8 +87,16 @@ def _seed_fake_clone(clone_dir: Path) -> None:
 FAKE_SHA = "deadbeefcafe1234567890abcdef1234567890ab"
 
 
+def _seed_fake_packaged_templates(root: Path) -> Path:
+    clone_dir = root / "package"
+    _seed_fake_clone(clone_dir)
+    return clone_dir / update_cmd.TEMPLATE_SUBPATH
+
+
 @pytest.fixture
-def fake_clone(monkeypatch: pytest.MonkeyPatch):
+def fake_clone(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    package_templates = _seed_fake_packaged_templates(tmp_path)
+    monkeypatch.setattr(update_cmd, "packaged_template_root", lambda: package_templates)
     real_run = subprocess.run
 
     def fake_run(cmd, **kwargs):
@@ -136,6 +144,7 @@ def test_init_into_empty_dir(tmp_path: Path, fake_clone, fake_venv) -> None:
 
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
+    assert os.access(target / "relay-os" / "scripts" / "cron.sh", os.X_OK)
 
     assert "version = 1" in (target / "relay-os" / "relay.toml").read_text()
 
@@ -353,6 +362,13 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     relay_os = _seed_local_relay_os(tmp_path)
+    package_clone = tmp_path / "package"
+    _seed_fake_upstream_for_update(package_clone)
+    monkeypatch.setattr(
+        update_cmd,
+        "packaged_template_root",
+        lambda: package_clone / update_cmd.TEMPLATE_SUBPATH,
+    )
     monkeypatch.chdir(relay_os)
 
     real_run = subprocess.run
@@ -980,6 +996,13 @@ def test_init_update_refreshes_inner_gitignore(
     of managed entries the user copied in before the marker convention existed,
     while leaving non-managed user lines alone."""
     relay_os = _seed_local_relay_os(tmp_path)
+    package_clone = tmp_path / "package"
+    _seed_fake_upstream_for_update(package_clone)
+    monkeypatch.setattr(
+        update_cmd,
+        "packaged_template_root",
+        lambda: package_clone / update_cmd.TEMPLATE_SUBPATH,
+    )
     # Stale pre-marker gitignore: some upstream entries copied directly,
     # plus a user-added rule that should survive the update.
     (relay_os / ".gitignore").write_text(
