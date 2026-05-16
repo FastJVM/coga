@@ -17,6 +17,7 @@ from relay.logfile import append_log
 from relay.slack import post
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
+from relay.validate import assert_task_valid
 
 
 def mark_done(
@@ -40,6 +41,7 @@ def mark_done(
     ticket.frontmatter["status"] = "done"
     ticket.frontmatter.pop("step", None)
     ticket.write(ref.path / "ticket.md")
+    assert_task_valid(cfg, ref, action="mark done")
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
@@ -60,6 +62,7 @@ def mark_active(
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "active"
     ticket.write(ref.path / "ticket.md")
+    assert_task_valid(cfg, ref, action="mark active")
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
@@ -80,6 +83,7 @@ def mark_in_progress(
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "in_progress"
     ticket.write(ref.path / "ticket.md")
+    assert_task_valid(cfg, ref, action="mark in_progress")
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
@@ -101,6 +105,7 @@ def mark_paused(
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "paused"
     ticket.write(ref.path / "ticket.md")
+    assert_task_valid(cfg, ref, action="mark paused")
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)

@@ -3,17 +3,27 @@
 Exposed as `relay validate` (see `relay.commands.validate`); also runnable
 directly as a module:
 
-    relay validate [--json] [--fix] [--max-blackboard-kb N] [--check-slack]
-    python -m relay.validate [--json] [--fix] [--max-blackboard-kb N] [--check-slack]
+    relay validate [--json] [--task <slug>] [--fix] [--max-blackboard-kb N] [--check-slack]
+    python -m relay.validate [--json] [--task <slug>] [--fix] [--max-blackboard-kb N] [--check-slack]
 
-Checks:
+Two entry points:
+- `run(cfg, ...)` — whole-repo sweep (every task under `relay-os/tasks/`).
+- `validate_task(cfg, slug, ...)` — single task. Used by the `--task` flag
+  and by every Relay-owned command that mutates a task file.
+
+Per-task primitives:
+- `validate_task_dir(cfg, ref)` — file presence + frontmatter schema check.
+- `validate_ticket_frontmatter(cfg, task_label, ticket)` — schema only.
+
+Checks (whole-repo):
 - Task dirs have ticket.md, blackboard.md, log.md.
+- ticket.md parses as YAML frontmatter + body.
+- Frontmatter has the canonical key set with the right shapes.
+- contexts / skills / workflow step skills resolve to real files.
+- step is consistent with workflow shape and status.
 - Blackboard files are not large enough to bloat composed prompts.
-- Tasks stuck in `active` with no recent log activity.
-- Workflow step skill refs point to files that exist.
-- Ticket context refs point to files that exist.
+- Tasks stuck in `in_progress` with no recent log activity.
 - Assignees referenced in tickets exist in relay.toml.
-- Status values are from the valid set.
 - (Opt-in) Slack webhook reachability via an empty-text probe.
 """
 
@@ -25,17 +35,46 @@ import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 import requests
 
 from relay.blackboard import BLACKBOARD_WARN_BYTES, blackboard_size_warning, render_blackboard
 from relay.config import Config, ConfigError, load_config
 from relay.paths import context_path, skill_path
-from relay.tasks import list_tasks
+from relay.tasks import (
+    TaskNotFoundError,
+    TaskRef,
+    list_tasks,
+    resolve_task,
+)
 from relay.ticket import Ticket, TicketError
 
 VALID_STATUSES = {"draft", "active", "in_progress", "paused", "done"}
+VALID_MODES = {"interactive", "auto", "script"}
+
+# Canonical ticket frontmatter schema.
+REQUIRED_TASK_KEYS: tuple[str, ...] = (
+    "title",
+    "status",
+    "mode",
+    "owner",
+    "human",
+    "agent",
+    "assignee",
+    "contexts",
+    "skills",
+    "workflow",
+)
+# Optional keys that may appear in addition to the required set.
+OPTIONAL_TASK_KEYS: frozenset[str] = frozenset({"step", "watchers"})
+_NON_EMPTY_STRING_KEYS: tuple[str, ...] = (
+    "title",
+    "owner",
+    "human",
+    "agent",
+    "assignee",
+)
 
 
 @dataclass
@@ -72,147 +111,528 @@ def run(
     check_slack: bool = False,
     fix: bool = False,
 ) -> Report:
-    report = Report(generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    report = Report(generated_at=_now_iso())
     if fix:
         report.fixes.extend(apply_safe_fixes(cfg))
 
     if check_slack:
-        if not cfg.slack_enabled:
-            # Honor the opt-out — don't pretend to validate something that's off.
-            pass
-        elif not cfg.slack_webhook:
-            report.issues.append(Issue(
-                kind="slack-misconfigured",
-                task="(slack)",
-                message="$SLACK_WEBHOOK_URL is not set (relay requires it unless [slack].enabled = false)",
-                severity="error",
-            ))
-        else:
-            status, detail = probe_slack(cfg.slack_webhook)
-            if status == "live":
-                pass  # ok — leave it implicit so JSON output stays clean
-            elif status == "revoked":
-                report.issues.append(Issue(
-                    kind="slack-revoked",
-                    task="(slack)",
-                    message=f"webhook URL not recognized by Slack: {detail}",
-                    severity="error",
-                ))
-            else:  # unreachable
-                report.issues.append(Issue(
-                    kind="slack-unreachable",
-                    task="(slack)",
-                    message=f"could not reach Slack: {detail}",
-                    severity="error",
-                ))
+        report.issues.extend(_slack_issues(cfg))
+
     refs = list_tasks(cfg)
-
-    assignee_names = set(cfg.assignees)
-    # Also accept agent nicknames from any assignee — any of them is a valid assignee string.
-    valid_assignees = set(assignee_names)
-    for a in cfg.assignees.values():
-        valid_assignees.update(a.agents.keys())
-
+    valid_assignees = _valid_assignee_set(cfg)
     now = datetime.now(timezone.utc)
 
     for ref in refs:
-        task_label = ref.id_slug
-
-        # Required files
-        for fname in ("ticket.md", "blackboard.md", "log.md"):
-            if not (ref.path / fname).is_file():
-                report.issues.append(Issue(
-                    kind="missing-file",
-                    task=task_label,
-                    message=f"missing {fname}",
-                    severity="error",
-                ))
-
-        warning = blackboard_size_warning(
-            ref.path / "blackboard.md",
-            max_bytes=max_blackboard_bytes,
+        report.issues.extend(
+            _check_one_task(
+                cfg,
+                ref,
+                valid_assignees=valid_assignees,
+                max_blackboard_bytes=max_blackboard_bytes,
+                idle_hours=idle_hours,
+                now=now,
+            )
         )
-        if warning:
-            report.issues.append(Issue(
-                kind="large-blackboard",
-                task=task_label,
-                message=warning,
-                severity="warn",
-            ))
 
-        # Parse ticket — only continue with ticket-level checks if valid
-        try:
-            ticket = Ticket.read(ref.path / "ticket.md")
-        except (TicketError, FileNotFoundError):
-            continue
-
-        if ticket.status and ticket.status not in VALID_STATUSES:
-            report.issues.append(Issue(
-                kind="invalid-status",
-                task=task_label,
-                message=f"status {ticket.status!r} not in {sorted(VALID_STATUSES)}",
-                severity="error",
-            ))
-
-        if ticket.assignee and ticket.assignee not in valid_assignees:
-            report.issues.append(Issue(
-                kind="unknown-assignee",
-                task=task_label,
-                message=f"assignee {ticket.assignee!r} is not a known human or agent nickname",
-                severity="warn",
-            ))
-
-        # Broken context refs
-        for ref_name in ticket.contexts:
-            if not context_path(cfg, ref_name).is_file():
-                report.issues.append(Issue(
-                    kind="broken-context",
-                    task=task_label,
-                    message=f"context {ref_name!r} does not exist",
-                    severity="error",
-                ))
-
-        # Broken skill refs in workflow. `ticket.workflow` is a frozen dict
-        # post-launch but can be a bare string (workflow ref) or absent on
-        # hand-authored / pre-freeze tickets — don't crash on those shapes.
-        wf = ticket.workflow
-        if isinstance(wf, dict):
-            for step in wf.get("steps", []):
-                skill_ref = step.get("skill")
-                if skill_ref and not skill_path(cfg, skill_ref).is_file():
-                    report.issues.append(Issue(
-                        kind="broken-skill",
-                        task=task_label,
-                        message=f"step {step.get('name', '?')!r} skill {skill_ref!r} does not exist",
-                        severity="error",
-                    ))
-        elif wf is not None:
-            report.issues.append(Issue(
-                kind="unfrozen-workflow",
-                task=task_label,
-                message=f"workflow {wf!r} is not a frozen dict — likely a hand-authored ticket awaiting first launch",
-                severity="warn",
-            ))
-
-        # Stuck in progress: work started but log.md has not moved in `idle_hours`.
-        if ticket.status == "in_progress":
-            log_path = ref.path / "log.md"
-            if log_path.is_file():
-                mtime = datetime.fromtimestamp(log_path.stat().st_mtime, tz=timezone.utc)
-                idle = now - mtime
-                if idle > timedelta(hours=idle_hours):
-                    report.issues.append(Issue(
-                        kind="stuck-in-progress",
-                        task=task_label,
-                        message=f"in_progress but idle for {idle.total_seconds() / 3600:.1f}h",
-                        severity="warn",
-                    ))
-
-    report.ok_count = len(refs) - len({i.task for i in report.issues if i.severity == "error" and i.task != "(slack)"})
+    report.ok_count = _ok_count(refs, report.issues)
     return report
 
 
-def apply_safe_fixes(cfg: Config) -> list[Fix]:
+def validate_task(
+    cfg: Config,
+    slug: str,
+    *,
+    fix: bool = False,
+    max_blackboard_bytes: int = BLACKBOARD_WARN_BYTES,
+    idle_hours: float = 72.0,
+) -> Report:
+    """Validate exactly one task directory. Used by `relay validate --task`
+    and by every Relay-owned command that mutates a task file."""
+    report = Report(generated_at=_now_iso())
+    try:
+        ref = resolve_task(cfg, slug)
+    except TaskNotFoundError as exc:
+        report.issues.append(Issue(
+            kind="unknown-task",
+            task=slug,
+            message=str(exc),
+            severity="error",
+        ))
+        return report
+
+    if fix:
+        report.fixes.extend(apply_safe_fixes(cfg, only=[ref]))
+
+    valid_assignees = _valid_assignee_set(cfg)
+    report.issues.extend(
+        _check_one_task(
+            cfg,
+            ref,
+            valid_assignees=valid_assignees,
+            max_blackboard_bytes=max_blackboard_bytes,
+            idle_hours=idle_hours,
+            now=datetime.now(timezone.utc),
+        )
+    )
+    report.ok_count = _ok_count([ref], report.issues)
+    return report
+
+
+def validate_task_dir(cfg: Config, ref: TaskRef) -> list[Issue]:
+    """File-presence + frontmatter schema check for one task directory.
+
+    Skips the idle-time `stuck-in-progress` heuristic — that's a sweep-only
+    signal, not something to gate every edit on.
+    """
+    return _check_one_task(
+        cfg,
+        ref,
+        valid_assignees=_valid_assignee_set(cfg),
+        max_blackboard_bytes=BLACKBOARD_WARN_BYTES,
+        idle_hours=float("inf"),
+        now=datetime.now(timezone.utc),
+    )
+
+
+def validate_ticket_frontmatter(
+    cfg: Config, task_label: str, ticket: Ticket
+) -> list[Issue]:
+    """Strict canonical-schema check for one ticket's frontmatter only."""
+    return list(_check_frontmatter_schema(cfg, task_label, ticket))
+
+
+def format_task_issues(issues: Iterable[Issue]) -> str:
+    """Render issues for stderr / exception messages."""
+    return "\n".join(
+        f"[{i.severity.upper()}] {i.task}: {i.kind} — {i.message}" for i in issues
+    )
+
+
+class TaskValidationError(RuntimeError):
+    """Raised by `assert_task_valid` when a post-edit check finds errors."""
+
+    def __init__(self, issues: list[Issue], *, action: str):
+        self.issues = issues
+        self.action = action
+        super().__init__(
+            f"task validation failed after {action}:\n{format_task_issues(issues)}"
+        )
+
+
+def assert_task_valid(cfg: Config, ref: TaskRef, *, action: str) -> None:
+    """Re-validate a task after an edit. Raise TaskValidationError on errors.
+
+    Called by every Relay-owned command that mutates a task file, so a bad
+    write is surfaced at the edge of the edit instead of later at launch /
+    Dream time. Warnings are not fatal.
+    """
+    issues = validate_task_dir(cfg, ref)
+    errors = [i for i in issues if i.severity == "error"]
+    if errors:
+        raise TaskValidationError(errors, action=action)
+
+
+# --- per-task checks ----------------------------------------------------------
+
+
+def _check_one_task(
+    cfg: Config,
+    ref: TaskRef,
+    *,
+    valid_assignees: set[str],
+    max_blackboard_bytes: int,
+    idle_hours: float,
+    now: datetime,
+) -> list[Issue]:
+    out: list[Issue] = []
+    task_label = ref.id_slug
+
+    # Required files
+    for fname in ("ticket.md", "blackboard.md", "log.md"):
+        if not (ref.path / fname).is_file():
+            out.append(Issue(
+                kind="missing-file",
+                task=task_label,
+                message=f"missing {fname}",
+                severity="error",
+            ))
+
+    warning = blackboard_size_warning(
+        ref.path / "blackboard.md",
+        max_bytes=max_blackboard_bytes,
+    )
+    if warning:
+        out.append(Issue(
+            kind="large-blackboard",
+            task=task_label,
+            message=warning,
+            severity="warn",
+        ))
+
+    if not (ref.path / "ticket.md").is_file():
+        return out
+
+    try:
+        ticket = Ticket.read(ref.path / "ticket.md")
+    except TicketError as exc:
+        out.append(Issue(
+            kind="bad-frontmatter",
+            task=task_label,
+            message=str(exc),
+            severity="error",
+        ))
+        return out
+
+    out.extend(_check_frontmatter_schema(cfg, task_label, ticket))
+
+    if ticket.assignee and ticket.assignee not in valid_assignees:
+        out.append(Issue(
+            kind="unknown-assignee",
+            task=task_label,
+            message=f"assignee {ticket.assignee!r} is not a known human or agent nickname",
+            severity="warn",
+        ))
+
+    out.extend(_check_refs(cfg, task_label, ticket))
+    out.extend(_check_workflow_shape(task_label, ticket))
+
+    if idle_hours != float("inf") and ticket.status == "in_progress":
+        log_path = ref.path / "log.md"
+        if log_path.is_file():
+            mtime = datetime.fromtimestamp(log_path.stat().st_mtime, tz=timezone.utc)
+            idle = now - mtime
+            if idle > timedelta(hours=idle_hours):
+                out.append(Issue(
+                    kind="stuck-in-progress",
+                    task=task_label,
+                    message=f"in_progress but idle for {idle.total_seconds() / 3600:.1f}h",
+                    severity="warn",
+                ))
+
+    return out
+
+
+def _check_frontmatter_schema(
+    cfg: Config, task_label: str, ticket: Ticket
+) -> list[Issue]:
+    out: list[Issue] = []
+    fm = ticket.frontmatter
+
+    for key in REQUIRED_TASK_KEYS:
+        if key not in fm:
+            out.append(Issue(
+                kind="missing-key",
+                task=task_label,
+                message=f"frontmatter missing required key {key!r}",
+                severity="error",
+            ))
+
+    extra = set(fm) - set(REQUIRED_TASK_KEYS) - OPTIONAL_TASK_KEYS
+    for key in sorted(extra):
+        out.append(Issue(
+            kind="unknown-key",
+            task=task_label,
+            message=f"frontmatter has unknown key {key!r}",
+            severity="error",
+        ))
+
+    for key in _NON_EMPTY_STRING_KEYS:
+        if key in fm:
+            value = fm[key]
+            if not isinstance(value, str) or not value.strip():
+                out.append(Issue(
+                    kind="bad-shape",
+                    task=task_label,
+                    message=f"{key!r} must be a non-empty string, got {value!r}",
+                    severity="error",
+                ))
+
+    if "status" in fm:
+        status = fm["status"]
+        if not isinstance(status, str) or status not in VALID_STATUSES:
+            out.append(Issue(
+                kind="invalid-status",
+                task=task_label,
+                message=f"status {status!r} not in {sorted(VALID_STATUSES)}",
+                severity="error",
+            ))
+
+    if "mode" in fm:
+        mode = fm["mode"]
+        if not isinstance(mode, str) or mode not in VALID_MODES:
+            out.append(Issue(
+                kind="invalid-mode",
+                task=task_label,
+                message=f"mode {mode!r} not in {sorted(VALID_MODES)}",
+                severity="error",
+            ))
+
+    if "contexts" in fm and not _is_string_list(fm["contexts"]):
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=f"contexts must be a list of strings, got {fm['contexts']!r}",
+            severity="error",
+        ))
+
+    if "skills" in fm and not _is_string_list(fm["skills"]):
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=f"skills must be a list of strings, got {fm['skills']!r}",
+            severity="error",
+        ))
+
+    if "workflow" in fm:
+        wf = fm["workflow"]
+        if wf is not None and not isinstance(wf, dict):
+            out.append(Issue(
+                kind="bad-shape",
+                task=task_label,
+                message=(
+                    "workflow must be `null` or a frozen mapping with "
+                    f"`name` and `steps`, got {wf!r}"
+                ),
+                severity="error",
+            ))
+        elif isinstance(wf, dict):
+            if "name" not in wf or not isinstance(wf.get("name"), str):
+                out.append(Issue(
+                    kind="bad-shape",
+                    task=task_label,
+                    message="workflow.name missing or not a string",
+                    severity="error",
+                ))
+            steps = wf.get("steps")
+            if not isinstance(steps, list) or not steps:
+                out.append(Issue(
+                    kind="bad-shape",
+                    task=task_label,
+                    message="workflow.steps must be a non-empty list",
+                    severity="error",
+                ))
+            else:
+                for i, step in enumerate(steps, start=1):
+                    out.extend(_check_step_shape(task_label, i, step))
+
+    return out
+
+
+def _check_step_shape(task_label: str, idx: int, step: Any) -> list[Issue]:
+    out: list[Issue] = []
+    if not isinstance(step, dict):
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=f"workflow step #{idx} must be a mapping, got {step!r}",
+            severity="error",
+        ))
+        return out
+    if "skill" in step:
+        out.append(Issue(
+            kind="legacy-step-skill",
+            task=task_label,
+            message=(
+                f"workflow step #{idx} uses legacy singular `skill:` — "
+                "rewrite as `skills: [<ref>]` (list)"
+            ),
+            severity="error",
+        ))
+    if not isinstance(step.get("name"), str) or not step["name"].strip():
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=f"workflow step #{idx} missing non-empty `name`",
+            severity="error",
+        ))
+    skills = step.get("skills", [])
+    if not _is_string_list(skills):
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=(
+                f"workflow step #{idx} `skills` must be a list of strings, "
+                f"got {skills!r}"
+            ),
+            severity="error",
+        ))
+    assignee = step.get("assignee")
+    if assignee is not None and assignee not in {"owner", "human", "agent"}:
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=(
+                f"workflow step #{idx} assignee {assignee!r} must be one of "
+                "'owner', 'human', 'agent'"
+            ),
+            severity="error",
+        ))
+    return out
+
+
+def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
+    out: list[Issue] = []
+
+    if _is_string_list(ticket.frontmatter.get("contexts", [])):
+        for ref_name in ticket.contexts:
+            if not context_path(cfg, ref_name).is_file():
+                out.append(Issue(
+                    kind="broken-context",
+                    task=task_label,
+                    message=(
+                        f"context {ref_name!r} does not exist "
+                        f"(expected at {context_path(cfg, ref_name)})"
+                    ),
+                    severity="error",
+                ))
+
+    if _is_string_list(ticket.frontmatter.get("skills", [])):
+        for ref_name in ticket.skills:
+            if not skill_path(cfg, ref_name).is_file():
+                out.append(Issue(
+                    kind="broken-skill",
+                    task=task_label,
+                    message=(
+                        f"skill {ref_name!r} does not exist "
+                        f"(expected at {skill_path(cfg, ref_name)})"
+                    ),
+                    severity="error",
+                ))
+
+    wf = ticket.workflow
+    if isinstance(wf, dict):
+        for step in wf.get("steps", []) or []:
+            if not isinstance(step, dict):
+                continue
+            for ref_name in step.get("skills", []) or []:
+                if not isinstance(ref_name, str):
+                    continue
+                if not skill_path(cfg, ref_name).is_file():
+                    out.append(Issue(
+                        kind="broken-skill",
+                        task=task_label,
+                        message=(
+                            f"step {step.get('name', '?')!r} skill {ref_name!r} "
+                            f"does not exist (expected at {skill_path(cfg, ref_name)})"
+                        ),
+                        severity="error",
+                    ))
+    elif isinstance(wf, str):
+        out.append(Issue(
+            kind="unfrozen-workflow",
+            task=task_label,
+            message=(
+                f"workflow {wf!r} is not a frozen dict — likely a hand-authored "
+                "ticket awaiting first launch"
+            ),
+            severity="warn",
+        ))
+
+    return out
+
+
+def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
+    out: list[Issue] = []
+    wf = ticket.workflow
+    step = ticket.step
+
+    if wf is None:
+        if step is not None:
+            out.append(Issue(
+                kind="bad-shape",
+                task=task_label,
+                message="`step:` set but `workflow:` is null",
+                severity="error",
+            ))
+        return out
+
+    if not isinstance(wf, dict):
+        return out  # already reported by shape/ref checks
+
+    status = ticket.status
+    if status == "done":
+        if step is not None:
+            out.append(Issue(
+                kind="bad-shape",
+                task=task_label,
+                message="`step:` must be absent when status is `done`",
+                severity="error",
+            ))
+        return out
+
+    if step is None:
+        out.append(Issue(
+            kind="missing-step",
+            task=task_label,
+            message="`workflow:` is set but `step:` is missing",
+            severity="error",
+        ))
+        return out
+
+    idx = ticket.step_index()
+    steps = wf.get("steps") or []
+    if idx is None or not (1 <= idx <= len(steps)):
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=(
+                f"step {step!r} does not point at a valid workflow step "
+                f"(1..{len(steps)})"
+            ),
+            severity="error",
+        ))
+    return out
+
+
+def _is_string_list(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(v, str) for v in value)
+
+
+def _valid_assignee_set(cfg: Config) -> set[str]:
+    valid = set(cfg.assignees)
+    for a in cfg.assignees.values():
+        valid.update(a.agents.keys())
+    return valid
+
+
+def _ok_count(refs: list[TaskRef], issues: list[Issue]) -> int:
+    bad = {i.task for i in issues if i.severity == "error" and i.task != "(slack)"}
+    return len(refs) - len(bad)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _slack_issues(cfg: Config) -> list[Issue]:
+    if not cfg.slack_enabled:
+        return []
+    if not cfg.slack_webhook:
+        return [Issue(
+            kind="slack-misconfigured",
+            task="(slack)",
+            message="$SLACK_WEBHOOK_URL is not set (relay requires it unless [slack].enabled = false)",
+            severity="error",
+        )]
+    status, detail = probe_slack(cfg.slack_webhook)
+    if status == "live":
+        return []
+    if status == "revoked":
+        return [Issue(
+            kind="slack-revoked",
+            task="(slack)",
+            message=f"webhook URL not recognized by Slack: {detail}",
+            severity="error",
+        )]
+    return [Issue(
+        kind="slack-unreachable",
+        task="(slack)",
+        message=f"could not reach Slack: {detail}",
+        severity="error",
+    )]
+
+
+def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix]:
     """Apply deterministic repairs that do not change task state.
 
     Current safe set:
@@ -223,7 +643,8 @@ def apply_safe_fixes(cfg: Config) -> list[Fix]:
     reconstructed from inference.
     """
     fixes: list[Fix] = []
-    for ref in list_tasks(cfg):
+    targets = list(only) if only is not None else list_tasks(cfg)
+    for ref in targets:
         blackboard_path = ref.path / "blackboard.md"
         if not blackboard_path.is_file():
             title = ref.slug
@@ -292,6 +713,12 @@ def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Relay repo validator")
     parser.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
     parser.add_argument(
+        "--task",
+        type=str,
+        default=None,
+        help="Validate exactly one task slug.",
+    )
+    parser.add_argument(
         "--fix",
         action="store_true",
         help="Apply conservative safe repairs before reporting.",
@@ -316,13 +743,25 @@ def _main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"{exc}\n")
         return 2
 
-    report = run(
-        cfg,
-        idle_hours=args.idle_hours,
-        max_blackboard_bytes=int(args.max_blackboard_kb * 1024),
-        check_slack=args.check_slack,
-        fix=args.fix,
-    )
+    if args.task is not None:
+        if args.check_slack:
+            sys.stderr.write("--check-slack is not supported with --task\n")
+            return 2
+        report = validate_task(
+            cfg,
+            args.task,
+            fix=args.fix,
+            max_blackboard_bytes=int(args.max_blackboard_kb * 1024),
+            idle_hours=args.idle_hours,
+        )
+    else:
+        report = run(
+            cfg,
+            idle_hours=args.idle_hours,
+            max_blackboard_bytes=int(args.max_blackboard_kb * 1024),
+            check_slack=args.check_slack,
+            fix=args.fix,
+        )
 
     if args.json:
         payload: dict[str, Any] = {

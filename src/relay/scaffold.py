@@ -14,9 +14,9 @@ from relay.paths import (
     workflow_path,
 )
 from relay.slugify import slugify
-from relay.tasks import list_tasks
+from relay.tasks import TaskRef, list_tasks
 from relay.ticket import Ticket
-from relay.workflow import VALID_ASSIGNEE_ROLES, Workflow
+from relay.workflow import Workflow
 
 
 def scaffold_task(
@@ -32,12 +32,14 @@ def scaffold_task(
     status: str | None,
     human: str | None = None,
     agent: str | None = None,
-    skill: str | None = None,
+    skills: list[str] | None = None,
     slug_override: str | None = None,
     description: str | None = None,
     created_by: str = "human",
 ) -> dict[str, Any]:
     """Create a task directory. Returns dict with {slug, path}."""
+    from relay.validate import format_task_issues, validate_task_dir
+
     owner = owner or cfg.current_user
     status = status or cfg.default_status
     human = human or owner
@@ -48,15 +50,22 @@ def scaffold_task(
     if missing_ctx:
         raise ValueError(f"Unknown contexts: {missing_ctx}")
 
+    skills = _dedupe(list(skills or []))
+    missing_skills_top = [s for s in skills if not skill_path(cfg, s).is_file()]
+    if missing_skills_top:
+        raise ValueError(f"Unknown skills: {missing_skills_top}")
+
     wf: Workflow | None = None
     if workflow_name:
         wf = Workflow.load(workflow_path(cfg, workflow_name))
-        missing_skills = [
-            s.skill for s in wf.steps if s.skill and not skill_path(cfg, s.skill).is_file()
-        ]
-        if missing_skills:
+        missing_step_skills: list[str] = []
+        for s in wf.steps:
+            for ref in s.skills:
+                if not skill_path(cfg, ref).is_file():
+                    missing_step_skills.append(ref)
+        if missing_step_skills:
             raise ValueError(
-                f"Workflow {workflow_name!r} references missing skills: {missing_skills}"
+                f"Workflow {workflow_name!r} references missing skills: {missing_step_skills}"
             )
 
     # Initial assignee: if step 1 declares a role, resolve against the
@@ -87,25 +96,26 @@ def scaffold_task(
         raise ValueError(f"Task directory already exists: {task_dir}")
     task_dir.mkdir(parents=True)
 
-    fm: dict[str, Any] = {"title": title, "status": status, "mode": mode}
-    if owner:
-        fm["owner"] = owner
-    if human:
-        fm["human"] = human
-    if agent:
-        fm["agent"] = agent
-    if assignee:
-        fm["assignee"] = assignee
-    if watchers:
-        fm["watchers"] = list(watchers)
-    if wf:
-        fm["workflow"] = wf.freeze()
+    # Canonical frontmatter order. Every key is always present so tasks have
+    # a single legible shape on disk, even when contexts / skills / workflow
+    # are empty.
+    fm: dict[str, Any] = {
+        "title": title,
+        "status": status,
+        "mode": mode,
+        "owner": owner,
+        "human": human,
+        "agent": agent,
+        "assignee": assignee,
+        "contexts": list(contexts),
+        "skills": list(skills),
+        "workflow": wf.freeze() if wf else None,
+    }
+    if wf and status != "done":
         first_step = wf.steps[0].name
         fm["step"] = f"1 ({first_step})"
-    if skill:
-        fm["skill"] = skill
-    if contexts:
-        fm["contexts"] = list(contexts)
+    if watchers:
+        fm["watchers"] = list(watchers)
 
     desc_body = (description or "").strip()
     body = f"## Description\n\n{desc_body}\n\n## Context\n\n"
@@ -116,6 +126,13 @@ def scaffold_task(
     (task_dir / "log.md").write_text("")
     actor = f"{created_by}:{cfg.current_user}" if created_by == "human" else created_by
     append_log(task_dir, actor, f"created (mode={mode}, status={status})")
+
+    issues = validate_task_dir(cfg, TaskRef(slug=slug, path=task_dir))
+    errors = [i for i in issues if i.severity == "error"]
+    if errors:
+        raise ValueError(
+            "Scaffolded task failed validation:\n" + format_task_issues(errors)
+        )
 
     return {"slug": slug, "path": task_dir}
 

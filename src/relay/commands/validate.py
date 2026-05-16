@@ -11,12 +11,20 @@ import typer
 
 from relay.blackboard import BLACKBOARD_WARN_BYTES
 from relay.config import ConfigError, load_config
-from relay.validate import run
+from relay.validate import run, validate_task
 
 
 def validate(
     json_output: bool = typer.Option(
         False, "--json", help="Emit JSON instead of text."
+    ),
+    task: str | None = typer.Option(
+        None,
+        "--task",
+        help=(
+            "Validate exactly one task slug instead of the whole repo. "
+            "Skips Slack and idle-stuck checks."
+        ),
     ),
     fix: bool = typer.Option(
         False,
@@ -44,13 +52,30 @@ def validate(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(2)
 
-    report = run(
-        cfg,
-        idle_hours=idle_hours,
-        max_blackboard_bytes=int(max_blackboard_kb * 1024),
-        check_slack=check_slack,
-        fix=fix,
-    )
+    if task is not None:
+        if check_slack:
+            typer.secho(
+                "--check-slack is not supported with --task; "
+                "it probes the Slack webhook, which is a whole-repo concern.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(2)
+        report = validate_task(
+            cfg,
+            task,
+            fix=fix,
+            max_blackboard_bytes=int(max_blackboard_kb * 1024),
+            idle_hours=idle_hours,
+        )
+    else:
+        report = run(
+            cfg,
+            idle_hours=idle_hours,
+            max_blackboard_bytes=int(max_blackboard_kb * 1024),
+            check_slack=check_slack,
+            fix=fix,
+        )
 
     if json_output:
         payload: dict[str, Any] = {

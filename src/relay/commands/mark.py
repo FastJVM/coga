@@ -19,6 +19,7 @@ from relay.mark import mark_active as _mark_active
 from relay.mark import mark_done as _mark_done
 from relay.mark import mark_paused as _mark_paused
 from relay.tasks import TaskNotFoundError, read_ticket, resolve_task
+from relay.validate import TaskValidationError
 
 app = typer.Typer(
     name="mark",
@@ -55,13 +56,16 @@ def active(
         f"\"{ticket.title}\" — assignee {ticket.assignee or 'unassigned'}{suffix}"
     )
 
-    _mark_active(
-        cfg, ref, ticket,
-        actor=actor,
-        log_message=log_message,
-        slack_text=slack_text,
-        echo=f"{ref.id_slug}: active",
-    )
+    try:
+        _mark_active(
+            cfg, ref, ticket,
+            actor=actor,
+            log_message=log_message,
+            slack_text=slack_text,
+            echo=f"{ref.id_slug}: active",
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
 
 
 @app.command("paused")
@@ -86,13 +90,16 @@ def paused(
         f"\"{ticket.title}\"{suffix}"
     )
 
-    _mark_paused(
-        cfg, ref, ticket,
-        actor=actor,
-        log_message=log_message,
-        slack_text=slack_text,
-        echo=f"{ref.id_slug}: paused",
-    )
+    try:
+        _mark_paused(
+            cfg, ref, ticket,
+            actor=actor,
+            log_message=log_message,
+            slack_text=slack_text,
+            echo=f"{ref.id_slug}: paused",
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
 
 
 @app.command("done")
@@ -117,14 +124,17 @@ def done(
         f"🎉 {finisher} finished *{ref.id_slug}* \"{ticket.title}\"{suffix}"
     )
 
-    _mark_done(
-        cfg, ref, ticket,
-        actor=actor,
-        log_message=log_message,
-        slack_text=slack_text,
-        image_url=cfg.gif_for("done"),
-        echo=f"{ref.id_slug}: done",
-    )
+    try:
+        _mark_done(
+            cfg, ref, ticket,
+            actor=actor,
+            log_message=log_message,
+            slack_text=slack_text,
+            image_url=cfg.gif_for("done"),
+            echo=f"{ref.id_slug}: done",
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
 
 
 # --- helpers -----------------------------------------------------------------

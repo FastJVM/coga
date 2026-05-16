@@ -13,6 +13,7 @@ from relay.logfile import append_log
 from relay.slack import post
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
+from relay.validate import assert_task_valid
 from relay.workflow import VALID_ASSIGNEE_ROLES
 
 
@@ -63,6 +64,7 @@ def advance_step(
     if new_assignee is not None:
         ticket.frontmatter["assignee"] = new_assignee
     ticket.write(ref.path / "ticket.md")
+    assert_task_valid(cfg, ref, action=f"bump to step {next_step} ({new_step_name})")
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)

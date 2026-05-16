@@ -175,11 +175,10 @@ def compose_prompt_report(
             path=str(task_ref.path / "ticket.md"),
         ))
 
-    # 7. top-level skill (bootstrap tickets) or current workflow step
-    if ticket.skill:
-        layers.extend(_skill_layers(cfg, ticket.skill))
-    else:
-        layers.extend(_step_layers(cfg, ticket))
+    # 7. ticket-level skills + current workflow step
+    for skill_ref in ticket.skills:
+        layers.extend(_skill_layers(cfg, skill_ref))
+    layers.extend(_step_layers(cfg, ticket))
 
     # 8. blackboard
     bb = task_ref.path / "blackboard.md"
@@ -268,25 +267,29 @@ def _step_layers(cfg: Config, ticket: Ticket) -> list[PromptLayer]:
         return []
 
     name = current["name"]
-    skill_ref = current.get("skill")
+    skill_refs = list(current.get("skills") or [])
 
-    if skill_ref:
-        sp = skill_path(cfg, skill_ref)
-        if sp.is_file():
-            return [PromptLayer(
-                "workflow_skill",
-                f"Current step: {name} (skill: {skill_ref})",
-                sp.read_text(),
-                ref=skill_ref,
-                path=str(sp),
-            )]
-        return [PromptLayer(
-            "workflow_skill",
-            f"Current step: {name} (skill: {skill_ref})",
-            f"*Skill file not found at {sp}.*",
-            ref=skill_ref,
-            path=str(sp),
-        )]
+    if skill_refs:
+        out: list[PromptLayer] = []
+        for skill_ref in skill_refs:
+            sp = skill_path(cfg, skill_ref)
+            if sp.is_file():
+                out.append(PromptLayer(
+                    "workflow_skill",
+                    f"Current step: {name} (skill: {skill_ref})",
+                    sp.read_text(),
+                    ref=skill_ref,
+                    path=str(sp),
+                ))
+            else:
+                out.append(PromptLayer(
+                    "workflow_skill",
+                    f"Current step: {name} (skill: {skill_ref})",
+                    f"*Skill file not found at {sp}.*",
+                    ref=skill_ref,
+                    path=str(sp),
+                ))
+        return out
 
     # Inline: load workflow, pull the matching heading
     wf_name = (ticket.workflow or {}).get("name")

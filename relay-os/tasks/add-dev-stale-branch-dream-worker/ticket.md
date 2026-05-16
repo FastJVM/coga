@@ -13,11 +13,13 @@ contexts:
 - relay/current-direction
 - relay/project-stage
 - dev/code
+skills: []
 workflow:
   name: code/with-review
   steps:
   - name: implement
-    skill: code/implement-and-pr
+    skills:
+    - code/implement-and-pr
   - name: review
 ---
 

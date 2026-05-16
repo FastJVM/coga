@@ -6,6 +6,9 @@ owner: nick
 human: nick
 agent: claude1
 assignee: claude1
+contexts: []
+skills: []
+workflow: null
 ---
 
 ## Description

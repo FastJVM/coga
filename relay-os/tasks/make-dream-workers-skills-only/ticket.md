@@ -11,13 +11,16 @@ contexts:
 - relay/principles
 - relay/cli
 - relay/codebase
+skills: []
 workflow:
   name: code/with-review
   steps:
   - name: implement
-    skill: code/implement
+    skills:
+    - code/implement
   - name: open-pr
-    skill: code/open-pr
+    skills:
+    - code/open-pr
   - name: review
     assignee: owner
 ---

@@ -167,10 +167,12 @@ def _scaffold_chain_task(active_task: Path, *, mode: str = "interactive") -> dic
         description: Agent chain.
         steps:
           - name: implement
-            skill: code/implement
+            skills:
+              - code/implement
             assignee: agent
           - name: self-review
-            skill: code/self-review
+            skills:
+              - code/self-review
             assignee: agent
           - name: review
             assignee: human
@@ -491,10 +493,12 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
         description: Skilled handoff.
         steps:
           - name: implement
-            skill: code/implement
+            skills:
+              - code/implement
             assignee: agent
           - name: human-check
-            skill: code/human-check
+            skills:
+              - code/human-check
             assignee: human
         ---
         """,
@@ -686,7 +690,8 @@ def test_launch_prompt_report_prints_layers_without_launching(
         description: Measure prompt scope.
         steps:
           - name: implement
-            skill: code/implement
+            skills:
+              - code/implement
         ---
         """,
     )
@@ -761,7 +766,8 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         ---
         title: Create a new ticket
         mode: interactive
-        skill: bootstrap/ticket
+        skills:
+          - bootstrap/ticket
         assignee: claude1
         ---
 

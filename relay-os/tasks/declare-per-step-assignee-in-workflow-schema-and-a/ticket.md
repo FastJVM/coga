@@ -6,17 +6,18 @@ owner: nick
 human: nick
 agent: claude1
 assignee: claude1
-workflow:
-  name: code/with-review
-  steps:
-  - name: implement
-    skill: code/implement-and-pr
-  - name: review
-step: 2 (review)
 contexts:
 - relay/codebase
 - relay/cli
 - relay/architecture
+skills: []
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement-and-pr
+  - name: review
 ---
 
 ## Description

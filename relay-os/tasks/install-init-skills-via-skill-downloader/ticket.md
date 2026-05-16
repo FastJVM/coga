@@ -4,14 +4,17 @@ status: draft
 mode: interactive
 owner: nick
 human: nick
+agent: nick
 assignee: nick
 contexts:
-  - relay/architecture
-  - relay/principles
-  - relay/codebase
-  - relay/current-direction
-  - relay/project-stage
-  - dev/code
+- relay/architecture
+- relay/principles
+- relay/codebase
+- relay/current-direction
+- relay/project-stage
+- dev/code
+skills: []
+workflow: null
 ---
 
 ## Description

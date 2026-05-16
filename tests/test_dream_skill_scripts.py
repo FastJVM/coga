@@ -75,7 +75,8 @@ def _write_workflow(relay_os: Path, name: str, skill: str) -> None:
         description: script worker.
         steps:
           - name: run
-            skill: {skill}
+            skills:
+              - {skill}
         ---
         """,
     )

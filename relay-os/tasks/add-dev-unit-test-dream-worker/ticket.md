@@ -7,16 +7,18 @@ human: nick
 agent: claude1
 assignee: claude1
 contexts:
-  - relay/codebase
-  - relay/current-direction
-  - relay/project-stage
-  - dev/code
+- relay/codebase
+- relay/current-direction
+- relay/project-stage
+- dev/code
+skills: []
 workflow:
   name: code/with-review
   steps:
-    - name: implement
-      skill: code/implement-and-pr
-    - name: review
+  - name: implement
+    skills:
+    - code/implement-and-pr
+  - name: review
 ---
 
 ## Description

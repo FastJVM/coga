@@ -17,6 +17,7 @@ import typer
 
 from relay.automerge import GhError, auto_bump_merged
 from relay.config import ConfigError, load_config
+from relay.validate import TaskValidationError
 
 
 def automerge() -> None:
@@ -30,6 +31,9 @@ def automerge() -> None:
     try:
         count = auto_bump_merged(cfg, quiet=False)
     except GhError as exc:
+        typer.secho(f"automerge: {exc}", fg=typer.colors.RED, err=True)
+        sys.exit(2)
+    except TaskValidationError as exc:
         typer.secho(f"automerge: {exc}", fg=typer.colors.RED, err=True)
         sys.exit(2)
 

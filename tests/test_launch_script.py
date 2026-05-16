@@ -51,7 +51,8 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         description: single-step.
         steps:
           - name: run
-            skill: ops/checker
+            skills:
+              - ops/checker
         ---
         """,
     )

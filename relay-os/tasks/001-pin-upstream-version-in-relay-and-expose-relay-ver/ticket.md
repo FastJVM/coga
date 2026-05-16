@@ -4,7 +4,11 @@ status: draft
 mode: interactive
 owner: nick
 human: nick
+agent: nick
 assignee: nick
+contexts: []
+skills: []
+workflow: null
 ---
 
 ## Description

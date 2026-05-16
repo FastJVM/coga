@@ -14,6 +14,7 @@ from relay.config import ConfigError, load_config
 from relay.logfile import last_activity
 from relay.tasks import list_tasks, read_ticket
 from relay.ticket import TicketError
+from relay.validate import TaskValidationError
 
 # Below this terminal width Rich's column balancer can fold long values
 # one-char-per-line, which makes the output unreadable in tmux split panes
@@ -72,7 +73,12 @@ def status(
     # machine was idle, catch up before rendering. quiet=True swallows
     # `gh` errors (missing/unauthed) so a fast command stays fast — the
     # explicit `relay automerge` path surfaces those failures normally.
-    auto_bump_merged(cfg, quiet=True)
+    # A `TaskValidationError` from a bad pre-existing ticket also has to be
+    # swallowed — `status` is read-only from the user's perspective.
+    try:
+        auto_bump_merged(cfg, quiet=True)
+    except TaskValidationError as exc:
+        typer.secho(f"status: skipped auto-bump — {exc}", fg=typer.colors.YELLOW, err=True)
 
     refs = list_tasks(cfg)
     console = Console()

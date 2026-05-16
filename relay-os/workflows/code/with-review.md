@@ -3,9 +3,11 @@ name: code/with-review
 description: Code change implemented by an agent, PR opened by an agent, reviewed and merged by a human.
 steps:
   - name: implement
-    skill: code/implement
+    skills:
+      - code/implement
   - name: open-pr
-    skill: code/open-pr
+    skills:
+      - code/open-pr
   - name: review
     assignee: owner
 ---

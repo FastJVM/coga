@@ -50,7 +50,8 @@ def repo(tmp_path: Path) -> Path:
         description: Standard code workflow.
         steps:
           - name: implement
-            skill: infra/testing-conventions
+            skills:
+              - infra/testing-conventions
           - name: pr
           - name: merge
         ---
@@ -303,7 +304,8 @@ def repo_with_shim(repo: Path) -> Path:
         ---
         title: Create a new ticket
         mode: interactive
-        skill: bootstrap/ticket
+        skills:
+          - bootstrap/ticket
         assignee: claude1
         ---
 

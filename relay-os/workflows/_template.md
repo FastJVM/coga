@@ -3,7 +3,8 @@ name: _template
 description: Starter workflow. Copy this file to workflows/<namespace>/<your-workflow>.md and edit the steps to match your process.
 steps:
   - name: first-step
-    skill: namespace/some-skill
+    skills:
+      - namespace/some-skill
     assignee: agent
   - name: second-step
     assignee: agent
@@ -13,7 +14,7 @@ steps:
 
 ## second-step
 
-Inline instruction for steps without a `skill:` ref. Body heading must
+Inline instruction for steps without a `skills:` ref. Body heading must
 match the step name. One paragraph is plenty for inline instructions.
 
 ## last-step

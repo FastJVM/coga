@@ -6,7 +6,10 @@ owner: nick
 human: nick
 agent: claude1
 assignee: claude1
-skill: bootstrap/ticket
+contexts: []
+skills:
+- bootstrap/ticket
+workflow: null
 ---
 
 ## Description

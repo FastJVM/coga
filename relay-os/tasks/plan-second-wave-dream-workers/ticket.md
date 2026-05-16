@@ -7,12 +7,14 @@ human: nick
 agent: claude1
 assignee: claude1
 contexts:
-  - relay/architecture
-  - relay/principles
-  - relay/codebase
-  - relay/current-direction
-  - relay/project-stage
-  - dev/code
+- relay/architecture
+- relay/principles
+- relay/codebase
+- relay/current-direction
+- relay/project-stage
+- dev/code
+skills: []
+workflow: null
 ---
 
 ## Description

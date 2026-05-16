@@ -18,6 +18,7 @@ from relay.tasks import (
     read_ticket,
     resolve_task,
 )
+from relay.validate import TaskValidationError, assert_task_valid
 from relay.workflow import Workflow, WorkflowError
 
 
@@ -66,6 +67,10 @@ def bump(
         if not ticket.step:
             ticket.frontmatter["step"] = f"1 ({wf_def.steps[0].name})"
         ticket.write(ref.path / "ticket.md")
+        try:
+            assert_task_valid(cfg, ref, action="freeze workflow on bump")
+        except TaskValidationError as exc:
+            _bail(str(exc))
 
     wf = ticket.workflow
 
@@ -104,19 +109,22 @@ def bump(
     actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
     finisher = ticket.assignee or cfg.current_user
 
-    advance_step(
-        cfg, ref, ticket,
-        next_step=next_step,
-        new_step_name=new_step_name,
-        actor=actor,
-        log_message=f"advanced to step {next_step} ({new_step_name}){handoff}{suffix}",
-        slack_text=(
-            f"👉 {finisher} advanced "
-            f"*{ref.id_slug}* → step {next_step} ({new_step_name}){handoff}{suffix}"
-        ),
-        new_assignee=new_assignee,
-        echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",
-    )
+    try:
+        advance_step(
+            cfg, ref, ticket,
+            next_step=next_step,
+            new_step_name=new_step_name,
+            actor=actor,
+            log_message=f"advanced to step {next_step} ({new_step_name}){handoff}{suffix}",
+            slack_text=(
+                f"👉 {finisher} advanced "
+                f"*{ref.id_slug}* → step {next_step} ({new_step_name}){handoff}{suffix}"
+            ),
+            new_assignee=new_assignee,
+            echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
 
 
 def _bail(msg: str) -> None:
