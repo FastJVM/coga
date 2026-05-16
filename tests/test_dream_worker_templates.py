@@ -58,7 +58,13 @@ def test_dream_documents_ordered_skill_pass() -> None:
     assert "### Skill: dev/stale-branches" not in text
     assert "status: processed" in text
     assert "skill: retro/done-ticket" in text
-    assert "opens a PR only when new durable knowledge exists" in text
+    assert "Batched knowledge extraction" in text
+    assert "processes up to five coherent done tickets with a running delta" in text
+    assert "max source tickets per batch PR: 5" in text
+    assert "max knowledge files touched: 3" in text
+    assert "max new context or skill files created: 1" in text
+    assert "need \"and\" in the PR title" in text
+    assert "Do not force a monster Retro PR" in text
     assert "`no-new-durable-knowledge` markers are terminal no-ops" in text
     assert "An open\n   PR counts as in flight" in text
     assert "Absence of the marker on an existing done ticket" in text

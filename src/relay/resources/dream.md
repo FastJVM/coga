@@ -11,11 +11,11 @@ order, and output conventions.
 ### Console Progress
 
 Write short progress updates to the console before and after each major phase:
-validate-drift, done-ticket classification, Retro handoff, cleanup proposal,
-higher-judgment scan, Slack, and final status mark. Include the command or file path
-being acted on and the result count when available. If a phase is skipped,
-say why. The blackboard remains the durable record; console progress is for
-the human watching the run.
+validate-drift, done-ticket classification, Retro batch handoff, cleanup
+proposal, higher-judgment scan, Slack, and final status mark. Include the
+command or file path being acted on and the result count when available. If a
+phase is skipped, say why. The blackboard remains the durable record; console
+progress is for the human watching the run.
 
 ### Ordered Skill Pass
 
@@ -24,7 +24,7 @@ Run these known skills in this order:
 | Skill | When to run | Result |
 | --- | --- | --- |
 | `bootstrap/dream/tasks/validate-drift` | Always. | Deterministic repo validation, safe file-presence repairs, and validation drift classification. |
-| `retro/done-ticket` | When an existing done ticket lacks the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting that task directory. | Knowledge extraction; opens a PR only when new durable knowledge exists. If no new durable knowledge exists, records a `no-new-durable-knowledge` marker directly and opens no PR. |
+| `retro/done-ticket` | When existing done tickets lack the `## Retro` blackboard marker for `skill: retro/done-ticket` / `status: processed` and no open PR is adding that marker or deleting those task directories. | Batched knowledge extraction; loads contexts and skills once, processes up to five coherent done tickets with a running delta, and opens one PR only when new durable knowledge exists. If no new durable knowledge exists, records `no-new-durable-knowledge` markers directly and opens no PR. |
 | `bootstrap/dream/tasks/cleanup-orphan-markers` | When an existing done ticket already has the processed Retro marker from a knowledge PR, but its task directory still exists. | PR-required delete-only cleanup through the public `bootstrap/delete-task` skill; reports `human-needed` until that skill is installed. `no-new-durable-knowledge` markers are terminal no-ops, not cleanup candidates. |
 
 That table is the dispatch contract. Do not auto-discover skills, scan a
@@ -65,9 +65,8 @@ workflows, or change lifecycle/assignee state.
 
 ### Skill: retro/done-ticket
 
-Read every existing task with `status: done`.
-
-For each done task:
+Read every existing task with `status: done` and classify it before launching
+Retro:
 
 1. Read `relay-os/tasks/<slug>/blackboard.md`.
 2. If the blackboard has `## Retro` with `skill: retro/done-ticket` and
@@ -80,18 +79,37 @@ For each done task:
    `skill: retro/done-ticket` / `status: processed` marker to
    `relay-os/tasks/<slug>/blackboard.md` or deletes
    `relay-os/tasks/<slug>/`.
-4. If no current marker and no open PR marker exists, run `retro/done-ticket
-   <slug>` for one selected done ticket. Prefer one Retro PR per Dream run
-   unless a human asks for a batch. Run Retro in a subagent. The full ticket
-   evidence (`ticket.md`, `blackboard.md`, `log.md`, plus every context and
-   skill file) would otherwise bloat the main Dream context. The subagent
-   must either open a PR when it found new durable knowledge, or record a
-   `no-new-durable-knowledge` marker directly and return a one-line no-op
-   result. It must not open a marker-only or delete-only PR; the raw evidence
-   stays inside the subagent.
-5. If `relay-os/tasks/<slug>/` is already gone, it is not a Retro candidate.
+4. If `relay-os/tasks/<slug>/` is already gone, it is not a Retro candidate.
    For audit, use git history for the deleted `blackboard.md`; the deleted
    marker is the record that Retro processed the task before cleanup.
+
+After classification, build a Retro batch from eligible tasks: existing done
+tickets with no current marker and no open PR marker/deletion in flight. Run
+`retro/done-ticket <slug> [<slug> ...]` in a subagent with at most five source
+tickets. The subagent must load every context and skill file once, then read
+each selected ticket one at a time while maintaining a running delta of facts
+already accepted during this batch. Later tickets compare against the original
+corpus plus that in-memory delta, so repeated facts are not re-added.
+
+Keep each batch coherent and reviewable:
+
+- max source tickets per batch PR: 5;
+- max knowledge files touched: 3;
+- max new context or skill files created: 1;
+- all extracted facts must fit one obvious theme or one existing context/skill
+  area.
+
+Treat the batch as too broad when it would touch both `relay/*` and `dev/*`,
+touch both contexts and skills for unrelated reasons, create more than one new
+context/skill file, or need "and" in the PR title to describe the knowledge
+change. If the eligible set is too broad, shrink to the largest coherent subset
+within the limits and record the remaining candidates in this Dream run's
+blackboard for a later run. Do not force a monster Retro PR.
+
+The Retro subagent must either open one coherent PR when it found new durable
+knowledge, or record `no-new-durable-knowledge` markers directly and return a
+one-line no-op result. It must not open a marker-only or delete-only PR; the raw
+evidence stays inside the subagent.
 
 Absence of the marker on an existing done ticket means the task has not been
 processed by Retro unless an open PR is already deleting that exact task
