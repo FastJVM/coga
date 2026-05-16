@@ -25,6 +25,7 @@ from relay.commands.update import (
     clone_upstream,
     ensure_host_gitignore,
     install_venv,
+    is_relay_source_checkout,
     prune_obsolete,
     refresh_cli,
     refresh_templates,
@@ -250,19 +251,26 @@ def _print_slack_state(local_toml: Path) -> None:
 
 def _do_update() -> None:
     relay_os = find_repo_root()
+    source_checkout = is_relay_source_checkout(relay_os)
 
     with tempfile.TemporaryDirectory(prefix="relay-init-update-") as tmp:
         clone_dir = clone_upstream(Path(tmp) / "repo")
         refresh_cli(clone_dir, relay_os)
-        copied, pruned_templates = refresh_templates(clone_dir, relay_os)
+        if source_checkout:
+            copied, pruned_templates = [], []
+        else:
+            copied, pruned_templates = refresh_templates(clone_dir, relay_os)
         sha = upstream_sha(clone_dir)
 
-    pruned = prune_obsolete(relay_os) + pruned_templates
-    # `prune_obsolete` clears the legacy real dirs (e.g. an existing
-    # `skills/bootstrap/`); re-laying the back-compat symlinks afterwards
-    # is what makes path-based references (`skill:`, `contexts:`,
-    # `_AGENT_SKILL_DIRS`) keep resolving.
-    _link_compat_paths(relay_os)
+    if source_checkout:
+        pruned = []
+    else:
+        pruned = prune_obsolete(relay_os) + pruned_templates
+        # `prune_obsolete` clears the legacy real dirs (e.g. an existing
+        # `skills/bootstrap/`); re-laying the back-compat symlinks afterwards
+        # is what makes path-based references (`skill:`, `contexts:`,
+        # `_AGENT_SKILL_DIRS`) keep resolving.
+        _link_compat_paths(relay_os)
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
@@ -292,6 +300,11 @@ def _do_update() -> None:
         typer.echo(f"Refreshed {len(copied)} template file(s):")
         for rel in copied:
             typer.echo(f"  {rel}")
+    if source_checkout:
+        typer.echo(
+            "Skipped relay-os template refresh/prune in Relay source checkout "
+            "(source files are managed by git)."
+        )
     if pruned:
         typer.echo(f"Pruned {len(pruned)} obsolete path(s):")
         for rel in pruned:
