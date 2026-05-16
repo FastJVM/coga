@@ -44,6 +44,11 @@ def scaffold_task(
     status = status or cfg.default_status
     human = human or owner
     agent = agent or _default_agent_for(cfg, owner, assignee)
+    if not agent:
+        raise ValueError(
+            f"No default agent configured for owner {owner!r}; set `agent` "
+            f"explicitly or configure [assignees.{owner}.agents]."
+        )
 
     contexts = _dedupe(contexts)
     missing_ctx = [c for c in contexts if not context_path(cfg, c).is_file()]
@@ -145,17 +150,19 @@ def _default_agent_for(
     Two signals, in order:
       1. If the explicit `assignee` arg is a known agent nickname, use it —
          the caller already named the agent.
-      2. Else if `owner` has exactly one configured agent, use that.
+      2. Else if `owner` has configured agents, use the first one from
+         relay.toml. TOML preserves insertion order, which lets each user
+         declare their default agent by listing it first.
 
-    Returns None if neither signal resolves; better to leave the field blank
-    than guess wrong.
+    Returns None if neither signal resolves; the caller rejects that before
+    writing invalid canonical frontmatter.
     """
     agent_nicknames = {nick for a in cfg.assignees.values() for nick in a.agents}
     if assignee and assignee in agent_nicknames:
         return assignee
     if owner:
         owner_cfg = cfg.assignees.get(owner)
-        if owner_cfg and len(owner_cfg.agents) == 1:
+        if owner_cfg and owner_cfg.agents:
             return next(iter(owner_cfg.agents))
     return None
 

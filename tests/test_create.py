@@ -99,6 +99,83 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ticket.workflow is None
 
 
+def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) -> None:
+    _write(
+        repo / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+
+        [agents.claude]
+        cli = "claude"
+        interactive = "--append-system-prompt-file"
+        auto = "-p"
+        file = "CLAUDE.md"
+        mode = "local"
+
+        [agents.codex]
+        cli = "codex"
+        interactive = ""
+        auto = "exec"
+        file = "AGENTS.md"
+        mode = "local"
+
+        [assignees.marc]
+        agents = {"claude1" = "claude", "codex1" = "codex"}
+        """,
+    )
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg,
+        title="Try me",
+        workflow_name=None,
+        contexts=[],
+        mode="interactive",
+        owner=None,
+        assignee=None,
+        watchers=[],
+        status=None,
+    )
+    ticket = Ticket.read(ref["path"] / "ticket.md")
+    assert ticket.human == "marc"
+    assert ticket.agent == "claude1"
+
+
+def test_create_requires_agent_before_writing_task_dir(repo: Path) -> None:
+    _write(
+        repo / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+
+        [agents.claude]
+        cli = "claude"
+        interactive = "--append-system-prompt-file"
+        auto = "-p"
+        file = "CLAUDE.md"
+        mode = "local"
+
+        [assignees.marc]
+        agents = {}
+        """,
+    )
+    cfg = load_config(repo)
+    with pytest.raises(ValueError, match="No default agent configured"):
+        scaffold_task(
+            cfg=cfg,
+            title="No agent",
+            workflow_name=None,
+            contexts=[],
+            mode="interactive",
+            owner=None,
+            assignee=None,
+            watchers=[],
+            status=None,
+        )
+
+    assert not (repo / "tasks" / "no-agent").exists()
+
+
 def test_create_initial_assignee_resolved_from_workflow_step(repo: Path) -> None:
     _write(
         repo / "workflows" / "review.md",
