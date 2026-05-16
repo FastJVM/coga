@@ -16,9 +16,10 @@ Scaffold `relay-os/` in `PATH` (default `.`), or with `--update` refresh
 the relay-managed bits in the current repo.
 
 - `relay init mycompany` — fresh scaffold; refuses if `relay-os/` exists.
-- `relay init --update` — pull latest CLI + `_*` templates + `bootstrap/`
-  + `skills/bootstrap/` from upstream. Leaves `relay.toml`, `rules.md`,
-  user contexts, and user skills untouched.
+- `relay init --update` — refresh the vendored CLI from upstream and
+  package-owned `_*` templates + `bootstrap/` from the installed Relay
+  package. Leaves `relay.toml`, `rules.md`, user contexts, and user skills
+  untouched.
 
 ## relay draft "\<title\>" [--mode interactive|auto|script]
 

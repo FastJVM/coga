@@ -1,10 +1,11 @@
 """`relay init` — scaffold a new relay repo, or refresh an existing one.
 
 Default mode (`relay init`) writes everything from scratch into `<path>/relay-os/`
-and refuses to overwrite if it already exists. `--update` mode refreshes the
-vendored CLI in `.relay/` and any `_*` template scaffolds, leaving user-edited
-config (`relay.toml`, `rules.md`, etc.) untouched. Both modes (re)build the
-self-contained venv that backs the `relay` console script.
+and refuses to overwrite if it already exists. Templates come from the installed
+relay package; `--update` mode refreshes the vendored CLI in `.relay/` plus
+package-owned template scaffolds, leaving user-edited config (`relay.toml`,
+`rules.md`, etc.) untouched. Both modes (re)build the self-contained venv that
+backs the `relay` console script.
 """
 
 from __future__ import annotations
@@ -20,12 +21,13 @@ import typer
 
 from relay.commands.update import (
     RELAY_REPO_URL,
-    TEMPLATE_SUBPATH,
     _refresh_relay_gitignore,
     clone_upstream,
+    copy_fresh_templates,
     ensure_host_gitignore,
     install_venv,
     is_relay_source_checkout,
+    packaged_template_root,
     prune_obsolete,
     refresh_cli,
     refresh_templates,
@@ -114,10 +116,10 @@ def init(
     update: bool = typer.Option(
         False,
         "--update",
-        help="Refresh vendored CLI + `_*` templates in the current relay-os/. Leaves user config alone.",
+        help="Refresh vendored CLI + package templates in the current relay-os/. Leaves user config alone.",
     ),
 ) -> None:
-    """Scaffold `relay-os/` from upstream, or refresh it with --update."""
+    """Scaffold `relay-os/` from package templates, or refresh it with --update."""
     if update:
         _do_update()
     else:
@@ -140,28 +142,19 @@ def _do_init(path: Path) -> None:
 
     with tempfile.TemporaryDirectory(prefix="relay-init-") as tmp:
         clone_dir = clone_upstream(Path(tmp) / "repo")
-
-        upstream_templates = clone_dir / TEMPLATE_SUBPATH
-        if not upstream_templates.is_dir():
-            typer.secho(
-                f"Upstream layout changed — {TEMPLATE_SUBPATH} not found in clone.",
-                fg=typer.colors.RED,
-                err=True,
-            )
-            sys.exit(2)
-
-        shutil.copytree(upstream_templates, relay_os)
+        template_root = packaged_template_root()
+        copy_fresh_templates(template_root, relay_os)
         # `.gitignore` shipped verbatim by copytree; wrap it in the
         # relay-managed marker block so `init --update` later only touches
         # the fenced region and leaves user additions alone.
-        _refresh_relay_gitignore(upstream_templates, relay_os)
+        _refresh_relay_gitignore(template_root, relay_os)
         refresh_cli(clone_dir, relay_os)
         sha = upstream_sha(clone_dir)
 
     # Lay down the back-compat symlinks (`skills/bootstrap`,
-    # `contexts/relay/architecture`, …). The upstream template ships
-    # everything under `bootstrap/`; copytree resolves symlinks by
-    # default so we recreate them locally on every init.
+    # `contexts/relay/architecture`, …). The package template ships
+    # everything under `bootstrap/`; resource copying writes real directories
+    # so we recreate the compatibility links locally on every init.
     _link_compat_paths(relay_os)
 
     install_venv(relay_os)
@@ -259,7 +252,7 @@ def _do_update() -> None:
         if source_checkout:
             copied, pruned_templates = [], []
         else:
-            copied, pruned_templates = refresh_templates(clone_dir, relay_os)
+            copied, pruned_templates = refresh_templates(relay_os)
         sha = upstream_sha(clone_dir)
 
     if source_checkout:
@@ -374,9 +367,8 @@ def _print_global_cli_status(status: str, detail: str | None, venv: Path) -> Non
 # `_AGENT_SKILL_DIRS` discovery all assume; the target is the consolidated
 # location under `bootstrap/` where the actual files now live.
 #
-# Symlinks aren't shipped in the upstream template (shutil.copytree resolves
-# them to copies); they're created on every `relay init` and `relay init
-# --update` so the host repo doesn't carry symlinks across machines.
+# Symlinks aren't represented in package templates portably, so they're
+# created on every `relay init` and `relay init --update`.
 _COMPAT_SYMLINKS: tuple[tuple[str, str], ...] = (
     ("skills/bootstrap", "../bootstrap/skills/bootstrap"),
     ("skills/retro", "../bootstrap/skills/retro"),
@@ -418,7 +410,7 @@ def _link_compat_paths(relay_os: Path) -> list[str]:
         elif link.exists():
             # Real file/dir in the way — `prune_obsolete` removes these
             # during `--update`; on a fresh init the path shouldn't exist
-            # at all (the upstream template no longer ships these dirs).
+            # at all (the package template no longer ships these dirs).
             continue
 
         try:

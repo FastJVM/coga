@@ -94,14 +94,14 @@ mycompany/
 
 ### `relay init [PATH] [--update]`
 
-Scaffold `relay-os/` inside `PATH` (default: `.`). Copies templates from
-upstream, vendors the CLI into `.relay/`, creates a self-contained venv,
-writes a starter `relay.local.toml`, and — if `PATH` is a git repo — auto-stages
-and commits the new scaffold (push is left to you).
+Scaffold `relay-os/` inside `PATH` (default: `.`). Copies templates from the
+installed Relay package, vendors the CLI into `.relay/`, creates a
+self-contained venv, writes a starter `relay.local.toml`, and — if `PATH` is a
+git repo — auto-stages and commits the new scaffold (push is left to you).
 
 ```sh
 relay init mycompany           # fresh scaffold; refuses if relay-os/ exists
-relay init --update            # refresh .relay/ + _* templates in current repo
+relay init --update            # refresh .relay/ + package templates in current repo
                                # (never touches your relay.toml, rules.md, skills/, etc.)
 ```
 
