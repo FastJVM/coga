@@ -23,7 +23,6 @@ def repo(tmp_path: Path) -> Path:
 
         [agents.claude]
         cli = "claude"
-        interactive = "--append-system-prompt-file"
         auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
@@ -65,7 +64,6 @@ def test_default_status_defaults_to_draft(tmp_path: Path) -> None:
         version = 1
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
@@ -102,7 +100,6 @@ def test_missing_user(tmp_path: Path) -> None:
         version = 1
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]

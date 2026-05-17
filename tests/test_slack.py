@@ -24,7 +24,6 @@ def _scaffold_min(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
@@ -121,7 +120,6 @@ def test_gif_for_picks_from_configured_list(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
@@ -151,7 +149,6 @@ def test_gifs_invalid_shape_raises_config_error(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
@@ -185,7 +182,6 @@ def test_toml_webhook_field_is_ignored(
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
@@ -214,7 +210,6 @@ def test_enabled_false_in_local_toml_opts_out(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
@@ -241,7 +236,6 @@ def test_local_enabled_overrides_shared(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
@@ -272,7 +266,6 @@ def test_disabled_post_writes_to_stderr_no_crash(
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
@@ -348,7 +341,6 @@ def test_invalid_enabled_type_raises_config_error(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]

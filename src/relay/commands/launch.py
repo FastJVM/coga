@@ -245,10 +245,10 @@ def launch(
                 f"Launch: prompt written to {prompt_file} "
                 f"({len(prompt)} chars)"
             )
-            cmd = build_agent_command(agent, mode, prompt, prompt_file)
+            cmd = build_agent_command(agent, mode, prompt)
             typer.echo(
                 f"Launch: command: "
-                f"{_format_agent_command_for_console(cmd, prompt, prompt_file)}"
+                f"{_format_agent_command_for_console(cmd, prompt)}"
             )
 
             append_log(
@@ -295,27 +295,17 @@ def launch(
 # --- helpers ------------------------------------------------------------------
 
 
-def build_agent_command(agent, mode: str, prompt: str, prompt_file: Path) -> list[str]:
+def build_agent_command(agent, mode: str, prompt: str) -> list[str]:
     """Build the argv for spawning the agent.
 
-    Heuristic: if the configured flag contains "file", pass the prompt-file
-    path as the trailing argument; otherwise pass the full prompt text.
+    Interactive: `<cli> <prompt>` — agent opens its REPL with the prompt as
+    the first user message. Auto: `<cli> <auto-flag(s)> <prompt>` — prefix
+    flags put the CLI in headless mode (e.g. `-p` for claude, `exec` for
+    codex).
     """
-    flag_str = agent.interactive if mode == "interactive" else agent.auto
-    takes_file = _flag_takes_file(flag_str)
-    payload = str(prompt_file) if takes_file else prompt
-    cmd = [agent.cli, *shlex.split(flag_str), payload]
-    # Interactive launches: kick the agent off so it starts working on the
-    # composed context immediately instead of sitting at an empty REPL prompt.
-    # Only when the agent takes the prompt as a file — otherwise the prompt
-    # itself was already passed positionally as the user turn.
-    if mode == "interactive" and takes_file:
-        cmd.append("Make it so.")
-    return cmd
-
-
-def _flag_takes_file(flag: str) -> bool:
-    return "file" in flag.lower()
+    if mode == "interactive":
+        return [agent.cli, prompt]
+    return [agent.cli, *shlex.split(agent.auto), prompt]
 
 
 def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:
@@ -332,17 +322,11 @@ def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:
     )
 
 
-def _format_agent_command_for_console(
-    cmd: list[str],
-    prompt: str,
-    prompt_file: Path,
-) -> str:
-    display = list(cmd)
-    for idx, value in enumerate(display):
-        if value == prompt:
-            display[idx] = f"<prompt-text {len(prompt)} chars>"
-        elif value == str(prompt_file):
-            display[idx] = f"<prompt-file {prompt_file}>"
+def _format_agent_command_for_console(cmd: list[str], prompt: str) -> str:
+    display = [
+        f"<prompt-text {len(prompt)} chars>" if value == prompt else value
+        for value in cmd
+    ]
     return shlex.join(display)
 
 

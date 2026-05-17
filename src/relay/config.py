@@ -17,7 +17,6 @@ class ConfigError(Exception):
 class AgentType:
     name: str
     cli: str
-    interactive: str
     auto: str
     file: str
     mode: str               # "local" | future: "remote" | "cloud"
@@ -177,13 +176,12 @@ def _read_toml(path: Path) -> dict:
 def _parse_agents(raw: dict) -> dict[str, AgentType]:
     out: dict[str, AgentType] = {}
     for name, data in raw.items():
-        for required in ("cli", "interactive", "auto", "file"):
+        for required in ("cli", "auto", "file"):
             if required not in data:
                 raise ConfigError(f"agents.{name}.{required} is required")
         out[name] = AgentType(
             name=name,
             cli=data["cli"],
-            interactive=data["interactive"],
             auto=data["auto"],
             file=data["file"],
             mode=data.get("mode", "local"),

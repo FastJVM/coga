@@ -47,7 +47,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
 

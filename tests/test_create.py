@@ -31,7 +31,6 @@ def repo(tmp_path: Path) -> Path:
 
         [agents.claude]
         cli = "claude"
-        interactive = "--append-system-prompt-file"
         auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
@@ -108,14 +107,12 @@ def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) ->
 
         [agents.claude]
         cli = "claude"
-        interactive = "--append-system-prompt-file"
         auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
 
         [agents.codex]
         cli = "codex"
-        interactive = ""
         auto = "exec"
         file = "AGENTS.md"
         mode = "local"
@@ -150,7 +147,6 @@ def test_create_requires_agent_before_writing_task_dir(repo: Path) -> None:
 
         [agents.claude]
         cli = "claude"
-        interactive = "--append-system-prompt-file"
         auto = "-p"
         file = "CLAUDE.md"
         mode = "local"

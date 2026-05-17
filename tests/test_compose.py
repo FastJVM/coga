@@ -27,7 +27,6 @@ def repo(tmp_path: Path) -> Path:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        interactive = "--append-system-prompt-file"
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]

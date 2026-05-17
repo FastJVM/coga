@@ -30,7 +30,6 @@ def repo(tmp_path: Path):
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]

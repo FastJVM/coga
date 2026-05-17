@@ -149,10 +149,10 @@ def _run_authoring_session(
     )
     prompt = compose_prompt(cfg, ref, ticket)
     prompt_file = write_prompt_file(prompt, ref)
-    cmd = build_agent_command(agent, "interactive", prompt, prompt_file)
+    cmd = build_agent_command(agent, "interactive", prompt)
     typer.echo(
         "Ticket: command: "
-        f"{_format_agent_command_for_console(cmd, prompt, prompt_file)}"
+        f"{_format_agent_command_for_console(cmd, prompt)}"
     )
     append_log(
         ref.path,

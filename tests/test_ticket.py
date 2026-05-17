@@ -28,7 +28,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         [agents.claude]
         cli = "claude"
-        interactive = "--append-system-prompt-file"
         auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
@@ -74,7 +73,7 @@ def _allow_ticket_launch(monkeypatch: pytest.MonkeyPatch, prompts: list[str]) ->
         returncode = 0
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
-        prompts.append(Path(cmd[2]).read_text())
+        prompts.append(cmd[1])
         return _Result()
 
     monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
