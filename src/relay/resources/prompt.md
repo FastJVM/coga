@@ -49,20 +49,21 @@ Rules:
 - **`relay bump` advances exactly one step.** It reads the current step from
   ticket frontmatter and moves to the next one. There is no number to pass;
   you cannot skip ahead.
-- **After bumping, inspect the new state.** Re-read `ticket.md` or run
-  `relay show <id>` after a successful bump. If the task is still
-  `in_progress`,
-  the concrete assignee is still you/the same agent, and the new current step
-  has a `skill:`, continue that next step in this same session: read the
-  skill from `relay-os/skills/...`, follow it, update the blackboard, and
-  bump again when done. Repeat until the workflow reaches `done`, a human or
-  different assignee owns the next step, the next step has no skill, or you
-  are blocked and must `relay panic`.
-- **Do not stop at a runnable agent step.** A live `relay launch` supervisor
-  may also respawn consecutive agent-owned skill steps in fresh processes
-  after your agent process exits. That is a safety net, not permission to end
-  an API/manual session after the first bump. Never call `relay launch` from
-  inside your own session to continue the chain.
+- **After bumping, exit cleanly.** One step, one session. Do not try to read
+  the new step and continue in the same process. The `relay launch`
+  supervisor evaluates the post-bump state and respawns the next agent step
+  in a fresh process; it stops the chain on human-owned steps, assignee
+  changes, no-skill steps, `done`/`paused` tasks, and panic/non-zero exits.
+  This gives every step a clean prompt scope (no carryover reasoning from
+  the previous skill) and lets workflows rotate between agent types
+  (e.g. `implement` on one agent, `self-qa` on another) without special
+  handling.
+- **API/manual sessions don't chain.** If you're running outside a
+  `relay launch` supervisor (a bare `claude` / `codex` session against a
+  ticket), exiting after the bump ends the chain — the human runs
+  `relay launch <slug>` again to start the next step, or wraps the next
+  attempt in `relay launch` from the start. Don't try to call `relay launch`
+  yourself from inside your own session to keep going.
 - **Do not go backward.** If a previous step was wrong and needs rework, call
   `relay panic` with a clear reason. The human decides whether to rewind.
 - The workflow is frozen into ticket frontmatter at creation time. Your own

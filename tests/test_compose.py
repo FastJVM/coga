@@ -100,7 +100,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     assert "Blackboard" in prompt
 
 
-def test_base_prompt_teaches_post_bump_continuation(repo: Path) -> None:
+def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg,
@@ -118,15 +118,15 @@ def test_base_prompt_teaches_post_bump_continuation(repo: Path) -> None:
     prompt = compose_prompt(cfg, ref, ticket)
 
     assert "Run `bump` as the *last* thing in the current step" in prompt
-    assert "After bumping, inspect the new state" in prompt
-    assert "the task is still\n  `in_progress`" in prompt
-    assert "new current step" in prompt
-    assert "has a `skill:`" in prompt
-    assert "continue that next step in this same session" in prompt
-    assert "Do not stop at a runnable agent step" in prompt
-    assert "Never call `relay launch`" in prompt
-    assert "inside your own session to continue the chain" in prompt
+    assert "After bumping, exit cleanly" in prompt
+    assert "One step, one session" in prompt
+    assert "respawns the next agent step" in prompt
+    assert "clean prompt scope" in prompt
+    assert "API/manual sessions don't chain" in prompt
     assert "relay mark done" in prompt
+    # Old continue-in-same-session rule must be gone.
+    assert "After bumping, inspect the new state" not in prompt
+    assert "continue that next step in this same session" not in prompt
     assert "relay bump` marks the task `done`" not in prompt
 
 
