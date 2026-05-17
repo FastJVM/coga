@@ -9,7 +9,7 @@ default_status = "draft"
 [agents.claude]
 cli = "claude"
 interactive = ""
-auto = "-p --output-format stream-json --include-partial-messages --verbose"
+auto = "-p"
 file = "CLAUDE.md"
 mode = "local"
 
