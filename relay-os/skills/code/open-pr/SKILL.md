@@ -16,7 +16,7 @@ yourself.
    `## Dev` on the blackboard. Change into that worktree and confirm
    it is on the recorded branch with a clean working tree.
 2. **Push** the branch from the feature worktree.
-3. **Open the PR** with `gh pr create`. If the `code/self-review` step
+3. **Open the PR** with `gh pr create`. If the `code/self-qa` step
    already opened a draft, run `gh pr ready <PR#>` instead. Title =
    ticket title. Body = short summary + "Closes ticket: `<slug>`" + a
    one-line test plan.

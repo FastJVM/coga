@@ -49,7 +49,7 @@ later `code/open-pr` step does that, after self-review and fixes.
 ## What this skill does NOT do
 
 - Push the branch or open a PR — that's `code/open-pr`.
-- Self-review the diff — that's `code/self-review`.
+- Self-QA the diff — that's `code/self-qa`.
 - Resolve unrelated test failures it didn't cause.
 
 ## Gotchas
