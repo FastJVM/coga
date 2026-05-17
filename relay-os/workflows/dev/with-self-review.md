@@ -1,23 +1,24 @@
 ---
 name: dev/with-self-review
-description: Code change with an agent self-review pass before the human sees a PR. Four agent steps (implement, review, fix, pr) then human merge.
+description: Code change with an agent self-QA pass (/review + /simplify, fixes committed in place) before the PR is opened, so the human reviewer sees one clean diff. Three agent steps then human PR review.
 steps:
   - name: implement
     skills:
       - code/implement
-  - name: review
+  - name: self-qa
     skills:
-      - code/self-review
-  - name: fix
-    skills:
-      - code/apply-review
+      - code/self-qa
   - name: pr
     skills:
       - code/open-pr
-  - name: merge
+  - name: review
+    assignee: owner
 ---
 
-## merge
+## review
 
-Human reviews the open PR. Edit, request changes locally, or merge when
-satisfied. After merging, run `relay bump` to mark the task done.
+Human reviews the open PR on GitHub. Edit, request changes, push fixes,
+or merge when satisfied. The PR diff has already been through `/review`
+and `/simplify`, so the agent QA is done — your job is the human-judgment
+gate. After merging, `automerge` bumps the task to `done` on your next
+`git pull` (or `relay status`).
