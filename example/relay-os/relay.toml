@@ -8,7 +8,7 @@ default_status = "draft"
 
 [agents.claude]
 cli = "claude"
-interactive = "--append-system-prompt-file"
+interactive = ""
 auto = "-p --output-format stream-json --include-partial-messages --verbose"
 file = "CLAUDE.md"
 mode = "local"
