@@ -31,12 +31,6 @@ from relay.compose import (
 from relay.config import ConfigError, load_config
 from relay.logfile import append_log
 from relay.mark import mark_in_progress
-from relay.stream_render import (
-    RunSummary,
-    format_run_summary_log,
-    is_stream_json_command,
-    render_stream,
-)
 from relay.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -251,10 +245,10 @@ def launch(
                 f"Launch: prompt written to {prompt_file} "
                 f"({len(prompt)} chars)"
             )
-            cmd = build_agent_command(agent, mode, prompt, prompt_file)
+            cmd = build_agent_command(agent, mode, prompt)
             typer.echo(
                 f"Launch: command: "
-                f"{_format_agent_command_for_console(cmd, prompt, prompt_file)}"
+                f"{_format_agent_command_for_console(cmd, prompt)}"
             )
 
             append_log(
@@ -268,30 +262,13 @@ def launch(
                 ),
             )
 
-            run_summary: RunSummary | None = None
             try:
-                # Interactive: inherit stdio (human sits with agent).
-                # Auto with stream-json: capture stdout, render events live.
-                # Auto without streaming: inherit stdio and let claude buffer.
-                if mode == "auto" and is_stream_json_command(cmd):
-                    exit_code, run_summary = _run_with_stream_render(cmd, env)
-                else:
-                    result = subprocess.run(cmd, env=env, check=False)
-                    exit_code = result.returncode
+                result = subprocess.run(cmd, env=env, check=False)
+                exit_code = result.returncode
             except FileNotFoundError:
                 _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
             finally:
                 _cleanup_prompt()
-
-            # Token accounting: only the stream-json path can attribute usage
-            # to this task. Interactive launches inherit stdio so we never
-            # see the result event; skip silently rather than log a guess.
-            if run_summary is not None and not is_bootstrap:
-                append_log(
-                    ref.path,
-                    f"agent:{launch_assignee}",
-                    format_run_summary_log(run_summary),
-                )
 
             typer.echo(f"Launch: agent exited with code {exit_code}")
             if exit_code != 0:
@@ -318,56 +295,17 @@ def launch(
 # --- helpers ------------------------------------------------------------------
 
 
-def _run_with_stream_render(
-    cmd: list[str], env: dict[str, str]
-) -> tuple[int, RunSummary | None]:
-    """Run `cmd` capturing stdout and pretty-print stream-json events live.
-
-    Returns `(exit_code, run_summary)`. `run_summary` is `None` if the agent
-    exited without emitting a `result` event (e.g. crash, signal).
-
-    stderr is left attached to the parent terminal so claude's diagnostic
-    output (auth errors, MCP startup, etc.) still surfaces.
-    """
-    proc = subprocess.Popen(
-        cmd,
-        env=env,
-        stdout=subprocess.PIPE,
-        text=True,
-        bufsize=1,
-    )
-    summary: RunSummary | None = None
-    try:
-        assert proc.stdout is not None
-        summary = render_stream(proc.stdout, sys.stdout)
-    except KeyboardInterrupt:
-        proc.terminate()
-        proc.wait()
-        raise
-    return proc.wait(), summary
-
-
-def build_agent_command(agent, mode: str, prompt: str, prompt_file: Path) -> list[str]:
+def build_agent_command(agent, mode: str, prompt: str) -> list[str]:
     """Build the argv for spawning the agent.
 
-    Heuristic: if the configured flag contains "file", pass the prompt-file
-    path as the trailing argument; otherwise pass the full prompt text.
+    Interactive: `<cli> <prompt>` — agent opens its REPL with the prompt as
+    the first user message. Auto: `<cli> <auto-flag(s)> <prompt>` — prefix
+    flags put the CLI in headless mode (e.g. `-p` for claude, `exec` for
+    codex).
     """
-    flag_str = agent.interactive if mode == "interactive" else agent.auto
-    takes_file = _flag_takes_file(flag_str)
-    payload = str(prompt_file) if takes_file else prompt
-    cmd = [agent.cli, *shlex.split(flag_str), payload]
-    # Interactive launches: kick the agent off so it starts working on the
-    # composed context immediately instead of sitting at an empty REPL prompt.
-    # Only when the agent takes the prompt as a file — otherwise the prompt
-    # itself was already passed positionally as the user turn.
-    if mode == "interactive" and takes_file:
-        cmd.append("Make it so.")
-    return cmd
-
-
-def _flag_takes_file(flag: str) -> bool:
-    return "file" in flag.lower()
+    if mode == "interactive":
+        return [agent.cli, prompt]
+    return [agent.cli, *shlex.split(agent.auto), prompt]
 
 
 def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:
@@ -384,17 +322,11 @@ def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:
     )
 
 
-def _format_agent_command_for_console(
-    cmd: list[str],
-    prompt: str,
-    prompt_file: Path,
-) -> str:
-    display = list(cmd)
-    for idx, value in enumerate(display):
-        if value == prompt:
-            display[idx] = f"<prompt-text {len(prompt)} chars>"
-        elif value == str(prompt_file):
-            display[idx] = f"<prompt-file {prompt_file}>"
+def _format_agent_command_for_console(cmd: list[str], prompt: str) -> str:
+    display = [
+        f"<prompt-text {len(prompt)} chars>" if value == prompt else value
+        for value in cmd
+    ]
     return shlex.join(display)
 
 

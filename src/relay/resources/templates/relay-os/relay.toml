@@ -9,16 +9,12 @@ default_status = "draft"
 
 [agents.claude]
 cli = "claude"
-interactive = "--append-system-prompt-file"
-# stream-json keeps `relay launch` observable during long agentic runs;
-# relay parses the JSON stream and prints a one-line summary per event.
-auto = "-p --output-format stream-json --include-partial-messages --verbose"
+auto = "-p"
 file = "CLAUDE.md"
 mode = "local"
 
 [agents.codex]
 cli = "codex"
-interactive = ""
 auto = "exec"
 file = "AGENTS.md"
 mode = "local"

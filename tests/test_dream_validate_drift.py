@@ -66,7 +66,6 @@ def _seed_repo(root: Path) -> Path:
 
         [agents.claude]
         cli = "claude"
-        interactive = "-i"
         auto = "-p"
         file = "CLAUDE.md"
 

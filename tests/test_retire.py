@@ -28,7 +28,6 @@ def repo(tmp_path: Path) -> Path:
 
         [agents.claude]
         cli = "claude"
-        interactive = "--append-system-prompt-file"
         auto = "-p"
         file = "CLAUDE.md"
         mode = "local"

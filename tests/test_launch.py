@@ -31,56 +31,23 @@ def _capture_slack(sink: list[str], json_payload):
 # --- unit: command construction ------------------------------------------------
 
 
-def _agent(interactive: str, auto: str) -> AgentType:
-    return AgentType(name="x", cli="my-cli", interactive=interactive, auto=auto, file="X.md", mode="local")
+def _agent(auto: str) -> AgentType:
+    return AgentType(name="x", cli="my-cli", auto=auto, file="X.md", mode="local")
 
 
-def test_build_command_claude_interactive(tmp_path: Path) -> None:
-    prompt_file = tmp_path / "p.md"
-    prompt_file.write_text("hi")
-    cmd = build_agent_command(
-        _agent("--append-system-prompt-file", "-p"),
-        mode="interactive",
-        prompt="IGNORED-TEXT",
-        prompt_file=prompt_file,
-    )
-    assert cmd == ["my-cli", "--append-system-prompt-file", str(prompt_file), "Make it so."]
+def test_build_command_interactive_passes_prompt_positionally() -> None:
+    cmd = build_agent_command(_agent("-p"), mode="interactive", prompt="full prompt text")
+    assert cmd == ["my-cli", "full prompt text"]
 
 
-def test_build_command_claude_auto_passes_text(tmp_path: Path) -> None:
-    prompt_file = tmp_path / "p.md"
-    prompt_file.write_text("hi")
-    cmd = build_agent_command(
-        _agent("--append-system-prompt-file", "-p"),
-        mode="auto",
-        prompt="full prompt text",
-        prompt_file=prompt_file,
-    )
+def test_build_command_auto_prepends_flag_then_prompt() -> None:
+    cmd = build_agent_command(_agent("-p"), mode="auto", prompt="full prompt text")
     assert cmd == ["my-cli", "-p", "full prompt text"]
 
 
-def test_build_command_codex_like_subcommand(tmp_path: Path) -> None:
-    prompt_file = tmp_path / "p.md"
-    prompt_file.write_text("hi")
-    cmd = build_agent_command(
-        _agent("exec", "exec"),
-        mode="interactive",
-        prompt="full prompt text",
-        prompt_file=prompt_file,
-    )
+def test_build_command_auto_subcommand_style() -> None:
+    cmd = build_agent_command(_agent("exec"), mode="auto", prompt="full prompt text")
     assert cmd == ["my-cli", "exec", "full prompt text"]
-
-
-def test_build_command_interactive_without_flags_passes_prompt_text(tmp_path: Path) -> None:
-    prompt_file = tmp_path / "p.md"
-    prompt_file.write_text("hi")
-    cmd = build_agent_command(
-        _agent("", "exec"),
-        mode="interactive",
-        prompt="full prompt text",
-        prompt_file=prompt_file,
-    )
-    assert cmd == ["my-cli", "full prompt text"]
 
 
 # --- integration: end-to-end via CliRunner with mocked subprocess --------------
@@ -96,12 +63,10 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        interactive = "--append-system-prompt-file"
         auto = "-p"
         file = "CLAUDE.md"
         [agents.codex]
         cli = "codex"
-        interactive = ""
         auto = "exec"
         file = "AGENTS.md"
         [assignees.marc]
@@ -216,12 +181,12 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
 
-    # Agent called with --append-system-prompt-file <path> "Make it so."
+    # Agent called with `claude <composed-prompt-text>` — composed prompt
+    # arrives as the first user message in the REPL.
     assert len(calls) == 1
     assert calls[0][0] == "claude"
-    assert calls[0][1] == "--append-system-prompt-file"
-    assert calls[0][2].endswith(".md")
-    assert calls[0][3] == "Make it so."
+    assert len(calls[0]) == 2
+    assert "Relay task" in calls[0][1]
 
     # Log entry written
     cfg = load_config(active_task)
@@ -231,9 +196,6 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     log = (ref.path / "log.md").read_text()
     assert "started (active → in_progress) via relay launch" in log
     assert "launched in interactive mode" in log
-
-    # Prompt temp file cleaned up
-    assert not Path(calls[0][2]).exists()
 
 
 def test_launch_in_progress_resumes_without_status_transition(
@@ -747,12 +709,10 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        interactive = "--append-system-prompt-file"
         auto = "-p"
         file = "CLAUDE.md"
         [agents.codex]
         cli = "codex"
-        interactive = ""
         auto = "exec"
         file = "AGENTS.md"
         [assignees.marc]
@@ -834,7 +794,7 @@ def test_launch_bootstrap_skips_status_and_lock(
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
-        captured["prompt"] = Path(cmd[2]).read_text()
+        captured["prompt"] = cmd[1]
         return _Result()
 
     monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
