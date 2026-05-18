@@ -60,10 +60,12 @@ current step's skill + blackboard + ticket body) into one prompt and
 start the configured agent. Requires `status: active` — drafts must be
 activated via `relay mark active <slug>` first; paused / done tickets
 must be marked back to active before they can be launched.
-Interactive launches require stdin and stdout to both be terminals; use
-`mode: auto` or `mode: script` for non-interactive wrappers and CI.
-Script launches inject task metadata env vars including `RELAY_TASK_SLUG`,
-`RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
+Interactive launches require stdin and stdout to both be terminals.
+**`mode: auto` is temporarily disabled** — auto runs (claude `-p`, codex
+`exec`) buffer stdout until completion, leaving the operator with no
+live console signal. Use `mode: script` for unattended wrappers and CI
+until streaming lands. Script launches inject task metadata env vars
+including `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
 - `relay launch <slug> --agent <nickname>` — one-off agent override;
@@ -150,7 +152,7 @@ git history is the audit trail, no Slack broadcast.
 Bootstrap shims aren't user-deletable — they're managed by
 `relay init --update`.
 
-## relay retire \<slug\> [--mode auto|interactive] [--agent <nickname>] [--no-launch]
+## relay retire \<slug\> [--mode interactive] [--agent <nickname>] [--no-launch]
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
 invokes the `retro/done-ticket` skill against the named ticket. The retro
@@ -159,8 +161,8 @@ base if warranted, and deletes the source task directory in the same PR.
 `relay retire` activates and launches the retire task unless `--no-launch` is
 passed.
 
-- `relay retire <slug>` — scaffold and launch in `auto` mode.
-- `relay retire <slug> --mode interactive` — supervise the run.
+- `relay retire <slug>` — scaffold and launch in `interactive` mode (auto is
+  temporarily disabled).
 - `relay retire <slug> --no-launch` — scaffold the retire task and print the
   explicit `relay mark active` / `relay launch` sequence.
 
@@ -190,8 +192,9 @@ not two. Slack is required (see `relay/sync`); commands crash if
 
 Create an ad-hoc Dream cleanup task for the current Relay repo. The task slug
 is plain slug allocation (`dream`, `dream-2`, etc.), not a schedule or time
-bucket. By default the command activates and launches the new task in `auto`
-mode using the current user's first configured agent nickname.
+bucket. By default the command activates and launches the new task in
+`interactive` mode using the current user's first configured agent nickname.
+(Auto mode is temporarily disabled — see `relay launch` above.)
 
 - `relay dream` — create and launch a Dream cleanup run now.
 - `relay dream --agent codex1` — assign the run to a specific agent nickname.
@@ -210,6 +213,11 @@ called from `relay-os/scripts/cron.sh`.
 REM and other user-defined recurring maintenance loops use this surface.
 Dream currently uses `relay dream` directly so manual cleanup runs do not
 depend on a schedule-derived slug.
+
+**`mode: auto` templates are temporarily skipped** with a stderr/Slack note.
+The auto-launch path produces no live console output, so scheduled runs
+would sit silently. Templates should use `mode: script` for unattended
+runs until streaming lands.
 
 ## relay --version
 

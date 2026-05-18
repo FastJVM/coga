@@ -59,7 +59,7 @@ def test_dream_no_launch_scaffolds_ad_hoc_task_without_time_bucket(
     assert first.exit_code == 0, first.output
     assert second.exit_code == 0, second.output
     assert "Dream: repo root" in first.output
-    assert "Dream: using assignee claude1 (agent type claude, mode auto)" in first.output
+    assert "Dream: using assignee claude1 (agent type claude, mode interactive)" in first.output
     assert "Dream: scaffolding task 'Dream'" in first.output
     assert "Dream: created task dream at" in first.output
     assert "Dream: launch skipped (--no-launch)" in first.output
@@ -73,10 +73,20 @@ def test_dream_no_launch_scaffolds_ad_hoc_task_without_time_bucket(
     ticket = Ticket.read(repo / "tasks" / "dream" / "ticket.md")
     assert ticket.title == "Dream"
     assert ticket.status == "draft"
-    assert ticket.mode == "auto"
+    assert ticket.mode == "interactive"
     assert ticket.assignee == "claude1"
     assert ticket.workflow is None
     assert "Run the Dream cleanup pass for this Relay repo." in ticket.body
+
+
+def test_dream_refuses_auto_mode(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`relay dream --mode auto` is refused with a pointer to interactive."""
+    monkeypatch.chdir(repo)
+    result = CliRunner().invoke(app, ["dream", "--mode", "auto", "--no-launch"])
+    assert result.exit_code == 2, result.output
+    assert "mode=auto is temporarily disabled" in result.output
+    # Ticket must not be scaffolded.
+    assert not (repo / "tasks" / "dream").exists()
 
 
 def test_dream_logs_before_launching(

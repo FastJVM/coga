@@ -84,6 +84,23 @@ def check_recurring(cfg: Config, now: datetime | None = None) -> CheckResult:
             errors.append((path.name, str(exc)))
             continue
 
+        # Temporary policy: refuse to scaffold mode=auto recurring tasks.
+        # `claude -p` and `codex exec` buffer until completion, so scheduled
+        # runs would sit silently — worse than skipping. Lift when streaming
+        # lands. Templates can opt back in by setting `mode: script` (or
+        # `mode: interactive` if they can run from a TTY).
+        effective_mode = template.frontmatter.get("mode", "auto")
+        if effective_mode == "auto":
+            msg = (
+                "mode=auto is temporarily disabled (auto runs produce no live "
+                "console output). Set `mode: script` or `mode: interactive` "
+                "to re-enable."
+            )
+            import sys
+            sys.stderr.write(f"[recurring] skipping {path.name}: {msg}\n")
+            errors.append((path.name, msg))
+            continue
+
         last_fire = _last_firing(template.schedule, now)
         period_key = _period_key(template.schedule, last_fire)
         target_slug = f"{template.name}-{period_key}"
@@ -96,7 +113,7 @@ def check_recurring(cfg: Config, now: datetime | None = None) -> CheckResult:
             title=_extract_title(template),
             workflow_name=template.frontmatter.get("workflow"),
             contexts=list(template.frontmatter.get("contexts") or []),
-            mode=template.frontmatter.get("mode", "auto"),
+            mode=effective_mode,
             owner=template.frontmatter.get("owner"),
             assignee=template.frontmatter.get("assignee"),
             watchers=list(template.frontmatter.get("watchers") or []),

@@ -408,7 +408,7 @@ def test_launch_interactive_without_tty_fails_before_lock(
     ref = list_tasks(cfg)[0]
 
 
-@pytest.mark.parametrize("mode", ["interactive", "auto"])
+@pytest.mark.parametrize("mode", ["interactive"])
 def test_launch_harness_continues_through_consecutive_agent_steps(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,

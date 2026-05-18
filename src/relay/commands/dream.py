@@ -26,9 +26,9 @@ def dream(
         help="Agent nickname to assign. Defaults to the current user's first configured agent.",
     ),
     mode: str = typer.Option(
-        "auto",
+        "interactive",
         "--mode",
-        help="Launch mode for the Dream run: auto or interactive.",
+        help="Launch mode for the Dream run: interactive. (Auto is temporarily disabled.)",
     ),
     no_launch: bool = typer.Option(
         False,
@@ -37,8 +37,14 @@ def dream(
     ),
 ) -> None:
     """Create and launch an ad-hoc Dream cleanup run."""
-    if mode not in {"auto", "interactive"}:
-        _bail("--mode must be 'auto' or 'interactive'")
+    if mode == "auto":
+        _bail(
+            "mode=auto is temporarily disabled: auto runs produce no live "
+            "console output. Run `relay dream --mode interactive` from a TTY "
+            "instead."
+        )
+    if mode != "interactive":
+        _bail("--mode must be 'interactive'")
 
     try:
         cfg = load_config()
