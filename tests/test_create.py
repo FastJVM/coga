@@ -411,7 +411,7 @@ def test_recurring_check_subcommand(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        mode: auto
+        mode: interactive
         assignee: claude1
         owner: marc
         ---

@@ -81,7 +81,7 @@ def test_retire_no_launch_scaffolds_task_with_target_slug(
 
     assert result.exit_code == 0, result.output
     assert "Retire: target task fix-retry-logic" in result.output
-    assert "Retire: using assignee claude1 (agent type claude, mode auto)" in result.output
+    assert "Retire: using assignee claude1 (agent type claude, mode interactive)" in result.output
     assert "Retire: scaffolding task 'Retire fix-retry-logic'" in result.output
     assert "Retire: created task retire-fix-retry-logic" in result.output
     assert "Retire: launch skipped (--no-launch)" in result.output
@@ -92,7 +92,7 @@ def test_retire_no_launch_scaffolds_task_with_target_slug(
     ticket = Ticket.read(new_task / "ticket.md")
     assert ticket.title == "Retire fix-retry-logic"
     assert ticket.status == "draft"
-    assert ticket.mode == "auto"
+    assert ticket.mode == "interactive"
     assert ticket.assignee == "claude1"
     assert ticket.workflow is None
     assert "Retire the done ticket `fix-retry-logic`" in ticket.body
@@ -145,6 +145,23 @@ def test_retire_refuses_unknown_slug(
 
     assert result.exit_code == 2
     assert "no-such-task" in result.output
+
+
+def test_retire_refuses_auto_mode(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay retire <slug> --mode auto` is refused until streaming lands."""
+    monkeypatch.chdir(repo)
+    _seed_done_task(repo, "fix-retry-logic")
+
+    result = CliRunner().invoke(
+        app, ["retire", "fix-retry-logic", "--mode", "auto", "--no-launch"]
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "mode=auto is temporarily disabled" in result.output
+    # Refused — no retire scaffold task created.
+    assert not (repo / "tasks" / "retire-fix-retry-logic").exists()
 
 
 def test_retire_launches_after_scaffold(

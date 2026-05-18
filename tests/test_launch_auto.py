@@ -37,40 +37,37 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return company
 
 
-def test_launch_auto_mode(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_launch_auto_mode_is_temporarily_disabled(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Auto mode is refused at launch time until streaming lands.
+
+    `claude -p` and `codex exec` buffer stdout until completion, so auto
+    launches produce no live console output. Until relay can stream the
+    agent's structured output, launch refuses rather than letting runs
+    sit silently. The check happens before any subprocess is spawned and
+    before the status transitions to `in_progress`.
+    """
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="Auto run", workflow_name=None,
         contexts=[], mode="auto", owner="marc", assignee="claude1",
         watchers=[], status="active",
     )
-    captured: dict = {}
 
-    class _R:
-        returncode = 0
+    def fail_run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("subprocess.run must not be called for auto-mode launches")
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
-        captured["cmd"] = cmd
-        captured["env_keys"] = set(env or {})
-        return _R()
-
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fail_run)
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda n: f"/usr/bin/{n}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "auto-run"])
-    assert result.exit_code == 0, result.output
-    assert "Launch: task auto-run (status=active, mode=auto, assignee=claude1)" in result.output
-    assert "Launch: agent claude1 -> claude (cli=claude)" in result.output
-    assert "Launch: found agent CLI at /usr/bin/claude" in result.output
-    assert "Launch: prompt written to" in result.output
-    assert "Launch: command: claude -p '<prompt-text " in result.output
-    assert "Launch: agent exited with code 0" in result.output
-    assert "Launch: reading task state after agent exit" in result.output
+    assert result.exit_code == 2, result.output
+    assert "mode=auto is temporarily disabled" in result.output
+    assert "mode: interactive" in result.output
 
-    cmd = captured["cmd"]
-    assert cmd[0] == "claude"
-    assert cmd[1] == "-p"
-    # Last arg is the full prompt text, not a file path
-    assert "Relay task — auto-run" in cmd[2]
-    assert "Auto mode" in cmd[2]
+    # Status must not have advanced to in_progress.
+    from relay.ticket import Ticket
+    ticket = Ticket.read(repo / "tasks" / "auto-run" / "ticket.md")
+    assert ticket.status == "active"
