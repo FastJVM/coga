@@ -23,6 +23,9 @@ EXPECTED_FILES = {
     "relay-os/context.md",
     "relay-os/scripts/cron.sh",
     "relay-os/bootstrap/hooks/post-merge",
+    "relay-os/bootstrap/contexts/dev/code/SKILL.md",
+    "relay-os/bootstrap/contexts/relay/sync/SKILL.md",
+    "relay-os/bootstrap/skills/eval/ticket-diagnostic/SKILL.md",
     "relay-os/bootstrap/skills/relay/calendar-reminder/SKILL.md",
     "relay-os/contexts/_template/SKILL.md",
     "relay-os/skills/_template/SKILL.md",
@@ -37,9 +40,7 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     templates = clone_dir / update_cmd.TEMPLATE_SUBPATH
     templates.mkdir(parents=True)
     (templates / ".gitignore").write_text(
-        "relay.local.toml\n.relay/\nbootstrap/\n"
-        "skills/bootstrap\nskills/retro\nskills/relay\n"
-        "contexts/relay/architecture\ncontexts/relay/principles\ncontexts/relay/cli\n"
+        "relay.local.toml\n.relay/\nbootstrap/\n.agent-skills/\n"
         "**/_template/\n**/_template.md\n"
     )
     (templates / "relay.toml").write_text("version = 1\n")
@@ -60,6 +61,17 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     (templates / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
         "retro/done-ticket skill\n"
     )
+    (templates / "bootstrap" / "skills" / "eval" / "ticket-diagnostic").mkdir(
+        parents=True
+    )
+    (
+        templates
+        / "bootstrap"
+        / "skills"
+        / "eval"
+        / "ticket-diagnostic"
+        / "SKILL.md"
+    ).write_text("---\nname: eval/ticket-diagnostic\n---\neval skill\n")
     (templates / "bootstrap" / "skills" / "relay" / "calendar-reminder").mkdir(
         parents=True
     )
@@ -70,12 +82,20 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         / "relay"
         / "calendar-reminder"
         / "SKILL.md"
-    ).write_text("relay/calendar-reminder skill\n")
+    ).write_text("---\nname: relay-calendar-reminder\n---\ncalendar skill\n")
     for ctx in ("architecture", "principles", "cli"):
         (templates / "bootstrap" / "contexts" / "relay" / ctx).mkdir(parents=True)
         (templates / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").write_text(
             f"relay/{ctx} context\n"
         )
+    (templates / "bootstrap" / "contexts" / "relay" / "sync").mkdir(parents=True)
+    (templates / "bootstrap" / "contexts" / "relay" / "sync" / "SKILL.md").write_text(
+        "relay/sync context\n"
+    )
+    (templates / "bootstrap" / "contexts" / "dev" / "code").mkdir(parents=True)
+    (templates / "bootstrap" / "contexts" / "dev" / "code" / "SKILL.md").write_text(
+        "dev/code context\n"
+    )
     for kind, fname in [
         ("contexts", "_template/SKILL.md"),
         ("skills", "_template/SKILL.md"),
@@ -157,15 +177,34 @@ def test_init_into_empty_dir(tmp_path: Path, fake_clone, fake_venv) -> None:
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
     assert os.access(target / "relay-os" / "scripts" / "cron.sh", os.X_OK)
-    assert (target / "relay-os" / "skills" / "relay").is_symlink()
+    assert not (target / "relay-os" / "skills" / "eval").exists()
+    assert not (target / "relay-os" / "skills" / "relay").exists()
+    assert not (target / "relay-os" / "contexts" / "dev").exists()
+    assert not (target / "relay-os" / "contexts" / "relay").exists()
     assert (
         target
         / "relay-os"
+        / "bootstrap"
+        / "skills"
+        / "eval"
+        / "ticket-diagnostic"
+        / "SKILL.md"
+    ).read_text().startswith("---\nname: eval/ticket-diagnostic\n")
+    assert (
+        target
+        / "relay-os"
+        / "bootstrap"
         / "skills"
         / "relay"
         / "calendar-reminder"
         / "SKILL.md"
     ).read_text().startswith("---\nname: relay-calendar-reminder\n")
+    assert (
+        target / "relay-os" / ".agent-skills" / "eval" / "ticket-diagnostic"
+    ).is_symlink()
+    assert (
+        target / "relay-os" / ".agent-skills" / "relay" / "calendar-reminder"
+    ).is_symlink()
 
     assert "version = 1" in (target / "relay-os" / "relay.toml").read_text()
 
@@ -321,6 +360,18 @@ def _seed_local_relay_os(root: Path) -> Path:
     (relay_os / "skills" / "relay" / "calendar-reminder" / "SKILL.md").write_text(
         "OLD relay/calendar-reminder skill\n"
     )
+    (relay_os / "skills" / "eval" / "ticket-diagnostic").mkdir(parents=True)
+    (relay_os / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md").write_text(
+        "OLD eval/ticket-diagnostic skill\n"
+    )
+    (relay_os / "contexts" / "relay" / "sync").mkdir(parents=True)
+    (relay_os / "contexts" / "relay" / "sync" / "SKILL.md").write_text(
+        "OLD relay/sync context\n"
+    )
+    (relay_os / "contexts" / "dev" / "code").mkdir(parents=True)
+    (relay_os / "contexts" / "dev" / "code" / "SKILL.md").write_text(
+        "OLD dev/code context\n"
+    )
     # Stale `_*` scaffold upstream no longer ships (rename or removal).
     (relay_os / "recurring").mkdir(exist_ok=True)
     (relay_os / "recurring" / "_template_old.md").write_text("STALE recurring template\n")
@@ -360,6 +411,17 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
         "NEW retro/done-ticket skill\n"
     )
+    (templates / "bootstrap" / "skills" / "eval" / "ticket-diagnostic").mkdir(
+        parents=True
+    )
+    (
+        templates
+        / "bootstrap"
+        / "skills"
+        / "eval"
+        / "ticket-diagnostic"
+        / "SKILL.md"
+    ).write_text("NEW eval/ticket-diagnostic skill\n")
     (templates / "bootstrap" / "skills" / "relay" / "calendar-reminder").mkdir(
         parents=True
     )
@@ -376,15 +438,21 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
         (templates / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").write_text(
             f"NEW relay/{ctx} context\n"
         )
+    (templates / "bootstrap" / "contexts" / "relay" / "sync").mkdir(parents=True)
+    (templates / "bootstrap" / "contexts" / "relay" / "sync" / "SKILL.md").write_text(
+        "NEW relay/sync context\n"
+    )
+    (templates / "bootstrap" / "contexts" / "dev" / "code").mkdir(parents=True)
+    (templates / "bootstrap" / "contexts" / "dev" / "code" / "SKILL.md").write_text(
+        "NEW dev/code context\n"
+    )
     (templates / "bootstrap" / "hooks").mkdir(parents=True)
     (templates / "bootstrap" / "hooks" / "post-merge").write_text(
         "#!/bin/sh\nrelay automerge || true\n"
     )
     (templates / "bootstrap" / "hooks" / "post-merge").chmod(0o755)
     (templates / ".gitignore").write_text(
-        "relay.local.toml\n.relay/\nbootstrap/\n"
-        "skills/bootstrap\nskills/retro\nskills/relay\n"
-        "contexts/relay/architecture\ncontexts/relay/principles\ncontexts/relay/cli\n"
+        "relay.local.toml\n.relay/\nbootstrap/\n.agent-skills/\n"
         "**/_template/\n**/_template.md\n"
     )
 
@@ -432,53 +500,66 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert (relay_os / "tasks" / "_template" / "ticket.md").read_text() == "NEW ticket template\n"
     # Bootstrap shims are infra — the whole tree mirrors upstream on --update.
     assert (relay_os / "bootstrap" / "create" / "ticket.md").read_text() == "NEW bootstrap shim\n"
-    # Vendored skills + canonical relay/* contexts now live under bootstrap/
-    # and resolve through back-compat symlinks at the legacy paths.
+    # Vendored skills + canonical contexts live under bootstrap/.
     assert (
-        (relay_os / "skills" / "bootstrap" / "ticket" / "SKILL.md").read_text()
+        (relay_os / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").read_text()
         == "NEW bootstrap/ticket skill\n"
     )
     assert (
-        (relay_os / "skills" / "retro" / "done-ticket" / "SKILL.md").read_text()
+        (relay_os / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").read_text()
         == "NEW retro/done-ticket skill\n"
     )
     assert (
-        (relay_os / "skills" / "relay" / "calendar-reminder" / "SKILL.md").read_text()
+        (relay_os / "bootstrap" / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md").read_text()
+        == "NEW eval/ticket-diagnostic skill\n"
+    )
+    assert (
+        (relay_os / "bootstrap" / "skills" / "relay" / "calendar-reminder" / "SKILL.md").read_text()
         == "NEW relay/calendar-reminder skill\n"
     )
     for ctx in ("architecture", "principles", "cli"):
         assert (
-            (relay_os / "contexts" / "relay" / ctx / "SKILL.md").read_text()
+            (relay_os / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").read_text()
             == f"NEW relay/{ctx} context\n"
         )
-    # Legacy paths are symlinks into bootstrap/.
-    assert (relay_os / "skills" / "bootstrap").is_symlink()
-    assert (relay_os / "skills" / "retro").is_symlink()
-    assert (relay_os / "skills" / "relay").is_symlink()
-    for ctx in ("architecture", "principles", "cli"):
-        assert (relay_os / "contexts" / "relay" / ctx).is_symlink()
+    assert (
+        (relay_os / "bootstrap" / "contexts" / "relay" / "sync" / "SKILL.md").read_text()
+        == "NEW relay/sync context\n"
+    )
+    assert (
+        (relay_os / "bootstrap" / "contexts" / "dev" / "code" / "SKILL.md").read_text()
+        == "NEW dev/code context\n"
+    )
+    # Generated agent view exposes the effective skill set without claiming
+    # namespaces in relay-os/skills.
+    assert (relay_os / ".agent-skills" / "bootstrap" / "ticket").is_symlink()
+    assert (relay_os / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
+    assert (relay_os / ".agent-skills" / "retro" / "done-ticket").is_symlink()
+    assert (relay_os / ".agent-skills" / "relay" / "calendar-reminder").is_symlink()
     # Shims dropped upstream (renamed/removed) are pruned locally.
     assert not (relay_os / "bootstrap" / "stale").exists()
     # Top-level paths upstream once shipped but no longer does are pruned.
     assert not (relay_os / "counter").exists()
     assert not (relay_os / "meta").exists()
-    # Stale bootstrap-namespace nested skill goes away — the legacy
-    # `skills/bootstrap/` directory (which used to hold it) is itself
-    # now an obsolete path replaced by a symlink into bootstrap/.
+    # Stale bootstrap-namespace nested skill goes away, but local namespace
+    # roots are not replaced by generated symlinks.
     legacy_bootstrap_skill = relay_os / "skills" / "bootstrap"
-    assert legacy_bootstrap_skill.is_symlink()
+    assert legacy_bootstrap_skill.is_dir() and not legacy_bootstrap_skill.is_symlink()
     assert (legacy_bootstrap_skill / "create").exists() is False
     # `_*` scaffolds upstream no longer ships are also pruned.
     assert not (relay_os / "recurring" / "_template_old.md").exists()
-    # Per-update prune count: counter, meta, skills/bootstrap, skills/retro,
-    # skills/relay, contexts/relay/{architecture,principles,cli}, hooks,
-    # recurring/_template_old.md.
-    # (consolidation), plus the underscore-template prune.
+    # Per-update prune count includes only narrow known Relay-owned paths plus
+    # the underscore-template prune. Local namespace roots are preserved.
     assert "Pruned" in result.output
     assert "  counter" in result.output
     assert "  meta" in result.output
-    assert "  skills/bootstrap" in result.output
-    assert "  skills/relay" in result.output
+    assert "  skills/bootstrap/create" in result.output
+    assert "  skills/relay/calendar-reminder" in result.output
+    assert "  skills/eval" not in result.output
+    assert "  contexts/dev/code" in result.output
+    assert "  contexts/relay/sync" in result.output
+    assert "  contexts/dev\n" not in result.output
+    assert "  contexts/relay\n" not in result.output
     assert "recurring/_template_old.md" in result.output
     # User-edited content untouched.
     assert (relay_os / "skills" / "myteam" / "real-skill" / "SKILL.md").read_text() == "user content\n"
@@ -617,11 +698,12 @@ def test_init_links_skills_into_agent_dirs(
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0, result.output
 
-    skills_src = (target / "relay-os" / "skills").resolve()
+    skills_src = (target / "relay-os" / ".agent-skills").resolve()
     for dirname in (".claude", ".codex"):
         link = target / dirname / "skills" / "relay"
         assert link.is_symlink(), f"missing symlink for {dirname}"
         assert link.resolve() == skills_src
+    assert (target / "relay-os" / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
     assert "Wired skill discovery for Claude Code, Codex" in result.output
 
 
@@ -657,83 +739,86 @@ def test_init_link_skills_is_idempotent(tmp_path: Path) -> None:
     assert (target / ".claude" / "skills" / "relay").is_symlink()
 
 
-# --- back-compat symlinks for bootstrap/-consolidation -----------------------
+# --- generated agent skill view ---------------------------------------------
 
 
-def test_link_compat_paths_creates_relative_symlinks(tmp_path: Path) -> None:
+def test_agent_skill_view_includes_bootstrap_and_local_skills(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    relay_os = target / "relay-os"
+    (relay_os / "bootstrap" / "skills" / "eval" / "ticket-diagnostic").mkdir(
+        parents=True
+    )
+    (
+        relay_os
+        / "bootstrap"
+        / "skills"
+        / "eval"
+        / "ticket-diagnostic"
+        / "SKILL.md"
+    ).write_text("bundled eval\n")
+    (relay_os / "skills" / "team" / "local").mkdir(parents=True)
+    (relay_os / "skills" / "team" / "local" / "SKILL.md").write_text("local\n")
+
+    wired, blocked = init_cmd._link_skills_for_agents(target, relay_os)
+
+    assert wired == ["Claude Code", "Codex"]
+    assert blocked == []
+    assert (relay_os / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
+    assert (relay_os / ".agent-skills" / "team" / "local").is_symlink()
+    assert os.readlink(target / ".codex" / "skills" / "relay") == (
+        "../../relay-os/.agent-skills"
+    )
+
+
+def test_agent_skill_view_prefers_local_skill_over_bootstrap(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    relay_os = target / "relay-os"
+    bundled = relay_os / "bootstrap" / "skills" / "tools" / "example"
+    local = relay_os / "skills" / "tools" / "example"
+    bundled.mkdir(parents=True)
+    local.mkdir(parents=True)
+    (bundled / "SKILL.md").write_text("bundled\n")
+    (local / "SKILL.md").write_text("local\n")
+
+    init_cmd._link_skills_for_agents(target, relay_os)
+
+    link = relay_os / ".agent-skills" / "tools" / "example"
+    assert link.is_symlink()
+    assert link.resolve() == local.resolve()
+
+
+def test_prune_obsolete_removes_old_bootstrap_exposure_symlinks_only(
+    tmp_path: Path,
+) -> None:
     relay_os = tmp_path / "relay-os"
-    # `_link_compat_paths` doesn't require the target to exist (it lays down
-    # the symlink unconditionally), but a real upstream init populates this.
-    (relay_os / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
-    (relay_os / "bootstrap" / "skills" / "retro").mkdir(parents=True)
-    (relay_os / "bootstrap" / "skills" / "relay").mkdir(parents=True)
-    for ctx in ("architecture", "principles", "cli"):
-        (relay_os / "bootstrap" / "contexts" / "relay" / ctx).mkdir(parents=True)
-
-    created = init_cmd._link_compat_paths(relay_os)
-    assert "skills/bootstrap" in created
-    assert "skills/retro" in created
-    assert "skills/relay" in created
-    assert "contexts/relay/architecture" in created
-
-    # Symlinks resolve into bootstrap/ — relative so the repo is portable.
-    sb = relay_os / "skills" / "bootstrap"
-    assert sb.is_symlink()
-    assert os.readlink(sb) == "../bootstrap/skills/bootstrap"
-    sb_target = sb.resolve()
-    assert sb_target == (relay_os / "bootstrap" / "skills" / "bootstrap").resolve()
-
-    sr = relay_os / "skills" / "relay"
-    assert sr.is_symlink()
-    assert os.readlink(sr) == "../bootstrap/skills/relay"
-
-    cr = relay_os / "contexts" / "relay" / "architecture"
-    assert cr.is_symlink()
-    assert os.readlink(cr) == "../../bootstrap/contexts/relay/architecture"
-
-
-def test_link_compat_paths_is_idempotent(tmp_path: Path) -> None:
-    relay_os = tmp_path / "relay-os"
-    (relay_os / "bootstrap" / "skills" / "bootstrap").mkdir(parents=True)
-
-    first = init_cmd._link_compat_paths(relay_os)
-    second = init_cmd._link_compat_paths(relay_os)
-    # Already-correct symlinks aren't recreated, so they're not in `created`
-    # the second time around. The symlink itself must still be in place.
-    assert "skills/bootstrap" in first
-    assert "skills/bootstrap" not in second
-    assert (relay_os / "skills" / "bootstrap").is_symlink()
-
-
-def test_link_compat_paths_replaces_wrong_symlink(tmp_path: Path) -> None:
-    relay_os = tmp_path / "relay-os"
-    (relay_os / "bootstrap" / "skills" / "bootstrap").mkdir(parents=True)
-    # Pre-existing symlink that points somewhere else.
+    (relay_os / "bootstrap" / "skills" / "eval").mkdir(parents=True)
     (relay_os / "skills").mkdir(parents=True)
-    bad = relay_os / "skills" / "bootstrap"
-    bad.symlink_to("../wrong/target")
+    old_generated = relay_os / "skills" / "eval"
+    old_generated.symlink_to("../bootstrap/skills/eval")
+    real_local = relay_os / "skills" / "google"
+    real_local.mkdir()
+    (real_local / "SKILL.md").write_text("local\n")
 
-    init_cmd._link_compat_paths(relay_os)
-    assert os.readlink(bad) == "../bootstrap/skills/bootstrap"
+    pruned = update_cmd.prune_obsolete(relay_os)
+
+    assert "skills/eval" in pruned
+    assert not old_generated.exists()
+    assert real_local.is_dir()
+    assert "skills/google" not in pruned
 
 
-def test_link_compat_paths_skips_real_dir(tmp_path: Path) -> None:
-    """If a real dir is sitting at the legacy path (pre-update), don't clobber.
+def test_link_skills_for_agents_replaces_old_raw_skills_link(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    relay_os = target / "relay-os"
+    (relay_os / "skills" / "team" / "local").mkdir(parents=True)
+    (relay_os / "skills" / "team" / "local" / "SKILL.md").write_text("local\n")
+    old = target / ".claude" / "skills" / "relay"
+    old.parent.mkdir(parents=True)
+    old.symlink_to("../../relay-os/skills")
 
-    `prune_obsolete` is what's expected to clear those — the symlinker just
-    refuses to overwrite. Verifies the safety rail.
-    """
-    relay_os = tmp_path / "relay-os"
-    (relay_os / "bootstrap" / "skills" / "bootstrap").mkdir(parents=True)
-    real_dir = relay_os / "skills" / "bootstrap"
-    real_dir.mkdir(parents=True)
-    (real_dir / "marker.txt").write_text("user content")
+    init_cmd._link_skills_for_agents(target, relay_os)
 
-    init_cmd._link_compat_paths(relay_os)
-
-    # Real dir untouched; no symlink laid down on top.
-    assert real_dir.is_dir() and not real_dir.is_symlink()
-    assert (real_dir / "marker.txt").read_text() == "user content"
+    assert os.readlink(old) == "../../relay-os/.agent-skills"
 
 
 # --- agent-guide files (CLAUDE.md / AGENTS.md) -------------------------------
@@ -1086,10 +1171,13 @@ def test_init_update_refreshes_inner_gitignore(
     assert update_cmd.RELAY_GITIGNORE_BEGIN in gi
     assert update_cmd.RELAY_GITIGNORE_END in gi
     assert "bootstrap/" in gi
-    # The legacy paths now ship as back-compat symlink entries.
-    assert "skills/retro" in gi
-    assert "skills/relay" in gi
-    assert "contexts/relay/architecture" in gi
+    assert ".agent-skills/" in gi
+    # Bootstrap no longer claims user-facing skill/context namespaces.
+    assert "skills/eval" not in gi
+    assert "skills/retro" not in gi
+    assert "skills/relay" not in gi
+    assert "contexts/dev" not in gi
+    assert "contexts/relay" not in gi
     assert "_template/" in gi
     assert "_template.md" in gi
     # User-added rule survives outside the block.

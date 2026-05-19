@@ -31,9 +31,11 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "for each source task, the task is gone" in text
     assert "source task\n  blackboard contains a `## Retro` section" in text
     assert "with `skill: retro/done-ticket` and\n  `status: processed`" in text
-    assert "read every context file under `relay-os/contexts/**/SKILL.md`" in text
-    assert "read every skill file under `relay-os/skills/**/SKILL.md`" in text
-    assert "loaded once per run before ticket-by-ticket extraction" in text
+    assert "read every context file under `relay-os/contexts/**/SKILL.md` and" in text
+    assert "`relay-os/bootstrap/contexts/**/SKILL.md`" in text
+    assert "read every skill file under `relay-os/skills/**/SKILL.md` and" in text
+    assert "`relay-os/bootstrap/skills/**/SKILL.md`" in text
+    assert "loaded once per run before ticket-by-ticket\n  extraction" in text
     assert "This skill is invoked with one or more parameters: exact done ticket slugs" in text
     assert "coherent batch of up to five slugs" in text
     assert "Do not:" in text

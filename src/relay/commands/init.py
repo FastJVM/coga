@@ -19,6 +19,7 @@ from pathlib import Path
 
 import typer
 
+from relay.agent_skills import refresh_agent_skill_view
 from relay.commands.update import (
     RELAY_REPO_URL,
     _refresh_relay_gitignore,
@@ -151,12 +152,6 @@ def _do_init(path: Path) -> None:
         refresh_cli(clone_dir, relay_os)
         sha = upstream_sha(clone_dir)
 
-    # Lay down the back-compat symlinks (`skills/bootstrap`,
-    # `contexts/relay/architecture`, …). The package template ships
-    # everything under `bootstrap/`; resource copying writes real directories
-    # so we recreate the compatibility links locally on every init.
-    _link_compat_paths(relay_os)
-
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
@@ -259,11 +254,6 @@ def _do_update() -> None:
         pruned = []
     else:
         pruned = prune_obsolete(relay_os) + pruned_templates
-        # `prune_obsolete` clears the legacy real dirs (e.g. an existing
-        # `skills/bootstrap/`); re-laying the back-compat symlinks afterwards
-        # is what makes path-based references (`skill:`, `contexts:`,
-        # `_AGENT_SKILL_DIRS`) keep resolving.
-        _link_compat_paths(relay_os)
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
@@ -361,73 +351,11 @@ def _print_global_cli_status(status: str, detail: str | None, venv: Path) -> Non
     )
 
 
-# Back-compat symlinks for the bootstrap/-consolidation. Each entry is
-# `(symlink, target)` *relative to relay-os/*. The symlink lives at the
-# legacy path that workflow `skill:` refs, ticket `contexts:` refs, and
-# `_AGENT_SKILL_DIRS` discovery all assume; the target is the consolidated
-# location under `bootstrap/` where the actual files now live.
-#
-# Symlinks aren't represented in package templates portably, so they're
-# created on every `relay init` and `relay init --update`.
-_COMPAT_SYMLINKS: tuple[tuple[str, str], ...] = (
-    ("skills/bootstrap", "../bootstrap/skills/bootstrap"),
-    ("skills/retro", "../bootstrap/skills/retro"),
-    ("skills/relay", "../bootstrap/skills/relay"),
-    ("contexts/relay/architecture", "../../bootstrap/contexts/relay/architecture"),
-    ("contexts/relay/principles", "../../bootstrap/contexts/relay/principles"),
-    ("contexts/relay/cli", "../../bootstrap/contexts/relay/cli"),
-)
-
-
-def _link_compat_paths(relay_os: Path) -> list[str]:
-    """Recreate the `skills/<name>` and `contexts/relay/<name>` back-compat symlinks.
-
-    Vendored content lives under `relay-os/bootstrap/` (single mirror target).
-    The legacy paths it used to live at — `skills/bootstrap/`, `skills/retro/`,
-    `skills/relay/`, `contexts/relay/architecture/`, etc. — are still what
-    workflow steps, ticket frontmatter, and agent skill-discovery scan, so we
-    lay relative symlinks down at every init/update run.
-
-    Idempotent: leaves a correct existing symlink alone, replaces a wrong one,
-    skips if a real file/dir is sitting at the target (caller can then prune
-    via `OBSOLETE_PATHS`). Returns the list of symlink paths created or
-    refreshed (for the echo line).
-    """
-    created: list[str] = []
-    for rel, target in _COMPAT_SYMLINKS:
-        link = relay_os / rel
-        target_path = Path(target)
-
-        if link.is_symlink():
-            try:
-                if Path(os.readlink(link)) == target_path:
-                    continue
-            except OSError:
-                pass
-            try:
-                link.unlink()
-            except OSError:
-                continue
-        elif link.exists():
-            # Real file/dir in the way — `prune_obsolete` removes these
-            # during `--update`; on a fresh init the path shouldn't exist
-            # at all (the package template no longer ships these dirs).
-            continue
-
-        try:
-            link.parent.mkdir(parents=True, exist_ok=True)
-            link.symlink_to(target_path, target_is_directory=True)
-        except OSError:
-            continue
-        created.append(rel)
-    return created
-
-
 # Agents we wire skill discovery for. Each entry is the project-level dir
 # that the agent's CLI scans for skills (e.g. Claude Code reads `.claude/skills/`,
-# Codex reads `.codex/skills/`). We symlink `<agent>/skills/relay` -> `relay-os/skills`
-# so the existing SKILL.md standard "just works" without polluting the agent's
-# own skills tree. Other agents (OpenCode etc.) need manual wiring.
+# Codex reads `.codex/skills/`). We symlink `<agent>/skills/relay` ->
+# `relay-os/.agent-skills`, a generated merged view of local skills plus
+# bundled bootstrap batteries. Other agents (OpenCode etc.) need manual wiring.
 _AGENT_SKILL_DIRS: tuple[tuple[str, str], ...] = (
     ("Claude Code", ".claude"),
     ("Codex", ".codex"),
@@ -437,10 +365,11 @@ _AGENT_SKILL_DIRS: tuple[tuple[str, str], ...] = (
 def _link_skills_for_agents(
     target: Path, relay_os: Path
 ) -> tuple[list[str], list[tuple[str, Path]]]:
-    """Symlink relay-os/skills into each known agent's skill discovery path.
+    """Symlink the generated Relay skill view into known agent skill paths.
 
-    Creates `<target>/<agent-dir>/skills/relay` -> `<target>/relay-os/skills`
-    for Claude Code and Codex. Idempotent: skips if the link already exists,
+    Creates `<target>/<agent-dir>/skills/relay` ->
+    `<target>/relay-os/.agent-skills` for Claude Code and Codex. Idempotent:
+    refreshes the generated view and leaves a correct link alone,
     if the agent dir is something we shouldn't touch (e.g. a non-directory
     marker file), or if the OS doesn't support symlinks.
 
@@ -449,9 +378,7 @@ def _link_skills_for_agents(
     of `(name, path)` pairs we skipped because something non-directory was
     sitting in the way.
     """
-    skills_src = relay_os / "skills"
-    if not skills_src.is_dir():
-        return [], []
+    skills_src = refresh_agent_skill_view(relay_os).view_dir
 
     wired: list[str] = []
     blocked: list[tuple[str, Path]] = []
@@ -466,13 +393,25 @@ def _link_skills_for_agents(
         skills_dir = agent_dir / "skills"
         link = skills_dir / "relay"
         try:
-            if link.is_symlink() or link.exists():
-                wired.append(label)
-                continue
-            skills_dir.mkdir(parents=True, exist_ok=True)
             rel_target = Path(os.path.relpath(skills_src, skills_dir))
+            if link.is_symlink():
+                try:
+                    if Path(os.readlink(link)) == rel_target:
+                        wired.append(label)
+                        continue
+                except OSError:
+                    blocked.append((label, link))
+                    continue
+                link.unlink()
+            elif link.exists():
+                blocked.append((label, link))
+                continue
+
+            skills_dir.mkdir(parents=True, exist_ok=True)
             link.symlink_to(rel_target, target_is_directory=True)
         except OSError:
+            if (label, link) not in blocked:
+                blocked.append((label, link))
             continue
         wired.append(label)
     return wired, blocked

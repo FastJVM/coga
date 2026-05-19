@@ -9,14 +9,9 @@ relay.local.toml
 # User content goes outside this dir (skills/<your-ns>/, contexts/<your-ns>/).
 bootstrap/
 
-# Back-compat symlinks pointing into bootstrap/ above. Recreated by
-# `relay init [--update]`; safe to delete locally — they get regenerated.
-skills/bootstrap
-skills/retro
-skills/relay
-contexts/relay/architecture
-contexts/relay/principles
-contexts/relay/cli
+# Generated merged skill view for agent CLIs. Rebuilt by `relay init`,
+# `relay init --update`, and `relay launch`.
+.agent-skills/
 
 # Per-domain scaffolding templates (bare `_template`, `_template.md`).
 # Refreshed wholesale on update.

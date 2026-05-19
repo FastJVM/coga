@@ -132,6 +132,10 @@ def test_update_all_delegates_github_backed_skills_to_gh_skill(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(_repo(tmp_path, monkeypatch))
+    _write(
+        cfg.repo_root / "skills" / "tools" / "example" / "SKILL.md",
+        "---\nname: tools/example\n---\nhttps://github.com/example/skill\n",
+    )
     commands: list[list[str]] = []
 
     summary = update_skills(
@@ -329,6 +333,76 @@ def test_status_labels_non_relay_skill_provenance(
     assert results["github-tool"].source_type == "github"
     assert results["github-tool"].status == "delegated"
     assert results["github-tool"].message == "managed by gh skill metadata"
+
+
+def test_status_reports_bundled_bootstrap_skills(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    _write(
+        cfg.repo_root / "bootstrap" / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md",
+        "---\nname: eval/ticket-diagnostic\n---\nbundled\n",
+    )
+
+    results = {result.name: result for result in status_skills(cfg)}
+
+    assert results["eval/ticket-diagnostic"].source_type == "bundled"
+    assert results["eval/ticket-diagnostic"].status == "package-backed"
+    assert "relay init --update" in results["eval/ticket-diagnostic"].message
+
+
+def test_status_marks_local_skill_that_overrides_bundled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    _write(
+        cfg.repo_root / "bootstrap" / "skills" / "tools" / "example" / "SKILL.md",
+        "---\nname: tools/example\n---\nbundled\n",
+    )
+    _write(
+        cfg.repo_root / "skills" / "tools" / "example" / "SKILL.md",
+        "---\nname: tools/example\n---\nlocal\n",
+    )
+
+    results = {result.name: result for result in status_skills(cfg)}
+
+    assert results["tools/example"].status == "local-override"
+    assert "shadows bundled" in results["tools/example"].message
+
+
+def test_update_all_skips_bundled_bootstrap_skills(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    _write(
+        cfg.repo_root / "bootstrap" / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md",
+        "---\nname: eval/ticket-diagnostic\n---\nbundled\n",
+    )
+
+    def runner(args, cwd=None):
+        raise AssertionError(f"unexpected command: {list(args)}")
+
+    summary = update_skills(cfg, all_skills=True, runner=runner)
+    results = {result.name: result for result in summary.results}
+
+    assert results["eval/ticket-diagnostic"].source_type == "bundled"
+    assert results["eval/ticket-diagnostic"].status == "skipped-bundled"
+    assert "pip install --upgrade relay-os" in results["eval/ticket-diagnostic"].message
+
+
+def test_update_one_bundled_skill_reports_package_update_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    _write(
+        cfg.repo_root / "bootstrap" / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md",
+        "---\nname: eval/ticket-diagnostic\n---\nbundled\n",
+    )
+
+    summary = update_skills(cfg, "eval/ticket-diagnostic", runner=_gh_install_runner([]))
+
+    assert summary.results[0].status == "skipped-bundled"
+    assert summary.results[0].source_type == "bundled"
 
 
 def test_remove_requires_exact_installed_skill_path(

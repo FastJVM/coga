@@ -144,18 +144,25 @@ relay init --update            # refresh .relay/ + package templates in current 
 If `~/.local/bin` is on your `PATH`, init also drops a `~/.local/bin/relay`
 symlink so the vendored copy is usable from any cwd in a new shell.
 
-**Skill discovery.** Init also wires `relay-os/skills/` into the project-level
-skill dirs of the agents that follow the `SKILL.md` standard, so they
-auto-discover relay's skills when you start a session in the repo:
+**Batteries and skill discovery.** The installed Relay package carries bundled
+skills, contexts, hooks, and bootstrap shims as package resources. `pip install`
+puts those resources in the wheel; `relay init` / `relay init --update`
+materializes them into `relay-os/bootstrap/`. Project-local
+`relay-os/skills/` and `relay-os/contexts/` still win when they define the same
+ref.
+
+Init also builds an ignored `relay-os/.agent-skills/` view that merges
+project-local skills with bundled bootstrap skills, then wires that view into
+the project-level skill dirs of the agents that follow the `SKILL.md` standard:
 
 - **Claude Code** — symlinked into `.claude/skills/relay/`.
 - **Codex** — symlinked into `.codex/skills/relay/`.
 
 That covers our two daily drivers. Other agents (e.g. OpenCode) don't have a
-matching project-level skill convention yet — point them at `relay-os/skills/`
-yourself if you use them. If init finds something non-directory in the way
-(e.g. an empty `.codex` sentinel file from an older setup), it skips that
-agent and prints what to clear.
+matching project-level skill convention yet — point them at
+`relay-os/.agent-skills/` yourself if you use them. If init finds something
+non-directory in the way (e.g. an empty `.codex` sentinel file from an older
+setup), it skips that agent and prints what to clear.
 
 ### `relay draft "<title>"`
 
@@ -250,10 +257,14 @@ cleanup pass.
 
 ### `relay skill`
 
-Manage skills under `relay-os/skills/` without inventing a second package
-manager. GitHub-backed installs and updates delegate to GitHub CLI's public
-preview `gh skill` command; Relay adds exact removal, URL-backed provenance,
-local-adaptation checks, and a PR-ready update summary for Dream.
+Manage project-local skills under `relay-os/skills/` without inventing a second
+package manager. GitHub-backed installs and updates delegate to GitHub CLI's
+public preview `gh skill` command; Relay adds exact removal, URL-backed
+provenance, local-adaptation checks, and a PR-ready update summary for Dream.
+Bundled bootstrap skills are package-backed batteries: `relay skill status`
+shows them, but `relay skill update --all` skips them and points you at the
+package update path (`pip install --upgrade relay-os`, then
+`relay init --update`).
 
 ```sh
 relay skill install owner/repo skill-name
@@ -271,7 +282,9 @@ URL-backed installs are downloaded into a temporary directory, validated for a
 `relay-os/skills/<name>/.relay-source.json` with the original URL and content
 digests. URL-backed updates re-fetch that source and skip locally adapted
 skills instead of overwriting them. Removal is exact-name only and leaves a
-normal git delete for review.
+normal git delete for review. To customize a bundled skill, copy it to the same
+ref under `relay-os/skills/`; the local copy shadows the bundled one and becomes
+your repo-owned skill.
 
 ### `relay launch <target>`
 

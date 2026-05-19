@@ -16,10 +16,14 @@ no in-memory state.
   CLI commands only), and `blackboard.md` (free-form workspace shared
   between human and agent).
 - **Contexts** are domain knowledge — what's true about the world.
-  Live in `relay-os/contexts/`. Attached to tickets via `contexts:`
-  frontmatter list.
-- **Skills** are process knowledge — how to do a thing. Live in
-  `relay-os/skills/`. Attached to **workflow steps**, not tickets.
+  Project-local contexts live in `relay-os/contexts/`; bundled Relay
+  batteries live in `relay-os/bootstrap/contexts/`. Attached to tickets via
+  `contexts:` frontmatter list. Local contexts override bundled contexts with
+  the same ref.
+- **Skills** are process knowledge — how to do a thing. Project-local skills
+  live in `relay-os/skills/`; bundled Relay batteries live in
+  `relay-os/bootstrap/skills/`. Attached to **workflow steps**, not tickets.
+  Local skills override bundled skills with the same ref.
 - **Workflows** are ordered step definitions. Live in
   `relay-os/workflows/`. Frozen into a ticket's frontmatter at
   creation — in-flight tickets are unaffected by later workflow edits.
@@ -36,6 +40,12 @@ no in-memory state.
   ticket-less re-entry points like `relay launch bootstrap/orient`
   (the `chat` alias). They are never factories — `relay launch` no
   longer scaffolds new tickets from shims; use `relay create` for that.
+- **Bundled batteries** are package-backed skills, contexts, hooks, and launch
+  shims materialized under `relay-os/bootstrap/` by `relay init` and
+  `relay init --update`. `pip install relay-os` puts them in the wheel; init
+  materializes them into each repo. They are inspectable local files, but
+  edits under `bootstrap/` are overwritten on update. Copy a skill or context
+  to the matching `relay-os/skills/` or `relay-os/contexts/` ref to override it.
 - **Dream** is Relay's generic ticket cleanup pass. A Dream run is an ordinary
   ad-hoc task created by `relay dream`; its body scans the ticket set, runs
   fixed Relay housekeeping skills, proposes cleanup, and writes reviewable

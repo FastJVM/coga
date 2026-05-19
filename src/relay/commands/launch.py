@@ -20,6 +20,7 @@ from pathlib import Path
 
 import typer
 
+from relay.agent_skills import refresh_agent_skill_view
 from relay.automerge import GhError, auto_bump_one
 from relay.blackboard import blackboard_size_warning, format_bytes
 from relay.compose import (
@@ -65,6 +66,7 @@ def launch(
         cfg = load_config()
     except ConfigError as exc:
         _bail(str(exc))
+    _refresh_agent_skills_for_launch(cfg.repo_root)
 
     try:
         ref = resolve_target(cfg, task)
@@ -409,6 +411,26 @@ def _launch_log_message(
 
 def _interactive_stdio_has_tty() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _refresh_agent_skills_for_launch(relay_os: Path) -> None:
+    try:
+        result = refresh_agent_skill_view(relay_os)
+    except OSError as exc:
+        typer.secho(
+            f"Warning: could not refresh agent skill view: {exc}",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return
+    if result.skipped:
+        skipped = ", ".join(result.skipped[:5])
+        suffix = "…" if len(result.skipped) > 5 else ""
+        typer.secho(
+            f"Warning: skipped {len(result.skipped)} agent skill link(s): {skipped}{suffix}",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
 
 
 def _bail(msg: str) -> None:

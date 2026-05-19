@@ -11,7 +11,7 @@ import typer
 from relay.config import Config
 from relay.logfile import append_log
 from relay.mark import mark_in_progress
-from relay.paths import skill_path
+from relay.paths import resolve_skill_path, skill_resolution_paths
 from relay.skill import Skill
 from relay.slack import post
 from relay.tasks import TaskRef
@@ -45,9 +45,10 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         )
 
     skill_ref = skills_refs[0]
-    skill_file = skill_path(cfg, skill_ref)
-    if not skill_file.is_file():
-        _bail(f"Skill file not found: {skill_file}")
+    skill_file = resolve_skill_path(cfg, skill_ref)
+    if skill_file is None:
+        checked = ", ".join(str(path) for path in skill_resolution_paths(cfg, skill_ref))
+        _bail(f"Skill file not found for {skill_ref!r}. Checked: {checked}")
     skill = Skill.load(skill_file)
 
     if not skill.script:
