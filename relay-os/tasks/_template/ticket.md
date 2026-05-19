@@ -9,6 +9,10 @@ assignee: replace-with-human-or-agent-nickname
 contexts: []
 skills: []
 workflow: null
+# --- extensions ---
+# Repo-declared fields (see `[ticket.fields.<name>]` in relay.toml) are
+# injected by `relay draft` / `relay ticket` below this marker. No
+# extensions configured → nothing here, marker is harmless.
 ---
 
 ## Description

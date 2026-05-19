@@ -263,6 +263,117 @@ def test_run_no_slack_check_by_default(
     run(cfg)  # must not raise
 
 
+# --- ticket frontmatter extensions ------------------------------------------
+
+
+def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[ticket.fields.docket]\ndescription = "d"\n'
+    )
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="draft",
+    )
+    report = run(cfg)
+    assert report.issues == []
+
+
+def test_validate_flags_missing_declared_extension(repo: Path) -> None:
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="draft",
+    )
+    # Add the declaration AFTER the ticket exists — simulates declaring a new
+    # extension once tickets are already on disk.
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[ticket.fields.docket]\ndescription = "d"\n'
+    )
+    cfg = load_config(repo)
+    report = run(cfg)
+    kinds = [(i.kind, i.severity) for i in report.issues]
+    assert ("missing-extension", "error") in kinds
+
+
+def test_validate_warns_orphan_extension(repo: Path) -> None:
+    """A field present on disk but not declared in TOML → warn, not error."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[ticket.fields.docket]\ndescription = "d"\n'
+    )
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="draft",
+    )
+    # Now remove the declaration.
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text().replace(
+            '\n[ticket.fields.docket]\ndescription = "d"\n', ""
+        )
+    )
+    cfg = load_config(repo)
+    report = run(cfg)
+    orphans = [i for i in report.issues if i.kind == "orphan-extension"]
+    assert orphans, [i.kind for i in report.issues]
+    assert all(i.severity == "warn" for i in orphans)
+
+
+def test_validate_flags_enum_violation(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + (
+            "\n[ticket.fields.priority]\n"
+            'description = "p"\n'
+            'values = ["P0", "P1", "P2"]\n'
+            'default = "P2"\n'
+        )
+    )
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    t = Ticket.read(ref.path / "ticket.md")
+    t.frontmatter["priority"] = "P9"
+    t.write(ref.path / "ticket.md")
+    report = run(cfg)
+    assert any(
+        i.kind == "bad-extension-value" and i.severity == "error"
+        for i in report.issues
+    ), [(i.kind, i.severity) for i in report.issues]
+
+
+def test_validate_allows_empty_extension_value(repo: Path) -> None:
+    """Empty extension values are fine at validate time — they only block
+    `mark active` when the field is `required = true`."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + (
+            "\n[ticket.fields.priority]\n"
+            'description = "p"\n'
+            'values = ["P0", "P1"]\n'
+            "required = true\n"
+        )
+    )
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        watchers=[], status="draft",
+    )
+    report = run(cfg)
+    assert report.issues == []
+
+
 def test_stuck_in_progress_flagged(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(

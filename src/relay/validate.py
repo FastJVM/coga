@@ -332,14 +332,61 @@ def _check_frontmatter_schema(
                 severity="error",
             ))
 
-    extra = set(fm) - set(REQUIRED_TASK_KEYS) - OPTIONAL_TASK_KEYS
+    extension_keys = set(cfg.ticket_fields)
+    extra = (
+        set(fm) - set(REQUIRED_TASK_KEYS) - OPTIONAL_TASK_KEYS - extension_keys
+    )
     for key in sorted(extra):
         out.append(Issue(
-            kind="unknown-key",
+            kind="orphan-extension",
             task=task_label,
-            message=f"frontmatter has unknown key {key!r}",
-            severity="error",
+            message=(
+                f"frontmatter key {key!r} is not in the canonical schema and "
+                "is not declared in `[ticket.fields]` — likely orphaned by a "
+                "removed declaration; delete it from this ticket or restore "
+                "the `[ticket.fields]` entry"
+            ),
+            severity="warn",
         ))
+
+    for field_name, spec in cfg.ticket_fields.items():
+        if field_name not in fm:
+            out.append(Issue(
+                kind="missing-extension",
+                task=task_label,
+                message=(
+                    f"frontmatter missing extension field {field_name!r} "
+                    f"declared in `[ticket.fields.{field_name}]`"
+                ),
+                severity="error",
+            ))
+            continue
+        value = fm[field_name]
+        if not isinstance(value, str):
+            out.append(Issue(
+                kind="bad-shape",
+                task=task_label,
+                message=(
+                    f"extension field {field_name!r} must be a string, "
+                    f"got {value!r}"
+                ),
+                severity="error",
+            ))
+            continue
+        # Empty values are allowed at validate time (draft tickets carry
+        # them until the human or `bootstrap/ticket` fills them in). Enum
+        # constraints only apply to non-empty values; `relay mark active`
+        # enforces required-non-empty.
+        if spec.values is not None and value != "" and value not in spec.values:
+            out.append(Issue(
+                kind="bad-extension-value",
+                task=task_label,
+                message=(
+                    f"extension field {field_name!r} value {value!r} is not "
+                    f"in declared values {list(spec.values)}"
+                ),
+                severity="error",
+            ))
 
     for key in _NON_EMPTY_STRING_KEYS:
         if key in fm:

@@ -17,6 +17,28 @@ class TicketError(Exception):
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 
 
+# Canonical ticket frontmatter key set. Anything outside this is a repo
+# extension (declared via `[ticket.fields.<name>]` in `relay.toml`) and is
+# rendered below the `# --- extensions ---` marker. Kept here so renderer and
+# validator share the same source of truth.
+CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
+    "title",
+    "status",
+    "mode",
+    "owner",
+    "human",
+    "agent",
+    "assignee",
+    "watchers",
+    "workflow",
+    "step",
+    "contexts",
+    "skills",
+})
+
+EXTENSION_MARKER = "# --- extensions ---"
+
+
 @dataclass
 class Ticket:
     frontmatter: dict[str, Any]
@@ -39,14 +61,31 @@ class Ticket:
         return cls(frontmatter=fm, body=body)
 
     def render(self) -> str:
-        fm = yaml.safe_dump(
-            self.frontmatter,
+        canonical: dict[str, Any] = {}
+        extensions: dict[str, Any] = {}
+        for key, value in self.frontmatter.items():
+            if key in CANONICAL_TICKET_KEYS:
+                canonical[key] = value
+            else:
+                extensions[key] = value
+
+        fm_text = yaml.safe_dump(
+            canonical,
             sort_keys=False,
             allow_unicode=True,
             default_flow_style=False,
         ).rstrip()
+        if extensions:
+            ext_text = yaml.safe_dump(
+                extensions,
+                sort_keys=False,
+                allow_unicode=True,
+                default_flow_style=False,
+            ).rstrip()
+            fm_text = f"{fm_text}\n{EXTENSION_MARKER}\n{ext_text}"
+
         body = self.body.lstrip("\n")
-        return f"---\n{fm}\n---\n\n{body}" if body else f"---\n{fm}\n---\n"
+        return f"---\n{fm_text}\n---\n\n{body}" if body else f"---\n{fm_text}\n---\n"
 
     # --- io --------------------------------------------------------------------
 

@@ -163,3 +163,126 @@ def test_aliases_reject_empty_string(repo: Path) -> None:
     )
     with pytest.raises(ConfigError, match="aliases.chat is empty"):
         load_config(repo)
+
+
+# --- [ticket.fields.*] -------------------------------------------------------
+
+
+def test_ticket_fields_load_minimal(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[ticket.fields.docket]\ndescription = "USPTO docket number"\n'
+    )
+    cfg = load_config(repo)
+    assert "docket" in cfg.ticket_fields
+    field = cfg.ticket_fields["docket"]
+    assert field.description == "USPTO docket number"
+    assert field.values is None
+    assert field.default == ""
+    assert field.required is False
+
+
+def test_ticket_fields_preserve_declaration_order(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + (
+            "\n[ticket.fields.docket]\ndescription = \"d\"\n"
+            "\n[ticket.fields.application_number]\ndescription = \"a\"\n"
+            "\n[ticket.fields.priority]\ndescription = \"p\"\n"
+        )
+    )
+    cfg = load_config(repo)
+    assert list(cfg.ticket_fields) == ["docket", "application_number", "priority"]
+
+
+def test_ticket_fields_default_empty(repo: Path) -> None:
+    cfg = load_config(repo)
+    assert cfg.ticket_fields == {}
+
+
+def test_ticket_fields_full_shape(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + (
+            "\n[ticket.fields.priority]\n"
+            'description = "triage tier"\n'
+            'values = ["P0", "P1", "P2"]\n'
+            'default = "P2"\n'
+            "required = true\n"
+        )
+    )
+    cfg = load_config(repo)
+    field = cfg.ticket_fields["priority"]
+    assert field.values == ("P0", "P1", "P2")
+    assert field.default == "P2"
+    assert field.required is True
+
+
+def test_ticket_fields_reject_reserved_name(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[ticket.fields.status]\ndescription = "x"\n'
+    )
+    with pytest.raises(ConfigError, match="canonical ticket frontmatter key"):
+        load_config(repo)
+
+
+def test_ticket_fields_reject_unsupported_key(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + (
+            "\n[ticket.fields.docket]\n"
+            'description = "d"\n'
+            'kind = "string"\n'
+        )
+    )
+    with pytest.raises(ConfigError, match="unsupported keys"):
+        load_config(repo)
+
+
+def test_ticket_fields_require_description(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text() + "\n[ticket.fields.docket]\n"
+    )
+    with pytest.raises(ConfigError, match="description must be a non-empty string"):
+        load_config(repo)
+
+
+def test_ticket_fields_reject_empty_values_list(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + (
+            "\n[ticket.fields.priority]\n"
+            'description = "p"\n'
+            "values = []\n"
+        )
+    )
+    with pytest.raises(ConfigError, match="values must not be empty"):
+        load_config(repo)
+
+
+def test_ticket_fields_default_must_match_values(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + (
+            "\n[ticket.fields.priority]\n"
+            'description = "p"\n'
+            'values = ["P0", "P1"]\n'
+            'default = "P9"\n'
+        )
+    )
+    with pytest.raises(ConfigError, match="not in declared values"):
+        load_config(repo)
+
+
+def test_ticket_fields_required_must_be_bool(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + (
+            "\n[ticket.fields.docket]\n"
+            'description = "d"\n'
+            'required = "yes"\n'
+        )
+    )
+    with pytest.raises(ConfigError, match="required must be a boolean"):
+        load_config(repo)
