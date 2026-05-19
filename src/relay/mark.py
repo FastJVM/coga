@@ -48,6 +48,32 @@ def mark_done(
     post(cfg, slack_text, task_path=ref.path, owner=owner, image_url=image_url)
 
 
+class RequiredExtensionMissing(RuntimeError):
+    """Raised when `mark active` is called on a ticket with required-but-empty
+    extension fields. The caller renders a per-field error message for the
+    user.
+    """
+
+    def __init__(self, fields: list[str]):
+        self.fields = fields
+        super().__init__(
+            f"ticket missing values for required extension fields: {fields}"
+        )
+
+
+def _missing_required_extensions(cfg: Config, ticket: Ticket) -> list[str]:
+    """Return names of `required = true` extension fields that are absent or
+    empty on this ticket."""
+    missing: list[str] = []
+    for name, spec in cfg.ticket_fields.items():
+        if not spec.required:
+            continue
+        value = ticket.frontmatter.get(name, "")
+        if not isinstance(value, str) or not value.strip():
+            missing.append(name)
+    return missing
+
+
 def mark_active(
     cfg: Config,
     ref: TaskRef,
@@ -58,7 +84,14 @@ def mark_active(
     slack_text: str,
     echo: str | None = None,
 ) -> None:
-    """Flip a ticket to `active`: write frontmatter, log, post."""
+    """Flip a ticket to `active`: write frontmatter, log, post.
+
+    Refuses to activate if any `required = true` extension field is empty.
+    """
+    missing = _missing_required_extensions(cfg, ticket)
+    if missing:
+        raise RequiredExtensionMissing(missing)
+
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "active"
     ticket.write(ref.path / "ticket.md")
@@ -112,4 +145,10 @@ def mark_paused(
     post(cfg, slack_text, task_path=ref.path, owner=owner)
 
 
-__all__ = ["mark_active", "mark_in_progress", "mark_paused", "mark_done"]
+__all__ = [
+    "mark_active",
+    "mark_in_progress",
+    "mark_paused",
+    "mark_done",
+    "RequiredExtensionMissing",
+]

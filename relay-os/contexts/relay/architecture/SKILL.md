@@ -58,6 +58,52 @@ Contexts and skills both use the SKILL.md format (frontmatter `name`
 + `description`, then body). Zero proprietary extensions — same format
 Claude Code and Codex use.
 
+## Canonical ticket frontmatter
+
+Every ticket carries the same canonical key set. These names are
+reserved — no extension or alias may collide with them:
+
+`title`, `status`, `mode`, `owner`, `human`, `agent`, `assignee`,
+`watchers`, `workflow`, `step`, `contexts`, `skills`.
+
+A repo may declare additional fields under `[ticket.fields.<name>]` in
+`relay.toml` — see "Ticket frontmatter extensions" below.
+
+## Ticket frontmatter extensions
+
+Per-repo frontmatter fields are declared in `relay.toml`:
+
+```toml
+[ticket.fields.docket]
+description = "USPTO docket number"
+
+[ticket.fields.priority]
+description = "P0/P1/P2 triage tier"
+values = ["P0", "P1", "P2"]
+default = "P2"
+required = true
+```
+
+Each declaration accepts four keys: `description` (required string),
+`values` (optional enum), `default` (optional string), `required`
+(optional bool). No other keys, no nesting, no types beyond string.
+
+Three mechanisms honor the spec:
+
+- `relay draft` / `relay ticket` write every declared field into the new
+  ticket below the `# --- extensions ---` marker, seeded with the
+  declared default (or `""`).
+- `relay validate` enforces the schema — declared-but-missing fails
+  loud; an enum violation fails loud; an undeclared key not in the
+  canonical set is treated as an orphan (warn-only) so removing an
+  extension is symmetric.
+- `relay mark active` refuses to activate a ticket whose `required`
+  fields are empty.
+
+Extensions live in the same frontmatter the prompt composer already
+reads, so no extra layer is needed — the field is in every composed
+prompt by virtue of being on the ticket.
+
 ## Two state machines per ticket
 
 - **Control plane (`status`)** — `draft → active → done`, plus

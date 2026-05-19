@@ -108,6 +108,61 @@ def test_mark_active_from_done_errors(repo: Path) -> None:
     assert "'done'" in result.output
 
 
+def test_mark_active_blocks_on_required_extension_empty(repo: Path) -> None:
+    """`mark active` refuses a draft whose `required = true` extension fields
+    are empty."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + (
+            "\n[ticket.fields.docket]\n"
+            'description = "USPTO docket"\n'
+            "required = true\n"
+        )
+    )
+    slug, task_path = _make_task(repo, status="draft")
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+    assert result.exit_code == 2
+    assert "required extension field" in result.output
+    assert "docket" in result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.status == "draft"
+
+
+def test_mark_active_allows_filled_required_extension(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + (
+            "\n[ticket.fields.docket]\n"
+            'description = "USPTO docket"\n'
+            "required = true\n"
+        )
+    )
+    slug, task_path = _make_task(repo, status="draft")
+    t = Ticket.read(task_path / "ticket.md")
+    t.frontmatter["docket"] = "55-12345"
+    t.write(task_path / "ticket.md")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.status == "active"
+    assert t.frontmatter["docket"] == "55-12345"
+
+
+def test_mark_active_ignores_required_when_not_required(repo: Path) -> None:
+    """Empty non-required extension fields don't block activation."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[ticket.fields.docket]\ndescription = "x"\n'
+    )
+    slug, _ = _make_task(repo, status="draft")
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+    assert result.exit_code == 0, result.output
+
+
 # --- mark paused --------------------------------------------------------------
 
 

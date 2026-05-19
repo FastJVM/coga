@@ -122,6 +122,13 @@ def scaffold_task(
     if watchers:
         fm["watchers"] = list(watchers)
 
+    # Repo-declared extension fields (`[ticket.fields.<name>]`). Seeded
+    # with the declared default (or "" if none). Required-but-empty is fine
+    # at draft time; `relay mark active` enforces required values at
+    # activation time.
+    for field_name, spec in cfg.ticket_fields.items():
+        fm[field_name] = spec.default
+
     desc_body = (description or "").strip()
     body = f"## Description\n\n{desc_body}\n\n## Context\n\n"
     Ticket(frontmatter=fm, body=body).write(task_dir / "ticket.md")

@@ -15,6 +15,7 @@ import sys
 import typer
 
 from relay.config import ConfigError, load_config
+from relay.mark import RequiredExtensionMissing
 from relay.mark import mark_active as _mark_active
 from relay.mark import mark_done as _mark_done
 from relay.mark import mark_paused as _mark_paused
@@ -63,6 +64,12 @@ def active(
             log_message=log_message,
             slack_text=slack_text,
             echo=f"{ref.id_slug}: active",
+        )
+    except RequiredExtensionMissing as exc:
+        names = ", ".join(repr(f) for f in exc.fields)
+        _bail(
+            f"Cannot activate {ref.id_slug}: required extension field(s) "
+            f"empty: {names}. Fill them in `ticket.md` then retry."
         )
     except TaskValidationError as exc:
         _bail(str(exc))

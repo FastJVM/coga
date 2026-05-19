@@ -100,6 +100,14 @@ answer.
 5. **Assignee** — default to whatever the shim seeded (usually the human's
    primary agent). Confirm if the work clearly fits a different agent or
    needs to go to a human.
+6. **Extension fields** — if `relay.toml` declares any `[ticket.fields.<name>]`
+   entries, the scaffold seeded each one with its default (or `""`) below
+   the `# --- extensions ---` marker. For every declared field that is empty
+   on the draft, ask the human for a value — particularly anything marked
+   `required = true`, since `relay mark active` refuses to activate a ticket
+   with required-but-empty extension values. Fields with declared `values:`
+   (enums) must be set to one of the listed values. Write the chosen value
+   into the frontmatter below the marker, preserving declaration order.
 
 While interviewing, watch for **gaps** — domain knowledge that recurs across
 recent tickets but isn't captured anywhere, or process steps that workflows

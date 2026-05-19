@@ -587,6 +587,89 @@ def test_cli_create_rejects_empty_title(repo: Path, monkeypatch: pytest.MonkeyPa
     assert result.exit_code == 2
 
 
+# --- ticket frontmatter extensions ------------------------------------------
+
+
+def test_scaffold_writes_declared_extension_fields(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + (
+            "\n[ticket.fields.docket]\n"
+            'description = "USPTO docket"\n'
+            "\n[ticket.fields.priority]\n"
+            'description = "triage"\n'
+            'values = ["P0", "P1", "P2"]\n'
+            'default = "P2"\n'
+        )
+    )
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg,
+        title="With extensions",
+        workflow_name=None,
+        contexts=[],
+        mode="interactive",
+        owner="marc",
+        assignee="claude1",
+        watchers=[],
+        status="draft",
+    )
+    t = Ticket.read(ref["path"] / "ticket.md")
+    assert t.frontmatter["docket"] == ""
+    assert t.frontmatter["priority"] == "P2"
+
+    raw = (ref["path"] / "ticket.md").read_text()
+    assert "# --- extensions ---" in raw
+    # Marker sits between canonical keys and extension keys.
+    marker_pos = raw.index("# --- extensions ---")
+    assert raw.index("docket:") > marker_pos
+    assert raw.index("priority:") > marker_pos
+    assert raw.index("workflow:") < marker_pos
+
+
+def test_scaffold_no_extensions_no_marker(repo: Path) -> None:
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg,
+        title="Plain",
+        workflow_name=None,
+        contexts=[],
+        mode="interactive",
+        owner="marc",
+        assignee="claude1",
+        watchers=[],
+        status="draft",
+    )
+    raw = (ref["path"] / "ticket.md").read_text()
+    assert "# --- extensions ---" not in raw
+
+
+def test_extension_fields_round_trip(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[ticket.fields.docket]\ndescription = "d"\n'
+    )
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg,
+        title="Round trip",
+        workflow_name=None,
+        contexts=[],
+        mode="interactive",
+        owner="marc",
+        assignee="claude1",
+        watchers=[],
+        status="draft",
+    )
+    t = Ticket.read(ref["path"] / "ticket.md")
+    t.frontmatter["docket"] = "55-12345"
+    t.write(ref["path"] / "ticket.md")
+    again = Ticket.read(ref["path"] / "ticket.md")
+    assert again.frontmatter["docket"] == "55-12345"
+    raw = (ref["path"] / "ticket.md").read_text()
+    assert "# --- extensions ---" in raw
+
+
 def test_resolve_task_exact_then_prefix(repo: Path) -> None:
     """Resolve prefers exact slug match; falls back to unique prefix; errors on ambiguity."""
     from relay.tasks import resolve_task, TaskNotFoundError

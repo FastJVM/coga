@@ -29,6 +29,23 @@ class Assignee:
 
 
 @dataclass(frozen=True)
+class TicketField:
+    """A repo-declared extension to the canonical ticket frontmatter schema.
+
+    Declared in `relay.toml` under `[ticket.fields.<name>]`. The field is
+    written into every freshly scaffolded ticket below the
+    `# --- extensions ---` marker, and `relay validate` / `relay mark active`
+    enforce the declared constraints.
+    """
+
+    name: str
+    description: str
+    values: tuple[str, ...] | None = None  # enum constraint, None = free string
+    default: str = ""
+    required: bool = False
+
+
+@dataclass(frozen=True)
 class Config:
     repo_root: Path
     current_user: str
@@ -40,6 +57,7 @@ class Config:
     secrets: dict[str, str]
     slack_gifs: dict[str, list[str]] = field(default_factory=dict)
     aliases: dict[str, str] = field(default_factory=dict)
+    ticket_fields: dict[str, TicketField] = field(default_factory=dict)
     extra_local: dict[str, object] = field(default_factory=dict)
 
     # --- convenience accessors -------------------------------------------------
@@ -132,6 +150,7 @@ def load_config(repo_root: Path | None = None) -> Config:
     slack_enabled = _resolve_slack_enabled(shared.get("slack"), local.get("slack"))
     slack_gifs = _parse_slack_gifs(shared.get("slack"))
     aliases = _parse_aliases(shared.get("aliases", {}))
+    ticket_fields = _parse_ticket_fields(shared.get("ticket"))
 
     current_user = local.get("user")
     if not current_user:
@@ -159,6 +178,7 @@ def load_config(repo_root: Path | None = None) -> Config:
         slack_gifs=slack_gifs,
         secrets=secrets,
         aliases=aliases,
+        ticket_fields=ticket_fields,
         extra_local=extra_local,
     )
 
@@ -198,6 +218,121 @@ def _parse_assignees(raw: dict) -> dict[str, Assignee]:
         out[name] = Assignee(
             name=name,
             agents=dict(agents),
+        )
+    return out
+
+
+_RESERVED_TICKET_FIELD_NAMES: frozenset[str] = frozenset({
+    # Canonical ticket frontmatter keys — see `relay/architecture` and
+    # `relay.validate.REQUIRED_TASK_KEYS` / `OPTIONAL_TASK_KEYS`. Extensions
+    # may not collide with any of these.
+    "title",
+    "status",
+    "mode",
+    "owner",
+    "human",
+    "agent",
+    "assignee",
+    "watchers",
+    "workflow",
+    "step",
+    "contexts",
+    "skills",
+})
+
+_ALLOWED_TICKET_FIELD_KEYS: frozenset[str] = frozenset({
+    "description",
+    "values",
+    "default",
+    "required",
+})
+
+
+def _parse_ticket_fields(raw: dict | None) -> dict[str, TicketField]:
+    """Parse `[ticket.fields.<name>]` tables into `TicketField` records.
+
+    Order in TOML is preserved (insertion order on dict), so scaffold writes
+    extension fields in declaration order.
+    """
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ConfigError(
+            f"[ticket] must be a table (got {type(raw).__name__})"
+        )
+    fields_raw = raw.get("fields")
+    if fields_raw is None:
+        return {}
+    if not isinstance(fields_raw, dict):
+        raise ConfigError(
+            f"[ticket.fields] must be a table (got {type(fields_raw).__name__})"
+        )
+
+    out: dict[str, TicketField] = {}
+    for name, data in fields_raw.items():
+        if not isinstance(data, dict):
+            raise ConfigError(
+                f"[ticket.fields.{name}] must be a table "
+                f"(got {type(data).__name__})"
+            )
+        if name in _RESERVED_TICKET_FIELD_NAMES:
+            raise ConfigError(
+                f"[ticket.fields.{name}] collides with the canonical ticket "
+                f"frontmatter key {name!r}. Pick a different name. "
+                "See `relay-os/contexts/relay/architecture/SKILL.md` for the "
+                "reserved set."
+            )
+        bad_keys = sorted(set(data) - _ALLOWED_TICKET_FIELD_KEYS)
+        if bad_keys:
+            raise ConfigError(
+                f"[ticket.fields.{name}] has unsupported keys {bad_keys}. "
+                f"Allowed: {sorted(_ALLOWED_TICKET_FIELD_KEYS)}."
+            )
+
+        description = data.get("description")
+        if not isinstance(description, str) or not description.strip():
+            raise ConfigError(
+                f"[ticket.fields.{name}].description must be a non-empty string"
+            )
+
+        values: tuple[str, ...] | None = None
+        if "values" in data:
+            v = data["values"]
+            if not isinstance(v, list) or not all(isinstance(x, str) for x in v):
+                raise ConfigError(
+                    f"[ticket.fields.{name}].values must be a list of strings"
+                )
+            if not v:
+                raise ConfigError(
+                    f"[ticket.fields.{name}].values must not be empty"
+                )
+            values = tuple(v)
+
+        default = data.get("default", "")
+        if not isinstance(default, str):
+            raise ConfigError(
+                f"[ticket.fields.{name}].default must be a string "
+                f"(got {type(default).__name__})"
+            )
+        if values is not None and default and default not in values:
+            raise ConfigError(
+                f"[ticket.fields.{name}].default {default!r} is not in "
+                f"declared values {list(values)}"
+            )
+
+        required = data.get("required", False)
+        if not isinstance(required, bool):
+            raise ConfigError(
+                f"[ticket.fields.{name}].required must be a boolean "
+                f"(got {type(required).__name__})"
+            )
+
+        out[name] = TicketField(
+            name=name,
+            description=description.strip(),
+            values=values,
+            default=default,
+            required=required,
         )
     return out
 
