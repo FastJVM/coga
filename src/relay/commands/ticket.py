@@ -96,7 +96,9 @@ def _resolve_or_create_target(cfg: Config, target: str) -> tuple[TaskRef, Ticket
         msg = str(exc)
         if msg.startswith("Ambiguous task ref"):
             _bail(msg)
-        result = scaffold_draft(title=target, mode="interactive")
+        result = scaffold_draft(
+            title=target, mode="interactive", allow_no_workflow=True
+        )
         ref = TaskRef(slug=str(result["slug"]), path=cast(Path, result["path"]))
         typer.echo(f"{ref.id_slug}: launching guided ticket authoring")
         return ref, read_ticket(ref)

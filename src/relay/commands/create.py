@@ -23,9 +23,18 @@ def draft(
         "--mode",
         help="Ticket mode: interactive, auto, or script.",
     ),
+    workflow: str | None = typer.Option(
+        None,
+        "--workflow",
+        help=(
+            "Workflow name (path under relay-os/workflows/) to attach. "
+            "Required: `relay create` / `relay draft` no longer scaffold "
+            "workflow-less tickets."
+        ),
+    ),
 ) -> None:
     """Scaffold a new draft ticket and post ✨ to Slack."""
-    scaffold_draft(title=title, mode=mode)
+    scaffold_draft(title=title, mode=mode, workflow=workflow)
 
 
 def create(
@@ -35,15 +44,44 @@ def create(
         "--mode",
         help="Ticket mode: interactive, auto, or script.",
     ),
+    workflow: str | None = typer.Option(
+        None,
+        "--workflow",
+        help=(
+            "Workflow name (path under relay-os/workflows/) to attach. "
+            "Required: `relay create` / `relay draft` no longer scaffold "
+            "workflow-less tickets."
+        ),
+    ),
 ) -> None:
     """Compatibility spelling for `relay draft`."""
-    scaffold_draft(title=title, mode=mode)
+    scaffold_draft(title=title, mode=mode, workflow=workflow)
 
 
-def scaffold_draft(*, title: str, mode: str) -> dict[str, object]:
-    """Scaffold a raw draft ticket and post the create notification."""
+def scaffold_draft(
+    *,
+    title: str,
+    mode: str,
+    workflow: str | None = None,
+    allow_no_workflow: bool = False,
+) -> dict[str, object]:
+    """Scaffold a raw draft ticket and post the create notification.
+
+    Refuses workflow-less drafts unless `allow_no_workflow=True` (used by the
+    guided-authoring path, where the interview skill fills the workflow in).
+    Workflow-less tickets can never be `relay bump`ed, so user-authored
+    drafts must declare a workflow at create time.
+    """
     if not title.strip():
         _bail("title cannot be empty")
+
+    if not workflow and not allow_no_workflow:
+        _bail(
+            "workflow is required: `relay create` / `relay draft` no longer "
+            "scaffold workflow-less tickets (they can't be advanced via "
+            "`relay bump`). Pass `--workflow <name>` (see relay-os/workflows/) "
+            f"or run `relay ticket \"{title}\"` for guided authoring."
+        )
 
     try:
         cfg = load_config()
@@ -54,7 +92,7 @@ def scaffold_draft(*, title: str, mode: str) -> dict[str, object]:
         result = scaffold_task(
             cfg=cfg,
             title=title,
-            workflow_name=None,
+            workflow_name=workflow,
             contexts=[],
             mode=mode,
             owner=cfg.current_user,

@@ -26,12 +26,18 @@ resources. It does not modify a repo. `relay init` and `relay init --update`
 materialize those package resources into `relay-os/bootstrap/`, where Relay
 resolves them after project-local `relay-os/skills` and `relay-os/contexts`.
 
-## relay create "\<title\>" [--mode interactive|auto|script]
+## relay create "\<title\>" --workflow \<name\> [--mode interactive|auto|script]
 
 Scaffold a new `draft` ticket and post `✨` to Slack. Does not launch an
 agent. Use this as step one of the three-step boot: `create` → edit the
 draft body / workflow / contexts as needed → `relay mark active <slug>`
 → `relay launch <slug>`.
+
+`--workflow <name>` (path under `relay-os/workflows/`) is required.
+Workflow-less drafts are rejected with an actionable error pointing at
+either the flag or `relay ticket` for guided authoring. The gate is
+unconditional and closes the failure mode where an agent scaffolds a
+dead-end ticket no `relay bump` can advance.
 
 The deliberate separation keeps the moment of authorship distinct from
 the moment of starting work. Tickets you mean to draft now and start
