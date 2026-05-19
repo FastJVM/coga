@@ -23,6 +23,7 @@ EXPECTED_FILES = {
     "relay-os/context.md",
     "relay-os/scripts/cron.sh",
     "relay-os/bootstrap/hooks/post-merge",
+    "relay-os/bootstrap/skills/relay/calendar-reminder/SKILL.md",
     "relay-os/contexts/_template/SKILL.md",
     "relay-os/skills/_template/SKILL.md",
     "relay-os/workflows/_template.md",
@@ -37,7 +38,7 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     templates.mkdir(parents=True)
     (templates / ".gitignore").write_text(
         "relay.local.toml\n.relay/\nbootstrap/\n"
-        "skills/bootstrap\nskills/retro\n"
+        "skills/bootstrap\nskills/retro\nskills/relay\n"
         "contexts/relay/architecture\ncontexts/relay/principles\ncontexts/relay/cli\n"
         "**/_template/\n**/_template.md\n"
     )
@@ -59,6 +60,17 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     (templates / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
         "retro/done-ticket skill\n"
     )
+    (templates / "bootstrap" / "skills" / "relay" / "calendar-reminder").mkdir(
+        parents=True
+    )
+    (
+        templates
+        / "bootstrap"
+        / "skills"
+        / "relay"
+        / "calendar-reminder"
+        / "SKILL.md"
+    ).write_text("relay/calendar-reminder skill\n")
     for ctx in ("architecture", "principles", "cli"):
         (templates / "bootstrap" / "contexts" / "relay" / ctx).mkdir(parents=True)
         (templates / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").write_text(
@@ -145,6 +157,15 @@ def test_init_into_empty_dir(tmp_path: Path, fake_clone, fake_venv) -> None:
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
     assert os.access(target / "relay-os" / "scripts" / "cron.sh", os.X_OK)
+    assert (target / "relay-os" / "skills" / "relay").is_symlink()
+    assert (
+        target
+        / "relay-os"
+        / "skills"
+        / "relay"
+        / "calendar-reminder"
+        / "SKILL.md"
+    ).read_text().startswith("---\nname: relay-calendar-reminder\n")
 
     assert "version = 1" in (target / "relay-os" / "relay.toml").read_text()
 
@@ -294,6 +315,12 @@ def _seed_local_relay_os(root: Path) -> Path:
     # Stale nested dir from a bootstrap skill rename (create → ticket in 350c4ed).
     (relay_os / "skills" / "bootstrap" / "create").mkdir(parents=True)
     (relay_os / "skills" / "bootstrap" / "create" / "SKILL.md").write_text("OLD bootstrap/create skill\n")
+    # Stale relay-owned skill namespace from before relay/calendar-reminder moved
+    # under the vendored bootstrap umbrella.
+    (relay_os / "skills" / "relay" / "calendar-reminder").mkdir(parents=True)
+    (relay_os / "skills" / "relay" / "calendar-reminder" / "SKILL.md").write_text(
+        "OLD relay/calendar-reminder skill\n"
+    )
     # Stale `_*` scaffold upstream no longer ships (rename or removal).
     (relay_os / "recurring").mkdir(exist_ok=True)
     (relay_os / "recurring" / "_template_old.md").write_text("STALE recurring template\n")
@@ -333,6 +360,17 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
         "NEW retro/done-ticket skill\n"
     )
+    (templates / "bootstrap" / "skills" / "relay" / "calendar-reminder").mkdir(
+        parents=True
+    )
+    (
+        templates
+        / "bootstrap"
+        / "skills"
+        / "relay"
+        / "calendar-reminder"
+        / "SKILL.md"
+    ).write_text("NEW relay/calendar-reminder skill\n")
     for ctx in ("architecture", "principles", "cli"):
         (templates / "bootstrap" / "contexts" / "relay" / ctx).mkdir(parents=True)
         (templates / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").write_text(
@@ -345,7 +383,7 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "bootstrap" / "hooks" / "post-merge").chmod(0o755)
     (templates / ".gitignore").write_text(
         "relay.local.toml\n.relay/\nbootstrap/\n"
-        "skills/bootstrap\nskills/retro\n"
+        "skills/bootstrap\nskills/retro\nskills/relay\n"
         "contexts/relay/architecture\ncontexts/relay/principles\ncontexts/relay/cli\n"
         "**/_template/\n**/_template.md\n"
     )
@@ -404,6 +442,10 @@ def test_init_update_refreshes_cli_and_underscore_templates(
         (relay_os / "skills" / "retro" / "done-ticket" / "SKILL.md").read_text()
         == "NEW retro/done-ticket skill\n"
     )
+    assert (
+        (relay_os / "skills" / "relay" / "calendar-reminder" / "SKILL.md").read_text()
+        == "NEW relay/calendar-reminder skill\n"
+    )
     for ctx in ("architecture", "principles", "cli"):
         assert (
             (relay_os / "contexts" / "relay" / ctx / "SKILL.md").read_text()
@@ -412,6 +454,7 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     # Legacy paths are symlinks into bootstrap/.
     assert (relay_os / "skills" / "bootstrap").is_symlink()
     assert (relay_os / "skills" / "retro").is_symlink()
+    assert (relay_os / "skills" / "relay").is_symlink()
     for ctx in ("architecture", "principles", "cli"):
         assert (relay_os / "contexts" / "relay" / ctx).is_symlink()
     # Shims dropped upstream (renamed/removed) are pruned locally.
@@ -427,12 +470,15 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert (legacy_bootstrap_skill / "create").exists() is False
     # `_*` scaffolds upstream no longer ships are also pruned.
     assert not (relay_os / "recurring" / "_template_old.md").exists()
-    # Per-update prune count: counter, meta, skills/bootstrap, skills/retro
+    # Per-update prune count: counter, meta, skills/bootstrap, skills/retro,
+    # skills/relay, contexts/relay/{architecture,principles,cli}, hooks,
+    # recurring/_template_old.md.
     # (consolidation), plus the underscore-template prune.
     assert "Pruned" in result.output
     assert "  counter" in result.output
     assert "  meta" in result.output
     assert "  skills/bootstrap" in result.output
+    assert "  skills/relay" in result.output
     assert "recurring/_template_old.md" in result.output
     # User-edited content untouched.
     assert (relay_os / "skills" / "myteam" / "real-skill" / "SKILL.md").read_text() == "user content\n"
@@ -620,12 +666,14 @@ def test_link_compat_paths_creates_relative_symlinks(tmp_path: Path) -> None:
     # the symlink unconditionally), but a real upstream init populates this.
     (relay_os / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
     (relay_os / "bootstrap" / "skills" / "retro").mkdir(parents=True)
+    (relay_os / "bootstrap" / "skills" / "relay").mkdir(parents=True)
     for ctx in ("architecture", "principles", "cli"):
         (relay_os / "bootstrap" / "contexts" / "relay" / ctx).mkdir(parents=True)
 
     created = init_cmd._link_compat_paths(relay_os)
     assert "skills/bootstrap" in created
     assert "skills/retro" in created
+    assert "skills/relay" in created
     assert "contexts/relay/architecture" in created
 
     # Symlinks resolve into bootstrap/ — relative so the repo is portable.
@@ -634,6 +682,10 @@ def test_link_compat_paths_creates_relative_symlinks(tmp_path: Path) -> None:
     assert os.readlink(sb) == "../bootstrap/skills/bootstrap"
     sb_target = sb.resolve()
     assert sb_target == (relay_os / "bootstrap" / "skills" / "bootstrap").resolve()
+
+    sr = relay_os / "skills" / "relay"
+    assert sr.is_symlink()
+    assert os.readlink(sr) == "../bootstrap/skills/relay"
 
     cr = relay_os / "contexts" / "relay" / "architecture"
     assert cr.is_symlink()
@@ -1036,6 +1088,7 @@ def test_init_update_refreshes_inner_gitignore(
     assert "bootstrap/" in gi
     # The legacy paths now ship as back-compat symlink entries.
     assert "skills/retro" in gi
+    assert "skills/relay" in gi
     assert "contexts/relay/architecture" in gi
     assert "_template/" in gi
     assert "_template.md" in gi

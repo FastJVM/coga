@@ -372,6 +372,7 @@ def _print_global_cli_status(status: str, detail: str | None, venv: Path) -> Non
 _COMPAT_SYMLINKS: tuple[tuple[str, str], ...] = (
     ("skills/bootstrap", "../bootstrap/skills/bootstrap"),
     ("skills/retro", "../bootstrap/skills/retro"),
+    ("skills/relay", "../bootstrap/skills/relay"),
     ("contexts/relay/architecture", "../../bootstrap/contexts/relay/architecture"),
     ("contexts/relay/principles", "../../bootstrap/contexts/relay/principles"),
     ("contexts/relay/cli", "../../bootstrap/contexts/relay/cli"),
@@ -383,9 +384,9 @@ def _link_compat_paths(relay_os: Path) -> list[str]:
 
     Vendored content lives under `relay-os/bootstrap/` (single mirror target).
     The legacy paths it used to live at — `skills/bootstrap/`, `skills/retro/`,
-    `contexts/relay/architecture/`, etc. — are still what workflow steps,
-    ticket frontmatter, and agent skill-discovery scan, so we lay relative
-    symlinks down at every init/update run.
+    `skills/relay/`, `contexts/relay/architecture/`, etc. — are still what
+    workflow steps, ticket frontmatter, and agent skill-discovery scan, so we
+    lay relative symlinks down at every init/update run.
 
     Idempotent: leaves a correct existing symlink alone, replaces a wrong one,
     skips if a real file/dir is sitting at the target (caller can then prune
