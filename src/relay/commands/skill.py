@@ -1,4 +1,4 @@
-"""`relay skill` — manage Relay skills under relay-os/skills."""
+"""`relay skill` — manage project-local Relay skills under relay-os/skills."""
 
 from __future__ import annotations
 

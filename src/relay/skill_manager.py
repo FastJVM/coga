@@ -84,6 +84,10 @@ def skills_root(cfg: Config) -> Path:
     return cfg.repo_root / "skills"
 
 
+def bundled_skills_root(cfg: Config) -> Path:
+    return cfg.repo_root / "bootstrap" / "skills"
+
+
 def install_github_skill(
     cfg: Config,
     source: str,
@@ -200,9 +204,12 @@ def update_skills(
         raise SkillManagerError("Pass a skill name, or use --all.")
 
     summary = SkillUpdateSummary()
+    bundled_refs = _bundled_skill_refs(cfg)
     if all_skills:
-        summary.results.append(_update_gh_backed_skills(cfg, runner=runner))
-        for skill_dir in list_installed_skill_dirs(skills_root(cfg)):
+        local_skill_dirs = list_installed_skill_dirs(skills_root(cfg))
+        if local_skill_dirs:
+            summary.results.append(_update_gh_backed_skills(cfg, runner=runner))
+        for skill_dir in local_skill_dirs:
             metadata = read_source_metadata(skill_dir)
             if metadata and metadata.get("source_type") == "url":
                 summary.results.append(
@@ -214,9 +221,21 @@ def update_skills(
                         now=now,
                     )
                 )
+        local_refs = {
+            _skill_ref_from_path(skills_root(cfg), skill_dir)
+            for skill_dir in local_skill_dirs
+        }
+        for ref in sorted(bundled_refs - local_refs):
+            summary.results.append(_bundled_update_result(ref))
         return summary
 
-    target = resolve_installed_skill_dir(cfg, skill or "")
+    skill_ref = skill or ""
+    target_path = _skill_target(cfg, skill_ref)
+    if not target_path.exists() and skill_ref in bundled_refs:
+        summary.results.append(_bundled_update_result(skill_ref))
+        return summary
+
+    target = resolve_installed_skill_dir(cfg, skill_ref)
     metadata = read_source_metadata(target)
     if metadata and metadata.get("source_type") == "url":
         summary.results.append(
@@ -230,11 +249,11 @@ def update_skills(
         )
         return summary
 
-    args = ["update", "--dir", str(skills_root(cfg)), skill or ""]
+    args = ["update", "--dir", str(skills_root(cfg)), skill_ref]
     run_gh_skill(args, runner=runner)
     summary.results.append(
         SkillResult(
-            name=skill or "",
+            name=skill_ref,
             source_type="github",
             status="delegated",
             message=f"delegated {skill} update to gh skill",
@@ -252,19 +271,23 @@ def status_skills(
     downloader: Downloader | None = None,
 ) -> list[SkillResult]:
     results: list[SkillResult] = []
+    bundled_refs = _bundled_skill_refs(cfg)
+    local_refs: set[str] = set()
     for skill_dir in list_installed_skill_dirs(skills_root(cfg)):
         ref = _skill_ref_from_path(skills_root(cfg), skill_dir)
+        local_refs.add(ref)
         metadata = read_source_metadata(skill_dir)
         if metadata and metadata.get("source_type") == "url":
-            results.append(
-                _status_url_skill(
-                    ref,
-                    skill_dir,
-                    metadata,
-                    check=check,
-                    downloader=downloader,
-                )
+            result = _status_url_skill(
+                ref,
+                skill_dir,
+                metadata,
+                check=check,
+                downloader=downloader,
             )
+            if ref in bundled_refs:
+                result = _local_override_result(result)
+            results.append(result)
             continue
         source_type = _infer_non_relay_source_type(skill_dir)
         if source_type == "github":
@@ -273,14 +296,17 @@ def status_skills(
         else:
             status = "unmanaged"
             message = "no Relay source metadata"
-        results.append(
-            SkillResult(
-                name=ref,
-                source_type=source_type,
-                status=status,
-                message=message,
-            )
+        result = SkillResult(
+            name=ref,
+            source_type=source_type,
+            status=status,
+            message=message,
         )
+        if ref in bundled_refs:
+            result = _local_override_result(result)
+        results.append(result)
+    for ref in sorted(bundled_refs - local_refs):
+        results.append(_bundled_status_result(ref))
     return results
 
 
@@ -611,6 +637,58 @@ def _update_gh_backed_skills(
         message="delegated GitHub-backed skill updates to gh skill",
         changed=True,
         details={"command": ["gh", "skill", *args]},
+    )
+
+
+def _bundled_skill_refs(cfg: Config) -> set[str]:
+    return {
+        _skill_ref_from_path(bundled_skills_root(cfg), skill_dir)
+        for skill_dir in list_installed_skill_dirs(bundled_skills_root(cfg))
+    }
+
+
+def _local_skill_refs(cfg: Config) -> set[str]:
+    return {
+        _skill_ref_from_path(skills_root(cfg), skill_dir)
+        for skill_dir in list_installed_skill_dirs(skills_root(cfg))
+    }
+
+
+def _bundled_status_result(ref: str) -> SkillResult:
+    return SkillResult(
+        name=ref,
+        source_type="bundled",
+        status="package-backed",
+        message=(
+            "bundled with relay; update by upgrading relay-os and running "
+            "`relay init --update`"
+        ),
+    )
+
+
+def _bundled_update_result(ref: str) -> SkillResult:
+    return SkillResult(
+        name=ref,
+        source_type="bundled",
+        status="skipped-bundled",
+        message=(
+            "bundled skill updates come from the relay package; run "
+            "`pip install --upgrade relay-os` then `relay init --update`"
+        ),
+    )
+
+
+def _local_override_result(result: SkillResult) -> SkillResult:
+    details = dict(result.details)
+    details["local_status"] = result.status
+    details["local_source_type"] = result.source_type
+    return SkillResult(
+        name=result.name,
+        source_type=result.source_type,
+        status="local-override",
+        message=f"{result.message}; shadows bundled package-backed skill",
+        changed=result.changed,
+        details=details,
     )
 
 

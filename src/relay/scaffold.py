@@ -8,8 +8,8 @@ from relay.blackboard import render_blackboard
 from relay.config import Config
 from relay.logfile import append_log
 from relay.paths import (
-    context_path,
-    skill_path,
+    resolve_context_path,
+    resolve_skill_path,
     tasks_dir,
     workflow_path,
 )
@@ -51,12 +51,12 @@ def scaffold_task(
         )
 
     contexts = _dedupe(contexts)
-    missing_ctx = [c for c in contexts if not context_path(cfg, c).is_file()]
+    missing_ctx = [c for c in contexts if resolve_context_path(cfg, c) is None]
     if missing_ctx:
         raise ValueError(f"Unknown contexts: {missing_ctx}")
 
     skills = _dedupe(list(skills or []))
-    missing_skills_top = [s for s in skills if not skill_path(cfg, s).is_file()]
+    missing_skills_top = [s for s in skills if resolve_skill_path(cfg, s) is None]
     if missing_skills_top:
         raise ValueError(f"Unknown skills: {missing_skills_top}")
 
@@ -66,7 +66,7 @@ def scaffold_task(
         missing_step_skills: list[str] = []
         for s in wf.steps:
             for ref in s.skills:
-                if not skill_path(cfg, ref).is_file():
+                if resolve_skill_path(cfg, ref) is None:
                     missing_step_skills.append(ref)
         if missing_step_skills:
             raise ValueError(

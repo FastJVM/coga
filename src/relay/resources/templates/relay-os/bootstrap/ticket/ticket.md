@@ -22,7 +22,8 @@ launch is independent. Don't edit the ticket itself except to swap the
 ## Context
 
 The actual instruction set lives at
-`relay-os/skills/bootstrap/ticket/SKILL.md`. This shim routes bare
+`relay-os/bootstrap/skills/bootstrap/ticket/SKILL.md` unless a local
+`relay-os/skills/bootstrap/ticket/SKILL.md` override exists. This shim routes bare
 `relay launch bootstrap/ticket` sessions to that skill — read the skill if
 you're debugging the bootstrap flow.
 

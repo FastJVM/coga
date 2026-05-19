@@ -25,8 +25,10 @@ without opening a marker-only PR.
   human chooses one exact done ticket, or Dream chooses a coherent batch of at
   most five exact done tickets.
 - Inputs: each source task's `ticket.md`, `blackboard.md`, and `log.md`, plus
-  every context and skill file under `relay-os/contexts/` and
-  `relay-os/skills/`, loaded once per run before ticket-by-ticket extraction.
+  every local and bundled context/skill file under `relay-os/contexts/`,
+  `relay-os/bootstrap/contexts/`, `relay-os/skills/`, and
+  `relay-os/bootstrap/skills/`, loaded once per run before ticket-by-ticket
+  extraction.
 - May change: warranted context files, warranted skill files, the exact source
   task directories `relay-os/tasks/<slug>/` when a knowledge PR is opened, or
   only `relay-os/tasks/<slug>/blackboard.md` for source tasks where no new
@@ -50,8 +52,10 @@ without opening a marker-only PR.
 Do:
 
 - read the done ticket directory for each slug passed to this skill;
-- read every context file under `relay-os/contexts/**/SKILL.md`;
-- read every skill file under `relay-os/skills/**/SKILL.md`;
+- read every context file under `relay-os/contexts/**/SKILL.md` and
+  `relay-os/bootstrap/contexts/**/SKILL.md`;
+- read every skill file under `relay-os/skills/**/SKILL.md` and
+  `relay-os/bootstrap/skills/**/SKILL.md`;
 - decide whether each ticket contains new, useful durable knowledge;
 - maintain a running in-memory delta while processing the selected tickets, so
   later tickets compare against the original corpus plus facts already accepted
@@ -89,11 +93,13 @@ covered by an existing skill, do not duplicate it.
 ## Comparison baseline
 
 The baseline you compare ticket evidence against is the **current working-tree
-state** of `relay-os/contexts/**` and `relay-os/skills/**`. Load that corpus
-once at the start of the run. The final state of those files is the entire
-learning record. Durable knowledge that was already captured by prior source
-tasks lives in those files now — not in commit messages, not in PR descriptions,
-not in diffs.
+state** of the local roots (`relay-os/contexts/**`, `relay-os/skills/**`) plus
+the bundled roots (`relay-os/bootstrap/contexts/**`,
+`relay-os/bootstrap/skills/**`). Load that corpus once at the start of the run.
+The final state of the local files is the editable learning record; bundled
+files are package-backed baseline knowledge. Durable knowledge that was already
+captured by prior source tasks lives in those files now — not in commit
+messages, not in PR descriptions, not in diffs.
 
 Do not:
 
@@ -119,7 +125,9 @@ Required files:
 - `relay-os/tasks/<slug>/blackboard.md` for each selected slug
 - `relay-os/tasks/<slug>/log.md` for each selected slug
 - `relay-os/contexts/**/SKILL.md`
+- `relay-os/bootstrap/contexts/**/SKILL.md`
 - `relay-os/skills/**/SKILL.md`
+- `relay-os/bootstrap/skills/**/SKILL.md`
 
 Stop and ask if any task slug is ambiguous, any task is not `status: done`, any
 required task evidence file is missing, the batch cannot be kept within the
@@ -129,12 +137,14 @@ the same source task.
 ## Workflow
 
 1. **Inventory contexts once.**
-   Read all `relay-os/contexts/**/SKILL.md`. For each context, note its path,
+   Read all `relay-os/contexts/**/SKILL.md` and
+   `relay-os/bootstrap/contexts/**/SKILL.md`. For each context, note its path,
    `name`, `description`, headings, and the knowledge it already covers. This
    inventory is the baseline for deciding whether ticket knowledge is new.
 
 2. **Inventory skills once.**
-   Read all `relay-os/skills/**/SKILL.md`. For each skill, note its path,
+   Read all `relay-os/skills/**/SKILL.md` and
+   `relay-os/bootstrap/skills/**/SKILL.md`. For each skill, note its path,
    `name`, `description`, headings, and the process it already covers. This
    inventory is the baseline for deciding whether ticket knowledge belongs in a
    skill and whether the process is already covered.

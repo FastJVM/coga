@@ -21,6 +21,11 @@ the relay-managed bits in the current repo.
   package. Leaves `relay.toml`, `rules.md`, user contexts, and user skills
   untouched.
 
+`pip install relay-os` installs bundled batteries into the wheel as package
+resources. It does not modify a repo. `relay init` and `relay init --update`
+materialize those package resources into `relay-os/bootstrap/`, where Relay
+resolves them after project-local `relay-os/skills` and `relay-os/contexts`.
+
 ## relay draft "\<title\>" [--mode interactive|auto|script]
 
 Scaffold a new raw `draft` ticket and post `✨` to Slack. Does not launch an
@@ -182,6 +187,16 @@ Refuses if the target task is not `status: done`. Use `relay delete` for an
 abandoned ticket where retro has nothing to extract. Branch hygiene (pruning
 the merged feature branch, sweeping stale branches) belongs in a Dream
 worker, not here.
+
+## relay skill
+
+Manage project-local skills under `relay-os/skills/`. `relay skill install`
+and `relay skill install-*` never write into `relay-os/bootstrap/`; bootstrap
+skills are package-backed batteries. `relay skill status` reports bundled
+bootstrap skills as `package-backed`, and reports a project-local skill with
+the same ref as a `local-override`. `relay skill update --all` updates
+project-local managed skills and skips bundled skills with the package update
+path: upgrade `relay-os`, then run `relay init --update`.
 
 ## relay panic --task \<slug\> --reason "..."
 

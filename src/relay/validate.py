@@ -41,7 +41,12 @@ import requests
 
 from relay.blackboard import BLACKBOARD_WARN_BYTES, blackboard_size_warning, render_blackboard
 from relay.config import Config, ConfigError, load_config
-from relay.paths import context_path, skill_path
+from relay.paths import (
+    context_resolution_paths,
+    resolve_context_path,
+    resolve_skill_path,
+    skill_resolution_paths,
+)
 from relay.tasks import (
     TaskNotFoundError,
     TaskRef,
@@ -475,26 +480,26 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
 
     if _is_string_list(ticket.frontmatter.get("contexts", [])):
         for ref_name in ticket.contexts:
-            if not context_path(cfg, ref_name).is_file():
+            if resolve_context_path(cfg, ref_name) is None:
                 out.append(Issue(
                     kind="broken-context",
                     task=task_label,
                     message=(
                         f"context {ref_name!r} does not exist "
-                        f"(expected at {context_path(cfg, ref_name)})"
+                        f"(checked: {_format_paths(context_resolution_paths(cfg, ref_name))})"
                     ),
                     severity="error",
                 ))
 
     if _is_string_list(ticket.frontmatter.get("skills", [])):
         for ref_name in ticket.skills:
-            if not skill_path(cfg, ref_name).is_file():
+            if resolve_skill_path(cfg, ref_name) is None:
                 out.append(Issue(
                     kind="broken-skill",
                     task=task_label,
                     message=(
                         f"skill {ref_name!r} does not exist "
-                        f"(expected at {skill_path(cfg, ref_name)})"
+                        f"(checked: {_format_paths(skill_resolution_paths(cfg, ref_name))})"
                     ),
                     severity="error",
                 ))
@@ -507,13 +512,14 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
             for ref_name in step.get("skills", []) or []:
                 if not isinstance(ref_name, str):
                     continue
-                if not skill_path(cfg, ref_name).is_file():
+                if resolve_skill_path(cfg, ref_name) is None:
                     out.append(Issue(
                         kind="broken-skill",
                         task=task_label,
                         message=(
                             f"step {step.get('name', '?')!r} skill {ref_name!r} "
-                            f"does not exist (expected at {skill_path(cfg, ref_name)})"
+                            f"does not exist "
+                            f"(checked: {_format_paths(skill_resolution_paths(cfg, ref_name))})"
                         ),
                         severity="error",
                     ))
@@ -529,6 +535,10 @@ def _check_refs(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
         ))
 
     return out
+
+
+def _format_paths(paths: tuple[Path, ...] | tuple[Path, Path]) -> str:
+    return ", ".join(str(path) for path in paths)
 
 
 def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:

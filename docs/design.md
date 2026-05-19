@@ -41,7 +41,8 @@ writes the raw default frontmatter. `relay create` remains a compatibility
 spelling for that raw operation.
 
 The judgment about *which* workflow / contexts / assignee fit is in the
-`bootstrap/ticket` skill (`relay-os/skills/bootstrap/ticket/SKILL.md`). A
+`bootstrap/ticket` skill (`relay-os/bootstrap/skills/bootstrap/ticket/SKILL.md`,
+unless shadowed by a local skill under `relay-os/skills/`). A
 human invokes that skill through `relay ticket`: with no argument it asks for
 a title, with a title it drafts then edits, and with an existing draft/active
 slug it edits that ticket in place. It refuses `in_progress` and `done`

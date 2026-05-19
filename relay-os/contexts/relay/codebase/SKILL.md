@@ -41,12 +41,19 @@ relay-os/
   prompt-interactive.md  ← interactive mode block
   prompt-auto.md         ← auto mode block
   bootstrap/<name>/      ← stateless launch shims
+  bootstrap/skills/      ← package-backed bundled skills (overwritten on update)
+  bootstrap/contexts/    ← package-backed bundled contexts (overwritten on update)
   tasks/<slug>/          ← live tickets
-  skills/<ns>/<name>/    ← process knowledge (SKILL.md + scripts)
-  contexts/<ns>/<name>/  ← domain knowledge (SKILL.md only)
+  skills/<ns>/<name>/    ← project-local process knowledge / overrides
+  contexts/<ns>/<name>/  ← project-local domain knowledge / overrides
   workflows/<ns>/<name>.md ← step definitions
   scripts/cron.sh        ← entry for recurring scheduler
 ```
+
+Relay resolves skills and contexts from project-local roots first, then from
+the package-backed bootstrap roots. Claude Code and Codex are pointed at the
+generated `relay-os/.agent-skills/` view, which exposes the same effective
+local-plus-bundled skill set.
 
 ## Daily commands
 

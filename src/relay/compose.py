@@ -11,10 +11,11 @@ from pathlib import Path
 
 from relay.config import Config
 from relay.paths import (
-    context_path,
     repo_context_path,
+    resolve_context_path,
+    resolve_skill_path,
     rules_path,
-    skill_path,
+    skill_resolution_paths,
     workflow_path,
 )
 from relay.tasks import TargetRef
@@ -154,8 +155,8 @@ def compose_prompt_report(
 
     # 5. ticket-attached contexts
     for ref in ticket.contexts:
-        cp = context_path(cfg, ref)
-        if cp.is_file():
+        cp = resolve_context_path(cfg, ref)
+        if cp is not None:
             layers.append(PromptLayer(
                 "ticket_context",
                 f"Context — {ref}",
@@ -243,8 +244,8 @@ def _extract_section(body: str, heading: str) -> str:
 
 
 def _skill_layers(cfg: Config, skill_ref: str) -> list[PromptLayer]:
-    sp = skill_path(cfg, skill_ref)
-    if sp.is_file():
+    sp = resolve_skill_path(cfg, skill_ref)
+    if sp is not None:
         return [PromptLayer(
             "top_level_skill",
             f"Skill: {skill_ref}",
@@ -252,12 +253,13 @@ def _skill_layers(cfg: Config, skill_ref: str) -> list[PromptLayer]:
             ref=skill_ref,
             path=str(sp),
         )]
+    checked = _checked_skill_paths(cfg, skill_ref)
     return [PromptLayer(
         "top_level_skill",
         f"Skill: {skill_ref}",
-        f"*Skill file not found at {sp}.*",
+        f"*Skill file not found. Checked: {checked}.*",
         ref=skill_ref,
-        path=str(sp),
+        path=checked,
     )]
 
 
@@ -272,8 +274,8 @@ def _step_layers(cfg: Config, ticket: Ticket) -> list[PromptLayer]:
     if skill_refs:
         out: list[PromptLayer] = []
         for skill_ref in skill_refs:
-            sp = skill_path(cfg, skill_ref)
-            if sp.is_file():
+            sp = resolve_skill_path(cfg, skill_ref)
+            if sp is not None:
                 out.append(PromptLayer(
                     "workflow_skill",
                     f"Current step: {name} (skill: {skill_ref})",
@@ -282,12 +284,13 @@ def _step_layers(cfg: Config, ticket: Ticket) -> list[PromptLayer]:
                     path=str(sp),
                 ))
             else:
+                checked = _checked_skill_paths(cfg, skill_ref)
                 out.append(PromptLayer(
                     "workflow_skill",
                     f"Current step: {name} (skill: {skill_ref})",
-                    f"*Skill file not found at {sp}.*",
+                    f"*Skill file not found. Checked: {checked}.*",
                     ref=skill_ref,
-                    path=str(sp),
+                    path=checked,
                 ))
         return out
 
@@ -322,6 +325,10 @@ def _step_layers(cfg: Config, ticket: Ticket) -> list[PromptLayer]:
         ref=wf_name,
         path=str(workflow_path(cfg, wf_name)),
     )]
+
+
+def _checked_skill_paths(cfg: Config, skill_ref: str) -> str:
+    return ", ".join(str(path) for path in skill_resolution_paths(cfg, skill_ref))
 
 
 __all__ = [

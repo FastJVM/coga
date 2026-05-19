@@ -30,22 +30,37 @@ TEMPLATE_RESOURCE_PATH = ("templates", "relay-os")
 # linger after a migration. Keep entries narrow — only files we know we shipped
 # and now want gone, never user-owned paths.
 #
-# Note on the bootstrap/-consolidation entries below: those paths used to live
-# at the relay-os/ root and are now mirrored under `bootstrap/`. Existing repos
-# need them pruned so the now-empty originals don't shadow the back-compat
-# symlinks `_link_compat_paths` lays down.
+# Note on the bootstrap-consolidation entries below: those paths used to be
+# shipped directly at the relay-os/ root and are now package-backed batteries
+# under `bootstrap/`. Existing repos need those narrow, known Relay-owned paths
+# pruned so local-first resolution can fall through to bootstrap. Do not add
+# broad namespace entries here; user-owned `skills/<namespace>` and
+# `contexts/<namespace>` directories must be preserved.
 OBSOLETE_PATHS: tuple[str, ...] = (
     "counter",  # numeric task ID counter, dropped in the slug-only migration
     "meta",  # renamed to bootstrap/ — pre-bootstrap upstreams shipped meta/
     "skills/bootstrap/create",  # renamed to bootstrap/ticket in 350c4ed
-    "skills/bootstrap",  # consolidated under bootstrap/skills/bootstrap
-    "skills/retro",  # consolidated under bootstrap/skills/retro
-    "skills/relay",  # consolidated under bootstrap/skills/relay
+    "skills/bootstrap/ticket",  # consolidated under bootstrap/skills/bootstrap/ticket
+    "skills/bootstrap/dream/tasks/validate-drift",  # consolidated under bootstrap/skills
+    "skills/bootstrap/dream/tasks/cleanup-orphan-markers",  # consolidated under bootstrap/skills
+    "skills/retro/done-ticket",  # consolidated under bootstrap/skills/retro/done-ticket
+    "skills/relay/calendar-reminder",  # consolidated under bootstrap/skills/relay/calendar-reminder
     "contexts/relay/architecture",  # consolidated under bootstrap/contexts/relay/architecture
     "contexts/relay/principles",  # consolidated under bootstrap/contexts/relay/principles
     "contexts/relay/cli",  # consolidated under bootstrap/contexts/relay/cli
+    "contexts/relay/sync",  # consolidated under bootstrap/contexts/relay/sync
+    "contexts/dev/code",  # consolidated under bootstrap/contexts/dev/code
     "hooks",  # consolidated under bootstrap/hooks
 )
+
+_LEGACY_RELAY_GITIGNORE_ENTRIES: set[str] = {
+    "skills/bootstrap",
+    "skills/retro",
+    "skills/relay",
+    "contexts/relay/architecture",
+    "contexts/relay/principles",
+    "contexts/relay/cli",
+}
 
 
 def clone_upstream(into: Path) -> Path:
@@ -156,10 +171,9 @@ def refresh_templates(
       - `_*` template scaffolds (`_template/` etc.)
       - `bootstrap/` — the single relay-vendored umbrella. Holds launch shims
         plus all upstream-managed skills, contexts, and git hooks
-        (`bootstrap/skills/`, `bootstrap/contexts/relay/*`, `bootstrap/hooks/`).
-        Mirrored as one unit by `_copy_vendored_bootstrap`. The user-facing
-        paths (`skills/bootstrap`, `contexts/relay/architecture`, etc.) are
-        symlinks into this tree, recreated by `_link_compat_paths`.
+        (`bootstrap/skills/`, `bootstrap/contexts/*`, `bootstrap/hooks/`).
+        Mirrored as one unit by `_copy_vendored_bootstrap`. Runtime resolvers
+        read local user roots first and this bundled root second.
       - `.gitignore` — must track upstream so new ignore entries land in
         existing repos without manual edits.
 
@@ -177,7 +191,9 @@ def refresh_templates(
 def prune_obsolete(relay_os: Path) -> list[str]:
     """Remove paths upstream once shipped but no longer does. Returns relative paths pruned."""
     pruned: list[str] = []
-    for rel in OBSOLETE_PATHS:
+    rels = list(OBSOLETE_PATHS)
+    rels.extend(_bootstrap_symlink_paths(relay_os))
+    for rel in dict.fromkeys(rels):
         target = relay_os / rel
         if target.is_symlink() or target.is_file():
             target.unlink()
@@ -186,6 +202,29 @@ def prune_obsolete(relay_os: Path) -> list[str]:
             shutil.rmtree(target)
             pruned.append(rel)
     return pruned
+
+
+def _bootstrap_symlink_paths(relay_os: Path) -> list[str]:
+    """Existing generated bootstrap exposure links are obsolete; real dirs are not."""
+    out: list[str] = []
+    for root_name, bootstrap_name in (("skills", "skills"), ("contexts", "contexts")):
+        root = relay_os / root_name
+        bootstrap_root = (relay_os / "bootstrap" / bootstrap_name).resolve()
+        if not root.is_dir():
+            continue
+        for child in root.iterdir():
+            if not child.is_symlink():
+                continue
+            try:
+                target = child.resolve(strict=False)
+            except OSError:
+                continue
+            try:
+                target.relative_to(bootstrap_root)
+            except ValueError:
+                continue
+            out.append(child.relative_to(relay_os).as_posix())
+    return sorted(out)
 
 
 def is_relay_source_checkout(relay_os: Path) -> bool:
@@ -224,7 +263,7 @@ _HOST_GITIGNORE_BODY = (
     f"{HOST_GITIGNORE_BEGIN}\n"
     "# Managed by `relay init [--update]`. Don't edit between these markers —\n"
     "# they will be overwritten. Symlinks below are created by `relay init` so\n"
-    "# agent CLIs (Claude Code, Codex) can discover relay-os/skills/.\n"
+    "# agent CLIs (Claude Code, Codex) can discover Relay's generated skill view.\n"
     ".claude/skills/relay\n"
     ".codex/skills/relay\n"
     f"{HOST_GITIGNORE_END}\n"
@@ -526,10 +565,7 @@ def _refresh_relay_gitignore(src_root: Traversable, dst_root: Path) -> bool:
     if not src.is_file():
         return False
 
-    upstream_text = src.read_text()
-    body = _RELAY_GITIGNORE_HEADER + upstream_text
-    if not body.endswith("\n"):
-        body += "\n"
+    body = _render_relay_gitignore_body(src_root)
     block = f"{RELAY_GITIGNORE_BEGIN}\n{body}{RELAY_GITIGNORE_END}\n"
 
     dst = dst_root / ".gitignore"
@@ -539,7 +575,8 @@ def _refresh_relay_gitignore(src_root: Traversable, dst_root: Path) -> bool:
     if begin == -1:
         # Pre-marker file (or fresh repo). Treat the whole thing as user
         # content, dedupe against managed entries, and prepend the block.
-        managed_entries = _parse_gitignore_entries(upstream_text)
+        managed_entries = _parse_gitignore_entries(body)
+        managed_entries.update(_LEGACY_RELAY_GITIGNORE_ENTRIES)
         deduped = _drop_matching_lines(existing, managed_entries)
         if deduped and not deduped.endswith("\n"):
             deduped += "\n"
@@ -558,6 +595,15 @@ def _refresh_relay_gitignore(src_root: Traversable, dst_root: Path) -> bool:
         return False
     dst.write_text(new)
     return True
+
+
+def _render_relay_gitignore_body(src_root: Traversable) -> str:
+    src = _resource_join(src_root, Path(".gitignore"))
+    upstream_text = src.read_text().rstrip()
+    body = _RELAY_GITIGNORE_HEADER
+    if upstream_text:
+        body += upstream_text + "\n"
+    return body
 
 
 def _parse_gitignore_entries(text: str) -> set[str]:
@@ -584,11 +630,9 @@ def _copy_vendored_bootstrap(src_root: Traversable, dst_root: Path) -> list[str]
 
     `bootstrap/` is the single home for everything relay vendors and updates
     wholesale: launch shims (`bootstrap/<name>/ticket.md`), the skills they
-    reference (`bootstrap/skills/`), the canonical relay-the-tool contexts
-    (`bootstrap/contexts/relay/*`), and git-hook scripts (`bootstrap/hooks/`).
-    User-facing paths like `skills/bootstrap` and `contexts/relay/architecture`
-    are symlinks pointing into this tree; `_link_compat_paths` (in init.py)
-    creates them after this mirror runs.
+    reference (`bootstrap/skills/`), canonical contexts
+    (`bootstrap/contexts/*`), and git-hook scripts (`bootstrap/hooks/`).
+    Runtime resolution reads local roots first, then this package-backed tree.
 
     Wholesale replacement means renames and removals propagate cleanly. Don't
     put custom content under `bootstrap/` — it'll be wiped. Custom skills
