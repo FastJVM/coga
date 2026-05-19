@@ -40,6 +40,7 @@ OBSOLETE_PATHS: tuple[str, ...] = (
     "skills/bootstrap/create",  # renamed to bootstrap/ticket in 350c4ed
     "skills/bootstrap",  # consolidated under bootstrap/skills/bootstrap
     "skills/retro",  # consolidated under bootstrap/skills/retro
+    "skills/relay",  # consolidated under bootstrap/skills/relay
     "contexts/relay/architecture",  # consolidated under bootstrap/contexts/relay/architecture
     "contexts/relay/principles",  # consolidated under bootstrap/contexts/relay/principles
     "contexts/relay/cli",  # consolidated under bootstrap/contexts/relay/cli

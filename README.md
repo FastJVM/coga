@@ -138,7 +138,7 @@ git repo — auto-stages and commits the new scaffold (push is left to you).
 ```sh
 relay init mycompany           # fresh scaffold; refuses if relay-os/ exists
 relay init --update            # refresh .relay/ + package templates in current repo
-                               # (never touches your relay.toml, rules.md, skills/, etc.)
+                               # (never touches your relay.toml, rules.md, custom skills, etc.)
 ```
 
 If `~/.local/bin` is on your `PATH`, init also drops a `~/.local/bin/relay`

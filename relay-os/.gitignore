@@ -17,6 +17,7 @@ bootstrap/
 # `relay init [--update]`; safe to delete locally — they get regenerated.
 skills/bootstrap
 skills/retro
+skills/relay
 contexts/relay/architecture
 contexts/relay/principles
 contexts/relay/cli
