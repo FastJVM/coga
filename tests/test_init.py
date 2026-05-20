@@ -364,6 +364,8 @@ def _seed_local_relay_os(root: Path) -> Path:
     (relay_os / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md").write_text(
         "OLD eval/ticket-diagnostic skill\n"
     )
+    (relay_os / ".agent-skills").mkdir()
+    (relay_os / ".agent-skills" / "_template").symlink_to("../skills/_template")
     (relay_os / "contexts" / "relay" / "sync").mkdir(parents=True)
     (relay_os / "contexts" / "relay" / "sync" / "SKILL.md").write_text(
         "OLD relay/sync context\n"
@@ -536,6 +538,7 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert (relay_os / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
     assert (relay_os / ".agent-skills" / "retro" / "done-ticket").is_symlink()
     assert (relay_os / ".agent-skills" / "relay" / "calendar-reminder").is_symlink()
+    assert (relay_os / ".agent-skills" / "_template").is_symlink()
     # Shims dropped upstream (renamed/removed) are pruned locally.
     assert not (relay_os / "bootstrap" / "stale").exists()
     # Top-level paths upstream once shipped but no longer does are pruned.

@@ -299,7 +299,7 @@ def _do_update() -> None:
             f"Wrote {', '.join(written_guides)} (agent orientation — Claude Code / Codex)."
         )
     if retrofitted:
-        typer.echo(f"Backfilled `human:`/`agent:` on {len(retrofitted)} ticket(s):")
+        typer.echo(f"Backfilled canonical ticket fields on {len(retrofitted)} ticket(s):")
         for slug in retrofitted:
             typer.echo(f"  {slug}")
     _print_global_cli_status(cli_status, cli_detail, cli_venv)
