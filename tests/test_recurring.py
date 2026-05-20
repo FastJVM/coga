@@ -1,15 +1,30 @@
 from __future__ import annotations
 
+import shutil
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
+from typer.testing import CliRunner
 
+from relay.cli import app
 from relay.config import load_config
-from relay.recurring import check_recurring
+from relay.recurring import check_recurring, scaffold_named
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
+
+
+SHIPPED_DREAM_TEMPLATE = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "relay"
+    / "resources"
+    / "templates"
+    / "relay-os"
+    / "recurring"
+    / "dream.md"
+)
 
 
 def _write(path: Path, text: str) -> None:
@@ -174,3 +189,121 @@ def test_check_recurring_skips_underscore_template(repo: Path, capsys) -> None:
     assert len(result.created) == 1  # only the real one
     assert result.errors == []
     assert "_template.md" not in capsys.readouterr().err
+
+
+# --- relay recurring scaffold / the `dream` alias path ------------------------
+
+
+@pytest.fixture
+def dream_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A repo carrying the real shipped `recurring/dream.md` template.
+
+    `relay recurring scaffold` and `relay recurring check` are the two entry
+    points into the same scaffold path; these tests prove they converge.
+    """
+    company = tmp_path / "relay-os"
+    _write(
+        company / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+
+        [slack]
+        enabled = false
+
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(company / "relay.local.toml", 'user = "marc"\n')
+    (company / "tasks").mkdir(parents=True)
+    (company / "recurring").mkdir(parents=True)
+    shutil.copy(SHIPPED_DREAM_TEMPLATE, company / "recurring" / "dream.md")
+    monkeypatch.chdir(company)
+    return company
+
+
+def test_recurring_scaffold_creates_dream_task(dream_repo: Path) -> None:
+    result = CliRunner().invoke(app, ["recurring", "scaffold", "dream"])
+
+    assert result.exit_code == 0, result.output
+    assert "Created dream-" in result.output
+
+    cfg = load_config(dream_repo)
+    refs = list_tasks(cfg)
+    assert len(refs) == 1
+    ticket = Ticket.read(refs[0].path / "ticket.md")
+    assert ticket.title == "Dream"
+    assert ticket.mode == "interactive"
+    assert ticket.workflow is None
+    # The recurring template's `## Description` body composes into the ticket.
+    assert "Run the Dream cleanup pass for this Relay repo." in ticket.body
+    assert "### Ordered Skill Pass" in ticket.body
+    # Slug uses the schedule-derived period key, not plain `dream`.
+    assert refs[0].slug.startswith("dream-")
+    assert refs[0].slug != "dream"
+
+
+def test_recurring_scaffold_is_idempotent(dream_repo: Path) -> None:
+    runner = CliRunner()
+    first = runner.invoke(app, ["recurring", "scaffold", "dream"])
+    second = runner.invoke(app, ["recurring", "scaffold", "dream"])
+
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 0, second.output
+    assert "Created dream-" in first.output
+    assert "already scaffolded for this period" in second.output
+    # Idempotent: one task directory, not two.
+    assert len(list_tasks(load_config(dream_repo))) == 1
+
+
+def test_recurring_scaffold_and_check_converge(dream_repo: Path) -> None:
+    """A manual `scaffold dream` and the cron `check` produce one task dir."""
+    cfg = load_config(dream_repo)
+    now = datetime(2026, 5, 20, 10, 0, 0)  # a Wednesday
+
+    manual = scaffold_named(cfg, "dream", now=now)
+    assert manual.created is True
+
+    # The cron path, same period, sees the task already exists → no-op.
+    check = check_recurring(cfg, now=now)
+    assert check.created == []
+    assert check.errors == []
+    assert len(list_tasks(cfg)) == 1
+
+
+def test_recurring_scaffold_unknown_template_fails(dream_repo: Path) -> None:
+    result = CliRunner().invoke(app, ["recurring", "scaffold", "nope"])
+    assert result.exit_code == 2
+    assert "no recurring template `recurring/nope.md`" in result.output
+
+
+def test_recurring_scaffold_launch_activates_and_launches(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--launch` (the `relay dream` alias path) activates the draft and
+    hands off to `relay launch`."""
+    calls: list[str] = []
+
+    def fake_launch(
+        task: str,
+        agent_override: str | None,
+        prompt_report: bool,
+        no_verify: bool,
+    ) -> None:
+        ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
+        assert ticket.status == "active"
+        calls.append(task)
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+
+    result = CliRunner().invoke(app, ["recurring", "scaffold", "dream", "--launch"])
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    slug = calls[0]
+    assert slug.startswith("dream-")
+    log = (dream_repo / "tasks" / slug / "log.md").read_text()
+    assert "activated (draft → active) via relay recurring scaffold" in log

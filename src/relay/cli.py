@@ -11,7 +11,6 @@ import typer
 from relay.commands import automerge as automerge_cmd
 from relay.commands import create as create_cmd
 from relay.commands import delete as delete_cmd
-from relay.commands import dream as dream_cmd
 from relay.commands import init as init_cmd
 from relay.commands import launch as launch_cmd
 from relay.commands import mark as mark_cmd
@@ -78,7 +77,6 @@ app.command("show")(show_cmd.show)
 app.command("bump")(bump_cmd.bump)
 app.command("automerge")(automerge_cmd.automerge)
 app.command("delete")(delete_cmd.delete)
-app.command("dream")(dream_cmd.dream)
 app.command("retire")(retire_cmd.retire)
 app.command("panic")(panic_cmd.panic)
 app.command("slack")(slack_cmd.slack)
@@ -94,7 +92,7 @@ app.add_typer(recurring_cmd.app, name="recurring")
 _BUILTIN_COMMANDS = frozenset(
     {
         "init", "create", "launch", "status", "show", "bump", "automerge",
-        "delete", "draft", "dream", "retire", "panic", "slack", "skill",
+        "delete", "draft", "retire", "panic", "slack", "skill",
         "mark", "recurring", "ticket", "validate",
     }
 )
@@ -105,8 +103,15 @@ _BUILTIN_COMMANDS = frozenset(
 # (same key wins). Keeps `relay chat` discoverable in `--help` — and actually
 # dispatchable — for repos init'd before the alias defaults convention, or
 # where the user dropped the section.
+#
+# `dream` is a default alias rather than a built-in command: a Dream run is an
+# ordinary recurring task (`relay-os/recurring/dream.md`), and `relay dream`
+# just scaffolds and launches it on demand — the same scaffold path the cron
+# `relay recurring check` uses. Shipping it as a default keeps `relay dream`
+# working in repos init'd before the recurring template landed.
 _DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
+    "dream": "recurring scaffold dream --launch",
 }
 
 

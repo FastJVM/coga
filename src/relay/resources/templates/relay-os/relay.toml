@@ -52,6 +52,9 @@ mode = "local"
 
 [aliases]
 chat = "launch bootstrap/orient"
+# `dream` scaffolds the `recurring/dream.md` cleanup task and launches it now —
+# the same scaffold path the cron `relay recurring check` uses.
+dream = "recurring scaffold dream --launch"
 # Uncomment to add per-agent shortcuts. The --agent value must match an
 # `[agents.*]` block above.
 # claude = "launch bootstrap/orient --agent claude"

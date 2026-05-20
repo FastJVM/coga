@@ -231,23 +231,33 @@ Scan `relay-os/recurring/` and scaffold any due tasks. Called from
 `scaffold_task()` in `relay.scaffold` directly with the template's full
 frontmatter.
 
+### `relay recurring scaffold <name>`
+
+Scaffold one named recurring template now, ignoring its schedule. The task
+slug still uses the template's schedule-derived period key, so a manual
+`scaffold` and the cron `check` converge on one task directory per period.
+With `--launch`, the scaffolded draft is activated and launched. This is the
+on-demand entry point behind aliases like `relay dream`.
+
 ### `relay dream`
 
-Create an ad-hoc Dream cleanup task for this Relay repo, activate it, and
-launch it. The slug is allocated like any other task (`dream`, `dream-2`,
-etc.); it is not derived from a schedule or timestamp. With `--no-launch`,
-Relay only scaffolds the draft and prints the `relay mark active` /
-`relay launch` sequence.
+Run Relay's generic cleanup pass now. `dream` is an alias for
+`relay recurring scaffold dream --launch`: it scaffolds the `recurring/dream.md`
+recurring task and launches it. The slug is the recurring period key
+(`dream-2026-W21`), shared with the weekly cron run — running `relay dream`
+mid-week reuses that week's task rather than creating a second one.
 
 ### Dream and REM
 
-Dream is Relay's generic ticket cleanup pass for one `relay-os/`. A Dream task
-scans all tickets, runs fixed Relay housekeeping skills such as
-`validate-drift` and `retro/done-ticket`, proposes cleanup, writes results to
-that run's blackboard, and leaves a human-reviewable trail. Retro work is
-batched for done tickets: Dream loads the context/skill corpus once, processes
-up to five coherent tickets with a running knowledge delta, and opens one small
-PR only when durable knowledge changed.
+Dream is Relay's generic ticket cleanup pass for one `relay-os/`. It ships as a
+recurring task template, `relay-os/recurring/dream.md`: the weekly cron
+`relay recurring check` scaffolds it, and the `relay dream` alias scaffolds and
+launches it on demand. A Dream task scans all tickets, runs fixed Relay
+housekeeping skills such as `validate-drift` and `retro/done-ticket`, proposes
+cleanup, writes results to that run's blackboard, and leaves a human-reviewable
+trail. Retro work is batched for done tickets: Dream loads the context/skill
+corpus once, processes up to five coherent tickets with a running knowledge
+delta, and opens one small PR only when durable knowledge changed.
 
 REM is repo/user-specific recurring maintenance. It is opt-in user space: copy
 the inert `relay-os/recurring/_rem.md` template, give it a schedule and

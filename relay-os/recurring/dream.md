@@ -1,3 +1,16 @@
+---
+schedule: "0 9 * * 1"
+schedule_comment: "Every Monday at 9am — Relay's generic ticket cleanup pass"
+title: "Dream"
+# Dream runs interactively: it writes live console progress, delegates to
+# subagents, and exercises agent judgment. `relay recurring check` (cron)
+# scaffolds the weekly Dream task; a human launches it. `relay dream` (alias
+# for `relay recurring scaffold dream --launch`) scaffolds and launches it now.
+mode: interactive
+---
+
+## Description
+
 Run the Dream cleanup pass for this Relay repo.
 
 Dream is Relay's generic cleanup pass. It scans every ticket, runs the fixed
