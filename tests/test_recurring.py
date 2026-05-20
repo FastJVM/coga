@@ -283,8 +283,11 @@ def test_recurring_scaffold_unknown_template_fails(dream_repo: Path) -> None:
 def test_recurring_scaffold_launch_activates_and_launches(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`--launch` (the `relay dream` alias path) activates the draft and
-    hands off to `relay launch`."""
+    """`--launch` (the `relay dream` alias path) launches the scaffolded task.
+
+    Recurring tasks are workflow-less and scaffold straight to `active`, so
+    `--launch` hands off to `relay launch` directly — no `mark active` step.
+    """
     calls: list[str] = []
 
     def fake_launch(
@@ -305,5 +308,7 @@ def test_recurring_scaffold_launch_activates_and_launches(
     assert len(calls) == 1
     slug = calls[0]
     assert slug.startswith("dream-")
+    ticket = Ticket.read(dream_repo / "tasks" / slug / "ticket.md")
+    assert ticket.status == "active"
     log = (dream_repo / "tasks" / slug / "log.md").read_text()
-    assert "activated (draft → active) via relay recurring scaffold" in log
+    assert "created (mode=" in log and "status=active)" in log

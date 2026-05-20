@@ -30,3 +30,14 @@ def test_bootstrap_ticket_context_selection_is_prompt_payload() -> None:
     assert "If only a specific fact is needed, put\n   it in `## Context`" in text
     assert "`relay draft \"<title>\"` only creates bytes on disk" in text
     assert "`relay ticket <slug>` launched you against" in text
+
+
+def test_bootstrap_ticket_skill_mandates_a_workflow() -> None:
+    """Guided authoring must always land the ticket on a workflow — a
+    workflow-less ticket can't be activated."""
+    text = BOOTSTRAP_TICKET_SKILL.read_text()
+
+    assert "Every ticket carries a workflow" in text
+    assert "A ticket with no workflow can't be activated" in text
+    assert "you do not hand\nback a ticket without one" in text
+    assert "This is required — a ticket with no workflow can't be activated." in text

@@ -218,6 +218,12 @@ relay mark paused add-retry         # active / in_progress → paused. Preserves
 relay mark done   add-retry         # active / in_progress → done. Clears step.
 ```
 
+`relay mark active` refuses a ticket with no workflow — a workflow-less
+ticket has no steps and can't be advanced by `relay bump`. A bare-string
+`workflow:` ref is frozen into its snapshot on activation. (Recurring and
+retire tasks are intentionally workflow-less and are scaffolded straight to
+`active`, bypassing this gate.)
+
 `relay launch` owns the `active` → `in_progress` start transition. `relay
 bump` no longer marks final-step tickets done.
 
@@ -229,15 +235,16 @@ broadcast — one post instead of two.
 Scan `relay-os/recurring/` and scaffold any due tasks. Called from
 `scripts/cron.sh`; safe to run by hand. Recurring scaffolding goes through
 `scaffold_task()` in `relay.scaffold` directly with the template's full
-frontmatter.
+frontmatter. Recurring tasks are workflow-less, so they are scaffolded
+straight to `active` — they can't go through the `relay mark active` gate.
 
 ### `relay recurring scaffold <name>`
 
 Scaffold one named recurring template now, ignoring its schedule. The task
 slug still uses the template's schedule-derived period key, so a manual
 `scaffold` and the cron `check` converge on one task directory per period.
-With `--launch`, the scaffolded draft is activated and launched. This is the
-on-demand entry point behind aliases like `relay dream`.
+With `--launch`, the scaffolded (already-`active`) task is launched directly.
+This is the on-demand entry point behind aliases like `relay dream`.
 
 ### `relay dream`
 
@@ -427,8 +434,8 @@ opens a PR only when it extracts new durable knowledge; that PR records the
 `## Retro` marker, edits the knowledge base, and deletes the source task
 directory in the same PR. If no new durable knowledge exists, Retro
 records `result: no-new-durable-knowledge` on the source blackboard and opens
-no PR. This command activates and launches the retire task unless `--no-launch`
-is passed.
+no PR. The retire task is workflow-less, so it is scaffolded straight to
+`active` and launched unless `--no-launch` is passed.
 
 Refuses if the target task is not `status: done`. Use `relay delete`
 for an abandoned ticket where retro has nothing to extract. Branch

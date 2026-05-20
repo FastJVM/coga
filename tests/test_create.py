@@ -647,34 +647,39 @@ def test_cli_create_workflow_flag_attaches_workflow(
     assert t.step == "1 (implement)"
 
 
-def test_cli_create_refuses_without_workflow(
+def test_cli_create_allows_no_workflow(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay create` without `--workflow` is unconditionally refused."""
+    """`relay create` without `--workflow` scaffolds a workflow-less draft.
+
+    `--workflow` is optional; `relay mark active` is the gate that refuses to
+    activate a workflow-less ticket.
+    """
     monkeypatch.chdir(repo)
     runner = CliRunner()
     result = runner.invoke(app, ["create", "No workflow"])
-    assert result.exit_code == 2, result.output
-    assert "workflow is required" in result.output
-    assert "--workflow" in result.output
-    assert not (repo / "tasks" / "no-workflow").exists()
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(repo / "tasks" / "no-workflow" / "ticket.md")
+    assert t.workflow is None
+    assert t.status == "draft"
 
 
-def test_cli_draft_refuses_without_workflow(
+def test_cli_draft_allows_no_workflow(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Same refusal applies to `relay draft`."""
+    """`relay draft` also allows a workflow-less draft."""
     monkeypatch.chdir(repo)
     runner = CliRunner()
     result = runner.invoke(app, ["draft", "Still no workflow"])
-    assert result.exit_code == 2, result.output
-    assert "workflow is required" in result.output
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(repo / "tasks" / "still-no-workflow" / "ticket.md")
+    assert t.workflow is None
 
 
-def test_scaffold_draft_allow_no_workflow_bypasses_check(
+def test_scaffold_draft_without_workflow(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The guided-authoring path opts out of the always-on requirement."""
+    """`scaffold_draft` with no workflow produces a workflow-less draft."""
     from relay.commands.create import scaffold_draft
 
     monkeypatch.chdir(repo)
@@ -682,9 +687,7 @@ def test_scaffold_draft_allow_no_workflow_bypasses_check(
         "relay.slack.requests.post",
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
-    result = scaffold_draft(
-        title="Interview start", mode="interactive", allow_no_workflow=True
-    )
+    result = scaffold_draft(title="Interview start", mode="interactive")
     t = Ticket.read(result["path"] / "ticket.md")
     assert t.workflow is None
 

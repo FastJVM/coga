@@ -37,13 +37,25 @@ def repo(tmp_path: Path):
     _write(company / "relay.local.toml", 'user = "marc"\n')
     _write(company / "contexts" / "email" / "payment-flow" / "SKILL.md", "---\nname: x\n---\n")
     _write(company / "skills" / "infra" / "tests" / "SKILL.md", "---\nname: x\n---\n")
+    _write(
+        company / "workflows" / "code" / "with-review.md",
+        """
+        ---
+        name: code/with-review
+        description: Standard code workflow.
+        steps:
+          - name: implement
+          - name: pr
+        ---
+        """,
+    )
     return company
 
 
 def test_clean_repo_has_no_issues(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, title="X", workflow_name=None,
+        cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=["email/payment-flow"], mode="interactive",
         owner="marc", assignee="claude", watchers=[], status="draft",
     )
@@ -271,7 +283,7 @@ def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
     )
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, title="X", workflow_name=None,
+        cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
@@ -364,12 +376,40 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
     )
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, title="X", workflow_name=None,
+        cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
     assert report.issues == []
+
+
+def test_workflow_less_draft_warns(repo: Path) -> None:
+    """A `draft` with `workflow: null` is a non-fatal warning — it can't be
+    activated until a workflow is added, but it's a valid in-progress draft."""
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        watchers=[], status="draft",
+    )
+    report = run(cfg)
+    missing = [i for i in report.issues if i.kind == "missing-workflow"]
+    assert missing, [i.kind for i in report.issues]
+    assert all(i.severity == "warn" for i in missing)
+
+
+def test_workflow_less_active_task_is_not_flagged(repo: Path) -> None:
+    """A workflow-less `active` task (a recurring/retire task) is not a
+    `missing-workflow` issue — the warn is scoped to drafts."""
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    report = run(cfg)
+    assert not [i for i in report.issues if i.kind == "missing-workflow"]
 
 
 def test_stuck_in_progress_flagged(repo: Path) -> None:
