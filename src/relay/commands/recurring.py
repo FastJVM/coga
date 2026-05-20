@@ -6,14 +6,12 @@ import sys
 
 import typer
 
-from relay.config import Config, ConfigError, load_config
-from relay.mark import mark_active
+from relay.config import ConfigError, load_config
 from relay.recurring import RecurringError
 from relay.recurring import check_recurring as do_check
 from relay.recurring import scaffold_named
 from relay.slack import post
 from relay.tasks import TaskRef, read_ticket
-from relay.validate import TaskValidationError
 
 app = typer.Typer(
     name="recurring",
@@ -67,7 +65,7 @@ def scaffold(
     launch: bool = typer.Option(
         False,
         "--launch",
-        help="Activate and launch the scaffolded task instead of leaving it idle.",
+        help="Launch the scaffolded task instead of leaving it idle.",
     ),
 ) -> None:
     """Scaffold a named recurring template now, ignoring its schedule.
@@ -104,35 +102,20 @@ def scaffold(
         typer.echo(f"{ref.id_slug} already scaffolded for this period")
 
     if launch:
-        _activate_and_launch(cfg, ref)
+        _launch_scaffolded(ref)
 
 
-def _activate_and_launch(cfg: Config, ref: TaskRef) -> None:
-    """Activate a freshly scaffolded draft and launch it.
+def _launch_scaffolded(ref: TaskRef) -> None:
+    """Launch a freshly scaffolded recurring task.
 
-    Mirrors the old `relay dream` activate-then-launch path. A task that is
-    already past `active` is left alone — re-launching a finished run would
-    be wrong, and saying so is better than silently doing nothing.
+    Recurring tasks scaffold straight to `active` — they are machine-authored
+    ready jobs, so there is no separate activation step. A task already past
+    `active` (a finished or paused run, e.g. re-running `relay dream` mid-week)
+    is left alone — re-launching it would be wrong, and saying so beats
+    silently doing nothing.
     """
     ticket = read_ticket(ref)
-    if ticket.status == "draft":
-        try:
-            mark_active(
-                cfg,
-                ref,
-                ticket,
-                actor=f"human:{cfg.current_user}",
-                log_message="activated (draft → active) via relay recurring scaffold",
-                slack_text=(
-                    f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
-                    f"\"{ticket.title}\" — relay recurring scaffold"
-                ),
-                echo=f"{ref.id_slug}: active",
-            )
-        except TaskValidationError as exc:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-            sys.exit(2)
-    elif ticket.status != "active":
+    if ticket.status != "active":
         typer.secho(
             f"{ref.id_slug} is {ticket.status}; not launching.",
             fg=typer.colors.YELLOW,

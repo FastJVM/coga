@@ -106,6 +106,54 @@ def test_mark_active_from_done_errors(repo: Path) -> None:
     assert "'done'" in result.output
 
 
+def test_mark_active_refuses_workflow_less_ticket(repo: Path) -> None:
+    """A draft with no workflow can't be activated — it would have no steps
+    and could never be advanced by `relay bump`."""
+    slug, task_path = _make_task(repo, workflow=None, status="draft")
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+    assert result.exit_code == 2
+    assert "no workflow" in result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.status == "draft"
+
+
+def test_mark_active_freezes_string_workflow(repo: Path) -> None:
+    """A draft carrying `workflow:` as a bare string ref is frozen into its
+    snapshot on activation, and seeded at step 1."""
+    slug, task_path = _make_task(repo, workflow=None, status="draft")
+    # Hand-author a bare-string workflow ref, as guided authoring would.
+    t = Ticket.read(task_path / "ticket.md")
+    t.frontmatter["workflow"] = "code"
+    t.write(task_path / "ticket.md")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+    assert result.exit_code == 0, result.output
+
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.status == "active"
+    assert isinstance(t.workflow, dict)
+    assert t.workflow["name"] == "code"
+    assert t.step == "1 (implement)"
+
+
+def test_mark_active_refuses_unknown_string_workflow(repo: Path) -> None:
+    """A bare-string `workflow:` ref that names no known workflow is refused
+    at activation, when the freeze fails."""
+    slug, task_path = _make_task(repo, workflow=None, status="draft")
+    t = Ticket.read(task_path / "ticket.md")
+    t.frontmatter["workflow"] = "no-such-workflow"
+    t.write(task_path / "ticket.md")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+    assert result.exit_code == 2
+    assert "could not" in result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.status == "draft"
+
+
 def test_mark_active_blocks_on_required_extension_empty(repo: Path) -> None:
     """`mark active` refuses a draft whose `required = true` extension fields
     are empty."""

@@ -96,9 +96,7 @@ def _resolve_or_create_target(cfg: Config, target: str) -> tuple[TaskRef, Ticket
         msg = str(exc)
         if msg.startswith("Ambiguous task ref"):
             _bail(msg)
-        result = scaffold_draft(
-            title=target, mode="interactive", allow_no_workflow=True
-        )
+        result = scaffold_draft(title=target, mode="interactive")
         ref = TaskRef(slug=str(result["slug"]), path=cast(Path, result["path"]))
         typer.echo(f"{ref.id_slug}: launching guided ticket authoring")
         return ref, read_ticket(ref)
@@ -192,6 +190,24 @@ def _run_authoring_session(
             typer.secho(
                 "Ticket validation failed after authoring:\n"
                 + format_task_issues(errors),
+                fg=typer.colors.RED,
+                err=True,
+            )
+            sys.exit(2)
+
+        # Guided authoring of a draft must land on a workflow. A workflow-less
+        # draft can't be activated (`relay mark active` refuses it), so handing
+        # one back would strand the human. Catch it here, at the terminal,
+        # rather than later at activation. Only drafts are gated — an already
+        # `active` ticket edited here may be a workflow-less recurring/retire
+        # task, which is legitimate.
+        authored = read_ticket(ref)
+        if authored.status == "draft" and not authored.workflow:
+            typer.secho(
+                f"Ticket authoring left {ref.id_slug} with no workflow. "
+                "Every ticket needs one to be activated — relaunch "
+                f"`relay ticket {ref.id_slug}` and pick a workflow "
+                "(see relay-os/workflows/).",
                 fg=typer.colors.RED,
                 err=True,
             )

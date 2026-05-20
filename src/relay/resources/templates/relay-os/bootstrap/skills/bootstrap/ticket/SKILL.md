@@ -15,12 +15,15 @@ the interview short — 4–6 questions, not a survey.
 
 The canonical ticket shape is `relay-os/tasks/_template/ticket.md`. **Read it
 once before you start** — that's the frontmatter fields and body sections
-your filled ticket has to match. Two real examples in the same tree to mimic:
+your filled ticket has to match. A real example in the same tree to mimic:
 
 - `relay-os/tasks/fix-relay-status-narrow-terminal-table-wrapping/ticket.md`
   — a code-change ticket with `contexts:` + `workflow:` filled in.
-- `relay-os/tasks/autotrigger-ticket-type/ticket.md` — a concept-capture
-  ticket with no workflow, just description + context body.
+
+Every ticket carries a workflow — the ordered steps the work moves through.
+A ticket with no workflow can't be activated: `relay mark active` refuses it.
+Picking the workflow is part of this interview (step 3), and you do not hand
+back a ticket without one.
 
 Match this shape exactly. Don't invent fields the template doesn't define
 (see "YAML discipline" in the base prompt).
@@ -90,10 +93,13 @@ answer.
 2. **Context** — what's the agent who picks this up later going to wish they
    knew? Codebase pointers, gotchas, related tickets, out-of-scope notes.
    This becomes the `## Context` body.
-3. **Workflow** — does an existing workflow fit? (e.g. `code/with-review`
-   for a code change shipped via PR.) If the work is concept-capture or
-   one-off discussion with no clear sequence, no workflow is fine — leave
-   the field off.
+3. **Workflow** — which workflow fits? `ls relay-os/workflows/` for the
+   options (e.g. `code/with-review` for a code change shipped via PR). Every
+   ticket needs one — a workflow-less ticket can't be activated — so pick
+   the lightest workflow that matches the shape of the work. If genuinely
+   nothing fits (e.g. pure concept-capture with no sequence of steps), do
+   not leave the field off: tell the human so, since the repo may need a
+   new workflow or the idea may not be ready to be a ticket yet.
 4. **Contexts to attach** — which exact context bodies must be included in the
    future prompt? Keep the list narrow. If only a specific fact is needed, put
    it in `## Context` instead of attaching the whole context.
@@ -145,9 +151,9 @@ If a gap is too speculative to commit to a file, write it to
 
 Edit `ticket.md` in place. YAML discipline (from the base prompt) applies:
 
-- Add `workflow:` if you picked one — use the workflow name (e.g.
-  `code/with-review`); `relay bump` will freeze the snapshot when the human
-  launches.
+- Set `workflow:` to the workflow name you picked (e.g. `code/with-review`).
+  This is required — a ticket with no workflow can't be activated. Write it
+  as a bare string; the first `relay bump` freezes the snapshot.
 - Add `contexts:` as a YAML list (one item per line with `- `).
 - Do not add a context just because it is generally related. If in doubt, leave
   it out and write the one needed fact into `## Context`.

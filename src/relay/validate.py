@@ -444,13 +444,13 @@ def _check_frontmatter_schema(
 
     if "workflow" in fm:
         wf = fm["workflow"]
-        if wf is not None and not isinstance(wf, dict):
+        if wf is not None and not isinstance(wf, (dict, str)):
             out.append(Issue(
                 kind="bad-shape",
                 task=task_label,
                 message=(
-                    "workflow must be `null` or a frozen mapping with "
-                    f"`name` and `steps`, got {wf!r}"
+                    "workflow must be `null`, a workflow-name string, or a "
+                    f"frozen mapping with `name` and `steps`, got {wf!r}"
                 ),
                 severity="error",
             ))
@@ -607,6 +607,17 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
                 task=task_label,
                 message="`step:` set but `workflow:` is null",
                 severity="error",
+            ))
+        if ticket.status == "draft":
+            out.append(Issue(
+                kind="missing-workflow",
+                task=task_label,
+                message=(
+                    "draft has no `workflow:` — it can't be activated "
+                    "(`relay mark active` refuses a workflow-less ticket). "
+                    "Set `workflow: <name>` or run `relay ticket <slug>`."
+                ),
+                severity="warn",
             ))
         return out
 

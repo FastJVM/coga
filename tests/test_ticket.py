@@ -66,12 +66,19 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return relay_os
 
 
-def _allow_ticket_launch(monkeypatch: pytest.MonkeyPatch, prompts: list[str]) -> None:
+def _allow_ticket_launch(
+    monkeypatch: pytest.MonkeyPatch,
+    prompts: list[str],
+    *,
+    on_run=None,  # type: ignore[no-untyped-def]
+) -> None:
     class _Result:
         returncode = 0
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
         prompts.append(cmd[1])
+        if on_run is not None:
+            on_run()
         return _Result()
 
     monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
@@ -84,12 +91,21 @@ def test_ticket_title_creates_draft_and_launches_authoring(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     prompts: list[str] = []
-    _allow_ticket_launch(monkeypatch, prompts)
+    task_dir = repo / "tasks" / "investigate-retries"
+
+    def author_workflow() -> None:
+        # Simulate the bootstrap/ticket skill picking a workflow: guided
+        # authoring of a draft must land on a workflow or `relay ticket`
+        # hard-refuses the result.
+        t = Ticket.read(task_dir / "ticket.md")
+        t.frontmatter["workflow"] = "code/with-review"
+        t.write(task_dir / "ticket.md")
+
+    _allow_ticket_launch(monkeypatch, prompts, on_run=author_workflow)
 
     result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
     assert result.exit_code == 0, result.output
 
-    task_dir = repo / "tasks" / "investigate-retries"
     ticket = Ticket.read(task_dir / "ticket.md")
     assert ticket.status == "draft"
     assert ticket.title == "Investigate retries"
@@ -100,6 +116,24 @@ def test_ticket_title_creates_draft_and_launches_authoring(
     assert "Relay task — investigate-retries" in prompts[0]
     assert "Status: draft" in prompts[0]
     assert "Skill: bootstrap/ticket" in prompts[0]
+
+
+def test_ticket_refuses_draft_left_without_workflow(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If guided authoring hands back a draft with no workflow, `relay ticket`
+    hard-refuses — a workflow-less draft can't be activated."""
+    prompts: list[str] = []
+    # No `on_run`: the fake agent session leaves the draft workflow-less.
+    _allow_ticket_launch(monkeypatch, prompts)
+
+    result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
+    assert result.exit_code == 2, result.output
+    assert "no workflow" in result.output
+
+    ticket = Ticket.read(repo / "tasks" / "investigate-retries" / "ticket.md")
+    assert ticket.workflow is None
 
 
 def test_ticket_existing_active_task_is_editable_without_status_change(

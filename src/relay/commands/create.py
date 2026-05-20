@@ -3,6 +3,11 @@
 Posts ✨ to Slack and leaves the new ticket as `draft`. Does not launch
 an agent. For guided authoring use `relay ticket`; to start work, mark the
 ticket active and then launch it.
+
+`--workflow` is optional: a workflow-less draft is a valid authoring
+intermediate, it just can't be activated. `relay mark active` refuses a
+ticket with no workflow (workflow-less tickets can never be `relay bump`ed),
+so add a `workflow:` before activating, or pass `--workflow` up front.
 """
 
 from __future__ import annotations
@@ -28,8 +33,8 @@ def draft(
         "--workflow",
         help=(
             "Workflow name (path under relay-os/workflows/) to attach. "
-            "Required: `relay create` / `relay draft` no longer scaffold "
-            "workflow-less tickets."
+            "Optional, but a workflow-less draft can't be activated until "
+            "one is added."
         ),
     ),
 ) -> None:
@@ -49,8 +54,8 @@ def create(
         "--workflow",
         help=(
             "Workflow name (path under relay-os/workflows/) to attach. "
-            "Required: `relay create` / `relay draft` no longer scaffold "
-            "workflow-less tickets."
+            "Optional, but a workflow-less draft can't be activated until "
+            "one is added."
         ),
     ),
 ) -> None:
@@ -63,25 +68,16 @@ def scaffold_draft(
     title: str,
     mode: str,
     workflow: str | None = None,
-    allow_no_workflow: bool = False,
 ) -> dict[str, object]:
     """Scaffold a raw draft ticket and post the create notification.
 
-    Refuses workflow-less drafts unless `allow_no_workflow=True` (used by the
-    guided-authoring path, where the interview skill fills the workflow in).
-    Workflow-less tickets can never be `relay bump`ed, so user-authored
-    drafts must declare a workflow at create time.
+    `workflow` is optional. A workflow-less draft is a valid authoring
+    intermediate — `relay mark active` is the gate that refuses to activate
+    a ticket with no workflow, since a workflow-less ticket can never be
+    `relay bump`ed.
     """
     if not title.strip():
         _bail("title cannot be empty")
-
-    if not workflow and not allow_no_workflow:
-        _bail(
-            "workflow is required: `relay create` / `relay draft` no longer "
-            "scaffold workflow-less tickets (they can't be advanced via "
-            "`relay bump`). Pass `--workflow <name>` (see relay-os/workflows/) "
-            f"or run `relay ticket \"{title}\"` for guided authoring."
-        )
 
     try:
         cfg = load_config()

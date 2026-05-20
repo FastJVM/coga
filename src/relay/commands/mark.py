@@ -15,12 +15,13 @@ import sys
 import typer
 
 from relay.config import ConfigError, load_config
-from relay.mark import RequiredExtensionMissing
+from relay.mark import RequiredExtensionMissing, WorkflowMissing
 from relay.mark import mark_active as _mark_active
 from relay.mark import mark_done as _mark_done
 from relay.mark import mark_paused as _mark_paused
 from relay.tasks import TaskNotFoundError, read_ticket, resolve_task
 from relay.validate import TaskValidationError
+from relay.workflow import WorkflowError
 
 app = typer.Typer(
     name="mark",
@@ -64,6 +65,19 @@ def active(
             log_message=log_message,
             slack_text=slack_text,
             echo=f"{ref.id_slug}: active",
+        )
+    except WorkflowMissing:
+        _bail(
+            f"Cannot activate {ref.id_slug}: ticket has no workflow. A "
+            "workflow-less ticket has no steps and can't be advanced via "
+            "`relay bump`. Set `workflow: <name>` in `ticket.md` (see "
+            f"relay-os/workflows/) or run `relay ticket {ref.id_slug}` to "
+            "fill it in, then retry."
+        )
+    except WorkflowError as exc:
+        _bail(
+            f"Cannot activate {ref.id_slug}: its `workflow:` ref could not "
+            f"be frozen — {exc}"
         )
     except RequiredExtensionMissing as exc:
         names = ", ".join(repr(f) for f in exc.fields)

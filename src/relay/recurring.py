@@ -155,7 +155,11 @@ def scaffold_template(
         owner=template.frontmatter.get("owner"),
         assignee=template.frontmatter.get("assignee"),
         watchers=list(template.frontmatter.get("watchers") or []),
-        status=template.frontmatter.get("status") or cfg.default_status,
+        # Recurring tasks scaffold straight to `active`: they are
+        # machine-authored ready jobs, and a workflow-less one (e.g. Dream)
+        # could not otherwise be activated — `relay mark active` refuses
+        # workflow-less tickets.
+        status="active",
         slug_override=target_slug,
         description=_extract_description(template),
         created_by="system",

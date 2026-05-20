@@ -14,10 +14,12 @@ import typer
 
 from relay.config import Config
 from relay.logfile import append_log
+from relay.paths import workflow_path
 from relay.slack import post
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
 from relay.validate import assert_task_valid
+from relay.workflow import Workflow
 
 
 def mark_done(
@@ -61,6 +63,50 @@ class RequiredExtensionMissing(RuntimeError):
         )
 
 
+class WorkflowMissing(RuntimeError):
+    """Raised when `mark active` is called on a ticket with no workflow.
+
+    A workflow-less ticket has no steps and can never be advanced by
+    `relay bump`, so activating one would strand it. The workflow may be a
+    bare string ref (frozen on the first `relay bump`) or an already-frozen
+    dict — only `null`/missing is refused.
+    """
+
+
+def _has_workflow(ticket: Ticket) -> bool:
+    """True when the ticket carries a workflow `mark active` can accept.
+
+    Accepts both a bare string ref (hand-authored, frozen here on activate)
+    and an already-frozen workflow dict. Rejects `null`, missing, and empty
+    values.
+    """
+    wf = ticket.workflow
+    if isinstance(wf, str):
+        return bool(wf.strip())
+    if isinstance(wf, dict):
+        return bool(wf)
+    return False
+
+
+def _freeze_workflow_ref(cfg: Config, ticket: Ticket) -> None:
+    """Freeze a bare-string `workflow:` ref into its snapshot, in place.
+
+    Hand-authored / guided-authored draft tickets carry `workflow:` as a
+    plain workflow name. Activation is when that becomes real: we freeze the
+    snapshot and seed `step: 1` so the activated ticket is launch-ready —
+    `relay launch` composes the current step's skill from the frozen
+    workflow. No-op when the workflow is already a frozen dict. Raises
+    `WorkflowError` if the ref names no known workflow.
+    """
+    wf = ticket.workflow
+    if not isinstance(wf, str):
+        return
+    wf_def = Workflow.load(workflow_path(cfg, wf))
+    ticket.frontmatter["workflow"] = wf_def.freeze()
+    if not ticket.step:
+        ticket.frontmatter["step"] = f"1 ({wf_def.steps[0].name})"
+
+
 def _missing_required_extensions(cfg: Config, ticket: Ticket) -> list[str]:
     """Return names of `required = true` extension fields that are absent or
     empty on this ticket."""
@@ -86,8 +132,15 @@ def mark_active(
 ) -> None:
     """Flip a ticket to `active`: write frontmatter, log, post.
 
-    Refuses to activate if any `required = true` extension field is empty.
+    Refuses to activate a workflow-less ticket. A bare-string `workflow:`
+    ref is frozen into its snapshot here so the activated ticket is
+    launch-ready. Also refuses if any `required = true` extension field is
+    empty.
     """
+    if not _has_workflow(ticket):
+        raise WorkflowMissing()
+    _freeze_workflow_ref(cfg, ticket)
+
     missing = _missing_required_extensions(cfg, ticket)
     if missing:
         raise RequiredExtensionMissing(missing)
@@ -151,4 +204,5 @@ __all__ = [
     "mark_paused",
     "mark_done",
     "RequiredExtensionMissing",
+    "WorkflowMissing",
 ]

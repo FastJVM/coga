@@ -83,13 +83,15 @@ def test_retire_no_launch_scaffolds_task_with_target_slug(
     assert "Retire: scaffolding task 'Retire fix-retry-logic'" in result.output
     assert "Retire: created task retire-fix-retry-logic" in result.output
     assert "Retire: launch skipped (--no-launch)" in result.output
-    assert "relay mark active retire-fix-retry-logic" in result.output
+    assert "relay launch retire-fix-retry-logic" in result.output
 
     new_task = repo / "tasks" / "retire-fix-retry-logic"
     assert new_task.is_dir()
     ticket = Ticket.read(new_task / "ticket.md")
     assert ticket.title == "Retire fix-retry-logic"
-    assert ticket.status == "draft"
+    # Workflow-less retire tasks scaffold straight to `active` — `relay mark
+    # active` would refuse them.
+    assert ticket.status == "active"
     assert ticket.mode == "interactive"
     assert ticket.assignee == "claude"
     assert ticket.workflow is None
@@ -194,11 +196,12 @@ def test_retire_launches_after_scaffold(
     )
 
     assert result.exit_code == 0, result.output
-    assert "Retire: activating retire-fix-retry-logic" in result.output
+    assert "Retire: created task retire-fix-retry-logic" in result.output
+    assert "(active)" in result.output
     assert "Retire: launching retire-fix-retry-logic" in result.output
     assert "fake launch called" in result.output
     log = (repo / "tasks" / "retire-fix-retry-logic" / "log.md").read_text()
-    assert "activated (draft → active) via relay retire" in log
+    assert "created (mode=interactive, status=active)" in log
     assert calls == [
         {
             "task": "retire-fix-retry-logic",
