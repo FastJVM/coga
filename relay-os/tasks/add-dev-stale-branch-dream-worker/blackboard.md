@@ -12,3 +12,10 @@ pr: https://github.com/FastJVM/relay/pull/90
 - Full test suite passed with `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest` (215 passed).
 - GitHub checks: `gh pr checks 90 --watch=false` -> no checks reported on the branch.
 - `relay bump ... --message "PR opened: ..."` advanced the ticket to review but the Slack post failed under sandbox DNS; sent an equivalent `relay slack` FYI with network access.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for add-dev-stale-branch-dream-worker
