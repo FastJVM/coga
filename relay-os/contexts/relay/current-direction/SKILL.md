@@ -5,16 +5,23 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 # Relay — current direction
 
-Last updated: 2026-05-16.
+Last updated: 2026-05-19.
 
-## Recent decisions (Dream — ad-hoc triggering for now)
+## Recent decisions (Dream — recurring template plus an alias)
 
-- **Dream is manual and ad-hoc for now.** Run `relay dream` to create a normal
-  Dream task (`dream`, `dream-2`, etc.) and launch the cleanup pass. Dream does
-  not need a weekly bucket or schedule-derived slug: it scans current Relay
-  state, writes to its own blackboard, and finishes through `relay mark done`.
-  Recurring scheduling stays separate until the worker pass is trusted enough
-  to run unattended. Same intent for REM.
+- **Dream is a recurring task template plus an alias.** The standalone
+  `relay dream` Typer command is gone. Dream now ships as
+  `relay-os/recurring/dream.md` — an ordinary recurring template. The weekly
+  cron `relay recurring check` scaffolds it; `relay dream` is a default alias
+  for `recurring scaffold dream --launch`, which scaffolds and launches it on
+  demand through the same path. The task slug is the recurring period key
+  (`dream-2026-W21`), so a manual run and the cron run converge on one task.
+  This reverses the earlier "ad-hoc command" decision: there was nothing left
+  in a dedicated command worth keeping once the workers became skills.
+- **`relay recurring scaffold <name>` is the on-demand recurring entry point.**
+  It scaffolds one named template now, ignoring its schedule, with the same
+  period-keyed (idempotent) slug the cron `check` produces. `--launch` also
+  activates and launches the task.
 
 ## Recent decisions (Dream and REM)
 
