@@ -41,7 +41,7 @@ def test_dream_ships_as_a_recurring_template() -> None:
     assert "\n## Description\n" in text
 
 
-def test_dream_documents_ordered_skill_pass() -> None:
+def test_dream_documents_decide_then_execute_phases() -> None:
     text = DREAM_PROMPT.read_text()
 
     assert not (DREAM / "SKILL.md").exists()
@@ -52,33 +52,32 @@ def test_dream_documents_ordered_skill_pass() -> None:
     assert "Dream is not REM" in text
     assert "### Console Progress" in text
     assert "Write short progress updates to the console" in text
-    assert "### Ordered Skill Pass" in text
+    assert "### Run order" in text
+    assert "**decide**" in text
+    assert "**execute**" in text
+    assert "This body is the dispatch contract" in text
+    assert "Do not auto-discover skills" in text
+    assert "### Phase 1" in text
+    assert "### Phase 2" in text
+    assert "### Phase 3" in text
+    assert "### Phase 4" in text
+    assert "### Phase 5" in text
     assert "`bootstrap/dream/tasks/validate-drift`" in text
-    assert "`retro/done-ticket`" in text
+    assert "retro/done-ticket" in text
     assert "`bootstrap/dream/tasks/cleanup-orphan-markers`" in text
     assert "`bootstrap/dream/tasks/dev/stale-branches`" not in text
     assert "dev/stale-branches" not in text
-    assert "That table is the dispatch contract" in text
-    assert "Do not auto-discover skills" in text
-    assert "make another task with its own body and\nordered skill list" in text
-    assert "### Skill: validate-drift" in text
-    assert "### Skill: retro/done-ticket" in text
-    assert "### Skill: cleanup-orphan-markers" in text
     assert "### Skill: dev/stale-branches" not in text
+    assert "knowledge scan" in text
+    assert "`extract`" in text
+    assert "`stale`" in text
+    assert "`gap`" in text
+    assert "relay create" in text
+    assert "there is no per-run ticket cap" in text
     assert "status: processed" in text
     assert "skill: retro/done-ticket" in text
-    assert "Batched knowledge extraction" in text
-    assert "processes up to five coherent done tickets with a running delta" in text
-    assert "max source tickets per batch PR: 5" in text
-    assert "max knowledge files touched: 3" in text
-    assert "max new context or skill files created: 1" in text
-    assert "need \"and\" in the PR title" in text
-    assert "Do not force a monster Retro PR" in text
-    assert "`no-new-durable-knowledge` markers are terminal no-ops" in text
-    assert "An open\n   PR counts as in flight" in text
-    assert "Absence of the marker on an existing done ticket" in text
-    assert "git history for the deleted `blackboard.md`" in text
-    assert "Dream-owned scripts are skills attached to Relay tasks" in text
+    assert "no-new-durable-knowledge" in text
+    assert "Dream-owned scripts\nare skills attached to Relay tasks" in text
     assert "--blackboard" not in text
     assert "Dream Run Summary" in text
     assert "relay slack --task <this-dream-task>" in text
