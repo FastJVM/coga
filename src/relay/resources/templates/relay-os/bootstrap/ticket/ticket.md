@@ -17,7 +17,7 @@ draft with `relay draft` and then edit it.
 
 This shim is stateless. It has no status and acquires no lock — every
 launch is independent. Don't edit the ticket itself except to swap the
-`assignee` to whichever agent nickname you have configured in `relay.toml`.
+`assignee` to whichever agent type you have configured in `relay.toml`.
 
 ## Context
 
@@ -27,9 +27,9 @@ The actual instruction set lives at
 `relay launch bootstrap/ticket` sessions to that skill — read the skill if
 you're debugging the bootstrap flow.
 
-`assignee` must match a key under `[assignees.<human>.agents]` in
-`relay.toml`. The default `claude` assumes the standard install; swap if
-you've renamed agent nicknames.
+`assignee` must match an `[agents.<type>]` block in `relay.toml`. The
+default `claude` assumes the standard install; swap if you've renamed
+your agent types.
 
 Don't add `status:` or `owner:` to this frontmatter. The shim is
 intentionally stateless — no lock, no log, no `step` transitions — so

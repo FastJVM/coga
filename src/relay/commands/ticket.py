@@ -138,7 +138,7 @@ def _run_authoring_session(
         )
 
     try:
-        agent = cfg.agent_type_for(cfg.current_user, launch_assignee)
+        agent = cfg.agent_type(launch_assignee)
     except ConfigError as exc:
         _bail(str(exc))
 

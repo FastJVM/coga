@@ -76,7 +76,7 @@ def launch(
     is_bootstrap = isinstance(ref, BootstrapRef)
     if agent_override is not None:
         try:
-            cfg.agent_type_for(cfg.current_user, agent_override)
+            cfg.agent_type(agent_override)
         except ConfigError as exc:
             _bail(str(exc))
 
@@ -182,9 +182,9 @@ def launch(
 
     launch_assignee = agent_override or assignee
 
-    # Resolve agent for this launch assignee (under current user's config).
+    # Resolve the agent type — the ticket's assignee names it directly.
     try:
-        agent = cfg.agent_type_for(cfg.current_user, launch_assignee)
+        agent = cfg.agent_type(launch_assignee)
     except ConfigError as exc:
         _bail(str(exc))
     typer.echo(

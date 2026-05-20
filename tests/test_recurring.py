@@ -29,8 +29,6 @@ def repo(tmp_path: Path):
         cli = "claude"
         auto = "-p"
         file = "CLAUDE.md"
-        [assignees.marc]
-        agents = {"claude" = "claude"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')

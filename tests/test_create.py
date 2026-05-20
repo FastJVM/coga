@@ -35,8 +35,6 @@ def repo(tmp_path: Path) -> Path:
         file = "CLAUDE.md"
         mode = "local"
 
-        [assignees.marc]
-        agents = {"claude" = "claude"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -117,8 +115,6 @@ def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) ->
         file = "AGENTS.md"
         mode = "local"
 
-        [assignees.marc]
-        agents = {"claude" = "claude", "codex" = "codex"}
         """,
     )
     cfg = load_config(repo)
@@ -144,15 +140,6 @@ def test_create_requires_agent_before_writing_task_dir(repo: Path) -> None:
         """
         version = 1
         default_status = "draft"
-
-        [agents.claude]
-        cli = "claude"
-        auto = "-p"
-        file = "CLAUDE.md"
-        mode = "local"
-
-        [assignees.marc]
-        agents = {}
         """,
     )
     cfg = load_config(repo)
@@ -271,7 +258,7 @@ def test_backfill_uses_owner_lone_agent_when_assignee_unknown(repo: Path) -> Non
     backfill_role_fields(cfg)
     t = Ticket.read(legacy / "ticket.md")
     assert t.human == "marc"
-    # Assignee `marc` isn't an agent, so fall back to owner's single configured agent.
+    # Assignee `marc` isn't an agent type, so fall back to the first declared agent.
     assert t.agent == "claude"
 
 

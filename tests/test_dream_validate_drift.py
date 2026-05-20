@@ -69,8 +69,6 @@ def _seed_repo(root: Path) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
 
-        [assignees.marc]
-        agents = {"claude" = "claude"}
         """,
     )
     _write(relay_os / "relay.local.toml", 'user = "marc"\n')

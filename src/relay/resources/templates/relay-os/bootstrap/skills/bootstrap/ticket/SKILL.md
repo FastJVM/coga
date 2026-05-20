@@ -52,7 +52,7 @@ Before suggesting anything, ground yourself in what actually exists:
   `relay-os/contexts/<namespace>/<name>/SKILL.md`; reference shape in
   tickets: `<namespace>/<name>`).
 - `ls relay-os/skills/*/` — known skills (same path/reference shape).
-- `relay.toml` `[assignees.*]` — known humans and their agent nicknames.
+- `relay.toml` `[agents.*]` — known agent types (e.g. `claude`, `codex`).
 
 Don't propose a workflow, context, skill, or assignee that isn't in this
 list — create it (step 4) or pick from the list.

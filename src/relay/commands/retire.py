@@ -77,7 +77,7 @@ def retire(
 
     try:
         assignee = agent or _default_agent(cfg)
-        agent_type = cfg.agent_type_for(cfg.current_user, assignee)
+        agent_type = cfg.agent_type(assignee)
     except ConfigError as exc:
         _bail(str(exc))
     typer.echo(
@@ -125,13 +125,13 @@ def retire(
 
 
 def _default_agent(cfg: Config) -> str:
-    current = cfg.assignees.get(cfg.current_user)
-    if current is None or not current.agents:
+    default = cfg.default_agent()
+    if default is None:
         raise ConfigError(
-            f"Current user {cfg.current_user!r} has no configured agent nicknames. "
-            "Pass --agent or add one under [assignees.<user>].agents."
+            "No agent types declared in [agents]. Pass --agent or declare "
+            "at least one `[agents.*]` table in relay.toml."
         )
-    return next(iter(current.agents))
+    return default.name
 
 
 def _retire_body(target_slug: str) -> str:

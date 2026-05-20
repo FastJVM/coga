@@ -10,12 +10,12 @@ Resolves the "must resolve before building" items flagged in `relay-spec-updated
 
 ```
 relay draft "<title>" [--mode interactive|auto|script]
-relay ticket [<title-or-slug>] [--agent <nickname>]
+relay ticket [<title-or-slug>] [--agent <type>]
 
 Options
   --mode [interactive|auto|script]
                             Draft mode. Default: interactive.
-  --agent TEXT              Ticket-authoring agent nickname.
+  --agent TEXT              Ticket-authoring agent type (e.g. claude, codex).
 ```
 
 ### Frontmatter generation

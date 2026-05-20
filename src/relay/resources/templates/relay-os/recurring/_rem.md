@@ -8,7 +8,7 @@ title: "Replace with the REM task title"
 mode: script
 workflow: namespace/your-workflow
 owner: replace-with-human-name
-assignee: replace-with-human-or-agent-nickname
+assignee: replace-with-agent-type-or-human-name
 ---
 
 ## Description

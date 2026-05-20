@@ -56,8 +56,8 @@ human-installed command line tools:
   loud with an upgrade hint.
 
 After init, edit the freshly-written `relay-os/relay.toml` to declare your
-agents and assignees, and set `user = "<you>"` in
-`relay-os/relay.local.toml`. Then draft your first ticket:
+agent types, and set `user = "<you>"` in `relay-os/relay.local.toml`.
+Then draft your first ticket:
 
 ```sh
 relay ticket "First task"
@@ -181,7 +181,7 @@ relay draft "Nightly cleanup" --mode auto
 `relay create "<title>"` remains as a compatibility spelling for this raw
 draft operation.
 
-### `relay ticket [<title-or-slug>] [--agent <nickname>]`
+### `relay ticket [<title-or-slug>] [--agent <type>]`
 
 Run the guided ticket-authoring skill. This is the normal path when you want
 Relay to ask clarifying questions, choose a workflow/context/assignee shape,
@@ -310,13 +310,12 @@ relay launch bootstrap/orient --agent codex         # choose a bootstrap agent
 Tasks are addressed by slug — there is no numeric ID. Pass any unique prefix
 (git-short-SHA-style) and ambiguous prefixes error out with the matches listed.
 
-The agent type comes from the ticket's `assignee` (e.g. `claude`) resolved
-through `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`. Pass
-`--agent <nickname>` to use one of your configured agent nicknames for this
-launch only; normal task launches do not rewrite the ticket's `assignee`.
-Bootstrap shims use the same flag for one-off sessions, so `relay chat --agent
-codex` can open the orient shim with Codex while `relay chat --agent claude`
-opens it with Claude.
+The agent type comes from the ticket's `assignee` (e.g. `claude`), which
+names an `[agents.<type>]` block in `relay.toml` directly. Pass
+`--agent <type>` to override for this launch only; normal task launches do
+not rewrite the ticket's `assignee`. Bootstrap shims use the same flag for
+one-off sessions, so `relay chat --agent codex` can open the orient shim
+with Codex while `relay chat --agent claude` opens it with Claude.
 
 For workflow-bound interactive/auto tasks, one `relay launch` can run multiple
 agent-owned steps. After each clean agent exit, Relay re-reads the ticket and
@@ -519,7 +518,7 @@ the alias name forward to the expansion. Default aliases shipped by
 ```toml
 [aliases]
 chat = "launch bootstrap/orient"
-# Optional once those nicknames exist for the current user:
+# Add per-agent shortcuts once those types are declared in `[agents.*]`:
 # claude = "launch bootstrap/orient --agent claude"
 # codex = "launch bootstrap/orient --agent codex"
 ```

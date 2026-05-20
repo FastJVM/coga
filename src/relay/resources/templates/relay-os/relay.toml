@@ -19,12 +19,6 @@ auto = "exec"
 file = "AGENTS.md"
 mode = "local"
 
-# --- Assignees ---
-# Humans, with their per-person agent nicknames.
-
-# [assignees.you]
-# agents = {"claude" = "claude", "codex" = "codex"}
-
 # --- Slack ---
 # Slack is the team sync point — every state change (ticket created,
 # draft → active, active → in_progress, paused/done, bump, panic, slack,
@@ -58,6 +52,7 @@ mode = "local"
 
 [aliases]
 chat = "launch bootstrap/orient"
-# Uncomment after adding matching nicknames under your `[assignees.<user>]`.
+# Uncomment to add per-agent shortcuts. The --agent value must match an
+# `[agents.*]` block above.
 # claude = "launch bootstrap/orient --agent claude"
 # codex = "launch bootstrap/orient --agent codex"
