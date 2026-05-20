@@ -430,12 +430,13 @@ relay delete add-retry
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose
 body invokes the `retro/done-ticket` skill against the named ticket. `retire`
 keeps the single-ticket path; Dream owns batched Retro runs. The retro skill
-opens a PR only when it extracts new durable knowledge; that PR records the
-`## Retro` marker, edits the knowledge base, and deletes the source task
-directory in the same PR. If no new durable knowledge exists, Retro
-records `result: no-new-durable-knowledge` on the source blackboard and opens
-no PR. The retire task is workflow-less, so it is scaffolded straight to
-`active` and launched unless `--no-launch` is passed.
+always deletes the processed source task in a reviewable PR. When it extracts
+new durable knowledge, that PR records the `## Retro` marker, edits the
+knowledge base, and deletes the source task directory together. When no new
+durable knowledge exists, Retro records `result: no-new-durable-knowledge` and
+deletes the ticket in a delete-only prune PR. The retire task is workflow-less,
+so it is scaffolded straight to `active` and launched unless `--no-launch` is
+passed.
 
 Refuses if the target task is not `status: done`. Use `relay delete`
 for an abandoned ticket where retro has nothing to extract. Branch
