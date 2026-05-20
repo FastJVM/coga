@@ -7,6 +7,19 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 Last updated: 2026-05-19.
 
+## Recent decisions (design-then-implement workflow)
+
+- **A thin ticket gets designed before it gets built.** The
+  `code/design-then-implement` workflow adds two steps in front of the
+  normal `implement → open-pr → review` flow: an agent `design` step
+  (skill `code/design`) that writes Description, Acceptance Criteria,
+  Proposed Shape, and Out of Scope into the ticket, and an owner
+  `review-design` gate to approve that spec before any code is written.
+  Use it when a ticket arrives as one or two sentences; use
+  `code/with-review` when the spec is already clear. The design step
+  writes no code — its only output is the fleshed-out ticket plus open
+  questions on the blackboard.
+
 ## Recent decisions (Dream — recurring template plus an alias)
 
 - **Dream is a recurring task template plus an alias.** The standalone
