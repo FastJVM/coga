@@ -192,6 +192,26 @@ code/docs change to that list.
 Dream-owned scripts are skills attached to Relay tasks; they are never
 standalone execution units.
 
+A Dream worker is a plain skill. The shipped Relay workers live under
+`src/relay/resources/templates/relay-os/bootstrap/skills/bootstrap/dream/tasks/<name>/`
+as a `SKILL.md` (standard `name` + `description` frontmatter, plus an
+optional `script: <filename>` entry point) alongside that script. `relay
+init` materializes them into `relay-os/bootstrap/skills/...`, so a workflow
+step references the worker by ref `bootstrap/dream/tasks/<name>`. Running a
+worker is just a `mode: script` Relay task whose one workflow step names that
+skill — it gets a normal ticket, blackboard, and log. There is no separate
+"Dream worker" Python shape, no `worker.main()` import from `relay.commands`,
+and no in-process call path; the worker runs end-to-end through the same
+launch machinery as any other script step.
+
+A `mode: script` launch injects task and skill metadata as environment
+variables instead of CLI argument plumbing — a worker script reads these, not
+a `--blackboard` flag. The full set: `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`,
+`RELAY_TASK_TICKET`, `RELAY_TASK_BLACKBOARD`, `RELAY_TASK_LOG`,
+`RELAY_RELAY_OS_ROOT`, `RELAY_REPO_ROOT`, `RELAY_SKILL_NAME`, and
+`RELAY_SKILL_DIR`. `RELAY_RELAY_OS_ROOT` is the `relay-os/` root; `RELAY_REPO_ROOT`
+is the host repo (its parent when `relay-os/` is nested in a repo).
+
 Each known skill's `SKILL.md` carries a `## Known Skill Contract` section
 with these fields:
 

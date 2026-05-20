@@ -27,3 +27,10 @@ Verification:
 - GitHub checks: `gh pr checks 82 --watch=false` -> no checks reported for the branch.
 
 Note: `relay validate --json` against this worktree's live dogfood `relay-os/` cannot run without creating `relay-os/relay.local.toml`, which this task prompt explicitly says not to edit.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for implement-validate-drift-dream-worker

@@ -23,3 +23,10 @@ tickets:
 - `add-dev-testing-setup-skill`
 - `add-dev-test-run-skill`
 - `add-dev-unit-test-writing-skill`
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for add-dev-unit-test-dream-worker
