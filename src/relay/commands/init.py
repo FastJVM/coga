@@ -208,8 +208,8 @@ def _do_init(path: Path) -> None:
             "Add the bin dir to your PATH so `relay` runs:\n"
             f"       export PATH=\"{bin_dir}:$PATH\""
         )
-    steps.append(f"Edit {relay_os}/relay.toml — set your agents, assignees, channels.")
-    steps.append(f"Set `user` in {local_toml} to match an [assignees.x] in relay.toml.")
+    steps.append(f"Edit {relay_os}/relay.toml — set your agents, Slack, and aliases.")
+    steps.append(f"Set `user` in {local_toml} to your name.")
     steps.append("Run `relay --help` to see what's available.")
 
     typer.echo("")

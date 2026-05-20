@@ -207,3 +207,43 @@ def test_default_chat_alias_registers_outside_repo(
 def test_default_aliases_pass_validation() -> None:
     """The hardcoded defaults must satisfy `_validate_aliases` themselves."""
     _validate_aliases(_DEFAULT_ALIASES)
+
+
+def test_main_lets_init_run_through_broken_config(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`relay init` must dispatch even when the config is legacy/broken — it's
+    the recovery command. A stale CLI + migrated `relay.toml` would otherwise
+    deadlock the very update that fixes it."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text() + '\n[assignees.marc]\n'
+    )
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr("sys.argv", ["relay", "init", "--update"])
+    monkeypatch.setattr("relay.cli._register_alias_placeholder", lambda *_: None)
+
+    captured: dict[str, list[str]] = {}
+
+    def fake_app() -> None:
+        import sys
+        captured["argv"] = list(sys.argv)
+
+    monkeypatch.setattr("relay.cli.app", fake_app)
+    main()
+    assert captured["argv"] == ["relay", "init", "--update"]
+    assert "ignoring config error" in capsys.readouterr().err
+
+
+def test_main_still_exits_on_broken_config_for_non_init(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every command other than `init` still fails loud on a broken config."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text() + '\n[assignees.marc]\n'
+    )
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr("sys.argv", ["relay", "status"])
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
