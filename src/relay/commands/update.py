@@ -521,10 +521,7 @@ def _prune_removed_templates(src_root: Traversable, dst_root: Path) -> list[str]
         rel = dst.relative_to(dst_root)
         if _resource_exists(src_root, rel):
             continue
-        if dst.is_dir():
-            shutil.rmtree(dst)
-        else:
-            dst.unlink()
+        _remove_existing(dst)
         pruned.append(str(rel))
     return pruned
 

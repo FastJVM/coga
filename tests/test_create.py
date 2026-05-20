@@ -275,6 +275,47 @@ def test_backfill_uses_owner_lone_agent_when_assignee_unknown(repo: Path) -> Non
     assert t.agent == "claude1"
 
 
+def test_backfill_freezes_legacy_workflow_and_fills_assignee(repo: Path) -> None:
+    from relay.retrofit import backfill_role_fields
+    from relay.tasks import TaskRef
+    from relay.validate import validate_task_dir
+
+    legacy = repo / "tasks" / "legacy3"
+    legacy.mkdir(parents=True)
+    (legacy / "ticket.md").write_text(dedent(
+        """
+        ---
+        title: Legacy3
+        status: active
+        mode: interactive
+        owner: zach
+        workflow: code/with-review
+        step: 2 (pr)
+        ---
+        """
+    ).lstrip())
+    (legacy / "blackboard.md").write_text("")
+    (legacy / "log.md").write_text("")
+
+    cfg = load_config(repo)
+    assert backfill_role_fields(cfg) == ["legacy3"]
+    t = Ticket.read(legacy / "ticket.md")
+    assert t.human == "zach"
+    assert t.agent == "claude1"  # current user's default when owner is unknown.
+    assert t.assignee == "zach"
+    assert t.workflow["name"] == "code/with-review"
+    assert t.workflow["steps"][0] == {
+        "name": "implement",
+        "skills": ["infra/testing-conventions"],
+    }
+
+    errors = [
+        issue for issue in validate_task_dir(cfg, TaskRef(slug="legacy3", path=legacy))
+        if issue.severity == "error"
+    ]
+    assert errors == []
+
+
 def test_create_with_workflow_and_contexts(repo: Path) -> None:
     cfg = load_config(repo)
     ref = scaffold_task(
