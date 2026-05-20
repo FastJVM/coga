@@ -39,18 +39,21 @@ no in-memory state.
   stateless launch targets for skills. No status, no workflow. Used for
   ticket-less re-entry points like `relay launch bootstrap/orient`
   (the `chat` alias). They are never factories — `relay launch` no
-  longer scaffolds new tickets from shims; use `relay draft` or `relay ticket`
-  for that.
+  longer scaffolds new tickets from shims; use `relay create` for that.
 - **Bundled batteries** are package-backed skills, contexts, hooks, and launch
   shims materialized under `relay-os/bootstrap/` by `relay init` and
   `relay init --update`. `pip install relay-os` puts them in the wheel; init
   materializes them into each repo. They are inspectable local files, but
   edits under `bootstrap/` are overwritten on update. Copy a skill or context
   to the matching `relay-os/skills/` or `relay-os/contexts/` ref to override it.
-- **Dream** is Relay's generic ticket cleanup pass. A Dream run is an ordinary
-  ad-hoc task created by `relay dream`; its body scans the ticket set, runs
-  fixed Relay housekeeping skills, proposes cleanup, and writes reviewable
-  results to its blackboard.
+- **Dream** is Relay's generic ticket cleanup pass. It is a recurring task
+  template (`relay-os/recurring/dream.md`) plus a `dream` alias — not a
+  built-in command. The weekly cron `relay recurring check` scaffolds it; the
+  `relay dream` alias (`recurring scaffold dream --launch`) scaffolds and
+  launches it on demand. The parent task orchestrates child `mode: script`
+  tasks over worker skills; its body scans the ticket set, runs fixed Relay
+  housekeeping skills, proposes cleanup, and writes reviewable results to its
+  blackboard.
 - **REM** is repo/user-specific recurring maintenance. A REM run is an
   ordinary recurring task whose body defines that repo's operational checks,
   domain skills, output conventions, and review gates.
@@ -105,25 +108,44 @@ Extensions live in the same frontmatter the prompt composer already
 reads, so no extra layer is needed — the field is in every composed
 prompt by virtue of being on the ticket.
 
+## Workflow gated at activation, not draft time
+
+`relay draft` (and its compatibility spelling `relay create`) take an
+*optional* `--workflow <name>`. A workflow-less draft is a valid authoring
+state — drafting captures intent before its shape is settled.
+
+The bumpability guarantee moves to activation. `relay mark active` refuses
+to activate a ticket that has no workflow, with an error pointing at either
+`--workflow` or `relay ticket` for guided authoring. This closes the same
+failure mode — a launched ticket no `relay bump` can ever advance — at the
+moment work is approved rather than the moment it is drafted, so a
+half-formed draft is never blocked on a workflow decision it isn't ready to
+make.
+
+`relay ticket` (guided authoring) fills the workflow in through its
+interview skill. `relay recurring` scaffolding (the cron `check` and the
+on-demand `scaffold`, including the `relay dream` alias) and `relay retire`
+scaffold their own one-shots by calling `scaffold_task` directly — they are
+intentional internal exceptions, not user-authored drafts.
+
 ## Two state machines per ticket
 
-- **Control plane (`status`)** — `draft → active → in_progress → done`, plus
-  `paused`. `draft` is unapproved, `active` is approved/queued, and
-  `in_progress` is launched work. `relay mark active | paused | done` owns
-  human-visible status changes; `relay launch` owns the `active` →
-  `in_progress` start transition.
+- **Control plane (`status`)** — `draft → active → done`, plus
+  `paused`. Governs *whether* work happens. Owned entirely by
+  `relay mark active | paused | done`. No other command writes to
+  `status:` — `launch` reads it (refuses non-active) and `bump` ignores
+  it (it owns `step:`, not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `relay bump`. Only advances
-  when status is `in_progress`. Pausing preserves the step; marking done
+  when status is `active`. Pausing preserves the step; marking done
   clears it.
 
 Tickets without a `workflow` field have no steps and move through
 statuses directly via `relay mark`. `relay bump` refuses them.
 
-The split is deliberate: each command owns a narrow move. `relay draft`
-authors a raw draft, `relay ticket` runs guided ticket authoring, `relay mark`
-approves/pauses/finishes work, `relay launch` starts or resumes execution, and
-`relay bump` advances steps.
+The split is deliberate: each command owns one plane. `relay create`
+authors a draft, `relay mark` flips status, `relay bump` advances
+steps, `relay launch` spawns the agent. None of them overlap.
 
 ## Three modes
 
@@ -154,12 +176,12 @@ loading.
 ## Status is the signal
 
 There is no filesystem mutex. The ticket's `status` (`draft`, `active`,
-`in_progress`, `paused`, `done`) is the signal that someone is — or isn't —
-working on a task. `relay launch` refuses drafts and paused/done tickets,
-starts active tickets by marking them `in_progress`, and resumes tickets that
-are already `in_progress`. The failure mode of two divergent workers (two
-blackboard edits, two PR branches) is visible and recoverable in git; the cost
-of a hard mutex (stale lock files, `--force` flags, orphan-lock cleanup) is not.
+`paused`, `done`) is the signal that someone is — or isn't — working on
+a task. `relay launch` refuses any non-active ticket and points the
+operator at `relay mark active <slug>` — there is no auto-flip from
+draft. The failure mode of two divergent workers (two blackboard edits,
+two PR branches) is visible and recoverable in git; the cost of a hard
+mutex (stale lock files, `--force` flags, orphan-lock cleanup) is not.
 
 ## Command Surface
 
@@ -169,15 +191,35 @@ is no server-side state behind them.
 
 ## Dream's known-skill contract
 
-Dream is not a plugin host. The body of `bootstrap/dream` (the `dream.md`
-prompt resource) owns an explicit, ordered list of known skills it will run
-and is the only control point. Dropping a SKILL.md under
-`bootstrap/dream/tasks/` does not enable it; there is no recursive discovery,
-no registry, and no daemon. Adding another Dream skill is a normal Relay
-code/docs change to that list.
+Dream is not a plugin host. The body of the `relay-os/recurring/dream.md`
+template — composed into each Dream task's `## Description` — owns an explicit,
+ordered list of known skills it will run and is the only control point.
+Dropping a SKILL.md under `bootstrap/dream/tasks/` does not enable it; there is
+no recursive discovery, no registry, and no daemon. Adding another Dream skill
+is a normal Relay code/docs change to that list.
 
 Dream-owned scripts are skills attached to Relay tasks; they are never
 standalone execution units.
+
+A Dream worker is a plain skill. The shipped Relay workers live under
+`src/relay/resources/templates/relay-os/bootstrap/skills/bootstrap/dream/tasks/<name>/`
+as a `SKILL.md` (standard `name` + `description` frontmatter, plus an
+optional `script: <filename>` entry point) alongside that script. `relay
+init` materializes them into `relay-os/bootstrap/skills/...`, so a workflow
+step references the worker by ref `bootstrap/dream/tasks/<name>`. Running a
+worker is just a `mode: script` Relay task whose one workflow step names that
+skill — it gets a normal ticket, blackboard, and log. There is no separate
+"Dream worker" Python shape, no `worker.main()` import from `relay.commands`,
+and no in-process call path; the worker runs end-to-end through the same
+launch machinery as any other script step.
+
+A `mode: script` launch injects task and skill metadata as environment
+variables instead of CLI argument plumbing — a worker script reads these, not
+a `--blackboard` flag. The full set: `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`,
+`RELAY_TASK_TICKET`, `RELAY_TASK_BLACKBOARD`, `RELAY_TASK_LOG`,
+`RELAY_RELAY_OS_ROOT`, `RELAY_REPO_ROOT`, `RELAY_SKILL_NAME`, and
+`RELAY_SKILL_DIR`. `RELAY_RELAY_OS_ROOT` is the `relay-os/` root; `RELAY_REPO_ROOT`
+is the host repo (its parent when `relay-os/` is nested in a repo).
 
 Each known skill's `SKILL.md` carries a `## Known Skill Contract` section
 with these fields:

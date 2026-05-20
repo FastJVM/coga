@@ -25,7 +25,7 @@ incoming webhook. The current broadcast surface:
 - `relay mark paused` / `relay mark done` — control-plane transitions away
   from active or in-progress work.
 - `relay bump` — step advances (workflow plane only).
-  Optional `--message` piggy-backs an FYI onto the broadcast.
+  Optional `--message` piggy-backs an FYI onto any transition broadcast.
 - `relay automerge` (and the `post-merge` hook + `relay status` callers
   that wrap it) — auto-bumps active/in-progress tickets to `done` when their
   blackboard `## Dev` PR has merged. Posts a distinct

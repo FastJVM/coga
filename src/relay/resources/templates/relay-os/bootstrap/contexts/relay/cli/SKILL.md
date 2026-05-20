@@ -26,29 +26,24 @@ resources. It does not modify a repo. `relay init` and `relay init --update`
 materialize those package resources into `relay-os/bootstrap/`, where Relay
 resolves them after project-local `relay-os/skills` and `relay-os/contexts`.
 
-## relay draft "\<title\>" [--mode interactive|auto|script]
+## relay draft "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
 
-Scaffold a new raw `draft` ticket and post `✨` to Slack. Does not launch an
-agent and does not choose workflow, contexts, or assignee beyond defaults. Use
-this when you already want bytes on disk and will author the ticket yourself.
+Scaffold a new raw `draft` ticket and post `✨` to Slack. Does not launch
+an agent. Step one of the three-step boot: `draft` → edit the body /
+workflow / contexts as needed → `relay mark active <slug>` →
+`relay launch <slug>`. `relay create` is a compatibility spelling for
+`relay draft` — identical behavior, no guided interview.
 
-`relay create "<title>"` is a compatibility spelling for the same raw draft
-operation.
+`--workflow <name>` (path under `relay-os/workflows/`) is optional. A
+workflow-less draft is a valid authoring state; the workflow can be added
+to the ticket any time before activation. The bumpability gate lives at
+activation, not here: `relay mark active` refuses a workflow-less ticket
+with an error pointing at `--workflow` or `relay ticket`. For guided
+authoring that fills the workflow in for you, use `relay ticket`.
 
-## relay ticket [\<title-or-slug\>] [--agent <type>]
-
-Run the guided ticket-authoring interview (`bootstrap/ticket`).
-
-- `relay ticket` — ask for a title, create a draft, and fill it.
-- `relay ticket "Add retry to webhook handler"` — create that draft, then
-  launch the authoring skill against it.
-- `relay ticket add-retry` — edit an existing `draft`, `active`, or `paused`
-  ticket. Refuses `in_progress` and `done` tickets by default.
-
-The guided authoring flow chooses workflow/context/assignee with the human,
-edits the ticket, and leaves status unchanged. For a new draft, the boot
-sequence is: `relay ticket "<title>"` → review/edit → `relay mark active
-<slug>` → `relay launch <slug>`.
+The deliberate separation keeps the moment of authorship distinct from
+the moment of starting work. Tickets you mean to draft now and start
+later get the same call; nothing fires the agent until you choose to.
 
 ## relay mark \<state\> \<slug\> [--message "..."]
 
@@ -58,26 +53,25 @@ the command shape is `<status field value> on disk` = `<mark
 subcommand>`.
 
 - `mark active <slug>` — allowed from `draft` or `paused`. Posts `🚀`.
-- `mark paused <slug>` — allowed from `active` or `in_progress`. Preserves `step:`.
+- `mark paused <slug>` — allowed from `active`. Preserves `step:`.
   Posts `⏸️`.
-- `mark done <slug>` — allowed from `active` or `in_progress`. Clears `step:`. Posts
+- `mark done <slug>` — allowed from `active`. Clears `step:`. Posts
   `🎉`. Use this to finish a workflow on its final step, or to finish
   any ticket without a workflow.
 
 `--message` piggy-backs an FYI onto the Slack broadcast.
 
-`relay launch` owns the `active` → `in_progress` transition. `relay bump` no
-longer marks final-step tickets done.
+Status transitions live nowhere else. `relay launch` no longer activates
+drafts; `relay bump` no longer marks final-step tickets done. The two
+state machines are completely separated.
 
 ## relay launch \<target\>
 
 Compose every relevant file (rules + repo context + ticket contexts +
 current step's skill + blackboard + ticket body) into one prompt and
-start the configured agent. Requires `status: active` or `in_progress`:
-drafts must be activated via `relay mark active <slug>` first; paused / done
-tickets must be marked back to active before they can be launched. Launching
-an active ticket marks it `in_progress` before spawning the agent; launching
-an already-`in_progress` ticket resumes it without another status flip.
+start the configured agent. Requires `status: active` — drafts must be
+activated via `relay mark active <slug>` first; paused / done tickets
+must be marked back to active before they can be launched.
 Interactive launches require stdin and stdout to both be terminals.
 **`mode: auto` is temporarily disabled** — auto runs (claude `-p`, codex
 `exec`) buffer stdout until completion, leaving the operator with no
@@ -100,16 +94,16 @@ launchable; reassign to an agent type first.
 
 For workflow-bound interactive/auto tasks, `launch` can continue through
 consecutive agent-owned steps in fresh processes. After a clean agent exit,
-it re-reads the ticket and continues only if the task is still `in_progress`, the
+it re-reads the ticket and continues only if the task is still active, the
 step advanced, the new current step has `skill:`, and the concrete assignee
 did not change. It stops at human/no-skill steps, assignee handoffs, done or
 paused tasks, no-progress exits, and panic/non-zero exits.
 
 That supervisor loop only exists when a live `relay launch` process is
 running around the agent. API/manual sessions still follow the base prompt:
-after `relay bump`, inspect the new ticket state and continue any still
-`in_progress`, same-assignee next step with a `skill:` directly instead of
-stopping after the first bump.
+after `relay bump`, inspect the new ticket state and continue any still-active,
+same-assignee next step with a `skill:` directly instead of stopping after the
+first bump.
 
 `--prompt-report` is for prompt-scope inspection. Its token counts use a
 dependency-light `characters / 4` estimate, so treat them as a prompt-bloat
@@ -117,7 +111,7 @@ guardrail and task-to-task comparison, not exact provider billing.
 
 ## relay status
 
-List every task in the repo — `draft`, `active`, `in_progress`, `paused`, and `done`.
+List every task in the repo — `draft`, `active`, `paused`, and `done`.
 Bootstrap shims have no status and don't appear here. No filtering
 flags yet; pipe through `grep` if you want to slice the output.
 
@@ -147,7 +141,7 @@ that don't fit a transition, reach for `relay slack` instead.
 
 ## relay automerge
 
-Walk active/in-progress tickets; bump any whose blackboard `## Dev` section names a
+Walk active tickets; bump any whose blackboard `## Dev` section names a
 PR that has merged on GitHub. Looks each PR up via `gh pr view`. Scope:
 tickets on their final workflow step, or with no workflow at all.
 Mid-workflow merges stay alone — those need a human eye.
@@ -177,12 +171,13 @@ Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
 invokes the `retro/done-ticket` skill against the named ticket. The retro
 skill opens the PR that records the `## Retro` marker, edits the knowledge
 base if warranted, and deletes the source task directory in the same PR.
-`relay retire` is the launcher.
+`relay retire` activates and launches the retire task unless `--no-launch` is
+passed.
 
 - `relay retire <slug>` — scaffold and launch in `interactive` mode (auto is
-  temporarily disabled — see `relay launch` above).
+  temporarily disabled).
 - `relay retire <slug> --no-launch` — scaffold the retire task and print the
-  explicit `relay launch <slug>` command.
+  explicit `relay mark active` / `relay launch` sequence.
 
 Refuses if the target task is not `status: done`. Use `relay delete` for an
 abandoned ticket where retro has nothing to extract. Branch hygiene (pruning
@@ -216,31 +211,38 @@ not two. Slack is required (see `relay/sync`); commands crash if
 `$SLACK_WEBHOOK_URL` is unset and the user hasn't opted out via
 `[slack].enabled = false`.
 
-## relay dream [--agent <type>] [--no-launch]
+## relay dream
 
-Create an ad-hoc Dream cleanup task for the current Relay repo. The task slug
-is plain slug allocation (`dream`, `dream-2`, etc.), not a schedule or time
-bucket. By default the command immediately launches the new task in
-`interactive` mode using the first-declared `[agents.<type>]` block in
-`relay.toml`. (Auto mode is temporarily disabled — see `relay launch` above.)
+Run Relay's generic cleanup pass now. `dream` is not a built-in command — it
+is a default alias for `recurring scaffold dream --launch`. It scaffolds the
+`relay-os/recurring/dream.md` recurring task and launches it interactively.
 
-- `relay dream` — create and launch a Dream cleanup run now.
-- `relay dream --agent codex` — assign the run to a specific agent type.
-- `relay dream --no-launch` — scaffold the run and print the explicit
-  `relay launch <slug>` command.
-
-Dream scans current task state, runs the known Relay housekeeping pass, writes
-its results to that run's blackboard, and should finish with `relay bump`.
-It is not the recurring scheduler and does not use `relay-os/recurring/`.
+The task slug is the recurring period key (`dream-2026-W21`), shared with the
+weekly cron run: running `relay dream` mid-week reuses that week's task instead
+of creating a second one. Dream scans current task state, runs the known Relay
+housekeeping pass, writes results to that run's blackboard, and finishes with
+`relay mark done`.
 
 ## relay recurring check
 
 Scan `relay-os/recurring/` and scaffold any due tasks. Cron entry point;
 called from `relay-os/scripts/cron.sh`.
 
-REM and other user-defined recurring maintenance loops use this surface.
-Dream currently uses `relay dream` directly so manual cleanup runs do not
-depend on a schedule-derived slug.
+Dream, REM, and other recurring maintenance loops all use this surface.
+`relay-os/recurring/dream.md` is the Dream cleanup template; the weekly cron
+firing scaffolds it like any other recurring task.
+
+## relay recurring scaffold \<name\> [--launch]
+
+Scaffold one named recurring template now, ignoring its schedule. `name` is
+the file stem under `relay-os/recurring/`. The task slug still uses the
+template's schedule-derived period key, so a manual `scaffold` and the cron
+`check` converge on one task directory per period (idempotent — a second
+`scaffold` in the same period is a no-op).
+
+- `relay recurring scaffold dream` — scaffold this period's Dream task.
+- `relay recurring scaffold dream --launch` — also activate and launch it.
+  This is exactly what the `relay dream` alias expands to.
 
 **`mode: auto` templates are temporarily skipped** with a stderr/Slack note.
 The auto-launch path produces no live console output, so scheduled runs
@@ -261,11 +263,13 @@ Default aliases shipped by `relay init`:
 ```toml
 [aliases]
 chat = "launch bootstrap/orient"
+dream = "recurring scaffold dream --launch"
 ```
 
-`create` is a built-in command, not an alias (it has its own
-scaffolding behavior beyond what a `launch bootstrap/...` expansion
-would give it).
+`chat` and `dream` are also registered as built-in default aliases, so they
+dispatch even in repos whose `relay.toml` predates the line. `create` is a
+built-in command, not an alias (it has its own scaffolding behavior beyond
+what a `launch bootstrap/...` expansion would give it).
 
 Rules: alias names can't collide with built-in commands; the first
 token of the expansion must be a known built-in. Both checked at
@@ -274,15 +278,14 @@ only; they don't accept their own flags.
 
 ## Pick which command
 
-- Scaffolding a raw new draft → `relay draft "<title>"`.
-- Guided ticket authoring → `relay ticket` or `relay ticket "<title-or-slug>"`.
+- Scaffolding a new draft → `relay create "<title>"`.
 - Activating a draft to start work → `relay mark active <slug>`.
 - Pausing a task → `relay mark paused <slug>`.
 - Finishing a task (final step, or no workflow) → `relay mark done <slug>`.
 - Ticket-less chat session → `relay chat` (alias for
   `launch bootstrap/orient`).
 - Running Relay cleanup now → `relay dream`.
-- Starting or resuming agent work → `relay launch <slug>`.
+- Spawning the agent on an active task → `relay launch <slug>`.
 - Other bootstrap shim → `relay launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `relay bump`.
 - Catching up tickets after a teammate merged a PR → `relay automerge`
@@ -310,5 +313,5 @@ place to apply safe fixes and broadcast a summary during a Dream run.
 - The mental model behind these commands (primitives, planes, prompt
   composition, locking) — see `relay/architecture`.
 - Where source lives + how to test changes — see `relay/codebase`.
-- Reference contracts (config schemas, frontmatter shapes, error
-  tables) — see `docs/spec.md`.
+- Reference contracts — frontmatter shapes and primitives are in
+  `relay/architecture`; config schemas live in `src/relay/config.py`.
