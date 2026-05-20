@@ -34,8 +34,14 @@ later `code/open-pr` step does that, after self-review and fixes.
    prompt composition, or workflow semantics (per CLAUDE.md).
 6. **Commit.** Conventional, present-tense summary line. Reference the
    ticket slug in the body. One commit per logical change is fine.
-7. **Bump from the primary checkout.** Return to the primary checkout
-   and run `relay bump <slug>` to advance to `review`.
+7. **Bump — this is what ends the step.** Return to the primary
+   checkout and run `relay bump <slug>`. This advances the workflow to
+   the next step and is the *only* thing that does so — there is no
+   autobump. If you stop here without running it, the workflow stalls
+   on `implement`, the later steps (open the PR, review) never start,
+   and your work is invisible even though the code is committed on
+   disk. Do not end the session until `relay bump` has run cleanly; if
+   something blocks you from reaching it, `relay panic` with a reason.
 
 ## Acceptance for this step
 
@@ -45,6 +51,7 @@ later `code/open-pr` step does that, after self-review and fixes.
 - Changes committed (no working-tree modifications left).
 - No push, no PR yet.
 - Blackboard reflects what changed and any decisions made.
+- `relay bump <slug>` has been run — the step is not done until it has.
 
 ## What this skill does NOT do
 
