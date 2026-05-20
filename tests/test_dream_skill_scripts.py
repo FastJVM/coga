@@ -227,3 +227,65 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
     assert "Required delete skill is missing" not in blackboard
     assert "`processed-ticket`: processed marker present" not in blackboard
     assert (repo / "tasks" / "processed-ticket").is_dir()
+
+
+def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> None:
+    """A blackboard that only mentions the marker strings in prose — e.g. a
+    ticket documenting the marker format — must not be detected as a candidate.
+    `## Retro` counts only as a line-start heading."""
+    _install_dream_skill(repo, "cleanup-orphan-markers")
+    _write_workflow(
+        repo,
+        "cleanup-orphan-markers",
+        "bootstrap/dream/tasks/cleanup-orphan-markers",
+    )
+    _write(
+        repo / "tasks" / "documents-the-marker" / "ticket.md",
+        """
+        ---
+        title: Documents The Marker
+        status: done
+        mode: interactive
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Built the marker-detection skill.
+        """,
+    )
+    _write(
+        repo / "tasks" / "documents-the-marker" / "blackboard.md",
+        """
+        Notes on the design.
+
+        It scans exact `status: done` task directories for a `## Retro` block
+        with `skill: retro/done-ticket` and `status: processed`; if candidates
+        exist it gates deletion through the public delete skill.
+        """,
+    )
+    _write(repo / "tasks" / "documents-the-marker" / "log.md", "")
+
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg,
+        title="Cleanup Orphan Markers",
+        workflow_name="cleanup-orphan-markers",
+        contexts=[],
+        mode="script",
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "cleanup-orphan-markers"])
+
+    assert result.exit_code == 0, result.output
+    refs = {ref.slug: ref for ref in list_tasks(cfg)}
+    blackboard = (refs["cleanup-orphan-markers"].path / "blackboard.md").read_text()
+    assert "## Dream Skill: cleanup-orphan-markers" in blackboard
+    assert "Result: no-op." in blackboard
+    assert "`documents-the-marker`" not in blackboard
+    assert (repo / "tasks" / "documents-the-marker").is_dir()

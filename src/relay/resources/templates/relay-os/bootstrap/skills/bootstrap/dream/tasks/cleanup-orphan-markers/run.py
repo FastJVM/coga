@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -15,7 +16,11 @@ from pathlib import Path
 import yaml
 
 
-RETRO_HEADING = "## Retro"
+# `## Retro` must be matched only as a line-start markdown heading. A ticket
+# that documents the marker format mentions `## Retro` inline in prose; that is
+# not a marker and must not be detected as one.
+RETRO_HEADING_RE = re.compile(r"^## Retro[ \t]*$", re.MULTILINE)
+NEXT_HEADING_RE = re.compile(r"^## ", re.MULTILINE)
 RETRO_SKILL = "skill: retro/done-ticket"
 RETRO_STATUS = "status: processed"
 RETRO_NO_NEW = "result: no-new-durable-knowledge"
@@ -83,14 +88,19 @@ def load_status(ticket_path: Path) -> str | None:
 
 
 def retro_block(text: str) -> str:
-    marker = text.find(RETRO_HEADING)
-    if marker == -1:
+    """Return the body of the `## Retro` heading section, or "" if absent.
+
+    Only a line-start `## Retro` heading counts. A bare mention of the string
+    `## Retro` inside prose is not a marker.
+    """
+    heading = RETRO_HEADING_RE.search(text)
+    if heading is None:
         return ""
-    rest = text[marker + len(RETRO_HEADING) :]
-    next_heading = rest.find("\n## ")
-    if next_heading == -1:
+    rest = text[heading.end() :]
+    next_heading = NEXT_HEADING_RE.search(rest)
+    if next_heading is None:
         return rest
-    return rest[:next_heading]
+    return rest[: next_heading.start()]
 
 
 def has_cleanup_eligible_retro_marker(blackboard: Path) -> bool:
