@@ -495,7 +495,9 @@ def test_cli_draft_scaffolds_draft_and_posts(
     monkeypatch.setattr("relay.slack.requests.post", _capture)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["draft", "Investigate retries"])
+    result = runner.invoke(
+        app, ["draft", "Investigate retries", "--workflow", "code/with-review"]
+    )
     assert result.exit_code == 0, result.output
 
     cfg = load_config(repo)
@@ -531,7 +533,9 @@ def test_cli_create_scaffolds_draft_and_posts(
     monkeypatch.setattr("relay.slack.requests.post", _capture)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["create", "Investigate retries"])
+    result = runner.invoke(
+        app, ["create", "Investigate retries", "--workflow", "code/with-review"]
+    )
     assert result.exit_code == 0, result.output
 
     cfg = load_config(repo)
@@ -566,7 +570,9 @@ def test_cli_create_does_not_spawn_agent(
     monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run, raising=False)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["create", "Just a draft"])
+    result = runner.invoke(
+        app, ["create", "Just a draft", "--workflow", "code/with-review"]
+    )
     assert result.exit_code == 0, result.output
     assert not called
 
@@ -574,7 +580,10 @@ def test_cli_create_does_not_spawn_agent(
 def test_cli_create_mode_option(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["create", "Auto job", "--mode", "auto"])
+    result = runner.invoke(
+        app,
+        ["create", "Auto job", "--mode", "auto", "--workflow", "code/with-review"],
+    )
     assert result.exit_code == 0, result.output
     t = Ticket.read(repo / "tasks" / "auto-job" / "ticket.md")
     assert t.mode == "auto"
@@ -585,6 +594,71 @@ def test_cli_create_rejects_empty_title(repo: Path, monkeypatch: pytest.MonkeyPa
     runner = CliRunner()
     result = runner.invoke(app, ["create", "   "])
     assert result.exit_code == 2
+
+
+# --- workflow always required ------------------------------------------------
+
+
+def test_cli_create_workflow_flag_attaches_workflow(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay create --workflow <name>` attaches the workflow to the draft."""
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "relay.slack.requests.post",
+        lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        app, ["create", "With workflow", "--workflow", "code/with-review"]
+    )
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(repo / "tasks" / "with-workflow" / "ticket.md")
+    assert t.workflow is not None
+    assert t.workflow["name"] == "code/with-review"
+    assert t.step == "1 (implement)"
+
+
+def test_cli_create_refuses_without_workflow(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay create` without `--workflow` is unconditionally refused."""
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "No workflow"])
+    assert result.exit_code == 2, result.output
+    assert "workflow is required" in result.output
+    assert "--workflow" in result.output
+    assert not (repo / "tasks" / "no-workflow").exists()
+
+
+def test_cli_draft_refuses_without_workflow(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Same refusal applies to `relay draft`."""
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["draft", "Still no workflow"])
+    assert result.exit_code == 2, result.output
+    assert "workflow is required" in result.output
+
+
+def test_scaffold_draft_allow_no_workflow_bypasses_check(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The guided-authoring path opts out of the always-on requirement."""
+    from relay.commands.create import scaffold_draft
+
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "relay.slack.requests.post",
+        lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
+    )
+    result = scaffold_draft(
+        title="Interview start", mode="interactive", allow_no_workflow=True
+    )
+    t = Ticket.read(result["path"] / "ticket.md")
+    assert t.workflow is None
 
 
 # --- ticket frontmatter extensions ------------------------------------------

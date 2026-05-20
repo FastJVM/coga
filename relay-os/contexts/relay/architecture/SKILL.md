@@ -104,6 +104,21 @@ Extensions live in the same frontmatter the prompt composer already
 reads, so no extra layer is needed — the field is in every composed
 prompt by virtue of being on the ticket.
 
+## Workflow required at draft time
+
+`relay create` / `relay draft` always require `--workflow <name>`.
+Workflow-less drafts are refused. This closes the failure mode where an
+agent calls `relay create "<title>"`, produces a workflow-less draft,
+and no `relay bump` can ever advance it. The guarded path keeps every
+human-authored ticket bumpable by construction — no config knob, no
+opt-in.
+
+The gate sits at the user-facing CLI surface only. `relay ticket`
+(guided authoring) bypasses it because its interview skill fills the
+workflow in. `relay dream` and `relay retire` keep scaffolding their
+own workflow-less one-shots — they call `scaffold_task` directly and
+are intentional internal exceptions, not user-authored drafts.
+
 ## Two state machines per ticket
 
 - **Control plane (`status`)** — `draft → active → done`, plus

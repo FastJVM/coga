@@ -286,3 +286,5 @@ def test_ticket_fields_required_must_be_bool(repo: Path) -> None:
     )
     with pytest.raises(ConfigError, match="required must be a boolean"):
         load_config(repo)
+
+
