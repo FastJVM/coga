@@ -4,8 +4,8 @@ status: done
 mode: interactive
 owner: nick
 human: nick
-agent: codex1
-assignee: codex1
+agent: codex
+assignee: codex
 contexts:
 - relay/architecture
 - relay/principles

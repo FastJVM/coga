@@ -21,10 +21,10 @@ mode = "local"
 # --- Assignees ---
 
 [assignees.nick]
-agents = {"claude1" = "claude", "codex1" = "codex"}
+agents = {"claude" = "claude", "codex" = "codex"}
 
 [assignees.zach]
-agents = {"claude1" = "claude", "codex1" = "codex"}
+agents = {"claude" = "claude", "codex" = "codex"}
 
 # --- Slack ---
 # Slack is the team sync point — every state change (ticket created,
@@ -98,5 +98,5 @@ panic = [
 
 [aliases]
 chat = "launch bootstrap/orient"
-claude = "launch bootstrap/orient --agent claude1"
-codex = "launch bootstrap/orient --agent codex1"
+claude = "launch bootstrap/orient --agent claude"
+codex = "launch bootstrap/orient --agent codex"

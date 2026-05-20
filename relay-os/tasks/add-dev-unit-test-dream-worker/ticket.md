@@ -4,8 +4,8 @@ status: done
 mode: interactive
 owner: nick
 human: nick
-agent: claude1
-assignee: claude1
+agent: claude
+assignee: claude
 contexts:
 - relay/codebase
 - relay/current-direction

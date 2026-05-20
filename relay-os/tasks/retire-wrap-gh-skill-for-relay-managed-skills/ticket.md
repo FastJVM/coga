@@ -4,8 +4,8 @@ status: draft
 mode: auto
 owner: nick
 human: nick
-agent: claude1
-assignee: claude1
+agent: claude
+assignee: claude
 contexts: []
 skills: []
 workflow: null
