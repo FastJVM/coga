@@ -240,7 +240,7 @@ def test_recurring_scaffold_creates_dream_task(dream_repo: Path) -> None:
     assert ticket.workflow is None
     # The recurring template's `## Description` body composes into the ticket.
     assert "Run the Dream cleanup pass for this Relay repo." in ticket.body
-    assert "### Ordered Skill Pass" in ticket.body
+    assert "### Run order" in ticket.body
     # Slug uses the schedule-derived period key, not plain `dream`.
     assert refs[0].slug.startswith("dream-")
     assert refs[0].slug != "dream"

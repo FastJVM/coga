@@ -1,6 +1,6 @@
 ---
 name: retro/done-ticket
-description: Extract durable knowledge from one done ticket or a coherent batch into Relay contexts or skills and open a reviewable PR only when new knowledge exists.
+description: Extract durable knowledge from one done ticket or every eligible done ticket in a single run into Relay contexts or skills, opening one reviewable PR per coherent theme only when new knowledge exists.
 ---
 
 # Retro Done Ticket
@@ -8,22 +8,24 @@ description: Extract durable knowledge from one done ticket or a coherent batch 
 Retro is a prompt-only Codex skill and the knowledge-extraction gate for
 done-ticket cleanup. Dream may call it for eligible completed tasks, but Retro
 is not Dream, not a Python worker, and not a cleanup command. Its job is to
-read one completed ticket or a small coherent batch, compare the evidence
-against the repo's context and skill corpus, and decide whether the task(s)
-contain durable knowledge worth adding to Relay. When they do, Retro opens a
-reviewable PR that records the source-task `## Retro` markers, updates the
-knowledge base, and deletes the source task directories in that same PR. When
-they do not, Retro records no-op markers on the source blackboards and stops
-without opening a marker-only PR.
+read one completed ticket — or every eligible done ticket Dream passes in a
+single run — compare the evidence against the repo's context and skill corpus,
+and decide whether each task contains durable knowledge worth adding to Relay.
+A run loads the corpus once and processes every slug it was given; it then
+partitions the tickets that hold new knowledge into coherent themes and opens
+one reviewable PR per theme, each recording the source-task `## Retro` markers,
+updating the knowledge base, and deleting those source task directories in the
+same PR. Source tasks with no new durable knowledge get a no-op marker on their
+blackboard and no PR.
 
 ## Known Skill Contract
 
-- Purpose: extract durable knowledge from one done ticket or a coherent batch,
-  mark that Retro has processed each source task, and avoid marker-only cleanup
-  PRs when no new knowledge exists.
-- Runs: `retro/done-ticket <task-slug> [<task-slug> ...]` after Dream or a
-  human chooses one exact done ticket, or Dream chooses a coherent batch of at
-  most five exact done tickets.
+- Purpose: extract durable knowledge from one done ticket or every eligible
+  done ticket in a single run, mark that Retro has processed each source task,
+  and avoid marker-only cleanup PRs when no new knowledge exists.
+- Runs: `retro/done-ticket <task-slug> [<task-slug> ...]` after a human
+  chooses one exact done ticket, or Dream passes every eligible done ticket in
+  one run. The run partitions them into coherent PR batches itself.
 - Inputs: each source task's `ticket.md`, `blackboard.md`, and `log.md`, plus
   every local and bundled context/skill file under `relay-os/contexts/`,
   `relay-os/bootstrap/contexts/`, `relay-os/skills/`, and
@@ -40,12 +42,13 @@ without opening a marker-only PR.
   `status: processed`, or an open PR is adding that marker or deleting the
   source task directory.
 - Stop and ask: any slug is ambiguous, any task is not `status: done`, any
-  required evidence file is missing, a batch exceeds the hard limits or cannot
-  be made coherent, or the diff would touch anything outside the allowed files
-  or the exact source task directories.
-- Output: one coherent PR with knowledge edits and source task deletion for the
-  source tasks that contributed new knowledge, or direct
-  `no-new-durable-knowledge` markers with no PR and no source deletion.
+  required evidence file is missing, a single coherent theme still exceeds the
+  per-PR hard limits, or the diff would touch anything outside the allowed
+  files or the exact source task directories.
+- Output: one coherent PR per knowledge theme, each with knowledge edits and
+  source task deletion for the tickets that contributed new knowledge, plus
+  direct `no-new-durable-knowledge` markers (no PR, no source deletion) for
+  tickets that contributed none.
 
 ## Scope
 
@@ -57,9 +60,9 @@ Do:
 - read every skill file under `relay-os/skills/**/SKILL.md` and
   `relay-os/bootstrap/skills/**/SKILL.md`;
 - decide whether each ticket contains new, useful durable knowledge;
-- maintain a running in-memory delta while processing the selected tickets, so
-  later tickets compare against the original corpus plus facts already accepted
-  during this batch;
+- maintain a running in-memory delta across the whole run — every ticket and
+  every PR batch — so later tickets compare against the original corpus plus
+  facts already accepted earlier in the run;
 - update, create, split, merge, or delete context blocks when warranted;
 - update or create a skill only when a ticket contains repeatable process
   knowledge that is not already covered;
@@ -67,8 +70,9 @@ Do:
   `blackboard.md`;
 - when new durable knowledge exists, delete the source ticket directory in the
   same PR after recording the marker;
-- when new durable knowledge exists, open one PR containing the knowledge-base
-  changes and source task deletion for the coherent batch;
+- when new durable knowledge exists, open one PR per coherent theme, containing
+  that theme's knowledge-base changes and the deletion of its contributing
+  source tasks;
 - when no new durable knowledge exists, record the marker directly and leave
   the source task directory in place;
 - post a one-line Slack FYI with the PR title and link when Slack is
@@ -109,15 +113,15 @@ Do not:
 - inspect old revisions of context or skill files.
 
 If a fact is present in the current file on disk, it is covered. If another
-selected ticket already added the fact to this batch's running delta, it is
-covered for the rest of the batch. Otherwise it is not covered. That is the only
-test.
+ticket already added the fact to this run's running delta, it is covered for
+the rest of the run. Otherwise it is not covered. That is the only test.
 
 ## Inputs
 
 This skill is invoked with one or more parameters: exact done ticket slugs. Work
-from the repo root. `relay retire <slug>` passes one slug. Dream may pass a
-coherent batch of up to five slugs.
+from the repo root. `relay retire <slug>` passes one slug. Dream passes every
+eligible done ticket in one run; the skill partitions them into coherent PR
+batches itself.
 
 Required files:
 
@@ -130,9 +134,9 @@ Required files:
 - `relay-os/bootstrap/skills/**/SKILL.md`
 
 Stop and ask if any task slug is ambiguous, any task is not `status: done`, any
-required task evidence file is missing, the batch cannot be kept within the
-hard limits below, or there is already an open PR adding a `## Retro` marker for
-the same source task.
+required task evidence file is missing, a single coherent theme cannot be kept
+within the per-PR hard limits below, or there is already an open PR adding a
+`## Retro` marker for the same source task.
 
 ## Workflow
 
@@ -157,21 +161,25 @@ the same source task.
    do not consult git history, prior PRs, or old revisions for any of this.
 
 4. **Maintain the running delta.**
-   As you accept new knowledge from a ticket, add it to an in-memory batch delta
+   As you accept new knowledge from a ticket, add it to an in-memory run delta
    before reading the next ticket. Compare later tickets against the original
-   corpus plus that delta. If two tickets teach the same fact, only the first
-   one contributes a knowledge edit; the later one is already covered by this
-   batch.
+   corpus plus that delta. The delta spans the whole run, across every PR
+   batch: if two tickets teach the same fact, only the first contributes a
+   knowledge edit, even when the two tickets land in different PRs.
 
-5. **Keep the batch bounded and coherent.**
-   A batch PR may include at most five source tickets, touch at most three
-   knowledge files, and create at most one new context or skill file. All
-   extracted facts must fit one obvious theme or one existing context/skill
-   area. Treat the batch as too broad when it would touch both `relay/*` and
-   `dev/*`, touch both contexts and skills for unrelated reasons, create more
-   than one new context/skill file, or need "and" in the PR title to describe
-   the knowledge change. If the selected slugs exceed this, shrink the batch or
-   stop and ask; do not open a broad PR.
+5. **Partition the run into coherent PR batches.**
+   Process every slug passed to the run — there is no per-run ticket cap. After
+   reading the evidence, group the tickets that hold new knowledge into
+   coherent PR batches and open one PR per batch. Each PR batch may include at
+   most five source tickets, touch at most three knowledge files, and create at
+   most one new context or skill file; all of a batch's extracted facts must
+   fit one obvious theme or one existing context/skill area. Treat a batch as
+   too broad when it would touch both `relay/*` and `dev/*`, touch both
+   contexts and skills for unrelated reasons, create more than one new
+   context/skill file, or need "and" in the PR title to describe the knowledge
+   change. Split a too-broad batch into more PRs rather than dropping tickets —
+   the run still covers every slug. If a single coherent theme cannot fit
+   within one PR's limits, stop and ask.
 
 6. **Classify each candidate.**
    Use this table:
@@ -225,24 +233,25 @@ the same source task.
    tasks whose only result is `no-new-durable-knowledge`.
 
 10. **Self-review the diff.**
-   Confirm the PR changes only context files, warranted skill files, and the
+   Confirm each PR changes only context files, warranted skill files, and the
    exact source task directories unless the human explicitly asked for something
    else. For no-new-durable-knowledge results, confirm the only source-task edit
    is the `blackboard.md` marker and that no PR will be opened solely for those
    markers.
 
-11. **Open the PR only when knowledge changed.**
-   Work in the current checkout — do not create a `git worktree`. Branch
-   directly off `origin/main` with `git checkout -b
+11. **Open one PR per coherent batch when knowledge changed.**
+   Work in the current checkout — do not create a `git worktree`. For each
+   coherent batch, branch directly off `origin/main` with `git checkout -b
    codex/retro-<ticket-slug>-knowledge origin/main` for a single source task or
-   `codex/retro-batch-knowledge origin/main` for a batch, make the edits and the
-   source-task deletions there, commit, push, and open a PR. Title the
-   PR for the knowledge change, not the act of running Retro. Prefer
-   `New context: <finding>` or `New skill: <finding>`. If the only change
-   would be the blackboard marker, do not open a PR.
+   `codex/retro-<theme>-knowledge origin/main` for a multi-ticket batch, make
+   that batch's edits and source-task deletions there, commit, push, and open
+   the PR, then return to `origin/main` for the next batch. Title each PR for
+   its knowledge change, not the act of running Retro. Prefer
+   `New context: <finding>` or `New skill: <finding>`. If a batch's only change
+   would be the blackboard marker, do not open a PR for it.
 
 12. **Post Slack FYI for PRs.**
-   If Slack is configured, post one short message that is useful without
+   If Slack is configured, post one short message per PR that is useful without
    opening GitHub:
    `<PR title>. PR: <url>`.
 
@@ -268,13 +277,15 @@ Use this shape:
 
 ## Test Plan
 - Reviewed context/skill diff against ticket evidence, the existing knowledge
-  inventory, and the batch coherence limits.
+  inventory, and the per-PR coherence limits.
 ```
 
 ## Quality Bar
 
-The PR should make future task prompts better when there is durable knowledge
-to extract. A batch PR must stay small enough to review and describe with one
-clear title. If a ticket has no new durable knowledge, do not open an empty PR;
-record the `no-new-durable-knowledge` marker directly and leave the source task
-directory in place so Dream does not rerun Retro.
+Each PR should make future task prompts better when there is durable knowledge
+to extract, and must stay small enough to review and describe with one clear
+title — that is what the per-PR limits protect. Splitting a run into several
+focused PRs is correct; a single sprawling PR is not. If a ticket has no new
+durable knowledge, do not open an empty PR; record the
+`no-new-durable-knowledge` marker directly and leave the source task directory
+in place so Dream does not rerun Retro.
