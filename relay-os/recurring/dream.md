@@ -39,8 +39,8 @@ watching the run.
 Dream runs five phases in order. Phases 1–2 **decide** — they read the repo and
 record what to change. Phases 3–5 **execute** — they make the changes. Deciding
 before executing is deliberate: the knowledge scan reads the corpus while every
-done ticket still exists (Phase 3 deletes some), so nothing is missed, and the
-scan's findings steer the Retro pass.
+done ticket still exists (Phase 3 deletes them all), so nothing is missed, and
+the scan's findings steer the Retro pass.
 
 1. **validate-drift** — deterministic repo hygiene (script worker).
 2. **knowledge scan** — one full-corpus read; classifies every finding.
@@ -102,43 +102,46 @@ PRs.
 
 ### Phase 3 — retro/done-ticket
 
-Extract durable knowledge from done tickets. This pass processes **every
-eligible done ticket in a single run** — there is no per-run ticket cap and
-nothing is deferred to a later run. One corpus read with one running delta
-across all tickets is both cheaper than repeated capped runs and better at
-de-duplicating repeated facts.
+Extract durable knowledge from done tickets, then delete every one of them.
+This pass processes **every eligible done ticket in a single run** — there is
+no per-run ticket cap and nothing is deferred to a later run. One corpus read
+with one running delta across all tickets is both cheaper than repeated capped
+runs and better at de-duplicating repeated facts.
 
 A done ticket is eligible when:
 
-- its blackboard has no `## Retro` marker with `skill: retro/done-ticket` and
-  `status: processed`; and
-- no open PR is adding that marker or deleting `relay-os/tasks/<slug>/`.
+- its directory `relay-os/tasks/<slug>/` still exists; and
+- no open PR is adding its `## Retro` marker or deleting
+  `relay-os/tasks/<slug>/`.
 
-Skip a ticket whose marker already reads `result: no-new-durable-knowledge` —
-it is intentionally settled. A ticket whose directory is already gone is not a
-candidate; git history holds its record. Do not infer completion from branch
-names, stale comments, or old Dream notes — only the on-disk marker or an open
-PR counts.
+A ticket whose directory is already gone is not a candidate; git history holds
+its record. A processed `## Retro` marker on a still-present directory does not
+settle the ticket — its deletion PR has not merged, so it stays eligible. Do
+not infer completion from branch names, stale comments, or old Dream notes —
+only the on-disk directory and open-PR state count.
 
 Run `retro/done-ticket <slug> [<slug> ...]` in one subagent, passing every
 eligible slug. The skill loads the context/skill corpus once, reads each
 ticket, carries one running delta across the whole run, and partitions the
 tickets into coherent PR batches — each PR within its hard limits (≤5 source
-tickets, ≤3 knowledge files, ≤1 new context/skill file, one theme). It opens
-one PR per coherent batch, deleting the contributing source task directories in
-that PR, and records `no-new-durable-knowledge` markers directly for tickets
-that carry nothing durable. Most done tickets carry no durable knowledge, so
-the PR count is normally well below the ticket count.
+tickets, ≤3 knowledge files, ≤1 new context/skill file, one theme). Every
+processed done ticket is deleted: a ticket that contributed durable knowledge
+is deleted in its theme's knowledge PR; a ticket carrying nothing durable gets
+a `no-new-durable-knowledge` marker and is deleted too — folded into a
+knowledge PR's `## Pruned` section, or, when the run opens no knowledge PR at
+all, in one delete-only prune PR. Retro never leaves a processed done ticket on
+disk and never opens a marker-only PR.
 
-Summarize each PR and each no-op result in this run's blackboard.
+Summarize each PR — knowledge PRs and any prune PR — in this run's blackboard.
 
 ### Phase 4 — cleanup-orphan-markers
 
 Recovery path for done tickets whose blackboard carries a processed Retro
 marker from a knowledge PR but whose task directory was not deleted by that
 PR. Phase 3 PRs delete the source directory in the same PR, so this pass should
-usually find nothing. Retro blocks with `result: no-new-durable-knowledge` are
-terminal no-ops and must be ignored by this cleanup gate.
+usually find nothing. A `result: no-new-durable-knowledge` ticket is Phase 3's
+to delete — Phase 3 re-picks it each run until its prune PR merges — so this
+cleanup gate ignores those markers.
 
 Launch a child `mode: script` task whose current workflow step references
 `bootstrap/dream/tasks/cleanup-orphan-markers`. The skill detects cleanup
@@ -167,8 +170,8 @@ retired and its blackboard with it.
 
 Route each finding by class:
 
-- `extract` — already handled by Phase 3 (a knowledge PR, or a
-  `no-new-durable-knowledge` marker).
+- `extract` — already handled by Phase 3 (a knowledge PR, or — when the ticket
+  carried nothing durable — a `no-new-durable-knowledge` marker and deletion).
 - `stale` — open a proposal PR that edits the named context or skill to match
   reality. The PR is `pr-required`: a human reviews and merges it; Dream never
   auto-merges and never edits a context or skill directly on `main`. If a

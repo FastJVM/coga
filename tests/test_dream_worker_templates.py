@@ -73,9 +73,11 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "`stale`" in text
     assert "`gap`" in text
     assert "relay create" in text
-    assert "there is no per-run ticket cap" in text
-    assert "status: processed" in text
-    assert "skill: retro/done-ticket" in text
+    assert "no per-run ticket cap" in text
+    assert "Extract durable knowledge from done tickets, then delete every one of them." in text
+    assert "its directory `relay-os/tasks/<slug>/` still exists" in text
+    assert "Retro never leaves a processed done ticket on" in text
+    assert "delete-only prune PR" in text
     assert "no-new-durable-knowledge" in text
     assert "Dream-owned scripts\nare skills attached to Relay tasks" in text
     assert "--blackboard" not in text
