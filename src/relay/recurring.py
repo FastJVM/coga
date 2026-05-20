@@ -55,6 +55,19 @@ class CheckResult:
     errors: list[tuple[str, str]]  # (template_filename, error_message)
 
 
+@dataclass
+class ScaffoldOutcome:
+    """Result of scaffolding one recurring template for a given firing.
+
+    `created` is False when a task already exists for the period — the
+    scaffold is idempotent, so a manual trigger and the cron `check` pass
+    in the same period converge on one task directory.
+    """
+
+    ref: TaskRef
+    created: bool
+
+
 def check_recurring(cfg: Config, now: datetime | None = None) -> CheckResult:
     """Scan recurring templates and create any due tasks. Idempotent.
 
@@ -75,6 +88,7 @@ def check_recurring(cfg: Config, now: datetime | None = None) -> CheckResult:
             continue
         try:
             template = Template.load(path)
+            outcome = scaffold_template(cfg, template, now)
         except RecurringError as exc:
             # Don't let one bad template block the rest. Stderr keeps the
             # interactive `relay recurring check` honest; the command also
@@ -84,46 +98,71 @@ def check_recurring(cfg: Config, now: datetime | None = None) -> CheckResult:
             errors.append((path.name, str(exc)))
             continue
 
-        # Temporary policy: refuse to scaffold mode=auto recurring tasks.
-        # `claude -p` and `codex exec` buffer until completion, so scheduled
-        # runs would sit silently — worse than skipping. Lift when streaming
-        # lands. Templates can opt back in by setting `mode: script` (or
-        # `mode: interactive` if they can run from a TTY).
-        effective_mode = template.frontmatter.get("mode", "auto")
-        if effective_mode == "auto":
-            msg = (
-                "mode=auto is temporarily disabled (auto runs produce no live "
-                "console output). Set `mode: script` or `mode: interactive` "
-                "to re-enable."
-            )
-            import sys
-            sys.stderr.write(f"[recurring] skipping {path.name}: {msg}\n")
-            errors.append((path.name, msg))
-            continue
-
-        last_fire = _last_firing(template.schedule, now)
-        period_key = _period_key(template.schedule, last_fire)
-        target_slug = f"{template.name}-{period_key}"
-
-        if _task_with_slug_exists(cfg, target_slug):
-            continue
-
-        ref = scaffold_task(
-            cfg=cfg,
-            title=_extract_title(template),
-            workflow_name=template.frontmatter.get("workflow"),
-            contexts=list(template.frontmatter.get("contexts") or []),
-            mode=effective_mode,
-            owner=template.frontmatter.get("owner"),
-            assignee=template.frontmatter.get("assignee"),
-            watchers=list(template.frontmatter.get("watchers") or []),
-            status=template.frontmatter.get("status") or cfg.default_status,
-            slug_override=target_slug,
-            description=_extract_description(template),
-            created_by="system",
-        )
-        created.append(TaskRef(slug=ref["slug"], path=ref["path"]))
+        if outcome.created:
+            created.append(outcome.ref)
     return CheckResult(created=created, errors=errors)
+
+
+def scaffold_named(
+    cfg: Config, name: str, now: datetime | None = None
+) -> ScaffoldOutcome:
+    """Scaffold the named recurring template now, ignoring its schedule.
+
+    `name` is the file stem under `relay-os/recurring/`. The task slug still
+    uses the schedule-derived period key, so a manual `relay recurring
+    scaffold dream` and the cron `relay recurring check` produce the same
+    task directory for a given period.
+    """
+    now = now or datetime.now()
+    path = recurring_dir(cfg) / f"{name}.md"
+    if not path.is_file():
+        raise RecurringError(f"no recurring template `recurring/{name}.md`")
+    template = Template.load(path)
+    return scaffold_template(cfg, template, now)
+
+
+def scaffold_template(
+    cfg: Config, template: Template, now: datetime
+) -> ScaffoldOutcome:
+    """Scaffold one recurring template for `now`'s firing. Idempotent."""
+    # Temporary policy: refuse to scaffold mode=auto recurring tasks.
+    # `claude -p` and `codex exec` buffer until completion, so scheduled
+    # runs would sit silently — worse than skipping. Lift when streaming
+    # lands. Templates can opt back in by setting `mode: script` (or
+    # `mode: interactive` if they can run from a TTY).
+    effective_mode = template.frontmatter.get("mode", "auto")
+    if effective_mode == "auto":
+        raise RecurringError(
+            "mode=auto is temporarily disabled (auto runs produce no live "
+            "console output). Set `mode: script` or `mode: interactive` "
+            "to re-enable."
+        )
+
+    last_fire = _last_firing(template.schedule, now)
+    period_key = _period_key(template.schedule, last_fire)
+    target_slug = f"{template.name}-{period_key}"
+
+    existing = _task_with_slug(cfg, target_slug)
+    if existing is not None:
+        return ScaffoldOutcome(ref=existing, created=False)
+
+    ref = scaffold_task(
+        cfg=cfg,
+        title=_extract_title(template),
+        workflow_name=template.frontmatter.get("workflow"),
+        contexts=list(template.frontmatter.get("contexts") or []),
+        mode=effective_mode,
+        owner=template.frontmatter.get("owner"),
+        assignee=template.frontmatter.get("assignee"),
+        watchers=list(template.frontmatter.get("watchers") or []),
+        status=template.frontmatter.get("status") or cfg.default_status,
+        slug_override=target_slug,
+        description=_extract_description(template),
+        created_by="system",
+    )
+    return ScaffoldOutcome(
+        ref=TaskRef(slug=ref["slug"], path=ref["path"]), created=True
+    )
 
 
 # --- helpers ------------------------------------------------------------------
@@ -157,11 +196,11 @@ def _period_key(cron: str, fire_time: datetime) -> str:
     return fire_time.strftime("%Y%m%dT%H%M")
 
 
-def _task_with_slug_exists(cfg: Config, target_slug: str) -> bool:
+def _task_with_slug(cfg: Config, target_slug: str) -> TaskRef | None:
     for ref in list_tasks(cfg):
         if ref.slug == target_slug:
-            return True
-    return False
+            return ref
+    return None
 
 
 def _extract_description(template: Template) -> str:
@@ -182,4 +221,12 @@ def _extract_title(template: Template) -> str:
     return template.name.replace("-", " ").replace("_", " ").strip().capitalize()
 
 
-__all__ = ["Template", "CheckResult", "check_recurring", "RecurringError"]
+__all__ = [
+    "Template",
+    "CheckResult",
+    "ScaffoldOutcome",
+    "check_recurring",
+    "scaffold_named",
+    "scaffold_template",
+    "RecurringError",
+]

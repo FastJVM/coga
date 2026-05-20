@@ -46,10 +46,14 @@ no in-memory state.
   materializes them into each repo. They are inspectable local files, but
   edits under `bootstrap/` are overwritten on update. Copy a skill or context
   to the matching `relay-os/skills/` or `relay-os/contexts/` ref to override it.
-- **Dream** is Relay's generic ticket cleanup pass. A Dream run is an ordinary
-  ad-hoc task created by `relay dream`; its body scans the ticket set, runs
-  fixed Relay housekeeping skills, proposes cleanup, and writes reviewable
-  results to its blackboard.
+- **Dream** is Relay's generic ticket cleanup pass. It is a recurring task
+  template (`relay-os/recurring/dream.md`) plus a `dream` alias — not a
+  built-in command. The weekly cron `relay recurring check` scaffolds it; the
+  `relay dream` alias (`recurring scaffold dream --launch`) scaffolds and
+  launches it on demand. The parent task orchestrates child `mode: script`
+  tasks over worker skills; its body scans the ticket set, runs fixed Relay
+  housekeeping skills, proposes cleanup, and writes reviewable results to its
+  blackboard.
 - **REM** is repo/user-specific recurring maintenance. A REM run is an
   ordinary recurring task whose body defines that repo's operational checks,
   domain skills, output conventions, and review gates.
@@ -115,9 +119,11 @@ opt-in.
 
 The gate sits at the user-facing CLI surface only. `relay ticket`
 (guided authoring) bypasses it because its interview skill fills the
-workflow in. `relay dream` and `relay retire` keep scaffolding their
-own workflow-less one-shots — they call `scaffold_task` directly and
-are intentional internal exceptions, not user-authored drafts.
+workflow in. `relay recurring` scaffolding (the cron `check` and the
+on-demand `scaffold`, including the `relay dream` alias) and `relay
+retire` keep scaffolding their own one-shots — they call `scaffold_task`
+directly and are intentional internal exceptions, not user-authored
+drafts.
 
 ## Two state machines per ticket
 
@@ -182,12 +188,12 @@ is no server-side state behind them.
 
 ## Dream's known-skill contract
 
-Dream is not a plugin host. The body of `bootstrap/dream` (the `dream.md`
-prompt resource) owns an explicit, ordered list of known skills it will run
-and is the only control point. Dropping a SKILL.md under
-`bootstrap/dream/tasks/` does not enable it; there is no recursive discovery,
-no registry, and no daemon. Adding another Dream skill is a normal Relay
-code/docs change to that list.
+Dream is not a plugin host. The body of the `relay-os/recurring/dream.md`
+template — composed into each Dream task's `## Description` — owns an explicit,
+ordered list of known skills it will run and is the only control point.
+Dropping a SKILL.md under `bootstrap/dream/tasks/` does not enable it; there is
+no recursive discovery, no registry, and no daemon. Adding another Dream skill
+is a normal Relay code/docs change to that list.
 
 Dream-owned scripts are skills attached to Relay tasks; they are never
 standalone execution units.

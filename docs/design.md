@@ -99,5 +99,5 @@ We tried a `task.lock` file-existence mutex first. It cost a module of acquisiti
 ## Scope notes for the POC build
 
 - Full Slack integration: webhook POST is implemented; offline/test mode falls back to stdout when no webhook is configured.
-- `bootstrap/ticket` ships with SKILL.md content and templates, while `relay dream` creates an ad-hoc Relay cleanup task whose body scans tickets and runs fixed housekeeping skills. REM is the opt-in repo/user-specific recurring-maintenance template. Their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
+- `bootstrap/ticket` ships with SKILL.md content and templates, while Dream is a recurring task template (`relay-os/recurring/dream.md`) whose body scans tickets and runs fixed housekeeping skills; `relay dream` is an alias that scaffolds and launches it on demand. REM is the opt-in repo/user-specific recurring-maintenance template. Their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
 - `status` starts scoped to "one project per invocation"; cross-project scan lands in M3 if trivial, otherwise deferred.

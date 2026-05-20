@@ -210,31 +210,38 @@ not two. Slack is required (see `relay/sync`); commands crash if
 `$SLACK_WEBHOOK_URL` is unset and the user hasn't opted out via
 `[slack].enabled = false`.
 
-## relay dream [--agent <type>] [--no-launch]
+## relay dream
 
-Create an ad-hoc Dream cleanup task for the current Relay repo. The task slug
-is plain slug allocation (`dream`, `dream-2`, etc.), not a schedule or time
-bucket. By default the command activates and launches the new task in
-`interactive` mode using the first-declared `[agents.<type>]` block in
-`relay.toml`. (Auto mode is temporarily disabled — see `relay launch` above.)
+Run Relay's generic cleanup pass now. `dream` is not a built-in command — it
+is a default alias for `recurring scaffold dream --launch`. It scaffolds the
+`relay-os/recurring/dream.md` recurring task and launches it interactively.
 
-- `relay dream` — create and launch a Dream cleanup run now.
-- `relay dream --agent codex` — assign the run to a specific agent type.
-- `relay dream --no-launch` — scaffold the run and print the explicit
-  `relay mark active` / `relay launch` sequence.
-
-Dream scans current task state, runs the known Relay housekeeping pass, writes
-its results to that run's blackboard, and should finish with `relay mark done`.
-It is not the recurring scheduler and does not use `relay-os/recurring/`.
+The task slug is the recurring period key (`dream-2026-W21`), shared with the
+weekly cron run: running `relay dream` mid-week reuses that week's task instead
+of creating a second one. Dream scans current task state, runs the known Relay
+housekeeping pass, writes results to that run's blackboard, and finishes with
+`relay mark done`.
 
 ## relay recurring check
 
 Scan `relay-os/recurring/` and scaffold any due tasks. Cron entry point;
 called from `relay-os/scripts/cron.sh`.
 
-REM and other user-defined recurring maintenance loops use this surface.
-Dream currently uses `relay dream` directly so manual cleanup runs do not
-depend on a schedule-derived slug.
+Dream, REM, and other recurring maintenance loops all use this surface.
+`relay-os/recurring/dream.md` is the Dream cleanup template; the weekly cron
+firing scaffolds it like any other recurring task.
+
+## relay recurring scaffold \<name\> [--launch]
+
+Scaffold one named recurring template now, ignoring its schedule. `name` is
+the file stem under `relay-os/recurring/`. The task slug still uses the
+template's schedule-derived period key, so a manual `scaffold` and the cron
+`check` converge on one task directory per period (idempotent — a second
+`scaffold` in the same period is a no-op).
+
+- `relay recurring scaffold dream` — scaffold this period's Dream task.
+- `relay recurring scaffold dream --launch` — also activate and launch it.
+  This is exactly what the `relay dream` alias expands to.
 
 **`mode: auto` templates are temporarily skipped** with a stderr/Slack note.
 The auto-launch path produces no live console output, so scheduled runs
@@ -255,11 +262,13 @@ Default aliases shipped by `relay init`:
 ```toml
 [aliases]
 chat = "launch bootstrap/orient"
+dream = "recurring scaffold dream --launch"
 ```
 
-`create` is a built-in command, not an alias (it has its own
-scaffolding behavior beyond what a `launch bootstrap/...` expansion
-would give it).
+`chat` and `dream` are also registered as built-in default aliases, so they
+dispatch even in repos whose `relay.toml` predates the line. `create` is a
+built-in command, not an alias (it has its own scaffolding behavior beyond
+what a `launch bootstrap/...` expansion would give it).
 
 Rules: alias names can't collide with built-in commands; the first
 token of the expansion must be a known built-in. Both checked at

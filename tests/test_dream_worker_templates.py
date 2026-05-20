@@ -19,17 +19,26 @@ TEMPLATES = (
 
 DREAM = TEMPLATES.parent
 RESOURCES = Path(__file__).resolve().parents[1] / "src" / "relay" / "resources"
-DREAM_PROMPT = RESOURCES / "dream.md"
-REM_TEMPLATE = (
-    Path(__file__).resolve().parents[1]
-    / "src"
-    / "relay"
-    / "resources"
-    / "templates"
-    / "relay-os"
-    / "recurring"
-    / "_rem.md"
+RECURRING_TEMPLATES = (
+    RESOURCES / "templates" / "relay-os" / "recurring"
 )
+# Dream is a recurring task template, not a built-in command. Its body lives
+# in the recurring template's `## Description` section.
+DREAM_PROMPT = RECURRING_TEMPLATES / "dream.md"
+REM_TEMPLATE = RECURRING_TEMPLATES / "_rem.md"
+
+
+def test_dream_ships_as_a_recurring_template() -> None:
+    """Dream is a recurring task template, not a built-in command. The body
+    lives in the template's `## Description` section so `scaffold_task` picks
+    it up the same way it does for any other recurring template."""
+    text = DREAM_PROMPT.read_text()
+
+    assert text.startswith("---\n")
+    assert "schedule:" in text
+    assert 'title: "Dream"' in text
+    assert "mode: interactive" in text
+    assert "\n## Description\n" in text
 
 
 def test_dream_documents_ordered_skill_pass() -> None:
