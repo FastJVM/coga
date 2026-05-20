@@ -23,12 +23,6 @@ class AgentType:
 
 
 @dataclass(frozen=True)
-class Assignee:
-    name: str
-    agents: dict[str, str]  # nickname -> agent type name
-
-
-@dataclass(frozen=True)
 class TicketField:
     """A repo-declared extension to the canonical ticket frontmatter schema.
 
@@ -51,7 +45,6 @@ class Config:
     current_user: str
     default_status: str
     agents: dict[str, AgentType]
-    assignees: dict[str, Assignee]
     slack_webhook: str | None
     slack_enabled: bool
     secrets: dict[str, str]
@@ -69,31 +62,29 @@ class Config:
             return self.repo_root.parent.name
         return self.repo_root.name
 
-    def assignee(self, name: str) -> Assignee:
-        if name not in self.assignees:
-            raise ConfigError(f"Unknown assignee: {name!r}. Known: {sorted(self.assignees)}")
-        return self.assignees[name]
+    def agent_type(self, name: str) -> AgentType:
+        """Resolve an agent type name to its AgentType config.
 
-    def agent_type_for(self, user: str, nickname: str) -> AgentType:
-        """Resolve (user, nickname) -> AgentType."""
-        who = self.assignee(user)
-        if nickname not in who.agents:
-            if nickname in self.assignees:
-                raise ConfigError(
-                    f"Ticket assignee {nickname!r} is a human user, not an agent. "
-                    f"`relay launch` only runs agent assignees. "
-                    f"Reassign to one of {sorted(who.agents)} or do the work yourself."
-                )
+        The ticket `agent:` and `assignee:` fields name an agent type
+        directly (e.g. `claude`, `codex`) — no per-user nickname layer.
+        """
+        if name not in self.agents:
             raise ConfigError(
-                f"Assignee {user!r} has no agent nickname {nickname!r}. "
-                f"Known nicknames: {sorted(who.agents)}"
+                f"Agent type {name!r} is not defined in [agents]. "
+                f"Known: {sorted(self.agents)}."
             )
-        type_name = who.agents[nickname]
-        if type_name not in self.agents:
-            raise ConfigError(
-                f"Agent type {type_name!r} (from {user}.{nickname}) is not defined in [agents]."
-            )
-        return self.agents[type_name]
+        return self.agents[name]
+
+    def default_agent(self) -> AgentType | None:
+        """First-declared agent type, used as the scaffold-time default.
+
+        TOML preserves declaration order, so the team puts their default
+        first in `relay.toml`.
+        """
+        if not self.agents:
+            return None
+        first = next(iter(self.agents))
+        return self.agents[first]
 
     def gif_for(self, kind: str) -> str | None:
         """Pick a random GIF URL for `kind` (e.g. "done", "panic"), or None.
@@ -143,7 +134,12 @@ def load_config(repo_root: Path | None = None) -> Config:
 
     default_status = shared.get("default_status", "draft")
     agents = _parse_agents(shared.get("agents", {}))
-    assignees = _parse_assignees(shared.get("assignees", {}))
+    if "assignees" in shared:
+        raise ConfigError(
+            "[assignees] is no longer supported in relay.toml. Remove the "
+            "[assignees.*] tables — ticket `assignee:` now names an agent "
+            "type (e.g. `claude`) or a human directly. See docs/spec.md."
+        )
     slack_webhook = os.environ.get("SLACK_WEBHOOK_URL")
     # `[slack].enabled = false` (in either toml) is the explicit opt-out.
     # Local overrides shared. Default is enabled — slack is the team sync point.
@@ -156,11 +152,7 @@ def load_config(repo_root: Path | None = None) -> Config:
     if not current_user:
         raise ConfigError(
             f"`user` is missing from {local_path}. "
-            "Set it to your assignee name, e.g. `user = \"marc\"`."
-        )
-    if current_user not in assignees:
-        raise ConfigError(
-            f"Current user {current_user!r} not found in [assignees] of relay.toml."
+            "Set it to your name, e.g. `user = \"marc\"`."
         )
 
     secrets = _resolve_secrets(local.get("secrets", {}))
@@ -172,7 +164,6 @@ def load_config(repo_root: Path | None = None) -> Config:
         current_user=current_user,
         default_status=default_status,
         agents=agents,
-        assignees=assignees,
         slack_webhook=slack_webhook,
         slack_enabled=slack_enabled,
         slack_gifs=slack_gifs,
@@ -205,19 +196,6 @@ def _parse_agents(raw: dict) -> dict[str, AgentType]:
             auto=data["auto"],
             file=data["file"],
             mode=data.get("mode", "local"),
-        )
-    return out
-
-
-def _parse_assignees(raw: dict) -> dict[str, Assignee]:
-    out: dict[str, Assignee] = {}
-    for name, data in raw.items():
-        agents = data.get("agents", {})
-        if not isinstance(agents, dict):
-            raise ConfigError(f"assignees.{name}.agents must be a table (got {type(agents).__name__})")
-        out[name] = Assignee(
-            name=name,
-            agents=dict(agents),
         )
     return out
 

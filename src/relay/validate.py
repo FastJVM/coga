@@ -290,11 +290,18 @@ def _check_one_task(
 
     out.extend(_check_frontmatter_schema(cfg, task_label, ticket))
 
-    if ticket.assignee and ticket.assignee not in valid_assignees:
+    # Valid assignees: known agent types OR one of this ticket's role-field
+    # values (owner / human / agent). The role rotation puts whichever of
+    # those is current into `assignee:`.
+    role_values = {
+        v for v in (ticket.owner, ticket.frontmatter.get("human"), ticket.frontmatter.get("agent"))
+        if isinstance(v, str) and v
+    }
+    if ticket.assignee and ticket.assignee not in valid_assignees and ticket.assignee not in role_values:
         out.append(Issue(
             kind="unknown-assignee",
             task=task_label,
-            message=f"assignee {ticket.assignee!r} is not a known human or agent nickname",
+            message=f"assignee {ticket.assignee!r} is neither a known agent type nor one of this ticket's role-field values",
             severity="warn",
         ))
 
@@ -646,10 +653,16 @@ def _is_string_list(value: Any) -> bool:
 
 
 def _valid_assignee_set(cfg: Config) -> set[str]:
-    valid = set(cfg.assignees)
-    for a in cfg.assignees.values():
-        valid.update(a.agents.keys())
-    return valid
+    """Names a ticket's `assignee:` may take.
+
+    The canonical model is that `assignee:` rotates between role-field
+    values (`owner` / `human` / `agent`) so anything that names a known
+    agent type is valid. Human names aren't enumerated in config — they
+    only have to match the ticket's own `owner:` / `human:` fields, which
+    is checked elsewhere — so the warn-level "unknown assignee" check
+    just verifies agent-typed assignees resolve.
+    """
+    return set(cfg.agents)
 
 
 def _ok_count(refs: list[TaskRef], issues: list[Issue]) -> int:

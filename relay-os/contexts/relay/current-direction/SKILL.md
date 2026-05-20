@@ -41,9 +41,23 @@ Last updated: 2026-05-16.
   is the audit trail. If Retro finds no new durable knowledge, it records
   `result: no-new-durable-knowledge` on the source blackboard and opens no PR.
 
+## Recent decisions (assignees flattened out)
+
+- **`[assignees.<user>]` removed entirely.** For ≤3 people, the
+  human → per-user-agent-nickname → agent-type indirection earned
+  nothing — every team member's map was identical. A ticket's
+  `assignee:` now names an `[agents.<type>]` block directly
+  (e.g. `claude`, `codex`) or a human name (routing only; not
+  launchable). `Config.agent_type(name)` replaces the old
+  `agent_type_for(user, nickname)`. `relay.local.toml`'s
+  `user = "name"` is a free-form string — no registry to validate
+  against. Re-introduce per-person agent configs when one teammate
+  genuinely needs a different binary or auth from another.
+
 ## Recent decisions (small-team Slack simplification)
 
-- **`slack` field on `[assignees.<name>]` removed.** With ≤3 people
+- **`slack` field on `[assignees.<name>]` removed.** (Historical: the
+  `[assignees]` table itself is now gone — see above.) With ≤3 people
   on a shared channel, plain-text posts reach everyone — per-user
   @mentions add zero signal. `slack.py` collapses to a single
   `post(cfg, message)`; `post_mention` and `_mention_tag` are gone.

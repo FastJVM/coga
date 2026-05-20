@@ -32,8 +32,6 @@ def repo(tmp_path: Path) -> Path:
         file = "CLAUDE.md"
         mode = "local"
 
-        [assignees.marc]
-        agents = {"claude" = "claude"}
         """,
     )
     _write(

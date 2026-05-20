@@ -27,8 +27,6 @@ def repo(tmp_path: Path) -> Path:
         file = "CLAUDE.md"
         mode = "local"
 
-        [assignees.marc]
-        agents = {"claude" = "claude", "claude2" = "claude"}
         """,
     )
     _write(
@@ -66,8 +64,6 @@ def test_default_status_defaults_to_draft(tmp_path: Path) -> None:
         cli = "claude"
         auto = "-p"
         file = "CLAUDE.md"
-        [assignees.marc]
-        agents = {"claude" = "claude"}
         """,
     )
     _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
@@ -77,20 +73,40 @@ def test_default_status_defaults_to_draft(tmp_path: Path) -> None:
 
 def test_resolve_agent_type(repo: Path) -> None:
     cfg = load_config(repo)
-    agent = cfg.agent_type_for("marc", "claude")
+    agent = cfg.agent_type("claude")
     assert agent.name == "claude"
 
 
-def test_unknown_nickname(repo: Path) -> None:
+def test_unknown_agent_type(repo: Path) -> None:
     cfg = load_config(repo)
-    with pytest.raises(ConfigError, match="no agent nickname 'goat'"):
-        cfg.agent_type_for("marc", "goat")
+    with pytest.raises(ConfigError, match="Agent type 'goat' is not defined"):
+        cfg.agent_type("goat")
 
 
-def test_human_assignee_rejected_with_clear_message(repo: Path) -> None:
+def test_default_agent_is_first_declared(repo: Path) -> None:
     cfg = load_config(repo)
-    with pytest.raises(ConfigError, match="is a human user, not an agent"):
-        cfg.agent_type_for("marc", "marc")
+    default = cfg.default_agent()
+    assert default is not None
+    assert default.name == "claude"
+
+
+def test_legacy_assignees_table_rejected(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+
+        [assignees.marc]
+        agents = {"claude" = "claude"}
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    with pytest.raises(ConfigError, match=r"\[assignees\] is no longer supported"):
+        load_config(tmp_path)
 
 
 def test_missing_user(tmp_path: Path) -> None:
@@ -102,8 +118,6 @@ def test_missing_user(tmp_path: Path) -> None:
         cli = "claude"
         auto = "-p"
         file = "CLAUDE.md"
-        [assignees.marc]
-        agents = {"claude" = "claude"}
         """,
     )
     _write(tmp_path / "relay.local.toml", "")

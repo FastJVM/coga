@@ -20,8 +20,7 @@ def backfill_role_fields(cfg: Config) -> list[str]:
     Two layers:
       - `human` ← ticket's `owner` (humans usually own tasks).
       - `agent` ← ticket's current `assignee` if config knows it as an agent
-        nickname, else the owner's default configured agent, else the current
-        user's default configured agent.
+        type, else the first-declared agent type in `[agents]`.
       - `assignee` ← the current workflow step's declared role target when
         available, else the ticket owner.
       - `contexts: []`, `skills: []`, `workflow: null` filled in if missing
@@ -32,7 +31,7 @@ def backfill_role_fields(cfg: Config) -> list[str]:
 
     Tickets already canonical are skipped. Returns the list of slugs rewritten.
     """
-    agent_nicknames = {nick for a in cfg.assignees.values() for nick in a.agents}
+    agent_types = set(cfg.agents)
     rewritten: list[str] = []
     for ref in list_tasks(cfg):
         ticket_path = ref.path / "ticket.md"
@@ -46,7 +45,7 @@ def backfill_role_fields(cfg: Config) -> list[str]:
             ticket.frontmatter["human"] = ticket.owner
             changed = True
         if "agent" not in ticket.frontmatter:
-            inferred = _infer_agent(ticket, cfg, agent_nicknames)
+            inferred = _infer_agent(ticket, cfg, agent_types)
             if inferred:
                 ticket.frontmatter["agent"] = inferred
                 changed = True
@@ -109,23 +108,11 @@ def _migrate_frozen_workflow_step_skill(wf: object) -> bool:
     return changed
 
 
-def _infer_agent(ticket: Ticket, cfg: Config, agent_nicknames: set[str]) -> str | None:
-    if ticket.assignee and ticket.assignee in agent_nicknames:
+def _infer_agent(ticket: Ticket, cfg: Config, agent_types: set[str]) -> str | None:
+    if ticket.assignee and ticket.assignee in agent_types:
         return ticket.assignee
-    if ticket.owner:
-        owner_agent = _first_agent_for(cfg, ticket.owner)
-        if owner_agent:
-            return owner_agent
-    return _first_agent_for(cfg, cfg.current_user)
-
-
-def _first_agent_for(cfg: Config, user: str | None) -> str | None:
-    if not user:
-        return None
-    assignee = cfg.assignees.get(user)
-    if not assignee or not assignee.agents:
-        return None
-    return next(iter(assignee.agents))
+    default = cfg.default_agent()
+    return default.name if default else None
 
 
 def _infer_assignee(ticket: Ticket) -> str | None:

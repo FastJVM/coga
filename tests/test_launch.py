@@ -69,8 +69,6 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         cli = "codex"
         auto = "exec"
         file = "AGENTS.md"
-        [assignees.marc]
-        agents = {"claude" = "claude", "codex" = "codex"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -715,8 +713,6 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         cli = "codex"
         auto = "exec"
         file = "AGENTS.md"
-        [assignees.marc]
-        agents = {"claude" = "claude", "codex" = "codex"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')

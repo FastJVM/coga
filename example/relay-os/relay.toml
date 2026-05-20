@@ -18,14 +18,6 @@ auto = "exec"
 file = "AGENTS.md"
 mode = "local"
 
-# --- Assignees ---
-
-[assignees.marc]
-agents = {"claude1" = "claude", "claude2" = "claude", "codex1" = "codex"}
-
-[assignees.pierre]
-agents = {"claude1" = "claude"}
-
 # --- Slack ---
 
 # Omit `webhook` to run without real Slack posts (messages go to stderr).
@@ -39,5 +31,5 @@ agents = {"claude1" = "claude"}
 
 [aliases]
 chat = "launch bootstrap/orient"
-claude = "launch bootstrap/orient --agent claude1"
-codex = "launch bootstrap/orient --agent codex1"
+claude = "launch bootstrap/orient --agent claude"
+codex = "launch bootstrap/orient --agent codex"

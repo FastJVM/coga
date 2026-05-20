@@ -43,11 +43,11 @@ def scaffold_task(
     owner = owner or cfg.current_user
     status = status or cfg.default_status
     human = human or owner
-    agent = agent or _default_agent_for(cfg, owner, assignee)
+    agent = agent or _default_agent_for(cfg, assignee)
     if not agent:
         raise ValueError(
-            f"No default agent configured for owner {owner!r}; set `agent` "
-            f"explicitly or configure [assignees.{owner}.agents]."
+            "No default agent configured; declare at least one `[agents.*]` "
+            "table in relay.toml (e.g. `[agents.claude]`)."
         )
 
     contexts = _dedupe(contexts)
@@ -149,29 +149,21 @@ def scaffold_task(
     return {"slug": slug, "path": task_dir}
 
 
-def _default_agent_for(
-    cfg: Config, owner: str | None, assignee: str | None
-) -> str | None:
+def _default_agent_for(cfg: Config, assignee: str | None) -> str | None:
     """Best-effort default for the new ticket's `agent:` field.
 
-    Two signals, in order:
-      1. If the explicit `assignee` arg is a known agent nickname, use it —
-         the caller already named the agent.
-      2. Else if `owner` has configured agents, use the first one from
-         relay.toml. TOML preserves insertion order, which lets each user
-         declare their default agent by listing it first.
+    If the explicit `assignee` arg names a known agent type, use it. Else
+    use the first-declared agent type in `[agents]`. TOML preserves
+    declaration order, so the team's default agent is whichever block
+    appears first.
 
-    Returns None if neither signal resolves; the caller rejects that before
-    writing invalid canonical frontmatter.
+    Returns None when no agent types are declared; the caller rejects that
+    before writing invalid canonical frontmatter.
     """
-    agent_nicknames = {nick for a in cfg.assignees.values() for nick in a.agents}
-    if assignee and assignee in agent_nicknames:
+    if assignee and assignee in cfg.agents:
         return assignee
-    if owner:
-        owner_cfg = cfg.assignees.get(owner)
-        if owner_cfg and owner_cfg.agents:
-            return next(iter(owner_cfg.agents))
-    return None
+    default = cfg.default_agent()
+    return default.name if default else None
 
 
 def _dedupe(items: list[str]) -> list[str]:

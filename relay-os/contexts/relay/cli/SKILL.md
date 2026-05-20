@@ -79,16 +79,17 @@ until streaming lands. Script launches inject task metadata env vars
 including `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
-- `relay launch <slug> --agent <nickname>` — one-off agent override;
-  does not rewrite the ticket's `assignee:`.
+- `relay launch <slug> --agent <type>` — one-off agent-type override
+  (e.g. `--agent claude`); does not rewrite the ticket's `assignee:`.
 - `relay launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
   spawning an agent.
 - `relay launch bootstrap/<name>` — stateless shim; concurrent launches
   safe.
 
-Agent type comes from the ticket's `assignee`, resolved through
-`[assignees.<user>]` and `[agents.<type>]` in `relay.toml`.
+Agent type comes from the ticket's `assignee` directly — it names an
+`[agents.<type>]` block in `relay.toml`. Human assignees aren't
+launchable; reassign to an agent type first.
 
 For workflow-bound interactive/auto tasks, `launch` can continue through
 consecutive agent-owned steps in fresh processes. After a clean agent exit,
@@ -163,7 +164,7 @@ git history is the audit trail, no Slack broadcast.
 Bootstrap shims aren't user-deletable — they're managed by
 `relay init --update`.
 
-## relay retire \<slug\> [--mode interactive] [--agent <nickname>] [--no-launch]
+## relay retire \<slug\> [--mode interactive] [--agent <type>] [--no-launch]
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
 invokes the `retro/done-ticket` skill against the named ticket. The retro
@@ -209,16 +210,16 @@ not two. Slack is required (see `relay/sync`); commands crash if
 `$SLACK_WEBHOOK_URL` is unset and the user hasn't opted out via
 `[slack].enabled = false`.
 
-## relay dream [--agent <nickname>] [--no-launch]
+## relay dream [--agent <type>] [--no-launch]
 
 Create an ad-hoc Dream cleanup task for the current Relay repo. The task slug
 is plain slug allocation (`dream`, `dream-2`, etc.), not a schedule or time
 bucket. By default the command activates and launches the new task in
-`interactive` mode using the current user's first configured agent nickname.
-(Auto mode is temporarily disabled — see `relay launch` above.)
+`interactive` mode using the first-declared `[agents.<type>]` block in
+`relay.toml`. (Auto mode is temporarily disabled — see `relay launch` above.)
 
 - `relay dream` — create and launch a Dream cleanup run now.
-- `relay dream --agent codex1` — assign the run to a specific agent nickname.
+- `relay dream --agent codex` — assign the run to a specific agent type.
 - `relay dream --no-launch` — scaffold the run and print the explicit
   `relay mark active` / `relay launch` sequence.
 

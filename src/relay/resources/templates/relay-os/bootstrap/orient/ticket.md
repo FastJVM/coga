@@ -37,4 +37,4 @@ What the agent should do once oriented:
 This is a bootstrap shim, not a `tasks/` ticket: stateless — no status,
 no owner, no log, no lock — every launch is independent and concurrent
 launches are safe. Don't edit this shim except to swap `assignee` to
-whichever agent nickname matches your `relay.toml`.
+whichever agent type matches your `relay.toml`.
