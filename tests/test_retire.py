@@ -33,7 +33,7 @@ def repo(tmp_path: Path) -> Path:
         mode = "local"
 
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(
@@ -81,7 +81,7 @@ def test_retire_no_launch_scaffolds_task_with_target_slug(
 
     assert result.exit_code == 0, result.output
     assert "Retire: target task fix-retry-logic" in result.output
-    assert "Retire: using assignee claude1 (agent type claude, mode interactive)" in result.output
+    assert "Retire: using assignee claude (agent type claude, mode interactive)" in result.output
     assert "Retire: scaffolding task 'Retire fix-retry-logic'" in result.output
     assert "Retire: created task retire-fix-retry-logic" in result.output
     assert "Retire: launch skipped (--no-launch)" in result.output
@@ -93,7 +93,7 @@ def test_retire_no_launch_scaffolds_task_with_target_slug(
     assert ticket.title == "Retire fix-retry-logic"
     assert ticket.status == "draft"
     assert ticket.mode == "interactive"
-    assert ticket.assignee == "claude1"
+    assert ticket.assignee == "claude"
     assert ticket.workflow is None
     assert "Retire the done ticket `fix-retry-logic`" in ticket.body
     assert "retro/done-ticket" in ticket.body

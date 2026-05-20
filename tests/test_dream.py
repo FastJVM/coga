@@ -33,7 +33,7 @@ def repo(tmp_path: Path) -> Path:
         mode = "local"
 
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(
@@ -59,7 +59,7 @@ def test_dream_no_launch_scaffolds_ad_hoc_task_without_time_bucket(
     assert first.exit_code == 0, first.output
     assert second.exit_code == 0, second.output
     assert "Dream: repo root" in first.output
-    assert "Dream: using assignee claude1 (agent type claude, mode interactive)" in first.output
+    assert "Dream: using assignee claude (agent type claude, mode interactive)" in first.output
     assert "Dream: scaffolding task 'Dream'" in first.output
     assert "Dream: created task dream at" in first.output
     assert "Dream: launch skipped (--no-launch)" in first.output
@@ -74,7 +74,7 @@ def test_dream_no_launch_scaffolds_ad_hoc_task_without_time_bucket(
     assert ticket.title == "Dream"
     assert ticket.status == "draft"
     assert ticket.mode == "interactive"
-    assert ticket.assignee == "claude1"
+    assert ticket.assignee == "claude"
     assert ticket.workflow is None
     assert "Run the Dream cleanup pass for this Relay repo." in ticket.body
 
@@ -120,7 +120,7 @@ def test_dream_logs_before_launching(
 
     assert result.exit_code == 0, result.output
     assert "Dream: repo root" in result.output
-    assert "Dream: using assignee claude1 (agent type claude, mode interactive)" in result.output
+    assert "Dream: using assignee claude (agent type claude, mode interactive)" in result.output
     assert "Dream: scaffolding task 'Dream'" in result.output
     assert "Dream: created task dream at" in result.output
     assert "Dream: activating dream" in result.output

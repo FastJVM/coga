@@ -32,7 +32,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -57,7 +57,7 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "draf
     cfg = load_config(repo)
     ref = scaffold_task(
         cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status=status,
     )
     return ref["slug"], ref["path"]
@@ -363,4 +363,4 @@ def test_mark_done_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
-    assert any(f"🎉 claude1 finished *{slug}*" in m for m in posts)
+    assert any(f"🎉 claude finished *{slug}*" in m for m in posts)

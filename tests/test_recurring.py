@@ -30,7 +30,7 @@ def repo(tmp_path: Path):
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -41,7 +41,7 @@ def repo(tmp_path: Path):
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
         mode: interactive
-        assignee: claude1
+        assignee: claude
         owner: marc
         ---
 
@@ -113,7 +113,7 @@ def test_check_recurring_skips_auto_mode_template(repo: Path, capsys) -> None:
         schedule: "0 9 * * *"
         title: "Daily auto"
         mode: auto
-        assignee: claude1
+        assignee: claude
         owner: marc
         ---
 
@@ -144,7 +144,7 @@ def test_check_recurring_skips_template_without_explicit_mode(
         ---
         schedule: "0 9 * * *"
         title: "No mode"
-        assignee: claude1
+        assignee: claude
         owner: marc
         ---
 

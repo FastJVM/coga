@@ -191,7 +191,7 @@ and edit the ticket before work starts.
 relay ticket                                  # ask for title, then fill a draft
 relay ticket "Add retry to webhook handler"  # create draft, then interview
 relay ticket add-retry                        # edit existing draft/active/paused
-relay ticket add-retry --agent codex1         # choose authoring agent
+relay ticket add-retry --agent codex          # choose authoring agent
 ```
 
 `relay ticket` refuses `in_progress` and `done` tickets by default. Editing a
@@ -301,21 +301,21 @@ resumes it.
 ```sh
 relay launch add-retry-to-webhook-handler          # full slug
 relay launch add-retry                              # any unique prefix works
-relay launch add-retry --agent codex1               # one-off agent override
+relay launch add-retry --agent codex                # one-off agent override
 relay launch add-retry --prompt-report              # show prompt layer sizes, no launch
 relay launch bootstrap/orient                       # stateless shim → run a skill
-relay launch bootstrap/orient --agent codex1        # choose a bootstrap agent
+relay launch bootstrap/orient --agent codex         # choose a bootstrap agent
 ```
 
 Tasks are addressed by slug — there is no numeric ID. Pass any unique prefix
 (git-short-SHA-style) and ambiguous prefixes error out with the matches listed.
 
-The agent type comes from the ticket's `assignee` (e.g. `claude1`) resolved
+The agent type comes from the ticket's `assignee` (e.g. `claude`) resolved
 through `[assignees.<user>]` and `[agents.<type>]` in `relay.toml`. Pass
 `--agent <nickname>` to use one of your configured agent nicknames for this
 launch only; normal task launches do not rewrite the ticket's `assignee`.
 Bootstrap shims use the same flag for one-off sessions, so `relay chat --agent
-codex1` can open the orient shim with Codex while `relay chat --agent claude1`
+codex` can open the orient shim with Codex while `relay chat --agent claude`
 opens it with Claude.
 
 For workflow-bound interactive/auto tasks, one `relay launch` can run multiple
@@ -520,8 +520,8 @@ the alias name forward to the expansion. Default aliases shipped by
 [aliases]
 chat = "launch bootstrap/orient"
 # Optional once those nicknames exist for the current user:
-# claude = "launch bootstrap/orient --agent claude1"
-# codex = "launch bootstrap/orient --agent codex1"
+# claude = "launch bootstrap/orient --agent claude"
+# codex = "launch bootstrap/orient --agent codex"
 ```
 
 `draft`, `ticket`, and `create` are built-in commands, not aliases. Add your

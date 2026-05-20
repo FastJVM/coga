@@ -70,7 +70,7 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         auto = "exec"
         file = "AGENTS.md"
         [assignees.marc]
-        agents = {"claude1" = "claude", "codex1" = "codex"}
+        agents = {"claude" = "claude", "codex" = "codex"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -80,7 +80,7 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     scaffold_task(
         cfg=cfg, title="Fix retry logic",
         workflow_name=None, contexts=[], mode="interactive",
-        owner="marc", assignee="claude1", watchers=[], status="active",
+        owner="marc", assignee="claude", watchers=[], status="active",
     )
     return company
 
@@ -156,8 +156,8 @@ def _scaffold_chain_task(active_task: Path, *, mode: str = "interactive") -> dic
         mode=mode,
         owner="marc",
         human="marc",
-        agent="claude1",
-        assignee="claude1",
+        agent="claude",
+        assignee="claude",
         watchers=[],
         status="active",
     )
@@ -476,8 +476,8 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
         mode="interactive",
         owner="marc",
         human="marc",
-        agent="claude1",
-        assignee="claude1",
+        agent="claude",
+        assignee="claude",
         watchers=[],
         status="active",
     )
@@ -501,7 +501,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
-    assert "next step assignee changed: claude1 → marc" in result.output
+    assert "next step assignee changed: claude → marc" in result.output
 
     from relay.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
@@ -667,8 +667,8 @@ def test_launch_prompt_report_prints_layers_without_launching(
         mode="interactive",
         owner="marc",
         human="marc",
-        agent="claude1",
-        assignee="claude1",
+        agent="claude",
+        assignee="claude",
         watchers=[],
         status="draft",
     )
@@ -716,7 +716,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         auto = "exec"
         file = "AGENTS.md"
         [assignees.marc]
-        agents = {"claude1" = "claude", "codex1" = "codex"}
+        agents = {"claude" = "claude", "codex" = "codex"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -728,7 +728,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         mode: interactive
         skills:
           - bootstrap/ticket
-        assignee: claude1
+        assignee: claude
         ---
 
         ## Description
@@ -836,7 +836,7 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "bootstrap/ticket", "--agent", "codex1"])
+    result = runner.invoke(app, ["launch", "bootstrap/ticket", "--agent", "codex"])
     assert result.exit_code == 0, result.output
 
     cmd = captured["cmd"]
@@ -845,7 +845,7 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
     assert "Skill: bootstrap/ticket" in cmd[1]
 
     log = (bootstrap_repo / "bootstrap" / "ticket" / "log.md").read_text()
-    assert "assignee=codex1, agent=codex" in log
+    assert "assignee=codex, agent=codex" in log
 
 
 def test_launch_agent_override_normal_task_uses_requested_agent_without_reassigning(
@@ -865,7 +865,7 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "fix-retry-logic", "--agent", "codex1"])
+    result = runner.invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
     assert result.exit_code == 0, result.output
 
     cmd = captured["cmd"]
@@ -876,10 +876,10 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     ref = list_tasks(cfg)[0]
     from relay.ticket import Ticket
     ticket = Ticket.read(ref.path / "ticket.md")
-    assert ticket.frontmatter["assignee"] == "claude1"
+    assert ticket.frontmatter["assignee"] == "claude"
 
     log = (ref.path / "log.md").read_text()
-    assert "assignee=claude1, launch_assignee=codex1, agent=codex" in log
+    assert "assignee=claude, launch_assignee=codex, agent=codex" in log
 
 
 def test_launch_bootstrap_unknown_shim(

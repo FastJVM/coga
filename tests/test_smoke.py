@@ -51,7 +51,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         contexts=["email/payment-flow"],
         mode="interactive",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=["pierre"],
         status="in_progress",
     )
@@ -92,7 +92,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     ref2 = scaffold_task(
         cfg=cfg, title="Investigate slow DNS",
         workflow_name=None, contexts=[], mode="interactive",
-        owner="marc", assignee="claude1", watchers=[], status="in_progress",
+        owner="marc", assignee="claude", watchers=[], status="in_progress",
     )
     r = runner.invoke(app, [
         "panic",

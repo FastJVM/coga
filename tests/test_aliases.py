@@ -30,7 +30,7 @@ def repo(tmp_path: Path) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')

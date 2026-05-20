@@ -27,7 +27,7 @@ def _scaffold_min(tmp_path: Path) -> None:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
@@ -123,7 +123,7 @@ def test_gif_for_picks_from_configured_list(tmp_path: Path) -> None:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         [slack.gifs]
         done = ["https://media.giphy.com/done-1.gif"]
         panic = ["https://media.giphy.com/panic-1.gif", "https://media.giphy.com/panic-2.gif"]
@@ -152,7 +152,7 @@ def test_gifs_invalid_shape_raises_config_error(tmp_path: Path) -> None:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         [slack.gifs]
         done = "not-a-list"
         """,
@@ -185,7 +185,7 @@ def test_toml_webhook_field_is_ignored(
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         [slack]
         webhook = "https://hooks.slack.com/services/from-toml"
         """,
@@ -213,7 +213,7 @@ def test_enabled_false_in_local_toml_opts_out(tmp_path: Path) -> None:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(
@@ -239,7 +239,7 @@ def test_local_enabled_overrides_shared(tmp_path: Path) -> None:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         [slack]
         enabled = true
         """,
@@ -269,7 +269,7 @@ def test_disabled_post_writes_to_stderr_no_crash(
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         [slack]
         enabled = false
         """,
@@ -344,7 +344,7 @@ def test_invalid_enabled_type_raises_config_error(tmp_path: Path) -> None:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         [slack]
         enabled = "yes"
         """,

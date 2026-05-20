@@ -70,7 +70,7 @@ def _seed_repo(root: Path) -> Path:
         file = "CLAUDE.md"
 
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(relay_os / "relay.local.toml", 'user = "marc"\n')
@@ -83,7 +83,7 @@ def _seed_repo(root: Path) -> Path:
         status: active
         mode: interactive
         owner: marc
-        assignee: claude1
+        assignee: claude
         contexts:
           - missing/context
         ---

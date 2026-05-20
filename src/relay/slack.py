@@ -41,7 +41,7 @@ def post(
     Every message is prefixed with `[<project>]` so a Slack channel shared
     across multiple relay repos stays disambiguated. When `owner` is given,
     `[<owner>]` follows — that's the human accountable for the ticket, so
-    teammates can tell whose agent (e.g. `claude1`) just acted when several
+    teammates can tell whose agent (e.g. `claude`) just acted when several
     teammates share an agent nickname.
 
     `image_url`, if given, attaches a single image (GIF or PNG) below the

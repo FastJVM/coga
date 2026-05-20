@@ -224,7 +224,7 @@ bucket. By default the command immediately launches the new task in
 (Auto mode is temporarily disabled — see `relay launch` above.)
 
 - `relay dream` — create and launch a Dream cleanup run now.
-- `relay dream --agent codex1` — assign the run to a specific agent nickname.
+- `relay dream --agent codex` — assign the run to a specific agent nickname.
 - `relay dream --no-launch` — scaffold the run and print the explicit
   `relay launch <slug>` command.
 

@@ -33,7 +33,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         mode = "local"
 
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(relay_os / "relay.local.toml", 'user = "marc"\n')
@@ -45,7 +45,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         mode: interactive
         skills:
           - bootstrap/ticket
-        assignee: claude1
+        assignee: claude
         ---
 
         ## Description
@@ -116,7 +116,7 @@ def test_ticket_existing_active_task_is_editable_without_status_change(
         contexts=[],
         mode="interactive",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=[],
         status="active",
     )
@@ -145,7 +145,7 @@ def test_ticket_refuses_in_progress_task(
         contexts=[],
         mode="interactive",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=[],
         status="in_progress",
     )

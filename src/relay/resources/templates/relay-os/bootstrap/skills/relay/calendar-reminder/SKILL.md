@@ -261,7 +261,7 @@ title: Brex Automation
 status: active
 mode: interactive
 owner: zach
-assignee: claude1
+assignee: claude
 contexts:
   - owner-manual
 workflow: brex-missing-gl

@@ -51,7 +51,7 @@ def _repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(relay_os / "relay.local.toml", 'user = "marc"\n')

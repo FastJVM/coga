@@ -28,7 +28,7 @@ def repo(tmp_path: Path) -> Path:
         mode = "local"
 
         [assignees.marc]
-        agents = {"claude1" = "claude", "claude2" = "claude"}
+        agents = {"claude" = "claude", "claude2" = "claude"}
         """,
     )
     _write(
@@ -67,7 +67,7 @@ def test_default_status_defaults_to_draft(tmp_path: Path) -> None:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
@@ -77,7 +77,7 @@ def test_default_status_defaults_to_draft(tmp_path: Path) -> None:
 
 def test_resolve_agent_type(repo: Path) -> None:
     cfg = load_config(repo)
-    agent = cfg.agent_type_for("marc", "claude1")
+    agent = cfg.agent_type_for("marc", "claude")
     assert agent.name == "claude"
 
 
@@ -103,7 +103,7 @@ def test_missing_user(tmp_path: Path) -> None:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(tmp_path / "relay.local.toml", "")

@@ -3,7 +3,7 @@ title: Create a new ticket
 mode: interactive
 skills:
   - bootstrap/ticket
-assignee: claude1
+assignee: claude
 ---
 
 ## Description
@@ -28,7 +28,7 @@ The actual instruction set lives at
 you're debugging the bootstrap flow.
 
 `assignee` must match a key under `[assignees.<human>.agents]` in
-`relay.toml`. The default `claude1` assumes the standard install; swap if
+`relay.toml`. The default `claude` assumes the standard install; swap if
 you've renamed agent nicknames.
 
 Don't add `status:` or `owner:` to this frontmatter. The shim is

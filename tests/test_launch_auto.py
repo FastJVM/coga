@@ -29,7 +29,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -51,7 +51,7 @@ def test_launch_auto_mode_is_temporarily_disabled(
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="Auto run", workflow_name=None,
-        contexts=[], mode="auto", owner="marc", assignee="claude1",
+        contexts=[], mode="auto", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
 

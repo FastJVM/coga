@@ -36,7 +36,7 @@ def repo(tmp_path: Path) -> Path:
         mode = "local"
 
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -94,7 +94,7 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ticket.assignee == "marc"
     # Auto-populated role fields: human ← owner, agent ← owner's lone configured agent.
     assert ticket.human == "marc"
-    assert ticket.agent == "claude1"
+    assert ticket.agent == "claude"
     assert ticket.workflow is None
 
 
@@ -118,7 +118,7 @@ def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) ->
         mode = "local"
 
         [assignees.marc]
-        agents = {"claude1" = "claude", "codex1" = "codex"}
+        agents = {"claude" = "claude", "codex" = "codex"}
         """,
     )
     cfg = load_config(repo)
@@ -135,7 +135,7 @@ def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) ->
     )
     ticket = Ticket.read(ref["path"] / "ticket.md")
     assert ticket.human == "marc"
-    assert ticket.agent == "claude1"
+    assert ticket.agent == "claude"
 
 
 def test_create_requires_agent_before_writing_task_dir(repo: Path) -> None:
@@ -195,7 +195,7 @@ def test_create_initial_assignee_resolved_from_workflow_step(repo: Path) -> None
     )
     ticket = Ticket.read(ref["path"] / "ticket.md")
     # Step 1 declares `assignee: agent` → resolves to `marc`'s configured agent.
-    assert ticket.assignee == "claude1"
+    assert ticket.assignee == "claude"
 
 
 def test_create_explicit_human_and_agent_overrides_defaults(repo: Path) -> None:
@@ -228,7 +228,7 @@ def test_backfill_role_fields_adds_human_and_agent(repo: Path) -> None:
         status: active
         mode: interactive
         owner: marc
-        assignee: claude1
+        assignee: claude
         ---
 
         ## Description
@@ -243,7 +243,7 @@ def test_backfill_role_fields_adds_human_and_agent(repo: Path) -> None:
     assert rewritten == ["legacy"]
     t = Ticket.read(legacy / "ticket.md")
     assert t.human == "marc"
-    assert t.agent == "claude1"  # detected from assignee being a known agent nick
+    assert t.agent == "claude"  # detected from assignee being a known agent nick
 
     # Idempotent: second run does nothing.
     assert backfill_role_fields(cfg) == []
@@ -272,7 +272,7 @@ def test_backfill_uses_owner_lone_agent_when_assignee_unknown(repo: Path) -> Non
     t = Ticket.read(legacy / "ticket.md")
     assert t.human == "marc"
     # Assignee `marc` isn't an agent, so fall back to owner's single configured agent.
-    assert t.agent == "claude1"
+    assert t.agent == "claude"
 
 
 def test_backfill_freezes_legacy_workflow_and_fills_assignee(repo: Path) -> None:
@@ -301,7 +301,7 @@ def test_backfill_freezes_legacy_workflow_and_fills_assignee(repo: Path) -> None
     assert backfill_role_fields(cfg) == ["legacy3"]
     t = Ticket.read(legacy / "ticket.md")
     assert t.human == "zach"
-    assert t.agent == "claude1"  # current user's default when owner is unknown.
+    assert t.agent == "claude"  # current user's default when owner is unknown.
     assert t.assignee == "zach"
     assert t.workflow["name"] == "code/with-review"
     assert t.workflow["steps"][0] == {
@@ -325,7 +325,7 @@ def test_create_with_workflow_and_contexts(repo: Path) -> None:
         contexts=["email/payment-flow", "email/payment-flow"],  # dupe ignored
         mode="auto",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=["pierre"],
         status="active",
     )
@@ -420,7 +420,7 @@ def repo_with_shim(repo: Path) -> Path:
         mode: interactive
         skills:
           - bootstrap/ticket
-        assignee: claude1
+        assignee: claude
         ---
 
         ## Description
@@ -453,7 +453,7 @@ def test_recurring_check_subcommand(
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
         mode: interactive
-        assignee: claude1
+        assignee: claude
         owner: marc
         ---
 
@@ -725,7 +725,7 @@ def test_scaffold_writes_declared_extension_fields(repo: Path) -> None:
         contexts=[],
         mode="interactive",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=[],
         status="draft",
     )
@@ -751,7 +751,7 @@ def test_scaffold_no_extensions_no_marker(repo: Path) -> None:
         contexts=[],
         mode="interactive",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=[],
         status="draft",
     )
@@ -772,7 +772,7 @@ def test_extension_fields_round_trip(repo: Path) -> None:
         contexts=[],
         mode="interactive",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=[],
         status="draft",
     )
