@@ -219,6 +219,13 @@ def launch(
     env = os.environ.copy()
     env.update(cfg.secrets)
 
+    # Mark the session as supervised so `relay bump`, run from inside the
+    # agent, can tell the human that exiting will let this launch process
+    # pick up the next step. Bootstrap shims don't chain; script/auto
+    # processes exit on their own, so the hint is interactive-only.
+    if not is_bootstrap and mode == "interactive":
+        env["RELAY_SUPERVISED"] = "1"
+
     # Install a signal-safe cleanup.
     prompt_file: Path | None = None
 

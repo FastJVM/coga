@@ -78,6 +78,58 @@ def test_bump_advances(repo: Path) -> None:
     assert "advanced to step 2" in (ref.path / "log.md").read_text()
 
 
+def test_bump_supervised_prints_handoff_hint(repo: Path) -> None:
+    # `code` workflow steps carry no skills, so the supervisor would stop
+    # after this bump — the hint says so.
+    slug, _ = _make_task(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", slug], env={"RELAY_SUPERVISED": "1"})
+    assert result.exit_code == 0, result.output
+    assert "Supervised launch" in result.output
+    assert "handoff" in result.output
+
+
+def test_bump_supervised_prints_chain_hint_when_next_step_has_skills(repo: Path) -> None:
+    _write(
+        repo / "skills" / "code-impl" / "SKILL.md",
+        """
+        ---
+        name: code-impl
+        description: tiny skill.
+        ---
+        Do it.
+        """,
+    )
+    _write(
+        repo / "workflows" / "skilled.md",
+        """
+        ---
+        name: skilled
+        description: next step has a skill.
+        steps:
+          - name: implement
+          - name: pr
+            skills:
+              - code-impl
+        ---
+        """,
+    )
+    slug, _ = _make_task(repo, workflow="skilled")
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", slug], env={"RELAY_SUPERVISED": "1"})
+    assert result.exit_code == 0, result.output
+    assert "Supervised launch" in result.output
+    assert "start the next step" in result.output
+
+
+def test_bump_unsupervised_prints_no_hint(repo: Path) -> None:
+    slug, _ = _make_task(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", slug])
+    assert result.exit_code == 0, result.output
+    assert "Supervised launch" not in result.output
+
+
 def test_bump_past_final_step_errors_with_mark_done_hint(repo: Path) -> None:
     slug, task_path = _make_task(repo)
     runner = CliRunner()

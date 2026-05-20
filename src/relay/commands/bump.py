@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
 import typer
@@ -125,6 +126,26 @@ def bump(
         )
     except TaskValidationError as exc:
         _bail(str(exc))
+
+    # The step advanced. When this bump ran inside a supervised
+    # `relay launch` (interactive mode), the agent process is a REPL that
+    # only exits when the human quits it — the launch supervisor can't
+    # pick up the next step until then. Tell the human so the chain
+    # isn't silently stalled waiting on a quit nobody knows to make.
+    if os.environ.get("RELAY_SUPERVISED"):
+        will_chain = bool(new_step.get("skills")) and new_assignee is None
+        if will_chain:
+            hint = (
+                "Supervised launch: step done. Exit the agent session "
+                "(Ctrl-D or /exit) — relay launch will start the next step."
+            )
+        else:
+            hint = (
+                "Supervised launch: step done. Exit the agent session "
+                "(Ctrl-D or /exit) — the next step is a handoff, so "
+                "relay launch will stop there."
+            )
+        typer.secho(hint, fg=typer.colors.CYAN)
 
 
 def _bail(msg: str) -> None:

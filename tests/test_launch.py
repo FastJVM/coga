@@ -196,6 +196,31 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert "launched in interactive mode" in log
 
 
+def test_launch_marks_interactive_session_supervised(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    envs: list[dict] = []
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        envs.append(env or {})
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+
+    # The agent's env carries the supervised marker so `relay bump`, run
+    # from inside the session, can tell the human to exit and chain.
+    assert envs and envs[0].get("RELAY_SUPERVISED") == "1"
+
+
 def test_launch_in_progress_resumes_without_status_transition(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
