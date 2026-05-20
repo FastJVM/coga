@@ -173,12 +173,25 @@ def _register_alias_placeholder(name: str, expansion: str) -> None:
 
 def main() -> None:
     """Console-script entry point. Loads config, registers aliases, dispatches."""
+    # `relay init` (fresh or `--update`) is the scaffold/recovery command — it
+    # must run even when the current config is missing, legacy, or broken,
+    # since repairing exactly that is often why it's invoked. A stale CLI plus
+    # a migrated `relay.toml` would otherwise deadlock: the update that fixes
+    # the CLI can't run because the stale CLI rejects the new config first.
+    init_invoked = len(sys.argv) > 1 and sys.argv[1] == "init"
     try:
         find_repo_root()
         cfg = load_config()
     except ConfigError as exc:
         msg = str(exc)
         if "No relay.toml found" in msg:
+            cfg = None
+        elif init_invoked:
+            typer.secho(
+                f"Note: ignoring config error so `init` can run — {msg}",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
             cfg = None
         else:
             typer.secho(msg, fg=typer.colors.RED, err=True)
