@@ -444,10 +444,12 @@ hygiene (pruning the merged feature branch, sweeping stale branches)
 belongs in a Dream worker, not here.
 
 ```sh
-relay retire add-retry                       # auto mode by default
-relay retire add-retry --mode interactive    # supervise the run
+relay retire add-retry                       # interactive mode (the default)
 relay retire add-retry --no-launch           # scaffold without launching
 ```
+
+`retire` runs interactively so the Retro pass writes live console
+output; `mode: auto` is temporarily disabled.
 
 ### `relay panic --task <slug> --reason "..."`
 

@@ -312,5 +312,5 @@ place to apply safe fixes and broadcast a summary during a Dream run.
 - The mental model behind these commands (primitives, planes, prompt
   composition, locking) — see `relay/architecture`.
 - Where source lives + how to test changes — see `relay/codebase`.
-- Reference contracts (config schemas, frontmatter shapes, error
-  tables) — see `docs/spec.md`.
+- Reference contracts — frontmatter shapes and primitives are in
+  `relay/architecture`; config schemas live in `src/relay/config.py`.
