@@ -62,6 +62,8 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "### Phase 3" in text
     assert "### Phase 4" in text
     assert "### Phase 5" in text
+    assert "### Phase 6" in text
+    assert "Dream runs six phases in order" in text
     assert "`bootstrap/dream/tasks/validate-drift`" in text
     assert "retro/done-ticket" in text
     assert "`bootstrap/dream/tasks/cleanup-orphan-markers`" in text
@@ -86,6 +88,29 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "stale branch" not in text.lower()
     assert "relay-os/skills/dream/orchestrate/SKILL.md" not in text
     assert "tasks/**/SKILL.md" not in text
+
+
+def test_dream_documents_the_contract_audit_phase() -> None:
+    """Phase 3 is a dedicated consistency audit: a subagent checks the living
+    contract surface (contexts, skills, recurring templates, shipped docs)
+    against code reality, missing artifacts, and live/packaged copy drift,
+    and classifies each finding as `drift` for Phase 6 to route."""
+    text = DREAM_PROMPT.read_text()
+
+    assert "### Phase 3 — contract audit" in text
+    assert "contract audit" in text
+    assert "decide-half complement to Phase 1" in text
+    assert "living contract surface" in text
+    assert "`drift`" in text
+    # The three sources of truth the audit checks claims against.
+    assert "code reality" in text
+    assert "referenced artifacts" in text
+    assert "copy divergence" in text
+    # Frozen task artifacts are not contracts.
+    assert "Frozen task artifacts under `relay-os/tasks/` are historical" in text
+    # Phase 6 disposition routes `drift` findings to a proposal PR.
+    assert "Every Phase 2 and Phase 3 finding gets a durable home" in text
+    assert "- `drift` — open a proposal PR" in text
 
 
 def test_validate_drift_worker_declares_contract() -> None:

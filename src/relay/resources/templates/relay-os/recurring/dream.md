@@ -28,26 +28,28 @@ order, and output conventions.
 ### Console Progress
 
 Write short progress updates to the console before and after each phase:
-validate-drift, knowledge scan, Retro pass, cleanup-orphan-markers,
-disposition, and the final status mark. Include the command or file path being
+validate-drift, knowledge scan, contract audit, Retro pass,
+cleanup-orphan-markers, disposition, and the final status mark. Include the
+command or file path being
 acted on and the result count when available. If a phase is skipped, say why.
 The blackboard remains the durable record; console progress is for the human
 watching the run.
 
 ### Run order
 
-Dream runs five phases in order. Phases 1–2 **decide** — they read the repo and
-record what to change. Phases 3–5 **execute** — they make the changes. Deciding
-before executing is deliberate: the knowledge scan reads the corpus while every
-done ticket still exists (Phase 3 deletes them all), so nothing is missed, and
-the scan's findings steer the Retro pass.
+Dream runs six phases in order. Phases 1–3 **decide** — they read the repo and
+record what to change. Phases 4–6 **execute** — they make the changes. Deciding
+before executing is deliberate: the knowledge scan and contract audit read the
+corpus while every done ticket still exists (Phase 4 deletes them all), so
+nothing is missed, and their findings steer the Retro pass.
 
 1. **validate-drift** — deterministic repo hygiene (script worker).
 2. **knowledge scan** — one full-corpus read; classifies every finding.
-3. **retro/done-ticket** — extracts durable knowledge from every eligible done
+3. **contract audit** — checks the contract surface against code reality.
+4. **retro/done-ticket** — extracts durable knowledge from every eligible done
    ticket in one pass.
-4. **cleanup-orphan-markers** — delete-only orphan cleanup (script worker).
-5. **disposition + run summary** — routes every finding to a durable home.
+5. **cleanup-orphan-markers** — delete-only orphan cleanup (script worker).
+6. **disposition + run summary** — routes every finding to a durable home.
 
 This body is the dispatch contract. Do not auto-discover skills, scan a plugin
 folder, or invent another maintenance phase during the run. Adding or removing
@@ -56,7 +58,7 @@ permit a replacement: record the result and continue only with later phases
 whose inputs do not depend on the blocked one. If a repo wants a different
 maintenance loop, make another task with its own body and ordered phase list.
 
-The two script workers (Phases 1 and 4) each run as a child `mode: script`
+The two script workers (Phases 1 and 5) each run as a child `mode: script`
 task whose one workflow step references the worker skill — Dream-owned scripts
 are skills attached to Relay tasks, never standalone execution units. Before
 launching a worker, read its `## Known Skill Contract`, keep its reads and
@@ -81,7 +83,7 @@ workflows, or change lifecycle/assignee state.
 Delegate this phase to a subagent. It is the single full-corpus read of the
 run: the subagent reads every ticket body and blackboard, and every context,
 skill, and workflow file, and compares them. Running it now — in the decide
-half, before Phase 3 deletes any done ticket — means no evidence is lost.
+half, before Phase 4 deletes any done ticket — means no evidence is lost.
 
 The subagent returns only a classified findings list; raw ticket and blackboard
 contents stay inside the subagent. Classify each finding as exactly one of:
@@ -97,10 +99,49 @@ contents stay inside the subagent. Classify each finding as exactly one of:
 Write the findings to this task's blackboard under `## Findings`: short title,
 class, target file or ticket, one paragraph describing the change, and draft
 content when a new file is proposed. Group the `extract` findings by the
-context/skill area they touch — Phase 3 uses that grouping to batch coherent
+context/skill area they touch — Phase 4 uses that grouping to batch coherent
 PRs.
 
-### Phase 3 — retro/done-ticket
+### Phase 3 — contract audit
+
+Delegate this phase to a subagent. Where the knowledge scan asks what the repo
+knows that no context captures, the contract audit asks the opposite: what the
+contexts, skills, recurring templates, and shipped docs *claim* that the repo
+no longer backs up. It is a consistency pass over Relay's explanation of
+itself, and it is the decide-half complement to Phase 1: validate-drift checks
+deterministic repo hygiene, the contract audit checks whether the prose still
+matches the code.
+
+The subagent reads the living contract surface — every
+`relay-os/contexts/**/SKILL.md` and `relay-os/skills/**/SKILL.md`, the
+`relay-os/recurring/*.md` templates, `README.md`, `docs/*.md`, and the agent
+instruction files `CLAUDE.md` and `AGENTS.md` — and checks each concrete claim
+against three sources of truth:
+
+- **code reality** — a flag, default, command, status value, or path that
+  `src/relay/` no longer implements as described.
+- **referenced artifacts** — a file, skill, context, or workflow a contract
+  names that does not exist on disk.
+- **copy divergence** — a shipped template under `relay-os/` whose packaged
+  counterpart under `src/relay/resources/templates/relay-os/` has drifted,
+  where the difference is not documented as intentional.
+
+Frozen task artifacts under `relay-os/tasks/` are historical records, not
+contracts — a stale reference inside a retired ticket is not a finding. Audit
+only the living contract surface.
+
+The subagent returns only a classified findings list. Classify each finding as:
+
+- `drift` — a contract claim contradicts code reality, names a missing
+  artifact, or a live/packaged copy pair has diverged. Name the file and line,
+  state the contradiction, and name the source of truth.
+
+Write these findings to this task's blackboard under `## Findings`, alongside
+the Phase 2 findings and in the same shape: short title, class, target file,
+one paragraph. The audit never repairs anything itself — Phase 6 routes each
+`drift` finding to a proposal PR.
+
+### Phase 4 — retro/done-ticket
 
 Extract durable knowledge from done tickets, then delete every one of them.
 This pass processes **every eligible done ticket in a single run** — there is
@@ -134,13 +175,13 @@ disk and never opens a marker-only PR.
 
 Summarize each PR — knowledge PRs and any prune PR — in this run's blackboard.
 
-### Phase 4 — cleanup-orphan-markers
+### Phase 5 — cleanup-orphan-markers
 
 Recovery path for done tickets whose blackboard carries a processed Retro
 marker from a knowledge PR but whose task directory was not deleted by that
-PR. Phase 3 PRs delete the source directory in the same PR, so this pass should
-usually find nothing. A `result: no-new-durable-knowledge` ticket is Phase 3's
-to delete — Phase 3 re-picks it each run until its prune PR merges — so this
+PR. Phase 4 PRs delete the source directory in the same PR, so this pass should
+usually find nothing. A `result: no-new-durable-knowledge` ticket is Phase 4's
+to delete — Phase 4 re-picks it each run until its prune PR merges — so this
 cleanup gate ignores those markers.
 
 Launch a child `mode: script` task whose current workflow step references
@@ -162,22 +203,27 @@ a human can review it before merge. Cleanup gate:
 Result line: `pr-opened` when the PR is opened. If any gate is unclear, write
 `human-needed` instead of opening the PR. Do not auto-merge.
 
-### Phase 5 — disposition + run summary
+### Phase 6 — disposition + run summary
 
-Every Phase 2 finding gets a durable home. The `## Findings` blackboard section
-is an index of what Dream saw, not where decisions go to rest — this task is
-retired and its blackboard with it.
+Every Phase 2 and Phase 3 finding gets a durable home. The `## Findings`
+blackboard section is an index of what Dream saw, not where decisions go to
+rest — this task is retired and its blackboard with it.
 
 Route each finding by class:
 
-- `extract` — already handled by Phase 3 (a knowledge PR, or — when the ticket
+- `extract` — already handled by Phase 4 (a knowledge PR, or — when the ticket
   carried nothing durable — a `no-new-durable-knowledge` marker and deletion).
 - `stale` — open a proposal PR that edits the named context or skill to match
   reality. The PR is `pr-required`: a human reviews and merges it; Dream never
   auto-merges and never edits a context or skill directly on `main`. If a
-  stale fix would touch a context or skill that a Phase 3 PR already edits, do
+  stale fix would touch a context or skill that a Phase 4 PR already edits, do
   not open a conflicting PR — note the overlap on the finding and leave it for
   that PR's review.
+- `drift` — open a proposal PR that fixes the named contract: correct the doc
+  to match code, repoint or remove a dead reference, or resync a diverged
+  packaged/live copy pair. Like `stale`, the PR is `pr-required` and Dream
+  never auto-merges. If the fix overlaps a context or skill a Phase 4
+  knowledge PR already edits, note the overlap and defer to that PR's review.
 - `gap` — scaffold a tracked draft ticket with
   `relay create "<title>" --workflow code/with-review`. A gap needs human
   design judgment about whether and how to add the context, skill, or
