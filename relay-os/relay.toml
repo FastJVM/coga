@@ -92,6 +92,3 @@ panic = [
 chat = "launch bootstrap/orient"
 claude = "launch bootstrap/orient --agent claude"
 codex = "launch bootstrap/orient --agent codex"
-# `dream` scaffolds the `recurring/dream.md` cleanup task and launches it now —
-# the same scaffold path the cron `relay recurring check` uses.
-dream = "recurring scaffold dream --launch"
