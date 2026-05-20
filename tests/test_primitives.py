@@ -38,7 +38,7 @@ TICKET_EXAMPLE = dedent(
     status: active
     mode: interactive
     owner: marc
-    assignee: claude1
+    assignee: claude
     workflow:
       name: code/with-review
       steps:
@@ -126,7 +126,7 @@ def test_workflow_rejects_non_role_token_assignee(tmp_path: Path) -> None:
         name: wf
         steps:
           - name: implement
-            assignee: claude1
+            assignee: claude
         ---
         """
     ).lstrip())
@@ -138,10 +138,10 @@ def test_workflow_rejects_non_role_token_assignee(tmp_path: Path) -> None:
 
 
 def test_append_log(tmp_path: Path) -> None:
-    append_log(tmp_path, "agent:claude1", "advanced to step 2 (pr)")
+    append_log(tmp_path, "agent:claude", "advanced to step 2 (pr)")
     append_log(tmp_path, "human:marc", "approved")
     log = (tmp_path / "log.md").read_text()
-    assert "[agent:claude1] advanced to step 2 (pr)" in log
+    assert "[agent:claude] advanced to step 2 (pr)" in log
     assert "[human:marc] approved" in log
     assert len(log.strip().splitlines()) == 2
 

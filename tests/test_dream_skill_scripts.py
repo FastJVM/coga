@@ -51,7 +51,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
 
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(relay_os / "relay.local.toml", 'user = "marc"\n')
@@ -92,7 +92,7 @@ def test_validate_drift_runs_as_script_skill(repo: Path) -> None:
         contexts=[],
         mode="script",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=[],
         status="active",
     )
@@ -151,7 +151,7 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
         contexts=[],
         mode="script",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=[],
         status="active",
     )
@@ -213,7 +213,7 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
         contexts=[],
         mode="script",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=[],
         status="active",
     )

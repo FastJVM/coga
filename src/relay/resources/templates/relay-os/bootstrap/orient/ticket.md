@@ -1,7 +1,7 @@
 ---
 title: Orient an agent in this relay-os/ repo
 mode: interactive
-assignee: claude1
+assignee: claude
 contexts:
   - relay/architecture
   - relay/principles

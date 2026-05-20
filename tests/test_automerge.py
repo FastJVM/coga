@@ -31,7 +31,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -65,7 +65,7 @@ def _make_task(
     cfg = load_config(repo)
     ref = scaffold_task(
         cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status=status,
     )
     path = ref["path"]

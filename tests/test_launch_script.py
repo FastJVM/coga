@@ -31,7 +31,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(
@@ -88,7 +88,7 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], mode="script", owner="marc", assignee="claude1",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -114,12 +114,12 @@ def test_script_mode_rejects_agent_override(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], mode="script", owner="marc", assignee="claude1",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "check", "--agent", "claude1"])
+    result = runner.invoke(app, ["launch", "check", "--agent", "claude"])
     assert result.exit_code == 2
     assert "--agent is only supported for interactive/auto launches" in (
         result.output + (result.stderr or "")
@@ -133,7 +133,7 @@ def test_script_mode_requires_skill_field(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], mode="script", owner="marc", assignee="claude1",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     runner = CliRunner()
@@ -150,7 +150,7 @@ def test_script_mode_nonzero_exit_logged(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="Fail", workflow_name="ops",
-        contexts=[], mode="script", owner="marc", assignee="claude1",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     runner = CliRunner()

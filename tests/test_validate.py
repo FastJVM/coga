@@ -33,7 +33,7 @@ def repo(tmp_path: Path):
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -47,7 +47,7 @@ def test_clean_repo_has_no_issues(repo: Path) -> None:
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=["email/payment-flow"], mode="interactive",
-        owner="marc", assignee="claude1", watchers=[], status="draft",
+        owner="marc", assignee="claude", watchers=[], status="draft",
     )
     report = run(cfg)
     assert report.issues == []
@@ -64,7 +64,7 @@ def test_broken_skill_ref(repo: Path) -> None:
         title: X
         status: active
         mode: interactive
-        assignee: claude1
+        assignee: claude
         owner: marc
         workflow:
           name: x
@@ -90,7 +90,7 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -106,7 +106,7 @@ def test_invalid_status(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -121,7 +121,7 @@ def test_missing_file(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -134,7 +134,7 @@ def test_apply_safe_fixes_creates_missing_workspace_files(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -156,7 +156,7 @@ def test_run_fix_repairs_before_reporting(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -173,7 +173,7 @@ def test_large_blackboard_warns(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -274,7 +274,7 @@ def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
@@ -285,7 +285,7 @@ def test_validate_flags_missing_declared_extension(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     # Add the declaration AFTER the ticket exists — simulates declaring a new
@@ -309,7 +309,7 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     # Now remove the declaration.
@@ -338,7 +338,7 @@ def test_validate_flags_enum_violation(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -367,7 +367,7 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
@@ -378,7 +378,7 @@ def test_stuck_in_progress_flagged(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="in_progress",
     )
     ref = list_tasks(cfg)[0]

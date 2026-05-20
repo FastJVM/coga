@@ -31,7 +31,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -59,7 +59,7 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "in_p
     cfg = load_config(repo)
     ref = scaffold_task(
         cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status=status,
     )
     return ref["slug"], ref["path"]
@@ -241,8 +241,8 @@ def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
     ref = scaffold_task(
         cfg=cfg, title="W", workflow_name="review",
         contexts=[], mode="interactive",
-        owner="marc", assignee="claude1",
-        human="marc", agent="claude1",
+        owner="marc", assignee="claude",
+        human="marc", agent="claude",
         watchers=[], status="in_progress",
     )
     slug = ref["slug"]
@@ -250,7 +250,7 @@ def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
 
     # Step 1 declared `assignee: agent` → resolved at scaffold time.
     t = Ticket.read(task_path / "ticket.md")
-    assert t.assignee == "claude1"
+    assert t.assignee == "claude"
 
     # Bump into step 2 (assignee: human) → ticket.assignee = ticket.human.
     runner = CliRunner()
@@ -279,7 +279,7 @@ def test_bump_no_assignee_declared_leaves_assignee_unchanged(repo: Path) -> None
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
     t = Ticket.read(task_path / "ticket.md")
-    assert t.assignee == "claude1"  # unchanged
+    assert t.assignee == "claude"  # unchanged
     log = (task_path / "log.md").read_text()
     assert "→ assigned to" not in log
 
@@ -290,8 +290,8 @@ def test_bump_role_token_with_missing_field_fails_loud(repo: Path) -> None:
     ref = scaffold_task(
         cfg=cfg, title="W", workflow_name="review",
         contexts=[], mode="interactive",
-        owner="marc", assignee="claude1",
-        human="marc", agent="claude1",
+        owner="marc", assignee="claude",
+        human="marc", agent="claude",
         watchers=[], status="in_progress",
     )
     # Hand-edit the ticket to remove the `human` field, then bump into the
@@ -318,8 +318,8 @@ def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
         mode: interactive
         owner: marc
         human: marc
-        agent: claude1
-        assignee: claude1
+        agent: claude
+        assignee: claude
         contexts: []
         skills: []
         workflow: code
@@ -344,8 +344,8 @@ def test_bump_handoff_appears_in_slack_text(repo: Path) -> None:
     ref = scaffold_task(
         cfg=cfg, title="W", workflow_name="review",
         contexts=[], mode="interactive",
-        owner="marc", assignee="claude1",
-        human="marc", agent="claude1",
+        owner="marc", assignee="claude",
+        human="marc", agent="claude",
         watchers=[], status="in_progress",
     )
     runner = CliRunner()
@@ -413,7 +413,7 @@ def test_status_narrow_terminal_keeps_each_task_on_one_line(
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="anything", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="t1",
     )
     monkeypatch.setenv("COLUMNS", "60")
@@ -431,7 +431,7 @@ def test_status_does_not_show_title_column(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="A distinctive ticket title", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="t1",
     )
     runner = CliRunner()
@@ -522,12 +522,12 @@ def test_status_default_orders_by_updated_desc(repo: Path) -> None:
     cfg = load_config(repo)
     older = scaffold_task(
         cfg=cfg, title="older", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="aaa-old",
     )
     newer = scaffold_task(
         cfg=cfg, title="newer", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="zzz-new",
     )
     _set_log_timestamp(older["path"], "2026-01-01 09:00")
@@ -546,7 +546,7 @@ def test_status_order_by_slug_is_alphabetical(repo: Path) -> None:
     for slug in ("zeta", "alpha", "mu"):
         scaffold_task(
             cfg=cfg, title=slug, workflow_name=None,
-            contexts=[], mode="interactive", owner="marc", assignee="claude1",
+            contexts=[], mode="interactive", owner="marc", assignee="claude",
             watchers=[], status="active", slug_override=slug,
         )
     runner = CliRunner()
@@ -563,7 +563,7 @@ def test_status_reverse_flips_order(repo: Path) -> None:
     for slug in ("alpha", "zeta"):
         scaffold_task(
             cfg=cfg, title=slug, workflow_name=None,
-            contexts=[], mode="interactive", owner="marc", assignee="claude1",
+            contexts=[], mode="interactive", owner="marc", assignee="claude",
             watchers=[], status="active", slug_override=slug,
         )
     runner = CliRunner()
@@ -583,12 +583,12 @@ def test_status_tasks_without_log_sort_to_end(repo: Path) -> None:
     cfg = load_config(repo)
     has_log = scaffold_task(
         cfg=cfg, title="logged", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="zzz-logged",
     )
     no_log = scaffold_task(
         cfg=cfg, title="no log", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude1",
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="aaa-nolog",
     )
     _set_log_timestamp(has_log["path"], "2026-04-30 17:00")

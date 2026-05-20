@@ -30,7 +30,7 @@ def repo(tmp_path: Path) -> Path:
         auto = "-p"
         file = "CLAUDE.md"
         [assignees.marc]
-        agents = {"claude1" = "claude"}
+        agents = {"claude" = "claude"}
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
@@ -73,7 +73,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
         contexts=["email/payment-flow"],
         mode="interactive",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=[],
         status="active",
     )
@@ -109,7 +109,7 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
         contexts=[],
         mode="interactive",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=[],
         status="active",
     )
@@ -139,7 +139,7 @@ def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
         contexts=["email/payment-flow"],
         mode="interactive",
         owner="marc",
-        assignee="claude1",
+        assignee="claude",
         watchers=[],
         status="active",
     )

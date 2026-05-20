@@ -23,7 +23,7 @@ mode = "local"
 # Humans, with their per-person agent nicknames.
 
 # [assignees.you]
-# agents = {"claude1" = "claude"}
+# agents = {"claude" = "claude", "codex" = "codex"}
 
 # --- Slack ---
 # Slack is the team sync point — every state change (ticket created,
@@ -59,5 +59,5 @@ mode = "local"
 [aliases]
 chat = "launch bootstrap/orient"
 # Uncomment after adding matching nicknames under your `[assignees.<user>]`.
-# claude = "launch bootstrap/orient --agent claude1"
-# codex = "launch bootstrap/orient --agent codex1"
+# claude = "launch bootstrap/orient --agent claude"
+# codex = "launch bootstrap/orient --agent codex"
