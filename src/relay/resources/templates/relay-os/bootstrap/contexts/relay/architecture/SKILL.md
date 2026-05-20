@@ -108,22 +108,25 @@ Extensions live in the same frontmatter the prompt composer already
 reads, so no extra layer is needed — the field is in every composed
 prompt by virtue of being on the ticket.
 
-## Workflow required at draft time
+## Workflow gated at activation, not draft time
 
-`relay create` / `relay draft` always require `--workflow <name>`.
-Workflow-less drafts are refused. This closes the failure mode where an
-agent calls `relay create "<title>"`, produces a workflow-less draft,
-and no `relay bump` can ever advance it. The guarded path keeps every
-human-authored ticket bumpable by construction — no config knob, no
-opt-in.
+`relay draft` (and its compatibility spelling `relay create`) take an
+*optional* `--workflow <name>`. A workflow-less draft is a valid authoring
+state — drafting captures intent before its shape is settled.
 
-The gate sits at the user-facing CLI surface only. `relay ticket`
-(guided authoring) bypasses it because its interview skill fills the
-workflow in. `relay recurring` scaffolding (the cron `check` and the
-on-demand `scaffold`, including the `relay dream` alias) and `relay
-retire` keep scaffolding their own one-shots — they call `scaffold_task`
-directly and are intentional internal exceptions, not user-authored
-drafts.
+The bumpability guarantee moves to activation. `relay mark active` refuses
+to activate a ticket that has no workflow, with an error pointing at either
+`--workflow` or `relay ticket` for guided authoring. This closes the same
+failure mode — a launched ticket no `relay bump` can ever advance — at the
+moment work is approved rather than the moment it is drafted, so a
+half-formed draft is never blocked on a workflow decision it isn't ready to
+make.
+
+`relay ticket` (guided authoring) fills the workflow in through its
+interview skill. `relay recurring` scaffolding (the cron `check` and the
+on-demand `scaffold`, including the `relay dream` alias) and `relay retire`
+scaffold their own one-shots by calling `scaffold_task` directly — they are
+intentional internal exceptions, not user-authored drafts.
 
 ## Two state machines per ticket
 

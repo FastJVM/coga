@@ -26,23 +26,24 @@ resources. It does not modify a repo. `relay init` and `relay init --update`
 materialize those package resources into `relay-os/bootstrap/`, where Relay
 resolves them after project-local `relay-os/skills` and `relay-os/contexts`.
 
-## relay create "\<title\>" --workflow \<name\> [--mode interactive|auto|script]
+## relay draft "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
 
-Scaffold a new `draft` ticket and post `✨` to Slack. Does not launch an
-agent. Use this as step one of the three-step boot: `create` → edit the
-draft body / workflow / contexts as needed → `relay mark active <slug>`
-→ `relay launch <slug>`.
+Scaffold a new raw `draft` ticket and post `✨` to Slack. Does not launch
+an agent. Step one of the three-step boot: `draft` → edit the body /
+workflow / contexts as needed → `relay mark active <slug>` →
+`relay launch <slug>`. `relay create` is a compatibility spelling for
+`relay draft` — identical behavior, no guided interview.
 
-`--workflow <name>` (path under `relay-os/workflows/`) is required.
-Workflow-less drafts are rejected with an actionable error pointing at
-either the flag or `relay ticket` for guided authoring. The gate is
-unconditional and closes the failure mode where an agent scaffolds a
-dead-end ticket no `relay bump` can advance.
+`--workflow <name>` (path under `relay-os/workflows/`) is optional. A
+workflow-less draft is a valid authoring state; the workflow can be added
+to the ticket any time before activation. The bumpability gate lives at
+activation, not here: `relay mark active` refuses a workflow-less ticket
+with an error pointing at `--workflow` or `relay ticket`. For guided
+authoring that fills the workflow in for you, use `relay ticket`.
 
 The deliberate separation keeps the moment of authorship distinct from
 the moment of starting work. Tickets you mean to draft now and start
-later get the same `create` call; nothing fires the agent until you
-choose to.
+later get the same call; nothing fires the agent until you choose to.
 
 ## relay mark \<state\> \<slug\> [--message "..."]
 
