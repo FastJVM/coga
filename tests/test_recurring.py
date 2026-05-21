@@ -246,6 +246,22 @@ def test_recurring_scaffold_creates_dream_task(dream_repo: Path) -> None:
     assert refs[0].slug != "dream"
 
 
+def test_recurring_scaffold_defaults_assignee_to_default_agent(
+    dream_repo: Path,
+) -> None:
+    """A workflow-less recurring task (Dream) with no template `assignee:`
+    defaults to the repo's default agent, not the human owner — otherwise
+    `relay launch` cannot resolve the assignee to an agent type."""
+    CliRunner().invoke(app, ["recurring", "scaffold", "dream"])
+
+    cfg = load_config(dream_repo)
+    refs = list_tasks(cfg)
+    ticket = Ticket.read(refs[0].path / "ticket.md")
+    assert ticket.workflow is None
+    assert ticket.owner == "marc"
+    assert ticket.assignee == "claude"
+
+
 def test_recurring_scaffold_is_idempotent(dream_repo: Path) -> None:
     runner = CliRunner()
     first = runner.invoke(app, ["recurring", "scaffold", "dream"])

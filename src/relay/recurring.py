@@ -146,6 +146,17 @@ def scaffold_template(
     if existing is not None:
         return ScaffoldOutcome(ref=existing, created=False)
 
+    # A recurring task is a machine-authored job: it scaffolds straight to
+    # `active` and is meant to run, not be triaged. So when the template
+    # doesn't name an assignee, default to the repo's configured default
+    # agent — not the human owner, which `relay launch` cannot resolve to
+    # an agent type. Without this a workflow-less template like Dream (no
+    # step to ever rewrite `assignee:`) scaffolds unlaunchable.
+    assignee = template.frontmatter.get("assignee")
+    if not assignee:
+        default_agent = cfg.default_agent()
+        assignee = default_agent.name if default_agent else None
+
     ref = scaffold_task(
         cfg=cfg,
         title=_extract_title(template),
@@ -153,7 +164,7 @@ def scaffold_template(
         contexts=list(template.frontmatter.get("contexts") or []),
         mode=effective_mode,
         owner=template.frontmatter.get("owner"),
-        assignee=template.frontmatter.get("assignee"),
+        assignee=assignee,
         watchers=list(template.frontmatter.get("watchers") or []),
         # Recurring tasks scaffold straight to `active`: they are
         # machine-authored ready jobs, and a workflow-less one (e.g. Dream)
