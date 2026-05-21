@@ -1,17 +1,30 @@
-"""`relay delete` — remove a task directory from the working tree."""
+"""`relay delete` — remove a task directory from the working tree.
+
+Thin entrypoint: resolve the task argument, then dispatch into the
+`bootstrap/delete-task` skill, which performs the actual filesystem removal.
+That skill is the single implementation of task deletion — it is equally
+runnable as a `mode: script` workflow step. Recovery is via `git restore`.
+"""
 
 from __future__ import annotations
 
-import shutil
+import os
+import subprocess
 import sys
 
 import typer
 
-from relay.config import ConfigError, load_config
-from relay.tasks import (
-    TaskNotFoundError,
-    resolve_task,
+from relay.commands.launch_script import (
+    build_script_command,
+    build_script_env,
+    script_repo_root,
 )
+from relay.config import ConfigError, load_config
+from relay.paths import resolve_skill_path, skill_resolution_paths
+from relay.skill import Skill
+from relay.tasks import TaskNotFoundError, resolve_task
+
+DELETE_SKILL_REF = "bootstrap/delete-task"
 
 
 def delete(
@@ -28,8 +41,40 @@ def delete(
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
-    shutil.rmtree(ref.path)
-    typer.echo(f"{ref.id_slug}: deleted")
+    skill_file = resolve_skill_path(cfg, DELETE_SKILL_REF)
+    if skill_file is None:
+        checked = ", ".join(str(p) for p in skill_resolution_paths(cfg, DELETE_SKILL_REF))
+        _bail(
+            f"Delete skill {DELETE_SKILL_REF!r} not found. Checked: {checked}. "
+            "Run `relay init --update` to materialize bundled skills."
+        )
+    skill = Skill.load(skill_file)
+    if not skill.script:
+        _bail(f"Delete skill {skill.name!r} has no `script:` in frontmatter.")
+    script_path = skill.dir / skill.script
+    if not script_path.is_file():
+        _bail(f"Delete skill script not found: {script_path}")
+
+    # Run the skill's script directly with the same env contract a
+    # `mode: script` launch injects, pointed at the resolved target task.
+    env = os.environ.copy()
+    env.update(cfg.secrets)
+    env.update(build_script_env(cfg, ref, skill))
+
+    result = subprocess.run(
+        build_script_command(script_path),
+        env=env,
+        cwd=script_repo_root(cfg),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.stdout:
+        typer.echo(result.stdout, nl=False)
+    if result.returncode != 0:
+        if result.stderr:
+            typer.secho(result.stderr, fg=typer.colors.RED, err=True, nl=False)
+        sys.exit(result.returncode)
 
 
 def _bail(msg: str) -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import typer
 
@@ -17,6 +18,47 @@ from relay.slack import post
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
 from relay.validate import TaskValidationError
+
+
+def script_repo_root(cfg: Config) -> Path:
+    """Working directory for a script run.
+
+    The repo root for `relay-os/` inside a host repo is `repo/relay-os`;
+    scripts almost always want the host repo (its parent), so prefer that
+    when present.
+    """
+    return cfg.repo_root.parent if cfg.repo_root.name == "relay-os" else cfg.repo_root
+
+
+def build_script_env(cfg: Config, ref: TaskRef, skill: Skill) -> dict[str, str]:
+    """The `mode: script` task/skill metadata environment contract.
+
+    One definition, two callers: `relay launch` (script mode) and `relay
+    delete`, which runs the `bootstrap/delete-task` skill directly against a
+    resolved target task. Keeping it shared means the `RELAY_*` variable names
+    cannot drift between the two dispatch paths.
+    """
+    return {
+        "RELAY_TASK_SLUG": ref.id_slug,
+        "RELAY_TASK_DIR": str(ref.path.resolve()),
+        "RELAY_TASK_TICKET": str((ref.path / "ticket.md").resolve()),
+        "RELAY_TASK_BLACKBOARD": str((ref.path / "blackboard.md").resolve()),
+        "RELAY_TASK_LOG": str((ref.path / "log.md").resolve()),
+        "RELAY_RELAY_OS_ROOT": str(cfg.repo_root.resolve()),
+        "RELAY_REPO_ROOT": str(script_repo_root(cfg).resolve()),
+        "RELAY_SKILL_NAME": skill.name,
+        "RELAY_SKILL_DIR": str(skill.dir.resolve()),
+    }
+
+
+def build_script_command(script_path: Path) -> list[str]:
+    """argv for running a skill script — honor the executable bit, else
+    interpret by suffix. POC-friendly: a non-executable `.py` still runs."""
+    if os.access(script_path, os.X_OK):
+        return [str(script_path)]
+    if script_path.suffix == ".py":
+        return [sys.executable, str(script_path)]
+    return ["sh", str(script_path)]
 
 
 def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
@@ -80,23 +122,8 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
 
     env = os.environ.copy()
     env.update(cfg.secrets)
-
-    # The repo root for relay-os/ inside a host repo is `repo/relay-os`; scripts
-    # almost always want the host repo (its parent), so prefer that when present.
-    cwd = cfg.repo_root.parent if cfg.repo_root.name == "relay-os" else cfg.repo_root
-    env.update(
-        {
-            "RELAY_TASK_SLUG": ref.id_slug,
-            "RELAY_TASK_DIR": str(ref.path.resolve()),
-            "RELAY_TASK_TICKET": str((ref.path / "ticket.md").resolve()),
-            "RELAY_TASK_BLACKBOARD": str((ref.path / "blackboard.md").resolve()),
-            "RELAY_TASK_LOG": str((ref.path / "log.md").resolve()),
-            "RELAY_RELAY_OS_ROOT": str(cfg.repo_root.resolve()),
-            "RELAY_REPO_ROOT": str(cwd.resolve()),
-            "RELAY_SKILL_NAME": skill.name,
-            "RELAY_SKILL_DIR": str(skill.dir.resolve()),
-        }
-    )
+    env.update(build_script_env(cfg, ref, skill))
+    cwd = script_repo_root(cfg)
 
     append_log(
         ref.path,
@@ -104,16 +131,16 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         f"launched in script mode (skill={skill.name}, script={skill.script})",
     )
 
-    # Make script executable if needed — POC-friendly.
-    if not os.access(script_path, os.X_OK):
-        cmd = [sys.executable, str(script_path)] if script_path.suffix == ".py" else ["sh", str(script_path)]
-    else:
-        cmd = [str(script_path)]
+    cmd = build_script_command(script_path)
 
     result = subprocess.run(cmd, env=env, cwd=cwd, check=False)
     exit_code = result.returncode
 
-    append_log(ref.path, "system", f"script exited with code {exit_code}")
+    # A script may legitimately delete its own task directory — the
+    # `bootstrap/delete-task` skill run as a `mode: script` step does exactly
+    # that. Only record the exit when the directory is still there.
+    if ref.path.is_dir():
+        append_log(ref.path, "system", f"script exited with code {exit_code}")
 
     if exit_code != 0:
         post(
