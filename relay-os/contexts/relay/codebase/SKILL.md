@@ -37,9 +37,9 @@ review bars.
 relay-os/
   relay.toml             ← shared config (committed)
   relay.local.toml       ← machine-local (NEVER committed; secrets here)
-  prompt.md              ← base prompt
-  prompt-interactive.md  ← interactive mode block
-  prompt-auto.md         ← auto mode block
+  rules.md               ← global-rules layer of the composed prompt
+  context.md             ← repo-context layer of the composed prompt
+  recurring/<name>.md    ← recurring task templates
   bootstrap/<name>/      ← stateless launch shims
   bootstrap/skills/      ← package-backed bundled skills (overwritten on update)
   bootstrap/contexts/    ← package-backed bundled contexts (overwritten on update)

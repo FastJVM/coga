@@ -130,22 +130,25 @@ intentional internal exceptions, not user-authored drafts.
 
 ## Two state machines per ticket
 
-- **Control plane (`status`)** — `draft → active → done`, plus
-  `paused`. Governs *whether* work happens. Owned entirely by
-  `relay mark active | paused | done`. No other command writes to
-  `status:` — `launch` reads it (refuses non-active) and `bump` ignores
-  it (it owns `step:`, not `status:`).
+- **Control plane (`status`)** — `draft → active → in_progress →
+  done`, plus `paused`. Governs *whether* work happens. `relay mark`
+  owns the `draft`/`active`/`paused`/`done` transitions; `relay launch`
+  owns the one remaining transition, flipping an `active` ticket to
+  `in_progress` when it spawns the agent. `bump` ignores `status:`
+  entirely (it owns `step:`, not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `relay bump`. Only advances
-  when status is `active`. Pausing preserves the step; marking done
+  when status is `in_progress`. Pausing preserves the step; marking done
   clears it.
 
 Tickets without a `workflow` field have no steps and move through
 statuses directly via `relay mark`. `relay bump` refuses them.
 
-The split is deliberate: each command owns one plane. `relay create`
-authors a draft, `relay mark` flips status, `relay bump` advances
-steps, `relay launch` spawns the agent. None of them overlap.
+The split is deliberate: each command owns its writes. `relay create`
+authors a draft, `relay mark` flips status across the lifecycle,
+`relay bump` advances steps, and `relay launch` spawns the agent —
+flipping `active → in_progress` as it does. Only `launch` touches
+both planes, and only for that single transition.
 
 ## Three modes
 
@@ -163,12 +166,16 @@ steps, `relay launch` spawns the agent. None of them overlap.
 `relay launch` builds one composed prompt and writes it to a temp
 file. Layers, in order:
 
-1. Global rules (from `relay-os/prompt.md` + mode-specific block).
-2. Repo context (top-level facts about this surface).
-3. Ticket contexts (everything in `contexts:` frontmatter list).
-4. Current workflow step's skill (if any).
-5. The blackboard.
-6. The ticket body itself.
+1. Base prompt + mode-specific block (`interactive` / `auto`). Both
+   are package resources, not files under `relay-os/`.
+2. Global rules (`relay-os/rules.md`).
+3. Repo context (`relay-os/context.md` — top-level facts about this
+   surface).
+4. Ticket contexts (everything in `contexts:` frontmatter list).
+5. Task-specific context (the ticket body's inline `## Context`).
+6. Ticket-level skills and the current workflow step's skill (if any).
+7. The blackboard.
+8. The task description (the ticket body's `## Description`).
 
 The agent gets all of this as one input. There is no follow-up
 loading.
@@ -176,8 +183,9 @@ loading.
 ## Status is the signal
 
 There is no filesystem mutex. The ticket's `status` (`draft`, `active`,
-`paused`, `done`) is the signal that someone is — or isn't — working on
-a task. `relay launch` refuses any non-active ticket and points the
+`in_progress`, `paused`, `done`) is the signal that someone is — or
+isn't — working on a task. `relay launch` accepts an `active` or
+`in_progress` ticket and refuses any other status, pointing the
 operator at `relay mark active <slug>` — there is no auto-flip from
 draft. The failure mode of two divergent workers (two blackboard edits,
 two PR branches) is visible and recoverable in git; the cost of a hard
