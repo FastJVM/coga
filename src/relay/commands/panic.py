@@ -49,6 +49,7 @@ def panic(
         f"\"{ticket.title}\" — \"{reason}\"",
         task_path=ref.path,
         owner=owner,
+        watchers=ticket.watchers,
         image_url=cfg.gif_for("panic"),
     )
     typer.echo(f"{ref.id_slug}: panicked (owner {owner} notified)")

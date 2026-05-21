@@ -85,16 +85,39 @@ When suppressed, each call still writes one line to stderr (`[slack]
 disabled (post suppressed): <message>`) so the user notices their
 opt-out is active. Quiet opt-outs become forgotten opt-outs.
 
+## Pinging the owner and watchers
+
+A post names the ticket's `owner` in its `[<project>] [<owner>]` prefix
+and cc's any `watchers`. For those names to actually *notify* someone,
+Slack needs the `<@U…>` member-ID mention form — a plain `@name` or
+`[name]` in incoming-webhook text never pings.
+
+`[slack.users]` in `relay.toml` supplies the mapping: a relay name (the
+token used in a ticket's `owner` / `watchers` fields) → a Slack member
+ID. `slack.post` resolves `owner` and `watchers` through it, emitting
+`<@U…>` for mapped names and plain text for the rest. A watcher is cc'd
+only when mapped — cc'ing an unmapped name notifies no one and is just
+noise.
+
+The mapping is supplied by hand because an incoming webhook is
+write-only: it can't call `users.list` / `users.lookupByEmail` to resolve
+a name itself. Member IDs aren't secret, so the table lives in shared
+`relay.toml`, not `relay.local.toml`.
+
 ## Implementation pointers
 
-- `src/relay/slack.py::post(cfg, message, task_path=None)` — the only
-  function. Three branches: not enabled → stderr; enabled + no webhook
-  → crash; enabled + webhook → POST then crash on failure.
+- `src/relay/slack.py::post(cfg, message, *, task_path=None, owner=None,
+  watchers=None, image_url=None)` — the only public function. Three
+  branches: not enabled → stderr; enabled + no webhook → crash; enabled +
+  webhook → POST then crash on failure. The private `_mention` helper
+  renders a name as `<@ID>` when mapped.
 - `$SLACK_WEBHOOK_URL` — the only place the URL lives. The webhook is
   a bearer token; relay never reads it from `relay.toml`.
 - `cfg.slack_enabled` (`bool`, default `True`) and `cfg.slack_webhook`
   (`str | None`) — both come from `relay.config`. `[slack].enabled` in
   `relay.local.toml` overrides shared.
+- `cfg.slack_users` (`dict[str, str]`, relay name → Slack member ID) —
+  parsed from `[slack.users]` in `relay.toml` by `_parse_slack_users`.
 - Callers that post: `commands/create.py` (ticket created),
   `commands/launch.py` (active → in_progress), `commands/mark.py`
   (active / paused / done), `commands/recurring.py`

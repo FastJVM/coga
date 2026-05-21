@@ -49,6 +49,7 @@ class Config:
     slack_enabled: bool
     secrets: dict[str, str]
     slack_gifs: dict[str, list[str]] = field(default_factory=dict)
+    slack_users: dict[str, str] = field(default_factory=dict)
     aliases: dict[str, str] = field(default_factory=dict)
     ticket_fields: dict[str, TicketField] = field(default_factory=dict)
     extra_local: dict[str, object] = field(default_factory=dict)
@@ -145,6 +146,7 @@ def load_config(repo_root: Path | None = None) -> Config:
     # Local overrides shared. Default is enabled — slack is the team sync point.
     slack_enabled = _resolve_slack_enabled(shared.get("slack"), local.get("slack"))
     slack_gifs = _parse_slack_gifs(shared.get("slack"))
+    slack_users = _parse_slack_users(shared.get("slack"))
     aliases = _parse_aliases(shared.get("aliases", {}))
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
 
@@ -167,6 +169,7 @@ def load_config(repo_root: Path | None = None) -> Config:
         slack_webhook=slack_webhook,
         slack_enabled=slack_enabled,
         slack_gifs=slack_gifs,
+        slack_users=slack_users,
         secrets=secrets,
         aliases=aliases,
         ticket_fields=ticket_fields,
@@ -354,6 +357,34 @@ def _parse_slack_gifs(shared: dict | None) -> dict[str, list[str]]:
         cleaned = [u.strip() for u in urls if u.strip()]
         if cleaned:
             out[kind] = cleaned
+    return out
+
+
+def _parse_slack_users(shared: dict | None) -> dict[str, str]:
+    """Parse `[slack.users]` — maps a relay name (the token used in a
+    ticket's `owner` / `watchers` fields) to a Slack member ID.
+
+    The member ID is what lets an incoming webhook actually *ping* someone:
+    Slack only fires a notification for the `<@U…>` mention form, and a
+    webhook can't look an ID up itself. Missing/empty → no mapping, and
+    messages name people in plain text without notifying them.
+    """
+    if not isinstance(shared, dict):
+        return {}
+    users = shared.get("users")
+    if users is None:
+        return {}
+    if not isinstance(users, dict):
+        raise ConfigError(
+            f"[slack.users] must be a table (got {type(users).__name__})"
+        )
+    out: dict[str, str] = {}
+    for name, user_id in users.items():
+        if not isinstance(user_id, str) or not user_id.strip():
+            raise ConfigError(
+                f"[slack.users].{name} must be a non-empty Slack member ID string"
+            )
+        out[name] = user_id.strip()
     return out
 
 

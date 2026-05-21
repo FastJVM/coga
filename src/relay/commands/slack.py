@@ -51,6 +51,7 @@ def slack(
         f"{message}",
         task_path=ref.path,
         owner=ticket.owner or cfg.current_user,
+        watchers=ticket.watchers,
     )
     append_log(ref.path, actor, f"slack: {message}")
     typer.echo("posted")

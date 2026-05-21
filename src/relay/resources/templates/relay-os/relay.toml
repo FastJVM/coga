@@ -43,6 +43,16 @@ mode = "local"
 #     "https://media.giphy.com/media/<id-a>/giphy.gif",
 #     "https://media.giphy.com/media/<id-b>/giphy.gif",
 #   ]
+#
+# Optional: map a relay name (the token used in a ticket's `owner` /
+# `watchers` fields) to a Slack member ID. With a mapping, that person
+# gets a real `<@…>` ping on posts about their ticket — owners inline,
+# watchers cc'd. Without one they're still named, just in plain text (no
+# ping). An incoming webhook can't look an ID up itself, so it has to be
+# listed here. Grab an ID from Slack: profile → ⋮ (More) → Copy member ID.
+#   [slack.users]
+#   marc = "U01ABC234"
+#   ada  = "U05XYZ789"
 
 # --- Aliases ---
 # Thin sugar for often-used commands. Each entry maps a name to an
