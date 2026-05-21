@@ -85,8 +85,20 @@ including `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 - `relay launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
   spawning an agent.
+- `relay launch <slug> --no-verify` — skip the pre-launch freshness check
+  (below). For offline runs, or when you know the ticket is stale and want
+  to launch anyway.
 - `relay launch bootstrap/<name>` — stateless shim; concurrent launches
   safe.
+
+Before composing the prompt, `launch` verifies the ticket is still where
+disk says it is: for an `active` ticket on its final step (or with no
+workflow) that names a merged PR under `## Dev`, it auto-bumps first. If the
+bump finished the ticket it prints a line and exits 0 without spawning an
+agent; if it only advanced a step the launch continues against the new
+state. A missing or unauthed `gh` is a loud warning (with a `gh auth login`
+hint), not a hard failure — the launch continues unbumped. Bootstrap shims,
+`--prompt-report`, and `--no-verify` skip the check entirely.
 
 Agent type comes from the ticket's `assignee` directly — it names an
 `[agents.<type>]` block in `relay.toml`. Human assignees aren't
@@ -302,13 +314,20 @@ only; they don't accept their own flags.
 - Wrapping up a finished ticket (retro + source-dir delete via retro PR) →
   `relay retire <slug>`.
 
-There's also `relay validate [--json] [--fix] [--check-slack]`, a static
-repo + config diagnostic. `--fix` is deliberately narrow: it creates missing
-`blackboard.md` and empty `log.md` files, then reports the remaining issues.
-It does not rewrite existing files, freeze workflows, delete locks, or push
-git state. Reach for validation when a command is misbehaving or
-slack/webhook setup looks broken; Dream's validate-drift skill is the normal
-place to apply safe fixes and broadcast a summary during a Dream run.
+There's also `relay validate [--task <slug>] [--json] [--fix] [--check-slack]`,
+a static repo + config diagnostic. By default it scans every task; `--task
+<slug>` validates exactly one task directory (files plus strict frontmatter
+schema) and is what a human or agent runs after a direct hand-edit to a single
+ticket. Relay-owned commands that mutate a task — draft, ticket-authoring exit,
+mark, bump, launch-time transitions, recurring/retire scaffolding — run that
+same task-scoped check after the write and before reporting success, so
+malformed frontmatter fails at the edge of the edit instead of drifting until
+launch. `--fix` is deliberately narrow: it creates missing `blackboard.md` and
+empty `log.md` files, then reports the remaining issues. It does not rewrite
+existing files, freeze workflows, delete locks, or push git state. Reach for
+validation when a command is misbehaving or slack/webhook setup looks broken;
+Dream's validate-drift skill is the normal place to apply safe fixes and
+broadcast a summary during a Dream run.
 
 ## What this context does NOT cover
 
