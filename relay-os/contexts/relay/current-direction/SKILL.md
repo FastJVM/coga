@@ -82,12 +82,16 @@ Last updated: 2026-05-19.
 - **`slack` field on `[assignees.<name>]` removed.** (Historical: the
   `[assignees]` table itself is now gone — see above.) With ≤3 people
   on a shared channel, plain-text posts reach everyone — per-user
-  @mentions add zero signal. `slack.py` collapses to a single
-  `post(cfg, message)`; `post_mention` and `_mention_tag` are gone.
-  `relay panic` now posts `"<owner>: <slug> ..."` instead of
-  `"<@SLACKID> — <slug> ..."`. Re-introduce per-user mentions when
-  team size makes "who needs to look at this" stop being obvious
-  (same logic as removing watchers).
+  @mentions add zero signal. At the time, `slack.py` collapsed to a
+  single `post(cfg, message)` and `post_mention` / `_mention_tag` were
+  dropped.
+- **Per-user @mentions since re-introduced.** The prediction above
+  held: `slack.py` now exposes
+  `post(cfg, message, *, owner=..., watchers=...)` and a `_mention`
+  helper that renders any name mapped in `[slack.users]` as a real
+  `<@U…>` ping — owner inline, watchers cc'd in a trailer. Posts ping
+  the ticket owner and watchers again; see `relay/sync` for the
+  current behavior.
 
 ## Recent decisions (alias mechanism)
 
@@ -167,8 +171,6 @@ In suggested order:
 
 - Inbound Slack → ticket creation. Separate Slack-as-sync ticket.
 - Multi-workspace Slack. One workspace assumed for now.
-- Per-user @mentions in Slack. Posts are plain text — owner name is
-  in the message body. Re-add when team grows past ~3.
 - Real-time sync (server backend). Git push/pull is the sync layer
   through ~5-person team size; revisit at 10+.
 - `relay update-workflow` to re-snapshot a workflow into in-flight
