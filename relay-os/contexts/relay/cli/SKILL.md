@@ -196,6 +196,33 @@ the same ref as a `local-override`. `relay skill update --all` updates
 project-local managed skills and skips bundled skills with the package update
 path: upgrade `relay-os`, then run `relay init --update`.
 
+The subcommands cover three source types: `install <owner/repo-or-url> [skill]`
+for GitHub, `install-url <url>` for an arbitrary URL downloaded locally first,
+and `install-local <path>` for an already-downloaded directory. `update <skill>`
+/ `update --all` and `remove <skill>` (exact-name only, shown as a normal git
+delete) round out the surface.
+
+`relay skill` is a thin wrapper around GitHub CLI's `gh skill`, not a new
+package manager. GitHub-backed installs and updates delegate straight to
+`gh skill ... --dir relay-os/skills`. Constraints that come with that
+substrate:
+
+- `gh skill` is a GitHub CLI public-preview feature and needs `gh` **2.90.0+**.
+  When `gh skill` is unavailable Relay fails loud with an actionable upgrade
+  hint rather than degrading silently.
+- `gh skill` writes source metadata into a GitHub/local install. For an
+  arbitrary-URL install that provenance would only remember the temporary
+  download path, so Relay writes its own `.relay-source.json` next to the
+  installed skill — original URL, selector, timestamp, and content/tree
+  digests. URL-backed updates compare that digest and skip a skill that has
+  been locally adapted instead of overwriting it.
+- `gh skill update --dir` has a known bug that relocates or deletes skills in
+  nested custom directories. Keep Relay-managed skills at a flat
+  `relay-os/skills/<ns>/<name>/` layout so `--dir` updates stay safe.
+
+`gh` is an external CLI dependency, not a pip package — it belongs in the
+README `External CLI Tools` list, never in `requirements.txt`.
+
 ## relay panic --task \<slug\> --reason "..."
 
 Agent gives up. Writes a blocker to the ticket, posts to Slack naming
