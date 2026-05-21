@@ -53,6 +53,18 @@ OBSOLETE_PATHS: tuple[str, ...] = (
     "hooks",  # consolidated under bootstrap/hooks
 )
 
+# Recurring templates Relay vendors and keeps fresh on every `--update`.
+# Unlike `_*` sample scaffolds and user-authored repo-specific loops (REM),
+# these are live Relay batteries: `relay dream` scaffolds `recurring/dream.md`
+# directly and its known-skill list is upstream-managed, not per-repo. They
+# carry no `_` prefix (used as-is, not copied-and-renamed) and don't live under
+# `bootstrap/`, so neither `_copy_templates` nor `_copy_vendored_bootstrap`
+# would otherwise refresh them — leaving repos that predate a template, or lost
+# it, permanently broken (`relay dream` has nothing to scaffold).
+VENDORED_RECURRING_TEMPLATES: tuple[str, ...] = (
+    "recurring/dream.md",
+)
+
 _LEGACY_RELAY_GITIGNORE_ENTRIES: set[str] = {
     "skills/bootstrap",
     "skills/retro",
@@ -167,13 +179,16 @@ def refresh_templates(
 ) -> tuple[list[str], list[str]]:
     """Refresh relay-owned scaffolds under `relay_os` from package resources.
 
-    Three things are treated as upstream-owned (always overwritten on update):
+    Four things are treated as upstream-owned (always overwritten on update):
       - `_*` template scaffolds (`_template/` etc.)
       - `bootstrap/` — the single relay-vendored umbrella. Holds launch shims
         plus all upstream-managed skills, contexts, and git hooks
         (`bootstrap/skills/`, `bootstrap/contexts/*`, `bootstrap/hooks/`).
         Mirrored as one unit by `_copy_vendored_bootstrap`. Runtime resolvers
         read local user roots first and this bundled root second.
+      - `VENDORED_RECURRING_TEMPLATES` — named relay-owned recurring batteries
+        (`recurring/dream.md`) that sit outside `bootstrap/` and carry no `_`
+        prefix, refreshed by `_copy_vendored_recurring`.
       - `.gitignore` — must track upstream so new ignore entries land in
         existing repos without manual edits.
 
@@ -183,6 +198,7 @@ def refresh_templates(
     src_root = src_root or packaged_template_root()
     copied = _copy_templates(src_root, relay_os)
     copied.extend(_copy_vendored_bootstrap(src_root, relay_os))
+    copied.extend(_copy_vendored_recurring(src_root, relay_os))
     copied.extend(_copy_upstream_files(src_root, relay_os))
     pruned = _prune_removed_templates(src_root, relay_os)
     return copied, pruned
@@ -637,6 +653,29 @@ def _copy_vendored_bootstrap(src_root: Traversable, dst_root: Path) -> list[str]
     """
     copied = _wholesale_mirror(src_root, dst_root, ("bootstrap",))
     _chmod_packaged_executables(dst_root)
+    return copied
+
+
+def _copy_vendored_recurring(src_root: Traversable, dst_root: Path) -> list[str]:
+    """Refresh the named relay-owned recurring templates listed in
+    `VENDORED_RECURRING_TEMPLATES`.
+
+    These (currently just `recurring/dream.md`) are live Relay batteries, not
+    `_*` samples and not under `bootstrap/`, so the other refresh passes skip
+    them. Overwrite wholesale: the file is upstream-managed (e.g. Dream's
+    known-skill list), not per-repo customizable — REM is the repo-specific
+    recurring loop. This also restores the file in repos that predate it.
+
+    Missing srcs are skipped — a template the package no longer ships isn't an
+    error here.
+    """
+    copied: list[str] = []
+    for rel in VENDORED_RECURRING_TEMPLATES:
+        src = _resource_join(src_root, Path(rel))
+        if not src.is_file():
+            continue
+        _copy_resource_file(src, dst_root / rel)
+        copied.append(rel)
     return copied
 
 

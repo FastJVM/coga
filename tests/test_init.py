@@ -31,6 +31,7 @@ EXPECTED_FILES = {
     "relay-os/skills/_template/SKILL.md",
     "relay-os/workflows/_template.md",
     "relay-os/recurring/_template.md",
+    "relay-os/recurring/dream.md",
     "relay-os/tasks/_template/ticket.md",
 }
 
@@ -106,6 +107,8 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         path = templates / kind / fname
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"# {kind} template\n")
+    # Relay-owned recurring battery — no `_` prefix, refreshed on --update.
+    (templates / "recurring" / "dream.md").write_text("dream template\n")
 
     cli_src = clone_dir / update_cmd.CLI_SRC_SUBPATH
     cli_src.mkdir(parents=True, exist_ok=True)
@@ -401,6 +404,9 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "tasks" / "_template").mkdir(parents=True)
     (templates / "skills" / "_template" / "SKILL.md").write_text("NEW skill template\n")
     (templates / "tasks" / "_template" / "ticket.md").write_text("NEW ticket template\n")
+    # Relay-owned recurring battery — refreshed wholesale on --update.
+    (templates / "recurring").mkdir(parents=True, exist_ok=True)
+    (templates / "recurring" / "dream.md").write_text("NEW dream template\n")
     (templates / "rules.md").write_text("NEW upstream rules — should NOT be copied (no _ prefix)\n")
     (templates / "bootstrap" / "create").mkdir(parents=True)
     (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap shim\n")
@@ -581,6 +587,61 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert pin.is_file()
     assert FAKE_SHA in pin.read_text()
     assert f"Pinned to upstream {FAKE_SHA[:12]}" in result.output
+
+
+@pytest.mark.parametrize(
+    "preexisting",
+    [None, "STALE dream template — old known-skill list\n"],
+    ids=["missing", "stale"],
+)
+def test_init_update_refreshes_vendored_recurring_template(
+    tmp_path: Path,
+    fake_venv,
+    monkeypatch: pytest.MonkeyPatch,
+    preexisting: str | None,
+) -> None:
+    """`recurring/dream.md` is a relay-owned battery — no `_` prefix, not under
+    `bootstrap/`. `init --update` must restore it when missing (repos predating
+    the template) and overwrite it when stale, or `relay dream` has nothing to
+    scaffold.
+    """
+    relay_os = _seed_local_relay_os(tmp_path)
+    dream = relay_os / "recurring" / "dream.md"
+    if preexisting is None:
+        assert not dream.exists()
+    else:
+        dream.write_text(preexisting)
+
+    package_clone = tmp_path / "package"
+    _seed_fake_upstream_for_update(package_clone)
+    monkeypatch.setattr(
+        update_cmd,
+        "packaged_template_root",
+        lambda: package_clone / update_cmd.TEMPLATE_SUBPATH,
+    )
+    monkeypatch.chdir(relay_os)
+
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            _seed_fake_upstream_for_update(Path(cmd[-1]))
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if (
+            cmd[:2] == ["git", "-C"]
+            and cmd[3:] == ["rev-parse", "HEAD"]
+            and "relay-init-update-" in cmd[2]
+        ):
+            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    result = CliRunner().invoke(app, ["init", "--update"])
+    assert result.exit_code == 0, result.output
+
+    assert dream.read_text() == "NEW dream template\n"
+    assert "recurring/dream.md" in result.output
 
 
 def test_init_update_in_relay_source_checkout_skips_template_prune(
