@@ -1,11 +1,11 @@
 ---
 title: Move relay delete into a skill
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts:
 - relay/architecture
 - relay/principles
@@ -23,7 +23,7 @@ workflow:
     - code/open-pr
   - name: review
     assignee: owner
-step: 1 (implement)
+step: 3 (review)
 ---
 
 ## Description
