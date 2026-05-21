@@ -17,3 +17,10 @@ Verification:
 - `PYTHONPATH=/home/n/Code/relay/.codex-worktrees/fail-loud-interactive-tty/src /home/n/Code/relay/.codex-worktrees/chat-agent-selector/.venv/bin/python -m relay.cli validate --json` from `example/relay-os` -> no issues.
 - Repo-root validation in the clean worktree was blocked because `relay.local.toml` was absent and local config is intentionally gitignored; did not create or edit local config.
 - PR #87 merged on 2026-05-03 with merge commit `5f1a7b581053c864d555178df872809157124159`.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for fail-loud-when-relay-launch-starts-an-interactive

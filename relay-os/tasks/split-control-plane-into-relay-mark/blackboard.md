@@ -92,3 +92,10 @@ introduced by commit 160b815 — totals summary line wrapping).
   (lines 7-77) is a historical M1 snapshot and was already stale (those
   flags don't exist in current CLI). I only touched the "Status is the
   signal" section, which directly contradicted new behavior.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for split-control-plane-into-relay-mark

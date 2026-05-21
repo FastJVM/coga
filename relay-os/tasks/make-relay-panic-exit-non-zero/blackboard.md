@@ -24,3 +24,10 @@ clean exit. All other side effects (blackboard blocker, log line, Slack
 ## PR
 
 https://github.com/FastJVM/relay/pull/47 — open, awaiting human review.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for make-relay-panic-exit-non-zero

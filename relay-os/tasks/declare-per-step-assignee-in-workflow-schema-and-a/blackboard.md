@@ -70,3 +70,10 @@ Verified end-to-end against a tmpdir relay repo:
 - Hand-delete `human:` from a ticket whose next step needs it → bump
   exits 2 with a clear "add `human: <nickname>` to ticket frontmatter"
   message.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for declare-per-step-assignee-in-workflow-schema-and-a

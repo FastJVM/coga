@@ -73,3 +73,10 @@ required end-of-step ritual". Reviewer: nick.
   but real.
 - **A stop-hook / settings hook that nags Claude when it ends without
   bumping.** Behavior question; bigger than a prompt edit.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for diagnose-slack-notifications-not-firing-in-practic

@@ -31,3 +31,10 @@ pr: https://github.com/FastJVM/relay/pull/84
 The frozen workflow snapshot in their frontmatter is unaffected — only
 *new* tickets created against `code/with-review` get the three-step
 shape. That matches the ticket's "Existing tickets impact" section.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for rewire-code-with-review-to-implement-open-pr-revie

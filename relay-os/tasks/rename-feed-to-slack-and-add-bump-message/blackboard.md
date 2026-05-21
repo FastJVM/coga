@@ -101,3 +101,10 @@ The vendored `relay-os/.relay/...` copies refresh via
 - `.venv/bin/python -m relay bump --help` — shows `--message`.
 - `.venv/bin/python -m relay slack --help` — shows the manual FYI surface.
 - `.venv/bin/python -m relay feed --help` — exits 2 with `No such command 'feed'`.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for rename-feed-to-slack-and-add-bump-message

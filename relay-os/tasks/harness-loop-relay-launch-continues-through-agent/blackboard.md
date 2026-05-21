@@ -28,3 +28,10 @@ Implementation shape:
 - `relay bump ... --message "PR opened: https://github.com/FastJVM/relay/pull/86"` advanced the ticket to step 2 (review), but the Slack transition post failed under sandboxed DNS after the state write. Sent a manual `relay slack` FYI with network escalation: posted.
 
 Git note: refreshed `origin/main`; current branch HEAD is already merged into `origin/main`. The intended PR diff against `origin/main` is limited to `src/relay/commands/launch.py`, `tests/test_launch.py`, `README.md`, `docs/spec.md`, and `src/relay/resources/templates/relay-os/contexts/relay/cli/SKILL.md`. Existing live `relay-os/tasks/*` edits remain unrelated local state and should not be staged for the code PR.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for harness-loop-relay-launch-continues-through-agent

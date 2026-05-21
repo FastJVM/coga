@@ -64,3 +64,10 @@ End-to-end manual test in `/tmp/relay-ext-test` exercised draft → fail-to-acti
 Full suite: `343 passed, 1 skipped`.
 
 The pre-existing `try-me` / `try-me-2` validation errors on the relay-os repo are unrelated (they were errors before this change too).
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for add-extend-ticket-format-skill

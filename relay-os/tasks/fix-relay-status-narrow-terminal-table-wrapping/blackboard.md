@@ -22,3 +22,10 @@ titles to ~10 lines per row. After the fix each task is a single line.
 
 branch: fix-status-narrow-wrap
 pr: https://github.com/FastJVM/relay/pull/74
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for fix-relay-status-narrow-terminal-table-wrapping

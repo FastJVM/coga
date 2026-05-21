@@ -60,3 +60,10 @@ pr: https://github.com/FastJVM/relay/pull/143
 - Backed up old binary to `/tmp/gh-upgrade/gh.2.86.0.backup` and replaced
   `/home/n/.local/bin/gh` with the verified v2.92.0 binary.
 - `gh --version`, `gh auth status`, and `gh skill --help` now pass.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Document the gh skill substrate behind relay skill
