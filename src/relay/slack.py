@@ -28,12 +28,26 @@ from relay.config import Config
 from relay.logfile import append_log
 
 
+def _mention(cfg: Config, name: str) -> str:
+    """Render `name` as a Slack ping when its member ID is mapped.
+
+    `[slack.users]` in `relay.toml` maps a relay name to a Slack member ID.
+    Slack only fires a notification for the `<@U…>` mention form, so a
+    mapped name becomes `<@U…>`; an unmapped one stays plain text (named,
+    but not pinged). An incoming webhook can't resolve an ID itself — that's
+    why the table has to be supplied.
+    """
+    user_id = cfg.slack_users.get(name)
+    return f"<@{user_id}>" if user_id else name
+
+
 def post(
     cfg: Config,
     message: str,
     *,
     task_path: Path | None = None,
     owner: str | None = None,
+    watchers: list[str] | None = None,
     image_url: str | None = None,
 ) -> None:
     """Post a message to Slack, or crash trying.
@@ -42,7 +56,12 @@ def post(
     across multiple relay repos stays disambiguated. When `owner` is given,
     `[<owner>]` follows — that's the human accountable for the ticket, so
     teammates can tell whose agent (e.g. `claude`) just acted when several
-    teammates share an agent nickname.
+    teammates share an agent nickname. Owner and watchers render as real
+    `<@ID>` pings for any name mapped in `[slack.users]` (see `_mention`).
+
+    `watchers`, if given, are cc'd in a trailer — but only those with a
+    mapped member ID, since cc'ing a plain name notifies no one and is just
+    noise.
 
     `image_url`, if given, attaches a single image (GIF or PNG) below the
     text via Slack's `attachments` field — used for milestone events
@@ -52,8 +71,12 @@ def post(
     """
     prefix = f"[{cfg.project_name}]"
     if owner:
-        prefix += f" [{owner}]"
+        prefix += f" [{_mention(cfg, owner)}]"
     full_message = f"{prefix} {message}"
+    if watchers:
+        cc = [f"<@{cfg.slack_users[w]}>" for w in watchers if w in cfg.slack_users]
+        if cc:
+            full_message += f" (cc {' '.join(cc)})"
 
     if not cfg.slack_enabled:
         sys.stderr.write(f"[slack] disabled (post suppressed): {full_message}\n")

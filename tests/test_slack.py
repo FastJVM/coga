@@ -317,6 +317,130 @@ def test_post_failure_with_task_path_appends_to_log_then_crashes(
     assert "ConnectionError" in log_text
 
 
+def _capture(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
+    """Stub requests.post and return the list it appends each call's json to."""
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        "relay.slack.requests.post",
+        lambda url, json=None, timeout=None: (
+            calls.append({"json": json}),
+            type("R", (), {})(),
+        )[1],
+    )
+    return calls
+
+
+@pytest.fixture
+def cfg_with_users(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        [slack.users]
+        marc = "U01MARC"
+        ada = "U02ADA"
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/test")
+    return load_config(tmp_path)
+
+
+def test_slack_users_default_empty(tmp_path: Path) -> None:
+    _scaffold_min(tmp_path)
+    cfg = load_config(tmp_path)
+    assert cfg.slack_users == {}
+
+
+def test_slack_users_load_and_strip(cfg_with_users) -> None:
+    assert cfg_with_users.slack_users == {"marc": "U01MARC", "ada": "U02ADA"}
+
+
+def test_slack_users_invalid_shape_raises_config_error(tmp_path: Path) -> None:
+    from relay.config import ConfigError
+
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        [slack]
+        users = "not-a-table"
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    with pytest.raises(ConfigError, match=r"\[slack\.users\]"):
+        load_config(tmp_path)
+
+
+def test_slack_users_empty_id_raises_config_error(tmp_path: Path) -> None:
+    from relay.config import ConfigError
+
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        [slack.users]
+        marc = ""
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    with pytest.raises(ConfigError, match=r"\[slack\.users\]\.marc"):
+        load_config(tmp_path)
+
+
+def test_post_owner_with_mapped_id_renders_mention(
+    cfg_with_users, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _capture(monkeypatch)
+    post(cfg_with_users, "task done", owner="marc")
+    assert calls[0]["json"]["text"] == (
+        f"[{cfg_with_users.project_name}] [<@U01MARC>] task done"
+    )
+
+
+def test_post_owner_without_mapping_stays_plain(
+    cfg_with_users, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _capture(monkeypatch)
+    post(cfg_with_users, "task done", owner="stranger")
+    assert calls[0]["json"]["text"] == (
+        f"[{cfg_with_users.project_name}] [stranger] task done"
+    )
+
+
+def test_post_watchers_cc_only_mapped_names(
+    cfg_with_users, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _capture(monkeypatch)
+    post(cfg_with_users, "task done", owner="marc", watchers=["ada", "stranger"])
+    assert calls[0]["json"]["text"] == (
+        f"[{cfg_with_users.project_name}] [<@U01MARC>] task done (cc <@U02ADA>)"
+    )
+
+
+def test_post_watchers_all_unmapped_omits_trailer(
+    cfg_with_users, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _capture(monkeypatch)
+    post(cfg_with_users, "task done", owner="marc", watchers=["nobody", "stranger"])
+    assert "(cc" not in calls[0]["json"]["text"]
+
+
 def test_invalid_enabled_type_raises_config_error(tmp_path: Path) -> None:
     from relay.config import ConfigError
 

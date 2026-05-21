@@ -84,6 +84,16 @@ panic = [
   "https://media.tenor.com/ZVwGLyVjQgcAAAAC/im-out-bye.gif",
 ]
 
+# Maps a relay name (the token used in a ticket's `owner` / `watchers`
+# fields) to a Slack member ID. With a mapping, that person gets a real
+# `<@…>` ping on every post about their ticket — owners inline, watchers
+# cc'd. Without one they're still named, just in plain text (no ping).
+# An incoming webhook can't look an ID up itself, so it has to be listed
+# here. Grab an ID from Slack: profile → ⋮ (More) → Copy member ID.
+[slack.users]
+nick = "U0AG1BASFJ7"
+zach = "U0AG5LKCK8E"
+
 # --- Aliases ---
 # Thin sugar over often-used commands (typically bootstrap-shim launches).
 # Aliases forward positional args after the alias name to the expanded form.

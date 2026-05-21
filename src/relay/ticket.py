@@ -129,6 +129,13 @@ class Ticket:
         return self.frontmatter.get("assignee")
 
     @property
+    def watchers(self) -> list[str]:
+        """Names following this ticket without owning it. Used to cc Slack
+        pings alongside the owner."""
+        value = self.frontmatter.get("watchers") or []
+        return [str(w) for w in value] if isinstance(value, list) else []
+
+    @property
     def contexts(self) -> list[str]:
         value = self.frontmatter.get("contexts") or []
         return list(value)

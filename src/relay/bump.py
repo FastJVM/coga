@@ -68,7 +68,7 @@ def advance_step(
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    post(cfg, slack_text, task_path=ref.path, owner=owner)
+    post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
 
 
 __all__ = [

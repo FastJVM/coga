@@ -47,7 +47,14 @@ def mark_done(
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    post(cfg, slack_text, task_path=ref.path, owner=owner, image_url=image_url)
+    post(
+        cfg,
+        slack_text,
+        task_path=ref.path,
+        owner=owner,
+        watchers=ticket.watchers,
+        image_url=image_url,
+    )
 
 
 class RequiredExtensionMissing(RuntimeError):
@@ -152,7 +159,7 @@ def mark_active(
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    post(cfg, slack_text, task_path=ref.path, owner=owner)
+    post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
 
 
 def mark_in_progress(
@@ -174,7 +181,7 @@ def mark_in_progress(
     if echo is not None:
         typer.echo(echo)
     if slack_text is not None:
-        post(cfg, slack_text, task_path=ref.path, owner=owner)
+        post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
 
 
 def mark_paused(
@@ -195,7 +202,7 @@ def mark_paused(
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    post(cfg, slack_text, task_path=ref.path, owner=owner)
+    post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
 
 
 __all__ = [
