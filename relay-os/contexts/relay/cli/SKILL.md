@@ -160,7 +160,9 @@ ones.
 
 Remove a task directory from the working tree — ticket, blackboard,
 log, and the directory itself. Recovery is via `git restore`; the
-git history is the audit trail, no Slack broadcast.
+git history is the audit trail, no Slack broadcast. The removal itself
+runs through the `bootstrap/delete-task` skill, so the command is a thin
+resolver and the same deletion is reachable as a `mode: script` step.
 
 Bootstrap shims aren't user-deletable — they're managed by
 `relay init --update`.

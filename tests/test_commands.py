@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from textwrap import dedent
 
@@ -13,9 +14,30 @@ from relay.tasks import list_tasks
 from relay.ticket import Ticket
 
 
+# Source of the bundled `bootstrap/delete-task` skill — `relay delete` and a
+# `mode: script` step both dispatch into it. Test repos are hand-built and do
+# not run `relay init`, so tests materialize it explicitly.
+DELETE_SKILL_SRC = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "relay"
+    / "resources"
+    / "templates"
+    / "relay-os"
+    / "bootstrap"
+    / "skills"
+    / "bootstrap"
+    / "delete-task"
+)
+
+
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
+
+
+def _install_delete_skill(repo: Path) -> None:
+    shutil.copytree(DELETE_SKILL_SRC, repo / "skills" / "bootstrap" / "delete-task")
 
 
 @pytest.fixture
@@ -182,6 +204,7 @@ def test_panic_writes_blocker(repo: Path) -> None:
 
 
 def test_delete_removes_task_directory(repo: Path) -> None:
+    _install_delete_skill(repo)
     slug, task_path = _make_task(repo)
     assert task_path.is_dir()
     runner = CliRunner()
@@ -192,6 +215,7 @@ def test_delete_removes_task_directory(repo: Path) -> None:
 
 
 def test_delete_resolves_prefix(repo: Path) -> None:
+    _install_delete_skill(repo)
     slug, task_path = _make_task(repo)
     runner = CliRunner()
     result = runner.invoke(app, ["delete", slug[:6]])
@@ -200,9 +224,52 @@ def test_delete_resolves_prefix(repo: Path) -> None:
 
 
 def test_delete_unknown_task_exits_nonzero(repo: Path) -> None:
+    # Unknown slug fails at resolution, before the skill is even consulted.
     runner = CliRunner()
     result = runner.invoke(app, ["delete", "no-such-task-xyz"])
     assert result.exit_code == 2
+
+
+def test_delete_missing_skill_exits_nonzero(repo: Path) -> None:
+    # The skill is the implementation; without it `relay delete` fails loud
+    # rather than silently falling back to a private rmtree.
+    slug, task_path = _make_task(repo)
+    result = CliRunner().invoke(app, ["delete", slug])
+    assert result.exit_code == 2
+    assert task_path.is_dir()
+    assert "bootstrap/delete-task" in result.output
+
+
+def test_delete_skill_runs_as_script_step(repo: Path) -> None:
+    # The same skill `relay delete` dispatches into is independently
+    # launchable: a `mode: script` task whose one step references it deletes
+    # its own directory on `relay launch`.
+    _install_delete_skill(repo)
+    _write(
+        repo / "workflows" / "delete-self.md",
+        """
+        ---
+        name: delete-self
+        description: script worker.
+        steps:
+          - name: run
+            skills:
+              - bootstrap/delete-task
+        ---
+        """,
+    )
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="Throwaway", workflow_name="delete-self",
+        contexts=[], mode="script", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    task_path = ref["path"]
+    assert task_path.is_dir()
+
+    result = CliRunner().invoke(app, ["launch", ref["slug"]])
+    assert result.exit_code == 0, result.output
+    assert not task_path.exists()
 
 
 # --- slack --------------------------------------------------------------------
