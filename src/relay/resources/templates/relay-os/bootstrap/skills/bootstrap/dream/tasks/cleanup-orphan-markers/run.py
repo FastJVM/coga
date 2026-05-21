@@ -130,7 +130,17 @@ def find_candidates(relay_os: Path) -> list[Candidate]:
 
 
 def delete_skill_path(relay_os: Path) -> Path:
-    return relay_os / "skills" / "bootstrap" / "delete-task" / "SKILL.md"
+    """Resolve the delete-task skill: project-local override before bundled.
+
+    A repo may override the skill under `relay-os/skills/`; otherwise it is
+    materialized into `relay-os/bootstrap/skills/` by `relay init`. Mirrors
+    Relay's standard local-then-bootstrap resolution. When neither exists the
+    bundled path is returned so the caller's `is_file()` gate reports missing.
+    """
+    local = relay_os / "skills" / "bootstrap" / "delete-task" / "SKILL.md"
+    if local.is_file():
+        return local
+    return relay_os / "bootstrap" / "skills" / "bootstrap" / "delete-task" / "SKILL.md"
 
 
 def open_pr_state(repo: Path) -> OpenPrState:
