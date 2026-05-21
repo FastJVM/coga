@@ -57,3 +57,10 @@ This ticket's own `workflow:` step in frontmatter must be migrated too
 (currently still `skill: code/implement-and-pr`) — after the implementation
 lands, otherwise the in-flight launcher refuses it. Migrate as part of
 the global pass.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Document relay validate --task and the launch freshness check in relay/cli

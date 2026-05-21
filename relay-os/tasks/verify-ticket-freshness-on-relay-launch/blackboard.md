@@ -88,3 +88,10 @@ the recurring sweep half hasn't been touched.
 
 branch: verify-ticket-freshness-on-relay-launch
 pr: https://github.com/FastJVM/relay/pull/127
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Document relay validate --task and the launch freshness check in relay/cli
