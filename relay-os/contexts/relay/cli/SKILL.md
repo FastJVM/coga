@@ -45,6 +45,23 @@ The deliberate separation keeps the moment of authorship distinct from
 the moment of starting work. Tickets you mean to draft now and start
 later get the same call; nothing fires the agent until you choose to.
 
+## relay ticket [\<title-or-slug\>] [--agent <type>]
+
+Run the guided ticket-authoring interview (`bootstrap/ticket`).
+
+- `relay ticket` — ask for a title, create a draft, and fill it.
+- `relay ticket "Add retry to webhook handler"` — create that draft, then
+  launch the authoring skill against it.
+- `relay ticket add-retry` — edit an existing `draft`, `active`, or `paused`
+  ticket. Refuses `in_progress` and `done` tickets.
+
+The guided authoring flow chooses workflow/context/assignee with the human,
+edits the ticket, and leaves status unchanged. After the session it
+validates the task; a draft handed back with no workflow is rejected at the
+terminal rather than later at activation. For a new draft, the boot sequence
+is: `relay ticket "<title>"` → review/edit → `relay mark active <slug>` →
+`relay launch <slug>`.
+
 ## relay mark \<state\> \<slug\> [--message "..."]
 
 Change a ticket's `status`. Three subcommands: `mark active`,
@@ -53,31 +70,35 @@ the command shape is `<status field value> on disk` = `<mark
 subcommand>`.
 
 - `mark active <slug>` — allowed from `draft` or `paused`. Posts `🚀`.
-- `mark paused <slug>` — allowed from `active`. Preserves `step:`.
-  Posts `⏸️`.
-- `mark done <slug>` — allowed from `active`. Clears `step:`. Posts
-  `🎉`. Use this to finish a workflow on its final step, or to finish
-  any ticket without a workflow.
+  Refuses a workflow-less ticket — set `workflow:` or run `relay ticket`
+  first.
+- `mark paused <slug>` — allowed from `active` or `in_progress`. Preserves
+  `step:`. Posts `⏸️`.
+- `mark done <slug>` — allowed from `active` or `in_progress`. Clears
+  `step:`. Posts `🎉`. Use this to finish a workflow on its final step, or
+  to finish any ticket without a workflow.
 
 `--message` piggy-backs an FYI onto the Slack broadcast.
 
-Status transitions live nowhere else. `relay launch` no longer activates
-drafts; `relay bump` no longer marks final-step tickets done. The two
-state machines are completely separated.
+`relay launch` owns the `active` → `in_progress` start transition. `relay
+bump` no longer marks final-step tickets done. The status state machine and
+the step state machine are separate.
 
 ## relay launch \<target\>
 
 Compose every relevant file (rules + repo context + ticket contexts +
 current step's skill + blackboard + ticket body) into one prompt and
-start the configured agent. Requires `status: active` — drafts must be
-activated via `relay mark active <slug>` first; paused / done tickets
-must be marked back to active before they can be launched.
-Interactive launches require stdin and stdout to both be terminals.
-**`mode: auto` is temporarily disabled** — auto runs (claude `-p`, codex
-`exec`) buffer stdout until completion, leaving the operator with no
-live console signal. Use `mode: script` for unattended wrappers and CI
-until streaming lands. Script launches inject task metadata env vars
-including `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
+start the configured agent. Requires `status: active` or `in_progress` —
+drafts must be activated via `relay mark active <slug>` first; paused / done
+tickets must be marked back to active before they can be launched. Launching
+an `active` ticket marks it `in_progress` (posting `▶️`) before spawning the
+agent; launching an already-`in_progress` ticket resumes it without another
+status flip. Interactive launches require stdin and stdout to both be
+terminals. **`mode: auto` is temporarily disabled** — auto runs (claude `-p`,
+codex `exec`) buffer stdout until completion, leaving the operator with no
+live console signal. Use `mode: script` for unattended wrappers and CI until
+streaming lands. Script launches inject task metadata env vars including
+`RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
 - `relay launch <slug> --agent <type>` — one-off agent-type override
@@ -92,30 +113,30 @@ including `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
   safe.
 
 Before composing the prompt, `launch` verifies the ticket is still where
-disk says it is: for an `active` ticket on its final step (or with no
-workflow) that names a merged PR under `## Dev`, it auto-bumps first. If the
-bump finished the ticket it prints a line and exits 0 without spawning an
-agent; if it only advanced a step the launch continues against the new
-state. A missing or unauthed `gh` is a loud warning (with a `gh auth login`
-hint), not a hard failure — the launch continues unbumped. Bootstrap shims,
-`--prompt-report`, and `--no-verify` skip the check entirely.
+disk says it is: for an `active`/`in_progress` ticket on its final step (or
+with no workflow) that names a merged PR under `## Dev`, it auto-bumps to
+done first. If the bump finished the ticket it prints a line and exits 0
+without spawning an agent. A missing or unauthed `gh` is a loud warning
+(with a `gh auth login` hint), not a hard failure — the launch continues
+unverified. Bootstrap shims, `--prompt-report`, and `--no-verify` skip the
+check entirely.
 
 Agent type comes from the ticket's `assignee` directly — it names an
 `[agents.<type>]` block in `relay.toml`. Human assignees aren't
 launchable; reassign to an agent type first.
 
-For workflow-bound interactive/auto tasks, `launch` can continue through
+For workflow-bound interactive tasks, `launch` can continue through
 consecutive agent-owned steps in fresh processes. After a clean agent exit,
-it re-reads the ticket and continues only if the task is still active, the
-step advanced, the new current step has `skill:`, and the concrete assignee
-did not change. It stops at human/no-skill steps, assignee handoffs, done or
-paused tasks, no-progress exits, and panic/non-zero exits.
+it re-reads the ticket and continues only if the task is still
+`in_progress`, the step advanced, the new current step has `skill:`, and the
+concrete assignee did not change. It stops at human/no-skill steps, assignee
+handoffs, done or paused tasks, no-progress exits, and panic/non-zero exits.
 
 That supervisor loop only exists when a live `relay launch` process is
 running around the agent. API/manual sessions still follow the base prompt:
-after `relay bump`, inspect the new ticket state and continue any still-active,
-same-assignee next step with a `skill:` directly instead of stopping after the
-first bump.
+after `relay bump`, inspect the new ticket state and continue any still
+`in_progress`, same-assignee next step with a `skill:` directly instead of
+stopping after the first bump.
 
 `--prompt-report` is for prompt-scope inspection. Its token counts use a
 dependency-light `characters / 4` estimate, so treat them as a prompt-bloat
@@ -123,9 +144,9 @@ guardrail and task-to-task comparison, not exact provider billing.
 
 ## relay status
 
-List every task in the repo — `draft`, `active`, `paused`, and `done`.
-Bootstrap shims have no status and don't appear here. No filtering
-flags yet; pipe through `grep` if you want to slice the output.
+List every task in the repo — `draft`, `active`, `in_progress`, `paused`,
+and `done`. Bootstrap shims have no status and don't appear here. No
+filtering flags yet; pipe through `grep` if you want to slice the output.
 
 ## relay show \<slug\>
 
@@ -138,8 +159,8 @@ is for human eyes.
 ## relay bump \<slug\> [--message "..."]
 
 Advance a workflow-bound task one step. Updates `step:`, appends a log
-entry. The workflow is frozen into the ticket at create time, so step
-semantics don't drift mid-task.
+entry. Requires `status: in_progress`. The workflow is frozen into the
+ticket at create time, so step semantics don't drift mid-task.
 
 `bump` no longer finishes tickets. Bumping past the last step is an
 error pointing you at `relay mark done <slug>`. Bumping a ticket
@@ -153,10 +174,10 @@ that don't fit a transition, reach for `relay slack` instead.
 
 ## relay automerge
 
-Walk active tickets; bump any whose blackboard `## Dev` section names a
-PR that has merged on GitHub. Looks each PR up via `gh pr view`. Scope:
-tickets on their final workflow step, or with no workflow at all.
-Mid-workflow merges stay alone — those need a human eye.
+Walk active / in-progress tickets; bump any whose blackboard `## Dev`
+section names a PR that has merged on GitHub. Looks each PR up via
+`gh pr view`. Scope: tickets on their final workflow step, or with no
+workflow at all. Mid-workflow merges stay alone — those need a human eye.
 
 `relay init` symlinks this into `.git/hooks/post-merge` so a normal
 `git pull` after a teammate's merge runs it for you. `relay status`
@@ -185,13 +206,13 @@ Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
 invokes the `retro/done-ticket` skill against the named ticket. The retro
 skill opens the PR that records the `## Retro` marker, edits the knowledge
 base if warranted, and deletes the source task directory in the same PR.
-`relay retire` activates and launches the retire task unless `--no-launch` is
-passed.
+The retire task is scaffolded straight to `active`; `relay retire` launches
+it unless `--no-launch` is passed.
 
 - `relay retire <slug>` — scaffold and launch in `interactive` mode (auto is
   temporarily disabled).
-- `relay retire <slug> --no-launch` — scaffold the retire task and print the
-  explicit `relay mark active` / `relay launch` sequence.
+- `relay retire <slug> --no-launch` — scaffold the retire task (already
+  `active`) and print the explicit `relay launch <slug>` command.
 
 Refuses if the target task is not `status: done`. Use `relay delete` for an
 abandoned ticket where retro has nothing to extract. Branch hygiene (pruning
@@ -211,8 +232,9 @@ path: upgrade `relay-os`, then run `relay init --update`.
 The subcommands cover three source types: `install <owner/repo-or-url> [skill]`
 for GitHub, `install-url <url>` for an arbitrary URL downloaded locally first,
 and `install-local <path>` for an already-downloaded directory. `update <skill>`
-/ `update --all` and `remove <skill>` (exact-name only, shown as a normal git
-delete) round out the surface.
+/ `update --all` (with optional `--pr` to open one draft skill-update PR) and
+`remove <skill>` (exact-name only, shown as a normal git delete) round out the
+surface.
 
 `relay skill` is a thin wrapper around GitHub CLI's `gh skill`, not a new
 package manager. GitHub-backed installs and updates delegate straight to
@@ -279,11 +301,13 @@ Scaffold one named recurring template now, ignoring its schedule. `name` is
 the file stem under `relay-os/recurring/`. The task slug still uses the
 template's schedule-derived period key, so a manual `scaffold` and the cron
 `check` converge on one task directory per period (idempotent — a second
-`scaffold` in the same period is a no-op).
+`scaffold` in the same period is a no-op). Recurring tasks scaffold straight
+to `active`.
 
 - `relay recurring scaffold dream` — scaffold this period's Dream task.
-- `relay recurring scaffold dream --launch` — also activate and launch it.
-  This is exactly what the `relay dream` alias expands to.
+- `relay recurring scaffold dream --launch` — also launch it. A task already
+  past `active` (a finished or paused run) is left alone. This is exactly
+  what the `relay dream` alias expands to.
 
 **`mode: auto` templates are temporarily skipped** with a stderr/Slack note.
 The auto-launch path produces no live console output, so scheduled runs
@@ -319,14 +343,15 @@ only; they don't accept their own flags.
 
 ## Pick which command
 
-- Scaffolding a new draft → `relay create "<title>"`.
+- Scaffolding a raw new draft → `relay draft "<title>"`.
+- Guided ticket authoring → `relay ticket` or `relay ticket "<title-or-slug>"`.
 - Activating a draft to start work → `relay mark active <slug>`.
 - Pausing a task → `relay mark paused <slug>`.
 - Finishing a task (final step, or no workflow) → `relay mark done <slug>`.
 - Ticket-less chat session → `relay chat` (alias for
   `launch bootstrap/orient`).
 - Running Relay cleanup now → `relay dream`.
-- Spawning the agent on an active task → `relay launch <slug>`.
+- Starting or resuming agent work on a task → `relay launch <slug>`.
 - Other bootstrap shim → `relay launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `relay bump`.
 - Catching up tickets after a teammate merged a PR → `relay automerge`
