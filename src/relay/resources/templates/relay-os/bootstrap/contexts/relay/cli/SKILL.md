@@ -17,9 +17,10 @@ the relay-managed bits in the current repo.
 
 - `relay init mycompany` — fresh scaffold; refuses if `relay-os/` exists.
 - `relay init --update` — refresh the vendored CLI from upstream and
-  package-owned `_*` templates + `bootstrap/` from the installed Relay
-  package. Leaves `relay.toml`, `rules.md`, user contexts, and user skills
-  untouched.
+  package-owned `_*` templates, `bootstrap/`, and relay-owned recurring
+  batteries (`recurring/dream.md`) from the installed Relay package. Leaves
+  `relay.toml`, `rules.md`, user contexts, user skills, and repo-specific
+  recurring loops (REM) untouched.
 
 `pip install relay-os` installs bundled batteries into the wheel as package
 resources. It does not modify a repo. `relay init` and `relay init --update`
