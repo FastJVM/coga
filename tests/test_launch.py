@@ -196,6 +196,36 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert "launched in interactive mode" in log
 
 
+def test_launch_handles_agent_self_deleting_task(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A workflow-less agent (e.g. a Dream run retiring itself) may delete its
+    own task directory as a final action. Launch must treat the missing
+    ticket.md as a clean terminal state, not crash reading the ticket back."""
+    import shutil as _shutil
+
+    _allow_interactive_tty(monkeypatch)
+    task_dir = active_task / "tasks" / "fix-retry-logic"
+    assert task_dir.exists()
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        # Simulate the agent deleting its own task directory before exit.
+        _shutil.rmtree(task_dir)
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+    assert "nothing to chain" in result.output
+    assert not task_dir.exists()
+
+
 def test_launch_marks_interactive_session_supervised(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

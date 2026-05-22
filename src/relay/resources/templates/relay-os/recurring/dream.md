@@ -247,5 +247,10 @@ parent Dream run sends the broader one-line summary. Call:
 Keep the message to one line, for example:
 `Dream: validate-drift clean, 2 knowledge PRs, 1 stale-fix PR, 1 gap ticket.`
 
-Run `relay mark done <this-dream-task>` as the last action, after the
-blackboard is up to date.
+Run `relay mark done <this-dream-task>` once the blackboard is up to date and
+the Slack summary is posted. Then, as the very last action, run
+`relay delete <this-dream-task>`: the run's durable artifacts — every PR,
+draft ticket, and the Slack summary — carry the findings, so this task and its
+blackboard are disposable. Deleting it here is what "retired along with the
+task" means above: Dream cleans up after itself in the same run, instead of
+leaving a done task for the next run's Phase 4 retro pass to prune.

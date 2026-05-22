@@ -302,6 +302,15 @@ def launch(
                 )
                 sys.exit(exit_code)
 
+            # An agent may delete its own task directory as a final action —
+            # e.g. a Dream run retiring itself once its findings are durable.
+            # A missing ticket.md is a clean terminal state, not a chain step.
+            if not (ref.path / "ticket.md").exists():
+                typer.echo(
+                    "Launch: task directory removed by agent — nothing to chain"
+                )
+                break
+
             if is_bootstrap or ticket.skills:
                 break
 
