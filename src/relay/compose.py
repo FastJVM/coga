@@ -88,20 +88,36 @@ def estimate_tokens(text: str) -> int:
     return (len(text) + 3) // 4
 
 
-def compose_prompt(cfg: Config, task_ref: TargetRef, ticket: Ticket) -> str:
+def compose_prompt(
+    cfg: Config,
+    task_ref: TargetRef,
+    ticket: Ticket,
+    *,
+    mode_override: str | None = None,
+) -> str:
     """Assemble the composed prompt in spec order (§compose)."""
-    return compose_prompt_report(cfg, task_ref, ticket).prompt
+    return compose_prompt_report(
+        cfg, task_ref, ticket, mode_override=mode_override
+    ).prompt
 
 
 def compose_prompt_report(
     cfg: Config,
     task_ref: TargetRef,
     ticket: Ticket,
+    *,
+    mode_override: str | None = None,
 ) -> PromptComposition:
-    """Assemble the prompt and keep per-layer measurement metadata."""
-    layers: list[PromptLayer] = []
+    """Assemble the prompt and keep per-layer measurement metadata.
 
-    header = f"# Relay task — {task_ref.id_slug}\n\nTitle: {ticket.title}\nMode: {ticket.mode}"
+    `mode_override`, when set, replaces the ticket's `mode:` for the header
+    and the mode-specific prompt block — a per-launch debug override that
+    never touches the ticket file.
+    """
+    layers: list[PromptLayer] = []
+    mode = mode_override or ticket.mode
+
+    header = f"# Relay task — {task_ref.id_slug}\n\nTitle: {ticket.title}\nMode: {mode}"
     if ticket.status:
         header += f"\nStatus: {ticket.status}"
     layers.append(PromptLayer("header", "Header", header, raw=True))
@@ -115,14 +131,14 @@ def compose_prompt_report(
     ))
 
     # 2. Mode-specific prompt
-    if ticket.mode == "interactive":
+    if mode == "interactive":
         layers.append(PromptLayer(
             "mode_prompt",
             "Interactive mode",
             _resource("prompt-interactive.md"),
             ref="prompt-interactive.md",
         ))
-    elif ticket.mode == "auto":
+    elif mode == "auto":
         layers.append(PromptLayer(
             "mode_prompt",
             "Auto mode",

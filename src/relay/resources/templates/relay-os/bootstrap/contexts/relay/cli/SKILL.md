@@ -119,6 +119,12 @@ including `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 - `relay launch <slug> --no-verify` — skip the pre-launch freshness check
   (below). For offline runs, or when you know the ticket is stale and want
   to launch anyway.
+- `relay launch <slug> --mode <interactive|auto>` — override the ticket's
+  `mode:` for this launch only. The debug knob for stepping through a
+  `mode: auto` ticket in an attended terminal. Ephemeral: the ticket file is
+  never rewritten, and both the spawned command and the composed
+  mode-specific prompt block follow the override. Rejected for `mode: script`
+  tickets, which compose no agent prompt.
 - `relay launch bootstrap/<name>` — stateless shim; concurrent launches
   safe.
 
@@ -312,6 +318,11 @@ period's), not a backlog. It does not install or manage system cron —
 nothing runs unless you invoke it. `relay-os/scripts/cron.sh` is the
 optional entry point if you later wire it into a scheduler yourself.
 
+`relay recurring --interactive` launches every due task in interactive mode
+for that run, even ones whose template says `mode: auto` — the debug knob
+for stepping through a recurring run by hand. It threads `relay launch
+--mode interactive` through and rewrites no ticket files.
+
 Dream, REM, and other recurring maintenance loops all use this surface.
 
 ## relay recurring launch \<name\>
@@ -323,6 +334,8 @@ and a bare `relay recurring` converge on one task directory per period
 (idempotent — a second `launch` in the same period reuses the existing
 task). A task already past `active` (a finished or paused run) is left
 alone. This is exactly what the `relay dream` alias expands to.
+`--interactive` runs it in interactive mode even if the template says
+`mode: auto`, for debugging one template by hand.
 
 ## relay --version
 

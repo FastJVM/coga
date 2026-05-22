@@ -329,6 +329,7 @@ def test_recurring_launch_invokes_launch(
         agent_override: str | None,
         prompt_report: bool,
         no_verify: bool,
+        mode_override: str | None = None,
     ) -> None:
         ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
         assert ticket.status == "active"
@@ -341,6 +342,24 @@ def test_recurring_launch_invokes_launch(
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
     assert calls[0].startswith("dream-")
+
+
+def test_recurring_launch_interactive_overrides_mode(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay recurring launch <name> --interactive` threads mode_override."""
+    seen: list[str | None] = []
+    monkeypatch.setattr(
+        "relay.commands.launch.launch",
+        lambda task, **k: seen.append(k.get("mode_override")),
+    )
+
+    result = CliRunner().invoke(
+        app, ["recurring", "launch", "dream", "--interactive"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert seen == ["interactive"]
 
 
 def test_bare_recurring_scans_and_launches_due(
@@ -359,6 +378,38 @@ def test_bare_recurring_scans_and_launches_due(
     assert "Recurring scan" in result.output
     assert len(calls) == 1
     assert calls[0].startswith("dream-")
+
+
+def test_bare_recurring_interactive_overrides_mode(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay recurring --interactive` threads mode_override to each launch."""
+    seen: list[str | None] = []
+    monkeypatch.setattr(
+        "relay.commands.launch.launch",
+        lambda task, **k: seen.append(k.get("mode_override")),
+    )
+
+    result = CliRunner().invoke(app, ["recurring", "--interactive"])
+
+    assert result.exit_code == 0, result.output
+    assert seen == ["interactive"]
+
+
+def test_bare_recurring_defaults_to_no_mode_override(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without --interactive the ticket's own `mode:` is left to win."""
+    seen: list[str | None] = []
+    monkeypatch.setattr(
+        "relay.commands.launch.launch",
+        lambda task, **k: seen.append(k.get("mode_override")),
+    )
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 0, result.output
+    assert seen == [None]
 
 
 def test_bare_recurring_nothing_due(

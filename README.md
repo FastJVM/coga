@@ -259,13 +259,19 @@ through the `relay mark active` gate.
 `recurring` does not install or schedule anything — `relay recurring` only
 runs when you (or a cron entry you set up yourself) invoke it.
 
+`--interactive` launches every due task in interactive mode for that run,
+even ones whose template says `mode: auto` — the debug knob for stepping
+through a recurring run in an attended terminal. It threads `relay launch
+--mode interactive` through and rewrites no ticket files.
+
 ### `relay recurring launch <name>`
 
 Scaffold one named recurring template now, ignoring its schedule, and launch
 it. The task slug still uses the template's schedule-derived period key, so a
 manual `launch` and a bare `relay recurring` run converge on one task
 directory per period. This is the on-demand entry point behind aliases like
-`relay dream`.
+`relay dream`. `--interactive` runs it in interactive mode even if the
+template says `mode: auto` — handy for debugging one template by hand.
 
 ### `relay dream`
 
@@ -340,6 +346,7 @@ resumes it.
 relay launch add-retry-to-webhook-handler          # full slug
 relay launch add-retry                              # any unique prefix works
 relay launch add-retry --agent codex                # one-off agent override
+relay launch add-retry --mode interactive           # debug: run an auto ticket interactively
 relay launch add-retry --prompt-report              # show prompt layer sizes, no launch
 relay launch bootstrap/orient                       # stateless shim → run a skill
 relay launch bootstrap/orient --agent codex         # choose a bootstrap agent
@@ -367,6 +374,13 @@ TTY or spawning an agent. The report lists each included layer, exact
 context/skill refs, bytes, and approximate token counts. The token estimate is
 intentionally dependency-light (`characters / 4`), so use it to catch prompt
 bloat and compare tasks, not to predict exact provider billing.
+
+`--mode <interactive|auto>` overrides the ticket's `mode:` for one launch —
+the debug knob for stepping through a `mode: auto` ticket in an attended
+terminal (and vice versa). It is ephemeral: the ticket file is never
+rewritten, and both the spawned command and the composed mode-specific prompt
+block follow the override. It is rejected for `mode: script` tasks, which
+compose no agent prompt.
 
 `bootstrap/<name>` tickets are stateless re-entry points for skills.
 Concurrent launches are safe — they have no status, no log of state changes,

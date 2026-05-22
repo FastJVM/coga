@@ -20,7 +20,16 @@ app = typer.Typer(
 
 
 @app.callback(invoke_without_command=True)
-def main(ctx: typer.Context) -> None:
+def main(
+    ctx: typer.Context,
+    interactive: bool = typer.Option(
+        False,
+        "--interactive",
+        help="Launch every due task in interactive mode for this run, even "
+        "ones whose ticket says `mode: auto`. For debugging; ticket files "
+        "are not modified.",
+    ),
+) -> None:
     """Scan every recurring template and launch any due tasks, sequentially.
 
     Bare `relay recurring` is the default action. For each template under
@@ -50,6 +59,7 @@ def main(ctx: typer.Context) -> None:
         typer.echo("No recurring tasks due.")
         return
 
+    mode_override = "interactive" if interactive else None
     typer.echo(f"\nLaunching {len(due)} due task(s) sequentially...\n")
     from relay.commands.launch import launch as launch_cmd
 
@@ -62,7 +72,11 @@ def main(ctx: typer.Context) -> None:
         # interactive template with no TTY) stops the run here — re-running
         # `relay recurring` is safe, since finished tasks are skipped.
         launch_cmd(
-            task.ref.slug, agent_override=None, prompt_report=False, no_verify=False
+            task.ref.slug,
+            agent_override=None,
+            prompt_report=False,
+            no_verify=False,
+            mode_override=mode_override,
         )
 
 
@@ -71,6 +85,12 @@ def launch(
     name: str = typer.Argument(
         ...,
         help="Recurring template name — the file stem under relay-os/recurring/.",
+    ),
+    interactive: bool = typer.Option(
+        False,
+        "--interactive",
+        help="Launch in interactive mode even if the template says "
+        "`mode: auto`. For debugging; the ticket file is not modified.",
     ),
 ) -> None:
     """Scaffold a named recurring template now and launch it.
@@ -107,10 +127,10 @@ def launch(
     else:
         typer.echo(f"{ref.id_slug} already scaffolded for this period")
 
-    _launch_scaffolded(ref)
+    _launch_scaffolded(ref, mode_override="interactive" if interactive else None)
 
 
-def _launch_scaffolded(ref: TaskRef) -> None:
+def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> None:
     """Launch a freshly scaffolded recurring task.
 
     Recurring tasks scaffold straight to `active` — they are machine-authored
@@ -130,7 +150,13 @@ def _launch_scaffolded(ref: TaskRef) -> None:
     typer.echo(f"Launching {ref.id_slug}")
     from relay.commands.launch import launch as launch_cmd
 
-    launch_cmd(ref.slug, agent_override=None, prompt_report=False, no_verify=False)
+    launch_cmd(
+        ref.slug,
+        agent_override=None,
+        prompt_report=False,
+        no_verify=False,
+        mode_override=mode_override,
+    )
 
 
 # --- scan reporting -----------------------------------------------------------

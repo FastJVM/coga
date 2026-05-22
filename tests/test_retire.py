@@ -177,6 +177,7 @@ def test_retire_launches_after_scaffold(
         agent_override: str | None,
         prompt_report: bool,
         no_verify: bool,
+        mode_override: str | None = None,
     ) -> None:
         ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
         assert ticket.status == "active"
@@ -186,6 +187,7 @@ def test_retire_launches_after_scaffold(
                 "agent_override": agent_override,
                 "prompt_report": prompt_report,
                 "no_verify": no_verify,
+                "mode_override": mode_override,
             }
         )
         typer.echo("fake launch called")
@@ -209,6 +211,7 @@ def test_retire_launches_after_scaffold(
             "agent_override": None,
             "prompt_report": False,
             "no_verify": False,
+            "mode_override": None,
         }
     ]
 

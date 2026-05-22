@@ -122,7 +122,13 @@ def retire(
     typer.echo(f"Retire: launching {slug}")
     from relay.commands.launch import launch
 
-    launch(slug, agent_override=None, prompt_report=False, no_verify=False)
+    launch(
+        slug,
+        agent_override=None,
+        prompt_report=False,
+        no_verify=False,
+        mode_override=None,
+    )
 
 
 def _default_agent(cfg: Config) -> str:
