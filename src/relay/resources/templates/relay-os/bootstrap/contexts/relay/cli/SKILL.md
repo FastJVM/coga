@@ -10,7 +10,7 @@ else is a flag or subcommand. The model beneath them lives in
 `relay/architecture` — read that for primitives and prompt composition.
 This context is just the operator's reference.
 
-## relay init [PATH] [--update]
+## relay init [PATH] [--update] [--all]
 
 Scaffold `relay-os/` in `PATH` (default `.`), or with `--update` refresh
 the relay-managed bits in the current repo.
@@ -21,6 +21,15 @@ the relay-managed bits in the current repo.
   batteries (`recurring/dream.md`) from the installed Relay package. Leaves
   `relay.toml`, `rules.md`, user contexts, user skills, and repo-specific
   recurring loops (REM) untouched.
+- `relay init --update --all [PATH]` — sweep mode. Scan `PATH` (default the
+  current dir) for every relay repo below it — directories holding a
+  `relay-os/relay.toml` — and run the `--update` refresh in each. One
+  upstream clone is shared across all repos; a failure in one repo is
+  reported and the sweep continues; the `relay` on PATH is upgraded once at
+  the end. Exits non-zero if any repo failed. `--all` without `--update` is
+  an error — there is no bulk fresh-scaffold. Search roots are passed on the
+  command line, not stored: a multi-repo sweep can't read per-repo config,
+  so it stays stateless by design.
 
 `pip install relay-os` installs bundled batteries into the wheel as package
 resources. It does not modify a repo. `relay init` and `relay init --update`

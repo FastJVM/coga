@@ -128,7 +128,7 @@ authoring interview.
 
 ## Commands
 
-### `relay init [PATH] [--update]`
+### `relay init [PATH] [--update] [--all]`
 
 Scaffold `relay-os/` inside `PATH` (default: `.`). Copies templates from the
 installed Relay package, vendors the CLI into `.relay/`, creates a
@@ -139,7 +139,15 @@ git repo — auto-stages and commits the new scaffold (push is left to you).
 relay init mycompany           # fresh scaffold; refuses if relay-os/ exists
 relay init --update            # refresh .relay/ + package templates in current repo
                                # (never touches your relay.toml, rules.md, custom skills, etc.)
+relay init --update --all      # sweep: refresh every relay repo under the current dir
+relay init --update --all ~/work   # ...or under the given dir
 ```
+
+Because each repo vendors its own batteries, picking up a new Relay release
+means `pip install -U relay-os` once, then `relay init --update` per repo. The
+`--all` sweep does that last step in bulk — it scans `PATH` for every
+`relay-os/relay.toml`, refreshes each (sharing one upstream clone), reports
+per-repo results, and exits non-zero if any repo failed.
 
 If `~/.local/bin` is on your `PATH`, init also drops a `~/.local/bin/relay`
 symlink so the vendored copy is usable from any cwd in a new shell.

@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 import typer
@@ -110,8 +111,9 @@ def init(
     path: Path = typer.Argument(
         Path("."),
         help=(
-            "Target dir for fresh init (created if missing). "
-            "Ignored under --update — refreshes the current relay-os/."
+            "Fresh init: target dir for the new repo (created if missing). "
+            "Under --update: ignored. Under --update --all: the directory "
+            "tree scanned for relay repos to refresh (default: current dir)."
         ),
     ),
     update: bool = typer.Option(
@@ -119,9 +121,24 @@ def init(
         "--update",
         help="Refresh vendored CLI + package templates in the current relay-os/. Leaves user config alone.",
     ),
+    all_repos: bool = typer.Option(
+        False,
+        "--all",
+        help="With --update: refresh every relay repo found under PATH, not just the current one.",
+    ),
 ) -> None:
     """Scaffold `relay-os/` from package templates, or refresh it with --update."""
-    if update:
+    if all_repos and not update:
+        typer.secho(
+            "--all only applies with --update — it refreshes existing repos, and "
+            "there is no bulk fresh-scaffold. Re-run as `relay init --update --all`.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    if update and all_repos:
+        _do_update_all(path)
+    elif update:
         _do_update()
     else:
         _do_init(path)
@@ -237,18 +254,38 @@ def _print_slack_state(local_toml: Path) -> None:
     )
 
 
-def _do_update() -> None:
-    relay_os = find_repo_root()
-    source_checkout = is_relay_source_checkout(relay_os)
+@dataclass
+class _UpdateResult:
+    """What one repo's `--update` refresh did — enough to print a report."""
 
-    with tempfile.TemporaryDirectory(prefix="relay-init-update-") as tmp:
-        clone_dir = clone_upstream(Path(tmp) / "repo")
-        refresh_cli(clone_dir, relay_os)
-        if source_checkout:
-            copied, pruned_templates = [], []
-        else:
-            copied, pruned_templates = refresh_templates(relay_os)
-        sha = upstream_sha(clone_dir)
+    sha: str | None
+    source_checkout: bool
+    copied: list[str]
+    pruned: list[str]
+    wired_agents: list[str]
+    blocked_agents: list[tuple[str, Path]]
+    hook_status: str
+    hook_blocker: Path | None
+    host_gitignore_changed: bool
+    written_guides: list[str]
+    retrofitted: list[str]
+
+
+def _refresh_one(relay_os: Path, clone_dir: Path) -> _UpdateResult:
+    """Apply one repo's `--update` refresh from an already-cloned upstream.
+
+    The mutating half of `relay init --update`, factored out so the
+    single-repo update and the `--all` sweep share one code path and one
+    upstream clone. Deliberately does *not* touch the global `relay` install
+    on PATH — that is a once-per-invocation concern the callers own.
+    """
+    source_checkout = is_relay_source_checkout(relay_os)
+    refresh_cli(clone_dir, relay_os)
+    if source_checkout:
+        copied, pruned_templates = [], []
+    else:
+        copied, pruned_templates = refresh_templates(relay_os)
+    sha = upstream_sha(clone_dir)
 
     if source_checkout:
         pruned = []
@@ -262,47 +299,173 @@ def _do_update() -> None:
     host_gitignore_changed = ensure_host_gitignore(relay_os.parent)
     written_guides = _write_agent_guides(relay_os.parent)
     retrofitted = _run_retrofits(relay_os)
+    return _UpdateResult(
+        sha=sha,
+        source_checkout=source_checkout,
+        copied=copied,
+        pruned=pruned,
+        wired_agents=wired_agents,
+        blocked_agents=blocked_agents,
+        hook_status=hook_status,
+        hook_blocker=hook_blocker,
+        host_gitignore_changed=host_gitignore_changed,
+        written_guides=written_guides,
+        retrofitted=retrofitted,
+    )
+
+
+def _do_update() -> None:
+    relay_os = find_repo_root()
+    with tempfile.TemporaryDirectory(prefix="relay-init-update-") as tmp:
+        clone_dir = clone_upstream(Path(tmp) / "repo")
+        result = _refresh_one(relay_os, clone_dir)
+
+    _print_update_result(relay_os, result)
     cli_kind, cli_venv = running_cli_location(relay_os)
     cli_status, cli_detail = upgrade_global_cli(cli_kind)
+    _print_global_cli_status(cli_status, cli_detail, cli_venv)
 
+
+def _print_update_result(relay_os: Path, result: _UpdateResult) -> None:
+    """Verbose single-repo report for `relay init --update`."""
     typer.echo("")
     typer.echo(f"Refreshed CLI at {relay_os / '.relay'}")
-    if sha is not None:
-        typer.echo(f"Pinned to upstream {sha[:12]}.")
-    if wired_agents:
-        names = ", ".join(wired_agents)
+    if result.sha is not None:
+        typer.echo(f"Pinned to upstream {result.sha[:12]}.")
+    if result.wired_agents:
+        names = ", ".join(result.wired_agents)
         typer.echo(f"Wired skill discovery for {names}.")
-    for label, path in blocked_agents:
+    for label, path in result.blocked_agents:
         typer.secho(
             f"Skipped {label} skill wiring — {path} isn't a directory. "
             f"Remove or convert it, then rerun this command.",
             fg=typer.colors.YELLOW,
         )
-    _print_post_merge_status(hook_status, hook_blocker, relay_os.parent)
-    if copied:
-        typer.echo(f"Refreshed {len(copied)} template file(s):")
-        for rel in copied:
+    _print_post_merge_status(result.hook_status, result.hook_blocker, relay_os.parent)
+    if result.copied:
+        typer.echo(f"Refreshed {len(result.copied)} template file(s):")
+        for rel in result.copied:
             typer.echo(f"  {rel}")
-    if source_checkout:
+    if result.source_checkout:
         typer.echo(
             "Skipped relay-os template refresh/prune in Relay source checkout "
             "(source files are managed by git)."
         )
-    if pruned:
-        typer.echo(f"Pruned {len(pruned)} obsolete path(s):")
-        for rel in pruned:
+    if result.pruned:
+        typer.echo(f"Pruned {len(result.pruned)} obsolete path(s):")
+        for rel in result.pruned:
             typer.echo(f"  {rel}")
-    if host_gitignore_changed:
+    if result.host_gitignore_changed:
         typer.echo(f"Updated {relay_os.parent / '.gitignore'} (relay-managed block).")
-    if written_guides:
+    if result.written_guides:
         typer.echo(
-            f"Wrote {', '.join(written_guides)} (agent orientation — Claude Code / Codex)."
+            f"Wrote {', '.join(result.written_guides)} (agent orientation — Claude Code / Codex)."
         )
-    if retrofitted:
-        typer.echo(f"Backfilled canonical ticket fields on {len(retrofitted)} ticket(s):")
-        for slug in retrofitted:
+    if result.retrofitted:
+        typer.echo(f"Backfilled canonical ticket fields on {len(result.retrofitted)} ticket(s):")
+        for slug in result.retrofitted:
             typer.echo(f"  {slug}")
-    _print_global_cli_status(cli_status, cli_detail, cli_venv)
+
+
+# Directories the `--all` scan never descends into: noise trees that can't
+# hold a relay repo we care about. A found `relay-os/` is pruned separately
+# (a relay repo never nests another inside one).
+_SCAN_SKIP_DIRS: frozenset[str] = frozenset(
+    {".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".mypy_cache"}
+)
+
+
+def _discover_relay_repos(root: Path) -> list[Path]:
+    """Return every relay repo's `relay-os/` dir at or below `root`.
+
+    A relay repo is identified by a `relay-os/` directory holding a
+    `relay.toml`. The walk skips `_SCAN_SKIP_DIRS` and stops descending into
+    a `relay-os/` once found. Results are sorted for deterministic output.
+    """
+    found: list[Path] = []
+    for dirpath, dirnames, _ in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in _SCAN_SKIP_DIRS]
+        if "relay-os" in dirnames:
+            relay_os = Path(dirpath) / "relay-os"
+            if (relay_os / "relay.toml").is_file():
+                found.append(relay_os)
+            dirnames.remove("relay-os")
+    return sorted(found)
+
+
+def _repo_label(relay_os: Path, root: Path) -> str:
+    """Sweep-output name for a repo — its path relative to the scan root."""
+    repo = relay_os.parent
+    try:
+        rel = repo.relative_to(root)
+    except ValueError:
+        return str(repo)
+    return repo.name if rel == Path(".") else str(rel)
+
+
+def _do_update_all(scan_root: Path) -> None:
+    """Refresh every relay repo found under `scan_root`.
+
+    Shares one upstream clone across all repos. A failure in one repo is
+    reported and the sweep continues; the global `relay` on PATH is upgraded
+    once at the end. Exits non-zero if any repo failed.
+    """
+    root = scan_root.resolve()
+    if not root.is_dir():
+        typer.secho(f"{root} is not a directory.", fg=typer.colors.RED, err=True)
+        sys.exit(2)
+
+    repos = _discover_relay_repos(root)
+    if not repos:
+        typer.secho(
+            f"No relay repos found under {root} "
+            f"(looked for relay-os/ directories with a relay.toml).",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        sys.exit(1)
+
+    typer.echo(f"Found {len(repos)} relay repo(s) under {root}:")
+    for relay_os in repos:
+        typer.echo(f"  {_repo_label(relay_os, root)}")
+    typer.echo("")
+
+    updated: list[Path] = []
+    failed: list[tuple[str, str]] = []
+    with tempfile.TemporaryDirectory(prefix="relay-init-update-all-") as tmp:
+        clone_dir = clone_upstream(Path(tmp) / "repo")
+        for relay_os in repos:
+            label = _repo_label(relay_os, root)
+            try:
+                result = _refresh_one(relay_os, clone_dir)
+            except Exception as exc:  # noqa: BLE001 — one repo must not abort the sweep
+                typer.secho(f"  ✗ {label} — {exc}", fg=typer.colors.RED)
+                failed.append((label, str(exc)))
+                continue
+            pin = result.sha[:12] if result.sha else "unknown"
+            notes: list[str] = []
+            if result.copied:
+                notes.append(f"{len(result.copied)} file(s)")
+            if result.pruned:
+                notes.append(f"{len(result.pruned)} pruned")
+            suffix = f" — {', '.join(notes)}" if notes else ""
+            typer.secho(f"  ✓ {label} → {pin}{suffix}", fg=typer.colors.GREEN)
+            updated.append(relay_os)
+
+    typer.echo("")
+    typer.echo(f"Updated {len(updated)} of {len(repos)} repo(s).")
+    if failed:
+        typer.secho(f"{len(failed)} repo(s) failed — see above.", fg=typer.colors.YELLOW, err=True)
+
+    # The `relay` on PATH is one install no matter how many repos we swept —
+    # upgrade it once, not per repo.
+    if updated:
+        cli_kind, cli_venv = running_cli_location(updated[0])
+        cli_status, cli_detail = upgrade_global_cli(cli_kind)
+        _print_global_cli_status(cli_status, cli_detail, cli_venv)
+
+    if failed:
+        sys.exit(1)
 
 
 def _print_global_cli_status(status: str, detail: str | None, venv: Path) -> None:
