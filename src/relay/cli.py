@@ -106,12 +106,12 @@ _BUILTIN_COMMANDS = frozenset(
 #
 # `dream` is a default alias rather than a built-in command: a Dream run is an
 # ordinary recurring task (`relay-os/recurring/dream.md`), and `relay dream`
-# just scaffolds and launches it on demand — the same scaffold path the cron
-# `relay recurring check` uses. Shipping it as a default keeps `relay dream`
-# working in repos init'd before the recurring template landed.
+# just scaffolds and launches it on demand — the same path `relay recurring
+# launch dream` takes. Shipping it as a default keeps `relay dream` working in
+# repos init'd before the recurring template landed.
 _DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
-    "dream": "recurring scaffold dream --launch",
+    "dream": "recurring launch dream",
 }
 
 

@@ -16,7 +16,7 @@ incoming webhook. The current broadcast surface:
 - `relay draft` / `relay create` — a new raw draft ticket lands in the queue.
 - `relay ticket "<title>"` — also posts the raw draft creation before the
   authoring interview starts.
-- `relay recurring check` — one post per scaffolded recurring task,
+- `relay recurring` — one post per scaffolded recurring task,
   plus an end-of-run summary when any templates failed to parse.
 - `relay mark active` — the moment work is approved, distinct from
   the *session* opening.

@@ -212,9 +212,8 @@ The usual boot sequence is:
 3. `relay mark active <slug>` — approve it into the queue.
 4. `relay launch <slug>` — mark it `in_progress` and spawn the agent.
 
-Programmatic callers (e.g. the recurring scaffolder) call
-`scaffold_task()` in `relay.scaffold` directly with the full keyword
-surface.
+Programmatic callers (e.g. `relay recurring`) call `scaffold_task()` in
+`relay.scaffold` directly with the full keyword surface.
 
 ### `relay mark <state> <slug> [--message "..."]`
 
@@ -238,36 +237,56 @@ bump` no longer marks final-step tickets done.
 `--message` piggy-backs an FYI onto the state-transition Slack
 broadcast — one post instead of two.
 
-### `relay recurring check`
+### `relay recurring`
 
-Scan `relay-os/recurring/` and scaffold any due tasks. Called from
-`scripts/cron.sh`; safe to run by hand. Recurring scaffolding goes through
-`scaffold_task()` in `relay.scaffold` directly with the template's full
-frontmatter. Recurring tasks are workflow-less, so they are scaffolded
-straight to `active` — they can't go through the `relay mark active` gate.
+Scan `relay-os/recurring/` and launch the templates that are due. For each
+template (excluding `_`-prefixed inert templates), `relay recurring`
+get-or-creates the **current period's** task, prints a scan table, then
+launches the still-`active` ones sequentially, most-overdue first. Tasks
+already `done`, `in_progress`, or `paused` are left alone — no auto-resume.
 
-### `relay recurring scaffold <name>`
+Only the current period is considered; `relay recurring` never chases missed
+periods, so a template runs at most once per period no matter how long since
+the last invocation. The task slug is the schedule-derived period key
+(`dream-2026-W21`), which makes the get-or-create idempotent.
 
-Scaffold one named recurring template now, ignoring its schedule. The task
-slug still uses the template's schedule-derived period key, so a manual
-`scaffold` and the cron `check` converge on one task directory per period.
-With `--launch`, the scaffolded (already-`active`) task is launched directly.
-This is the on-demand entry point behind aliases like `relay dream`.
+Recurring scaffolding goes through `scaffold_task()` in `relay.scaffold`
+directly with the template's full frontmatter. Recurring tasks are
+workflow-less, so they are scaffolded straight to `active` — they can't go
+through the `relay mark active` gate.
+
+`scripts/cron.sh` calls `relay recurring` directly. Naming a command
+`recurring` does not install or schedule anything — `relay recurring` only
+runs when you (or a cron entry you set up yourself) invoke it.
+
+`--interactive` launches every due task in interactive mode for that run,
+even ones whose template says `mode: auto` — the debug knob for stepping
+through a recurring run in an attended terminal. It threads `relay launch
+--mode interactive` through and rewrites no ticket files.
+
+### `relay recurring launch <name>`
+
+Scaffold one named recurring template now, ignoring its schedule, and launch
+it. The task slug still uses the template's schedule-derived period key, so a
+manual `launch` and a bare `relay recurring` run converge on one task
+directory per period. This is the on-demand entry point behind aliases like
+`relay dream`. `--interactive` runs it in interactive mode even if the
+template says `mode: auto` — handy for debugging one template by hand.
 
 ### `relay dream`
 
 Run Relay's generic cleanup pass now. `dream` is an alias for
-`relay recurring scaffold dream --launch`: it scaffolds the `recurring/dream.md`
+`relay recurring launch dream`: it scaffolds the `recurring/dream.md`
 recurring task and launches it. The slug is the recurring period key
-(`dream-2026-W21`), shared with the weekly cron run — running `relay dream`
+(`dream-2026-W21`), shared with the scheduled run — running `relay dream`
 mid-week reuses that week's task rather than creating a second one.
 
 ### Dream and REM
 
 Dream is Relay's generic ticket cleanup pass for one `relay-os/`. It ships as a
-recurring task template, `relay-os/recurring/dream.md`: the weekly cron
-`relay recurring check` scaffolds it, and the `relay dream` alias scaffolds and
-launches it on demand. A Dream task scans all tickets, runs fixed Relay
+recurring task template, `relay-os/recurring/dream.md`: a weekly `relay
+recurring` run scaffolds and launches it when its schedule is due, and the
+`relay dream` alias scaffolds and launches it on demand. A Dream task scans all tickets, runs fixed Relay
 housekeeping skills such as `validate-drift` and `retro/done-ticket`, proposes
 cleanup, writes results to that run's blackboard, and leaves a human-reviewable
 trail. Retro work is batched for done tickets: Dream loads the context/skill
@@ -327,6 +346,7 @@ resumes it.
 relay launch add-retry-to-webhook-handler          # full slug
 relay launch add-retry                              # any unique prefix works
 relay launch add-retry --agent codex                # one-off agent override
+relay launch add-retry --mode interactive           # debug: run an auto ticket interactively
 relay launch add-retry --prompt-report              # show prompt layer sizes, no launch
 relay launch bootstrap/orient                       # stateless shim → run a skill
 relay launch bootstrap/orient --agent codex         # choose a bootstrap agent
@@ -354,6 +374,13 @@ TTY or spawning an agent. The report lists each included layer, exact
 context/skill refs, bytes, and approximate token counts. The token estimate is
 intentionally dependency-light (`characters / 4`), so use it to catch prompt
 bloat and compare tasks, not to predict exact provider billing.
+
+`--mode <interactive|auto>` overrides the ticket's `mode:` for one launch —
+the debug knob for stepping through a `mode: auto` ticket in an attended
+terminal (and vice versa). It is ephemeral: the ticket file is never
+rewritten, and both the spawned command and the composed mode-specific prompt
+block follow the override. It is rejected for `mode: script` tasks, which
+compose no agent prompt.
 
 `bootstrap/<name>` tickets are stateless re-entry points for skills.
 Concurrent launches are safe — they have no status, no log of state changes,
@@ -453,11 +480,13 @@ belongs in a Dream worker, not here.
 
 ```sh
 relay retire add-retry                       # interactive mode (the default)
+relay retire add-retry --mode auto           # one-shot autonomous Retro run
 relay retire add-retry --no-launch           # scaffold without launching
 ```
 
-`retire` runs interactively so the Retro pass writes live console
-output; `mode: auto` is temporarily disabled.
+`retire` runs interactively by default so the Retro pass writes live
+console output; `--mode auto` runs it as a one-shot headless `claude -p`
+session whose output is buffered to the task log.
 
 ### `relay panic --task <slug> --reason "..."`
 

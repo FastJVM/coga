@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -14,7 +15,7 @@ from croniter import croniter
 from relay.scaffold import scaffold_task
 from relay.config import Config
 from relay.paths import recurring_dir
-from relay.tasks import TaskRef, list_tasks
+from relay.tasks import TaskRef, list_tasks, read_ticket
 
 
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
@@ -50,37 +51,71 @@ class Template:
 
 
 @dataclass
-class CheckResult:
-    created: list[TaskRef]
-    errors: list[tuple[str, str]]  # (template_filename, error_message)
-
-
-@dataclass
 class ScaffoldOutcome:
     """Result of scaffolding one recurring template for a given firing.
 
     `created` is False when a task already exists for the period — the
-    scaffold is idempotent, so a manual trigger and the cron `check` pass
-    in the same period converge on one task directory.
+    scaffold is idempotent, so two `relay recurring` runs in the same period
+    converge on one task directory.
     """
 
     ref: TaskRef
     created: bool
 
 
-def check_recurring(cfg: Config, now: datetime | None = None) -> CheckResult:
-    """Scan recurring templates and create any due tasks. Idempotent.
+@dataclass
+class DueTask:
+    """One recurring template's current-period task, after get-or-create.
 
-    Returns a CheckResult carrying both new TaskRefs and any per-template
-    parse errors encountered. The caller is responsible for surfacing both
-    (e.g. printing creates to stdout and posting errors to Slack).
+    `relay recurring` materializes this for every template, then launches the
+    ones that are still `active`. `last_fire` is the scheduled firing this
+    task covers — used to report "ready" vs "overdue" and to order launches.
+    """
+
+    template: str
+    ref: TaskRef
+    last_fire: datetime
+    created: bool
+    status: str
+
+    @property
+    def launchable(self) -> bool:
+        # `active` means scaffolded-and-not-yet-run: either created this scan
+        # or carried over from an earlier scan that never launched it.
+        # `in_progress`/`paused`/`done` are already handled — never relaunch.
+        return self.status == "active"
+
+
+@dataclass
+class DueScan:
+    """Outcome of scanning every recurring template for the current period."""
+
+    tasks: list[DueTask]
+    errors: list[tuple[str, str]]  # (template_filename, error_message)
+
+    @property
+    def due(self) -> list[DueTask]:
+        """Launchable tasks, most-overdue first."""
+        return sorted(
+            (t for t in self.tasks if t.launchable), key=lambda t: t.last_fire
+        )
+
+
+def scan_due(cfg: Config, now: datetime | None = None) -> DueScan:
+    """Scan every recurring template and get-or-create its current-period task.
+
+    For each template under `relay-os/recurring/` (skipping `_`-prefixed
+    files), this resolves the most recent scheduled firing, get-or-creates the
+    task for that period, and records its status. Idempotent: a template whose
+    current-period task already exists is a no-op. The caller (`relay
+    recurring`) launches the `active` results sequentially.
     """
     now = now or datetime.now()
     root = recurring_dir(cfg)
     if not root.is_dir():
-        return CheckResult(created=[], errors=[])
+        return DueScan(tasks=[], errors=[])
 
-    created: list[TaskRef] = []
+    tasks: list[DueTask] = []
     errors: list[tuple[str, str]] = []
     for path in sorted(root.glob("*.md")):
         if path.name.startswith("_"):
@@ -90,17 +125,24 @@ def check_recurring(cfg: Config, now: datetime | None = None) -> CheckResult:
             template = Template.load(path)
             outcome = scaffold_template(cfg, template, now)
         except RecurringError as exc:
-            # Don't let one bad template block the rest. Stderr keeps the
-            # interactive `relay recurring check` honest; the command also
-            # posts a Slack summary so unattended cron runs aren't silent.
-            import sys
+            # Don't let one bad template block the rest. Stderr keeps an
+            # interactive `relay recurring` honest; the command also posts a
+            # Slack summary so the failure is never silent.
             sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
             errors.append((path.name, str(exc)))
             continue
 
-        if outcome.created:
-            created.append(outcome.ref)
-    return CheckResult(created=created, errors=errors)
+        ticket = read_ticket(outcome.ref)
+        tasks.append(
+            DueTask(
+                template=template.name,
+                ref=outcome.ref,
+                last_fire=_last_firing(template.schedule, now),
+                created=outcome.created,
+                status=ticket.status,
+            )
+        )
+    return DueScan(tasks=tasks, errors=errors)
 
 
 def scaffold_named(
@@ -109,9 +151,9 @@ def scaffold_named(
     """Scaffold the named recurring template now, ignoring its schedule.
 
     `name` is the file stem under `relay-os/recurring/`. The task slug still
-    uses the schedule-derived period key, so a manual `relay recurring
-    scaffold dream` and the cron `relay recurring check` produce the same
-    task directory for a given period.
+    uses the schedule-derived period key, so a manual `relay recurring launch
+    <name>` and a bare `relay recurring` produce the same task directory for a
+    given period.
     """
     now = now or datetime.now()
     path = recurring_dir(cfg) / f"{name}.md"
@@ -125,18 +167,7 @@ def scaffold_template(
     cfg: Config, template: Template, now: datetime
 ) -> ScaffoldOutcome:
     """Scaffold one recurring template for `now`'s firing. Idempotent."""
-    # Temporary policy: refuse to scaffold mode=auto recurring tasks.
-    # `claude -p` and `codex exec` buffer until completion, so scheduled
-    # runs would sit silently — worse than skipping. Lift when streaming
-    # lands. Templates can opt back in by setting `mode: script` (or
-    # `mode: interactive` if they can run from a TTY).
     effective_mode = template.frontmatter.get("mode", "auto")
-    if effective_mode == "auto":
-        raise RecurringError(
-            "mode=auto is temporarily disabled (auto runs produce no live "
-            "console output). Set `mode: script` or `mode: interactive` "
-            "to re-enable."
-        )
 
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
@@ -238,9 +269,10 @@ def _extract_title(template: Template) -> str:
 
 __all__ = [
     "Template",
-    "CheckResult",
     "ScaffoldOutcome",
-    "check_recurring",
+    "DueTask",
+    "DueScan",
+    "scan_due",
     "scaffold_named",
     "scaffold_template",
     "RecurringError",

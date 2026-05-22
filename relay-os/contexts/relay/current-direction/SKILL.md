@@ -24,17 +24,18 @@ Last updated: 2026-05-19.
 
 - **Dream is a recurring task template plus an alias.** The standalone
   `relay dream` Typer command is gone. Dream now ships as
-  `relay-os/recurring/dream.md` — an ordinary recurring template. The weekly
-  cron `relay recurring check` scaffolds it; `relay dream` is a default alias
-  for `recurring scaffold dream --launch`, which scaffolds and launches it on
-  demand through the same path. The task slug is the recurring period key
-  (`dream-2026-W21`), so a manual run and the cron run converge on one task.
-  This reverses the earlier "ad-hoc command" decision: there was nothing left
-  in a dedicated command worth keeping once the workers became skills.
-- **`relay recurring scaffold <name>` is the on-demand recurring entry point.**
+  `relay-os/recurring/dream.md` — an ordinary recurring template. `relay
+  recurring` scaffolds and launches it when its weekly schedule is due;
+  `relay dream` is a default alias for `recurring launch dream`, which
+  scaffolds and launches it on demand through the same path. The task slug is
+  the recurring period key (`dream-2026-W21`), so the two paths converge on
+  one task. This reverses the earlier "ad-hoc command" decision: there was
+  nothing left in a dedicated command worth keeping once the workers became
+  skills.
+- **`relay recurring launch <name>` is the on-demand recurring entry point.**
   It scaffolds one named template now, ignoring its schedule, with the same
-  period-keyed (idempotent) slug the cron `check` produces. `--launch` also
-  activates and launches the task.
+  period-keyed (idempotent) slug a bare `relay recurring` produces, then
+  launches the task.
 
 ## Recent decisions (Dream and REM)
 
@@ -129,9 +130,11 @@ ones that affect implementation:
   current `step:` frontmatter and always advances by one. It does
   not finish tickets — bumping past the last step (or on a no-workflow
   ticket) errors and points at `relay mark done`.
-- **`relay recurring check` is the canonical entry point** for the
-  cron scaffolder. Cron scripts and docs call it directly rather
-  than going through `relay draft` / `scaffold_task()`.
+- **`relay recurring` is the canonical entry point** for the recurring
+  scaffolder. It scans templates, scaffolds the current period's task for
+  each, and launches the due ones sequentially — current period only, no
+  backlog of missed periods. `scripts/cron.sh` calls it directly rather than
+  going through `relay draft` / `scaffold_task()`.
 - **Lock cleanup is human-needed by default.** `relay validate`
   reports stale locks but doesn't auto-clean. Dream's `validate-drift` skill
   classifies stale locks for human review unless a narrower skill contract has

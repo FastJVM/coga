@@ -2,9 +2,9 @@
 schedule: "0 9 * * 1"
 schedule_comment: "Every Monday at 9am"
 title: "Replace with the REM task title"
-# `mode: auto` is temporarily disabled (auto runs produce no live console
-# output). Use `mode: script` for unattended cron-driven runs, or
-# `mode: interactive` if the run is meant to drop into a human terminal.
+# Pick a mode: `script` runs a skill script directly with no agent;
+# `auto` is a one-shot headless agent run whose output is buffered to the
+# task log; `interactive` drops into a human terminal with live output.
 mode: script
 workflow: namespace/your-workflow
 owner: replace-with-human-name
@@ -45,6 +45,6 @@ Write one concise run summary to this task's blackboard. If the run opens PRs,
 creates tickets, or needs human decisions, list those links and gates in the
 summary.
 
-`relay recurring check` creates a fresh task on each scheduled firing. Files in
-`recurring/` whose name starts with `_` are skipped, so this template stays
-inert until a human copies or renames it.
+`relay recurring` get-or-creates the current period's task for each template
+when its schedule is due. Files in `recurring/` whose name starts with `_` are
+skipped, so this template stays inert until a human copies or renames it.

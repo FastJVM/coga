@@ -60,6 +60,13 @@ def launch(
         "--no-verify",
         help="Skip the pre-launch PR-merge freshness check.",
     ),
+    mode_override: str | None = typer.Option(
+        None,
+        "--mode",
+        help="Run in this mode for this launch only (interactive or auto), "
+        "overriding the ticket's `mode:`. For debugging — the ticket file is "
+        "not modified.",
+    ),
 ) -> None:
     """Compose context, start work on a task."""
     try:
@@ -80,13 +87,34 @@ def launch(
         except ConfigError as exc:
             _bail(str(exc))
 
-    if prompt_report:
-        ticket = read_ticket(ref)
+    if mode_override is not None and mode_override not in ("interactive", "auto"):
+        _bail("--mode must be 'interactive' or 'auto'")
+
+    def _read(target: TaskRef | BootstrapRef) -> Ticket:
+        """Read the ticket, applying the ephemeral `--agent` override.
+
+        `--mode` is deliberately NOT written into `frontmatter` here: the
+        same ticket object is handed to `mark_in_progress`, which persists
+        it. The mode override is threaded separately to `compose_prompt` and
+        `build_agent_command` so the ticket file is never touched.
+        """
+        t = read_ticket(target)
+        if mode_override is not None and t.mode == "script":
+            _bail(
+                "--mode override is not supported for script-mode tasks "
+                "(they compose no agent prompt)."
+            )
         if agent_override is not None and is_bootstrap:
-            ticket.frontmatter["assignee"] = agent_override
+            t.frontmatter["assignee"] = agent_override
+        return t
+
+    if prompt_report:
+        ticket = _read(ref)
         if ticket.mode == "script":
             _bail("mode=script tasks do not compose an agent prompt.")
-        composition = compose_prompt_report(cfg, ref, ticket)
+        composition = compose_prompt_report(
+            cfg, ref, ticket, mode_override=mode_override
+        )
         typer.echo(_format_prompt_report(ref.id_slug, composition))
         warning = blackboard_size_warning(ref.path / "blackboard.md")
         if warning:
@@ -119,15 +147,19 @@ def launch(
                 err=True,
             )
 
-    ticket = read_ticket(ref)
-    if agent_override is not None and is_bootstrap:
-        ticket.frontmatter["assignee"] = agent_override
+    ticket = _read(ref)
 
     typer.echo(
         f"Launch: task {ref.id_slug} "
         f"(status={ticket.status if not is_bootstrap else 'n/a'}, mode={ticket.mode}, "
         f"assignee={ticket.assignee or 'unassigned'})"
     )
+    if mode_override is not None:
+        typer.secho(
+            f"Launch: mode overridden to {mode_override!r} for this run "
+            "— ticket file unchanged",
+            fg=typer.colors.YELLOW,
+        )
 
     if not is_bootstrap:
         if ticket.status == "draft":
@@ -145,7 +177,7 @@ def launch(
     if not assignee:
         _bail(f"Task {ref.id_slug} has no assignee")
 
-    mode = ticket.mode
+    mode = mode_override or ticket.mode
 
     if mode == "script":
         if agent_override is not None:
@@ -158,20 +190,6 @@ def launch(
 
     if mode not in ("interactive", "auto"):
         _bail(f"Unknown mode: {mode!r}")
-
-    if mode == "auto":
-        # Temporary policy. `claude -p` and `codex exec` buffer stdout until
-        # the run completes, so auto launches produce no live console output
-        # for the operator. Until relay grows a streaming consumer for the
-        # agent's structured output, we refuse rather than let runs sit
-        # silently. Re-enable when streaming lands.
-        _bail(
-            f"Cannot launch {ref.id_slug!r}: mode=auto is temporarily disabled. "
-            "Auto runs produce no live console output (claude -p and codex exec "
-            "buffer until completion), so unattended runs are unobservable. "
-            "Edit the ticket to mode: interactive (and run from a TTY), or "
-            "mode: script if the work fits a single script entry point."
-        )
 
     if mode == "interactive" and not _interactive_stdio_has_tty():
         _bail(
@@ -251,9 +269,7 @@ def launch(
 
     try:
         while True:
-            ticket = read_ticket(ref)
-            if agent_override is not None and is_bootstrap:
-                ticket.frontmatter["assignee"] = agent_override
+            ticket = _read(ref)
             _echo_launch_iteration(ref, ticket)
 
             # Compose & write prompt fresh for this step.
@@ -262,7 +278,7 @@ def launch(
                 typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
 
             typer.echo("Launch: composing prompt")
-            prompt = compose_prompt(cfg, ref, ticket)
+            prompt = compose_prompt(cfg, ref, ticket, mode_override=mode_override)
             prompt_file = write_prompt_file(prompt, ref)
             typer.echo(
                 f"Launch: prompt written to {prompt_file} "
