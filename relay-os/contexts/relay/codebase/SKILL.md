@@ -39,7 +39,8 @@ relay-os/
   relay.local.toml       ← machine-local (NEVER committed; secrets here)
   rules.md               ← global-rules layer of the composed prompt
   context.md             ← repo-context layer of the composed prompt
-  recurring/<name>.md    ← recurring task templates
+  recurring/<name>/      ← recurring task template directories
+                           (ticket.md + blackboard.md + log.md)
   bootstrap/<name>/      ← stateless launch shims
   bootstrap/skills/      ← package-backed bundled skills (overwritten on update)
   bootstrap/contexts/    ← package-backed bundled contexts (overwritten on update)
@@ -63,8 +64,9 @@ local-plus-bundled skill set.
 - Validate config + tasks: `relay validate --json`
   (or `python -m relay.validate --json` if `relay` isn't on PATH).
 
-If edits to `src/relay/` (especially `resources/*.md` like `dream.md`) don't
-appear when you run the CLI, the venv likely has a non-editable install.
+If edits to `src/relay/` (especially the prompt templates under
+`src/relay/resources/`) don't appear when you run the CLI, the venv likely
+has a non-editable install.
 Reinstall against the venv that backs your `relay` shim:
 `<that venv's python> -m pip install -e .` from the repo root.
 
