@@ -1609,3 +1609,135 @@ def test_init_update_silent_when_running_vendored(
     assert result.exit_code == 0, result.output
     assert "global `relay`" not in result.output
     assert "pipx" not in result.output
+
+
+# --- relay init --update --all (multi-repo sweep) -----------------------------
+
+
+def _make_update_fake_run(real_run):
+    """A `subprocess.run` stub that seeds a fake upstream on `git clone`.
+
+    Mirrors the inline `fake_run` the single-repo update tests use, including
+    the shared `relay-init-update-` clone-dir prefix (the `--all` sweep clones
+    into `relay-init-update-all-`, which still matches that substring).
+    """
+
+    def fake_run(cmd, **kwargs):
+        if cmd[:2] == ["git", "clone"]:
+            _seed_fake_upstream_for_update(Path(cmd[-1]))
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if (
+            cmd[:2] == ["git", "-C"]
+            and cmd[3:] == ["rev-parse", "HEAD"]
+            and "relay-init-update-" in cmd[2]
+        ):
+            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
+        return real_run(cmd, **kwargs)
+
+    return fake_run
+
+
+def test_all_flag_requires_update(tmp_path: Path) -> None:
+    """`--all` without `--update` is a loud error — there is no bulk scaffold."""
+    result = CliRunner().invoke(app, ["init", "--all", str(tmp_path)])
+    assert result.exit_code == 2
+    assert "--all only applies with --update" in result.output
+
+
+def test_discover_relay_repos_finds_nested_and_skips_non_repos(tmp_path: Path) -> None:
+    """Discovery finds real relay repos at any depth and ignores look-alikes."""
+    repo_a = _seed_local_relay_os(tmp_path / "alpha")
+    repo_b = _seed_local_relay_os(tmp_path / "nested" / "beta")
+    # A directory literally named `relay-os` but with no relay.toml: not a repo.
+    (tmp_path / "decoy" / "relay-os").mkdir(parents=True)
+    # A relay repo buried in a skipped noise dir is never descended into.
+    buried = tmp_path / "alpha" / "node_modules" / "pkg" / "relay-os"
+    buried.mkdir(parents=True)
+    (buried / "relay.toml").write_text("version = 1\n")
+
+    found = init_cmd._discover_relay_repos(tmp_path)
+
+    assert found == sorted([repo_a, repo_b])
+
+
+def test_update_all_no_repos_found_exits_nonzero(tmp_path: Path) -> None:
+    """An empty scan root is a loud failure, not a silent no-op."""
+    result = CliRunner().invoke(app, ["init", "--update", "--all", str(tmp_path)])
+    assert result.exit_code == 1
+    assert "No relay repos found" in result.output
+
+
+def test_update_all_refreshes_every_repo(
+    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`init --update --all` refreshes every relay repo found under PATH."""
+    repo_a = _seed_local_relay_os(tmp_path / "a")
+    repo_b = _seed_local_relay_os(tmp_path / "sub" / "b")
+    package_clone = tmp_path / "package"
+    _seed_fake_upstream_for_update(package_clone)
+    monkeypatch.setattr(
+        update_cmd,
+        "packaged_template_root",
+        lambda: package_clone / update_cmd.TEMPLATE_SUBPATH,
+    )
+    monkeypatch.setattr(
+        update_cmd.subprocess, "run", _make_update_fake_run(subprocess.run)
+    )
+
+    result = CliRunner().invoke(app, ["init", "--update", "--all", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+
+    assert "Found 2 relay repo(s)" in result.output
+    assert "Updated 2 of 2 repo(s)." in result.output
+    for relay_os in (repo_a, repo_b):
+        assert (
+            (relay_os / ".relay" / "src" / "relay" / "cli.py").read_text()
+            == "# NEW vendored cli\n"
+        )
+        assert (
+            (relay_os / "bootstrap" / "create" / "ticket.md").read_text()
+            == "NEW bootstrap shim\n"
+        )
+        assert (relay_os / ".relay" / "RELAY_PIN").is_file()
+    # install_venv ran exactly once per repo.
+    assert sorted(fake_venv) == sorted([repo_a, repo_b])
+
+
+def test_update_all_continues_past_a_failing_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One repo's failure is reported but does not abort the sweep."""
+    repo_a = _seed_local_relay_os(tmp_path / "a")
+    repo_b = _seed_local_relay_os(tmp_path / "b")
+    monkeypatch.setattr(
+        update_cmd.subprocess, "run", _make_update_fake_run(subprocess.run)
+    )
+
+    swept: list[Path] = []
+
+    def flaky_refresh(relay_os: Path, clone_dir: Path) -> init_cmd._UpdateResult:
+        swept.append(relay_os)
+        if relay_os == repo_a:
+            raise RuntimeError("boom")
+        return init_cmd._UpdateResult(
+            sha=FAKE_SHA,
+            source_checkout=False,
+            copied=[],
+            pruned=[],
+            wired_agents=[],
+            blocked_agents=[],
+            hook_status="present",
+            hook_blocker=None,
+            host_gitignore_changed=False,
+            written_guides=[],
+            retrofitted=[],
+        )
+
+    monkeypatch.setattr(init_cmd, "_refresh_one", flaky_refresh)
+
+    result = CliRunner().invoke(app, ["init", "--update", "--all", str(tmp_path)])
+
+    assert result.exit_code == 1
+    assert swept == sorted([repo_a, repo_b])  # both attempted despite the failure
+    assert "boom" in result.output
+    assert "Updated 1 of 2 repo(s)." in result.output
