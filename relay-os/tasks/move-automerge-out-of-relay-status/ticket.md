@@ -1,6 +1,6 @@
 ---
 title: Move automerge sweep out of relay status into a recurring task
-status: draft
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
@@ -13,7 +13,18 @@ contexts:
 - relay/codebase
 - dev/code
 skills: []
-workflow: null
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+  - name: open-pr
+    skills:
+    - code/open-pr
+  - name: review
+    assignee: owner
+step: 2 (open-pr)
 ---
 
 ## Description
@@ -32,39 +43,30 @@ workflow: null
   An automerge sweep that quietly no-ops because `gh` isn't installed
   is exactly that failure shape.
 
-Move the long-tail catch-up to a **recurring task** under
-`relay-os/recurring/` whose body runs `relay automerge` and bumps
-itself when done. Cron-driven via the existing
-`relay-os/scripts/cron.sh` → `relay recurring check` path.
+The fix is narrow: remove that side effect so `relay status` is once
+again a pure filesystem read. `relay automerge` stays as the explicit
+catch-up command — it already sweeps the right ticket states and bumps
+only on a merged PR.
 
-Tradeoff acknowledged: every scheduled firing scaffolds a fresh
-ticket even when nothing has merged, so most runs are no-op tickets.
-Nick chose this over a direct `cron.sh` hook so that runs are
-*visible* (ticket + log + Slack line on bump), at the cost of some
-inbox noise. Keep the schedule modest (e.g. once/day or once/hour
-on weekdays) to keep the noise bounded.
+> **Design pivot (2026-05-21):** the original plan moved the sweep to
+> a recurring task. That was dropped. A cron-driven sweep is still the
+> intended long-tail mechanism, but it is a separate future ticket.
+> See the blackboard design note for the agreed three-ticket split.
 
 ## Cleanup
 
 - Remove the opportunistic call from `commands/status.py`. After
   this change, `relay status` is once again pure filesystem read.
-- Keep `relay automerge` (the explicit CLI surface) and the
-  `post-merge` git hook unchanged — both remain the active-developer
-  paths.
+- `relay automerge` (the explicit CLI surface) is left unchanged.
+  The `post-merge` git hook removal is split into the sibling ticket
+  `remove-post-merge-automerge-hook`.
 
-## Open questions
+## Resolved
 
-- **Schedule cadence for the recurring sweep.** Daily? Hourly on
-  weekdays? Goal is "long-tail catch-up after teammate merges,"
-  which doesn't need to be fast.
-- **Should the recurring task self-delete on no-op runs?** If yes,
-  noise stays bounded. If no, we get a clean log of every sweep.
-  Probably no — Dream's validate-drift can later sweep stale done
-  tickets if it becomes a problem.
-- **Workflow shape.** Does this want a workflow at all? A single
-  `script`-mode step that runs `relay automerge` and bumps to done
-  is enough. No human review needed for a sweep that's almost always
-  a no-op.
+The three original open questions (cadence, self-delete, workflow
+shape) are moot — they all belonged to the recurring-task approach,
+which was dropped. A cron-driven sweep is planned as its own future
+ticket. See the blackboard design note.
 
 ## Out of scope
 
