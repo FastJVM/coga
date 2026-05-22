@@ -105,7 +105,7 @@ _BUILTIN_COMMANDS = frozenset(
 # where the user dropped the section.
 #
 # `dream` is a default alias rather than a built-in command: a Dream run is an
-# ordinary recurring task (`relay-os/recurring/dream.md`), and `relay dream`
+# ordinary recurring task (`relay-os/recurring/dream/`), and `relay dream`
 # just scaffolds and launches it on demand — the same path `relay recurring
 # launch dream` takes. Shipping it as a default keeps `relay dream` working in
 # repos init'd before the recurring template landed.

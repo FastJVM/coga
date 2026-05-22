@@ -84,7 +84,7 @@ def main(
 def launch(
     name: str = typer.Argument(
         ...,
-        help="Recurring template name — the file stem under relay-os/recurring/.",
+        help="Recurring task name — the directory under relay-os/recurring/.",
     ),
     interactive: bool = typer.Option(
         False,

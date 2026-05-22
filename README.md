@@ -276,7 +276,7 @@ template says `mode: auto` — handy for debugging one template by hand.
 ### `relay dream`
 
 Run Relay's generic cleanup pass now. `dream` is an alias for
-`relay recurring launch dream`: it scaffolds the `recurring/dream.md`
+`relay recurring launch dream`: it scaffolds the `recurring/dream/`
 recurring task and launches it. The slug is the recurring period key
 (`dream-2026-W21`), shared with the scheduled run — running `relay dream`
 mid-week reuses that week's task rather than creating a second one.
@@ -284,7 +284,7 @@ mid-week reuses that week's task rather than creating a second one.
 ### Dream and REM
 
 Dream is Relay's generic ticket cleanup pass for one `relay-os/`. It ships as a
-recurring task template, `relay-os/recurring/dream.md`: a weekly `relay
+recurring task template, `relay-os/recurring/dream/`: a weekly `relay
 recurring` run scaffolds and launches it when its schedule is due, and the
 `relay dream` alias scaffolds and launches it on demand. A Dream task scans all tickets, runs fixed Relay
 housekeeping skills such as `validate-drift` and `retro/done-ticket`, proposes
@@ -294,7 +294,7 @@ corpus once, processes up to five coherent tickets with a running knowledge
 delta, and opens one small PR only when durable knowledge changed.
 
 REM is repo/user-specific recurring maintenance. It is opt-in user space: copy
-the inert `relay-os/recurring/_rem.md` template, give it a schedule and
+the inert `relay-os/recurring/_rem/` template, give it a schedule and
 workflow, and define the operational checks that matter to that repo. Stale
 branch cleanup belongs in a dev maintenance loop, not in Dream's generic ticket
 cleanup pass.

@@ -4,8 +4,8 @@ schedule_comment: "Every day at 9am — daily digest of commits merged to main"
 title: "Relay dev update"
 # Runs headless (`auto`): a one-shot agent run whose output is buffered to the
 # task log. A daily `relay recurring` run get-or-creates the day's task when
-# this schedule is due; `relay recurring scaffold relay-dev-update` runs it
-# now, ignoring the schedule.
+# this schedule is due; `relay recurring launch relay-dev-update` runs it now,
+# ignoring the schedule.
 mode: auto
 owner: nick
 assignee: claude
@@ -26,19 +26,13 @@ blocks the run, `relay panic` with a reason instead of stopping silently.
 
 ### Step 1 — Find where the last run stopped
 
-State lives in the task blackboard, not a separate file. Each run records the
-last commit SHA it processed; the next run reads it back.
+State lives in this recurring task's own persistent blackboard:
+`relay-os/recurring/relay-dev-update/blackboard.md`. It survives across runs —
+unlike the per-day period task's blackboard, which is fresh every run.
 
-`relay recurring` scaffolds a fresh task each day, named
-`relay-dev-update-<YYYY-MM-DD>`, each with its own blackboard. So "the last
-run" is the previous day's task:
-
-- List `relay-os/tasks/` for directories matching `relay-dev-update-*`,
-  excluding this run's own task directory.
-- Pick the most recent one and read its `blackboard.md` for the
-  `### Dev Update State` section's `last_commit:` line.
-- If no prior task exists, or none records a `last_commit:`, fall back to
-  commits from the last 24 hours (`git log --since="24 hours ago"`).
+Read its `### Dev Update State` section for the `last_commit:` line. If it is
+empty — the first run — fall back to commits from the last 24 hours
+(`git log --since="24 hours ago"`).
 
 ### Step 2 — Collect the new commits
 
@@ -67,13 +61,15 @@ One post per run. Keep it to a few lines.
 
 ### Step 5 — Record state and finish
 
-Overwrite (do not append) a `### Dev Update State` section in this task's
-`blackboard.md` with the new high-water mark:
+Update the `### Dev Update State` section in this recurring task's persistent
+blackboard — `relay-os/recurring/relay-dev-update/blackboard.md` — overwriting
+its three lines with the new high-water mark:
 
     ### Dev Update State
+
     last_commit: <current origin/main HEAD SHA>
     range: <last_commit>..<new SHA> (N commits)
     posted: <yes | skipped — no new commits>
 
-`last_commit` is what tomorrow's run reads. Then run `relay mark done` on
-this task.
+`last_commit` is what tomorrow's run reads. Then run `relay mark done` on this
+period task.

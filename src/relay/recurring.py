@@ -27,27 +27,47 @@ class RecurringError(Exception):
 
 @dataclass
 class Template:
-    path: Path
+    """A recurring task — a ticket-format directory under `recurring/<name>/`.
+
+    `ticket.md` carries the schedule and run body; `blackboard.md` persists
+    across runs (a recurring task records last-run state there so the next
+    run can pick up where this one left off); `log.md` is the append-only
+    run history.
+    """
+
+    path: Path  # the recurring task directory
     name: str
     frontmatter: dict[str, Any]
     body: str
 
     @classmethod
     def load(cls, path: Path) -> "Template":
-        text = path.read_text()
-        match = _FM_RE.match(text)
+        ticket = path / "ticket.md"
+        if not ticket.is_file():
+            raise RecurringError("missing ticket.md")
+        match = _FM_RE.match(ticket.read_text())
         if not match:
-            raise RecurringError("missing YAML frontmatter")
+            raise RecurringError("ticket.md missing YAML frontmatter")
         fm = yaml.safe_load(match.group(1)) or {}
         if not isinstance(fm, dict):
             raise RecurringError("frontmatter must be a mapping")
         if "schedule" not in fm:
             raise RecurringError("`schedule` is required")
-        return cls(path=path, name=path.stem, frontmatter=fm, body=match.group(2))
+        return cls(path=path, name=path.name, frontmatter=fm, body=match.group(2))
 
     @property
     def schedule(self) -> str:
         return self.frontmatter["schedule"]
+
+    @property
+    def blackboard_path(self) -> Path:
+        """Persistent blackboard — recurring runs store last-run state here."""
+        return self.path / "blackboard.md"
+
+    @property
+    def log_path(self) -> Path:
+        """Append-only run history for this recurring task."""
+        return self.path / "log.md"
 
 
 @dataclass
@@ -104,11 +124,12 @@ class DueScan:
 def scan_due(cfg: Config, now: datetime | None = None) -> DueScan:
     """Scan every recurring template and get-or-create its current-period task.
 
-    For each template under `relay-os/recurring/` (skipping `_`-prefixed
-    files), this resolves the most recent scheduled firing, get-or-creates the
-    task for that period, and records its status. Idempotent: a template whose
-    current-period task already exists is a no-op. The caller (`relay
-    recurring`) launches the `active` results sequentially.
+    For each recurring task directory under `relay-os/recurring/` (skipping
+    `_`-prefixed directories), this resolves the most recent scheduled firing,
+    get-or-creates the task for that period, and records its status.
+    Idempotent: a template whose current-period task already exists is a
+    no-op. The caller (`relay recurring`) launches the `active` results
+    sequentially.
     """
     now = now or datetime.now()
     root = recurring_dir(cfg)
@@ -117,9 +138,22 @@ def scan_due(cfg: Config, now: datetime | None = None) -> DueScan:
 
     tasks: list[DueTask] = []
     errors: list[tuple[str, str]] = []
-    for path in sorted(root.glob("*.md")):
+    for path in sorted(root.iterdir()):
         if path.name.startswith("_"):
-            # Underscore-prefixed files are templates/scaffolds, not live recurring tasks.
+            # Underscore-prefixed entries are templates/scaffolds, not live
+            # recurring tasks.
+            continue
+        if not path.is_dir():
+            if path.suffix == ".md":
+                # A recurring task is now a ticket-format directory, not a
+                # single file. Flag a leftover `<name>.md` loudly so the
+                # migration to `<name>/ticket.md` is not silently skipped.
+                msg = (
+                    "legacy single-file recurring template — recurring tasks "
+                    "are now directories (recurring/<name>/ticket.md)"
+                )
+                sys.stderr.write(f"[recurring] skipping {path.name}: {msg}\n")
+                errors.append((path.name, msg))
             continue
         try:
             template = Template.load(path)
@@ -148,17 +182,17 @@ def scan_due(cfg: Config, now: datetime | None = None) -> DueScan:
 def scaffold_named(
     cfg: Config, name: str, now: datetime | None = None
 ) -> ScaffoldOutcome:
-    """Scaffold the named recurring template now, ignoring its schedule.
+    """Scaffold the named recurring task now, ignoring its schedule.
 
-    `name` is the file stem under `relay-os/recurring/`. The task slug still
-    uses the schedule-derived period key, so a manual `relay recurring launch
-    <name>` and a bare `relay recurring` produce the same task directory for a
-    given period.
+    `name` is the directory name under `relay-os/recurring/`. The task slug
+    still uses the schedule-derived period key, so a manual `relay recurring
+    launch <name>` and a bare `relay recurring` produce the same task
+    directory for a given period.
     """
     now = now or datetime.now()
-    path = recurring_dir(cfg) / f"{name}.md"
-    if not path.is_file():
-        raise RecurringError(f"no recurring template `recurring/{name}.md`")
+    path = recurring_dir(cfg) / name
+    if not path.is_dir():
+        raise RecurringError(f"no recurring task `recurring/{name}/`")
     template = Template.load(path)
     return scaffold_template(cfg, template, now)
 
@@ -206,12 +240,31 @@ def scaffold_template(
         description=_extract_description(template),
         created_by="system",
     )
-    return ScaffoldOutcome(
+    outcome = ScaffoldOutcome(
         ref=TaskRef(slug=ref["slug"], path=ref["path"]), created=True
     )
+    _record_run(template, outcome, now)
+    return outcome
 
 
 # --- helpers ------------------------------------------------------------------
+
+
+def _record_run(template: Template, outcome: ScaffoldOutcome, now: datetime) -> None:
+    """Append a line to the recurring task's own `log.md` when it scaffolds a
+    period task.
+
+    The recurring directory is the task's durable home: `log.md` is the run
+    history across periods, and `blackboard.md` is the persistent state a run
+    reads and updates for the next one. Only a freshly created period task is
+    recorded — re-scanning within the same period must not re-log.
+    """
+    if not outcome.created:
+        return
+    log = template.log_path
+    existing = log.read_text() if log.is_file() else ""
+    stamp = now.strftime("%Y-%m-%d %H:%M")
+    log.write_text(f"{existing}[{stamp}] scaffolded {outcome.ref.slug}\n")
 
 
 def _last_firing(cron: str, now: datetime) -> datetime:

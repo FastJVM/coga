@@ -47,7 +47,7 @@ no in-memory state.
   edits under `bootstrap/` are overwritten on update. Copy a skill or context
   to the matching `relay-os/skills/` or `relay-os/contexts/` ref to override it.
 - **Dream** is Relay's generic ticket cleanup pass. It is a recurring task
-  template (`relay-os/recurring/dream.md`) plus a `dream` alias — not a
+  template (`relay-os/recurring/dream/`) plus a `dream` alias — not a
   built-in command. `relay recurring` scaffolds and launches it when its
   weekly schedule is due; the `relay dream` alias (`recurring launch dream`)
   scaffolds and launches it on demand. The parent task orchestrates child `mode: script`
@@ -200,7 +200,7 @@ is no server-side state behind them.
 
 ## Dream's known-skill contract
 
-Dream is not a plugin host. The body of the `relay-os/recurring/dream.md`
+Dream is not a plugin host. The body of the `relay-os/recurring/dream/ticket.md`
 template — composed into each Dream task's `## Description` — owns an explicit,
 ordered list of known skills it will run and is the only control point.
 Dropping a SKILL.md under `bootstrap/dream/tasks/` does not enable it; there is

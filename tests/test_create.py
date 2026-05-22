@@ -434,7 +434,7 @@ def test_recurring_scaffolds_and_broadcasts(
 ) -> None:
     """Bare `relay recurring` scans templates, scaffolds due tasks, broadcasts."""
     _write(
-        repo_with_shim / "recurring" / "weekly-check.md",
+        repo_with_shim / "recurring" / "weekly-check" / "ticket.md",
         """
         ---
         schedule: "0 9 * * 1"
