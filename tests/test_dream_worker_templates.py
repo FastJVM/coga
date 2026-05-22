@@ -24,8 +24,8 @@ RECURRING_TEMPLATES = (
 )
 # Dream is a recurring task template, not a built-in command. Its body lives
 # in the recurring template's `## Description` section.
-DREAM_PROMPT = RECURRING_TEMPLATES / "dream.md"
-REM_TEMPLATE = RECURRING_TEMPLATES / "_rem.md"
+DREAM_PROMPT = RECURRING_TEMPLATES / "dream" / "ticket.md"
+REM_TEMPLATE = RECURRING_TEMPLATES / "_rem" / "ticket.md"
 
 
 def test_dream_ships_as_a_recurring_template() -> None:

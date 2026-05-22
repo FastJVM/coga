@@ -15,6 +15,13 @@ assignee: replace-with-human-or-agent-nickname
 
 What this recurring task does and why it runs on this cadence.
 
+A recurring task is a ticket-format directory under `relay-os/recurring/`:
+`ticket.md` (this file) carries the schedule and run body, `blackboard.md`
+persists state across runs, and `log.md` is the append-only run history. To
+create a real recurring task, copy this whole `_template/` directory to a
+non-underscore name.
+
 `relay recurring` (called from `scripts/cron.sh`) get-or-creates the current
-period's task when this template's schedule is due. Files in `recurring/`
-whose name starts with `_` are skipped — that's how this template stays inert.
+period's task when this template's schedule is due. Directories in
+`recurring/` whose name starts with `_` are skipped — that's how this
+template stays inert.

@@ -53,16 +53,20 @@ OBSOLETE_PATHS: tuple[str, ...] = (
     "hooks",  # consolidated under bootstrap/hooks
 )
 
-# Recurring templates Relay vendors and keeps fresh on every `--update`.
+# Recurring-template files Relay vendors and keeps fresh on every `--update`.
 # Unlike `_*` sample scaffolds and user-authored repo-specific loops (REM),
-# these are live Relay batteries: `relay dream` scaffolds `recurring/dream.md`
+# these are live Relay batteries: `relay dream` scaffolds `recurring/dream/`
 # directly and its known-skill list is upstream-managed, not per-repo. They
 # carry no `_` prefix (used as-is, not copied-and-renamed) and don't live under
 # `bootstrap/`, so neither `_copy_templates` nor `_copy_vendored_bootstrap`
 # would otherwise refresh them — leaving repos that predate a template, or lost
 # it, permanently broken (`relay dream` has nothing to scaffold).
+#
+# A recurring task is a ticket-format directory; only the upstream-managed
+# `ticket.md` is refreshed. The sibling `blackboard.md` (last-run state) and
+# `log.md` (run history) are per-repo and deliberately left untouched.
 VENDORED_RECURRING_TEMPLATES: tuple[str, ...] = (
-    "recurring/dream.md",
+    "recurring/dream/ticket.md",
 )
 
 _LEGACY_RELAY_GITIGNORE_ENTRIES: set[str] = {
@@ -187,8 +191,9 @@ def refresh_templates(
         Mirrored as one unit by `_copy_vendored_bootstrap`. Runtime resolvers
         read local user roots first and this bundled root second.
       - `VENDORED_RECURRING_TEMPLATES` — named relay-owned recurring batteries
-        (`recurring/dream.md`) that sit outside `bootstrap/` and carry no `_`
-        prefix, refreshed by `_copy_vendored_recurring`.
+        (`recurring/dream/ticket.md`) that sit outside `bootstrap/` and carry
+        no `_` prefix, refreshed by `_copy_vendored_recurring`. The sibling
+        `blackboard.md`/`log.md` files are per-repo and left untouched.
       - `.gitignore` — must track upstream so new ignore entries land in
         existing repos without manual edits.
 
@@ -660,11 +665,13 @@ def _copy_vendored_recurring(src_root: Traversable, dst_root: Path) -> list[str]
     """Refresh the named relay-owned recurring templates listed in
     `VENDORED_RECURRING_TEMPLATES`.
 
-    These (currently just `recurring/dream.md`) are live Relay batteries, not
-    `_*` samples and not under `bootstrap/`, so the other refresh passes skip
-    them. Overwrite wholesale: the file is upstream-managed (e.g. Dream's
-    known-skill list), not per-repo customizable — REM is the repo-specific
-    recurring loop. This also restores the file in repos that predate it.
+    These (currently just `recurring/dream/ticket.md`) are live Relay
+    batteries, not `_*` samples and not under `bootstrap/`, so the other
+    refresh passes skip them. Overwrite wholesale: the file is upstream-managed
+    (e.g. Dream's known-skill list), not per-repo customizable — REM is the
+    repo-specific recurring loop. This also restores the file in repos that
+    predate it. Only `ticket.md` is listed, so a recurring task's per-repo
+    `blackboard.md`/`log.md` siblings survive the refresh untouched.
 
     Missing srcs are skipped — a template the package no longer ships isn't an
     error here.

@@ -24,7 +24,7 @@ Last updated: 2026-05-19.
 
 - **Dream is a recurring task template plus an alias.** The standalone
   `relay dream` Typer command is gone. Dream now ships as
-  `relay-os/recurring/dream.md` — an ordinary recurring template. `relay
+  `relay-os/recurring/dream/` — an ordinary recurring template. `relay
   recurring` scaffolds and launches it when its weekly schedule is due;
   `relay dream` is a default alias for `recurring launch dream`, which
   scaffolds and launches it on demand through the same path. The task slug is
@@ -49,7 +49,7 @@ Last updated: 2026-05-19.
   tickets with a running knowledge delta, and keeps each knowledge PR small
   enough to describe with one clear title.
 - **REM is repo/user-specific recurring maintenance.** It is opt-in user space:
-  each repo can copy `recurring/_rem.md`, define its own cadence, scan, domain
+  each repo can copy `recurring/_rem/`, define its own cadence, scan, domain
   skills, output conventions, and review gates.
 - **Dev hygiene is outside Dream.** Stale branches, tests, and other code-repo
   cleanup belong in a dev maintenance task or workflow, not the generic Dream

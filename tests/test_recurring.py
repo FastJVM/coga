@@ -15,7 +15,7 @@ from relay.tasks import list_tasks
 from relay.ticket import Ticket
 
 
-SHIPPED_DREAM_TEMPLATE = (
+SHIPPED_DREAM_DIR = (
     Path(__file__).resolve().parents[1]
     / "src"
     / "relay"
@@ -23,13 +23,18 @@ SHIPPED_DREAM_TEMPLATE = (
     / "templates"
     / "relay-os"
     / "recurring"
-    / "dream.md"
+    / "dream"
 )
 
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
+
+
+def _write_recurring(company: Path, name: str, text: str) -> None:
+    """Write a recurring task as a ticket-format directory."""
+    _write(company / "recurring" / name / "ticket.md", text)
 
 
 @pytest.fixture
@@ -47,8 +52,9 @@ def repo(tmp_path: Path):
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
-    _write(
-        company / "recurring" / "weekly-check.md",
+    _write_recurring(
+        company,
+        "weekly-check",
         """
         ---
         schedule: "0 9 * * 1"
@@ -111,19 +117,34 @@ def test_scan_due_different_period_creates_new(repo: Path) -> None:
 
 
 def test_scan_due_skips_bad_template(repo: Path, capsys) -> None:
-    _write(repo / "recurring" / "bad.md", "no frontmatter here\n")
+    _write(repo / "recurring" / "bad" / "ticket.md", "no frontmatter here\n")
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     assert len(scan.tasks) == 1  # good one still created
     assert len(scan.errors) == 1
-    assert scan.errors[0][0] == "bad.md"
-    assert "skipping bad.md" in capsys.readouterr().err
+    assert scan.errors[0][0] == "bad"
+    assert "skipping bad" in capsys.readouterr().err
+
+
+def test_scan_due_flags_legacy_md_file(repo: Path, capsys) -> None:
+    """A leftover single-file `<name>.md` is flagged, not silently ignored."""
+    _write(
+        repo / "recurring" / "legacy.md",
+        '---\nschedule: "0 9 * * 1"\n---\n',
+    )
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    assert len(scan.tasks) == 1  # the real directory still scaffolds
+    assert scan.errors[0][0] == "legacy.md"
+    assert "legacy single-file" in scan.errors[0][1]
+    assert "skipping legacy.md" in capsys.readouterr().err
 
 
 def test_scan_due_includes_auto_mode_template(repo: Path) -> None:
     """`mode: auto` templates scaffold normally — auto is no longer disabled."""
-    _write(
-        repo / "recurring" / "daily-auto.md",
+    _write_recurring(
+        repo,
+        "daily-auto",
         """
         ---
         schedule: "0 9 * * *"
@@ -148,8 +169,9 @@ def test_scan_due_includes_auto_mode_template(repo: Path) -> None:
 
 def test_scan_due_template_without_explicit_mode(repo: Path) -> None:
     """A template without `mode:` defaults to auto and scaffolds normally."""
-    _write(
-        repo / "recurring" / "no-mode.md",
+    _write_recurring(
+        repo,
+        "no-mode",
         """
         ---
         schedule: "0 9 * * *"
@@ -171,11 +193,12 @@ def test_scan_due_template_without_explicit_mode(repo: Path) -> None:
 
 
 def test_scan_due_skips_underscore_template(repo: Path, capsys) -> None:
-    # `_template.md` is a scaffold, not a live recurring task — must be ignored
+    # `_template/` is a scaffold, not a live recurring task — must be ignored
     # silently (no stderr complaint) even though its placeholder fields wouldn't
     # validate.
-    _write(
-        repo / "recurring" / "_template.md",
+    _write_recurring(
+        repo,
+        "_template",
         """
         ---
         schedule: "0 9 * * 1"
@@ -187,7 +210,7 @@ def test_scan_due_skips_underscore_template(repo: Path, capsys) -> None:
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     assert len(scan.tasks) == 1  # only the real one
     assert scan.errors == []
-    assert "_template.md" not in capsys.readouterr().err
+    assert "_template" not in capsys.readouterr().err
 
 
 def test_scan_due_excludes_handled_task(repo: Path) -> None:
@@ -213,7 +236,7 @@ def test_scan_due_excludes_handled_task(repo: Path) -> None:
 
 @pytest.fixture
 def dream_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A repo carrying the real shipped `recurring/dream.md` template.
+    """A repo carrying the real shipped `recurring/dream/` recurring task.
 
     `relay recurring launch` and a bare `relay recurring` are the two entry
     points into the same scaffold path; these tests prove they converge.
@@ -237,7 +260,7 @@ def dream_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     _write(company / "relay.local.toml", 'user = "marc"\n')
     (company / "tasks").mkdir(parents=True)
     (company / "recurring").mkdir(parents=True)
-    shutil.copy(SHIPPED_DREAM_TEMPLATE, company / "recurring" / "dream.md")
+    shutil.copytree(SHIPPED_DREAM_DIR, company / "recurring" / "dream")
     monkeypatch.chdir(company)
     return company
 
@@ -315,7 +338,7 @@ def test_recurring_launch_and_scan_converge(dream_repo: Path) -> None:
 def test_recurring_launch_unknown_template_fails(dream_repo: Path) -> None:
     result = CliRunner().invoke(app, ["recurring", "launch", "nope"])
     assert result.exit_code == 2
-    assert "no recurring template `recurring/nope.md`" in result.output
+    assert "no recurring task `recurring/nope/`" in result.output
 
 
 def test_recurring_launch_invokes_launch(
