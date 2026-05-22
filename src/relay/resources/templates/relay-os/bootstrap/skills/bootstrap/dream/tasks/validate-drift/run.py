@@ -229,6 +229,77 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind == "missing-workflow":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "A draft without a workflow is a design state, not drift. The "
+                "owner picks a workflow via `relay ticket <slug>` or by editing "
+                "frontmatter; Dream does not pick workflows for humans."
+            ),
+        )
+
+    if kind == "missing-step":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "The ticket's current `step:` is not in its frozen workflow. "
+                "Lifecycle correction is human-only; ask the owner to relaunch, "
+                "rewind, or hand-edit the step."
+            ),
+        )
+
+    if kind == "legacy-step-skill":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_PR_PROPOSAL,
+            remediation=(
+                "Open a small PR migrating the legacy `step.skill` field to the "
+                "current `step.skills` list shape after reading the workflow."
+            ),
+        )
+
+    if kind == "invalid-mode":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "`mode:` is author intent (interactive / auto / script). Ask the "
+                "owner which mode the task should run in; do not guess."
+            ),
+        )
+
+    if kind == "unknown-task":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "The task referenced by the validator has no directory on disk. "
+                "Ask the owner whether to restore from git history or drop the "
+                "reference."
+            ),
+        )
+
+    if kind in {
+        "bad-frontmatter",
+        "missing-key",
+        "bad-shape",
+        "bad-extension-value",
+        "orphan-extension",
+        "missing-extension",
+    }:
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "Ticket frontmatter shape is the source of truth. Ask the owner "
+                "to repair the file rather than synthesizing values from "
+                "inference."
+            ),
+        )
+
     return ClassifiedIssue(
         issue=issue,
         action=ACTION_HUMAN_NEEDED,
