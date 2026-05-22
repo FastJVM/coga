@@ -159,20 +159,6 @@ def launch(
     if mode not in ("interactive", "auto"):
         _bail(f"Unknown mode: {mode!r}")
 
-    if mode == "auto":
-        # Temporary policy. `claude -p` and `codex exec` buffer stdout until
-        # the run completes, so auto launches produce no live console output
-        # for the operator. Until relay grows a streaming consumer for the
-        # agent's structured output, we refuse rather than let runs sit
-        # silently. Re-enable when streaming lands.
-        _bail(
-            f"Cannot launch {ref.id_slug!r}: mode=auto is temporarily disabled. "
-            "Auto runs produce no live console output (claude -p and codex exec "
-            "buffer until completion), so unattended runs are unobservable. "
-            "Edit the ticket to mode: interactive (and run from a TTY), or "
-            "mode: script if the work fits a single script entry point."
-        )
-
     if mode == "interactive" and not _interactive_stdio_has_tty():
         _bail(
             f"Cannot launch {ref.id_slug!r}: mode=interactive requires a TTY "

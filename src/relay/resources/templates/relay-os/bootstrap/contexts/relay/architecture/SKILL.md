@@ -31,10 +31,10 @@ no in-memory state.
   `agent`); on bump, the token resolves against the ticket's
   matching role field and rewrites `assignee:`. Steps without one
   leave the assignee unchanged.
-- **Recurring templates** live in `relay-os/recurring/`. They scaffold
-  ordinary tasks on a schedule via `relay recurring check`; the created tasks
-  then use the same ticket, workflow, launch, bump, and blackboard machinery as
-  any other task.
+- **Recurring templates** live in `relay-os/recurring/`. `relay recurring`
+  scans them, scaffolds the current period's task for each, and launches the
+  due ones; the created tasks then use the same ticket, workflow, launch,
+  bump, and blackboard machinery as any other task.
 - **Bootstrap shims** in `relay-os/bootstrap/<name>/ticket.md` are
   stateless launch targets for skills. No status, no workflow. Used for
   ticket-less re-entry points like `relay launch bootstrap/orient`
@@ -48,9 +48,9 @@ no in-memory state.
   to the matching `relay-os/skills/` or `relay-os/contexts/` ref to override it.
 - **Dream** is Relay's generic ticket cleanup pass. It is a recurring task
   template (`relay-os/recurring/dream.md`) plus a `dream` alias — not a
-  built-in command. The weekly cron `relay recurring check` scaffolds it; the
-  `relay dream` alias (`recurring scaffold dream --launch`) scaffolds and
-  launches it on demand. The parent task orchestrates child `mode: script`
+  built-in command. `relay recurring` scaffolds and launches it when its
+  weekly schedule is due; the `relay dream` alias (`recurring launch dream`)
+  scaffolds and launches it on demand. The parent task orchestrates child `mode: script`
   tasks over worker skills; its body scans the ticket set, runs fixed Relay
   housekeeping skills, proposes cleanup, and writes reviewable results to its
   blackboard.
@@ -123,10 +123,11 @@ half-formed draft is never blocked on a workflow decision it isn't ready to
 make.
 
 `relay ticket` (guided authoring) fills the workflow in through its
-interview skill. `relay recurring` scaffolding (the cron `check` and the
-on-demand `scaffold`, including the `relay dream` alias) and `relay retire`
-scaffold their own one-shots by calling `scaffold_task` directly — they are
-intentional internal exceptions, not user-authored drafts.
+interview skill. `relay recurring` scaffolding (a bare scan-and-launch run
+and the on-demand `recurring launch <name>`, including the `relay dream`
+alias) and `relay retire` scaffold their own one-shots by calling
+`scaffold_task` directly — they are intentional internal exceptions, not
+user-authored drafts.
 
 ## Two state machines per ticket
 

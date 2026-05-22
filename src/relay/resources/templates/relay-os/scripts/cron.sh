@@ -5,8 +5,12 @@
 #   0 * * * * cd /path/to/relay-repo && relay-os/scripts/cron.sh
 #
 # Acquires a pidfile lock so only one instance runs at a time.
-# Runs `relay recurring check` which scans templates and
-# creates any due tasks. Exits non-zero if relay returns non-zero.
+# Runs `relay recurring`, which scans templates and scaffolds + launches
+# any due tasks. Exits non-zero if relay returns non-zero.
+#
+# Cron has no TTY: templates meant to run unattended this way should be
+# `mode: auto` or `mode: script`. An interactive template will scaffold
+# but fail to launch without a terminal.
 
 set -eu
 
@@ -23,4 +27,4 @@ fi
 echo "$$" > "$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT INT TERM
 
-exec relay recurring check
+exec relay recurring

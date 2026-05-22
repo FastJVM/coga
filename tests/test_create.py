@@ -429,10 +429,10 @@ def repo_with_shim(repo: Path) -> Path:
     return repo
 
 
-def test_recurring_check_subcommand(
+def test_recurring_scaffolds_and_broadcasts(
     repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay recurring check` scans templates and creates due tasks."""
+    """Bare `relay recurring` scans templates, scaffolds due tasks, broadcasts."""
     _write(
         repo_with_shim / "recurring" / "weekly-check.md",
         """
@@ -461,23 +461,24 @@ def test_recurring_check_subcommand(
         return R()
 
     monkeypatch.setattr("relay.slack.requests.post", _capture)
+    # The bare scan launches due tasks sequentially — stub the launch out.
+    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["recurring", "check"])
+    result = runner.invoke(app, ["recurring"])
     assert result.exit_code == 0, result.output
-    assert "Created" in result.output or "No recurring tasks due" in result.output
+    assert "Created" in result.output
 
-    if "Created" in result.output:
-        cfg = load_config(repo_with_shim)
-        assert any(
-            "recurring scaffolded" in m
-            and "assignee" in m
-            and cfg.project_name in m
-            for m in slack_msgs
-        )
+    cfg = load_config(repo_with_shim)
+    assert any(
+        "recurring scaffolded" in m
+        and "assignee" in m
+        and cfg.project_name in m
+        for m in slack_msgs
+    )
 
 
-def test_recurring_check_posts_error_summary(
+def test_recurring_posts_error_summary(
     repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A broken template surfaces as a Slack summary, not just stderr."""
@@ -496,7 +497,7 @@ def test_recurring_check_posts_error_summary(
     monkeypatch.setattr("relay.slack.requests.post", _capture)
 
     runner = CliRunner()
-    result = runner.invoke(app, ["recurring", "check"])
+    result = runner.invoke(app, ["recurring"])
     assert result.exit_code == 0, result.output
     assert any("skipped 1 template" in m and "broken.md" in m for m in slack_msgs)
     # Path duplication regression: the bullet should NOT contain the full file path.

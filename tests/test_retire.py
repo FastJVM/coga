@@ -147,10 +147,10 @@ def test_retire_refuses_unknown_slug(
     assert "no-such-task" in result.output
 
 
-def test_retire_refuses_auto_mode(
+def test_retire_accepts_auto_mode(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay retire <slug> --mode auto` is refused until streaming lands."""
+    """`relay retire <slug> --mode auto` scaffolds the retire task in auto mode."""
     monkeypatch.chdir(repo)
     _seed_done_task(repo, "fix-retry-logic")
 
@@ -158,10 +158,11 @@ def test_retire_refuses_auto_mode(
         app, ["retire", "fix-retry-logic", "--mode", "auto", "--no-launch"]
     )
 
-    assert result.exit_code == 2, result.output
-    assert "mode=auto is temporarily disabled" in result.output
-    # Refused — no retire scaffold task created.
-    assert not (repo / "tasks" / "retire-fix-retry-logic").exists()
+    assert result.exit_code == 0, result.output
+    retire_dir = repo / "tasks" / "retire-fix-retry-logic"
+    assert retire_dir.exists()
+    from relay.ticket import Ticket
+    assert Ticket.read(retire_dir / "ticket.md").mode == "auto"
 
 
 def test_retire_launches_after_scaffold(

@@ -1,7 +1,7 @@
 """`relay slack` — post an FYI to the team Slack channel.
 
 The manual broadcast escape hatch: state-machine transitions
-(`launch`, `bump`, `panic`, `recurring scaffold`) already broadcast on
+(`launch`, `bump`, `panic`, `recurring`) already broadcast on
 their own; this command covers the cases that don't fit one of those —
 e.g. a human announcing they hand-edited a ticket, or an agent calling
 out a non-transition event mid-step. For FYIs that *do* coincide with

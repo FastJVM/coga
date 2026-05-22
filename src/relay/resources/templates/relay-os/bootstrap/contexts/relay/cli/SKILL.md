@@ -104,11 +104,11 @@ tickets must be marked back to active before they can be launched. Launching
 an `active` ticket marks it `in_progress` (posting `▶️`) before spawning the
 agent; launching an already-`in_progress` ticket resumes it without another
 status flip. Interactive launches require stdin and stdout to both be
-terminals. **`mode: auto` is temporarily disabled** — auto runs (claude `-p`,
-codex `exec`) buffer stdout until completion, leaving the operator with no
-live console signal. Use `mode: script` for unattended wrappers and CI until
-streaming lands. Script launches inject task metadata env vars including
-`RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
+terminals. `mode: auto` runs the agent headless (claude `-p`, codex `exec`):
+no TTY needed, but stdout buffers until the run completes, so an auto launch
+shows no live console output until it finishes. `mode: script` runs the
+step's skill script directly. Script launches inject task metadata env vars
+including `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
 - `relay launch <slug> --agent <type>` — one-off agent-type override
@@ -210,7 +210,7 @@ resolver and the same deletion is reachable as a `mode: script` step.
 Bootstrap shims aren't user-deletable — they're managed by
 `relay init --update`.
 
-## relay retire \<slug\> [--mode interactive] [--agent <type>] [--no-launch]
+## relay retire \<slug\> [--mode interactive|auto] [--agent <type>] [--no-launch]
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
 invokes the `retro/done-ticket` skill against the named ticket. The retro
@@ -219,8 +219,8 @@ base if warranted, and deletes the source task directory in the same PR.
 The retire task is scaffolded straight to `active`; `relay retire` launches
 it unless `--no-launch` is passed.
 
-- `relay retire <slug>` — scaffold and launch in `interactive` mode (auto is
-  temporarily disabled).
+- `relay retire <slug>` — scaffold and launch in `interactive` mode (use
+  `--mode auto` for a headless run).
 - `relay retire <slug> --no-launch` — scaffold the retire task (already
   `active`) and print the explicit `relay launch <slug>` command.
 
@@ -287,42 +287,42 @@ not two. Slack is required (see `relay/sync`); commands crash if
 ## relay dream
 
 Run Relay's generic cleanup pass now. `dream` is not a built-in command — it
-is a default alias for `recurring scaffold dream --launch`. It scaffolds the
+is a default alias for `recurring launch dream`. It scaffolds the
 `relay-os/recurring/dream.md` recurring task and launches it interactively.
 
-The task slug is the recurring period key (`dream-2026-W21`), shared with the
-weekly cron run: running `relay dream` mid-week reuses that week's task instead
-of creating a second one. Dream scans current task state, runs the known Relay
-housekeeping pass, writes results to that run's blackboard, and finishes with
-`relay mark done`.
+The task slug is the recurring period key (`dream-2026-W21`): running
+`relay dream` mid-week reuses that week's task instead of creating a second
+one. Dream scans current task state, runs the known Relay housekeeping pass,
+writes results to that run's blackboard, and finishes with `relay mark done`.
 
-## relay recurring check
+## relay recurring
 
-Scan `relay-os/recurring/` and scaffold any due tasks. Cron entry point;
-called from `relay-os/scripts/cron.sh`.
+Scan `relay-os/recurring/`, then scaffold and launch every task that is due.
+
+For each template (skipping `_`-prefixed files) `relay recurring`
+get-or-creates the **current period's** task and launches the ones still
+`active`, **sequentially** — most-overdue first, one finishing before the
+next starts. It prints a scan table (`ready` vs `overdue Nd`) before
+launching. Already-`done`/`in_progress`/`paused` tasks are skipped — never
+relaunched.
+
+Current period only: it does not chase missed periods. Running `relay
+recurring` once a month for a weekly template produces one run (this
+period's), not a backlog. It does not install or manage system cron —
+nothing runs unless you invoke it. `relay-os/scripts/cron.sh` is the
+optional entry point if you later wire it into a scheduler yourself.
 
 Dream, REM, and other recurring maintenance loops all use this surface.
-`relay-os/recurring/dream.md` is the Dream cleanup template; the weekly cron
-firing scaffolds it like any other recurring task.
 
-## relay recurring scaffold \<name\> [--launch]
+## relay recurring launch \<name\>
 
-Scaffold one named recurring template now, ignoring its schedule. `name` is
-the file stem under `relay-os/recurring/`. The task slug still uses the
-template's schedule-derived period key, so a manual `scaffold` and the cron
-`check` converge on one task directory per period (idempotent — a second
-`scaffold` in the same period is a no-op). Recurring tasks scaffold straight
-to `active`.
-
-- `relay recurring scaffold dream` — scaffold this period's Dream task.
-- `relay recurring scaffold dream --launch` — also launch it. A task already
-  past `active` (a finished or paused run) is left alone. This is exactly
-  what the `relay dream` alias expands to.
-
-**`mode: auto` templates are temporarily skipped** with a stderr/Slack note.
-The auto-launch path produces no live console output, so scheduled runs
-would sit silently. Templates should use `mode: script` for unattended
-runs until streaming lands.
+Scaffold one named recurring template now and launch it, ignoring its
+schedule. `name` is the file stem under `relay-os/recurring/`. The task slug
+still uses the template's schedule-derived period key, so a manual `launch`
+and a bare `relay recurring` converge on one task directory per period
+(idempotent — a second `launch` in the same period reuses the existing
+task). A task already past `active` (a finished or paused run) is left
+alone. This is exactly what the `relay dream` alias expands to.
 
 ## relay --version
 
@@ -338,7 +338,7 @@ Default aliases shipped by `relay init`:
 ```toml
 [aliases]
 chat = "launch bootstrap/orient"
-dream = "recurring scaffold dream --launch"
+dream = "recurring launch dream"
 ```
 
 `chat` and `dream` are also registered as built-in default aliases, so they
@@ -361,6 +361,8 @@ only; they don't accept their own flags.
 - Ticket-less chat session → `relay chat` (alias for
   `launch bootstrap/orient`).
 - Running Relay cleanup now → `relay dream`.
+- Launching every due recurring task → `relay recurring`.
+- Launching one named recurring task now → `relay recurring launch <name>`.
 - Starting or resuming agent work on a task → `relay launch <slug>`.
 - Other bootstrap shim → `relay launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `relay bump`.
