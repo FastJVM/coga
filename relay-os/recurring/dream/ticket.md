@@ -114,7 +114,8 @@ matches the code.
 
 The subagent reads the living contract surface — every
 `relay-os/contexts/**/SKILL.md` and `relay-os/skills/**/SKILL.md`, the
-`relay-os/recurring/*.md` templates, `README.md`, `docs/*.md`, and the agent
+`relay-os/recurring/<name>/ticket.md` templates (recurring tasks are
+ticket-format directories), `README.md`, `docs/*.md`, and the agent
 instruction files `CLAUDE.md` and `AGENTS.md` — and checks each concrete claim
 against three sources of truth:
 
