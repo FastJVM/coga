@@ -70,6 +70,28 @@ The skill appends a concise section to the Dream run blackboard:
 ```
 
 The section includes the exact command, issue counts by bucket, and one
-remediation line per issue. When `--fix` repairs files, it also lists the
-applied fixes. When `--slack-task` is provided, it posts a one-line Slack
-summary against that task.
+remediation line per issue. When the default `--fix` pass repairs files, it
+also lists the applied fixes. When `--post-slack` is passed, it posts a
+one-line Slack summary against the `RELAY_TASK_SLUG` the child task was
+launched with.
+
+## Flags
+
+The script accepts:
+
+- `--cwd <path>` — run validation from this repo directory (default: cwd).
+- `--no-fix` — disable the default `relay validate --fix` repair pass.
+- `--post-slack` — post the one-line summary to Slack against
+  `RELAY_TASK_SLUG`.
+- `--commit-and-push` — commit any repaired files and push the current
+  non-main branch (requires the fix pass).
+- `--allow-main-push` — allow `--commit-and-push` on `main`/`master`.
+- `--commit-message <subject>` — commit subject when pushing
+  (default: `Dream: repair validation drift`).
+- `--idle-hours <hours>` — passed through to `relay validate`.
+- `--max-blackboard-kb <kb>` — passed through to `relay validate`.
+
+The classifier covers every validator kind currently emitted by
+`relay validate`. Anything new is routed to `human-needed` with an
+"unknown validator issue kind" remediation so the operator notices the
+new kind and extends the mapping.
