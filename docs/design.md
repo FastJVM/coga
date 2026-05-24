@@ -61,12 +61,14 @@ ticket`. If you just want bytes on disk, call `relay draft`.
 
 Confirmed: skills are **not** composed into the prompt at creation. They are loaded at launch time for the current workflow step. Ticket frontmatter never references skills. The workflow snapshot carries the per-step `skill:` references forward.
 
-### `--check-recurring`
+### `relay recurring`
 
 Mechanism: naming convention on created tasks, not `last_run` in the template.
 
-1. Walk `relay-os/recurring/*.md`.
-2. For each template, parse cron-style `schedule` field (5 fields).
+1. Walk `relay-os/recurring/<name>/ticket.md` template directories. Bare
+   `recurring/<name>.md` files are a legacy shape and the scanner errors
+   on them.
+2. For each template, parse the cron-style `schedule` field (5 fields).
 3. Compute the most recent scheduled firing time at or before now → a "period key":
    - Daily schedules → `YYYY-MM-DD`
    - Hourly → `YYYY-MM-DD-HH`
@@ -76,7 +78,7 @@ Mechanism: naming convention on created tasks, not `last_run` in the template.
 4. Expected task slug: `<template-name>-<period-key>` in the template's `project`.
 5. If no task exists with that slug, create it using the template's frontmatter (mode, workflow, assignee, owner, contexts, description).
 
-This is idempotent — running `--check-recurring` twice inside the same period is a no-op.
+This is idempotent — running `relay recurring` twice inside the same period is a no-op.
 
 "Due" is implicit in the period-key check: if the current period's task doesn't exist yet, it's due.
 
