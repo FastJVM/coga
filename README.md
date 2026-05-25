@@ -244,6 +244,10 @@ template (excluding `_`-prefixed inert templates), `relay recurring`
 get-or-creates the **current period's** task, prints a scan table, then
 launches the still-`active` ones sequentially, most-overdue first. Tasks
 already `done`, `in_progress`, or `paused` are left alone — no auto-resume.
+If an older period task for the same template is not `done`, Relay skips
+scaffolding the new period and reports the blocked template. During a bare
+recurring sweep, if a launched task returns still `active`, `in_progress`,
+or otherwise unfinished, the sweep stops before launching the next due task.
 
 Only the current period is considered; `relay recurring` never chases missed
 periods, so a template runs at most once per period no matter how long since

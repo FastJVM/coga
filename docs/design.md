@@ -76,9 +76,12 @@ Mechanism: naming convention on created tasks, not `last_run` in the template.
    - Monthly → `YYYY-MM`
    - Fallback / other → the raw datetime `YYYYMMDDTHHMM`
 4. Expected task slug: `<template-name>-<period-key>` in the template's `project`.
-5. If no task exists with that slug, create it using the template's frontmatter (mode, workflow, assignee, owner, contexts, description).
+5. If no task exists with that slug, first check whether an older period task for the same template is still unfinished. If so, skip this template and report the blocked prior run.
+6. Otherwise, create it using the template's frontmatter (mode, workflow, assignee, owner, contexts, description).
 
 This is idempotent — running `relay recurring` twice inside the same period is a no-op.
+Across periods, a template does not start a new run while an older period run
+is still not `done`.
 
 "Due" is implicit in the period-key check: if the current period's task doesn't exist yet, it's due.
 
