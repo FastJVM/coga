@@ -85,6 +85,21 @@ Ship as a small doc PR via `dev/with-self-review`. Three deliverables:
   nothing. Relay actively deletes abstractions that don't justify
   themselves. The declined-abstractions catalog generalizes this
   pattern.
+- **Precision of the rejection — primitive, not metaphor.** The
+  non-goal is specific: don't make `virtual-employee` a primitive in
+  Relay's substrate (a `[employees.*]` table, a memory-bearing role
+  abstraction, an identity-bearing agent entry). The framing remains
+  useful as **UX positioning** for `relay chat` and similar
+  interactive surfaces — an agent that's loaded the repo's contexts
+  genuinely feels like a teammate who's been onboarded into the
+  company, and "talking to your virtual employee" is an accurate
+  description of that user experience even though the substrate is
+  just stateless invocation + composed prompt. The `non-goals` entry
+  should reject the *primitive* precisely without banning the
+  *metaphor*. Future tickets are expected to use "virtual employee"
+  as positioning language for `relay chat`-style surfaces; that's
+  not a contradiction with this rejection, it's the same line drawn
+  from both sides.
 - **Concrete file targets:**
   - `docs/vision.md` — the "What this is not" section, around line
     230. The existing clauses ("Not a product. … Not an agent. …
