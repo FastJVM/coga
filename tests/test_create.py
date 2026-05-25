@@ -461,8 +461,14 @@ def test_recurring_scaffolds_and_broadcasts(
         return R()
 
     monkeypatch.setattr("relay.slack.requests.post", _capture)
-    # The bare scan launches due tasks sequentially — stub the launch out.
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    # The bare scan launches due tasks sequentially; mark the stubbed launch
+    # done so the recurring sweep sees a completed run.
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        ticket = Ticket.read(repo_with_shim / "tasks" / task / "ticket.md")
+        ticket.frontmatter["status"] = "done"
+        ticket.write(repo_with_shim / "tasks" / task / "ticket.md")
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
 
     runner = CliRunner()
     result = runner.invoke(app, ["recurring"])

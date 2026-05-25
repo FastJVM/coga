@@ -109,11 +109,35 @@ def test_scan_due_idempotent(repo: Path) -> None:
 
 def test_scan_due_different_period_creates_new(repo: Path) -> None:
     cfg = load_config(repo)
-    scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    ticket = Ticket.read(first.tasks[0].ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(first.tasks[0].ref.path / "ticket.md")
+
     scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))  # week 18
     assert scan.tasks[0].created is True
     assert scan.tasks[0].ref.slug.endswith("-2026-W18")
     assert len(list_tasks(cfg)) == 2
+
+
+def test_scan_due_blocks_new_period_while_prior_run_unfinished(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    ref = first.tasks[0].ref
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.write(ref.path / "ticket.md")
+
+    scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))  # week 18
+
+    assert scan.tasks == []
+    assert len(scan.errors) == 1
+    assert scan.errors[0][0] == "weekly-check"
+    assert "previous run weekly-check-2026-W17 is in_progress" in scan.errors[0][1]
+    assert len(list_tasks(cfg)) == 1
+    assert "skipping weekly-check" in capsys.readouterr().err
 
 
 def test_scan_due_skips_bad_template(repo: Path, capsys) -> None:
@@ -390,10 +414,14 @@ def test_bare_recurring_scans_and_launches_due(
 ) -> None:
     """Bare `relay recurring` scaffolds the due task and launches it."""
     calls: list[str] = []
-    monkeypatch.setattr(
-        "relay.commands.launch.launch",
-        lambda task, **k: calls.append(task),
-    )
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        calls.append(task)
+        ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
+        ticket.frontmatter["status"] = "done"
+        ticket.write(dream_repo / "tasks" / task / "ticket.md")
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring"])
 
@@ -403,15 +431,59 @@ def test_bare_recurring_scans_and_launches_due(
     assert calls[0].startswith("dream-")
 
 
+def test_bare_recurring_stops_before_next_due_task_if_launch_unfinished(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_recurring(
+        repo,
+        "z-weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Second weekly check"
+        mode: interactive
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the second diagnostic suite.
+        """,
+    )
+    monkeypatch.chdir(repo)
+    calls: list[str] = []
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        calls.append(task)
+        ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
+        ticket.frontmatter["status"] = "in_progress"
+        ticket.write(repo / "tasks" / task / "ticket.md")
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 1, result.output
+    assert len(calls) == 1
+    assert calls[0].startswith("weekly-check-")
+    combined = result.output + (result.stderr or "")
+    assert "stopping before the next due task" in combined
+
+
 def test_bare_recurring_interactive_overrides_mode(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`relay recurring --interactive` threads mode_override to each launch."""
     seen: list[str | None] = []
-    monkeypatch.setattr(
-        "relay.commands.launch.launch",
-        lambda task, **k: seen.append(k.get("mode_override")),
-    )
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        seen.append(kwargs.get("mode_override"))
+        ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
+        ticket.frontmatter["status"] = "done"
+        ticket.write(dream_repo / "tasks" / task / "ticket.md")
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring", "--interactive"])
 
@@ -424,10 +496,14 @@ def test_bare_recurring_defaults_to_no_mode_override(
 ) -> None:
     """Without --interactive the ticket's own `mode:` is left to win."""
     seen: list[str | None] = []
-    monkeypatch.setattr(
-        "relay.commands.launch.launch",
-        lambda task, **k: seen.append(k.get("mode_override")),
-    )
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        seen.append(kwargs.get("mode_override"))
+        ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
+        ticket.frontmatter["status"] = "done"
+        ticket.write(dream_repo / "tasks" / task / "ticket.md")
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring"])
 

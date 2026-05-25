@@ -26,7 +26,10 @@ scanner skips it. That is how the starter templates ship without firing.
 
 - `relay recurring` (bare) — scans every recurring task, get-or-creates the
   current period's task for each, and launches the ones still `active`. Run
-  from `scripts/cron.sh`.
+  from `scripts/cron.sh`. If an older period task for the same template is
+  not `done`, Relay skips the new scaffold and reports the blocked template.
+  If a launched task returns still unfinished, the sweep stops before the next
+  due task.
 - `relay recurring launch <name>` — scaffolds one named recurring task now,
   ignoring its schedule. `<name>` is the directory name.
 
@@ -67,6 +70,10 @@ the launched run actually does it.
   firing: hourly → `YYYY-MM-DD-HH`, daily → `YYYY-MM-DD`, weekly →
   `YYYY-Www`, monthly → `YYYY-MM`. Scaffolding is idempotent within a
   period: two runs in the same period converge on one period task.
+- A recurring template has at most one unfinished period task at a time.
+  Older tasks for that template with any status other than `done` block new
+  period scaffolding; finish, pause-and-resolve, or delete the old run before
+  expecting the next period to launch.
 - Period tasks scaffold **straight to `status: active`** — ready jobs, not
   drafts to triage. (A workflow-less one could not otherwise be activated:
   `relay mark active` refuses workflow-less tickets.)

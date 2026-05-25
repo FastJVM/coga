@@ -78,6 +78,7 @@ def main(
             no_verify=False,
             mode_override=mode_override,
         )
+        _stop_if_unfinished_after_launch(task.ref)
 
 
 @app.command("launch")
@@ -157,6 +158,25 @@ def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> Non
         no_verify=False,
         mode_override=mode_override,
     )
+
+
+def _stop_if_unfinished_after_launch(ref: TaskRef) -> None:
+    """Stop a bare recurring sweep if one launched task is still in flight."""
+    if not (ref.path / "ticket.md").exists():
+        return
+
+    ticket = read_ticket(ref)
+    if ticket.status == "done":
+        return
+
+    typer.secho(
+        f"{ref.id_slug}: recurring launch returned with status={ticket.status!r}; "
+        "stopping before the next due task. Finish or delete this run, then "
+        "rerun `relay recurring`.",
+        fg=typer.colors.RED,
+        err=True,
+    )
+    sys.exit(1)
 
 
 # --- scan reporting -----------------------------------------------------------

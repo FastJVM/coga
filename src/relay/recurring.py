@@ -211,6 +211,14 @@ def scaffold_template(
     if existing is not None:
         return ScaffoldOutcome(ref=existing, created=False)
 
+    blocking = _blocking_prior_run(cfg, template.name, target_slug)
+    if blocking is not None:
+        ref, status = blocking
+        raise RecurringError(
+            f"previous run {ref.slug} is {status}; finish or delete it before "
+            f"scaffolding {target_slug}"
+        )
+
     # A recurring task is a machine-authored job: it scaffolds straight to
     # `active` and is meant to run, not be triaged. So when the template
     # doesn't name an assignee, default to the repo's configured default
@@ -299,6 +307,44 @@ def _task_with_slug(cfg: Config, target_slug: str) -> TaskRef | None:
     for ref in list_tasks(cfg):
         if ref.slug == target_slug:
             return ref
+    return None
+
+
+def _blocking_prior_run(
+    cfg: Config, template_name: str, target_slug: str
+) -> tuple[TaskRef, str] | None:
+    """Return an unfinished older period task for this template, if any."""
+    template_names = _template_names(cfg)
+    for ref in list_tasks(cfg):
+        if ref.slug == target_slug:
+            continue
+        if _template_for_slug(ref.slug, template_names) != template_name:
+            continue
+        ticket = read_ticket(ref)
+        if ticket.status != "done":
+            return ref, ticket.status
+    return None
+
+
+def _template_names(cfg: Config) -> list[str]:
+    root = recurring_dir(cfg)
+    if not root.is_dir():
+        return []
+    return sorted(
+        (
+            path.name
+            for path in root.iterdir()
+            if path.is_dir() and not path.name.startswith("_")
+        ),
+        key=len,
+        reverse=True,
+    )
+
+
+def _template_for_slug(slug: str, template_names: list[str]) -> str | None:
+    for name in template_names:
+        if slug.startswith(f"{name}-"):
+            return name
     return None
 
 
