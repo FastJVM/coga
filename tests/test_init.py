@@ -1646,6 +1646,15 @@ def test_all_flag_requires_update(tmp_path: Path) -> None:
     result = CliRunner().invoke(app, ["init", "--all", str(tmp_path)])
     assert result.exit_code == 2
     assert "--all only applies with --update" in result.output
+    assert "relay init --update --all <path>" in result.output
+
+
+def test_update_all_requires_explicit_path() -> None:
+    """`--all` must name its scan root; defaulting to cwd is too easy to misuse."""
+    result = CliRunner().invoke(app, ["init", "--update", "--all"])
+    assert result.exit_code == 2
+    assert "--all requires an explicit PATH" in result.output
+    assert "relay init --update --all <path>" in result.output
 
 
 def test_discover_relay_repos_finds_nested_and_skips_non_repos(tmp_path: Path) -> None:
