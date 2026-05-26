@@ -10,7 +10,7 @@ This Dream skill is the recovery path for done tickets whose blackboard already
 contains the processed Retro marker from a knowledge PR but whose task
 directory still exists. Normal Retro PRs delete the source task directory in
 the same PR, so this skill should usually report no work. Retro markers with
-`result: no-new-durable-knowledge` belong to the Phase 3 Retro pass, which
+`result: no-new-durable-knowledge` belong to the Phase 4 Retro pass, which
 deletes those tickets itself and re-picks any whose deletion PR has not yet
 merged — they are not cleanup candidates here.
 
