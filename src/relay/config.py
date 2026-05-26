@@ -20,6 +20,12 @@ class AgentType:
     auto: str
     file: str
     mode: str               # "local" | future: "remote" | "cloud"
+    # Optional argv override for discussion prompts (`relay chat`, `relay ticket`):
+    # the composed prompt rides as system/developer context instead of becoming
+    # the agent's first user message. Parsed via `shlex.split`; the literal
+    # token `{prompt}` is replaced with the composed prompt. Empty string lets
+    # launch use its built-in defaults for known CLIs, then positional fallback.
+    discussion: str = ""
 
 
 @dataclass(frozen=True)
@@ -193,12 +199,19 @@ def _parse_agents(raw: dict) -> dict[str, AgentType]:
         for required in ("cli", "auto", "file"):
             if required not in data:
                 raise ConfigError(f"agents.{name}.{required} is required")
+        discussion = data.get("discussion", "")
+        if not isinstance(discussion, str):
+            raise ConfigError(
+                f"agents.{name}.discussion must be a string "
+                f"(got {type(discussion).__name__})"
+            )
         out[name] = AgentType(
             name=name,
             cli=data["cli"],
             auto=data["auto"],
             file=data["file"],
             mode=data.get("mode", "local"),
+            discussion=discussion,
         )
     return out
 

@@ -43,6 +43,13 @@ from relay.ticket import Ticket
 from relay.validate import TaskValidationError
 
 
+DISCUSSION_BOOTSTRAP_SHIMS = frozenset({"bootstrap/orient", "bootstrap/ticket"})
+DEFAULT_DISCUSSION_TEMPLATES = {
+    "claude": "--append-system-prompt {prompt}",
+    "codex": "-c developer_instructions={prompt}",
+}
+
+
 def launch(
     task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` shim."),
     agent_override: str | None = typer.Option(
@@ -298,7 +305,12 @@ def launch(
                 f"Launch: prompt written to {prompt_file} "
                 f"({len(prompt)} chars)"
             )
-            cmd = build_agent_command(agent, mode, prompt)
+            cmd = build_agent_command(
+                agent,
+                mode,
+                prompt,
+                discussion=_is_discussion_bootstrap(ref),
+            )
             typer.echo(
                 f"Launch: command: "
                 f"{_format_agent_command_for_console(cmd, prompt)}"
@@ -357,17 +369,44 @@ def launch(
 # --- helpers ------------------------------------------------------------------
 
 
-def build_agent_command(agent, mode: str, prompt: str) -> list[str]:
+def build_agent_command(
+    agent, mode: str, prompt: str, *, discussion: bool = False
+) -> list[str]:
     """Build the argv for spawning the agent.
 
     Interactive: `<cli> <prompt>` — agent opens its REPL with the prompt as
     the first user message. Auto: `<cli> <auto-flag(s)> <prompt>` — prefix
     flags put the CLI in headless mode (e.g. `-p` for claude, `exec` for
     codex).
+
+    `discussion=True` (used for human discussion sessions like `relay chat`
+    and `relay ticket`) routes the prompt through the agent's
+    `discussion = "..."` template in `relay.toml` so it lands as
+    system/developer context instead of as the first user message. The agent
+    opens with no user message, letting the human's first ask set the session
+    title. Uses configured `agent.discussion`, then built-in templates for
+    known `claude` / `codex` CLIs, then falls back to positional.
     """
+    discussion_template = _discussion_template(agent) if discussion else ""
+    if discussion_template and mode == "interactive":
+        tokens = [
+            tok.replace("{prompt}", prompt)
+            for tok in shlex.split(discussion_template)
+        ]
+        return [agent.cli, *tokens]
     if mode == "interactive":
         return [agent.cli, prompt]
     return [agent.cli, *shlex.split(agent.auto), prompt]
+
+
+def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
+    return isinstance(ref, BootstrapRef) and ref.id_slug in DISCUSSION_BOOTSTRAP_SHIMS
+
+
+def _discussion_template(agent) -> str:
+    if agent.discussion:
+        return agent.discussion
+    return DEFAULT_DISCUSSION_TEMPLATES.get(Path(agent.cli).name, "")
 
 
 def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:

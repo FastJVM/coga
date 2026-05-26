@@ -11,12 +11,14 @@ cli = "claude"
 auto = "-p"
 file = "CLAUDE.md"
 mode = "local"
+discussion = "--append-system-prompt {prompt}"
 
 [agents.codex]
 cli = "codex"
 auto = "exec"
 file = "AGENTS.md"
 mode = "local"
+discussion = "-c developer_instructions={prompt}"
 
 # --- Slack ---
 

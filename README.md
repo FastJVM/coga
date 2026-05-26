@@ -205,6 +205,12 @@ relay ticket add-retry --agent codex          # choose authoring agent
 `relay ticket` refuses `in_progress` and `done` tickets by default. Editing a
 draft/active/paused ticket leaves its status unchanged.
 
+For the standard `claude` and `codex` CLIs, `relay ticket` passes the
+composed authoring prompt as system/developer context. That keeps the first
+human exchange available for the agent session title, which makes later
+resume lists easier to scan. Set `[agents.<type>].discussion` to override
+the argv template for another agent.
+
 The usual boot sequence is:
 
 1. `relay ticket "<title>"` — scaffold and fill the draft.
@@ -365,6 +371,13 @@ names an `[agents.<type>]` block in `relay.toml` directly. Pass
 not rewrite the ticket's `assignee`. Bootstrap shims use the same flag for
 one-off sessions, so `relay chat --agent codex` can open the orient shim
 with Codex while `relay chat --agent claude` opens it with Claude.
+
+Discussion shims (`bootstrap/orient`, `bootstrap/ticket`) use built-in
+discussion templates for the standard `claude` and `codex` CLIs, or the
+selected agent's optional `discussion = "...{prompt}..."` override. In
+interactive mode the Relay prompt is context and the first human ask can name
+the session. Ordinary task launches keep passing the composed prompt
+positionally.
 
 For workflow-bound interactive/auto tasks, one `relay launch` can run multiple
 agent-owned steps. After each clean agent exit, Relay re-reads the ticket and
