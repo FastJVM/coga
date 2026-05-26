@@ -284,7 +284,7 @@ def launch(
                 f"Launch: prompt written to {prompt_file} "
                 f"({len(prompt)} chars)"
             )
-            cmd = build_agent_command(agent, mode, prompt)
+            cmd = build_agent_command(agent, mode, prompt, ambient=is_bootstrap)
             typer.echo(
                 f"Launch: command: "
                 f"{_format_agent_command_for_console(cmd, prompt)}"
@@ -343,14 +343,28 @@ def launch(
 # --- helpers ------------------------------------------------------------------
 
 
-def build_agent_command(agent, mode: str, prompt: str) -> list[str]:
+def build_agent_command(
+    agent, mode: str, prompt: str, *, ambient: bool = False
+) -> list[str]:
     """Build the argv for spawning the agent.
 
     Interactive: `<cli> <prompt>` — agent opens its REPL with the prompt as
     the first user message. Auto: `<cli> <auto-flag(s)> <prompt>` — prefix
     flags put the CLI in headless mode (e.g. `-p` for claude, `exec` for
     codex).
+
+    `ambient=True` (used for interactive bootstrap-shim launches like
+    `relay chat`) routes the prompt through the agent's `chat = "…"` template
+    in `relay.toml` so it lands as system/developer context instead of as the
+    first user message. The agent opens with no user message, letting the
+    human's first ask set the session title. Falls back to positional when
+    the agent has no `chat` template configured.
     """
+    if ambient and mode == "interactive" and agent.chat:
+        tokens = [
+            tok.replace("{prompt}", prompt) for tok in shlex.split(agent.chat)
+        ]
+        return [agent.cli, *tokens]
     if mode == "interactive":
         return [agent.cli, prompt]
     return [agent.cli, *shlex.split(agent.auto), prompt]

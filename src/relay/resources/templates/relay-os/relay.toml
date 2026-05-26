@@ -12,12 +12,17 @@ cli = "claude"
 auto = "-p"
 file = "CLAUDE.md"
 mode = "local"
+# `chat` rides the composed prompt as system context for interactive
+# bootstrap-shim launches (`relay chat`, etc.) so the human's first ask
+# becomes the session title — instead of a 20KB orient blob.
+chat = "--append-system-prompt {prompt}"
 
 [agents.codex]
 cli = "codex"
 auto = "exec"
 file = "AGENTS.md"
 mode = "local"
+chat = "-c developer_instructions={prompt}"
 
 # --- Slack ---
 # Slack is the team sync point — every state change (ticket created,

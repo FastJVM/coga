@@ -20,6 +20,13 @@ class AgentType:
     auto: str
     file: str
     mode: str               # "local" | future: "remote" | "cloud"
+    # Argv template for an "ambient" prompt — used by interactive bootstrap-shim
+    # launches (e.g. `relay chat`) so the composed prompt rides as
+    # system/developer context instead of becoming the agent's first user
+    # message. That lets the human's first ask set the session title. Parsed
+    # via `shlex.split`; the literal token `{prompt}` is replaced with the
+    # composed prompt. Empty string keeps legacy positional behavior.
+    chat: str = ""
 
 
 @dataclass(frozen=True)
@@ -193,12 +200,18 @@ def _parse_agents(raw: dict) -> dict[str, AgentType]:
         for required in ("cli", "auto", "file"):
             if required not in data:
                 raise ConfigError(f"agents.{name}.{required} is required")
+        chat = data.get("chat", "")
+        if not isinstance(chat, str):
+            raise ConfigError(
+                f"agents.{name}.chat must be a string (got {type(chat).__name__})"
+            )
         out[name] = AgentType(
             name=name,
             cli=data["cli"],
             auto=data["auto"],
             file=data["file"],
             mode=data.get("mode", "local"),
+            chat=chat,
         )
     return out
 
