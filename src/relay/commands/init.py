@@ -108,12 +108,12 @@ disagree with anything else in the repo, they win.
 
 
 def init(
-    path: Path = typer.Argument(
-        Path("."),
+    path: Path | None = typer.Argument(
+        None,
         help=(
             "Fresh init: target dir for the new repo (created if missing). "
             "Under --update: ignored. Under --update --all: the directory "
-            "tree scanned for relay repos to refresh (default: current dir)."
+            "tree scanned for relay repos to refresh (required)."
         ),
     ),
     update: bool = typer.Option(
@@ -131,17 +131,26 @@ def init(
     if all_repos and not update:
         typer.secho(
             "--all only applies with --update — it refreshes existing repos, and "
-            "there is no bulk fresh-scaffold. Re-run as `relay init --update --all`.",
+            "there is no bulk fresh-scaffold. Re-run as "
+            "`relay init --update --all <path>`.",
             fg=typer.colors.RED,
             err=True,
         )
         sys.exit(2)
     if update and all_repos:
+        if path is None:
+            typer.secho(
+                "--all requires an explicit PATH so the sweep scope is deliberate. "
+                "Re-run as `relay init --update --all <path>`.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            sys.exit(2)
         _do_update_all(path)
     elif update:
         _do_update()
     else:
-        _do_init(path)
+        _do_init(path or Path("."))
 
 
 def _do_init(path: Path) -> None:
