@@ -31,8 +31,15 @@ def _capture_slack(sink: list[str], json_payload):
 # --- unit: command construction ------------------------------------------------
 
 
-def _agent(auto: str) -> AgentType:
-    return AgentType(name="x", cli="my-cli", auto=auto, file="X.md", mode="local")
+def _agent(auto: str, name_flag: str = "") -> AgentType:
+    return AgentType(
+        name="x",
+        cli="my-cli",
+        auto=auto,
+        file="X.md",
+        mode="local",
+        name_flag=name_flag,
+    )
 
 
 def test_build_command_interactive_passes_prompt_positionally() -> None:
@@ -48,6 +55,46 @@ def test_build_command_auto_prepends_flag_then_prompt() -> None:
 def test_build_command_auto_subcommand_style() -> None:
     cmd = build_agent_command(_agent("exec"), mode="auto", prompt="full prompt text")
     assert cmd == ["my-cli", "exec", "full prompt text"]
+
+
+def test_build_command_injects_name_flag_when_set() -> None:
+    cmd = build_agent_command(
+        _agent("-p", name_flag="-n"),
+        mode="interactive",
+        prompt="full prompt text",
+        name="Fix retry backoff",
+    )
+    assert cmd == ["my-cli", "-n", "Fix retry backoff", "full prompt text"]
+
+
+def test_build_command_injects_name_flag_in_auto_mode() -> None:
+    cmd = build_agent_command(
+        _agent("-p", name_flag="-n"),
+        mode="auto",
+        prompt="full prompt text",
+        name="Fix retry backoff",
+    )
+    assert cmd == ["my-cli", "-n", "Fix retry backoff", "-p", "full prompt text"]
+
+
+def test_build_command_skips_name_flag_when_agent_has_none() -> None:
+    cmd = build_agent_command(
+        _agent("-p"),
+        mode="interactive",
+        prompt="full prompt text",
+        name="Fix retry backoff",
+    )
+    assert cmd == ["my-cli", "full prompt text"]
+
+
+def test_build_command_skips_name_flag_when_name_is_empty() -> None:
+    cmd = build_agent_command(
+        _agent("-p", name_flag="-n"),
+        mode="interactive",
+        prompt="full prompt text",
+        name="",
+    )
+    assert cmd == ["my-cli", "full prompt text"]
 
 
 # --- integration: end-to-end via CliRunner with mocked subprocess --------------

@@ -20,6 +20,11 @@ class AgentType:
     auto: str
     file: str
     mode: str               # "local" | future: "remote" | "cloud"
+    # Flag (or flag template) the CLI accepts to set the session display name
+    # at launch — e.g. `-n` for claude (shown in /resume, prompt box, terminal
+    # title). Empty when the CLI has no such flag. Split with shlex; the
+    # ticket title is appended as the next argv element.
+    name_flag: str = ""
 
 
 @dataclass(frozen=True)
@@ -199,6 +204,7 @@ def _parse_agents(raw: dict) -> dict[str, AgentType]:
             auto=data["auto"],
             file=data["file"],
             mode=data.get("mode", "local"),
+            name_flag=data.get("name_flag", ""),
         )
     return out
 

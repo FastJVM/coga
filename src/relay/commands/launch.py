@@ -284,7 +284,7 @@ def launch(
                 f"Launch: prompt written to {prompt_file} "
                 f"({len(prompt)} chars)"
             )
-            cmd = build_agent_command(agent, mode, prompt)
+            cmd = build_agent_command(agent, mode, prompt, name=ticket.title or "")
             typer.echo(
                 f"Launch: command: "
                 f"{_format_agent_command_for_console(cmd, prompt)}"
@@ -300,6 +300,10 @@ def launch(
                     agent.name,
                 ),
             )
+
+            if mode == "interactive" and ticket.title and sys.stdout.isatty():
+                sys.stdout.write(f"\033]2;{ticket.title}\007")
+                sys.stdout.flush()
 
             try:
                 result = subprocess.run(cmd, env=env, check=False)
@@ -343,17 +347,24 @@ def launch(
 # --- helpers ------------------------------------------------------------------
 
 
-def build_agent_command(agent, mode: str, prompt: str) -> list[str]:
+def build_agent_command(
+    agent, mode: str, prompt: str, name: str = ""
+) -> list[str]:
     """Build the argv for spawning the agent.
 
     Interactive: `<cli> <prompt>` — agent opens its REPL with the prompt as
     the first user message. Auto: `<cli> <auto-flag(s)> <prompt>` — prefix
     flags put the CLI in headless mode (e.g. `-p` for claude, `exec` for
-    codex).
+    codex). When the agent declares `name_flag` and a non-empty `name` is
+    passed, `<name_flag> <name>` is inserted right after the CLI so the
+    spawned session carries the ticket title in its picker / window title.
     """
+    name_args: list[str] = []
+    if name and agent.name_flag:
+        name_args = [*shlex.split(agent.name_flag), name]
     if mode == "interactive":
-        return [agent.cli, prompt]
-    return [agent.cli, *shlex.split(agent.auto), prompt]
+        return [agent.cli, *name_args, prompt]
+    return [agent.cli, *name_args, *shlex.split(agent.auto), prompt]
 
 
 def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:
