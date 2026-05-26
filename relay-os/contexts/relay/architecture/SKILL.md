@@ -156,7 +156,10 @@ both planes, and only for that single transition.
 `mode:` in ticket frontmatter:
 
 - **`interactive`** — human-attended terminal session. Agent gets the
-  composed prompt, human stays in the loop.
+  composed prompt, human stays in the loop. The REPL doesn't terminate on
+  its own — emit `<<<RELAY_SESSION_DONE_a9f3c41e>>>` on a line by itself as
+  your final action (after `relay mark done` / `relay panic`) to release
+  the session so `relay recurring --interactive` can move to the next task.
 - **`auto`** — one-shot autonomous run. Same composed prompt, no
   human input.
 - **`script`** — no agent. `relay launch` runs the step's skill
