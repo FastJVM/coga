@@ -1673,6 +1673,29 @@ def test_discover_relay_repos_finds_nested_and_skips_non_repos(tmp_path: Path) -
     assert found == sorted([repo_a, repo_b])
 
 
+def test_discover_relay_repos_does_not_descend_into_found_repo(tmp_path: Path) -> None:
+    """A relay-os nested inside a real relay repo is part of that repo, not a sibling.
+
+    Catches the case where scanning ~/Code surfaces the Relay source repo's own
+    fixture (`example/relay-os/`) and packaged template
+    (`src/relay/resources/templates/relay-os/`) as if they were standalone repos.
+    """
+    repo = _seed_local_relay_os(tmp_path / "relay")
+    # Fixture seeded under the repo — looks like a relay repo (has relay.toml)
+    # but is part of the parent repo's source tree.
+    fixture = tmp_path / "relay" / "example" / "relay-os"
+    fixture.mkdir(parents=True)
+    (fixture / "relay.toml").write_text("version = 1\n")
+    # Packaged template at a deeper path under the same parent repo.
+    template = tmp_path / "relay" / "src" / "relay" / "resources" / "templates" / "relay-os"
+    template.mkdir(parents=True)
+    (template / "relay.toml").write_text("version = 1\n")
+
+    found = init_cmd._discover_relay_repos(tmp_path)
+
+    assert found == [repo]
+
+
 def test_update_all_no_repos_found_exits_nonzero(tmp_path: Path) -> None:
     """An empty scan root is a loud failure, not a silent no-op."""
     result = CliRunner().invoke(app, ["init", "--update", "--all", str(tmp_path)])

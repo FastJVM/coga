@@ -388,8 +388,12 @@ def _discover_relay_repos(root: Path) -> list[Path]:
     """Return every relay repo's `relay-os/` dir at or below `root`.
 
     A relay repo is identified by a `relay-os/` directory holding a
-    `relay.toml`. The walk skips `_SCAN_SKIP_DIRS` and stops descending into
-    a `relay-os/` once found. Results are sorted for deterministic output.
+    `relay.toml`. The walk skips `_SCAN_SKIP_DIRS`. Once a relay repo is
+    found, the walker stops descending into the repo's subtree — a relay
+    repo is a unit, so nested fixtures and packaged templates under it
+    (e.g. `example/relay-os/`, `src/relay/resources/templates/relay-os/`
+    in the Relay source checkout itself) are not surfaced as separate
+    repos. Results are sorted for deterministic output.
     """
     found: list[Path] = []
     for dirpath, dirnames, _ in os.walk(root):
@@ -398,6 +402,8 @@ def _discover_relay_repos(root: Path) -> list[Path]:
             relay_os = Path(dirpath) / "relay-os"
             if (relay_os / "relay.toml").is_file():
                 found.append(relay_os)
+                dirnames[:] = []
+                continue
             dirnames.remove("relay-os")
     return sorted(found)
 
