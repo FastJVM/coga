@@ -120,9 +120,16 @@ def test_scan_due_different_period_creates_new(repo: Path) -> None:
     assert len(list_tasks(cfg)) == 2
 
 
-def test_scan_due_blocks_new_period_while_prior_run_unfinished(
-    repo: Path, capsys: pytest.CaptureFixture[str]
+def test_scan_due_scaffolds_new_period_despite_stuck_prior_run(
+    repo: Path,
 ) -> None:
+    """A stuck prior-period `in_progress` task does not block the new period.
+
+    The stuck run stays visible in `relay status` for the human to handle;
+    today's scheduled task scaffolds and launches normally. Silently skipping
+    today's task because a 4-day-old run never finished is exactly the
+    "silent wrong answer" failure mode the principles forbid.
+    """
     cfg = load_config(repo)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
     ref = first.tasks[0].ref
@@ -132,12 +139,49 @@ def test_scan_due_blocks_new_period_while_prior_run_unfinished(
 
     scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))  # week 18
 
-    assert scan.tasks == []
-    assert len(scan.errors) == 1
-    assert scan.errors[0][0] == "weekly-check"
-    assert "previous run weekly-check-2026-W17 is in_progress" in scan.errors[0][1]
-    assert len(list_tasks(cfg)) == 1
-    assert "skipping weekly-check" in capsys.readouterr().err
+    assert scan.errors == []
+    assert len(scan.tasks) == 1
+    assert scan.tasks[0].created is True
+    assert scan.tasks[0].launchable is True
+    assert scan.tasks[0].ref.slug.endswith("-2026-W18")
+    # Both the stuck prior run and the new period task exist.
+    assert {ref.slug for ref in list_tasks(cfg)} == {
+        "weekly-check-2026-W17",
+        "weekly-check-2026-W18",
+    }
+
+
+def test_scan_due_does_not_rescaffold_after_period_task_deleted(
+    repo: Path,
+) -> None:
+    """A completed-this-period task that has been deleted stays completed.
+
+    Dream's contract is to self-delete after `relay mark done`; a human
+    `relay delete` is the other case. The recurring template's `log.md`
+    is the period ledger — `scan_due` reads it instead of just checking
+    for the task directory, so a successful run isn't silently re-launched
+    by the next `relay recurring`.
+    """
+    cfg = load_config(repo)
+    now = datetime(2026, 4, 22, 10, 0, 0)  # a Wednesday after Monday 9am
+
+    first = scan_due(cfg, now=now)
+    assert first.tasks[0].created is True
+    ref = first.tasks[0].ref
+
+    # Simulate the run completing and deleting itself.
+    shutil.rmtree(ref.path)
+
+    second = scan_due(cfg, now=now)
+    assert second.errors == []
+    assert len(second.tasks) == 1
+    completed = second.tasks[0]
+    assert completed.created is False
+    assert completed.launchable is False
+    assert completed.ref is None
+    assert second.due == []
+    # The directory stays gone — no re-scaffold.
+    assert list_tasks(cfg) == []
 
 
 def test_scan_due_skips_bad_template(repo: Path, capsys) -> None:
