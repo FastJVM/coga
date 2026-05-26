@@ -29,7 +29,7 @@ def retire(
     mode: str = typer.Option(
         "interactive",
         "--mode",
-        help="Launch mode for the retire run: interactive or auto.",
+        help="Launch mode for the retire run: interactive. (Auto is temporarily disabled.)",
     ),
     no_launch: bool = typer.Option(
         False,
@@ -47,8 +47,14 @@ def retire(
     Retro records a no-op marker and opens no PR. Branch hygiene (local prune,
     stale-branch sweep) is a Dream concern, not retire's.
     """
-    if mode not in ("interactive", "auto"):
-        _bail("--mode must be 'interactive' or 'auto'")
+    if mode == "auto":
+        _bail(
+            "mode=auto is temporarily disabled: auto runs produce no live "
+            "console output. Run `relay retire <slug> --mode interactive` "
+            "from a TTY instead."
+        )
+    if mode != "interactive":
+        _bail("--mode must be 'interactive'")
 
     try:
         cfg = load_config()

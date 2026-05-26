@@ -164,8 +164,14 @@ def test_scan_due_flags_legacy_md_file(repo: Path, capsys) -> None:
     assert "skipping legacy.md" in capsys.readouterr().err
 
 
-def test_scan_due_includes_auto_mode_template(repo: Path) -> None:
-    """`mode: auto` templates scaffold normally — auto is no longer disabled."""
+def test_scan_due_skips_auto_mode_template(repo: Path, capsys) -> None:
+    """`mode: auto` templates are temporarily skipped with a Slack-visible error.
+
+    Auto runs buffer stdout until completion, so a scheduled run produces no
+    live console signal. Until streaming lands, `scan_due` refuses to scaffold
+    these — the error lands in `DueScan.errors` and `relay recurring` fires
+    its existing Slack scan-error summary.
+    """
     _write_recurring(
         repo,
         "daily-auto",
@@ -185,14 +191,21 @@ def test_scan_due_includes_auto_mode_template(repo: Path) -> None:
     )
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
-    assert scan.errors == []
-    assert len(scan.tasks) == 2
-    auto = next(t for t in scan.tasks if t.template == "daily-auto")
-    assert Ticket.read(auto.ref.path / "ticket.md").mode == "auto"
+    # The good interactive template still scaffolds.
+    assert len(scan.tasks) == 1
+    assert scan.tasks[0].template == "weekly-check"
+    # The auto template is skipped via scan.errors.
+    assert len(scan.errors) == 1
+    assert scan.errors[0][0] == "daily-auto"
+    assert "mode=auto is temporarily disabled" in scan.errors[0][1]
+    assert "skipping daily-auto" in capsys.readouterr().err
 
 
-def test_scan_due_template_without_explicit_mode(repo: Path) -> None:
-    """A template without `mode:` defaults to auto and scaffolds normally."""
+def test_scan_due_template_without_explicit_mode_is_skipped(
+    repo: Path, capsys
+) -> None:
+    """A template without `mode:` defaults to auto and is skipped while
+    auto is disabled."""
     _write_recurring(
         repo,
         "no-mode",
@@ -211,9 +224,11 @@ def test_scan_due_template_without_explicit_mode(repo: Path) -> None:
     )
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
-    assert scan.errors == []
-    no_mode = next(t for t in scan.tasks if t.template == "no-mode")
-    assert Ticket.read(no_mode.ref.path / "ticket.md").mode == "auto"
+    assert len(scan.tasks) == 1
+    assert scan.tasks[0].template == "weekly-check"
+    assert len(scan.errors) == 1
+    assert scan.errors[0][0] == "no-mode"
+    assert "mode=auto is temporarily disabled" in scan.errors[0][1]
 
 
 def test_scan_due_skips_underscore_template(repo: Path, capsys) -> None:
