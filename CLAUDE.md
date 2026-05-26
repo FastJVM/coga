@@ -7,14 +7,13 @@ Canonical Relay contexts:
 
 - `principles/SKILL.md` defines the non-negotiables.
 - `architecture/SKILL.md` defines primitives, planes, prompt composition, and locking.
-- `cli/SKILL.md` defines the command surface and lifecycle semantics.
 - `codebase/SKILL.md` defines source layout and test expectations.
 - `current-direction/SKILL.md` and `project-stage/SKILL.md` capture live product posture.
 
 Do not leave the durable explanation only in chat, PR comments, or task notes when it belongs in a context, template, README, or spec.
 
 ## Project Structure & Module Organization
-Core code lives in `src/relay/`. Keep CLI entrypoints thin in `src/relay/commands/` and move reusable behavior into focused modules such as `config.py`, `compose.py`, `tasks.py`, and `validate.py`. Prompt/protocol templates live in `src/relay/resources/`. Tests live in `tests/`. Use `example/relay-os/` and `example/projects/*/relay-os/` as the seeded fixture for end-to-end behavior.
+Core code lives in `src/relay/`. Keep CLI entrypoints thin in `src/relay/commands/` and move reusable behavior into focused modules such as `config.py`, `compose.py`, `tasks.py`, and `validate.py`. Prompt/protocol templates live in `src/relay/resources/`. Tests live in `tests/`. Use `example/relay-os/` as the seeded fixture for end-to-end behavior.
 
 When changing shipped Relay OS contexts or templates, check both the live repo copy under `relay-os/` and the packaged copy under `src/relay/resources/templates/relay-os/`. Keep them in sync unless the difference is intentional and documented.
 
