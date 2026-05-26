@@ -44,6 +44,10 @@ from relay.validate import TaskValidationError
 
 
 DISCUSSION_BOOTSTRAP_SHIMS = frozenset({"bootstrap/orient", "bootstrap/ticket"})
+DEFAULT_DISCUSSION_TEMPLATES = {
+    "claude": "--append-system-prompt {prompt}",
+    "codex": "-c developer_instructions={prompt}",
+}
 
 
 def launch(
@@ -366,12 +370,14 @@ def build_agent_command(
     `discussion = "..."` template in `relay.toml` so it lands as
     system/developer context instead of as the first user message. The agent
     opens with no user message, letting the human's first ask set the session
-    title. Falls back to positional when the agent has no discussion template.
+    title. Uses configured `agent.discussion`, then built-in templates for
+    known `claude` / `codex` CLIs, then falls back to positional.
     """
-    if discussion and mode == "interactive" and agent.discussion:
+    discussion_template = _discussion_template(agent) if discussion else ""
+    if discussion_template and mode == "interactive":
         tokens = [
             tok.replace("{prompt}", prompt)
-            for tok in shlex.split(agent.discussion)
+            for tok in shlex.split(discussion_template)
         ]
         return [agent.cli, *tokens]
     if mode == "interactive":
@@ -381,6 +387,12 @@ def build_agent_command(
 
 def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
     return isinstance(ref, BootstrapRef) and ref.id_slug in DISCUSSION_BOOTSTRAP_SHIMS
+
+
+def _discussion_template(agent) -> str:
+    if agent.discussion:
+        return agent.discussion
+    return DEFAULT_DISCUSSION_TEMPLATES.get(Path(agent.cli).name, "")
 
 
 def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:

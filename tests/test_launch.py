@@ -28,6 +28,15 @@ def _capture_slack(sink: list[str], json_payload):
     return R()
 
 
+def _prompt_arg(cmd: list[str]) -> str:
+    for arg in cmd:
+        if isinstance(arg, str) and arg.startswith("# Relay task"):
+            return arg
+        if isinstance(arg, str) and arg.startswith("developer_instructions=# Relay task"):
+            return arg.removeprefix("developer_instructions=")
+    raise AssertionError(f"No Relay prompt in argv: {cmd!r}")
+
+
 # --- unit: command construction ------------------------------------------------
 
 
@@ -77,6 +86,40 @@ def test_build_command_discussion_uses_template_for_codex() -> None:
         discussion=True,
     )
     assert cmd == ["my-cli", "-c", "developer_instructions=orient body"]
+
+
+def test_build_command_discussion_uses_default_template_for_claude_cli() -> None:
+    agent = AgentType(
+        name="standard-claude",
+        cli="claude",
+        auto="-p",
+        file="CLAUDE.md",
+        mode="local",
+    )
+    cmd = build_agent_command(
+        agent,
+        mode="interactive",
+        prompt="orient body",
+        discussion=True,
+    )
+    assert cmd == ["claude", "--append-system-prompt", "orient body"]
+
+
+def test_build_command_discussion_uses_default_template_for_codex_cli() -> None:
+    agent = AgentType(
+        name="standard-codex",
+        cli="codex",
+        auto="exec",
+        file="AGENTS.md",
+        mode="local",
+    )
+    cmd = build_agent_command(
+        agent,
+        mode="interactive",
+        prompt="orient body",
+        discussion=True,
+    )
+    assert cmd == ["codex", "-c", "developer_instructions=orient body"]
 
 
 def test_build_command_discussion_falls_back_when_template_unset() -> None:
@@ -896,7 +939,7 @@ def test_launch_bootstrap_skips_status_and_lock(
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
-        captured["prompt"] = cmd[1]
+        captured["prompt"] = _prompt_arg(cmd)
         return _Result()
 
     monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
@@ -1002,7 +1045,7 @@ def test_launch_regular_task_does_not_use_discussion_template(
 
     cmd = captured["cmd"]
     assert cmd[0] == "claude"
-    assert "Fix retry logic" in cmd[1]
+    assert "Fix retry logic" in _prompt_arg(cmd)
 
 
 def test_launch_bootstrap_agent_override_uses_requested_agent(
@@ -1028,7 +1071,8 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
     cmd = captured["cmd"]
     assert isinstance(cmd, list)
     assert cmd[0] == "codex"
-    assert "Skill: bootstrap/ticket" in cmd[1]
+    assert cmd[1] == "-c"
+    assert "Skill: bootstrap/ticket" in _prompt_arg(cmd)
 
     log = (bootstrap_repo / "bootstrap" / "ticket" / "log.md").read_text()
     assert "assignee=codex, agent=codex" in log

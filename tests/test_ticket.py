@@ -17,6 +17,15 @@ def _write(path: Path, text: str) -> None:
     path.write_text(dedent(text).lstrip())
 
 
+def _prompt_arg(cmd: list[str]) -> str:
+    for arg in cmd:
+        if isinstance(arg, str) and arg.startswith("# Relay task"):
+            return arg
+        if isinstance(arg, str) and arg.startswith("developer_instructions=# Relay task"):
+            return arg.removeprefix("developer_instructions=")
+    raise AssertionError(f"No Relay prompt in argv: {cmd!r}")
+
+
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     relay_os = tmp_path / "relay-os"
@@ -76,7 +85,7 @@ def _allow_ticket_launch(
         returncode = 0
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
-        prompts.append(cmd[1])
+        prompts.append(_prompt_arg(cmd))
         if on_run is not None:
             on_run()
         return _Result()

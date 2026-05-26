@@ -20,11 +20,11 @@ class AgentType:
     auto: str
     file: str
     mode: str               # "local" | future: "remote" | "cloud"
-    # Argv template for discussion prompts (`relay chat`, `relay ticket`):
+    # Optional argv override for discussion prompts (`relay chat`, `relay ticket`):
     # the composed prompt rides as system/developer context instead of becoming
     # the agent's first user message. Parsed via `shlex.split`; the literal
-    # token `{prompt}` is replaced with the composed prompt. Empty string keeps
-    # legacy positional behavior.
+    # token `{prompt}` is replaced with the composed prompt. Empty string lets
+    # launch use its built-in defaults for known CLIs, then positional fallback.
     discussion: str = ""
 
 
