@@ -251,12 +251,11 @@ def launch(
     env = os.environ.copy()
     env.update(cfg.secrets)
 
-    # Mark the session as supervised so `relay bump`, run from inside the
-    # agent, can tell the human that exiting will let this launch process
-    # pick up the next step. Bootstrap shims don't chain; script/auto
-    # processes exit on their own, so the hint is interactive-only.
-    if not is_bootstrap and mode == "interactive":
-        env["RELAY_SUPERVISED"] = "1"
+    # Auto-chaining is reserved for unattended runs. Interactive launches
+    # belong to the human at the terminal — and to any caller that wraps
+    # them (e.g. `relay recurring --interactive`) — so we run the agent
+    # exactly once and return control to the caller on exit. No
+    # `RELAY_SUPERVISED` hint, no respawn on bump.
 
     # Install a signal-safe cleanup.
     prompt_file: Path | None = None
@@ -331,6 +330,15 @@ def launch(
                     err=True,
                 )
                 sys.exit(exit_code)
+
+            # Interactive launches do not chain. One agent run, then back to
+            # the caller — `relay recurring --interactive` moves to the next
+            # task, or the user runs `relay launch <slug>` again to get a
+            # fresh context. Auto-chaining is reserved for unattended runs
+            # (mode: auto, when re-enabled), where the supervisor is the
+            # only thing watching the workflow advance.
+            if mode == "interactive":
+                break
 
             # An agent may delete its own task directory as a final action —
             # e.g. a Dream run retiring itself once its findings are durable.
