@@ -1,11 +1,11 @@
 ---
 title: Move automerge sweep out of relay status into a recurring task
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts:
 - relay/architecture
 - relay/principles
@@ -24,7 +24,6 @@ workflow:
     - code/open-pr
   - name: review
     assignee: owner
-step: 2 (open-pr)
 ---
 
 ## Description
