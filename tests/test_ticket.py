@@ -17,6 +17,15 @@ def _write(path: Path, text: str) -> None:
     path.write_text(dedent(text).lstrip())
 
 
+def _prompt_arg(cmd: list[str]) -> str:
+    for arg in cmd:
+        if isinstance(arg, str) and arg.startswith("# Relay task"):
+            return arg
+        if isinstance(arg, str) and arg.startswith("developer_instructions=# Relay task"):
+            return arg.removeprefix("developer_instructions=")
+    raise AssertionError(f"No Relay prompt in argv: {cmd!r}")
+
+
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     relay_os = tmp_path / "relay-os"
@@ -76,7 +85,7 @@ def _allow_ticket_launch(
         returncode = 0
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
-        prompts.append(cmd[1])
+        prompts.append(_prompt_arg(cmd))
         if on_run is not None:
             on_run()
         return _Result()
@@ -116,6 +125,52 @@ def test_ticket_title_creates_draft_and_launches_authoring(
     assert "Relay task — investigate-retries" in prompts[0]
     assert "Status: draft" in prompts[0]
     assert "Skill: bootstrap/ticket" in prompts[0]
+
+
+def test_ticket_uses_discussion_template_when_agent_configures_one(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(
+        repo / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        mode = "local"
+        discussion = "--append-system-prompt {prompt}"
+
+        """,
+    )
+    task_dir = repo / "tasks" / "investigate-retries"
+    captured: dict[str, object] = {}
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        captured["cmd"] = cmd
+        t = Ticket.read(task_dir / "ticket.md")
+        t.frontmatter["workflow"] = "code/with-review"
+        t.write(task_dir / "ticket.md")
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("relay.commands.ticket.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
+    assert result.exit_code == 0, result.output
+
+    cmd = captured["cmd"]
+    assert cmd[0] == "claude"
+    assert cmd[1] == "--append-system-prompt"
+    assert "Relay task — investigate-retries" in cmd[2]
+    assert "Skill: bootstrap/ticket" in cmd[2]
 
 
 def test_ticket_refuses_draft_left_without_workflow(

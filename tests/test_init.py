@@ -648,10 +648,14 @@ def test_init_update_refreshes_vendored_recurring_template(
     assert "recurring/dream/ticket.md" in result.output
 
 
-def test_init_update_in_relay_source_checkout_skips_template_prune(
+def test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors(
     tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Running the installer refresh from Relay's own repo must not rewrite fixtures."""
+    """`init --update` in Relay's own repo must leave git-tracked fixtures
+    alone but still materialize the gitignored package-backed mirrors
+    (`bootstrap/` and `recurring/dream/`) — otherwise `relay chat` and
+    `relay dream` fail in a fresh source clone.
+    """
     relay_os = _seed_local_relay_os(tmp_path)
     shutil.rmtree(relay_os / "bootstrap")
     _seed_relay_source_checkout(tmp_path)
@@ -665,6 +669,14 @@ def test_init_update_in_relay_source_checkout_skips_template_prune(
     )
     (relay_os / "hooks").mkdir()
     (relay_os / "hooks" / "post-merge").write_text("SOURCE hook\n")
+
+    package_clone = tmp_path / "package"
+    _seed_fake_upstream_for_update(package_clone)
+    monkeypatch.setattr(
+        update_cmd,
+        "packaged_template_root",
+        lambda: package_clone / update_cmd.TEMPLATE_SUBPATH,
+    )
 
     monkeypatch.chdir(relay_os)
 
@@ -692,7 +704,8 @@ def test_init_update_in_relay_source_checkout_skips_template_prune(
         == "# NEW vendored cli\n"
     )
     assert fake_venv == [relay_os]
-    assert "Skipped relay-os template refresh/prune in Relay source checkout" in result.output
+    assert "Skipped tracked-fixture refresh/prune in Relay source checkout" in result.output
+    assert "Refreshed gitignored mirrors" in result.output
     assert "Pruned" not in result.output
 
     for ctx in ("architecture", "principles", "cli"):
@@ -706,7 +719,17 @@ def test_init_update_in_relay_source_checkout_skips_template_prune(
     ).read_text() == "SOURCE retro/done-ticket\n"
     assert (relay_os / "hooks" / "post-merge").read_text() == "SOURCE hook\n"
     assert not (relay_os / "recurring" / "_rem.md").exists()
-    assert not (relay_os / "bootstrap").exists()
+
+    # Gitignored mirrors must still land — that's the whole point of this path.
+    assert (
+        relay_os / "bootstrap" / "create" / "ticket.md"
+    ).read_text() == "NEW bootstrap shim\n"
+    assert (
+        relay_os / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md"
+    ).read_text() == "NEW bootstrap/ticket skill\n"
+    assert (
+        relay_os / "recurring" / "dream" / "ticket.md"
+    ).read_text() == "NEW dream template\n"
 
 
 def test_init_commits_relay_os_when_target_is_git_repo(

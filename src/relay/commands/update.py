@@ -202,11 +202,32 @@ def refresh_templates(
     """
     src_root = src_root or packaged_template_root()
     copied = _copy_templates(src_root, relay_os)
-    copied.extend(_copy_vendored_bootstrap(src_root, relay_os))
-    copied.extend(_copy_vendored_recurring(src_root, relay_os))
+    copied.extend(refresh_gitignored_mirrors(relay_os, src_root))
     copied.extend(_copy_upstream_files(src_root, relay_os))
     pruned = _prune_removed_templates(src_root, relay_os)
     return copied, pruned
+
+
+def refresh_gitignored_mirrors(
+    relay_os: Path, src_root: Traversable | None = None
+) -> list[str]:
+    """Refresh the package-backed mirrors that don't collide with the Relay
+    source checkout's git-tracked fixtures.
+
+    `bootstrap/` and the `VENDORED_RECURRING_TEMPLATES` are gitignored under
+    `relay-os/` in Relay's own repo — their source of truth lives in
+    `src/relay/resources/templates/relay-os/`. They still need to be
+    materialized into `relay-os/` for runtime resolution; without them
+    `relay launch bootstrap/orient` (i.e. `relay chat`) and `relay dream`
+    have nothing to find in a fresh source clone.
+
+    `refresh_templates` calls this alongside the tracked-fixture work; the
+    source-checkout path in `init._refresh_one` calls it on its own.
+    """
+    src_root = src_root or packaged_template_root()
+    copied = _copy_vendored_bootstrap(src_root, relay_os)
+    copied.extend(_copy_vendored_recurring(src_root, relay_os))
+    return copied
 
 
 def prune_obsolete(relay_os: Path) -> list[str]:

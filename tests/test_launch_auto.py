@@ -35,11 +35,16 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return company
 
 
-def test_launch_auto_mode_spawns_agent(
+def test_launch_auto_mode_is_blocked(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Auto mode launches: it spawns the agent with the configured `auto`
-    args and flips the ticket to `in_progress`, like an interactive launch."""
+    """`mode: auto` launches are temporarily disabled.
+
+    Auto runs (claude -p, codex exec) buffer stdout until completion, so an
+    unattended launch sits without any live console signal. The block lives
+    in `relay launch` itself and fires before the ticket flips to
+    `in_progress` or any agent process spawns.
+    """
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="Auto run", workflow_name=None,
@@ -61,16 +66,31 @@ def test_launch_auto_mode_spawns_agent(
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "auto-run"])
-    assert result.exit_code == 0, result.output
-
-    # Spawned `claude -p <composed-prompt>` — auto args from `[agents.claude]`.
-    assert len(calls) == 1
-    assert calls[0][0] == "claude"
-    assert "-p" in calls[0]
-
+    assert result.exit_code == 2, result.output
+    assert "mode=auto is temporarily disabled" in result.output
+    # No agent spawned, ticket still active.
+    assert calls == []
     from relay.ticket import Ticket
     ticket = Ticket.read(repo / "tasks" / "auto-run" / "ticket.md")
-    assert ticket.status == "in_progress"
+    assert ticket.status == "active"
+
+
+def test_launch_mode_override_auto_is_blocked(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--mode auto` is rejected just like a `mode: auto` ticket."""
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="Interactive run", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    result = CliRunner().invoke(
+        app, ["launch", "interactive-run", "--mode", "auto"]
+    )
+    assert result.exit_code == 2
+    assert "mode=auto is temporarily disabled" in result.output
 
 
 def test_launch_mode_override_runs_auto_ticket_interactively(

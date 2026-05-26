@@ -18,7 +18,7 @@ the relay-managed bits in the current repo.
 - `relay init mycompany` — fresh scaffold; refuses if `relay-os/` exists.
 - `relay init --update` — refresh the vendored CLI from upstream and
   package-owned `_*` templates, `bootstrap/`, and relay-owned recurring
-  batteries (`recurring/dream.md`) from the installed Relay package. Leaves
+  batteries (`recurring/dream/`) from the installed Relay package. Leaves
   `relay.toml`, `rules.md`, user contexts, user skills, and repo-specific
   recurring loops (REM) untouched.
 - `relay init --update --all [PATH]` — sweep mode. Scan `PATH` (default the
@@ -72,6 +72,12 @@ terminal rather than later at activation. For a new draft, the boot sequence
 is: `relay ticket "<title>"` → review/edit → `relay mark active <slug>` →
 `relay launch <slug>`.
 
+For the standard `claude` and `codex` CLIs, `relay ticket` passes the
+composed authoring prompt as system/developer context instead of as the first
+user message. That lets the first real human exchange set the agent session
+title for later resume. Set `[agents.<type>].discussion` to override the argv
+template for another agent.
+
 ## relay mark \<state\> \<slug\> [--message "..."]
 
 Change a ticket's `status`. Three subcommands: `mark active`,
@@ -104,11 +110,12 @@ tickets must be marked back to active before they can be launched. Launching
 an `active` ticket marks it `in_progress` (posting `▶️`) before spawning the
 agent; launching an already-`in_progress` ticket resumes it without another
 status flip. Interactive launches require stdin and stdout to both be
-terminals. `mode: auto` runs the agent headless (claude `-p`, codex `exec`):
-no TTY needed, but stdout buffers until the run completes, so an auto launch
-shows no live console output until it finishes. `mode: script` runs the
-step's skill script directly. Script launches inject task metadata env vars
-including `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
+terminals. **`mode: auto` is temporarily disabled** — auto runs (claude
+`-p`, codex `exec`) buffer stdout until completion, leaving the operator
+with no live console signal. Use `mode: script` for unattended wrappers
+and CI until streaming lands. `mode: script` runs the step's skill script
+directly. Script launches inject task metadata env vars including
+`RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
 - `relay launch <slug> --agent <type>` — one-off agent-type override
@@ -124,9 +131,16 @@ including `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
   `mode: auto` ticket in an attended terminal. Ephemeral: the ticket file is
   never rewritten, and both the spawned command and the composed
   mode-specific prompt block follow the override. Rejected for `mode: script`
-  tickets, which compose no agent prompt.
+  tickets, which compose no agent prompt. `--mode auto` is rejected while
+  the auto-launch policy is in force.
 - `relay launch bootstrap/<name>` — stateless shim; concurrent launches
   safe.
+
+Discussion bootstrap shims (`bootstrap/orient`, `bootstrap/ticket`) use
+built-in templates for the standard `claude` and `codex` CLIs, or the selected
+agent's optional `discussion = "...{prompt}..."` override. In interactive mode
+the Relay prompt is context and the first human ask can name the session.
+Other task launches keep passing the composed prompt positionally.
 
 Before composing the prompt, `launch` verifies the ticket is still where
 disk says it is: for an `active`/`in_progress` ticket on its final step (or
@@ -216,7 +230,7 @@ resolver and the same deletion is reachable as a `mode: script` step.
 Bootstrap shims aren't user-deletable — they're managed by
 `relay init --update`.
 
-## relay retire \<slug\> [--mode interactive|auto] [--agent <type>] [--no-launch]
+## relay retire \<slug\> [--mode interactive] [--agent <type>] [--no-launch]
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
 invokes the `retro/done-ticket` skill against the named ticket. The retro
@@ -225,8 +239,8 @@ base if warranted, and deletes the source task directory in the same PR.
 The retire task is scaffolded straight to `active`; `relay retire` launches
 it unless `--no-launch` is passed.
 
-- `relay retire <slug>` — scaffold and launch in `interactive` mode (use
-  `--mode auto` for a headless run).
+- `relay retire <slug>` — scaffold and launch in `interactive` mode (auto
+  is temporarily disabled).
 - `relay retire <slug> --no-launch` — scaffold the retire task (already
   `active`) and print the explicit `relay launch <slug>` command.
 
@@ -275,9 +289,9 @@ README `External CLI Tools` list, never in `requirements.txt`.
 
 ## relay panic --task \<slug\> --reason "..."
 
-Agent gives up. Writes a blocker to the ticket, posts to Slack naming
-the owner, releases the lock. Exits non-zero. Reserved for genuinely
-stuck states, not routine handoffs.
+Agent gives up. Writes a panic marker on the blackboard and posts a
+Slack notification naming the task owner. Exits non-zero. Reserved for
+genuinely stuck states, not routine handoffs.
 
 ## relay slack --task \<slug\> --message "..."
 
@@ -294,7 +308,7 @@ not two. Slack is required (see `relay/sync`); commands crash if
 
 Run Relay's generic cleanup pass now. `dream` is not a built-in command — it
 is a default alias for `recurring launch dream`. It scaffolds the
-`relay-os/recurring/dream.md` recurring task and launches it interactively.
+`relay-os/recurring/dream/` recurring task and launches it interactively.
 
 The task slug is the recurring period key (`dream-2026-W21`): running
 `relay dream` mid-week reuses that week's task instead of creating a second
@@ -323,12 +337,18 @@ for that run, even ones whose template says `mode: auto` — the debug knob
 for stepping through a recurring run by hand. It threads `relay launch
 --mode interactive` through and rewrites no ticket files.
 
+**`mode: auto` templates are temporarily skipped** with a stderr line and
+a Slack scan-error summary. The auto-launch path produces no live console
+output, so scheduled runs would sit silently. Templates should use
+`mode: script` (or `mode: interactive` if they can run from a TTY) until
+streaming lands.
+
 Dream, REM, and other recurring maintenance loops all use this surface.
 
 ## relay recurring launch \<name\>
 
 Scaffold one named recurring template now and launch it, ignoring its
-schedule. `name` is the file stem under `relay-os/recurring/`. The task slug
+schedule. `name` is the directory name under `relay-os/recurring/`. The task slug
 still uses the template's schedule-derived period key, so a manual `launch`
 and a bare `relay recurring` converge on one task directory per period
 (idempotent — a second `launch` in the same period reuses the existing

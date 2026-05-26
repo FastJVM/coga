@@ -13,14 +13,20 @@ auto = "-p"
 file = "CLAUDE.md"
 mode = "local"
 # `claude -n <name>` sets the session display name shown in the /resume
-# picker, the prompt box, and the terminal title.
+# picker, the prompt box, and the terminal title. Skipped in discussion
+# launches so the human's first ask names the session.
 name_flag = "-n"
+# `discussion` rides the composed prompt as system context for discussion
+# sessions (`relay chat`, `relay ticket`) so the human's first ask becomes
+# the session title instead of a 20KB Relay prompt.
+discussion = "--append-system-prompt {prompt}"
 
 [agents.codex]
 cli = "codex"
 auto = "exec"
 file = "AGENTS.md"
 mode = "local"
+discussion = "-c developer_instructions={prompt}"
 
 # --- Slack ---
 # Slack is the team sync point — every state change (ticket created,
@@ -65,7 +71,7 @@ mode = "local"
 
 [aliases]
 chat = "launch bootstrap/orient"
-# `dream` scaffolds the `recurring/dream.md` cleanup task and launches it now —
+# `dream` scaffolds the `recurring/dream/` cleanup task and launches it now —
 # the same path `relay recurring launch dream` takes.
 dream = "recurring launch dream"
 # Uncomment to add per-agent shortcuts. The --agent value must match an

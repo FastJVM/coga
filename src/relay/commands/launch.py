@@ -43,6 +43,13 @@ from relay.ticket import Ticket
 from relay.validate import TaskValidationError
 
 
+DISCUSSION_BOOTSTRAP_SHIMS = frozenset({"bootstrap/orient", "bootstrap/ticket"})
+DEFAULT_DISCUSSION_TEMPLATES = {
+    "claude": "--append-system-prompt {prompt}",
+    "codex": "-c developer_instructions={prompt}",
+}
+
+
 def launch(
     task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` shim."),
     agent_override: str | None = typer.Option(
@@ -191,6 +198,20 @@ def launch(
     if mode not in ("interactive", "auto"):
         _bail(f"Unknown mode: {mode!r}")
 
+    if mode == "auto":
+        # Temporary policy. `claude -p` and `codex exec` buffer stdout until
+        # the run completes, so auto launches produce no live console output
+        # for the operator. Until relay grows a streaming consumer for the
+        # agent's structured output, we refuse rather than let runs sit
+        # silently. Re-enable when streaming lands.
+        _bail(
+            f"Cannot launch {ref.id_slug!r}: mode=auto is temporarily disabled. "
+            "Auto runs produce no live console output (claude -p and codex exec "
+            "buffer until completion), so unattended runs are unobservable. "
+            "Edit the ticket to mode: interactive (and run from a TTY), or "
+            "mode: script if the work fits a single script entry point."
+        )
+
     if mode == "interactive" and not _interactive_stdio_has_tty():
         _bail(
             f"Cannot launch {ref.id_slug!r}: mode=interactive requires a TTY "
@@ -237,12 +258,11 @@ def launch(
     env = os.environ.copy()
     env.update(cfg.secrets)
 
-    # Mark the session as supervised so `relay bump`, run from inside the
-    # agent, can tell the human that exiting will let this launch process
-    # pick up the next step. Bootstrap shims don't chain; script/auto
-    # processes exit on their own, so the hint is interactive-only.
-    if not is_bootstrap and mode == "interactive":
-        env["RELAY_SUPERVISED"] = "1"
+    # Auto-chaining is reserved for unattended runs. Interactive launches
+    # belong to the human at the terminal — and to any caller that wraps
+    # them (e.g. `relay recurring --interactive`) — so we run the agent
+    # exactly once and return control to the caller on exit. No
+    # `RELAY_SUPERVISED` hint, no respawn on bump.
 
     # Install a signal-safe cleanup.
     prompt_file: Path | None = None
@@ -284,7 +304,13 @@ def launch(
                 f"Launch: prompt written to {prompt_file} "
                 f"({len(prompt)} chars)"
             )
-            cmd = build_agent_command(agent, mode, prompt, name=ticket.title or "")
+            cmd = build_agent_command(
+                agent,
+                mode,
+                prompt,
+                name=ticket.title or "",
+                discussion=_is_discussion_bootstrap(ref),
+            )
             typer.echo(
                 f"Launch: command: "
                 f"{_format_agent_command_for_console(cmd, prompt)}"
@@ -322,6 +348,15 @@ def launch(
                 )
                 sys.exit(exit_code)
 
+            # Interactive launches do not chain. One agent run, then back to
+            # the caller — `relay recurring --interactive` moves to the next
+            # task, or the user runs `relay launch <slug>` again to get a
+            # fresh context. Auto-chaining is reserved for unattended runs
+            # (mode: auto, when re-enabled), where the supervisor is the
+            # only thing watching the workflow advance.
+            if mode == "interactive":
+                break
+
             # An agent may delete its own task directory as a final action —
             # e.g. a Dream run retiring itself once its findings are durable.
             # A missing ticket.md is a clean terminal state, not a chain step.
@@ -348,23 +383,51 @@ def launch(
 
 
 def build_agent_command(
-    agent, mode: str, prompt: str, name: str = ""
+    agent, mode: str, prompt: str, *, name: str = "", discussion: bool = False
 ) -> list[str]:
     """Build the argv for spawning the agent.
 
     Interactive: `<cli> <prompt>` — agent opens its REPL with the prompt as
     the first user message. Auto: `<cli> <auto-flag(s)> <prompt>` — prefix
     flags put the CLI in headless mode (e.g. `-p` for claude, `exec` for
-    codex). When the agent declares `name_flag` and a non-empty `name` is
-    passed, `<name_flag> <name>` is inserted right after the CLI so the
-    spawned session carries the ticket title in its picker / window title.
+    codex).
+
+    When the agent declares `name_flag` and a non-empty `name` is passed,
+    `<name_flag> <name>` is inserted right after the CLI so the spawned
+    session carries the ticket title in its picker / window title. Skipped
+    in `discussion` mode so the human's first ask names the session.
+
+    `discussion=True` (used for human discussion sessions like `relay chat`
+    and `relay ticket`) routes the prompt through the agent's
+    `discussion = "..."` template in `relay.toml` so it lands as
+    system/developer context instead of as the first user message. The agent
+    opens with no user message, letting the human's first ask set the session
+    title. Uses configured `agent.discussion`, then built-in templates for
+    known `claude` / `codex` CLIs, then falls back to positional.
     """
+    discussion_template = _discussion_template(agent) if discussion else ""
+    if discussion_template and mode == "interactive":
+        tokens = [
+            tok.replace("{prompt}", prompt)
+            for tok in shlex.split(discussion_template)
+        ]
+        return [agent.cli, *tokens]
     name_args: list[str] = []
     if name and agent.name_flag:
         name_args = [*shlex.split(agent.name_flag), name]
     if mode == "interactive":
         return [agent.cli, *name_args, prompt]
     return [agent.cli, *name_args, *shlex.split(agent.auto), prompt]
+
+
+def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
+    return isinstance(ref, BootstrapRef) and ref.id_slug in DISCUSSION_BOOTSTRAP_SHIMS
+
+
+def _discussion_template(agent) -> str:
+    if agent.discussion:
+        return agent.discussion
+    return DEFAULT_DISCUSSION_TEMPLATES.get(Path(agent.cli).name, "")
 
 
 def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:

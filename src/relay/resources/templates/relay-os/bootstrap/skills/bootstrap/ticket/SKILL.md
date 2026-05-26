@@ -15,10 +15,10 @@ the interview short — 4–6 questions, not a survey.
 
 The canonical ticket shape is `relay-os/tasks/_template/ticket.md`. **Read it
 once before you start** — that's the frontmatter fields and body sections
-your filled ticket has to match. A real example in the same tree to mimic:
+your filled ticket has to match. For a real example, browse the same tree:
 
-- `relay-os/tasks/fix-relay-status-narrow-terminal-table-wrapping/ticket.md`
-  — a code-change ticket with `contexts:` + `workflow:` filled in.
+- `relay-os/tasks/<slug>/ticket.md` — any existing code-change ticket with
+  `contexts:` + `workflow:` filled in works as a model to mimic.
 
 Every ticket carries a workflow — the ordered steps the work moves through.
 A ticket with no workflow can't be activated: `relay mark active` refuses it.
@@ -81,6 +81,10 @@ Rules:
   `skill:` refs, not by putting skill text into `contexts:`. If a relevant
   skill exists but no workflow uses it yet, mention the skill ref in the body
   or propose the workflow change.
+
+The exception is `bootstrap/orient`, which is the orientation shim itself; it
+intentionally attaches broad relay contexts so an ad-hoc oriented session has
+the operator reference loaded.
 
 ## Step 3 — Interview the human
 
@@ -244,6 +248,6 @@ Updated <slug>. Run `relay launch <slug>` when ready to start work.
 
 Optionally `relay slack --task <slug> --message "<short>"` if the ticket
 warrants a heads-up to the channel (a new context was created, an assignee
-changed, etc.). Skip the feed for routine fill-ins.
+changed, etc.). Skip the Slack post for routine fill-ins.
 
 Then exit.

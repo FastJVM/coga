@@ -23,8 +23,15 @@ class AgentType:
     # Flag (or flag template) the CLI accepts to set the session display name
     # at launch — e.g. `-n` for claude (shown in /resume, prompt box, terminal
     # title). Empty when the CLI has no such flag. Split with shlex; the
-    # ticket title is appended as the next argv element.
+    # ticket title is appended as the next argv element. Skipped in
+    # `discussion` mode so the human's first ask can name the session.
     name_flag: str = ""
+    # Optional argv override for discussion prompts (`relay chat`, `relay ticket`):
+    # the composed prompt rides as system/developer context instead of becoming
+    # the agent's first user message. Parsed via `shlex.split`; the literal
+    # token `{prompt}` is replaced with the composed prompt. Empty string lets
+    # launch use its built-in defaults for known CLIs, then positional fallback.
+    discussion: str = ""
 
 
 @dataclass(frozen=True)
@@ -198,6 +205,12 @@ def _parse_agents(raw: dict) -> dict[str, AgentType]:
         for required in ("cli", "auto", "file"):
             if required not in data:
                 raise ConfigError(f"agents.{name}.{required} is required")
+        discussion = data.get("discussion", "")
+        if not isinstance(discussion, str):
+            raise ConfigError(
+                f"agents.{name}.discussion must be a string "
+                f"(got {type(discussion).__name__})"
+            )
         out[name] = AgentType(
             name=name,
             cli=data["cli"],
@@ -205,6 +218,7 @@ def _parse_agents(raw: dict) -> dict[str, AgentType]:
             file=data["file"],
             mode=data.get("mode", "local"),
             name_flag=data.get("name_flag", ""),
+            discussion=discussion,
         )
     return out
 
