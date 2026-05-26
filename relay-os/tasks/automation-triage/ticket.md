@@ -1,5 +1,5 @@
 ---
-title: Automation-triage meta-skill — sort a task into one of three workflows
+title: Automation-triage-skill — sort a task into one of three workflows
 status: draft
 mode: interactive
 owner: zach
@@ -13,17 +13,13 @@ workflow: null
 
 ## Description
 
-Before we automate a task, someone has to decide *how much* to automate
-it. Today that judgment lives in our heads and gets re-litigated every
-time. This ticket proposes a single meta-skill that interviews the human
-about a candidate task and emits a follow-up automation ticket with the
+Browser automations should always start with a decision of *how much* to automate the task. Today that judgment lives in our heads and gets re-litigated every time. This ticket proposes a skill that interviews the human
+about a candidate task and emits a follow-up browser automation ticket with the
 right workflow already attached.
 
-Triage turns on two questions — *how costly is a wrong result?* and *can
-a human reliably tell a right result from a wrong one?* — which sort the
+Triage turns on two factors — failure radius (*If this task went out wrong and no one caught it, what's the worst that happens--can we fix it?*) and machine feasibility (*Can a machine do this reliably, or is a human needed to perform it?*) — which sort the
 task into one of three workflows: **human-only**, **human-verify**, or
-**fully-automated**. The driver is the cost of being wrong, not whether
-an irreversible action exists.
+**fully-automated**.
 
 This ticket is the explanation only. It defines the triage questions, the
 rules each classification must abide by, and the list of skills and
@@ -32,44 +28,31 @@ it's a proposal to review before any of it lands.
 
 ## Triage questions
 
-The meta-skill walks the human through these in order:
+The skill walks the human through these in order:
 
-1. **Cost of being wrong.** If a wrong result slipped through, how costly
-   and reversible is it? (Cheap to correct → leans automated. High-cost
-   or hard to reverse → leans human.)
-2. **Recognizability.** Can a human reliably look at the output and tell a
-   correct result from a wrong one?
-3. **Irreversible action.** Is there a final submit/send? This decides
-   *who fires it*, not which classification the task lands in.
+1. **Worst-case.** If a wrong result slipped through, what's the worst that can happen? (Low-cost failures → leans automated; High-cost failures → leans human.)
+2. **Reversibility.** If a wrong result is shipped, can it be undone? (Question 1 and question 2 together make up the failure radius)
+3. **Machine feasibility.** Can a machine do this reliably, or does a human have to perform it?
 
 ## Classifications
 
-Each follow-up ticket is assigned exactly one. The rules each must abide
+Each follow-up ticket is assigned exactly one workflow. The rules each browser automation ticket must abide
 by:
 
-- **human-only** — High cost of being wrong **and** the human cannot
-  reliably recognize a correct result. No trustworthy success signal
-  exists, so the human does the task end to end. (e.g. KP Recert sign-off
-  is not something we'd let run unattended — coverage could be dropped.)
-- **human-verify** — High cost of being wrong **but** the human *can*
-  clearly tell right from wrong. The agent does the task end to end and
-  stops before the irreversible step; the human reviews the output and
-  fires the submit/send themselves.
-- **fully-automated** — Low cost of being wrong; errors are cheaply
-  correctable. The agent does the task and the final action with no human
-  gate. (e.g. RxDC report — a wrong amount just gets a correction notice.)
+- **human-only** — A machine can't do this reliably; a human performs it end to end. (Clicking "OK" on Xero)
+- **human-verify** — A machine can do it, but the failure radius is high, so the agent runs end to end, stops before the irreversible step, and the human reviews and fires it. (KP Recert)
+- **fully-automated** — A machine can do it and the failure radius is low, so it runs unattended. (RxDC Report)
 
-## Repeatable process (applies to every follow-up)
+## Build rules
 
-- Run the triage questions above before assigning a classification.
+Two rules should be part of the automation workflows (human-verify and fully-automated). They aren't standalone. 
+
 - **Dry-run before live.** Every automation build is dry-run and confirmed
   before it's allowed to run live.
-- **Easy downgrade.** If a task aligned to an automated workflow proves too
-  hard to automate, switching it to **human-only** must be cheap — the
-  meta-skill owns that escape hatch.
-- **Always-on contexts.** Every automation ticket carries two standing
-  contexts: search for an API first (APIs are less brittle than browser
-  automation), and all browser automation is DOM-backed.
+- **Easy downgrade.** The `human-verify` and `fully-automated` workflows fail
+    loud at the dry-run/build step if the task can't be automated reliably (per
+    `dom-backed`'s blocker process); the documented resolution is a cheap
+    re-assign to `human-only`.
 
 ## Skills & contexts to create (list only — not built here)
 
@@ -101,5 +84,3 @@ Workflows (one per classification):
 
 - Is there a fourth classification we should define? (One was floated but
   not pinned down.)
-- Where do these live long-term — seeded by the CLI into every workspace,
-  or per-workspace? This ticket assumes CLI-seeded primitives.
