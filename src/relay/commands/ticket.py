@@ -149,7 +149,7 @@ def _run_authoring_session(
     )
     prompt = compose_prompt(cfg, ref, ticket)
     prompt_file = write_prompt_file(prompt, ref)
-    cmd = build_agent_command(agent, "interactive", prompt)
+    cmd = build_agent_command(agent, "interactive", prompt, discussion=True)
     typer.echo(
         "Ticket: command: "
         f"{_format_agent_command_for_console(cmd, prompt)}"

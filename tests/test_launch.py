@@ -31,9 +31,14 @@ def _capture_slack(sink: list[str], json_payload):
 # --- unit: command construction ------------------------------------------------
 
 
-def _agent(auto: str, chat: str = "") -> AgentType:
+def _agent(auto: str, discussion: str = "") -> AgentType:
     return AgentType(
-        name="x", cli="my-cli", auto=auto, file="X.md", mode="local", chat=chat
+        name="x",
+        cli="my-cli",
+        auto=auto,
+        file="X.md",
+        mode="local",
+        discussion=discussion,
     )
 
 
@@ -52,27 +57,47 @@ def test_build_command_auto_subcommand_style() -> None:
     assert cmd == ["my-cli", "exec", "full prompt text"]
 
 
-def test_build_command_ambient_uses_chat_template_for_claude() -> None:
-    agent = _agent("-p", chat="--append-system-prompt {prompt}")
-    cmd = build_agent_command(agent, mode="interactive", prompt="orient body", ambient=True)
+def test_build_command_discussion_uses_template_for_claude() -> None:
+    agent = _agent("-p", discussion="--append-system-prompt {prompt}")
+    cmd = build_agent_command(
+        agent,
+        mode="interactive",
+        prompt="orient body",
+        discussion=True,
+    )
     assert cmd == ["my-cli", "--append-system-prompt", "orient body"]
 
 
-def test_build_command_ambient_uses_chat_template_for_codex() -> None:
-    agent = _agent("exec", chat="-c developer_instructions={prompt}")
-    cmd = build_agent_command(agent, mode="interactive", prompt="orient body", ambient=True)
+def test_build_command_discussion_uses_template_for_codex() -> None:
+    agent = _agent("exec", discussion="-c developer_instructions={prompt}")
+    cmd = build_agent_command(
+        agent,
+        mode="interactive",
+        prompt="orient body",
+        discussion=True,
+    )
     assert cmd == ["my-cli", "-c", "developer_instructions=orient body"]
 
 
-def test_build_command_ambient_falls_back_when_chat_unset() -> None:
-    agent = _agent("-p", chat="")
-    cmd = build_agent_command(agent, mode="interactive", prompt="orient body", ambient=True)
+def test_build_command_discussion_falls_back_when_template_unset() -> None:
+    agent = _agent("-p", discussion="")
+    cmd = build_agent_command(
+        agent,
+        mode="interactive",
+        prompt="orient body",
+        discussion=True,
+    )
     assert cmd == ["my-cli", "orient body"]
 
 
-def test_build_command_ambient_ignored_in_auto_mode() -> None:
-    agent = _agent("-p", chat="--append-system-prompt {prompt}")
-    cmd = build_agent_command(agent, mode="auto", prompt="orient body", ambient=True)
+def test_build_command_discussion_ignored_in_auto_mode() -> None:
+    agent = _agent("-p", discussion="--append-system-prompt {prompt}")
+    cmd = build_agent_command(
+        agent,
+        mode="auto",
+        prompt="orient body",
+        discussion=True,
+    )
     assert cmd == ["my-cli", "-p", "orient body"]
 
 
@@ -896,13 +921,12 @@ def test_launch_bootstrap_skips_status_and_lock(
     assert "launched in interactive mode" in log
 
 
-def test_launch_bootstrap_uses_chat_template_when_agent_configures_one(
+def test_launch_discussion_bootstrap_uses_discussion_template(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """With `chat = "..."` on the agent, the bootstrap shim's composed prompt
-    rides as system context instead of becoming the first user message — so
-    the human's first ask sets the session title."""
-    # Rewrite the fixture's relay.toml to add a `chat` template on claude.
+    """Discussion shims ride the composed prompt as system context instead of
+    making it the first user message."""
+    # Rewrite the fixture's relay.toml to add a discussion template on claude.
     _write(
         bootstrap_repo / "relay.toml",
         """
@@ -912,7 +936,7 @@ def test_launch_bootstrap_uses_chat_template_when_agent_configures_one(
         cli = "claude"
         auto = "-p"
         file = "CLAUDE.md"
-        chat = "--append-system-prompt {prompt}"
+        discussion = "--append-system-prompt {prompt}"
         [agents.codex]
         cli = "codex"
         auto = "exec"
@@ -942,6 +966,43 @@ def test_launch_bootstrap_uses_chat_template_when_agent_configures_one(
     assert cmd[0] == "claude"
     assert cmd[1] == "--append-system-prompt"
     assert "Skill: bootstrap/ticket" in cmd[2]
+
+
+def test_launch_regular_task_does_not_use_discussion_template(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write(
+        active_task / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        discussion = "--append-system-prompt {prompt}"
+        """,
+    )
+    captured: dict[str, object] = {}
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        captured["cmd"] = cmd
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+
+    cmd = captured["cmd"]
+    assert cmd[0] == "claude"
+    assert "Fix retry logic" in cmd[1]
 
 
 def test_launch_bootstrap_agent_override_uses_requested_agent(

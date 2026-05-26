@@ -77,6 +77,22 @@ def test_resolve_agent_type(repo: Path) -> None:
     assert agent.name == "claude"
 
 
+def test_agent_discussion_template(repo: Path) -> None:
+    text = (repo / "relay.toml").read_text()
+    (repo / "relay.toml").write_text(
+        text + 'discussion = "--append-system-prompt {prompt}"\n'
+    )
+    cfg = load_config(repo)
+    assert cfg.agent_type("claude").discussion == "--append-system-prompt {prompt}"
+
+
+def test_agent_discussion_template_must_be_string(repo: Path) -> None:
+    text = (repo / "relay.toml").read_text()
+    (repo / "relay.toml").write_text(text + "discussion = 42\n")
+    with pytest.raises(ConfigError, match="agents.claude.discussion must be a string"):
+        load_config(repo)
+
+
 def test_unknown_agent_type(repo: Path) -> None:
     cfg = load_config(repo)
     with pytest.raises(ConfigError, match="Agent type 'goat' is not defined"):
@@ -300,5 +316,4 @@ def test_ticket_fields_required_must_be_bool(repo: Path) -> None:
     )
     with pytest.raises(ConfigError, match="required must be a boolean"):
         load_config(repo)
-
 

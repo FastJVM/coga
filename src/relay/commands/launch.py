@@ -43,6 +43,9 @@ from relay.ticket import Ticket
 from relay.validate import TaskValidationError
 
 
+DISCUSSION_BOOTSTRAP_SHIMS = frozenset({"bootstrap/orient", "bootstrap/ticket"})
+
+
 def launch(
     task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` shim."),
     agent_override: str | None = typer.Option(
@@ -284,7 +287,12 @@ def launch(
                 f"Launch: prompt written to {prompt_file} "
                 f"({len(prompt)} chars)"
             )
-            cmd = build_agent_command(agent, mode, prompt, ambient=is_bootstrap)
+            cmd = build_agent_command(
+                agent,
+                mode,
+                prompt,
+                discussion=_is_discussion_bootstrap(ref),
+            )
             typer.echo(
                 f"Launch: command: "
                 f"{_format_agent_command_for_console(cmd, prompt)}"
@@ -344,7 +352,7 @@ def launch(
 
 
 def build_agent_command(
-    agent, mode: str, prompt: str, *, ambient: bool = False
+    agent, mode: str, prompt: str, *, discussion: bool = False
 ) -> list[str]:
     """Build the argv for spawning the agent.
 
@@ -353,21 +361,26 @@ def build_agent_command(
     flags put the CLI in headless mode (e.g. `-p` for claude, `exec` for
     codex).
 
-    `ambient=True` (used for interactive bootstrap-shim launches like
-    `relay chat`) routes the prompt through the agent's `chat = "…"` template
-    in `relay.toml` so it lands as system/developer context instead of as the
-    first user message. The agent opens with no user message, letting the
-    human's first ask set the session title. Falls back to positional when
-    the agent has no `chat` template configured.
+    `discussion=True` (used for human discussion sessions like `relay chat`
+    and `relay ticket`) routes the prompt through the agent's
+    `discussion = "..."` template in `relay.toml` so it lands as
+    system/developer context instead of as the first user message. The agent
+    opens with no user message, letting the human's first ask set the session
+    title. Falls back to positional when the agent has no discussion template.
     """
-    if ambient and mode == "interactive" and agent.chat:
+    if discussion and mode == "interactive" and agent.discussion:
         tokens = [
-            tok.replace("{prompt}", prompt) for tok in shlex.split(agent.chat)
+            tok.replace("{prompt}", prompt)
+            for tok in shlex.split(agent.discussion)
         ]
         return [agent.cli, *tokens]
     if mode == "interactive":
         return [agent.cli, prompt]
     return [agent.cli, *shlex.split(agent.auto), prompt]
+
+
+def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
+    return isinstance(ref, BootstrapRef) and ref.id_slug in DISCUSSION_BOOTSTRAP_SHIMS
 
 
 def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:

@@ -72,6 +72,11 @@ terminal rather than later at activation. For a new draft, the boot sequence
 is: `relay ticket "<title>"` → review/edit → `relay mark active <slug>` →
 `relay launch <slug>`.
 
+When `[agents.<type>].discussion` is configured, `relay ticket` passes the
+composed authoring prompt through that argv template as system/developer
+context instead of as the first user message. That lets the first real human
+exchange set the agent session title for later resume.
+
 ## relay mark \<state\> \<slug\> [--message "..."]
 
 Change a ticket's `status`. Three subcommands: `mark active`,
@@ -127,6 +132,12 @@ including `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
   tickets, which compose no agent prompt.
 - `relay launch bootstrap/<name>` — stateless shim; concurrent launches
   safe.
+
+Discussion bootstrap shims (`bootstrap/orient`, `bootstrap/ticket`) use the
+selected agent's optional `discussion = "...{prompt}..."` template in
+interactive mode, so the Relay prompt is context and the first human ask can
+name the session. Other task launches keep passing the composed prompt
+positionally.
 
 Before composing the prompt, `launch` verifies the ticket is still where
 disk says it is: for an `active`/`in_progress` ticket on its final step (or
