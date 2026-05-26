@@ -6,3 +6,10 @@ Generated: 2026-05-22T23:03:29+00:00
 Task: `dream-w21-cleanup-orphan-markers`
 
 Result: no-op. No cleanup-eligible processed done tickets still have task directories.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for dream-w21-cleanup-orphan-markers

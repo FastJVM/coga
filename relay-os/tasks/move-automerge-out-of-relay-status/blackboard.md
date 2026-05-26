@@ -105,3 +105,10 @@ Tests: 380 passed, 1 skipped. One pre-existing failure unrelated to
 this change — `test_commands.py::test_bump_unsupervised_prints_no_hint`
 fails identically on clean `main` (verified via `git stash`). Not
 masked, not caused here.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: New principle: read-only commands must not mutate state

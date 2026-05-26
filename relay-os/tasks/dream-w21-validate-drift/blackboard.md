@@ -34,3 +34,10 @@ Result: 12 issue(s): 0 direct fix, 0 PR proposal, 12 human-needed.
   Remediation: Unknown validator issue kind. Ask a human before changing repo state.
 - `use-slack-as-a-sync-channel-for-tickets`: `missing-workflow` (warn) - draft has no `workflow:` — it can't be activated (`relay mark active` refuses a workflow-less ticket). Set `workflow: <name>` or run `relay ticket <slug>`.
   Remediation: Unknown validator issue kind. Ask a human before changing repo state.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for dream-w21-validate-drift

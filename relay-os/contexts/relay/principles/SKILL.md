@@ -46,6 +46,23 @@ output because a context or skill silently failed to load.
 If the cost of a check is one line of code and the cost of skipping
 it is "agent gives wrong answer and nobody knows," always check.
 
+## Read-only commands stay read-only
+
+A command whose name and shape promise a read (`status`, `show`,
+`validate`, `--prompt-report`) must not mutate ticket state, shell
+out to network services, or swallow errors as a side effect of
+reading. Users `grep` and pipe these commands; they expect a fast,
+deterministic, filesystem-only read. A read that quietly bumps a
+ticket, posts to Slack, or no-ops on a missing `gh` is exactly the
+silent-wrong-answer shape `fail loud` exists to prevent — and it
+makes the command network-dependent and slow on top of that.
+
+Catch-up work (auto-bumping on a merged PR, refreshing remote state)
+belongs in an explicit command (`relay automerge`), a git hook
+(`post-merge`), or a recurring task — surfaces that announce they
+mutate state and surface their own failures. Don't bolt it onto a
+read.
+
 ## Classical mode (Pirsig)
 
 Build the thing well. Understand each part. Resist accumulating
