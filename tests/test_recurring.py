@@ -490,9 +490,15 @@ def test_bare_recurring_scans_and_launches_due(
     assert calls[0].startswith("dream-")
 
 
-def test_bare_recurring_stops_before_next_due_task_if_launch_unfinished(
+def test_bare_recurring_continues_past_unfinished_interactive_task(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Interactive templates do not gate the sweep on `status: done`.
+
+    The human is driving — exiting the agent without marking done is a
+    "move on" signal, not a stuck task. The sweep prints a note and
+    proceeds to the next due task.
+    """
     _write_recurring(
         repo,
         "z-weekly-check",
@@ -523,9 +529,84 @@ def test_bare_recurring_stops_before_next_due_task_if_launch_unfinished(
 
     result = CliRunner().invoke(app, ["recurring"])
 
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 2
+    assert calls[0].startswith("weekly-check-")
+    assert calls[1].startswith("z-weekly-check-")
+    assert "continuing to next due task (interactive)" in result.output
+
+
+def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-interactive (script/auto) templates still gate the sweep on done.
+
+    Unattended runs can't be redirected by a human at the terminal, so a
+    launched-but-unfinished task is a stuck task and stops the sweep.
+    """
+    company = tmp_path / "relay-os"
+    _write(
+        company / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write_recurring(
+        company,
+        "nightly-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Nightly diagnostic"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the nightly diagnostic suite.
+        """,
+    )
+    _write_recurring(
+        company,
+        "z-nightly-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Second nightly check"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the second nightly diagnostic suite.
+        """,
+    )
+    monkeypatch.chdir(company)
+    calls: list[str] = []
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        calls.append(task)
+        ticket = Ticket.read(company / "tasks" / task / "ticket.md")
+        ticket.frontmatter["status"] = "in_progress"
+        ticket.write(company / "tasks" / task / "ticket.md")
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+
+    result = CliRunner().invoke(app, ["recurring"])
+
     assert result.exit_code == 1, result.output
     assert len(calls) == 1
-    assert calls[0].startswith("weekly-check-")
+    assert calls[0].startswith("nightly-check-")
     combined = result.output + (result.stderr or "")
     assert "stopping before the next due task" in combined
 

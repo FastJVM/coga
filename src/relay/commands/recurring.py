@@ -78,7 +78,7 @@ def main(
             no_verify=False,
             mode_override=mode_override,
         )
-        _stop_if_unfinished_after_launch(task.ref)
+        _stop_if_unfinished_after_launch(task.ref, interactive=interactive)
 
 
 @app.command("launch")
@@ -160,13 +160,28 @@ def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> Non
     )
 
 
-def _stop_if_unfinished_after_launch(ref: TaskRef) -> None:
-    """Stop a bare recurring sweep if one launched task is still in flight."""
+def _stop_if_unfinished_after_launch(ref: TaskRef, *, interactive: bool) -> None:
+    """Stop a bare recurring sweep if one launched task is still in flight.
+
+    `interactive` is set when the sweep is `--interactive` (or the just-
+    launched template's own `mode:` was interactive). In that case the human
+    is driving — exiting the agent without marking done is a valid "move on"
+    signal, not a stuck task — so we print a note and continue instead of
+    bailing the sweep.
+    """
     if not (ref.path / "ticket.md").exists():
         return
 
     ticket = read_ticket(ref)
     if ticket.status == "done":
+        return
+
+    if interactive or ticket.mode == "interactive":
+        typer.secho(
+            f"{ref.id_slug}: ended with status={ticket.status!r}; "
+            "continuing to next due task (interactive).",
+            fg=typer.colors.YELLOW,
+        )
         return
 
     typer.secho(
