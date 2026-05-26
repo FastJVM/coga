@@ -26,10 +26,10 @@ scanner skips it. That is how the starter templates ship without firing.
 
 - `relay recurring` (bare) — scans every recurring task, get-or-creates the
   current period's task for each, and launches the ones still `active`. Run
-  from `scripts/cron.sh`. If an older period task for the same template is
-  not `done`, Relay skips the new scaffold and reports the blocked template.
-  If a launched task returns still unfinished, the sweep stops before the next
-  due task.
+  from `scripts/cron.sh`. A stuck prior-period task (anything past `done`)
+  is the human's problem in `relay status` — it does not block the new
+  period's scaffold. If a launched task returns still unfinished, the sweep
+  stops before the next due task.
 - `relay recurring launch <name>` — scaffolds one named recurring task now,
   ignoring its schedule. `<name>` is the directory name.
 
@@ -70,10 +70,13 @@ the launched run actually does it.
   firing: hourly → `YYYY-MM-DD-HH`, daily → `YYYY-MM-DD`, weekly →
   `YYYY-Www`, monthly → `YYYY-MM`. Scaffolding is idempotent within a
   period: two runs in the same period converge on one period task.
-- A recurring template has at most one unfinished period task at a time.
-  Older tasks for that template with any status other than `done` block new
-  period scaffolding; finish, pause-and-resolve, or delete the old run before
-  expecting the next period to launch.
+- **The recurring template's `log.md` is the period ledger.** Bare
+  `relay recurring` reads it before scaffolding: a period whose log already
+  records a `scaffolded <slug>` line and whose task directory is now gone
+  (Dream self-deletes after `relay mark done`; a human `relay delete` is
+  the other case) has been handled — it is not re-scaffolded and not
+  re-launched. The on-demand `relay recurring launch <name>` (and aliases
+  like `relay dream`) bypass this check: it's the explicit override.
 - Period tasks scaffold **straight to `status: active`** — ready jobs, not
   drafts to triage. (A workflow-less one could not otherwise be activated:
   `relay mark active` refuses workflow-less tickets.)

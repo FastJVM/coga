@@ -213,7 +213,13 @@ def _print_table(scan: DueScan) -> None:
     typer.echo(f"Recurring scan — {now:%Y-%m-%d %H:%M}\n")
     for task in scan.tasks:
         when = _firing_label(task.last_fire, now)
-        if task.launchable:
+        if task.ref is None:
+            # The period was scaffolded earlier this cycle and the task
+            # was removed afterwards (Dream self-delete or `relay delete`).
+            action = typer.style(
+                "skip (ran this period)", fg=typer.colors.BRIGHT_BLACK
+            )
+        elif task.launchable:
             action = typer.style("→ launch", fg=typer.colors.GREEN)
         else:
             action = typer.style(

@@ -90,10 +90,15 @@ class DueTask:
     `relay recurring` materializes this for every template, then launches the
     ones that are still `active`. `last_fire` is the scheduled firing this
     task covers — used to report "ready" vs "overdue" and to order launches.
+
+    `ref` is `None` when the period was already scaffolded earlier this cycle
+    and the task directory has since been removed (Dream self-deletes itself
+    after `relay mark done`; a human `relay delete` is the other case).
+    The template log is the period ledger — see `_period_already_scaffolded`.
     """
 
     template: str
-    ref: TaskRef
+    ref: TaskRef | None
     last_fire: datetime
     created: bool
     status: str
@@ -157,6 +162,36 @@ def scan_due(cfg: Config, now: datetime | None = None) -> DueScan:
             continue
         try:
             template = Template.load(path)
+        except RecurringError as exc:
+            sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
+            errors.append((path.name, str(exc)))
+            continue
+
+        last_fire = _last_firing(template.schedule, now)
+        period_key = _period_key(template.schedule, last_fire)
+        target_slug = f"{template.name}-{period_key}"
+
+        # The recurring template's `log.md` is the period ledger. If it
+        # already records a scaffolding for this period and the task
+        # directory is gone (Dream self-deletes after `relay mark done`;
+        # `relay delete` is the other case), the period has been handled —
+        # do not re-scaffold and re-launch what already ran this cycle.
+        if (
+            _task_with_slug(cfg, target_slug) is None
+            and _period_already_scaffolded(template, target_slug)
+        ):
+            tasks.append(
+                DueTask(
+                    template=template.name,
+                    ref=None,
+                    last_fire=last_fire,
+                    created=False,
+                    status="done",
+                )
+            )
+            continue
+
+        try:
             outcome = scaffold_template(cfg, template, now)
         except RecurringError as exc:
             # Don't let one bad template block the rest. Stderr keeps an
@@ -171,7 +206,7 @@ def scan_due(cfg: Config, now: datetime | None = None) -> DueScan:
             DueTask(
                 template=template.name,
                 ref=outcome.ref,
-                last_fire=_last_firing(template.schedule, now),
+                last_fire=last_fire,
                 created=outcome.created,
                 status=ticket.status,
             )
@@ -211,13 +246,9 @@ def scaffold_template(
     if existing is not None:
         return ScaffoldOutcome(ref=existing, created=False)
 
-    blocking = _blocking_prior_run(cfg, template.name, target_slug)
-    if blocking is not None:
-        ref, status = blocking
-        raise RecurringError(
-            f"previous run {ref.slug} is {status}; finish or delete it before "
-            f"scaffolding {target_slug}"
-        )
+    # A stuck prior-period run (`in_progress` or `paused`) is the human's
+    # problem — visible in `relay status` — not a reason to silently skip
+    # today's scheduled task. The new period scaffolds independently.
 
     # A recurring task is a machine-authored job: it scaffolds straight to
     # `active` and is meant to run, not be triaged. So when the template
@@ -310,42 +341,19 @@ def _task_with_slug(cfg: Config, target_slug: str) -> TaskRef | None:
     return None
 
 
-def _blocking_prior_run(
-    cfg: Config, template_name: str, target_slug: str
-) -> tuple[TaskRef, str] | None:
-    """Return an unfinished older period task for this template, if any."""
-    template_names = _template_names(cfg)
-    for ref in list_tasks(cfg):
-        if ref.slug == target_slug:
-            continue
-        if _template_for_slug(ref.slug, template_names) != template_name:
-            continue
-        ticket = read_ticket(ref)
-        if ticket.status != "done":
-            return ref, ticket.status
-    return None
+def _period_already_scaffolded(template: Template, target_slug: str) -> bool:
+    """Has this period's task ever been scaffolded?
 
-
-def _template_names(cfg: Config) -> list[str]:
-    root = recurring_dir(cfg)
-    if not root.is_dir():
-        return []
-    return sorted(
-        (
-            path.name
-            for path in root.iterdir()
-            if path.is_dir() and not path.name.startswith("_")
-        ),
-        key=len,
-        reverse=True,
-    )
-
-
-def _template_for_slug(slug: str, template_names: list[str]) -> str | None:
-    for name in template_names:
-        if slug.startswith(f"{name}-"):
-            return name
-    return None
+    Reads the template's own `log.md`, which `_record_run` appends to each
+    time a new period task is created. The log is the period ledger —
+    consulted when the task directory itself is missing (Dream's
+    self-delete-after-mark-done contract; a human `relay delete`).
+    """
+    log = template.log_path
+    if not log.is_file():
+        return False
+    needle = f"scaffolded {target_slug}"
+    return any(line.rstrip().endswith(needle) for line in log.read_text().splitlines())
 
 
 def _extract_description(template: Template) -> str:
