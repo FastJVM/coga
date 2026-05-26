@@ -32,6 +32,7 @@ from relay.commands.update import (
     packaged_template_root,
     prune_obsolete,
     refresh_cli,
+    refresh_gitignored_mirrors,
     refresh_templates,
     running_cli_location,
     upgrade_global_cli,
@@ -291,7 +292,13 @@ def _refresh_one(relay_os: Path, clone_dir: Path) -> _UpdateResult:
     source_checkout = is_relay_source_checkout(relay_os)
     refresh_cli(clone_dir, relay_os)
     if source_checkout:
-        copied, pruned_templates = [], []
+        # Source checkouts have their `_*` scaffolds, `.gitignore`, and
+        # canonical contexts/skills tracked in git — refresh_templates would
+        # clobber them. But `bootstrap/` and `recurring/dream/` are
+        # gitignored here, so they must still be materialized from package
+        # resources or `relay chat` / `relay dream` have nothing to launch.
+        copied = refresh_gitignored_mirrors(relay_os)
+        pruned_templates: list[str] = []
     else:
         copied, pruned_templates = refresh_templates(relay_os)
     sha = upstream_sha(clone_dir)
@@ -357,8 +364,9 @@ def _print_update_result(relay_os: Path, result: _UpdateResult) -> None:
             typer.echo(f"  {rel}")
     if result.source_checkout:
         typer.echo(
-            "Skipped relay-os template refresh/prune in Relay source checkout "
-            "(source files are managed by git)."
+            "Skipped tracked-fixture refresh/prune in Relay source checkout "
+            "(source files are managed by git). Refreshed gitignored "
+            "mirrors (bootstrap/, recurring/dream/) from package resources."
         )
     if result.pruned:
         typer.echo(f"Pruned {len(result.pruned)} obsolete path(s):")
