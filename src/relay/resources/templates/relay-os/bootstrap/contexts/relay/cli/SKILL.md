@@ -104,11 +104,12 @@ tickets must be marked back to active before they can be launched. Launching
 an `active` ticket marks it `in_progress` (posting `▶️`) before spawning the
 agent; launching an already-`in_progress` ticket resumes it without another
 status flip. Interactive launches require stdin and stdout to both be
-terminals. `mode: auto` runs the agent headless (claude `-p`, codex `exec`):
-no TTY needed, but stdout buffers until the run completes, so an auto launch
-shows no live console output until it finishes. `mode: script` runs the
-step's skill script directly. Script launches inject task metadata env vars
-including `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
+terminals. **`mode: auto` is temporarily disabled** — auto runs (claude
+`-p`, codex `exec`) buffer stdout until completion, leaving the operator
+with no live console signal. Use `mode: script` for unattended wrappers
+and CI until streaming lands. `mode: script` runs the step's skill script
+directly. Script launches inject task metadata env vars including
+`RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
 - `relay launch <slug> --agent <type>` — one-off agent-type override
@@ -124,7 +125,8 @@ including `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
   `mode: auto` ticket in an attended terminal. Ephemeral: the ticket file is
   never rewritten, and both the spawned command and the composed
   mode-specific prompt block follow the override. Rejected for `mode: script`
-  tickets, which compose no agent prompt.
+  tickets, which compose no agent prompt. `--mode auto` is rejected while
+  the auto-launch policy is in force.
 - `relay launch bootstrap/<name>` — stateless shim; concurrent launches
   safe.
 
@@ -216,7 +218,7 @@ resolver and the same deletion is reachable as a `mode: script` step.
 Bootstrap shims aren't user-deletable — they're managed by
 `relay init --update`.
 
-## relay retire \<slug\> [--mode interactive|auto] [--agent <type>] [--no-launch]
+## relay retire \<slug\> [--mode interactive] [--agent <type>] [--no-launch]
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
 invokes the `retro/done-ticket` skill against the named ticket. The retro
@@ -225,8 +227,8 @@ base if warranted, and deletes the source task directory in the same PR.
 The retire task is scaffolded straight to `active`; `relay retire` launches
 it unless `--no-launch` is passed.
 
-- `relay retire <slug>` — scaffold and launch in `interactive` mode (use
-  `--mode auto` for a headless run).
+- `relay retire <slug>` — scaffold and launch in `interactive` mode (auto
+  is temporarily disabled).
 - `relay retire <slug> --no-launch` — scaffold the retire task (already
   `active`) and print the explicit `relay launch <slug>` command.
 
@@ -322,6 +324,12 @@ optional entry point if you later wire it into a scheduler yourself.
 for that run, even ones whose template says `mode: auto` — the debug knob
 for stepping through a recurring run by hand. It threads `relay launch
 --mode interactive` through and rewrites no ticket files.
+
+**`mode: auto` templates are temporarily skipped** with a stderr line and
+a Slack scan-error summary. The auto-launch path produces no live console
+output, so scheduled runs would sit silently. Templates should use
+`mode: script` (or `mode: interactive` if they can run from a TTY) until
+streaming lands.
 
 Dream, REM, and other recurring maintenance loops all use this surface.
 

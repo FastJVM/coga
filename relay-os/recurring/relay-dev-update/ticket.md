@@ -2,11 +2,11 @@
 schedule: "0 9 * * *"
 schedule_comment: "Every day at 9am — daily digest of commits merged to main"
 title: "Relay dev update"
-# Runs headless (`auto`): a one-shot agent run whose output is buffered to the
-# task log. A daily `relay recurring` run get-or-creates the day's task when
-# this schedule is due; `relay recurring launch relay-dev-update` runs it now,
-# ignoring the schedule.
-mode: auto
+# `mode: auto` is temporarily disabled (no live console output from
+# headless agent runs), so this template runs in `interactive` mode and
+# requires a human terminal: `relay recurring launch relay-dev-update`.
+# Flip back to `mode: auto` when streaming lands.
+mode: interactive
 owner: nick
 assignee: claude
 ---
