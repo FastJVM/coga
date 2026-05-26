@@ -194,25 +194,56 @@ Write the evaluator's response to `blackboard.md` under a top-level
 **## Evaluator review** section, verbatim. Don't summarize — the human reads
 it directly.
 
-## Step 7 — Hand back to the human
+## Step 7 — Show the summary and ask the human to validate
 
-Print a one-line summary of what you did and what's next. For a draft ticket:
+Before exiting, print a compact summary the human can sanity-check at a
+glance. The point is to surface the choices that are easy to get wrong and
+hard to spot once the ticket has launched — workflow shape and the skills
+each step will run.
+
+Read `relay-os/workflows/<name>.md` for the workflow you picked and pull
+its step list (each step's `name:` and `skills:`). Then print:
 
 ```
-Filled <slug>. Evaluator review on blackboard. Review the draft, then run
-`relay mark active <slug>` and `relay launch <slug>` when ready.
+<slug> — <title>
+
+Workflow: <name>
+  1. <step-name>  →  <skill-ref>, <skill-ref>
+  2. <step-name>  →  <skill-ref>
+  3. <step-name>  →  (human)
+
+Contexts: <ref>, <ref>          # or "none"
+Skills (ticket-level): <ref>    # omit line if empty
+Assignee: <agent-or-human>
+
+Summary
+  <2–3 sentences in your own words: what this ticket is, what done looks
+  like, anything you flagged as a gap or assumption.>
+
+Evaluator review: see blackboard.md ## Evaluator review
 ```
 
-For an already-active ticket, say:
+Then ask the human directly: "Does this look right, or anything to change
+before you launch?" Wait for their reply. If they redirect — swap the
+workflow, drop a context, reword the description, fix an extension field —
+make the edit and reprint the relevant part of the summary. Only move on
+once they explicitly confirm.
+
+After confirmation, print one closing line. For a draft:
 
 ```
-Updated <slug>. Evaluator review on blackboard. Run `relay launch <slug>` when
-ready to start work.
+Filled <slug>. Run `relay mark active <slug>` and `relay launch <slug>`
+when ready.
 ```
 
-Optionally `relay feed --task <slug> --message "<short>"` if the ticket
+For an already-active ticket:
+
+```
+Updated <slug>. Run `relay launch <slug>` when ready to start work.
+```
+
+Optionally `relay slack --task <slug> --message "<short>"` if the ticket
 warrants a heads-up to the channel (a new context was created, an assignee
 changed, etc.). Skip the feed for routine fill-ins.
 
-Then exit. The human reviews `ticket.md` + `blackboard.md`, edits anything
-they want to change, and runs `relay launch <slug>` when satisfied.
+Then exit.
