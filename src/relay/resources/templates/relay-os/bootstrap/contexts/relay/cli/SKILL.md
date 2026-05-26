@@ -18,7 +18,7 @@ the relay-managed bits in the current repo.
 - `relay init mycompany` — fresh scaffold; refuses if `relay-os/` exists.
 - `relay init --update` — refresh the vendored CLI from upstream and
   package-owned `_*` templates, `bootstrap/`, and relay-owned recurring
-  batteries (`recurring/dream.md`) from the installed Relay package. Leaves
+  batteries (`recurring/dream/`) from the installed Relay package. Leaves
   `relay.toml`, `rules.md`, user contexts, user skills, and repo-specific
   recurring loops (REM) untouched.
 - `relay init --update --all [PATH]` — sweep mode. Scan `PATH` (default the
@@ -275,9 +275,9 @@ README `External CLI Tools` list, never in `requirements.txt`.
 
 ## relay panic --task \<slug\> --reason "..."
 
-Agent gives up. Writes a blocker to the ticket, posts to Slack naming
-the owner, releases the lock. Exits non-zero. Reserved for genuinely
-stuck states, not routine handoffs.
+Agent gives up. Writes a panic marker on the blackboard and posts a
+Slack notification naming the task owner. Exits non-zero. Reserved for
+genuinely stuck states, not routine handoffs.
 
 ## relay slack --task \<slug\> --message "..."
 
@@ -294,7 +294,7 @@ not two. Slack is required (see `relay/sync`); commands crash if
 
 Run Relay's generic cleanup pass now. `dream` is not a built-in command — it
 is a default alias for `recurring launch dream`. It scaffolds the
-`relay-os/recurring/dream.md` recurring task and launches it interactively.
+`relay-os/recurring/dream/` recurring task and launches it interactively.
 
 The task slug is the recurring period key (`dream-2026-W21`): running
 `relay dream` mid-week reuses that week's task instead of creating a second
@@ -328,7 +328,7 @@ Dream, REM, and other recurring maintenance loops all use this surface.
 ## relay recurring launch \<name\>
 
 Scaffold one named recurring template now and launch it, ignoring its
-schedule. `name` is the file stem under `relay-os/recurring/`. The task slug
+schedule. `name` is the directory name under `relay-os/recurring/`. The task slug
 still uses the template's schedule-derived period key, so a manual `launch`
 and a bare `relay recurring` converge on one task directory per period
 (idempotent — a second `launch` in the same period reuses the existing
