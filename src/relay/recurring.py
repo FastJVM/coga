@@ -30,9 +30,8 @@ class Template:
     """A recurring task — a ticket-format directory under `recurring/<name>/`.
 
     `ticket.md` carries the schedule and run body; `blackboard.md` persists
-    across runs (a recurring task records last-run state there so the next
-    run can pick up where this one left off); `log.md` is the append-only
-    run history.
+    across runs and doubles as the period ledger (`_record_run` appends a
+    scaffolding line every time a new period task is created).
     """
 
     path: Path  # the recurring task directory
@@ -61,13 +60,8 @@ class Template:
 
     @property
     def blackboard_path(self) -> Path:
-        """Persistent blackboard — recurring runs store last-run state here."""
+        """Persistent blackboard — also the period ledger (see `_record_run`)."""
         return self.path / "blackboard.md"
-
-    @property
-    def log_path(self) -> Path:
-        """Append-only run history for this recurring task."""
-        return self.path / "log.md"
 
 
 @dataclass
@@ -94,7 +88,8 @@ class DueTask:
     `ref` is `None` when the period was already scaffolded earlier this cycle
     and the task directory has since been removed (Dream self-deletes itself
     after `relay mark done`; a human `relay delete` is the other case).
-    The template log is the period ledger — see `_period_already_scaffolded`.
+    The template's blackboard is the period ledger — see
+    `_period_already_scaffolded`.
     """
 
     template: str
@@ -171,11 +166,11 @@ def scan_due(cfg: Config, now: datetime | None = None) -> DueScan:
         period_key = _period_key(template.schedule, last_fire)
         target_slug = f"{template.name}-{period_key}"
 
-        # The recurring template's `log.md` is the period ledger. If it
-        # already records a scaffolding for this period and the task
-        # directory is gone (Dream self-deletes after `relay mark done`;
-        # `relay delete` is the other case), the period has been handled —
-        # do not re-scaffold and re-launch what already ran this cycle.
+        # The recurring template's persistent `blackboard.md` is the period
+        # ledger. If it already records a scaffolding for this period and
+        # the task directory is gone (Dream self-deletes after `relay mark
+        # done`; `relay delete` is the other case), the period has been
+        # handled — do not re-scaffold and re-launch what already ran.
         if (
             _task_with_slug(cfg, target_slug) is None
             and _period_already_scaffolded(template, target_slug)
@@ -302,20 +297,23 @@ def scaffold_template(
 
 
 def _record_run(template: Template, outcome: ScaffoldOutcome, now: datetime) -> None:
-    """Append a line to the recurring task's own `log.md` when it scaffolds a
-    period task.
+    """Append a scaffolding line to the template's persistent `blackboard.md`.
 
-    The recurring directory is the task's durable home: `log.md` is the run
-    history across periods, and `blackboard.md` is the persistent state a run
-    reads and updates for the next one. Only a freshly created period task is
-    recorded — re-scanning within the same period must not re-log.
+    The blackboard is the period ledger: `scan_due` reads it to decide whether
+    this period has already been handled, even after the period task has been
+    deleted (Dream's self-delete contract, or a human `relay delete`). Only a
+    freshly created period task is recorded — re-scanning within the same
+    period must not re-log.
     """
     if not outcome.created:
         return
-    log = template.log_path
-    existing = log.read_text() if log.is_file() else ""
+    bb = template.blackboard_path
+    existing = bb.read_text() if bb.is_file() else ""
+    # Make sure the appended line lands on its own line, even when the
+    # existing blackboard does not end with a newline.
+    sep = "" if not existing or existing.endswith("\n") else "\n"
     stamp = now.strftime("%Y-%m-%d %H:%M")
-    log.write_text(f"{existing}[{stamp}] scaffolded {outcome.ref.slug}\n")
+    bb.write_text(f"{existing}{sep}[{stamp}] scaffolded {outcome.ref.slug}\n")
 
 
 def _last_firing(cron: str, now: datetime) -> datetime:
@@ -356,16 +354,16 @@ def _task_with_slug(cfg: Config, target_slug: str) -> TaskRef | None:
 def _period_already_scaffolded(template: Template, target_slug: str) -> bool:
     """Has this period's task ever been scaffolded?
 
-    Reads the template's own `log.md`, which `_record_run` appends to each
-    time a new period task is created. The log is the period ledger —
-    consulted when the task directory itself is missing (Dream's
-    self-delete-after-mark-done contract; a human `relay delete`).
+    Reads the template's persistent `blackboard.md`, which `_record_run`
+    appends to each time a new period task is created. The blackboard is
+    the period ledger — consulted when the task directory itself is missing
+    (Dream's self-delete-after-mark-done contract; a human `relay delete`).
     """
-    log = template.log_path
-    if not log.is_file():
+    bb = template.blackboard_path
+    if not bb.is_file():
         return False
     needle = f"scaffolded {target_slug}"
-    return any(line.rstrip().endswith(needle) for line in log.read_text().splitlines())
+    return any(line.rstrip().endswith(needle) for line in bb.read_text().splitlines())
 
 
 def _extract_description(template: Template) -> str:
