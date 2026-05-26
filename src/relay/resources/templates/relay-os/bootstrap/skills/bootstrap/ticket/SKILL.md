@@ -82,6 +82,10 @@ Rules:
   skill exists but no workflow uses it yet, mention the skill ref in the body
   or propose the workflow change.
 
+The exception is `bootstrap/orient`, which is the orientation shim itself; it
+intentionally attaches broad relay contexts so an ad-hoc oriented session has
+the operator reference loaded.
+
 ## Step 3 — Interview the human
 
 Cover these, in this order, in plain conversation. Stop pulling once you
