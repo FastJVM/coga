@@ -8,3 +8,4 @@
 2026-05-25 21:18 [agent:claude] slack: Replace relay feed wording and dead example ticket in bootstrap/ticket. PR: https://github.com/FastJVM/relay/pull/220
 2026-05-25 21:19 [agent:claude] slack: Renumber Retro as Phase 4 in cleanup-orphan-markers skill. PR: https://github.com/FastJVM/relay/pull/221
 2026-05-25 21:21 [agent:claude] slack: Narrow bootstrap/orient context attachment by exempting it in ticket skill. PR: https://github.com/FastJVM/relay/pull/222
+2026-05-25 21:23 [human:nick] task done — Dream W22: 1 retro PR #216, 6 proposal PRs #217-#222, 6 gap drafts. ⚠ move-automerge code never landed despite ticket marked done — see PR #216 reviewer note.
