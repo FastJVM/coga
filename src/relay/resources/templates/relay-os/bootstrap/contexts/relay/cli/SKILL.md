@@ -168,6 +168,23 @@ after `relay bump`, inspect the new ticket state and continue any still
 `in_progress`, same-assignee next step with a `skill:` directly instead of
 stopping after the first bump.
 
+### Releasing an interactive REPL
+
+Interactive agent REPLs (`claude`, `codex`) don't terminate on their own —
+they wait for the human to type `/exit`. To let `relay recurring
+--interactive` (and any other unattended caller of an interactive launch)
+move on without manual intervention, **emit `<<<RELAY_SESSION_DONE_a9f3c41e>>>`
+on a line by itself** as your final action once the task is finished.
+`relay launch`'s PTY supervisor watches for that marker and SIGTERMs the
+REPL when it appears (escalating to SIGKILL after a short grace period if
+the REPL ignores the signal).
+
+Emit it after `relay mark done`, after `relay panic`, or any other
+end-of-session signal — anywhere the next iteration would belong to a
+different task or to the human. Don't emit it mid-work; it terminates the
+session immediately. Don't quote the literal in prose unless you actually
+mean to release the REPL.
+
 `--prompt-report` is for prompt-scope inspection. Its token counts use a
 dependency-light `characters / 4` estimate, so treat them as a prompt-bloat
 guardrail and task-to-task comparison, not exact provider billing.

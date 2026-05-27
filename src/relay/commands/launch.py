@@ -32,6 +32,7 @@ from relay.compose import (
 from relay.config import ConfigError, load_config
 from relay.logfile import append_log
 from relay.mark import mark_in_progress
+from relay.repl_supervisor import run_with_done_marker
 from relay.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -332,8 +333,18 @@ def launch(
                 sys.stdout.flush()
 
             try:
-                result = subprocess.run(cmd, env=env, check=False)
-                exit_code = result.returncode
+                if mode == "interactive":
+                    # Interactive REPLs (`claude`, `codex`) don't exit on
+                    # their own. Run through a PTY watcher so an agent that
+                    # emits the session-done marker after `relay mark done`
+                    # / `relay panic` releases the REPL — and `relay
+                    # recurring --interactive` can move to the next task
+                    # without the human typing `/exit`. The marker string
+                    # is `relay.repl_supervisor.DONE_MARKER`.
+                    exit_code = run_with_done_marker(cmd, env)
+                else:
+                    result = subprocess.run(cmd, env=env, check=False)
+                    exit_code = result.returncode
             except FileNotFoundError:
                 _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
             finally:
