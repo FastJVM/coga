@@ -473,9 +473,10 @@ def _harness_stop_reason(ref: TaskRef, before: Ticket, after: Ticket) -> str | N
     if current is None:
         return f"{ref.id_slug}: no current workflow step; stopping"
 
-    if not current.get("skills"):
-        return f"{ref.id_slug}: next step has no skills — handoff to human"
-
+    # Source of truth for "is this the same agent's turn" is the resolved
+    # assignee, not the presence of skills on the next step. A skill-less
+    # agent step is legitimate (instructions come from the ticket body or
+    # the workflow's inline section); the loop should still chain.
     if after.assignee != before.assignee:
         return f"{ref.id_slug}: next step assignee changed: {before.assignee} → {after.assignee}"
 

@@ -100,10 +100,23 @@ def test_bump_advances(repo: Path) -> None:
     assert "advanced to step 2" in (ref.path / "log.md").read_text()
 
 
-def test_bump_supervised_prints_handoff_hint(repo: Path) -> None:
-    # `code` workflow steps carry no skills, so the supervisor would stop
-    # after this bump — the hint says so.
-    slug, _ = _make_task(repo)
+def test_bump_supervised_prints_handoff_hint_when_assignee_changes(repo: Path) -> None:
+    # Next step carries `assignee: owner`, so on bump the assignee rewrites
+    # away from the current agent — the hint should say handoff.
+    _write(
+        repo / "workflows" / "handoff.md",
+        """
+        ---
+        name: handoff
+        description: next step is the owner's.
+        steps:
+          - name: implement
+          - name: review
+            assignee: owner
+        ---
+        """,
+    )
+    slug, _ = _make_task(repo, workflow="handoff")
     runner = CliRunner()
     result = runner.invoke(app, ["bump", slug], env={"RELAY_SUPERVISED": "1"})
     assert result.exit_code == 0, result.output
@@ -111,32 +124,11 @@ def test_bump_supervised_prints_handoff_hint(repo: Path) -> None:
     assert "handoff" in result.output
 
 
-def test_bump_supervised_prints_chain_hint_when_next_step_has_skills(repo: Path) -> None:
-    _write(
-        repo / "skills" / "code-impl" / "SKILL.md",
-        """
-        ---
-        name: code-impl
-        description: tiny skill.
-        ---
-        Do it.
-        """,
-    )
-    _write(
-        repo / "workflows" / "skilled.md",
-        """
-        ---
-        name: skilled
-        description: next step has a skill.
-        steps:
-          - name: implement
-          - name: pr
-            skills:
-              - code-impl
-        ---
-        """,
-    )
-    slug, _ = _make_task(repo, workflow="skilled")
+def test_bump_supervised_prints_chain_hint_when_assignee_unchanged(repo: Path) -> None:
+    # `code` workflow has no per-step assignee tokens, so the agent stays
+    # the assignee across bumps — the hint should announce the relaunch.
+    # No skills on the next step is fine; chain is gated on assignee, not skills.
+    slug, _ = _make_task(repo)
     runner = CliRunner()
     result = runner.invoke(app, ["bump", slug], env={"RELAY_SUPERVISED": "1"})
     assert result.exit_code == 0, result.output
