@@ -19,6 +19,7 @@ from relay.mark import RequiredExtensionMissing, WorkflowMissing
 from relay.mark import mark_active as _mark_active
 from relay.mark import mark_done as _mark_done
 from relay.mark import mark_paused as _mark_paused
+from relay.repl_supervisor import emit_done_marker
 from relay.tasks import TaskNotFoundError, read_ticket, resolve_task
 from relay.validate import TaskValidationError
 from relay.workflow import WorkflowError
@@ -156,6 +157,12 @@ def done(
         )
     except TaskValidationError as exc:
         _bail(str(exc))
+
+    # `mark done` is a session-end transition; tell a supervising
+    # `relay launch` to tear down the agent's REPL. Other `mark`
+    # transitions (active / paused) are not terminal and intentionally
+    # skip the marker.
+    emit_done_marker()
 
 
 # --- helpers -----------------------------------------------------------------
