@@ -1,13 +1,21 @@
-"""Run an agent REPL through a PTY and watch for an "I'm done" marker.
+"""Run an agent REPL through a PTY and watch for an "I'm done" signal.
 
 In interactive mode the agent's REPL doesn't exit on its own — the human
 types `/exit`. For `relay recurring --interactive` (and any other unattended
 caller of an interactive launch) we want the agent itself to be able to
 signal completion so the next task can start without manual intervention.
 
-The convention: when an agent has finished its work for a task (after
-`relay mark done`, `relay panic`, or any other terminal signal) it prints
-the marker on its own line and the supervisor SIGTERMs the REPL.
+Two signal channels, checked in parallel:
+
+1. **Sentinel file** (primary). The supervisor creates a tempfile path and
+   exports it as `RELAY_DONE_SENTINEL` in the child's env. `emit_done_marker`
+   touches the file. Robust against TUI agents (Claude Code, Codex) that
+   capture bash subprocess stdout into a private pipe rather than echoing it
+   to the PTY — the PTY watcher never sees the marker bytes in that case.
+
+2. **PTY byte match** (fallback). For shell-shaped agents that pipe stdout
+   straight through, a literal match on `DONE_MARKER` in the PTY stream also
+   triggers teardown.
 """
 
 from __future__ import annotations
@@ -20,6 +28,7 @@ import select
 import signal
 import struct
 import sys
+import tempfile
 import termios
 import time
 import tty
@@ -31,10 +40,18 @@ from typing import Mapping
 # breaking change for any agent context teaching the convention.
 DONE_MARKER = b"<<<RELAY_SESSION_DONE_a9f3c41e>>>"
 
+# Env var name the supervisor uses to advertise the sentinel-file path to
+# the child. `emit_done_marker` reads this. Stable name = stable contract.
+SENTINEL_ENV = "RELAY_DONE_SENTINEL"
+
 # Grace period after SIGTERM before we escalate to SIGKILL. Claude Code and
 # Codex respect SIGTERM, but a wedged or signal-trapping REPL would otherwise
 # block the recurring sweep indefinitely.
 _KILL_GRACE_SECONDS = 2.0
+
+# How often the select loop wakes to poll the sentinel file. Cheap (a single
+# stat) and bounds the worst-case autoquit latency to this interval.
+_SENTINEL_POLL_INTERVAL = 0.25
 
 
 def run_with_done_marker(
@@ -45,9 +62,9 @@ def run_with_done_marker(
     output_fd: int | None = None,
     input_fd: int | None = None,
 ) -> int:
-    """Spawn `cmd` in a PTY, proxy stdio, SIGTERM the child on marker.
+    """Spawn `cmd` in a PTY, proxy stdio, SIGTERM the child on done signal.
 
-    Returns the child's exit code (0 if killed by the marker, or the natural
+    Returns the child's exit code (0 if killed by the signal, or the natural
     exit code if the child exited on its own). Falls back to a plain
     `subprocess.run` if stdout is not a TTY — the watcher is only meaningful
     for interactive REPLs that wouldn't otherwise exit on their own.
@@ -60,9 +77,14 @@ def run_with_done_marker(
 
         return subprocess.run(cmd, env=dict(env), check=False).returncode
 
+    sentinel_dir = tempfile.mkdtemp(prefix="relay-done-")
+    sentinel_path = os.path.join(sentinel_dir, "sentinel")
+    child_env = dict(env)
+    child_env[SENTINEL_ENV] = sentinel_path
+
     pid, master_fd = pty.fork()
     if pid == 0:  # child
-        for k, v in env.items():
+        for k, v in child_env.items():
             os.environ[k] = v
         try:
             os.execvp(cmd[0], cmd)
@@ -90,14 +112,29 @@ def run_with_done_marker(
     sent_term = False
     term_deadline: float | None = None
     sent_kill = False
+
+    def _trigger_term() -> None:
+        nonlocal sent_term, term_deadline
+        sent_term = True
+        term_deadline = time.monotonic() + _KILL_GRACE_SECONDS
+        # `pty.fork()` puts the child in its own session, so the child PID
+        # equals the process group id. Signal the whole group so any
+        # foreground child (e.g. a `sleep` bash is currently waiting on, or
+        # a tool the REPL spawned) also exits — otherwise SIGTERM to bash
+        # gets queued until the foreground command returns.
+        try:
+            os.killpg(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+
     try:
         while True:
             # After SIGTERM, give the child a grace period to exit; if it
             # ignores SIGTERM, escalate to SIGKILL so the sweep can move on.
             if sent_term and not sent_kill:
-                timeout: float | None = max(0.0, (term_deadline or 0) - time.monotonic())
+                timeout: float = max(0.0, (term_deadline or 0) - time.monotonic())
             else:
-                timeout = None
+                timeout = _SENTINEL_POLL_INTERVAL
             try:
                 rlist, _, _ = select.select(
                     [master_fd, stdin_fd], [], [], timeout
@@ -114,6 +151,9 @@ def run_with_done_marker(
                 except ProcessLookupError:
                     pass
 
+            if not sent_term and os.path.exists(sentinel_path):
+                _trigger_term()
+
             if master_fd in rlist:
                 try:
                     chunk = os.read(master_fd, 4096)
@@ -127,18 +167,7 @@ def run_with_done_marker(
                     pass
                 buf.extend(chunk)
                 if not sent_term and marker in buf:
-                    sent_term = True
-                    term_deadline = time.monotonic() + _KILL_GRACE_SECONDS
-                    # `pty.fork()` puts the child in its own session, so the
-                    # child PID equals the process group id. Signal the
-                    # whole group so any foreground child (e.g. a `sleep`
-                    # bash is currently waiting on, or a tool the REPL
-                    # spawned) also exits — otherwise SIGTERM to bash gets
-                    # queued until the foreground command returns.
-                    try:
-                        os.killpg(pid, signal.SIGTERM)
-                    except ProcessLookupError:
-                        pass
+                    _trigger_term()
                 # Bound the buffer but keep enough context to span chunks.
                 if len(buf) > 4 * len(marker):
                     del buf[: -4 * len(marker)]
@@ -156,6 +185,14 @@ def run_with_done_marker(
             except termios.error:
                 pass
         signal.signal(signal.SIGWINCH, prev_winch)
+        try:
+            os.unlink(sentinel_path)
+        except OSError:
+            pass
+        try:
+            os.rmdir(sentinel_dir)
+        except OSError:
+            pass
 
     _, status = os.waitpid(pid, 0)
     if sent_term:
@@ -183,14 +220,21 @@ def _resize_pty(master_fd: int) -> None:
 def emit_done_marker() -> None:
     """Tell a supervising `run_with_done_marker` that this session is done.
 
-    Prints `DONE_MARKER` on its own line as the final stdout output.
-    Called by `relay bump`, `relay mark done`, and `relay panic` on their
-    success paths so a supervised `relay launch` releases the agent's REPL
-    without the human typing `/exit`. In a non-supervised terminal the
-    line is harmless visible chrome. The marker is pure ASCII; the
-    supervisor's literal byte search matches the decoded string identically.
+    Touches `$RELAY_DONE_SENTINEL` if set (primary channel — survives TUI
+    agents that capture bash subprocess stdout). Also prints `DONE_MARKER`
+    on its own line (fallback channel for shell-shaped agents that echo
+    stdout to the PTY). In a non-supervised terminal the printed line is
+    harmless visible chrome and the env var is unset, so the file write is
+    skipped.
     """
+    sentinel = os.environ.get(SENTINEL_ENV)
+    if sentinel:
+        try:
+            with open(sentinel, "w") as f:
+                f.write("done\n")
+        except OSError:
+            pass
     print(DONE_MARKER.decode("ascii"), flush=True)
 
 
-__all__ = ["DONE_MARKER", "emit_done_marker", "run_with_done_marker"]
+__all__ = ["DONE_MARKER", "SENTINEL_ENV", "emit_done_marker", "run_with_done_marker"]
