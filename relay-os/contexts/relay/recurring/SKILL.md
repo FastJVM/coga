@@ -53,16 +53,13 @@ per-period blackboard does **not** carry over — it is gone next period.
 
 So a recurring task that needs continuity between runs (a last-processed
 commit SHA, a high-water mark, a cursor) keeps that state in **its own**
-blackboard: `relay-os/recurring/<name>/blackboard.md`. The pattern every such
-run follows:
+blackboard: `relay-os/recurring/<name>/blackboard.md`.
 
-1. At the start, read `relay-os/recurring/<name>/blackboard.md` to learn
-   where the last run stopped.
-2. Do the run's work.
-3. At the end, update that same file with whatever the next run needs.
-
-Document this read/update step in the recurring task's `ticket.md` body so
-the launched run actually does it.
+When designing a recurring task that carries cross-run state, name in the
+body *which* keys it persists (e.g. `last_commit`, a cursor section). You
+do **not** need to re-teach the launched run *where* state lives — the
+scaffolder auto-attaches the `relay/period-task` context to every period
+task, which carries that rule.
 
 ## The scaffold contract
 

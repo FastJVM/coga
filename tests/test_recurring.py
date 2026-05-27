@@ -37,6 +37,26 @@ def _write_recurring(company: Path, name: str, text: str) -> None:
     _write(company / "recurring" / name / "ticket.md", text)
 
 
+def _seed_period_task_context(company: Path) -> None:
+    """Seed the auto-attached `relay/period-task` context.
+
+    The scaffolder appends `relay/period-task` to every period task's
+    `contexts:`, so the test repo needs a resolvable context file or
+    `scaffold_task` rejects the unknown ref.
+    """
+    _write(
+        company / "contexts" / "relay" / "period-task" / "SKILL.md",
+        """
+        ---
+        name: relay/period-task
+        description: stub
+        ---
+
+        # Period task
+        """,
+    )
+
+
 @pytest.fixture
 def repo(tmp_path: Path):
     company = tmp_path / "relay-os"
@@ -52,6 +72,7 @@ def repo(tmp_path: Path):
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
+    _seed_period_task_context(company)
     _write_recurring(
         company,
         "weekly-check",
@@ -94,6 +115,51 @@ def test_scan_due_creates_task(repo: Path) -> None:
     assert task.ref.slug.endswith("-2026-W17")
     body = (task.ref.path / "ticket.md").read_text()
     assert "Run the full deliverability diagnostic suite" in body
+
+
+def test_scaffold_auto_attaches_period_task_context(repo: Path) -> None:
+    """Every period task gets `relay/period-task` appended to its contexts.
+
+    The recurring template above declares no contexts; after scaffolding, the
+    period task should carry exactly `["relay/period-task"]`. This is what
+    teaches the launched run that persistent state lives in the parent
+    recurring task's blackboard, not the per-period one.
+    """
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    ticket = Ticket.read(scan.tasks[0].ref.path / "ticket.md")
+    assert ticket.contexts == ["relay/period-task"]
+
+
+def test_scaffold_does_not_duplicate_explicit_period_task_context(
+    repo: Path,
+) -> None:
+    """A recurring task that already lists `relay/period-task` doesn't get
+    it appended again — the append is idempotent."""
+    _write_recurring(
+        repo,
+        "explicit-period",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Already lists period-task"
+        mode: interactive
+        assignee: claude
+        owner: marc
+        contexts:
+          - relay/period-task
+        ---
+
+        ## Description
+
+        Body.
+        """,
+    )
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    task = next(t for t in scan.tasks if t.template == "explicit-period")
+    ticket = Ticket.read(task.ref.path / "ticket.md")
+    assert ticket.contexts == ["relay/period-task"]
 
 
 def test_scan_due_idempotent(repo: Path) -> None:
@@ -346,6 +412,7 @@ def dream_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
+    _seed_period_task_context(company)
     (company / "tasks").mkdir(parents=True)
     (company / "recurring").mkdir(parents=True)
     shutil.copytree(SHIPPED_DREAM_DIR, company / "recurring" / "dream")
@@ -562,6 +629,7 @@ def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
+    _seed_period_task_context(company)
     _write_recurring(
         company,
         "nightly-check",
