@@ -1,6 +1,6 @@
 ---
 title: Document bootstrap/ticket-not-in-skills-frontmatter rule
-status: draft
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -20,7 +20,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
