@@ -259,11 +259,14 @@ def launch(
     env = os.environ.copy()
     env.update(cfg.secrets)
 
-    # Auto-chaining is reserved for unattended runs. Interactive launches
-    # belong to the human at the terminal — and to any caller that wraps
-    # them (e.g. `relay recurring --interactive`) — so we run the agent
-    # exactly once and return control to the caller on exit. No
-    # `RELAY_SUPERVISED` hint, no respawn on bump.
+    # Interactive launches chain across consecutive agent-owned steps the
+    # same way auto mode does. After the agent exits (via autoquit on
+    # `relay bump` / `mark done` / `panic`, or via `/exit`), we re-read the
+    # ticket and either spawn a fresh REPL for the next step or stop and
+    # return control to the caller. `_harness_stop_reason` decides.
+    # `RELAY_SUPERVISED=1` tells `relay bump` it's running under a launch
+    # supervisor so its chaining hint can fire.
+    env["RELAY_SUPERVISED"] = "1"
 
     # Install a signal-safe cleanup.
     prompt_file: Path | None = None
@@ -358,15 +361,6 @@ def launch(
                     err=True,
                 )
                 sys.exit(exit_code)
-
-            # Interactive launches do not chain. One agent run, then back to
-            # the caller — `relay recurring --interactive` moves to the next
-            # task, or the user runs `relay launch <slug>` again to get a
-            # fresh context. Auto-chaining is reserved for unattended runs
-            # (mode: auto, when re-enabled), where the supervisor is the
-            # only thing watching the workflow advance.
-            if mode == "interactive":
-                break
 
             # An agent may delete its own task directory as a final action —
             # e.g. a Dream run retiring itself once its findings are durable.

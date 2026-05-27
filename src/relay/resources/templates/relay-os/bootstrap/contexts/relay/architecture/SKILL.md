@@ -160,7 +160,14 @@ both planes, and only for that single transition.
 `mode:` in ticket frontmatter:
 
 - **`interactive`** — human-attended terminal session. Agent gets the
-  composed prompt, human stays in the loop.
+  composed prompt, human stays in the loop. The REPL doesn't terminate on
+  its own — `relay bump` / `relay mark done` / `relay panic` signal the
+  launch supervisor (via `$RELAY_DONE_SENTINEL` and a marker line) and the
+  supervisor SIGTERMs the REPL. After teardown, `relay launch` re-reads the
+  ticket and either spawns a fresh REPL for the next workflow step (if it
+  is still the agent's) or returns control to the caller (handoff to human,
+  status flipped to `done`/`paused`, or no progress made). Cross-ticket
+  chaining is `relay recurring --interactive`.
 - **`auto`** — one-shot autonomous run. Same composed prompt, no
   human input.
 - **`script`** — no agent. `relay launch` runs the step's skill
