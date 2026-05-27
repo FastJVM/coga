@@ -23,7 +23,11 @@ no in-memory state.
 - **Skills** are process knowledge — how to do a thing. Project-local skills
   live in `relay-os/skills/`; bundled Relay batteries live in
   `relay-os/bootstrap/skills/`. Attached to **workflow steps**, not tickets.
-  Local skills override bundled skills with the same ref.
+  Local skills override bundled skills with the same ref. The `skills:`
+  ticket-level frontmatter field exists for skill refs that apply to the
+  ticket as a whole; `bootstrap/ticket` is the authoring interview and must
+  never appear there — `relay ticket` injects it into the launch prompt
+  only, never persists it on the ticket.
 - **Workflows** are ordered step definitions. Live in
   `relay-os/workflows/`. Frozen into a ticket's frontmatter at
   creation — in-flight tickets are unaffected by later workflow edits.
