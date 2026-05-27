@@ -374,12 +374,12 @@ def test_launch_handles_agent_self_deleting_task(
     assert not task_dir.exists()
 
 
-def test_launch_does_not_mark_interactive_session_supervised(
+def test_launch_marks_interactive_session_supervised(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Interactive launches no longer chain, so the supervised marker is
-    never set. `relay bump` run from inside the session must not print the
-    "exit and chain" hint, because there is no chain to pick up."""
+    """Interactive launches chain across agent-owned steps, so the child
+    inherits `RELAY_SUPERVISED=1`. `relay bump` keys its supervised-launch
+    hint off that env var."""
     envs: list[dict] = []
     _allow_interactive_tty(monkeypatch)
 
@@ -398,7 +398,7 @@ def test_launch_does_not_mark_interactive_session_supervised(
     assert result.exit_code == 0, result.output
 
     assert envs
-    assert "RELAY_SUPERVISED" not in envs[0]
+    assert envs[0].get("RELAY_SUPERVISED") == "1"
 
 
 def test_launch_in_progress_resumes_without_status_transition(
@@ -611,14 +611,16 @@ def test_launch_interactive_without_tty_fails_before_lock(
     ref = list_tasks(cfg)[0]
 
 
-def test_launch_interactive_does_not_chain_consecutive_steps(
+def test_launch_interactive_chains_consecutive_agent_steps(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Interactive launches run the agent exactly once and return to the
-    caller. The human (or the recurring sweep wrapping the launch) advances
-    workflow steps explicitly — `relay launch` does not auto-respawn the
-    agent on bump. The auto-chain stays available for unattended modes."""
+    """Interactive launches chain while the next step is still the agent's.
+
+    After `relay bump` advances from step 1 (agent) to step 2 (also agent),
+    the launch loop re-composes the prompt and spawns a fresh REPL. The
+    chain stops at the first human-assigned step (step 3 here).
+    """
     ref = _scaffold_chain_task(active_task, mode="interactive")
     slug = str(ref["slug"])
     calls: list[list[str]] = []
@@ -630,6 +632,9 @@ def test_launch_interactive_does_not_chain_consecutive_steps(
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
         calls.append(cmd)
+        # Each spawned "agent" bumps once. After the 1→2 bump the agent is
+        # still the assignee → launch should respawn. After the 2→3 bump
+        # the next step is human-assigned → launch should stop.
         result = CliRunner().invoke(app, ["bump", slug])
         assert result.exit_code == 0, result.output
         return _Result()
@@ -639,11 +644,13 @@ def test_launch_interactive_does_not_chain_consecutive_steps(
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
-    assert len(calls) == 1
+    # Two REPLs: step 1, then a fresh one for step 2. Step 3 is the human's,
+    # so the loop stops without spawning a third.
+    assert len(calls) == 2
 
     from relay.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
-    assert ticket.step == "2 (self-review)"
+    assert ticket.step == "3 (review)"
 
 
 def test_launch_harness_stops_when_next_skilled_step_changes_assignee(

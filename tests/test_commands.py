@@ -141,7 +141,7 @@ def test_bump_supervised_prints_chain_hint_when_next_step_has_skills(repo: Path)
     result = runner.invoke(app, ["bump", slug], env={"RELAY_SUPERVISED": "1"})
     assert result.exit_code == 0, result.output
     assert "Supervised launch" in result.output
-    assert "start the next step" in result.output
+    assert "spawn a fresh agent session" in result.output
 
 
 def test_bump_unsupervised_prints_no_hint(repo: Path) -> None:
