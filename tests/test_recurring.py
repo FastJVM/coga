@@ -157,10 +157,10 @@ def test_scan_due_does_not_rescaffold_after_period_task_deleted(
     """A completed-this-period task that has been deleted stays completed.
 
     Dream's contract is to self-delete after `relay mark done`; a human
-    `relay delete` is the other case. The recurring template's `log.md`
-    is the period ledger — `scan_due` reads it instead of just checking
-    for the task directory, so a successful run isn't silently re-launched
-    by the next `relay recurring`.
+    `relay delete` is the other case. The recurring template's
+    `blackboard.md` is the period ledger — `scan_due` reads it instead of
+    just checking for the task directory, so a successful run isn't
+    silently re-launched by the next `relay recurring`.
     """
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)  # a Wednesday after Monday 9am
@@ -168,6 +168,11 @@ def test_scan_due_does_not_rescaffold_after_period_task_deleted(
     first = scan_due(cfg, now=now)
     assert first.tasks[0].created is True
     ref = first.tasks[0].ref
+
+    # The ledger line lands in the template's persistent blackboard.md,
+    # not in a separate log.md.
+    bb = (repo / "recurring" / "weekly-check" / "blackboard.md").read_text()
+    assert f"scaffolded {ref.slug}" in bb
 
     # Simulate the run completing and deleting itself.
     shutil.rmtree(ref.path)
