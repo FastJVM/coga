@@ -14,6 +14,7 @@ from relay.bump import (
 )
 from relay.config import ConfigError, load_config
 from relay.paths import workflow_path
+from relay.repl_supervisor import emit_done_marker
 from relay.tasks import (
     TaskNotFoundError,
     read_ticket,
@@ -146,6 +147,10 @@ def bump(
                 "relay launch will stop there."
             )
         typer.secho(hint, fg=typer.colors.CYAN)
+
+    # Tell a supervising `relay launch` the session is done so the agent's
+    # REPL tears down without `/exit`. Harmless tagged line otherwise.
+    emit_done_marker()
 
 
 def _bail(msg: str) -> None:

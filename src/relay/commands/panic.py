@@ -9,6 +9,7 @@ import typer
 from relay.blackboard import append_blocker
 from relay.config import ConfigError, load_config
 from relay.logfile import append_log
+from relay.repl_supervisor import emit_done_marker
 from relay.slack import post
 from relay.tasks import (
     TaskNotFoundError,
@@ -53,6 +54,10 @@ def panic(
         image_url=cfg.gif_for("panic"),
     )
     typer.echo(f"{ref.id_slug}: panicked (owner {owner} notified)")
+    # Panic *is* the session-end transition: tell a supervising
+    # `relay launch` to tear down the agent's REPL. The non-zero exit
+    # below is the distress signal, not a failure of panic itself.
+    emit_done_marker()
     # Panic is the agent's distress signal — exit non-zero so a parent shell
     # or supervising agent can distinguish a panicked child from a clean one.
     sys.exit(1)

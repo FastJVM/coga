@@ -180,4 +180,17 @@ def _resize_pty(master_fd: int) -> None:
         pass
 
 
-__all__ = ["DONE_MARKER", "run_with_done_marker"]
+def emit_done_marker() -> None:
+    """Tell a supervising `run_with_done_marker` that this session is done.
+
+    Prints `DONE_MARKER` on its own line as the final stdout output.
+    Called by `relay bump`, `relay mark done`, and `relay panic` on their
+    success paths so a supervised `relay launch` releases the agent's REPL
+    without the human typing `/exit`. In a non-supervised terminal the
+    line is harmless visible chrome. The marker is pure ASCII; the
+    supervisor's literal byte search matches the decoded string identically.
+    """
+    print(DONE_MARKER.decode("ascii"), flush=True)
+
+
+__all__ = ["DONE_MARKER", "emit_done_marker", "run_with_done_marker"]

@@ -50,7 +50,10 @@ Rules:
   ticket frontmatter and moves to the next one. There is no number to pass;
   you cannot skip ahead.
 - **After bumping, exit cleanly.** One step, one session. Do not try to read
-  the new step and continue in the same process. The `relay launch`
+  the new step and continue in the same process. In a supervised
+  `relay launch`, `relay bump` / `relay panic` / `relay mark done` already
+  signal the supervisor to tear down your REPL — just run the command and
+  stop. Don't paste any marker string yourself. The `relay launch`
   supervisor evaluates the post-bump state and respawns the next agent step
   in a fresh process; it stops the chain on human-owned steps, assignee
   changes, no-skill steps, `done`/`paused` tasks, and panic/non-zero exits.
