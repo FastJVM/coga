@@ -308,6 +308,7 @@ def launch(
                 agent,
                 mode,
                 prompt,
+                name=ticket.title or "",
                 discussion=_is_discussion_bootstrap(ref),
             )
             typer.echo(
@@ -325,6 +326,10 @@ def launch(
                     agent.name,
                 ),
             )
+
+            if mode == "interactive" and ticket.title and sys.stdout.isatty():
+                sys.stdout.write(f"\033]2;{ticket.title}\007")
+                sys.stdout.flush()
 
             try:
                 result = subprocess.run(cmd, env=env, check=False)
@@ -378,7 +383,7 @@ def launch(
 
 
 def build_agent_command(
-    agent, mode: str, prompt: str, *, discussion: bool = False
+    agent, mode: str, prompt: str, *, name: str = "", discussion: bool = False
 ) -> list[str]:
     """Build the argv for spawning the agent.
 
@@ -386,6 +391,11 @@ def build_agent_command(
     the first user message. Auto: `<cli> <auto-flag(s)> <prompt>` — prefix
     flags put the CLI in headless mode (e.g. `-p` for claude, `exec` for
     codex).
+
+    When the agent declares `name_flag` and a non-empty `name` is passed,
+    `<name_flag> <name>` is inserted right after the CLI so the spawned
+    session carries the ticket title in its picker / window title. Skipped
+    in `discussion` mode so the human's first ask names the session.
 
     `discussion=True` (used for human discussion sessions like `relay chat`
     and `relay ticket`) routes the prompt through the agent's
@@ -402,9 +412,12 @@ def build_agent_command(
             for tok in shlex.split(discussion_template)
         ]
         return [agent.cli, *tokens]
+    name_args: list[str] = []
+    if name and agent.name_flag:
+        name_args = [*shlex.split(agent.name_flag), name]
     if mode == "interactive":
-        return [agent.cli, prompt]
-    return [agent.cli, *shlex.split(agent.auto), prompt]
+        return [agent.cli, *name_args, prompt]
+    return [agent.cli, *name_args, *shlex.split(agent.auto), prompt]
 
 
 def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:

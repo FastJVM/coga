@@ -11,6 +11,10 @@ cli = "claude"
 auto = "-p"
 file = "CLAUDE.md"
 mode = "local"
+# `claude -n <name>` sets the session display name shown in the /resume
+# picker, the prompt box, and the terminal title. Skipped in discussion
+# launches so the human's first ask names the session.
+name_flag = "-n"
 # `discussion` rides the composed prompt as system context for discussion
 # sessions (`relay chat`, `relay ticket`) so the human's first ask becomes
 # the session title instead of a 20KB Relay prompt.

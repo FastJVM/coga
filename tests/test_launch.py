@@ -40,13 +40,14 @@ def _prompt_arg(cmd: list[str]) -> str:
 # --- unit: command construction ------------------------------------------------
 
 
-def _agent(auto: str, discussion: str = "") -> AgentType:
+def _agent(auto: str, name_flag: str = "", discussion: str = "") -> AgentType:
     return AgentType(
         name="x",
         cli="my-cli",
         auto=auto,
         file="X.md",
         mode="local",
+        name_flag=name_flag,
         discussion=discussion,
     )
 
@@ -64,6 +65,60 @@ def test_build_command_auto_prepends_flag_then_prompt() -> None:
 def test_build_command_auto_subcommand_style() -> None:
     cmd = build_agent_command(_agent("exec"), mode="auto", prompt="full prompt text")
     assert cmd == ["my-cli", "exec", "full prompt text"]
+
+
+def test_build_command_injects_name_flag_when_set() -> None:
+    cmd = build_agent_command(
+        _agent("-p", name_flag="-n"),
+        mode="interactive",
+        prompt="full prompt text",
+        name="Fix retry backoff",
+    )
+    assert cmd == ["my-cli", "-n", "Fix retry backoff", "full prompt text"]
+
+
+def test_build_command_injects_name_flag_in_auto_mode() -> None:
+    cmd = build_agent_command(
+        _agent("-p", name_flag="-n"),
+        mode="auto",
+        prompt="full prompt text",
+        name="Fix retry backoff",
+    )
+    assert cmd == ["my-cli", "-n", "Fix retry backoff", "-p", "full prompt text"]
+
+
+def test_build_command_skips_name_flag_when_agent_has_none() -> None:
+    cmd = build_agent_command(
+        _agent("-p"),
+        mode="interactive",
+        prompt="full prompt text",
+        name="Fix retry backoff",
+    )
+    assert cmd == ["my-cli", "full prompt text"]
+
+
+def test_build_command_skips_name_flag_when_name_is_empty() -> None:
+    cmd = build_agent_command(
+        _agent("-p", name_flag="-n"),
+        mode="interactive",
+        prompt="full prompt text",
+        name="",
+    )
+    assert cmd == ["my-cli", "full prompt text"]
+
+
+def test_build_command_discussion_skips_name_flag() -> None:
+    """Discussion mode intentionally leaves the session unnamed so the
+    human's first ask becomes the title; name_flag must not pre-set it."""
+    agent = _agent("-p", name_flag="-n", discussion="--append-system-prompt {prompt}")
+    cmd = build_agent_command(
+        agent,
+        mode="interactive",
+        prompt="orient body",
+        name="Orient an agent in this relay-os/ repo",
+        discussion=True,
+    )
+    assert cmd == ["my-cli", "--append-system-prompt", "orient body"]
 
 
 def test_build_command_discussion_uses_template_for_claude() -> None:

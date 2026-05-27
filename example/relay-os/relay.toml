@@ -11,6 +11,9 @@ cli = "claude"
 auto = "-p"
 file = "CLAUDE.md"
 mode = "local"
+# `claude -n <name>` sets the session display name shown in the /resume
+# picker, the prompt box, and the terminal title.
+name_flag = "-n"
 discussion = "--append-system-prompt {prompt}"
 
 [agents.codex]

@@ -20,6 +20,12 @@ class AgentType:
     auto: str
     file: str
     mode: str               # "local" | future: "remote" | "cloud"
+    # Flag (or flag template) the CLI accepts to set the session display name
+    # at launch — e.g. `-n` for claude (shown in /resume, prompt box, terminal
+    # title). Empty when the CLI has no such flag. Split with shlex; the
+    # ticket title is appended as the next argv element. Skipped in
+    # `discussion` mode so the human's first ask can name the session.
+    name_flag: str = ""
     # Optional argv override for discussion prompts (`relay chat`, `relay ticket`):
     # the composed prompt rides as system/developer context instead of becoming
     # the agent's first user message. Parsed via `shlex.split`; the literal
@@ -211,6 +217,7 @@ def _parse_agents(raw: dict) -> dict[str, AgentType]:
             auto=data["auto"],
             file=data["file"],
             mode=data.get("mode", "local"),
+            name_flag=data.get("name_flag", ""),
             discussion=discussion,
         )
     return out
