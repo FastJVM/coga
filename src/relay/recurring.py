@@ -268,11 +268,19 @@ def scaffold_template(
         default_agent = cfg.default_agent()
         assignee = default_agent.name if default_agent else None
 
+    # Every period task gets `relay/period-task` auto-attached so the run
+    # learns where persistent state lives (the parent's blackboard, not
+    # its own). The convention applies to every period task by definition —
+    # an opt-out flag would just be a footgun — so always-append, idempotent.
+    contexts = list(template.frontmatter.get("contexts") or [])
+    if "relay/period-task" not in contexts:
+        contexts.append("relay/period-task")
+
     ref = scaffold_task(
         cfg=cfg,
         title=_extract_title(template),
         workflow_name=template.frontmatter.get("workflow"),
-        contexts=list(template.frontmatter.get("contexts") or []),
+        contexts=contexts,
         mode=effective_mode,
         owner=template.frontmatter.get("owner"),
         assignee=assignee,

@@ -62,6 +62,12 @@ def repo(tmp_path: Path) -> Path:
     )
     _write(company / "skills" / "infra" / "testing-conventions" / "SKILL.md", "---\nname: x\n---\n")
     _write(company / "contexts" / "email" / "payment-flow" / "SKILL.md", "---\nname: x\n---\n")
+    # The recurring scaffolder auto-attaches `relay/period-task` to every
+    # period task, so any recurring test path needs a resolvable stub.
+    _write(
+        company / "contexts" / "relay" / "period-task" / "SKILL.md",
+        "---\nname: relay/period-task\ndescription: stub\n---\n",
+    )
     return company
 
 
