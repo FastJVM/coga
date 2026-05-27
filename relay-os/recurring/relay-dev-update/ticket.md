@@ -26,13 +26,10 @@ blocks the run, `relay panic` with a reason instead of stopping silently.
 
 ### Step 1 — Find where the last run stopped
 
-State lives in this recurring task's own persistent blackboard:
-`relay-os/recurring/relay-dev-update/blackboard.md`. It survives across runs —
-unlike the per-day period task's blackboard, which is fresh every run.
-
-Read its `### Dev Update State` section for the `last_commit:` line. If it is
-empty — the first run — fall back to commits from the last 24 hours
-(`git log --since="24 hours ago"`).
+Read the `### Dev Update State` section of the parent recurring task's
+blackboard for the `last_commit:` line (the `relay/period-task` context
+covers which file that is). If it is empty — the first run — fall back to
+commits from the last 24 hours (`git log --since="24 hours ago"`).
 
 ### Step 2 — Collect the new commits
 
@@ -61,9 +58,8 @@ One post per run. Keep it to a few lines.
 
 ### Step 5 — Record state and finish
 
-Update the `### Dev Update State` section in this recurring task's persistent
-blackboard — `relay-os/recurring/relay-dev-update/blackboard.md` — overwriting
-its three lines with the new high-water mark:
+Overwrite the `### Dev Update State` section of the parent recurring task's
+blackboard with the new high-water mark:
 
     ### Dev Update State
 
