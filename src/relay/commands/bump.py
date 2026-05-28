@@ -134,7 +134,7 @@ def bump(
     # human what happens next so a long-running interactive session isn't
     # surprising.
     if os.environ.get("RELAY_SUPERVISED"):
-        will_chain = bool(new_step.get("skills")) and new_assignee is None
+        will_chain = new_assignee is None
         if will_chain:
             hint = (
                 "Supervised launch: step done. relay launch will spawn "
