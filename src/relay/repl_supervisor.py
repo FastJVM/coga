@@ -95,6 +95,19 @@ def run_with_done_marker(
 
     out_fd = output_fd if output_fd is not None else sys.stdout.fileno()
     stdin_fd = input_fd if input_fd is not None else sys.stdin.fileno()
+
+    def _notify(line: str) -> None:
+        # Make the watcher's actions visible in the agent's own console so a
+        # human can tell "the watcher stopped the REPL" apart from "the REPL
+        # exited on its own". Only ever called when the watcher itself acts
+        # (trigger / kill / final status), so it stays quiet on a normal
+        # `/exit`. The terminal is in raw mode during proxying, so emit an
+        # explicit `\r\n` to avoid staircasing; harmless once restored too.
+        try:
+            os.write(out_fd, f"\r\n[relay watcher] {line}\r\n".encode())
+        except OSError:
+            pass
+
     old_attrs = None
     if os.isatty(stdin_fd):
         try:
@@ -113,10 +126,12 @@ def run_with_done_marker(
     term_deadline: float | None = None
     sent_kill = False
 
-    def _trigger_term() -> None:
+    def _trigger_term(reason: str) -> None:
         nonlocal sent_term, term_deadline
         sent_term = True
         term_deadline = time.monotonic() + _KILL_GRACE_SECONDS
+        _notify(f"stopping REPL — trigger={reason}")
+        _notify("SIGTERM sent to process group")
         # `pty.fork()` puts the child in its own session, so the child PID
         # equals the process group id. Signal the whole group so any
         # foreground child (e.g. a `sleep` bash is currently waiting on, or
@@ -146,13 +161,17 @@ def run_with_done_marker(
 
             if sent_term and not sent_kill and time.monotonic() >= (term_deadline or 0):
                 sent_kill = True
+                _notify(
+                    f"child still alive after {_KILL_GRACE_SECONDS}s — "
+                    "escalating to SIGKILL"
+                )
                 try:
                     os.killpg(pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
 
             if not sent_term and os.path.exists(sentinel_path):
-                _trigger_term()
+                _trigger_term("sentinel-file (RELAY_DONE_SENTINEL touched)")
 
             if master_fd in rlist:
                 try:
@@ -167,7 +186,7 @@ def run_with_done_marker(
                     pass
                 buf.extend(chunk)
                 if not sent_term and marker in buf:
-                    _trigger_term()
+                    _trigger_term("pty-byte-match (DONE_MARKER seen in output)")
                 # Bound the buffer but keep enough context to span chunks.
                 if len(buf) > 4 * len(marker):
                     del buf[: -4 * len(marker)]
@@ -195,15 +214,45 @@ def run_with_done_marker(
             pass
 
     _, status = os.waitpid(pid, 0)
-    if sent_term:
-        # The agent told us it was done and we SIGTERMed the REPL. Treat
-        # that as a clean exit regardless of the signal-death status code.
-        return 0
-    if os.WIFEXITED(status):
-        return os.WEXITSTATUS(status)
+    code, notes = _classify_exit(status, sent_term)
+    for note in notes:
+        _notify(note)
+    return code
+
+
+def _classify_exit(status: int, sent_term: bool) -> tuple[int, list[str]]:
+    """Map a raw `waitpid` status into (exit_code, console_notes).
+
+    When we never signalled the child, its status passes straight through.
+    When we *did* signal it, a death from our own SIGTERM/SIGKILL — or a
+    self-exit — is the expected done-signal teardown and reports 0. But a
+    death from some *other* signal means the watcher's stop raced a genuine
+    crash; surface the real `128 + signal` code (and say so) instead of
+    masking it as clean, so a watcher-adjacent crash stays visible.
+    """
+    if not sent_term:
+        if os.WIFEXITED(status):
+            return os.WEXITSTATUS(status), []
+        if os.WIFSIGNALED(status):
+            return 128 + os.WTERMSIG(status), []
+        return 1, []
+
     if os.WIFSIGNALED(status):
-        return 128 + os.WTERMSIG(status)
-    return 1
+        sig = os.WTERMSIG(status)
+        if sig in (signal.SIGTERM, signal.SIGKILL):
+            return 0, [
+                f"child exited: killed by our signal {sig}",
+                "reporting exit 0 (done-signal received)",
+            ]
+        return 128 + sig, [
+            f"child exited: killed by signal {sig}",
+            f"NOT our signal — real crash, reporting exit {128 + sig}",
+        ]
+    code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else 0
+    return 0, [
+        f"child exited on its own with code {code} after our stop",
+        "reporting exit 0 (done-signal received)",
+    ]
 
 
 def _resize_pty(master_fd: int) -> None:
