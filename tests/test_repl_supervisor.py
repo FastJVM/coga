@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import signal
 import sys
 
 import pytest
@@ -10,9 +11,47 @@ import pytest
 from relay.repl_supervisor import (
     DONE_MARKER,
     SENTINEL_ENV,
+    _classify_exit,
     emit_done_marker,
     run_with_done_marker,
 )
+
+
+def _signaled(sig: int) -> int:
+    """A raw waitpid status for a child killed by `sig` (no core dump bit)."""
+    return sig
+
+
+def _exited(code: int) -> int:
+    """A raw waitpid status for a child that exited with `code`."""
+    return code << 8
+
+
+def test_classify_exit_passthrough_when_not_signalled() -> None:
+    """No watcher stop → the child's own status passes straight through."""
+    assert _classify_exit(_exited(0), sent_term=False) == (0, [])
+    assert _classify_exit(_exited(7), sent_term=False) == (7, [])
+    assert _classify_exit(_signaled(signal.SIGSEGV), sent_term=False) == (
+        128 + signal.SIGSEGV,
+        [],
+    )
+
+
+def test_classify_exit_our_signal_is_clean_done() -> None:
+    """Death from our own SIGTERM/SIGKILL after a stop reports a clean 0."""
+    code, notes = _classify_exit(_signaled(signal.SIGTERM), sent_term=True)
+    assert code == 0
+    assert any("exit 0" in n for n in notes)
+
+    code, _ = _classify_exit(_signaled(signal.SIGKILL), sent_term=True)
+    assert code == 0
+
+
+def test_classify_exit_surfaces_real_crash_after_stop() -> None:
+    """A crash by a non-our signal during teardown is surfaced, not masked."""
+    code, notes = _classify_exit(_signaled(signal.SIGSEGV), sent_term=True)
+    assert code == 128 + signal.SIGSEGV
+    assert any("real crash" in n for n in notes)
 
 
 def test_no_tty_falls_back_to_subprocess(monkeypatch: pytest.MonkeyPatch) -> None:
