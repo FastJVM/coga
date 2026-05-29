@@ -21,16 +21,46 @@ class AssigneeResolutionError(Exception):
     """Raised when a workflow step's role token can't resolve against the ticket."""
 
 
-def resolve_step_assignee(ticket: Ticket, role: str) -> str:
+def resolve_other_agent(cfg: Config, agent: str | None) -> str:
+    """Resolve the `other-agent` role token to the peer agent's nickname.
+
+    "Other" means the configured `[agents.*]` type that is not the ticket's
+    own `agent:` — the peer reviewer. This is only unambiguous when exactly
+    one such candidate exists (i.e. two agent types are configured and the
+    ticket's `agent:` is one of them). Anything else (no `agent:`, the
+    `agent:` isn't a configured type, only one type, or three+) is a
+    fail-loud condition rather than a silent guess.
+    """
+    if not agent:
+        raise AssigneeResolutionError(
+            "Workflow step declares assignee='other-agent' but the ticket has "
+            "no `agent:` field to take the peer of. Add `agent: <type>`."
+        )
+    others = [name for name in cfg.agents if name != agent]
+    if len(others) != 1:
+        raise AssigneeResolutionError(
+            "assignee='other-agent' needs exactly two configured `[agents.*]` "
+            f"types to pick the peer, with `agent: {agent}` as one of them. "
+            f"Configured agents: {sorted(cfg.agents)}; peer candidates: "
+            f"{sorted(others)}. Fix relay.toml or the ticket's `agent:`."
+        )
+    return others[0]
+
+
+def resolve_step_assignee(cfg: Config, ticket: Ticket, role: str) -> str:
     """Resolve a workflow step's role token to a concrete nickname.
 
-    `role` must be one of `owner` | `human` | `agent`. Raises
-    AssigneeResolutionError if the ticket has no value for that role.
+    `role` must be one of `owner` | `human` | `agent` | `other-agent`.
+    The first three read the matching ticket field; `other-agent` derives
+    the peer agent from config. Raises AssigneeResolutionError when the
+    token can't resolve.
     """
     if role not in VALID_ASSIGNEE_ROLES:
         raise AssigneeResolutionError(
             f"Unknown role token {role!r} (expected one of {sorted(VALID_ASSIGNEE_ROLES)})"
         )
+    if role == "other-agent":
+        return resolve_other_agent(cfg, ticket.agent)
     value = ticket.frontmatter.get(role)
     if not value:
         raise AssigneeResolutionError(
@@ -74,5 +104,6 @@ def advance_step(
 __all__ = [
     "advance_step",
     "resolve_step_assignee",
+    "resolve_other_agent",
     "AssigneeResolutionError",
 ]

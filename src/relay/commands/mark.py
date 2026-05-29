@@ -161,8 +161,9 @@ def done(
     # `mark done` is a session-end transition; tell a supervising
     # `relay launch` to tear down the agent's REPL. Other `mark`
     # transitions (active / paused) are not terminal and intentionally
-    # skip the marker.
-    emit_done_marker()
+    # skip the marker. The resolved task path scopes the signal to this
+    # ticket (see `emit_done_marker`).
+    emit_done_marker(session_id=str(ref.path.resolve()))
 
 
 # --- helpers -----------------------------------------------------------------

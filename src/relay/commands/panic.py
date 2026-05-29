@@ -56,8 +56,10 @@ def panic(
     typer.echo(f"{ref.id_slug}: panicked (owner {owner} notified)")
     # Panic *is* the session-end transition: tell a supervising
     # `relay launch` to tear down the agent's REPL. The non-zero exit
-    # below is the distress signal, not a failure of panic itself.
-    emit_done_marker()
+    # below is the distress signal, not a failure of panic itself. The
+    # resolved task path scopes the signal to this ticket (see
+    # `emit_done_marker`).
+    emit_done_marker(session_id=str(ref.path.resolve()))
     # Panic is the agent's distress signal — exit non-zero so a parent shell
     # or supervising agent can distinguish a panicked child from a clean one.
     sys.exit(1)

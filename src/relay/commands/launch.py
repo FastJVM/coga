@@ -344,7 +344,9 @@ def launch(
                     # recurring --interactive` can move to the next task
                     # without the human typing `/exit`. The marker string
                     # is `relay.repl_supervisor.DONE_MARKER`.
-                    exit_code = run_with_done_marker(cmd, env)
+                    exit_code = run_with_done_marker(
+                        cmd, env, session_id=str(ref.path.resolve())
+                    )
                 else:
                     result = subprocess.run(cmd, env=env, check=False)
                     exit_code = result.returncode

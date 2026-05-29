@@ -100,7 +100,7 @@ def bump(
     new_assignee: str | None = None
     if role is not None:
         try:
-            resolved = resolve_step_assignee(ticket, role)
+            resolved = resolve_step_assignee(cfg, ticket, role)
         except AssigneeResolutionError as exc:
             _bail(str(exc))
         if resolved != ticket.assignee:
@@ -148,8 +148,10 @@ def bump(
         typer.secho(hint, fg=typer.colors.CYAN)
 
     # Tell a supervising `relay launch` the session is done so the agent's
-    # REPL tears down without `/exit`. Harmless tagged line otherwise.
-    emit_done_marker()
+    # REPL tears down without `/exit`. Harmless tagged line otherwise. The
+    # resolved task path scopes the signal to this ticket so an unrelated
+    # nested `relay bump` (e.g. a test fixture) can't end our session.
+    emit_done_marker(session_id=str(ref.path.resolve()))
 
 
 def _bail(msg: str) -> None:

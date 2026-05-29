@@ -54,11 +54,34 @@ _KILL_GRACE_SECONDS = 2.0
 _SENTINEL_POLL_INTERVAL = 0.25
 
 
+def _sentinel_signals_done(path: str, session_id: str | None) -> bool:
+    """True when the sentinel file says *this* session is done.
+
+    With no `session_id` the supervisor accepts any existing file (the legacy
+    bare-touch contract). With one, the file's content must name this session
+    — so an unrelated descendant that ran a session-ending `relay` command
+    against a *different* ticket (e.g. a test fixture in a tempdir that
+    inherited our `RELAY_DONE_SENTINEL`) is ignored rather than tearing the
+    session down. A partial/empty read just misses this poll; the next one
+    (≤`_SENTINEL_POLL_INTERVAL` later) sees the complete write.
+    """
+    if not os.path.exists(path):
+        return False
+    if session_id is None:
+        return True
+    try:
+        with open(path) as f:
+            return f.read().strip() == session_id
+    except OSError:
+        return False
+
+
 def run_with_done_marker(
     cmd: list[str],
     env: Mapping[str, str],
     marker: bytes = DONE_MARKER,
     *,
+    session_id: str | None = None,
     output_fd: int | None = None,
     input_fd: int | None = None,
 ) -> int:
@@ -68,6 +91,11 @@ def run_with_done_marker(
     exit code if the child exited on its own). Falls back to a plain
     `subprocess.run` if stdout is not a TTY — the watcher is only meaningful
     for interactive REPLs that wouldn't otherwise exit on their own.
+
+    `session_id` scopes the sentinel-file channel to one session: the child's
+    `emit_done_marker` writes this string into the file and the supervisor
+    only tears down on a match. Leave it None for the legacy "any touch ends
+    the session" behavior.
 
     `output_fd` / `input_fd` exist for tests; production callers leave them
     None and the supervisor proxies the real stdio.
@@ -170,7 +198,7 @@ def run_with_done_marker(
                 except ProcessLookupError:
                     pass
 
-            if not sent_term and os.path.exists(sentinel_path):
+            if not sent_term and _sentinel_signals_done(sentinel_path, session_id):
                 _trigger_term("sentinel-file (RELAY_DONE_SENTINEL touched)")
 
             if master_fd in rlist:
@@ -266,21 +294,27 @@ def _resize_pty(master_fd: int) -> None:
         pass
 
 
-def emit_done_marker() -> None:
+def emit_done_marker(session_id: str | None = None) -> None:
     """Tell a supervising `run_with_done_marker` that this session is done.
 
-    Touches `$RELAY_DONE_SENTINEL` if set (primary channel — survives TUI
+    Writes `$RELAY_DONE_SENTINEL` if set (primary channel — survives TUI
     agents that capture bash subprocess stdout). Also prints `DONE_MARKER`
     on its own line (fallback channel for shell-shaped agents that echo
     stdout to the PTY). In a non-supervised terminal the printed line is
     harmless visible chrome and the env var is unset, so the file write is
     skipped.
+
+    `session_id` is written as the file content so the supervisor can verify
+    the signal names *its* session and ignore stray writes from unrelated
+    descendants that merely inherited the env var. Session-ending commands
+    pass the resolved task path (see `relay.commands.{bump,mark,panic}`); a
+    bare call writes the legacy `"done"` sentinel.
     """
     sentinel = os.environ.get(SENTINEL_ENV)
     if sentinel:
         try:
             with open(sentinel, "w") as f:
-                f.write("done\n")
+                f.write(f"{session_id or 'done'}\n")
         except OSError:
             pass
     print(DONE_MARKER.decode("ascii"), flush=True)

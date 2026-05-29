@@ -31,9 +31,21 @@ EXAMPLE = Path(__file__).parent.parent / "example"
 
 @pytest.fixture
 def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Copy the seeded example repo into tmp_path so the test doesn't mutate the source."""
+    """Copy the seeded example repo into tmp_path so the test doesn't mutate the source.
+
+    `.claude/` and `.codex/` are gitignored, agent-skill materializations that
+    relay regenerates on demand — not part of the seeded fixture. They contain
+    `skills/relay` symlinks into `.agent-skills`, which may be stale/dangling on
+    a developer's machine after running relay against `example/`. Excluding them
+    keeps the copy reproducible (and avoids `shutil` choking on a dead symlink).
+    """
     dest = tmp_path / "example"
-    shutil.copytree(EXAMPLE, dest)
+    shutil.copytree(
+        EXAMPLE,
+        dest,
+        ignore=shutil.ignore_patterns(".claude", ".codex", ".git", ".venv*", "venv"),
+        ignore_dangling_symlinks=True,
+    )
     monkeypatch.chdir(dest / "relay-os")
     return dest / "relay-os"
 
