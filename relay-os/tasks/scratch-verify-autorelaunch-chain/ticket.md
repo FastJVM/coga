@@ -1,6 +1,6 @@
 ---
 title: 'Scratch: verify autorelaunch chain'
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -20,7 +20,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (review)
 ---
 
 ## Description
