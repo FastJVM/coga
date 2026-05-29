@@ -3,12 +3,15 @@ name: dev/with-self-review
 description: Code change with an agent self-QA pass (/code-review + /simplify, fixes committed in place) before the PR is opened, so the human reviewer sees one clean diff. Three agent steps then human PR review.
 steps:
   - name: implement
+    assignee: agent
     skills:
       - code/implement
   - name: self-qa
+    assignee: agent
     skills:
       - code/self-qa
   - name: pr
+    assignee: agent
     skills:
       - code/open-pr
   - name: review
