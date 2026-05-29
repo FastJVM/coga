@@ -40,3 +40,21 @@ def _stub_slack(monkeypatch):
         return R()
 
     monkeypatch.setattr("relay.slack.requests.post", _noop_post, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _clear_supervised_session_env(monkeypatch):
+    """Detach the test run from any supervising `relay launch`.
+
+    A supervisor exports `RELAY_DONE_SENTINEL` (the "session done" sentinel
+    file it polls) and `RELAY_SUPERVISED` into the agent's env, and those leak
+    into anything the agent spawns — including this test suite. Many tests
+    invoke `relay bump` / `mark done` / `panic` (which call
+    `emit_done_marker`) or call `emit_done_marker` directly; left unscrubbed,
+    each one writes the *live* inherited sentinel and the supervisor SIGTERMs
+    the whole process group, killing the test run mid-flight. Clearing both
+    here makes the suite hermetic regardless of how it was launched. Tests
+    that exercise the supervisor set `RELAY_DONE_SENTINEL` themselves
+    (autouse runs first, so their `monkeypatch.setenv` wins)."""
+    monkeypatch.delenv("RELAY_DONE_SENTINEL", raising=False)
+    monkeypatch.delenv("RELAY_SUPERVISED", raising=False)
