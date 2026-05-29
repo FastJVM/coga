@@ -31,9 +31,13 @@ unambiguous. With one type, or three or more, the bump fails loud rather
 than guessing — fix `relay.toml` or the ticket's `agent:` if you hit
 that.
 
-The assignee change at each boundary breaks the `relay launch`
-supervisor's auto-chain, so every switch produces a clean session
-boundary under the right agent without special handling.
+The `relay launch` supervisor auto-chains across these agent boundaries:
+when a bump rotates `assignee:` from one agent to another (coder →
+peer → coder), it relaunches the *next* agent as a fresh process under
+the same supervisor — claude's REPL exits and codex's starts, or vice
+versa. Each step is a clean session with a freshly composed prompt; it
+only returns control to the human at the final `review` step (an
+owner/human handoff), or on `done`/`paused`/panic.
 
 ## peer-review
 
