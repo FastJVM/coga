@@ -29,7 +29,7 @@ from relay.compose import (
     compose_prompt_report,
     write_prompt_file,
 )
-from relay.config import ConfigError, load_config
+from relay.config import Config, ConfigError, load_config
 from relay.logfile import append_log
 from relay.mark import mark_in_progress
 from relay.repl_supervisor import run_with_done_marker
@@ -262,10 +262,15 @@ def launch(
     # Interactive launches chain across consecutive agent-owned steps the
     # same way auto mode does. After the agent exits (via autoquit on
     # `relay bump` / `mark done` / `panic`, or via `/exit`), we re-read the
-    # ticket and either spawn a fresh REPL for the next step or stop and
-    # return control to the caller. `_harness_stop_reason` decides.
-    # `RELAY_SUPERVISED=1` tells `relay bump` it's running under a launch
-    # supervisor so its chaining hint can fire.
+    # ticket and either relaunch the next step's agent as a fresh process —
+    # rotating the CLI when the step hands off to a different agent (e.g.
+    # claude -> codex for peer review) — or stop and return control to the
+    # caller. Every bump produces a brand-new agent process with a freshly
+    # composed prompt; context flows through the durable files (blackboard,
+    # ticket, artifacts), never a carried-over REPL session. The supervisor
+    # only stops at human handoffs and terminal states — `_harness_stop_reason`
+    # decides. `RELAY_SUPERVISED=1` tells `relay bump` it's running under a
+    # launch supervisor so its chaining hint can fire.
     env["RELAY_SUPERVISED"] = "1"
 
     # Install a signal-safe cleanup.
@@ -291,9 +296,48 @@ def launch(
     signal.signal(signal.SIGINT, _on_signal)
     signal.signal(signal.SIGTERM, _on_signal)
 
+    first_step = True
     try:
         while True:
             ticket = _read(ref)
+
+            # Resolve the agent for THIS step from the ticket's current
+            # assignee, so the supervisor can rotate claude <-> codex across
+            # the workflow. The `--agent` override applies only to the first
+            # step; chained steps follow the ticket. A step whose assignee is
+            # a human never reaches here — `_harness_stop_reason` returns
+            # control to the caller before we'd relaunch.
+            step_assignee = (
+                (agent_override or ticket.assignee) if first_step else ticket.assignee
+            )
+            first_step = False
+            try:
+                agent = cfg.agent_type(step_assignee) if step_assignee else None
+                if agent is None:
+                    raise ConfigError(f"Task {ref.id_slug} has no assignee")
+            except ConfigError as exc:
+                # Defensive: a non-agent assignee should have stopped the
+                # chain at the previous bump. If we somehow reach here, stop
+                # rather than crash.
+                typer.echo(f"{ref.id_slug}: {exc}; stopping")
+                break
+            # Re-check the CLI every step — catches the case where the chain
+            # rotates to an agent (e.g. codex) whose CLI isn't on PATH. Stop
+            # cleanly and hand back to the human rather than panicking.
+            if shutil.which(agent.cli) is None:
+                typer.secho(
+                    f"{ref.id_slug}: next step needs agent {step_assignee!r} "
+                    f"but its CLI {agent.cli!r} is not on PATH — stopping. "
+                    f"Install it, then `relay launch {ref.id_slug}` to continue.",
+                    fg=typer.colors.YELLOW,
+                    err=True,
+                )
+                break
+            typer.echo(
+                f"Launch: step agent {step_assignee} -> {agent.name} "
+                f"(cli={agent.cli})"
+            )
+
             _echo_launch_iteration(ref, ticket)
 
             # Compose & write prompt fresh for this step.
@@ -326,7 +370,7 @@ def launch(
                 _launch_log_message(
                     mode,
                     ticket.assignee or assignee,
-                    launch_assignee,
+                    step_assignee or launch_assignee,
                     agent.name,
                 ),
             )
@@ -378,7 +422,7 @@ def launch(
 
             typer.echo("Launch: reading task state after agent exit")
             updated_ticket = read_ticket(ref)
-            stop_reason = _harness_stop_reason(ref, ticket, updated_ticket)
+            stop_reason = _harness_stop_reason(ref, ticket, updated_ticket, cfg)
             if stop_reason is not None:
                 typer.echo(stop_reason)
                 break
@@ -459,7 +503,9 @@ def _format_agent_command_for_console(cmd: list[str], prompt: str) -> str:
     return shlex.join(display)
 
 
-def _harness_stop_reason(ref: TaskRef, before: Ticket, after: Ticket) -> str | None:
+def _harness_stop_reason(
+    ref: TaskRef, before: Ticket, after: Ticket, cfg: Config
+) -> str | None:
     if after.status != "in_progress":
         if after.status == "done":
             return f"{ref.id_slug}: task is done"
@@ -475,12 +521,17 @@ def _harness_stop_reason(ref: TaskRef, before: Ticket, after: Ticket) -> str | N
     if current is None:
         return f"{ref.id_slug}: no current workflow step; stopping"
 
-    # Source of truth for "is this the same agent's turn" is the resolved
-    # assignee, not the presence of skills on the next step. A skill-less
-    # agent step is legitimate (instructions come from the ticket body or
-    # the workflow's inline section); the loop should still chain.
-    if after.assignee != before.assignee:
-        return f"{ref.id_slug}: next step assignee changed: {before.assignee} → {after.assignee}"
+    # The supervisor chains across agent steps — including agent rotations
+    # (e.g. claude -> codex for peer review), relaunching the next step's
+    # agent as a fresh process. It only returns control to the caller when
+    # the next step hands off to a HUMAN (an assignee that is not a configured
+    # agent type) or is unassigned. The discriminator is human-vs-agent, NOT
+    # "did the nickname change" — a skill-less agent step is still the agent's
+    # turn and chains. (Same-agent steps were always chained; this also covers
+    # the cross-agent hop the single-agent loop used to stop at.)
+    if not after.assignee or after.assignee not in cfg.agents:
+        who = after.assignee or "unassigned"
+        return f"{ref.id_slug}: next step hands off to {who}; returning to caller"
 
     return None
 

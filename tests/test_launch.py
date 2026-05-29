@@ -1184,3 +1184,219 @@ def test_launch_bootstrap_unknown_shim(
     result = runner.invoke(app, ["launch", "bootstrap/does-not-exist"])
     assert result.exit_code == 2
     assert "bootstrap/does-not-exist" in (result.output + (result.stderr or ""))
+
+
+# --- unit: supervisor stop logic (agent rotation vs human handoff) -------------
+
+
+def _wf_ticket(step: str, assignee: str, status: str = "in_progress") -> Ticket:
+    """Build an in-memory 2-step-workflow ticket for stop-reason tests."""
+    return Ticket(
+        frontmatter={
+            "status": status,
+            "assignee": assignee,
+            "step": step,
+            "workflow": {
+                "name": "test/wf",
+                "steps": [
+                    {"name": "a", "assignee": "agent"},
+                    {"name": "b", "assignee": "other-agent"},
+                ],
+            },
+        },
+        body="",
+    )
+
+
+def test_harness_chains_across_agent_rotation(active_task: Path) -> None:
+    """claude -> codex (assignee change to another agent) must NOT stop."""
+    from relay.commands.launch import _harness_stop_reason
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    before = _wf_ticket("1 (a)", "claude")
+    after = _wf_ticket("2 (b)", "codex")
+    assert _harness_stop_reason(ref, before, after, cfg) is None
+
+
+def test_harness_chains_same_agent(active_task: Path) -> None:
+    from relay.commands.launch import _harness_stop_reason
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    before = _wf_ticket("1 (a)", "claude")
+    after = _wf_ticket("2 (b)", "claude")
+    assert _harness_stop_reason(ref, before, after, cfg) is None
+
+
+def test_harness_stops_on_human_handoff(active_task: Path) -> None:
+    """Next step assigned to a human (not a configured agent) returns control."""
+    from relay.commands.launch import _harness_stop_reason
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    before = _wf_ticket("1 (a)", "codex")
+    after = _wf_ticket("2 (b)", "marc")
+    reason = _harness_stop_reason(ref, before, after, cfg)
+    assert reason is not None
+    assert "hands off to marc" in reason
+
+
+def test_harness_stops_on_done_and_paused(active_task: Path) -> None:
+    from relay.commands.launch import _harness_stop_reason
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    before = _wf_ticket("1 (a)", "claude")
+    done = _wf_ticket("2 (b)", "claude", status="done")
+    paused = _wf_ticket("2 (b)", "claude", status="paused")
+    assert "done" in (_harness_stop_reason(ref, before, done, cfg) or "")
+    assert "paused" in (_harness_stop_reason(ref, before, paused, cfg) or "")
+
+
+def test_harness_stops_when_no_progress(active_task: Path) -> None:
+    from relay.commands.launch import _harness_stop_reason
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    before = _wf_ticket("1 (a)", "claude")
+    after = _wf_ticket("1 (a)", "claude")
+    reason = _harness_stop_reason(ref, before, after, cfg)
+    assert reason is not None
+    assert "still on" in reason
+
+
+def test_launch_interactive_rotates_across_agents(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The supervisor relaunches the *next* agent across an assignee change.
+
+    Workflow: implement (agent=claude) → peer (other-agent=codex) →
+    review (human). One `relay launch` should spawn claude, then — after the
+    claude→codex bump — auto-relaunch codex as a fresh process, then stop at
+    the human review step. This is the cross-agent auto-relaunch.
+    """
+    _write(
+        active_task / "workflows" / "rotate.md",
+        """
+        ---
+        name: rotate
+        description: Agent rotation chain.
+        steps:
+          - name: implement
+            assignee: agent
+          - name: peer
+            assignee: other-agent
+          - name: review
+            assignee: human
+        ---
+
+        ## implement
+        Do the work.
+
+        ## peer
+        Peer review by the other agent.
+        """,
+    )
+    cfg = load_config(active_task)
+    ref = scaffold_task(
+        cfg=cfg, title="Rotate work", workflow_name="rotate", contexts=[],
+        mode="interactive", owner="marc", human="marc", agent="claude",
+        assignee="claude", watchers=[], status="active",
+    )
+    slug = ref["slug"]
+    calls: list[list[str]] = []
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        result = CliRunner().invoke(app, ["bump", slug])
+        assert result.exit_code == 0, result.output
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 0, result.output
+
+    # Two agent runs: claude (implement), then codex (peer) auto-relaunched
+    # across the assignee change. The chain stops at the human review step.
+    assert len(calls) == 2, calls
+    assert calls[0][0] == "claude"
+    assert calls[1][0] == "codex"
+
+    from relay.ticket import Ticket
+    ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
+    assert ticket.step == "3 (review)"
+    assert ticket.assignee == "marc"
+
+
+def test_launch_rotation_stops_when_next_agent_cli_missing(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the chain rotates to an agent whose CLI is absent, stop cleanly."""
+    _write(
+        active_task / "workflows" / "rotate2.md",
+        """
+        ---
+        name: rotate2
+        description: Agent rotation chain.
+        steps:
+          - name: implement
+            assignee: agent
+          - name: peer
+            assignee: other-agent
+        ---
+
+        ## implement
+        Do the work.
+
+        ## peer
+        Peer review.
+        """,
+    )
+    cfg = load_config(active_task)
+    ref = scaffold_task(
+        cfg=cfg, title="Rotate2 work", workflow_name="rotate2", contexts=[],
+        mode="interactive", owner="marc", human="marc", agent="claude",
+        assignee="claude", watchers=[], status="active",
+    )
+    slug = ref["slug"]
+    calls: list[list[str]] = []
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        result = CliRunner().invoke(app, ["bump", slug])
+        assert result.exit_code == 0, result.output
+        return _Result()
+
+    # claude resolves, codex does not (simulate codex not on PATH).
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "relay.commands.launch.shutil.which",
+        lambda name: "/usr/bin/claude" if name == "claude" else None,
+    )
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 0, result.output
+    # Only claude ran; codex CLI missing → stop cleanly, hand back to caller.
+    assert len(calls) == 1, calls
+    assert calls[0][0] == "claude"
+    assert "not on PATH" in result.output
+
+    from relay.ticket import Ticket
+    ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
+    assert ticket.step == "2 (peer)"
+    assert ticket.assignee == "codex"
