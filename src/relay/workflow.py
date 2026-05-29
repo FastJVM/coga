@@ -18,7 +18,14 @@ _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 _HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 
 
-VALID_ASSIGNEE_ROLES: frozenset[str] = frozenset({"owner", "human", "agent"})
+# Role tokens a workflow step may declare under `assignee:`. `owner` /
+# `human` / `agent` resolve against the matching ticket field; `other-agent`
+# resolves to the configured agent type that is NOT the ticket's `agent:`
+# (peer review). `other-agent` needs exactly two `[agents.*]` types to be
+# unambiguous and fails loud otherwise (see relay.bump.resolve_other_agent).
+VALID_ASSIGNEE_ROLES: frozenset[str] = frozenset(
+    {"owner", "human", "agent", "other-agent"}
+)
 
 
 @dataclass(frozen=True)

@@ -100,7 +100,7 @@ def bump(
     new_assignee: str | None = None
     if role is not None:
         try:
-            resolved = resolve_step_assignee(ticket, role)
+            resolved = resolve_step_assignee(cfg, ticket, role)
         except AssigneeResolutionError as exc:
             _bail(str(exc))
         if resolved != ticket.assignee:

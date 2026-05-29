@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from relay.blackboard import render_blackboard
+from relay.bump import AssigneeResolutionError, resolve_other_agent
 from relay.config import Config
 from relay.logfile import append_log
 from relay.paths import (
@@ -74,18 +75,27 @@ def scaffold_task(
             )
 
     # Initial assignee: if step 1 declares a role, resolve against the
-    # ticket's role fields. Otherwise honor the explicit `assignee` arg or
-    # fall back to the owner.
+    # ticket's role fields (or, for `other-agent`, the peer agent from
+    # config). Otherwise honor the explicit `assignee` arg or fall back to
+    # the owner.
     role_fields = {"owner": owner, "human": human, "agent": agent}
     if wf and wf.steps[0].assignee:
         role = wf.steps[0].assignee
-        resolved = role_fields.get(role)
-        if not resolved:
-            raise ValueError(
-                f"Workflow {workflow_name!r} step 1 assignee={role!r} but no `{role}` "
-                f"set on the new ticket."
-            )
-        assignee = resolved
+        if role == "other-agent":
+            try:
+                assignee = resolve_other_agent(cfg, agent)
+            except AssigneeResolutionError as exc:
+                raise ValueError(
+                    f"Workflow {workflow_name!r} step 1 assignee='other-agent': {exc}"
+                ) from exc
+        else:
+            resolved = role_fields.get(role)
+            if not resolved:
+                raise ValueError(
+                    f"Workflow {workflow_name!r} step 1 assignee={role!r} but no `{role}` "
+                    f"set on the new ticket."
+                )
+            assignee = resolved
     else:
         assignee = assignee or owner
 

@@ -5,7 +5,7 @@ mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: claude
 contexts:
 - relay/principles
 - relay/cli
@@ -18,9 +18,14 @@ workflow:
   - name: implement
     skills:
     - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
   - name: open-pr
     skills:
     - code/open-pr
+    assignee: agent
   - name: review
     skills: []
     assignee: owner

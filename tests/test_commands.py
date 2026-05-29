@@ -415,6 +415,137 @@ def test_bump_role_token_with_missing_field_fails_loud(repo: Path) -> None:
     assert "human" in result.output
 
 
+def _add_codex_agent(repo: Path) -> None:
+    """Append a second agent type so `other-agent` has a peer to resolve to."""
+    toml = repo / "relay.toml"
+    toml.write_text(
+        toml.read_text()
+        + dedent(
+            """
+            [agents.codex]
+            cli = "codex"
+            auto = "exec"
+            file = "AGENTS.md"
+            """
+        )
+    )
+
+
+def _write_peer_review_workflow(repo: Path) -> None:
+    """implement (coder) → peer-review (the other agent) → signoff (owner)."""
+    _write(
+        repo / "workflows" / "peer.md",
+        """
+        ---
+        name: peer
+        description: Reviewed by the other agent.
+        steps:
+          - name: implement
+            assignee: agent
+          - name: peer-review
+            assignee: other-agent
+          - name: signoff
+            assignee: owner
+        ---
+        """,
+    )
+
+
+def test_other_agent_resolves_to_the_peer_on_bump(repo: Path) -> None:
+    _add_codex_agent(repo)
+    _write_peer_review_workflow(repo)
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="W", workflow_name="peer",
+        contexts=[], mode="interactive",
+        owner="marc", assignee="claude",
+        human="marc", agent="claude",
+        watchers=[], status="in_progress",
+    )
+    slug, task_path = ref["slug"], ref["path"]
+
+    # Step 1 `assignee: agent` → the coder (claude).
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.assignee == "claude"
+
+    # Bump into peer-review (`assignee: other-agent`) → codex, the agent
+    # that is not the ticket's `agent: claude`.
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", slug])
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.step == "2 (peer-review)"
+    assert t.assignee == "codex"
+    assert "→ assigned to codex" in (task_path / "log.md").read_text()
+
+
+def test_other_agent_flips_with_the_coder(repo: Path) -> None:
+    # A change written by codex is peer-reviewed by claude — the token is
+    # relative to the ticket's own `agent:`, not hard-coded.
+    _add_codex_agent(repo)
+    _write_peer_review_workflow(repo)
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="W", workflow_name="peer",
+        contexts=[], mode="interactive",
+        owner="marc", assignee="codex",
+        human="marc", agent="codex",
+        watchers=[], status="in_progress",
+    )
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", ref["slug"]])
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(ref["path"] / "ticket.md")
+    assert t.assignee == "claude"
+
+
+def test_other_agent_step_one_resolves_at_scaffold_time(repo: Path) -> None:
+    _add_codex_agent(repo)
+    _write(
+        repo / "workflows" / "peer-first.md",
+        """
+        ---
+        name: peer-first
+        description: First step is the other agent.
+        steps:
+          - name: peer-review
+            assignee: other-agent
+        ---
+        """,
+    )
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="W", workflow_name="peer-first",
+        contexts=[], mode="interactive",
+        owner="marc", assignee="claude",
+        human="marc", agent="claude",
+        watchers=[], status="in_progress",
+    )
+    t = Ticket.read(ref["path"] / "ticket.md")
+    assert t.assignee == "codex"
+
+
+def test_other_agent_fails_loud_without_exactly_two_agents(repo: Path) -> None:
+    # The base fixture configures only `claude`, so there is no peer to pick.
+    _write_peer_review_workflow(repo)
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="W", workflow_name="peer",
+        contexts=[], mode="interactive",
+        owner="marc", assignee="claude",
+        human="marc", agent="claude",
+        watchers=[], status="in_progress",
+    )
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", ref["slug"]])
+    assert result.exit_code == 2, result.output
+    assert "other-agent" in result.output
+    # assignee must not have changed on the failed bump.
+    t = Ticket.read(ref["path"] / "ticket.md")
+    assert t.assignee == "claude"
+    assert t.step == "1 (implement)"
+
+
 def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
     # Hand-authored ticket: `workflow:` is a bare string ref, no `step:`.
     legacy = repo / "tasks" / "legacy"

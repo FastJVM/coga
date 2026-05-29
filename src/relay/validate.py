@@ -54,6 +54,7 @@ from relay.tasks import (
     resolve_task,
 )
 from relay.ticket import Ticket, TicketError
+from relay.workflow import VALID_ASSIGNEE_ROLES
 
 VALID_STATUSES = {"draft", "active", "in_progress", "paused", "done"}
 VALID_MODES = {"interactive", "auto", "script"}
@@ -516,13 +517,13 @@ def _check_step_shape(task_label: str, idx: int, step: Any) -> list[Issue]:
             severity="error",
         ))
     assignee = step.get("assignee")
-    if assignee is not None and assignee not in {"owner", "human", "agent"}:
+    if assignee is not None and assignee not in VALID_ASSIGNEE_ROLES:
         out.append(Issue(
             kind="bad-shape",
             task=task_label,
             message=(
                 f"workflow step #{idx} assignee {assignee!r} must be one of "
-                "'owner', 'human', 'agent'"
+                f"{sorted(VALID_ASSIGNEE_ROLES)}"
             ),
             severity="error",
         ))
