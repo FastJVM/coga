@@ -148,8 +148,10 @@ def bump(
         typer.secho(hint, fg=typer.colors.CYAN)
 
     # Tell a supervising `relay launch` the session is done so the agent's
-    # REPL tears down without `/exit`. Harmless tagged line otherwise.
-    emit_done_marker()
+    # REPL tears down without `/exit`. Harmless tagged line otherwise. The
+    # resolved task path scopes the signal to this ticket so an unrelated
+    # nested `relay bump` (e.g. a test fixture) can't end our session.
+    emit_done_marker(session_id=str(ref.path.resolve()))
 
 
 def _bail(msg: str) -> None:

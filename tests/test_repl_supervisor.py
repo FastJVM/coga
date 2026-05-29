@@ -64,7 +64,12 @@ def test_no_tty_falls_back_to_subprocess(monkeypatch: pytest.MonkeyPatch) -> Non
     assert code != 0
 
 
-def _run_through_pty(monkeypatch: pytest.MonkeyPatch, cmd: list[str]) -> int:
+def _run_through_pty(
+    monkeypatch: pytest.MonkeyPatch,
+    cmd: list[str],
+    *,
+    session_id: str | None = None,
+) -> int:
     """Force the PTY path with /dev/null fds for output and input."""
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
     devnull_out = os.open(os.devnull, os.O_WRONLY)
@@ -73,6 +78,7 @@ def _run_through_pty(monkeypatch: pytest.MonkeyPatch, cmd: list[str]) -> int:
         return run_with_done_marker(
             cmd,
             env={"PATH": os.environ.get("PATH", "")},
+            session_id=session_id,
             output_fd=devnull_out,
             input_fd=devnull_in,
         )
@@ -119,6 +125,46 @@ def test_sentinel_file_terminates_child(
         ["bash", "-c", f'touch "${SENTINEL_ENV}"; sleep 30'],
     )
     assert code == 0
+
+
+def test_session_id_match_terminates_child(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sentinel content naming *this* session → supervisor SIGTERMs it."""
+    code = _run_through_pty(
+        monkeypatch,
+        ["bash", "-c", f'printf "/repo/tasks/mine" > "${SENTINEL_ENV}"; sleep 30'],
+        session_id="/repo/tasks/mine",
+    )
+    assert code == 0
+
+
+def test_session_id_mismatch_is_ignored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sentinel content naming a *different* ticket → no teardown.
+
+    This is the leak that killed sessions: a nested `relay bump`/`mark done`
+    (e.g. a test fixture in a tempdir) inherited `RELAY_DONE_SENTINEL` and
+    wrote it. With session scoping the supervisor ignores the stray write and
+    the child runs to its own exit — here exit 5, proving we did NOT SIGTERM.
+    """
+    code = _run_through_pty(
+        monkeypatch,
+        ["bash", "-c", f'printf "/tmp/fixture/other" > "${SENTINEL_ENV}"; exit 5'],
+        session_id="/repo/tasks/mine",
+    )
+    assert code == 5
+
+
+def test_emit_done_marker_writes_session_id_content(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`emit_done_marker(session_id=...)` writes the id as the file content."""
+    sentinel = tmp_path / "done"
+    monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
+    emit_done_marker(session_id="/repo/tasks/mine")
+    assert sentinel.read_text().strip() == "/repo/tasks/mine"
 
 
 def test_emit_done_marker_writes_sentinel(
