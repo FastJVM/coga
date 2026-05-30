@@ -17,7 +17,7 @@ from googleapiclient.errors import HttpError
 SKILL = (
     Path(__file__).resolve().parents[1]
     / "src" / "relay" / "resources" / "templates" / "relay-os"
-    / "bootstrap" / "skills" / "relay" / "google-calendar" / "calendar.py"
+    / "bootstrap" / "skills" / "relay" / "google-calendar" / "gcal.py"
 )
 
 

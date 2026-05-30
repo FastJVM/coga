@@ -20,13 +20,13 @@ operations can find the event without out-of-band state.
 ## Backend: the `relay/google-calendar` skill
 
 All Calendar API calls go through the bundled **`relay/google-calendar`**
-skill — its `calendar.py` script — not a local `gws`/`gcloud` binary and
+skill — its `gcal.py` script — not a local `gws`/`gcloud` binary and
 not MCP. That skill owns auth (a Google service account) and the four
 event operations; this skill only assembles the request bodies per the
 conventions below and shells out. Invoke via Bash:
 
 ```bash
-python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/calendar.py" <verb> ...
+python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/gcal.py" <verb> ...
 ```
 
 The script speaks the Google event resource as JSON in and out. Exit
@@ -82,10 +82,10 @@ after assembling the request per this skill's conventions.
 
 | Operation | When to use | Underlying call |
 |---|---|---|
-| `create` | Setting up a new reminder for a ticket | `calendar.py create` |
-| `verify` | Confirming an event still exists with the expected schedule | `calendar.py get` |
-| `update` | Schedule or content needs to change | `calendar.py update` |
-| `delete` | Recurring machinery taking over, or ticket retiring | `calendar.py delete` |
+| `create` | Setting up a new reminder for a ticket | `gcal.py create` |
+| `verify` | Confirming an event still exists with the expected schedule | `gcal.py get` |
+| `update` | Schedule or content needs to change | `gcal.py update` |
+| `delete` | Recurring machinery taking over, or ticket retiring | `gcal.py delete` |
 
 ### create
 
@@ -138,7 +138,7 @@ Convention applied to the event body:
 Call shape (monthly reminder, shared reminders calendar):
 
 ```bash
-python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/calendar.py" create \
+python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/gcal.py" create \
   --calendar-id "<calendar-id>" \
   --body '{
     "summary": "Brex — review Missing GL Account charges",
@@ -171,7 +171,7 @@ acting on an assumption that the event exists.
 1. Read `calendar_reminder_event_id` from the ticket's frontmatter.
 2. Call:
    ```bash
-   python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/calendar.py" get \
+   python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/gcal.py" get \
      --calendar-id "<calendar-id>" --event-id "<id>"
    ```
    Exit code `3` means the event is gone — surface that and offer to
@@ -193,7 +193,7 @@ Use when the schedule, title, or description needs to change (e.g.
 2. Re-apply the create convention with the new inputs.
 3. Call:
    ```bash
-   python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/calendar.py" update \
+   python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/gcal.py" update \
      --calendar-id "<calendar-id>" --event-id "<id>" \
      --body '{ <only the fields that changed> }'
    ```
@@ -210,7 +210,7 @@ no longer needed) or when a ticket is being retired entirely.
 1. Read `calendar_reminder_event_id` from the ticket's frontmatter.
 2. Call:
    ```bash
-   python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/calendar.py" delete \
+   python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/gcal.py" delete \
      --calendar-id "<calendar-id>" --event-id "<id>"
    ```
    A successful delete prints `{}` (exit `0`). Exit `3` means the
@@ -272,7 +272,7 @@ ticket body.
 Four calendar events were created via direct MCP calls on the human's
 `primary` calendar before this skill moved to the service-account
 backend. **The service account cannot see or manage events on
-`primary`** — `calendar.py get`/`delete` against `primary` will fail.
+`primary`** — `gcal.py get`/`delete` against `primary` will fail.
 These have to be re-homed: recreate each on the shared reminders
 calendar via `create` (which writes a fresh `calendar_reminder_event_id`),
 then delete the old `primary` event by hand in the Google Calendar UI.

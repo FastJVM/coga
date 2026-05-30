@@ -1,23 +1,23 @@
 ---
 name: relay/google-calendar
-description: Reusable Google Calendar capability — create/read/update/delete events via a service account, so skills don't depend on a per-host gws/gcloud binary. Other skills shell to this skill's calendar.py.
+description: Reusable Google Calendar capability — create/read/update/delete events via a service account, so skills don't depend on a per-host gws/gcloud binary. Other skills shell to this skill's gcal.py.
 ---
 
 # Google Calendar capability
 
 The calendar analogue of `relay slack`: a shared, bootstrapped capability any
 relay skill can use to write Google Calendar events, without a per-machine
-`gws`/`gcloud` binary or interactive login. The logic lives in `calendar.py`,
+`gws`/`gcloud` binary or interactive login. The logic lives in `gcal.py`,
 a self-contained script other skills shell to.
 
 ## Invocation
 
 ```
-python <relay-os>/skills/relay/google-calendar/calendar.py get \
+python <relay-os>/skills/relay/google-calendar/gcal.py get \
     --calendar-id <id> --event-id <id>
-python .../calendar.py create --calendar-id <id> --body '<json event resource>'
-python .../calendar.py update --calendar-id <id> --event-id <id> --body '<json>'
-python .../calendar.py delete --calendar-id <id> --event-id <id>
+python .../gcal.py create --calendar-id <id> --body '<json event resource>'
+python .../gcal.py update --calendar-id <id> --event-id <id> --body '<json>'
+python .../gcal.py delete --calendar-id <id> --event-id <id>
 ```
 
 `get`/`create`/`update` print the Google event resource as JSON on stdout;
