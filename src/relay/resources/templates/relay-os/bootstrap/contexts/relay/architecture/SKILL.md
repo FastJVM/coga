@@ -142,18 +142,19 @@ user-authored drafts.
   `in_progress` when it spawns the agent. `bump` ignores `status:`
   entirely (it owns `step:`, not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
-  Format `N (step-name)`. Owned entirely by `relay bump`. Only advances
-  when status is `in_progress`. Pausing preserves the step; marking done
-  clears it.
+  Format `N (step-name)`. Owned entirely by `relay bump`. Only moves when
+  status is `in_progress`. Bare `relay bump` advances one step; a human
+  outside a supervised launch may rewind to an earlier step with `--to` or
+  `--backward`. Pausing preserves the step; marking done clears it.
 
 Tickets without a `workflow` field have no steps and move through
 statuses directly via `relay mark`. `relay bump` refuses them.
 
 The split is deliberate: each command owns its writes. `relay create`
 authors a draft, `relay mark` flips status across the lifecycle,
-`relay bump` advances steps, and `relay launch` spawns the agent —
-flipping `active → in_progress` as it does. Only `launch` touches
-both planes, and only for that single transition.
+`relay bump` moves steps, and `relay launch` spawns the agent — flipping
+`active → in_progress` as it does. Only `launch` touches both planes, and
+only for that single transition.
 
 ## Three modes
 

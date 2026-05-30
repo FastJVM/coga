@@ -105,6 +105,11 @@ def bump(
     steps = wf["steps"]
     total = len(steps)
     current_idx = ticket.step_index() or 0
+    if current_idx > total:
+        _bail(
+            f"Task {ref.id_slug} has invalid step {ticket.step!r}. "
+            f"Workflow has steps 1-{total}."
+        )
     if backward:
         next_step = current_idx - 1
         if current_idx <= 1:

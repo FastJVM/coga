@@ -93,7 +93,7 @@ There is no filesystem mutex. The ticket's `status` field is the only signal tha
 
 - `draft` means unapproved, `active` means approved/queued, and `in_progress` means launched work.
 - `relay launch` accepts `status: active` or `status: in_progress`. Launching active work marks it `in_progress`; launching already-in-progress work resumes it.
-- `relay bump` advances only `in_progress` workflow tasks.
+- `relay bump` moves only `in_progress` workflow tasks.
 - Bootstrap shims are stateless and exempt — they are re-entry points, not units of work.
 - Dream's `validate-drift` skill flags tasks stuck in `in_progress` with no recent log activity. Recovery is human-initiated.
 

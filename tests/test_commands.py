@@ -129,6 +129,20 @@ def test_bump_backward_rewinds_one_step(repo: Path) -> None:
     assert "rewound to step 2 (pr)" in (task_path / "log.md").read_text()
 
 
+def test_bump_rewind_rejects_invalid_current_step(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    t = Ticket.read(task_path / "ticket.md")
+    t.frontmatter["step"] = "99 (bogus)"
+    t.write(task_path / "ticket.md")
+
+    result = CliRunner().invoke(app, ["bump", slug, "--backward"])
+
+    assert result.exit_code == 2, result.output
+    assert "invalid step '99 (bogus)'" in result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.step == "99 (bogus)"
+
+
 def test_bump_rejects_named_rewind_target(repo: Path) -> None:
     slug, task_path = _make_task(repo)
     runner = CliRunner()
