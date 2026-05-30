@@ -17,78 +17,44 @@ timezone, reminders) and records the resulting event ID into the
 ticket's frontmatter, so future `verify` / `update` / `delete`
 operations can find the event without out-of-band state.
 
-## Backend: `gws` CLI
+## Backend: the `relay/google-calendar` skill
 
-All Calendar API calls go through the `gws` (Google Workspace CLI)
-binary on the local machine — not via MCP. Invoke via Bash. Tested
-against `gws 0.22.5`.
+All Calendar API calls go through the bundled **`relay/google-calendar`**
+skill — its `calendar.py` script — not a local `gws`/`gcloud` binary and
+not MCP. That skill owns auth (a Google service account) and the four
+event operations; this skill only assembles the request bodies per the
+conventions below and shells out. Invoke via Bash:
 
-### Setup on a new machine
+```bash
+python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/calendar.py" <verb> ...
+```
 
-1. **Install via Homebrew:**
+The script speaks the Google event resource as JSON in and out. Exit
+codes: `0` ok, `1` config/auth/API error (message on stderr), `3` event
+not found (so `verify`/`delete` can tell "already gone" from "broken").
 
-   ```bash
-   brew install googleworkspace-cli
-   ```
+### Setup
 
-   Note: the formula is `googleworkspace-cli`, **not** `gws`. The
-   binary it installs is named `gws`, but `brew install gws` would
-   install an unrelated git-workspace-manager tool — wrong package.
+One-time service-account setup lives in the `relay/google-calendar`
+SKILL.md — read it. In short: create a Google service account + JSON
+key, enable the Calendar API, **share the reminders calendar with the
+service account's email** (grant "Make changes to events"), and point
+`[calendar].service_account_file` in `relay.local.toml` at the key. The
+Google client libs install into `.relay/.venv` automatically on
+`relay init` / `relay init --update`.
 
-   Verify: `gws --version` → `gws 0.22.5` (or newer).
+### Calendar target — NOT `primary`
 
-2. **Get the shared OAuth client.** Ask Zach for the
-   `Manycore Admin Automation` `client_secret.json`. One OAuth client
-   is shared across machines; each user does their own browser
-   consent and ends up with their own user token. Save the file to:
+A service account is a robot identity; on a personal (non-Workspace)
+Google account it **cannot write to a human's `primary` calendar**.
+Reminder events must target a calendar that has been **shared with the
+service account's email** — e.g. a dedicated "Relay reminders" (or
+"FastJVM Patent") calendar. Resolve the calendar id from `relay.toml`
+`[calendar]`, or ask the human which shared calendar to use. **Never
+pass `primary`** — it returns 403/404.
 
-   ```
-   ~/.config/gws/client_secret.json
-   ```
-
-3. **Authenticate:**
-
-   ```bash
-   gws auth login
-   ```
-
-   Browser flow — sign in with your `@fastjvm.com` account and
-   approve the requested scopes. The token is cached per-machine
-   under `~/.config/gws/` (encrypted, backed by the macOS keyring).
-
-4. **Verify:**
-
-   ```bash
-   gws auth status
-   ```
-
-   Look for `https://www.googleapis.com/auth/calendar.events` in the
-   `scopes` array. If it's missing after a successful login, the
-   OAuth client doesn't have the calendar scope enabled in GCP
-   Console — ask Zach to add it, then re-run `gws auth login` to
-   pick up the broader scope on your token.
-
-5. **Grant macOS Desktop folder access** to the app running the
-   agent (Terminal and/or the Claude Code desktop app). This repo
-   lives under `~/Desktop/admin/`, and macOS gates Desktop access
-   per-app.
-
-   System Settings → Privacy & Security → **Files and Folders** →
-   find the entry for the running app → toggle **Desktop Folder**
-   ON. Alternatively, grant **Full Disk Access** to the same app
-   (broader but works). Then **quit and relaunch** the app — macOS
-   requires the relaunch for the permission to take effect.
-
-   Symptom if missing: `Read`/`Bash` tool calls against
-   `/Users/<you>/Desktop/...` return `Operation not permitted`
-   while `/tmp` and the home dir work fine.
-
-### Why `gws` instead of MCP
-
-gws runs on the same machine as the relay agent, so the same auth
-works for both interactive and unattended use (cron). See
-[[project-relay-calendar-reminder-auth-revisit]] for the SA+DWD
-upgrade path when unattended use lands.
+Throughout the call shapes below, `<calendar-id>` means that shared
+calendar id, never `primary`.
 
 ## When to use this skill
 
@@ -96,7 +62,7 @@ upgrade path when unattended use lands.
   there's no other scheduling mechanism wired up.
 - The user says "remind me monthly to do X", "set a yearly reminder
   for Y", or "add a calendar nudge for this ticket".
-- The agent is about to call `gws calendar events insert` for a
+- The agent is about to create a Google Calendar event for a
   relay-related recurring reminder — route through this skill
   instead so the convention stays consistent.
 - Relay's recurring-task machinery has shipped and existing reminder
@@ -105,25 +71,25 @@ upgrade path when unattended use lands.
 ## When NOT to use this skill
 
 - One-off appointments, meetings with attendees, or anything that
-  isn't a relay-ticket trigger — call `gws calendar events insert`
-  directly.
+  isn't a relay-ticket trigger — call the `relay/google-calendar`
+  skill directly.
 - Events that need invites, locations, or attendee lists.
 
 ## Operations
 
-Four operations, each delegating to a `gws calendar events` method
+Four operations, each delegating to the `relay/google-calendar` skill
 after assembling the request per this skill's conventions.
 
 | Operation | When to use | Underlying call |
 |---|---|---|
-| `create` | Setting up a new reminder for a ticket | `gws calendar events insert` |
-| `verify` | Confirming an event still exists with the expected schedule | `gws calendar events get` |
-| `update` | Schedule or content needs to change | `gws calendar events patch` |
-| `delete` | Recurring machinery taking over, or ticket retiring | `gws calendar events delete` |
+| `create` | Setting up a new reminder for a ticket | `calendar.py create` |
+| `verify` | Confirming an event still exists with the expected schedule | `calendar.py get` |
+| `update` | Schedule or content needs to change | `calendar.py update` |
+| `delete` | Recurring machinery taking over, or ticket retiring | `calendar.py delete` |
 
 ### create
 
-Gather these inputs before calling gws:
+Gather these inputs before calling the backend:
 
 1. **Ticket name** — e.g. `brex-automation`. Used to derive the
    default event title and to locate the `ticket.md` (or
@@ -169,12 +135,12 @@ Convention applied to the event body:
   - Annual: `[{"method": "popup", "minutes": 10}, {"method": "email", "minutes": 1440}]` (24 hours of email lead time for events that fire only once a year).
 - **reminders.useDefault** — always `false` when overrides are set.
 
-Call shape (monthly reminder, primary calendar):
+Call shape (monthly reminder, shared reminders calendar):
 
 ```bash
-gws calendar events insert \
-  --params '{"calendarId": "primary"}' \
-  --json '{
+python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/calendar.py" create \
+  --calendar-id "<calendar-id>" \
+  --body '{
     "summary": "Brex — review Missing GL Account charges",
     "description": "Review the report and assign GL accounts in Brex.\n\nRelay ticket: relay-os/tasks/brex-automation/ticket.md\nLaunch: see the ticket / recurring entry for the canonical invocation.\n\nTemporary — delete this event once relay'\''s recurring-task machinery lands and the ticket can fire on its own cron.",
     "start": {"dateTime": "2026-06-01T09:00:00", "timeZone": "America/Los_Angeles"},
@@ -184,7 +150,8 @@ gws calendar events insert \
   }'
 ```
 
-The response is JSON. Extract the `id` field — that's the event ID.
+The response is the created event as JSON. Extract the `id` field —
+that's the event ID.
 
 After the call returns:
 
@@ -204,9 +171,11 @@ acting on an assumption that the event exists.
 1. Read `calendar_reminder_event_id` from the ticket's frontmatter.
 2. Call:
    ```bash
-   gws calendar events get \
-     --params '{"calendarId": "primary", "eventId": "<id>"}'
+   python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/calendar.py" get \
+     --calendar-id "<calendar-id>" --event-id "<id>"
    ```
+   Exit code `3` means the event is gone — surface that and offer to
+   recreate it via `create`.
 3. Confirm: `status` is `confirmed`, `recurrence` matches what the
    ticket implies, `start.timeZone` is `America/Los_Angeles`, and the
    description contains the "Temporary — delete this event…" line.
@@ -224,13 +193,13 @@ Use when the schedule, title, or description needs to change (e.g.
 2. Re-apply the create convention with the new inputs.
 3. Call:
    ```bash
-   gws calendar events patch \
-     --params '{"calendarId": "primary", "eventId": "<id>"}' \
-     --json '{ <only the fields that changed> }'
+   python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/calendar.py" update \
+     --calendar-id "<calendar-id>" --event-id "<id>" \
+     --body '{ <only the fields that changed> }'
    ```
-   `patch` merges; only include keys that differ. If the schedule
-   changed, include the full `recurrence`, `start`, and `end` —
-   those three move together.
+   `update` is a partial merge (Google `patch`); only include keys
+   that differ. If the schedule changed, include the full
+   `recurrence`, `start`, and `end` — those three move together.
 4. Run a follow-up `verify` to confirm.
 
 ### delete
@@ -241,10 +210,11 @@ no longer needed) or when a ticket is being retired entirely.
 1. Read `calendar_reminder_event_id` from the ticket's frontmatter.
 2. Call:
    ```bash
-   gws calendar events delete \
-     --params '{"calendarId": "primary", "eventId": "<id>"}'
+   python "$RELAY_RELAY_OS_ROOT/bootstrap/skills/relay/google-calendar/calendar.py" delete \
+     --calendar-id "<calendar-id>" --event-id "<id>"
    ```
-   A successful delete returns an empty body (HTTP 204).
+   A successful delete prints `{}` (exit `0`). Exit `3` means the
+   event was already gone — treat that as success for cleanup.
 3. Open the ticket/recurring file and **remove** the
    `calendar_reminder_event_id` line from the frontmatter.
 4. If the deletion is part of a machinery-shipping migration, add
@@ -297,23 +267,24 @@ Tickets without a `calendar_reminder_event_id` field have no active
 reminder. That's the truth source — don't infer reminders from the
 ticket body.
 
-## Existing events (to be migrated)
+## Legacy events on `primary` (need re-homing)
 
-Four calendar events were created via direct MCP calls before this
-skill existed. The event IDs are valid regardless of which client
-created them — `gws calendar events get` will return them. Migration
-plan: for each artifact, confirm the `calendar_reminder_event_id`
-frontmatter field is present, then run `verify` to confirm the event
-still matches the convention.
+Four calendar events were created via direct MCP calls on the human's
+`primary` calendar before this skill moved to the service-account
+backend. **The service account cannot see or manage events on
+`primary`** — `calendar.py get`/`delete` against `primary` will fail.
+These have to be re-homed: recreate each on the shared reminders
+calendar via `create` (which writes a fresh `calendar_reminder_event_id`),
+then delete the old `primary` event by hand in the Google Calendar UI.
 
-| Artifact | Event ID | Schedule | First fire |
+| Artifact | Old `primary` event ID | Schedule | First fire |
 |---|---|---|---|
 | `relay-os/tasks/brex-automation/ticket.md` | `j3lt2meocjfetlbl6ga27jvvh8` | Monthly, 1st 9 AM PT | 2026-06-01 |
 | `relay-os/tasks/xero-reconciliation/ticket.md` | `ns2of8i93mke579aedr927cv8k` | Monthly, 1st 9 AM PT | 2026-06-01 |
 | `relay-os/recurring/gusto-tax-forms-download.md` | `0vhr5me50sbohsq9afo7jf85qg` | Yearly, Jan 5 9 AM PT | 2027-01-05 |
 | `relay-os/tasks/insurance-payment-reminder/ticket.md` | `4jqgrfutdf6rctja3fo9kujrb0` | Yearly, May 1 9 AM PT | 2027-05-01 |
 
-After migration, the prose "Triggering (temporary)" bullets currently
+After re-homing, the prose "Triggering (temporary)" bullets currently
 in each ticket can be removed — the frontmatter line is the only
 ticket-side record going forward.
 
@@ -330,4 +301,4 @@ each ticket reliably:
 
 ## Bundled scripts
 
-None — pure orchestration over the `gws` CLI via Bash.
+None — pure orchestration over the `relay/google-calendar` skill via Bash.
