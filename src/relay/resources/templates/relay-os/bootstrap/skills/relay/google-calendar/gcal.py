@@ -5,11 +5,11 @@ The reusable way for relay skills to create/read/update/delete Google Calendar
 events without a per-host `gws`/`gcloud` binary. Other skills shell to this
 script (the calendar analogue of shelling to `relay slack`):
 
-    python <relay-os>/skills/relay/google-calendar/calendar.py get \
+    python <relay-os>/skills/relay/google-calendar/gcal.py get \
         --calendar-id <id> --event-id <id>
-    python .../calendar.py create --calendar-id <id> --body '<json event>'
-    python .../calendar.py update --calendar-id <id> --event-id <id> --body '<json>'
-    python .../calendar.py delete --calendar-id <id> --event-id <id>
+    python .../gcal.py create --calendar-id <id> --body '<json event>'
+    python .../gcal.py update --calendar-id <id> --event-id <id> --body '<json>'
+    python .../gcal.py delete --calendar-id <id> --event-id <id>
 
 `get`/`create`/`update` print the Google event resource as JSON on stdout;
 `delete` prints `{}`. Exit codes are the contract:
