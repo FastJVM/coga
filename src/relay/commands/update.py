@@ -430,7 +430,55 @@ def install_venv(relay_os: Path) -> Path:
             err=True,
         )
         sys.exit(2)
+    install_skill_requirements(relay_os, venv_dir)
     return venv_dir
+
+
+def install_skill_requirements(relay_os: Path, venv_dir: Path) -> list[Path]:
+    """pip-install every skill's `requirements.txt` into the venv.
+
+    A skill declares its own Python dependencies in a top-level
+    `requirements.txt`; this pass is what actually puts those deps in the venv
+    the skills run under, so a *bootstrapped* skill brings its own deps with it
+    (there is no other per-skill install hook). Scans both skill roots:
+    project-local `relay-os/skills/` and bundled `relay-os/bootstrap/skills/`.
+    Called at the tail of `install_venv`, so both `relay init` (fresh) and
+    `relay init --update` pick up newly added skill requirements.
+
+    Idempotent — pip skips already-satisfied requirements. Exits with a clear
+    error on a failed install, matching `install_venv`'s fail-loud contract.
+    Returns the requirement files that were installed (sorted), for callers
+    and tests.
+    """
+    roots = [relay_os / "skills", relay_os / "bootstrap" / "skills"]
+    req_files = sorted(
+        req
+        for root in roots
+        if root.is_dir()
+        for req in root.rglob("requirements.txt")
+    )
+    if not req_files:
+        return []
+    venv_python = venv_dir / "bin" / "python"
+    for req in req_files:
+        typer.echo(f"Installing skill deps from {req.relative_to(relay_os)}…")
+        result = subprocess.run(
+            [
+                str(venv_python),
+                "-m", "pip", "install",
+                "--quiet", "-r", str(req),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            typer.secho(
+                f"pip install -r {req} failed:\n{result.stderr}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            sys.exit(2)
+    return req_files
 
 
 # pipx tracks installs by the package distribution name from `pyproject.toml`,
