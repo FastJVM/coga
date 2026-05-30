@@ -106,8 +106,7 @@ draft -> active -> in_progress -> done
 - `active` is approved and queued. Humans can still refine active tickets with
   `relay ticket <slug>` before work starts.
 - `in_progress` is launched work. `relay launch <slug>` moves an active ticket
-  into this state, and `relay bump <slug>` only advances workflow steps from
-  here.
+  into this state, and `relay bump <slug>` only moves workflow steps from here.
 - `paused` preserves the current workflow step while taking the task out of
   execution.
 - `done` clears the workflow step and closes the task.
@@ -232,7 +231,7 @@ relay mark done   add-retry         # active / in_progress → done. Clears step
 ```
 
 `relay mark active` refuses a ticket with no workflow — a workflow-less
-ticket has no steps and can't be advanced by `relay bump`. A bare-string
+ticket has no steps and can't be moved by `relay bump`. A bare-string
 `workflow:` ref is frozen into its snapshot on activation. (Recurring and
 retire tasks are intentionally workflow-less and are scaffolded straight to
 `active`, bypassing this gate.)
@@ -426,11 +425,13 @@ relay show add-retry
 relay show bootstrap/orient
 ```
 
-### `relay bump <slug> [--message "..."]`
+### `relay bump <slug> [--message "..."] [--to N | --backward]`
 
-Advance a workflow-bound task one step. Updates the ticket's `step:`
-field and appends a log entry. The workflow itself is frozen into the
-ticket at create time, so step semantics don't drift mid-task.
+Move a workflow-bound task step. By default this advances one step. A human
+outside a supervised launch may rewind to an earlier step number with
+`--to <step-number>` or one step back with `--backward`. Each move updates
+the ticket's `step:` field and appends a log entry. The workflow itself is
+frozen into the ticket at create time, so step semantics don't drift mid-task.
 
 `bump` no longer finishes tickets. Bumping past the last step is an
 error pointing you at `relay mark done <slug>`. Bumping a ticket
@@ -443,6 +444,8 @@ firing a second message.
 
 ```sh
 relay bump add-retry                         # advance one step
+relay bump add-retry --to 1                  # human rewind to step 1
+relay bump add-retry --backward              # human rewind one step
 relay bump add-retry --message "PR: https://example/142"
 relay mark done add-retry                    # finish (on final step, or no workflow)
 ```

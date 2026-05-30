@@ -1,4 +1,4 @@
-"""`relay bump` — advance one workflow step."""
+"""`relay bump` — move through a workflow."""
 
 from __future__ import annotations
 
@@ -31,14 +31,34 @@ def bump(
         "--message",
         help="Optional FYI to piggy-back on the state-transition broadcast.",
     ),
+    to_step: int | None = typer.Option(
+        None,
+        "--to",
+        help="Human-only: rewind to an earlier 1-based workflow step number.",
+    ),
+    backward: bool = typer.Option(
+        False,
+        "--backward",
+        help="Human-only: rewind one workflow step.",
+    ),
 ) -> None:
-    """Advance one workflow step.
+    """Advance one workflow step, or let a human rewind to an earlier step.
 
     Bumping past the last step is an error — call `relay mark done <slug>`
     to finish. Tickets without a workflow can't be bumped at all.
     """
     if message is not None and not message.strip():
         _bail("--message cannot be empty")
+    if to_step is not None and backward:
+        _bail("Use either --to or --backward, not both.")
+
+    rewind = to_step is not None or backward
+    if rewind and os.environ.get("RELAY_SUPERVISED"):
+        _bail(
+            "Agents cannot rewind from a supervised relay launch. "
+            "Call `relay panic --task <id> --reason \"...\"`; a human can "
+            "rewind with `relay bump <id> --to <step>`."
+        )
 
     suffix = f" — {message}" if message else ""
 
@@ -85,13 +105,30 @@ def bump(
     steps = wf["steps"]
     total = len(steps)
     current_idx = ticket.step_index() or 0
-    next_step = current_idx + 1
-
-    if current_idx >= total:
+    if current_idx > total:
         _bail(
-            f"Task {ref.id_slug} is on the final step. "
-            f"Run `relay mark done {ref.id_slug}` to finish."
+            f"Task {ref.id_slug} has invalid step {ticket.step!r}. "
+            f"Workflow has steps 1-{total}."
         )
+    if backward:
+        next_step = current_idx - 1
+        if current_idx <= 1:
+            _bail(f"Task {ref.id_slug} is on the first step. Cannot rewind.")
+    elif to_step is not None:
+        next_step = to_step
+        if to_step < 1 or to_step > total:
+            _bail(f"Unknown step {to_step}. Workflow has steps 1-{total}.")
+        if to_step == current_idx:
+            _bail(f"Task {ref.id_slug} is already on step {to_step}.")
+        if to_step > current_idx:
+            _bail("Cannot skip ahead with --to. Use `relay bump` to advance one step.")
+    else:
+        next_step = current_idx + 1
+        if current_idx >= total:
+            _bail(
+                f"Task {ref.id_slug} is on the final step. "
+                f"Run `relay mark done {ref.id_slug}` to finish."
+            )
 
     new_step = steps[next_step - 1]
     new_step_name = new_step["name"]
@@ -108,8 +145,14 @@ def bump(
 
     handoff = f" → assigned to {new_assignee}" if new_assignee else ""
 
-    actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
-    finisher = ticket.assignee or cfg.current_user
+    if rewind:
+        actor = f"human:{cfg.current_user}"
+        finisher = cfg.current_user
+        verb = "rewound"
+    else:
+        actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
+        finisher = ticket.assignee or cfg.current_user
+        verb = "advanced"
 
     try:
         advance_step(
@@ -117,9 +160,9 @@ def bump(
             next_step=next_step,
             new_step_name=new_step_name,
             actor=actor,
-            log_message=f"advanced to step {next_step} ({new_step_name}){handoff}{suffix}",
+            log_message=f"{verb} to step {next_step} ({new_step_name}){handoff}{suffix}",
             slack_text=(
-                f"👉 {finisher} advanced "
+                f"👉 {finisher} {verb} "
                 f"*{ref.id_slug}* → step {next_step} ({new_step_name}){handoff}{suffix}"
             ),
             new_assignee=new_assignee,

@@ -100,6 +100,105 @@ def test_bump_advances(repo: Path) -> None:
     assert "advanced to step 2" in (ref.path / "log.md").read_text()
 
 
+def test_bump_rewinds_by_number(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    runner.invoke(app, ["bump", slug])
+    runner.invoke(app, ["bump", slug])
+
+    result = runner.invoke(app, ["bump", slug, "--to", "1"])
+
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.step == "1 (implement)"
+    log = (task_path / "log.md").read_text()
+    assert "rewound to step 1 (implement)" in log
+
+
+def test_bump_backward_rewinds_one_step(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    runner.invoke(app, ["bump", slug])
+    runner.invoke(app, ["bump", slug])
+
+    result = runner.invoke(app, ["bump", slug, "--backward"])
+
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.step == "2 (pr)"
+    assert "rewound to step 2 (pr)" in (task_path / "log.md").read_text()
+
+
+def test_bump_rewind_rejects_invalid_current_step(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    t = Ticket.read(task_path / "ticket.md")
+    t.frontmatter["step"] = "99 (bogus)"
+    t.write(task_path / "ticket.md")
+
+    result = CliRunner().invoke(app, ["bump", slug, "--backward"])
+
+    assert result.exit_code == 2, result.output
+    assert "invalid step '99 (bogus)'" in result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.step == "99 (bogus)"
+
+
+def test_bump_rejects_named_rewind_target(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    runner.invoke(app, ["bump", slug])
+
+    result = runner.invoke(app, ["bump", slug, "--to", "implement"])
+
+    assert result.exit_code == 2, result.output
+    assert "Invalid value for '--to'" in result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.step == "2 (pr)"
+
+
+def test_bump_rejects_unknown_rewind_target(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    runner.invoke(app, ["bump", slug])
+
+    result = runner.invoke(app, ["bump", slug, "--to", "99"])
+
+    assert result.exit_code == 2, result.output
+    assert "Unknown step 99" in result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.step == "2 (pr)"
+
+
+def test_bump_to_refuses_forward_skip(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["bump", slug, "--to", "3"])
+
+    assert result.exit_code == 2, result.output
+    assert "Cannot skip ahead" in result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.step == "1 (implement)"
+
+
+def test_bump_rewind_refuses_supervised_agent(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    runner.invoke(app, ["bump", slug])
+
+    result = runner.invoke(
+        app,
+        ["bump", slug, "--backward"],
+        env={"RELAY_SUPERVISED": "1"},
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "Agents cannot rewind" in result.output
+    assert "relay panic" in result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.step == "2 (pr)"
+
+
 def test_bump_supervised_prints_handoff_hint_when_assignee_changes(repo: Path) -> None:
     # Next step carries `assignee: owner`, so on bump the assignee rewrites
     # away from the current agent — the hint should say handoff.
@@ -477,6 +576,35 @@ def test_other_agent_resolves_to_the_peer_on_bump(repo: Path) -> None:
     assert t.step == "2 (peer-review)"
     assert t.assignee == "codex"
     assert "→ assigned to codex" in (task_path / "log.md").read_text()
+
+
+def test_bump_rewind_resolves_target_step_assignee(repo: Path) -> None:
+    _add_codex_agent(repo)
+    _write_peer_review_workflow(repo)
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="W", workflow_name="peer",
+        contexts=[], mode="interactive",
+        owner="marc", assignee="claude",
+        human="marc", agent="claude",
+        watchers=[], status="in_progress",
+    )
+    slug, task_path = ref["slug"], ref["path"]
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", slug])
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.step == "2 (peer-review)"
+    assert t.assignee == "codex"
+
+    result = runner.invoke(app, ["bump", slug, "--to", "1"])
+    assert result.exit_code == 0, result.output
+    t = Ticket.read(task_path / "ticket.md")
+    assert t.step == "1 (implement)"
+    assert t.assignee == "claude"
+    log = (task_path / "log.md").read_text()
+    assert "rewound to step 1 (implement) → assigned to claude" in log
 
 
 def test_other_agent_flips_with_the_coder(repo: Path) -> None:

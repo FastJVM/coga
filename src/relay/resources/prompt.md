@@ -47,8 +47,10 @@ you from reaching it, that's `relay panic` — never a silent stop.
 Rules:
 
 - **`relay bump` advances exactly one step.** It reads the current step from
-  ticket frontmatter and moves to the next one. There is no number to pass;
-  you cannot skip ahead.
+  ticket frontmatter and moves to the next one. Agents run it without a target;
+  you cannot skip ahead. A human outside a supervised launch may rewind to an
+  earlier step with `relay bump <id> --to <step-number>` or one step back with
+  `relay bump <id> --backward`.
 - **After bumping, exit cleanly.** One step, one session. Do not try to read
   the new step and continue in the same process. In a supervised
   `relay launch`, `relay bump` / `relay panic` / `relay mark done` already
@@ -68,7 +70,8 @@ Rules:
   attempt in `relay launch` from the start. Don't try to call `relay launch`
   yourself from inside your own session to keep going.
 - **Do not go backward.** If a previous step was wrong and needs rework, call
-  `relay panic` with a clear reason. The human decides whether to rewind.
+  `relay panic` with a clear reason. The human decides whether to rewind with
+  `relay bump <id> --to <step-number>` or `relay bump <id> --backward`.
 - The workflow is frozen into ticket frontmatter at creation time. Your own
   edits to `workflow` are not supported — that's a human-only operation.
 - On the final step, run `relay mark done <id>` after the step's work is

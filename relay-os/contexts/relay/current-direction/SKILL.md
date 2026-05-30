@@ -127,7 +127,9 @@ ones that affect implementation:
 - **`relay step` renamed to `relay bump`.** The "advance" semantic
   stays; the name changed because "step" overloaded with "step in
   workflow" was confusing. `bump` derives the next step from the
-  current `step:` frontmatter and always advances by one. It does
+  current `step:` frontmatter and normally advances by one. Humans may
+  rewind in-progress workflow tasks to an earlier step with `--to` or
+  `--backward`; agents still panic instead of going backward. `bump` does
   not finish tickets — bumping past the last step (or on a no-workflow
   ticket) errors and points at `relay mark done`.
 - **`relay recurring` is the canonical entry point** for the recurring
