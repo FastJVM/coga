@@ -1,5 +1,5 @@
 ---
-name: human-only
+name: browser/human-only
 description: Triage routes a task here when a machine can't do it reliably. The human performs it end to end; the agent only supports read-only and never touches the live system.
 steps:
   - name: brief-and-hand-off

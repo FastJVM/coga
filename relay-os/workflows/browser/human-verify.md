@@ -1,5 +1,5 @@
 ---
-name: human-verify
+name: browser/human-verify
 description: Triage routes a task here when a machine can do it but the failure radius is high. The agent prepares everything up to the one irreversible action; the human reviews and fires it.
 steps:
   - name: prerequisites-and-handoff

@@ -1,5 +1,5 @@
 ---
-name: build-automation
+name: browser/build-automation
 description: Router that turns a described task into a working automation by emitting a concrete tier-bound ticket. It decides the approach and the run tier, then hands off — the emitted tier workflow owns the real work (prerequisites/exploration, dry-run-to-reliable, and execution). Keeps prerequisites-and-handoff and dry-run-or-downgrade in one home (the tier), where the agent already knows which workflow is attached.
 steps:
   - name: understand-task
