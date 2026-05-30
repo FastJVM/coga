@@ -1,6 +1,7 @@
-"""Step advancement — the workflow plane.
+"""Step movement — the workflow plane.
 
-`relay bump` advances exactly one workflow step. Status transitions
+`relay bump` normally advances exactly one workflow step; human-triggered
+rewinds move to an earlier workflow step. Status transitions
 (active/paused/done) live in `relay.mark`.
 """
 
@@ -83,7 +84,7 @@ def advance_step(
     new_assignee: str | None = None,
     echo: str | None = None,
 ) -> None:
-    """Advance a ticket to the next workflow step.
+    """Move a ticket to a workflow step.
 
     If `new_assignee` is given, also rewrites the ticket's `assignee:` to that
     nickname. Caller is responsible for resolving role tokens against the
