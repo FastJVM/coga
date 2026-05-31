@@ -54,3 +54,67 @@ Reasonable and well-bounded — single capability (backward `--to`), with an exp
 - **Supervised re-chaining on a backward move.** The ticket says "don't break the supervisor handoff," but a rewind can flip the assignee *backward* (e.g. peer → coder). The existing `emit_done_marker` / `RELAY_SUPERVISED` chain logic (bump.py:136-154) assumes forward motion; the implementer should verify a backward assignee flip chains/stops sanely rather than assuming it's free. This is the most likely place for a latent bug and deserves a peer-review eye.
 
 **Bottom line:** A genuinely strong, launch-ready ticket — accurate codebase pointers (all verified), correct workflow, contexts that compensate for a real gap in the architecture SKILL.md, and a clean scope fence. The only substantive gaps are (a) the truncated "human decides whether to rewind" sentence that is itself the thing being changed, and (b) under-specified handling of the supervised backward-assignee-flip, which should be flagged for the implement/peer-review steps.
+
+## Dev
+
+branch: bump-backward-step
+worktree: /home/n/Code/relay-bump-backward-step
+commit: bcdbb87 Allow relay bump to rewind workflow steps
+pr: https://github.com/FastJVM/relay/pull/251
+
+Implementation decision from interactive session:
+- `relay bump <id> --to <step>` resolves numeric 1-based step targets only,
+  not names.
+- Add a decrement-only shorthand for one step backward. Bare `relay bump <id>`
+  remains the normal one-step forward increment.
+
+Implementation notes:
+- Added `relay bump <id> --to <step-number>` for human-only rewinds to an
+  earlier step.
+- Added `relay bump <id> --backward` for a one-step rewind.
+- Rewinds refuse under `RELAY_SUPERVISED` and tell agents to use `relay panic`.
+- Rewinds reuse the normal bump write/validate/log/Slack path, but log/broadcast
+  as `rewound` and resolve the target step's assignee token.
+- Updated only `src/relay/resources/prompt.md` for the base prompt contract.
+
+Verification:
+- `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest tests/test_commands.py -q -p no:cacheprovider` -> 52 passed.
+- `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest -q -p no:cacheprovider` -> 478 passed, 1 skipped.
+- `PYTHONPATH=/home/n/Code/relay-bump-backward-step/src /home/n/Code/relay/.venv/bin/python -m relay.cli validate --json` from primary checkout -> exit 0 with existing warnings.
+- `git diff --check` -> clean.
+
+Note: running validation directly inside the feature worktree failed because its
+machine-local `relay-os/relay.local.toml` does not set `user`; I did not edit
+local config.
+
+## Peer review
+
+Started Codex peer review from `/home/n/Code/relay-bump-backward-step` on branch
+`bump-backward-step` against `main`.
+
+Findings so far:
+- Must-fix: `relay bump --backward` crashed with `IndexError` when the current
+  `step:` pointed outside the frozen workflow (for example `99 (bogus)`). I
+  patched `src/relay/commands/bump.py` to bail clearly before indexing and
+  added focused coverage in `tests/test_commands.py`.
+- Must-fix: maintained bump guidance still described `relay bump` as
+  advance-only. I updated README/design/context wording, including the packaged
+  bootstrap context copies where present.
+
+Applied in feature worktree and committed:
+- `58bff08 peer-review: guard rewind edge cases`
+
+Verification after peer-review fixes:
+- `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest tests/test_commands.py -q -p no:cacheprovider` -> 53 passed.
+- `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest -q -p no:cacheprovider` -> 479 passed, 1 skipped.
+- `PYTHONPATH=/home/n/Code/relay-bump-backward-step/src /home/n/Code/relay/.venv/bin/python -m relay.cli validate --json` from primary checkout -> exit 0 with existing warnings.
+- `PYTHONPATH=/home/n/Code/relay-bump-backward-step/src /home/n/Code/relay/.venv/bin/python -m relay.cli bump --help` from primary checkout -> exit 0 and shows `--to` / `--backward`.
+- `git diff --check` -> clean.
+- Manual reproduction for invalid `step: 99 (bogus)` plus `--backward` now exits 2 with a clear invalid-step error.
+
+Feature worktree is clean after the peer-review commit.
+
+## PR / open-pr step
+
+- PR #251 opened: https://github.com/FastJVM/relay/pull/251 (base `main`, head `bump-backward-step`), links the ticket via `Closes ticket: bump-backward-possible`.
+- CI: repo has no GitHub checks configured (`gh pr checks 251` -> "no checks reported"), so there is nothing to be green; local `pytest` (479 passed, 1 skipped) and `relay validate --json` (exit 0) stand as the verification (see Dev/Peer review above).

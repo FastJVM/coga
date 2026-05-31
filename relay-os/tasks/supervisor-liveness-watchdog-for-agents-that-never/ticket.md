@@ -18,7 +18,8 @@ supervisor detects *cooperative* termination only; a genuinely wedged agent
 hangs indefinitely.
 
 Why now: recurring tasks launch **sequentially, each blocking until exit**
-(`recurring.py:70`). With no watchdog, a single wedged task — stuck tool call,
+(`commands/recurring.py:66-81` — the `for task in due` loop). With no watchdog,
+a single wedged task — stuck tool call,
 infinite loop, or an agent that finished but never called `relay bump` — stalls
 the entire sweep, and every later recurring task silently never runs. Attended
 interactive use is unaffected (a human Ctrl-Cs it); this is purely an
@@ -43,6 +44,16 @@ Add a liveness watchdog:
   (reuse the existing `_KILL_GRACE_SECONDS` teardown), and a `log.md` entry +
   Slack post classifying it as a timeout (distinct from a clean done or a
   deliberate panic)
+- **exit classification must distinguish a timeout from a clean done.**
+  `_classify_exit` (`repl_supervisor.py:251`) currently maps *any*
+  supervisor-sent SIGTERM to exit 0 / "done-signal received" — it assumes the
+  only reason we ever SIGTERM is that the agent already signalled done (see the
+  `sent_term` branch ~268-283). A timeout teardown reuses the same escalation
+  but is **not** a clean exit, so it must thread a termination *kind* (done vs
+  timeout) through `_trigger_term` -> `_classify_exit` and return non-zero with
+  a timeout note. Otherwise the wedge is reported as success and
+  `commands/recurring.py`'s `_stop_if_unfinished_after_launch` sweeps on as if
+  nothing broke — the exact silent-failure this ticket exists to kill.
 - per-task / per-mode configurability (interactive humans may want no timeout;
   unattended/recurring runs definitely want one)
 
@@ -55,6 +66,10 @@ and Slack; tested against a real PTY that sleeps past the limit.
 
 ## Context
 
-Code: `src/relay/repl_supervisor.py` (loop ~174, teardown/`_KILL_GRACE_SECONDS`
-~190-199, done channels ~201-216, exit classification `_classify_exit` ~251).
+Code: `src/relay/repl_supervisor.py` (`run_with_done_marker` ~79, `_trigger_term`
+~157, teardown/`_KILL_GRACE_SECONDS` ~160-193, `select()` proxy loop ~174-183,
+exit classification `_classify_exit` ~251 with the `sent_term` branch ~268-283);
+blocking sequential launch loop in `src/relay/commands/recurring.py:66-81`
+(`_stop_if_unfinished_after_launch` chains off each exit code). Config surface is
+greenfield — `config.py` has no `[launch]`/timeout keys yet.
 Related: `stream-agent-progress-in-auto-mode-and-recurring-l`.

@@ -1,16 +1,32 @@
 ---
 title: bump backward possible
-status: draft
+status: done
 mode: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: nick
 contexts:
-  - relay/codebase
-  - relay/architecture
+- relay/codebase
+- relay/architecture
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 ---
 
 ## Description

@@ -1,7 +1,7 @@
 ---
 title: Provide a Google Calendar capability so skills don't depend on a local gws
   binary
-status: active
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -27,7 +27,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

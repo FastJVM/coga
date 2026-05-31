@@ -1,6 +1,6 @@
 ---
 title: test autobump
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -26,7 +26,6 @@ workflow:
   - name: finalize
     skills: []
     assignee: agent
-step: 4 (human-check)
 ---
 
 ## Description
