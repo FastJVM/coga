@@ -1,12 +1,31 @@
 # Relay
 
-A blackboard for humans and agents. Markdown files in a git repo, a small CLI on
-top, no database. The substrate FastJVM uses to run the company.
+Most tools say *don't think* — delegate the work and forget it. Relay's bet is the opposite:
 
-For the why, read [`docs/vision.md`](docs/vision.md). For the working mental
-model — primitives, prompt composition, command surface — read the contexts
-under [`relay-os/contexts/relay/`](relay-os/contexts/relay/). This README is
-the quickstart + a one-screen reference for each CLI command.
+> ## Don't don't think. Think better.
+
+The substrate FastJVM uses to run the company: markdown files in a git repo, a
+small CLI on top, no database. It exists to make your judgment *sharper, not
+absent* — and to keep the system **yours**.
+
+Everything in Relay is a **consequence** of that one idea, and every consequence
+has a **receipt** — the feature that proves it. Read the principles first; the
+features are downstream.
+
+| Principle | What it means | The feature that proves it |
+|---|---|---|
+| **1. Hackable** | change anything, directly — no plugin fence | edit any markdown under `relay-os/` → next `relay launch` uses it; the ~2-min correction loop (edit → commit → fixed) |
+| **2. Agents do, humans think** | offload everything mechanizable; humans spend attention on judgment | no webUI — the CLI + files are the whole surface; modes (`interactive`/`auto` vs `script`) and per-step `assignee` route each step to agent, script, or human |
+| **3. Obvious** | boring, standard, immediately understandable | the substrate is just markdown + Python + `SKILL.md` (the Claude Code / Codex format); no DB, no DSL |
+| **4. Memory via PR** | thinking compounds, human-gated, never opaque | **Dream** reads execution history and opens *proposal PRs* — propose, human disposes; `blackboard.md` = working memory, `contexts/` = long-term |
+| **5. Yours** | own the substrate, swap the vendors | git-backed markdown, local, no cloud; `claude` ↔ `codex` interchangeable; `SKILL.md` is an open standard |
+| **6. Fail loud** | surface every failure | missing context/skill → raise; `relay validate` errors; failures never swallowed; `relay panic` hands back to a human |
+
+The full canon is [`relay-os/contexts/relay/principles/SKILL.md`](relay-os/contexts/relay/principles/SKILL.md);
+the *why* essay is [`docs/vision.md`](docs/vision.md); the market/strategy
+read is [`docs/market-thesis.md`](docs/market-thesis.md). The rest of this
+README is the **reference** for the features above — install, layout, and a
+one-screen entry per CLI command.
 
 ## Install
 
