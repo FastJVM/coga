@@ -477,10 +477,11 @@ auto-bump them to `done`. Looks the PR up via `gh pr view`. Posts to
 Slack with a distinct `auto-bumped on merge of PR #<N>` line.
 
 `relay init` symlinks this into `.git/hooks/post-merge`, so a normal
-`git pull` after a teammate merges runs it for you. `relay status` also
-calls it opportunistically so the long tail (you didn't pull, but you
-checked status) gets caught. No `gh`? The `status` path silently skips;
-the explicit command surfaces the error.
+`git pull` after a teammate merges runs it for you. `relay status` does
+**not** trigger automerge — it stays a strictly read-only view (no
+network, no state mutation as a side effect of rendering). Run `relay
+automerge` by hand to catch the long tail. No `gh`? The explicit command
+surfaces the error.
 
 ```sh
 relay automerge   # one-shot. Safe to run by hand.

@@ -5,8 +5,7 @@ the post-merge git hook (which `relay init` installs) and to be safe to
 run by hand.
 
 Failures from `gh` (missing, unauthed, network) bubble up here as a
-non-zero exit so the caller sees them. The opportunistic call inside
-`relay status` swallows them instead.
+non-zero exit so the caller sees them.
 """
 
 from __future__ import annotations

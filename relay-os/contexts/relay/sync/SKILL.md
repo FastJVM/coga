@@ -123,8 +123,8 @@ a name itself. Member IDs aren't secret, so the table lives in shared
   (active / paused / done), `commands/recurring.py`
   (per-scaffold + error summary), `commands/bump.py`, `commands/slack.py`,
   `commands/panic.py`, `commands/launch_script.py` (failure path only), and
-  `automerge.auto_bump_merged` (called by `commands/automerge.py` and
-  opportunistically by `commands/status.py`). Each passes
+  `automerge.auto_bump_merged` (called by `commands/automerge.py` and the
+  post-merge git hook — never by read-only `commands/status.py`). Each passes
   `task_path=ref.path` (when a task exists) so failure traces also
   land in the task's `log.md` for non-interactive runs.
 - `relay validate --check-slack` — probes the webhook with an

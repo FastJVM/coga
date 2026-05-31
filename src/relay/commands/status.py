@@ -9,12 +9,10 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from relay.automerge import auto_bump_merged
 from relay.config import ConfigError, load_config
 from relay.logfile import last_activity
 from relay.tasks import list_tasks, read_ticket
 from relay.ticket import TicketError
-from relay.validate import TaskValidationError
 
 # Below this terminal width Rich's column balancer can fold long values
 # one-char-per-line, which makes the output unreadable in tmux split panes
@@ -69,17 +67,11 @@ def status(
         )
         sys.exit(2)
 
-    # Opportunistic auto-bump pass: if a teammate merged a PR while this
-    # machine was idle, catch up before rendering. quiet=True swallows
-    # `gh` errors (missing/unauthed) so a fast command stays fast — the
-    # explicit `relay automerge` path surfaces those failures normally.
-    # A `TaskValidationError` from a bad pre-existing ticket also has to be
-    # swallowed — `status` is read-only from the user's perspective.
-    try:
-        auto_bump_merged(cfg, quiet=True)
-    except TaskValidationError as exc:
-        typer.secho(f"status: skipped auto-bump — {exc}", fg=typer.colors.YELLOW, err=True)
-
+    # `status` is strictly read-only: it never hits the network or mutates
+    # ticket state as a side effect of rendering (principle 6, fail loud,
+    # names `status`/`show`/`validate` as forbidden mutators). Catching up
+    # merged PRs is the job of `relay automerge` — run explicitly or via the
+    # `.git/hooks/post-merge` symlink that fires on `git pull`.
     refs = list_tasks(cfg)
     console = Console()
     narrow = console.width < NARROW_WIDTH
