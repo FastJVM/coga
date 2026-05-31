@@ -332,9 +332,12 @@ def test_relay_automerge_surfaces_gh_error(
     assert "not authenticated" in result.output
 
 
-def test_relay_status_calls_automerge_quietly(
+def test_relay_status_does_not_auto_bump(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # `status` is read-only: a merged PR on a final-step ticket must NOT be
+    # bumped as a side effect of rendering. Catching up is `relay automerge`'s
+    # job (principle 6, fail loud — `status` never mutates state).
     slug, path = _make_task(
         repo, on_final=True, pr_url="https://github.com/o/r/pull/40"
     )
@@ -343,27 +346,29 @@ def test_relay_status_calls_automerge_quietly(
     runner = CliRunner()
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0, result.output
-    # Status renders post-bump state — the table shows `done`.
-    assert Ticket.read(path / "ticket.md").status == "done"
-    assert "done" in result.output
+    # Ticket is untouched — still active, never marked done.
+    assert Ticket.read(path / "ticket.md").status == "active"
 
 
-def test_relay_status_swallows_gh_failure(
+def test_relay_status_never_calls_gh(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _make_task(
+    # `status` must never hit the network — even a final-step ticket with a
+    # PR link should not trigger a `gh` lookup. If it did, this stub would
+    # raise and the ticket would still be left untouched.
+    slug, path = _make_task(
         repo, on_final=True, pr_url="https://github.com/o/r/pull/50"
     )
 
     def boom(url: str) -> str:
-        raise am.GhError("gh missing")
+        raise AssertionError("status must not call gh / pr_state")
 
     monkeypatch.setattr(am, "pr_state", boom)
 
     runner = CliRunner()
     result = runner.invoke(app, ["status"])
-    # Status must not crash if gh isn't available.
     assert result.exit_code == 0, result.output
+    assert Ticket.read(path / "ticket.md").status == "active"
 
 
 # --- single-ticket helper (auto_bump_one) -------------------------------------

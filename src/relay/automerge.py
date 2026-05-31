@@ -9,13 +9,15 @@ The PR link convention lives in the `dev/code` context: a `pr:` line
 under `## Dev` on the blackboard. We parse it directly; relay-the-CLI
 treats the blackboard as plain text on purpose.
 
-Three callers:
+Two callers:
   - `relay automerge` (post-merge git hook + manual invocation) — uses
     `auto_bump_merged` to sweep all active/in-progress tickets.
-  - `relay status` (opportunistic fallback, `quiet=True` — gh failures
-    swallowed so the fast command stays fast).
   - `relay launch <slug>` (pre-launch freshness check) — uses
     `auto_bump_one` to check just the ticket about to be launched.
+
+`relay status` deliberately does NOT call this — it is a read-only view
+(principle 6, fail loud, forbids `status`/`show`/`validate` from mutating
+state or hitting the network as a side effect of rendering).
 """
 
 from __future__ import annotations
