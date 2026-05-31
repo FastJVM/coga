@@ -23,6 +23,10 @@ venv/
 # Env files
 .env*
 
+# Local secrets holding dir (interim home for SA keys etc. until the
+# first-class relay config directory lands — see the config-directory ticket).
+/.secrets/
+
 # Local agent / tooling state
 .claude/
 .codex
