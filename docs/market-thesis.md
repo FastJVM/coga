@@ -10,6 +10,12 @@
 
 Everything below is the argument for that sentence and its consequences.
 
+> **TL;DR** (if you read nothing else):
+> 1. **No moat in this layer — only taste** (legibility ⊥ defensibility; the mechanism is commodity, proven by OpenAI open-sourcing it as Symphony).
+> 2. **Taste hardens into metaphor + brand** — the only durable thing (the Jira→Linear proof). Ours is *independence/ownership*, the one note an incumbent can't play credibly.
+> 3. **We're fork A today** (internal infra), not fork B (a branded category) — fork B is available but needs adoption work we haven't started.
+> 4. **The taste is real but *read*, not yet *felt*** — and the felt layer is gated behind a handful of maturity bugs (Slack drops posts, auto-mode disabled, no watchdog). **Shipping the bug backlog *is* the strategy.** See [What's missing — the 80/20](#whats-missing--the-8020).
+
 ---
 
 ## The floor under all of it: agents are brilliant and blank
@@ -62,7 +68,7 @@ Four moves, each independently true, compounding:
 
 **3. The model is eating its complements.** Orchestration is commoditized (everyone has a control plane — it's the contested battleground, not an open field). Integrations are commoditizing now: a frontier model + MCP + computer-use dissolves the connector-count moat, and app vendors shipping their own MCP servers disintermediates the aggregator entirely. Memory, RAG, tool-use, "skills" — each was a startup category, each is being absorbed into the model plus a thin open standard. The durable moats in the *whole stack* collapse to two: **the model itself** (capital/compute/talent) and **raw distribution/brand**. Everything in between trends to "feature the model absorbs."
 
-**4. Therefore the only differentiation left in the middle layer is taste.** When the engine commoditizes, differentiation is forced up to the layer of *opinion about how the work should feel*. This is not a consolation prize. Taste is the **hardest** thing in the stack to replicate — harder than a model (which is capital) or integrations (which is labor) — because it can't be bought or brute-forced. It is the one scarce input. "No moat, just taste" really means "no *cheap* moat — only the expensive, scarce one."
+**4. Therefore the only differentiation left in the middle layer is taste.** When the engine commoditizes, differentiation is forced up to the layer of *opinion about how the work should feel*. This is not a consolation prize. Taste is the **hardest** thing in the stack to replicate — harder than a model (which is capital) or integrations (which is labor) — because it can't be bought or brute-forced *fast*. It's slow to copy, not impossible (the Jira→Linear section below shows taste *does* get copied — every "Linear-for-X" — it just takes time). So the moat isn't "uncopyable"; it's **the lead, compounded into a brand before the copy lands.** "No moat, just taste" really means "no *cheap* moat — only the expensive, scarce, head-start one."
 
 ---
 
@@ -134,6 +140,8 @@ The deepest axis ordering the whole field is the vision's romantic↔classical, 
 `Viktor —— Notion —— Dust —— Symphony —— Codex / Claude Code ————————— Relay`
 `(absorb everything) ··········(absorb the task)··················(impose ownership)`
 
+*Competitor copy, funding, and feature claims below verified 2026-05-31; these rot fastest — re-verify quarterly.*
+
 | Player (mid-2026) | Forced structure of thinking | Taste · where felt | vs. Relay |
 |---|---|---|---|
 | **Viktor** (Slack/Teams "AI coworker," $75M A) | "**A hire, not a tool.**" Delegate to a colleague and forget; it returns finished PDFs/apps/commits. | Pure subtraction of *your cognition* · felt as *relief*. Opaque by design. | The opposite pole. Viktor removes you from understanding; Relay forces you in. Romantic absolute. |
@@ -183,7 +191,7 @@ The naïve question — "do they sell taste or a feature list?" — turns out to
 
 **Corrected pattern (this is the important update):** the agent-native category is **not a taste vacuum — it's a taste *crowd*.** Everyone has learned to sell worldview. The vacuum is narrower and harder: **specific, felt, *earned* taste — taste you experience in the product, not just read on the landing page.** Only Linear clears that bar today; Dust and Anthropic sell *aspirational* taste (well-written positioning) without the felt-in-use craft that makes Linear's a moat.
 
-And one uncomfortable finding, with an important qualifier: **Anthropic's "Keep thinking / amplify not replace / you're in control" is encroaching on the human-primacy taste we assumed only we could own — but only at the level of the *slogan*, not the *mechanism*.** Anthropic took the words; it has no correction loop, no human-gated knowledge compounding, no substrate the human edits between runs — nothing that puts the human *in* the loop as a working part. So the difference is authenticity *and* substance: Anthropic *says* "amplify, don't replace" while running a business that needs you maximally dependent on Claude. The one note in that chord they structurally cannot play is **independence/ownership** — "depend on vendors less, own your machine." That, not "human-in-the-loop" (whose *slogan* is now commoditized even though the *practice* isn't), is the only taste left that an incumbent can't honestly voice.
+And one uncomfortable finding, with an important qualifier: **Anthropic's "Keep thinking / amplify not replace / you're in control" is encroaching on the human-primacy taste we assumed only we could own — but only at the level of the *slogan*, not the *mechanism*.** Anthropic took the words; it has no correction loop, no human-gated knowledge compounding, no substrate the human edits between runs — nothing that puts the human *in* the loop as a working part. So the difference is authenticity *and* substance: Anthropic *says* "amplify, don't replace" while running a business that needs you maximally dependent on Claude. The one note in that chord they can't play *credibly at scale* is **independence/ownership** — "depend on vendors less, own your machine." Not because they can't say the words (Anthropic already ships open SKILL.md), but because a business whose revenue scales with your dependence can only sell independence as a wedge, never as the spine — the asymmetry isn't "can't say it," it's "can't mean it all the way down." That, not "human-in-the-loop" (whose *slogan* is now commoditized even though the *practice* isn't), is the only taste left that an incumbent can't honestly voice.
 
 ---
 
@@ -195,7 +203,9 @@ Two clean positions; we must pick, because they imply different work:
 Relay is the substrate FastJVM runs on. No moat, and that's correct — defensibility is the wrong axis for a tool you don't sell. Publishing costs nothing; the payoffs are recruiting, alignment, and being an honest field report for the small tribe this fits. Taste here is craft for its own sake. The only live strategic input is a periodic **build-vs-adopt check**: when the incumbents absorb ~80% of what Relay does for us, migrate the methodology and retire the tool — a planned, graceful outcome, not a loss.
 
 **B. Relay-as-category (taste-as-brand).**
-A real, durable, model-proof moat *is* available — the metaphor + brand moat that Linear and Jira have. But it is **earned through adoption**, not owned through code: the Linear playbook (opinionated craft, a name people rally around, evangelism), not the "run it internally" path. The opening is real: the category is a taste vacuum, and our taste — *classical-mode, owner-operated, legible, neutral, depend-on-vendors-less* — is one the incumbents **structurally cannot adopt** (Anthropic can't sell "depend on us less"; Dust can't sell "thin and legible"). That asymmetry is the one durable thing left, and it's a brand position, not a feature.
+A real, durable, model-proof moat *is* available — the metaphor + brand moat that Linear and Jira have. But it is **earned through adoption**, not owned through code: the Linear playbook (opinionated craft, a name people rally around, evangelism), not the "run it internally" path. The opening is real: the category is a taste vacuum, and our taste — *classical-mode, owner-operated, legible, neutral, depend-on-vendors-less* — is one the incumbents **can't credibly adopt** (Anthropic can't sell "depend on us less"; Dust can't sell "thin and legible") because their business models contradict it. That asymmetry is the one durable thing left, and it's a brand position, not a feature.
+
+**But mind the ceiling.** This is *not* the full Linear move. Linear broadened because subtraction broadens; Relay's own thesis (above) says imposition *narrows*. So fork B is "own a small tribe **completely**," not "win a mass category" — the *playbook* is Linear's (craft, a name, evangelism), the *ceiling* is not. Don't let the word "category" import Linear-sized expectations; the demanding forcing function keeps the door narrow on purpose.
 
 There is no third position where you get the moat without doing the adoption work.
 
@@ -293,3 +303,4 @@ Two gates remain, and both are *executable*, not existential:
 - **Build-vs-adopt** (fork A's only live input): when an incumbent substrate does ~80% of what Relay does *for us*, migrate the methodology and retire the tool.
 - **Taste vacuum** (fork B's window): watch whether anyone runs the Linear move for agent-native ops. If a well-branded, opinionated, owner-operated competitor appears, the window for B is closing — and notably, it won't be Anthropic or Dust (they're conflicted out of our taste); it'll be another neutral, opinionated builder.
 - **The model climbing into the substrate** (the only real risk to A): Skills + Cowork + Managed Agents are the first steps. The one place they won't climb is cross-vendor neutrality — the same asymmetry that anchors fork B.
+- **Landscape table facts** (the fastest-rotting part of this doc): re-verify competitor hero copy, funding, and feature claims quarterly; last checked 2026-05-31.
