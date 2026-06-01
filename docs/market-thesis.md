@@ -64,7 +64,7 @@ Four moves, each independently true, compounding:
 
 **1. Legibility and defensibility are opposites.** A moat needs either opacity (they can't see how it works) or lock-in (they can't leave). Relay's whole thesis is the inverse — legible, ownable, no lock-in. Every property that would make the format or the workflow defensible is a property we deliberately removed. The non-defensibility is the design working as intended, not a gap.
 
-**2. The mechanism is borrowed or trivial on purpose.** The skill/context format *is* Anthropic's SKILL.md, verbatim — adopting an open standard is the opposite of a moat; it's a dependency. The workflow primitive is a simple linear state machine, weaker than the parallel/dynamic orchestration competitors already ship. Neither is worth defending, and both were engineered to be copyable.
+**2. The mechanism is borrowed or trivial on purpose.** The skill/context format *is* Anthropic's SKILL.md, verbatim — adopting an open standard is the opposite of a moat; it's a dependency. The workflow primitive is a simple linear state machine, weaker than the parallel/dynamic orchestration competitors already ship — in fact the *least* original primitive in the system (Symphony open-sourced a near-identical board-as-FSM); see [*Locating the originality*](#locating-the-originality-it-isnt-the-workflow) for why the load-bearing primitive is elsewhere. Neither is worth defending, and both were engineered to be copyable.
 
 **3. The model is eating its complements.** Orchestration is commoditized (everyone has a control plane — it's the contested battleground, not an open field). Integrations are commoditizing now: a frontier model + MCP + computer-use dissolves the connector-count moat, and app vendors shipping their own MCP servers disintermediates the aggregator entirely. Memory, RAG, tool-use, "skills" — each was a startup category, each is being absorbed into the model plus a thin open standard. The durable moats in the *whole stack* collapse to two: **the model itself** (capital/compute/talent) and **raw distribution/brand**. Everything in between trends to "feature the model absorbs."
 
@@ -289,6 +289,23 @@ Three buckets, in priority order:
 - **drift**: `status.py:79` still side-effects automerge after the "move it out" change. *(ticket: `drift-status-still-calls-auto-bump…`)*
 
 **The one-line read of the 20%:** the substrate exists; what's missing is the **trust half** (unattended recurring with a watchdog, atomic writes, and working Slack/streaming so the loop is *felt*). That's why it feels like 80% — the classical *idea* is fully built and usable attended; the missing piece is everything that lets you *stop watching*, which is also everything that makes the taste land in the body instead of the head. Ship Buckets A and B and Relay crosses from "an excellent way to work with agents" to "the substrate that runs the company" — the thesis, delivered.
+
+---
+
+## Locating the originality: it isn't the workflow
+
+A natural intuition — *the workflow is the deep original idea here* — is worth refuting head-on, because it points at exactly the wrong primitive. Ordered steps with handoffs is the **most-copied bone in the skeleton**: every CI system, Temporal, Airflow, and n8n have it, and Symphony open-sourced a near-identical board-as-FSM. If the originality lived in the workflow, the patent rejection would be instant.
+
+What *is* distinctive about Relay's workflow is narrow and copyable: **author-defined and frozen at creation** (Symphony's pipeline is one fixed `Todo→…→Merging`; Relay's is your ordered steps, snapshotted so in-flight work is undisturbed), **per-step `assignee` resolving agent/human/owner interchangeably**, and **a fresh process per step** — one step, one session, the prompt scope deliberately reset between skills. That last point is a genuine, under-stated idea (context-window *hygiene* as a structural property of the process, not an accident), but it is still a weekend to copy. The name compounds the confusion: "workflow" imports the absorption-camp *runs-itself* connotation, which is the opposite of a human-gated handoff chain — it is being renamed **playbook** (ticket `rename-workflow-primitive-to-playbook`).
+
+If you must locate originality in a *primitive* rather than the stance, the load-bearing one is the pair the workflow merely rides on: **statelessness + the blackboard.** The prompt is a pure function of the files on disk *now* — never a carried-over session — and the blackboard (the Hearsay-II pattern) is the durable surface that survives a crash. That pairing is what makes the two-minute correction loop **total and inspectable**: an edit between runs takes effect completely because there is no hidden session state to fight, and the agent is recoverable because its last state is on disk. The correction loop is the axiom made mechanical; statelessness+blackboard is the primitive that serves it most directly — and the workflow serves it least.
+
+Two further ideas the rest of this doc under-weights, both consequences of the same root:
+
+- **The step boundary as a deliberate context reset.** Treated above as a chaining detail, it is really a reliability thesis: you engineer an agent's correctness by structuring *where its context gets wiped*, the way you structure where a transaction commits. Nobody else frames workflow steps this way.
+- **Status-as-signal instead of a mutex.** Refusing a hard lock — accepting that two divergent workers leave a *visible, git-recoverable* conflict rather than paying for stale-lockfile cleanup and `--force` flags — is a contrarian, fail-loud design choice, not an omission. It is a one-line consequence of the classical stance and deserves to be named as its own idea.
+
+None of this changes the verdict below: the originality is still axiomatic, not featural, and all of it is copyable. The only correction is to the *ranking* of the featural candidates, which most people hold backwards — the workflow is the least original primitive, and the statelessness+blackboard engine is the most.
 
 ---
 
