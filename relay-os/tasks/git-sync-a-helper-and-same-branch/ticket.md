@@ -1,6 +1,6 @@
 ---
 title: auto-commit & push ticket state — git.py helper + same-branch wiring (A)
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
