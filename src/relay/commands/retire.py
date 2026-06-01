@@ -7,6 +7,7 @@ from importlib.resources import files
 
 import typer
 
+from relay import git
 from relay.config import Config, ConfigError, load_config
 from relay.scaffold import scaffold_task
 from relay.slack import post
@@ -119,6 +120,9 @@ def retire(
         f"\"{created_ticket.title}\" (active) — relay retire",
         task_path=created.path,
         owner=cfg.current_user,
+    )
+    git.sync_task_state(
+        cfg, created.path, message=f"Ticket: {created.id_slug} — created (retire)"
     )
     if no_launch:
         typer.echo("Retire: launch skipped (--no-launch)")

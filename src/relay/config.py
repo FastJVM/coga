@@ -65,6 +65,12 @@ class Config:
     aliases: dict[str, str] = field(default_factory=dict)
     ticket_fields: dict[str, TicketField] = field(default_factory=dict)
     extra_local: dict[str, object] = field(default_factory=dict)
+    # Git sync — the git analogue of Slack. `git_enabled` follows the same
+    # local-overrides-shared resolution as `slack_enabled`; `git_remote` /
+    # `git_control_branch` come from shared `[git]`. See `relay.git`.
+    git_enabled: bool = True
+    git_remote: str = "origin"
+    git_control_branch: str = "main"
 
     # --- convenience accessors -------------------------------------------------
 
@@ -161,6 +167,8 @@ def load_config(repo_root: Path | None = None) -> Config:
     slack_users = _parse_slack_users(shared.get("slack"))
     aliases = _parse_aliases(shared.get("aliases", {}))
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
+    git_enabled = _resolve_git_enabled(shared.get("git"), local.get("git"))
+    git_remote, git_control_branch = _parse_git(shared.get("git"))
 
     current_user = local.get("user")
     if not current_user:
@@ -186,6 +194,9 @@ def load_config(repo_root: Path | None = None) -> Config:
         aliases=aliases,
         ticket_fields=ticket_fields,
         extra_local=extra_local,
+        git_enabled=git_enabled,
+        git_remote=git_remote,
+        git_control_branch=git_control_branch,
     )
 
 
@@ -419,6 +430,49 @@ def _resolve_slack_enabled(shared: dict | None, local: dict | None) -> bool:
                 )
             return value
     return True
+
+
+def _resolve_git_enabled(shared: dict | None, local: dict | None) -> bool:
+    """Resolve [git].enabled with local overriding shared. Default: True.
+
+    Mirrors `_resolve_slack_enabled`: git sync is on by default, and the
+    machine-local opt-out (`[git].enabled = false` in `relay.local.toml`) is
+    for repos with no remote — dev/CI/single-developer checkouts.
+    """
+    for table in (local, shared):
+        if isinstance(table, dict) and "enabled" in table:
+            value = table["enabled"]
+            if not isinstance(value, bool):
+                raise ConfigError(
+                    f"[git].enabled must be a boolean (got {type(value).__name__})"
+                )
+            return value
+    return True
+
+
+def _parse_git(shared: dict | None) -> tuple[str, str]:
+    """Parse `[git]` for `remote` / `control_branch`, with sane defaults.
+
+    Defaults to `origin` / `main`. The `enabled` key is resolved separately
+    (`_resolve_git_enabled`) so it can pick up a `relay.local.toml` override.
+    """
+    remote = "origin"
+    control_branch = "main"
+    if shared is None:
+        return remote, control_branch
+    if not isinstance(shared, dict):
+        raise ConfigError(f"[git] must be a table (got {type(shared).__name__})")
+    if "remote" in shared:
+        value = shared["remote"]
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigError("[git].remote must be a non-empty string")
+        remote = value.strip()
+    if "control_branch" in shared:
+        value = shared["control_branch"]
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigError("[git].control_branch must be a non-empty string")
+        control_branch = value.strip()
+    return remote, control_branch
 
 
 def _resolve_secrets(raw: dict) -> dict[str, str]:

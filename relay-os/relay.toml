@@ -103,6 +103,27 @@ panic = [
 nick = "U0AG1BASFJ7"
 zach = "U0AG5LKCK8E"
 
+# --- Git sync ---
+# The git analogue of Slack: every command that mutates ticket state commits
+# the changed `relay-os/tasks/<slug>/` files and pushes them to the control
+# branch, so the git-backed repo never drifts from the team's live state.
+# Always-on — these defaults apply even with no `[git]` table below.
+#
+# Same-branch only today: when HEAD is the control branch the task files are
+# committed and pushed; on a feature branch the sync no-ops with a warning
+# (landing task state on the control branch from a feature branch is a later
+# ticket). A failed commit/push on the control branch crashes loud, the same
+# way a failed Slack post does.
+#
+# Defaults: enabled = true, remote = "origin", control_branch = "main".
+# To opt out (a repo with no remote: dev/test, CI, solo branches), set
+# `enabled = false` here or in relay.local.toml (local overrides shared,
+# like [slack]).
+#   [git]
+#   enabled = true
+#   remote = "origin"
+#   control_branch = "main"
+
 # --- Aliases ---
 # Thin sugar over often-used commands (typically bootstrap-shim launches).
 # Aliases forward positional args after the alias name to the expanded form.

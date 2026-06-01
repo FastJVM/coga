@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import typer
 
+from relay import git
 from relay.config import Config
 from relay.logfile import append_log
 from relay.slack import post
@@ -100,6 +101,11 @@ def advance_step(
     if echo is not None:
         typer.echo(echo)
     post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
+    git.sync_task_state(
+        cfg,
+        ref.path,
+        message=f"Ticket: {ref.id_slug} — step {next_step} ({new_step_name})",
+    )
 
 
 __all__ = [

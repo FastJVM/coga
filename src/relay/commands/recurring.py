@@ -7,6 +7,7 @@ from datetime import datetime
 
 import typer
 
+from relay import git
 from relay.config import ConfigError, load_config
 from relay.recurring import DueScan, RecurringError, scaffold_named, scan_due
 from relay.slack import post
@@ -125,6 +126,9 @@ def launch(
             f"assignee {ticket.assignee or 'unassigned'}",
             task_path=ref.path,
         )
+        git.sync_task_state(
+            cfg, ref.path, message=f"Ticket: {ref.id_slug} — recurring scaffold"
+        )
     else:
         typer.echo(f"{ref.id_slug} already scaffolded for this period")
 
@@ -210,6 +214,11 @@ def _broadcast_scan(cfg, scan: DueScan) -> None:
             f"\"{ticket.title}\" in {cfg.project_name} — "
             f"assignee {ticket.assignee or 'unassigned'}",
             task_path=task.ref.path,
+        )
+        git.sync_task_state(
+            cfg,
+            task.ref.path,
+            message=f"Ticket: {task.ref.id_slug} — recurring scaffold",
         )
 
     if scan.errors:

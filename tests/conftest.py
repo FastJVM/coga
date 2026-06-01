@@ -9,6 +9,11 @@ the real env can override these with `monkeypatch.setenv` themselves.
 
 from __future__ import annotations
 
+import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from textwrap import dedent
+
 import pytest
 
 
@@ -58,3 +63,156 @@ def _clear_supervised_session_env(monkeypatch):
     (autouse runs first, so their `monkeypatch.setenv` wins)."""
     monkeypatch.delenv("RELAY_DONE_SENTINEL", raising=False)
     monkeypatch.delenv("RELAY_SUPERVISED", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _stub_git(monkeypatch, request):
+    """Default-off git sync so the bulk of tests don't touch git.
+
+    The git analogue of `_stub_slack`: most tests run in a non-git tmp dir
+    and only care about file/Slack effects, so `relay.git.sync_task_state`
+    is stubbed to a no-op. Without this, every `mark` / `bump` / `create`
+    test would shell out to git on a non-git path (noise at best) and the
+    tests that fake `subprocess.run` for the agent launch would break.
+
+    Tests that exercise real git sync request the `git_repo` fixture (full
+    real-git harness) or the `real_git` marker fixture (for branches like
+    "not a git repo" that need the real helper without a repo); this stub
+    steps aside for both (autouse runs first, but the opt-in is detected via
+    the requested fixture names, so the real helper runs there)."""
+    if {"git_repo", "real_git"} & set(request.fixturenames):
+        return
+    monkeypatch.setattr("relay.git.sync_task_state", lambda *a, **k: None)
+
+
+@pytest.fixture
+def real_git():
+    """Opt a test out of the `_stub_git` no-op without a full repo harness."""
+    return None
+
+
+# --- real-git harness ----------------------------------------------------------
+#
+# Ticket A builds the first real-git test fixture (today git is fully mocked).
+# B and C reuse it: B extends with feature-branch assertions, C reuses it for
+# its bespoke call sites. The shape mirrors the live repo — a git worktree
+# whose `.git` is at the toplevel and whose `relay.toml` lives in a nested
+# `relay-os/`, with a **bare** `origin` so `push` works without a network.
+
+
+@dataclass
+class GitRepo:
+    """A real git working tree with a bare `origin`, laid out like the live repo.
+
+    `root` is the git toplevel (holds `.git`); `relay_os` is the nested
+    `relay-os/` that holds `relay.toml` (and is the cwd commands run from);
+    `origin` is the bare remote that pushes land in.
+    """
+
+    root: Path
+    relay_os: Path
+    origin: Path
+
+    def git(self, *args: str, cwd: Path | None = None) -> str:
+        out = subprocess.run(
+            ["git", "-C", str(cwd or self.root), *args],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return out.stdout
+
+    def checkout_branch(self, name: str) -> None:
+        """Switch the working tree onto a new feature branch (for B's tests)."""
+        self.git("checkout", "-b", name)
+
+    def origin_subjects(self) -> list[str]:
+        """Commit subjects on `origin/main`, newest first."""
+        out = self.git("log", "--format=%s", "main", cwd=self.origin)
+        return [line for line in out.splitlines() if line]
+
+    def origin_tracks(self, relpath: str) -> bool:
+        """True when `relpath` (repo-relative) is committed on `origin/main`."""
+        out = self.git("ls-tree", "-r", "--name-only", "main", cwd=self.origin)
+        return relpath in out.splitlines()
+
+
+def init_git_repo(tmp_path: Path) -> GitRepo:
+    """Create a git working tree + bare `origin`, seeded with a relay-os layout.
+
+    The control branch is `main`. The initial commit lands the config and an
+    empty `tasks/` dir, then is pushed to `origin` so later `push`es are
+    fast-forwards.
+    """
+    origin = tmp_path / "origin.git"
+    subprocess.run(
+        ["git", "init", "--bare", str(origin)],
+        check=True, capture_output=True, text=True,
+    )
+
+    root = tmp_path / "repo"
+    relay_os = root / "relay-os"
+    relay_os.mkdir(parents=True)
+
+    def _g(*args: str) -> None:
+        subprocess.run(
+            ["git", "-C", str(root), *args],
+            check=True, capture_output=True, text=True,
+        )
+
+    _g("init", "-b", "main")
+    _g("config", "user.email", "test@example.com")
+    _g("config", "user.name", "Relay Test")
+    _g("config", "commit.gpgsign", "false")
+
+    (relay_os / "relay.toml").write_text(
+        dedent(
+            """
+            version = 1
+            default_status = "draft"
+            [agents.claude]
+            cli = "claude"
+            auto = "-p"
+            file = "CLAUDE.md"
+            """
+        ).lstrip()
+    )
+    (relay_os / "relay.local.toml").write_text('user = "marc"\n')
+    workflows = relay_os / "workflows"
+    workflows.mkdir()
+    (workflows / "code.md").write_text(
+        dedent(
+            """
+            ---
+            name: code
+            description: tiny.
+            steps:
+              - name: implement
+              - name: review
+            ---
+
+            ## implement
+            Write the code.
+            """
+        ).lstrip()
+    )
+    (relay_os / "tasks").mkdir()
+
+    _g("remote", "add", "origin", str(origin))
+    _g("add", "-A")
+    _g("commit", "-m", "init relay-os")
+    _g("push", "-u", "origin", "main")
+
+    return GitRepo(root=root, relay_os=relay_os, origin=origin)
+
+
+@pytest.fixture
+def git_repo(tmp_path, monkeypatch) -> GitRepo:
+    """A real-git repo with the working tree on `main`, cwd set to `relay-os/`.
+
+    Requesting this fixture opts the test out of the `_stub_git` no-op, so
+    `relay.git.sync_task_state` runs for real against this repo.
+    """
+    repo = init_git_repo(tmp_path)
+    monkeypatch.chdir(repo.relay_os)
+    return repo

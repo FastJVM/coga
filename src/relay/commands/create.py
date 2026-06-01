@@ -16,6 +16,7 @@ import sys
 
 import typer
 
+from relay import git
 from relay.config import ConfigError, load_config
 from relay.scaffold import scaffold_task
 from relay.slack import post
@@ -108,6 +109,7 @@ def scaffold_draft(
         task_path=result["path"],
         owner=cfg.current_user,
     )
+    git.sync_task_state(cfg, result["path"], message=f"Ticket: {slug} — created")
     return result
 
 
