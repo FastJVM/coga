@@ -25,3 +25,13 @@ relay = "relay.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/relay"]
+# Never ship local build artifacts that appear under the packaged template
+# tree when `relay init` is run inside the fixture: a vendored CLI/venv
+# (.relay, .venv) and bytecode caches. Without this, a wheel built from a
+# dirty working tree drags in ~40MB of stale venv — which copy_fresh_templates
+# would then replicate into every fresh `relay init`.
+exclude = [
+  "**/.relay/**",
+  "**/.venv/**",
+  "**/__pycache__/**",
+]
