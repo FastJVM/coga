@@ -8,6 +8,32 @@ The substrate FastJVM uses to run the company: markdown files in a git repo, a
 small CLI on top, no database. It exists to make your judgment *sharper, not
 absent* — and to keep the system **yours**.
 
+Relay is an open-source, hackable **programming layer for agent work**: you turn
+intent into executable Markdown — tickets that compose context blocks, skills,
+workflows, and autonomy rules — and run them on the agents you already use:
+Claude Code and Codex today, or any CLI agent (Gemini CLI, Goose, OpenHands,
+Devin, your own) in a few lines of config. It is **not another autonomous agent**: it
+sits *above* your agents and coordinates them — across **code, research, and
+operations alike** (the same substrate runs a refactor, a research experiment,
+or a deadline-driven workflow).
+
+You author it by *talking*: `relay chat` drops you into an agent already
+oriented in your repo, and `relay ticket` runs a guided interview where the
+agent drafts the structured ticket and workflow while you supply the spec and
+the judgment. And unlike a flat `CLAUDE.md` — one file that *bloats* as you add
+to it, re-read whole on every prompt — Relay's prose is decomposed, scoped,
+versioned, and reused: your knowledge **compounds** instead of piling up.
+
+**What "think better" means.** Relay is simple on purpose — Markdown, scripts,
+and Git, nothing hidden — because you can only think clearly about what you can
+read. You stay in control: the agent acts, you judge what's worth doing and what
+was wrong, and you grant autonomy one step at a time. Everything is inspectable,
+so you always see *why* an agent did what it did; and your context, skills, and
+corrections compound through pull requests you merge, instead of evaporating each
+session. It runs on your disk, in your Git, driving the agents you already pay
+for. The point isn't a tool that thinks *for* you — it's one that makes your own
+thinking sharper, reusable, and legible.
+
 Everything in Relay is a **consequence** of that one idea, and every consequence
 has a **receipt** — the feature that proves it. Read the principles first; the
 features are downstream.
