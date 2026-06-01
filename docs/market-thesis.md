@@ -217,7 +217,7 @@ And one uncomfortable finding, with an important qualifier: **Anthropic's "Keep 
 
 ## The strategic fork for Relay
 
-Two clean positions; we must pick, because they imply different work:
+Two clean positions. They imply different work — but the choice can stay open, decided by a signal (below) rather than forced now:
 
 **A. Internal OSS infrastructure (taste-as-craft).**
 Relay is the substrate FastJVM runs on. No moat, and that's correct — defensibility is the wrong axis for a tool you don't sell. Publishing costs nothing; the payoffs are recruiting, alignment, and being an honest field report for the small tribe this fits. Taste here is craft for its own sake. The only live strategic input is a periodic **build-vs-adopt check**: when the incumbents absorb ~80% of what Relay does for us, migrate the methodology and retire the tool — a planned, graceful outcome, not a loss.
@@ -228,6 +228,18 @@ A real, durable, model-proof moat *is* available — the metaphor + brand moat t
 **But mind the ceiling.** This is *not* the full Linear move. Linear broadened because subtraction broadens; Relay's own thesis (above) says imposition *narrows*. So fork B is "own a small tribe **completely**," not "win a mass category" — the *playbook* is Linear's (craft, a name, evangelism), the *ceiling* is not. Don't let the word "category" import Linear-sized expectations; the demanding forcing function keeps the door narrow on purpose.
 
 There is no third position where you get the moat without doing the adoption work.
+
+### Why the fork can stay open: the incumbent is conflicted, and we're OSS
+
+Two facts let the A/B decision wait without penalty.
+
+**The incumbent can't build it.** Anthropic's ecosystem (Skills, MCP, plugins, Cowork) *needs* a grounding-and-coordination layer to exist — it makes agents useful and sells more Claude — so it will assemble the commodity batteries. But it builds them vendor-locked and cloud-favoring, never owned-and-neutral, because *owned + neutral + depend-on-vendors-less* attacks its own revenue. So the three cells it leaves to us — git-owned state, vendor-neutrality, the human-gated loop — aren't "won't close"; they're **"can't, without self-sabotage."** The best-placed player to kill Relay is structurally barred from the one axis Relay centers.
+
+**And because Relay is OSS, the incumbent's best move is to *use* it, not fight it.** Relay drives Claude as a backend (it sells API usage), so an open, neutral Relay is a *complement* Anthropic benefits from — it can recommend or bundle it and collect the "you're in control" goodwill it can't manufacture itself. Pure upside for fork A: distribution and validation from the very player that can't compete on our axis.
+
+The same openness is double-edged, and naming it keeps the doc honest: *use* also means *fork/absorb* — the code or the ideas can be taken, the neutrality stripped, a Claude-flavored version shipped; and incumbent adoption is the **graceful-retirement / influence win**, not independent-product capture. Openness maximizes diffusion and minimizes capture — the same fact, two signs (this doc's recurring shape).
+
+This is *not* the "third position" rejected above — it buys no moat. It is **fork A as the default, with fork B kept *optionable***, because the OSS-complement stance compounds exactly the adoption fork B would later need, and the incumbent cannot force the choice. The pick is deferred until a signal forces it — and only one does: **a *neutral, non-conflicted* builder running the Linear play** (centering ownership). Anthropic never will; Dust can't. When that builder appears, fork B's window is closing and the choice must be made; until then, A-with-B-optionable is strictly correct. (Both triggers already live in "What to re-check.")
 
 ---
 
