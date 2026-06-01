@@ -175,6 +175,26 @@ One reference table consolidating the field. The point of the last column: each 
 
 Read down the last column and the thesis is self-evident: Relay is the only entry that holds *every* axis at once, because each is a consequence of the one root the others don't share.
 
+### The capability matrix — who holds which axis
+
+The map above is the *taste* cut (what each tool teaches). This is the *capability* cut: the concrete axes a buyer can check. Two distinctions matter and are easy to get wrong. **(1) Prose-as-code ≠ prose-as-context.** A `CLAUDE.md` is *context* — declarative, "here is how things are." Relay's tickets/workflows/skills are *instructions* — imperative, "do X, then Y, verify Z." The "code" is the imperative layer that tells the agent what to do; Relay keeps it separate from the context layer (the data it acts on), and `CLAUDE.md` has only the latter. **(2) Autonomy is not binary.** Relay's autonomy is *granular* — a task or step is autonomous, hybrid, or human, routed per step (`mode` + `assignee`). What's currently disabled is only fully-unattended fire-and-forget (`auto`), a streaming-plumbing gap (pairs with the liveness watchdog), slated to unblock before release.
+
+| Tool | Programmed in | Owned & legible (your git) | Vendor-neutral (BYO-agent) | Batteries that *compound* | Human-gated loop | Domains | Autonomy | Cost |
+|---|---|---|---|---|---|---|---|---|
+| **CLAUDE.md** | context only (declarative) | partial (a flat file in your repo) | yes (any agent reads it) | **no — it bloats** | no | n/a | n/a | free |
+| **Claude Code + ecosystem** (Skills/MCP/plugins/Cowork) | imperative chat + context | no (ephemeral; store/plugins) | no (Anthropic) | assembling (skills/MCP/plugins) — no workflow/ontology/git-substrate | auto-capture, review optional | dev-leaning | partial (background agents) | paid |
+| **Devin** | chat / UI | no (their cloud) | no (bundled, opaque) | no (opaque knowledge) | out-of-loop (delegate) | code only | all-or-nothing autonomous | paid |
+| **Frameworks** (LangGraph/CrewAI/ADK) | code | no (code, not legible prose-state) | model-neutral-ish | you *build* the batteries | you build it | you build it | you build it | OSS (you build everything) |
+| **CompanyOS** (Feld) | prose, but context + skills (no program layer) | **yes** (owned git markdown) | Claude only | skills-only — no workflow/modes/pkg-mgr/loop | no (skills auto-fire) | business-ops | none | free |
+| **OpenAI Symphony** | spec / code | no (state in Linear cloud) | Codex only | a spec you fork (board FSM) | out-of-loop, throughput | code only | async autonomous | OSS spec |
+| **Relay** | **imperative instructions + separated context** | **yes — your git, fully inspectable** | **yes — claude↔codex↔any CLI** | **yes — composition→skills+pkg-mgr→workflow→modes→loop→gate, and it compounds** | **yes — PR-gated (Dream)** | **code + research + ops** | **granular: autonomous / hybrid / human per step** (fire-and-forget unblocks before release) | **free / open, rides your subscriptions** |
+
+**Where Relay is the only option.** The combination *owned + legible + vendor-neutral + batteries-that-compound + human-gated + cross-domain + free* — nobody else holds it. `CLAUDE.md` is a strict subset (Relay = `CLAUDE.md` + the program layer + batteries + loop); CompanyOS is the only other "owned," but it is skills-only (no workflow, no loop); frameworks are code to *build* an agent, not prose to *run* work. For the buyer who wants to **own, understand, and correct** their agent substrate, across everything, for free — Relay is alone.
+
+**Where Relay is outclassed (state it plainly).** Fully-unattended autonomy out of the box → **Devin / Symphony / Claude Code** (until Relay ships streaming + watchdog). Heavy parallel/dynamic orchestration → **frameworks** (Relay's workflow is a linear state machine). Managed reliability / support / SLA → **paid products** (Relay is self-hosted, self-supported). Zero-setup → **CLAUDE.md** (one file, nothing to learn). Distribution / brand → anyone funded. And none of the axes Relay wins are a *moat* — the whole combination is copyable; the only durable layer is direction (see the conclusion).
+
+**The fastest-closing threat is the Claude Code ecosystem** — it is assembling the batteries quickly. The cells it *structurally* will not close: owned-in-your-git, vendor-neutral, and the human-gated loop. That intersection — not "nobody does the parts" — is the defensible read.
+
 ---
 
 ## Judging competitors on the taste axis
