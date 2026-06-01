@@ -175,6 +175,26 @@ One reference table consolidating the field. The point of the last column: each 
 
 Read down the last column and the thesis is self-evident: Relay is the only entry that holds *every* axis at once, because each is a consequence of the one root the others don't share.
 
+### The capability matrix — who holds which axis
+
+The map above is the *taste* cut (what each tool teaches). This is the *capability* cut: the concrete axes a buyer can check. Two distinctions matter and are easy to get wrong. **(1) Prose-as-code ≠ prose-as-context.** A `CLAUDE.md` is *context* — declarative, "here is how things are." Relay's tickets/workflows/skills are *instructions* — imperative, "do X, then Y, verify Z." The "code" is the imperative layer that tells the agent what to do; Relay keeps it separate from the context layer (the data it acts on), and `CLAUDE.md` has only the latter. **(2) Autonomy is not binary.** Relay's autonomy is *granular* — a task or step is autonomous, hybrid, or human, routed per step (`mode` + `assignee`). What's currently disabled is only fully-unattended fire-and-forget (`auto`), a streaming-plumbing gap (pairs with the liveness watchdog), slated to unblock before release.
+
+| Tool | Programmed in | Owned & legible (your git) | Vendor-neutral (BYO-agent) | Batteries that *compound* | Human-gated loop | Domains | Autonomy | Cost |
+|---|---|---|---|---|---|---|---|---|
+| **CLAUDE.md** | context only (declarative) | partial (a flat file in your repo) | yes (any agent reads it) | **no — it bloats** | no | n/a | n/a | free |
+| **Claude Code + ecosystem** (Skills/MCP/plugins/Cowork) | imperative chat + context | no (ephemeral; store/plugins) | no (Anthropic) | assembling (skills/MCP/plugins) — no workflow/ontology/git-substrate | auto-capture, review optional | dev-leaning | partial (background agents) | paid |
+| **Devin** | chat / UI | no (their cloud) | no (bundled, opaque) | no (opaque knowledge) | out-of-loop (delegate) | code only | all-or-nothing autonomous | paid |
+| **Frameworks** (LangGraph/CrewAI/ADK) | code | no (code, not legible prose-state) | model-neutral-ish | you *build* the batteries | you build it | you build it | you build it | OSS (you build everything) |
+| **CompanyOS** (Feld) | prose, but context + skills (no program layer) | **yes** (owned git markdown) | Claude only | skills-only — no workflow/modes/pkg-mgr/loop | no (skills auto-fire) | business-ops | none | free |
+| **OpenAI Symphony** | spec / code | no (state in Linear cloud) | Codex only | a spec you fork (board FSM) | out-of-loop, throughput | code only | async autonomous | OSS spec |
+| **Relay** | **imperative instructions + separated context** | **yes — your git, fully inspectable** | **yes — claude↔codex↔any CLI** | **yes — composition→skills+pkg-mgr→workflow→modes→loop→gate, and it compounds** | **yes — PR-gated (Dream)** | **code + research + ops** | **granular: autonomous / hybrid / human per step** (fire-and-forget unblocks before release) | **free / open, rides your subscriptions** |
+
+**Where Relay is the only option.** The combination *owned + legible + vendor-neutral + batteries-that-compound + human-gated + cross-domain + free* — nobody else holds it. `CLAUDE.md` is a strict subset (Relay = `CLAUDE.md` + the program layer + batteries + loop); CompanyOS is the only other "owned," but it is skills-only (no workflow, no loop); frameworks are code to *build* an agent, not prose to *run* work. For the buyer who wants to **own, understand, and correct** their agent substrate, across everything, for free — Relay is alone.
+
+**Where Relay is outclassed (state it plainly).** Fully-unattended autonomy out of the box → **Devin / Symphony / Claude Code** (until Relay ships streaming + watchdog). Heavy parallel/dynamic orchestration → **frameworks** (Relay's workflow is a linear state machine). Managed reliability / support / SLA → **paid products** (Relay is self-hosted, self-supported). Zero-setup → **CLAUDE.md** (one file, nothing to learn). Distribution / brand → anyone funded. And none of the axes Relay wins are a *moat* — the whole combination is copyable; the only durable layer is direction (see the conclusion).
+
+**The fastest-closing threat is the Claude Code ecosystem** — it is assembling the batteries quickly. The cells it *structurally* will not close: owned-in-your-git, vendor-neutral, and the human-gated loop. That intersection — not "nobody does the parts" — is the defensible read.
+
 ---
 
 ## Judging competitors on the taste axis
@@ -197,7 +217,7 @@ And one uncomfortable finding, with an important qualifier: **Anthropic's "Keep 
 
 ## The strategic fork for Relay
 
-Two clean positions; we must pick, because they imply different work:
+Two clean positions. They imply different work — but the choice can stay open, decided by a signal (below) rather than forced now:
 
 **A. Internal OSS infrastructure (taste-as-craft).**
 Relay is the substrate FastJVM runs on. No moat, and that's correct — defensibility is the wrong axis for a tool you don't sell. Publishing costs nothing; the payoffs are recruiting, alignment, and being an honest field report for the small tribe this fits. Taste here is craft for its own sake. The only live strategic input is a periodic **build-vs-adopt check**: when the incumbents absorb ~80% of what Relay does for us, migrate the methodology and retire the tool — a planned, graceful outcome, not a loss.
@@ -208,6 +228,18 @@ A real, durable, model-proof moat *is* available — the metaphor + brand moat t
 **But mind the ceiling.** This is *not* the full Linear move. Linear broadened because subtraction broadens; Relay's own thesis (above) says imposition *narrows*. So fork B is "own a small tribe **completely**," not "win a mass category" — the *playbook* is Linear's (craft, a name, evangelism), the *ceiling* is not. Don't let the word "category" import Linear-sized expectations; the demanding forcing function keeps the door narrow on purpose.
 
 There is no third position where you get the moat without doing the adoption work.
+
+### Why the fork can stay open: the incumbent is conflicted, and we're OSS
+
+Two facts let the A/B decision wait without penalty.
+
+**The incumbent can't build it.** Anthropic's ecosystem (Skills, MCP, plugins, Cowork) *needs* a grounding-and-coordination layer to exist — it makes agents useful and sells more Claude — so it will assemble the commodity batteries. But it builds them vendor-locked and cloud-favoring, never owned-and-neutral, because *owned + neutral + depend-on-vendors-less* attacks its own revenue. So the three cells it leaves to us — git-owned state, vendor-neutrality, the human-gated loop — aren't "won't close"; they're **"can't, without self-sabotage."** The best-placed player to kill Relay is structurally barred from the one axis Relay centers.
+
+**And because Relay is OSS, the incumbent's best move is to *use* it, not fight it.** Relay drives Claude as a backend (it sells API usage), so an open, neutral Relay is a *complement* Anthropic benefits from — it can recommend or bundle it and collect the "you're in control" goodwill it can't manufacture itself. Pure upside for fork A: distribution and validation from the very player that can't compete on our axis.
+
+The same openness is double-edged, and naming it keeps the doc honest: *use* also means *fork/absorb* — the code or the ideas can be taken, the neutrality stripped, a Claude-flavored version shipped; and incumbent adoption is the **graceful-retirement / influence win**, not independent-product capture. Openness maximizes diffusion and minimizes capture — the same fact, two signs (this doc's recurring shape).
+
+This is *not* the "third position" rejected above — it buys no moat. It is **fork A as the default, with fork B kept *optionable***, because the OSS-complement stance compounds exactly the adoption fork B would later need, and the incumbent cannot force the choice. The pick is deferred until a signal forces it — and only one does: **a *neutral, non-conflicted* builder running the Linear play** (centering ownership). Anthropic never will; Dust can't. When that builder appears, fork B's window is closing and the choice must be made; until then, A-with-B-optionable is strictly correct. (Both triggers already live in "What to re-check.")
 
 ---
 
