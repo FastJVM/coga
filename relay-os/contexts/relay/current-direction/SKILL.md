@@ -5,7 +5,23 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 # Relay — current direction
 
-Last updated: 2026-05-19.
+Last updated: 2026-06-01.
+
+## Open rename (workflow → playbook)
+
+- **The `workflow` primitive is being renamed to `playbook`.** Ticket:
+  `rename-workflow-primitive-to-playbook` (draft, `code/design-then-implement`).
+  Same motive as the earlier `relay step → relay bump` rename below: the name
+  mislabels the concept. "Workflow" imports the romantic, absorption-camp
+  connotation (*the automation runs itself* — n8n/Zapier/CI), which is the
+  opposite of what the primitive is: a sequence of **operator handoffs**
+  (`assignee: agent | human | owner`) with a human gate in the step list. The
+  product is literally a *relay* (baton between runners); "playbook" names the
+  ordered-plays-with-handoffs shape without the runs-itself baggage and pairs
+  with `skills`/`contexts`. It touches a reserved frontmatter key, so it needs
+  a design pass (alias-vs-migration for live tickets) before the mechanical
+  rename — don't hand-edit the `workflow:` key in contexts ahead of the code
+  change. Until merged, `workflow` is still the canonical term everywhere.
 
 ## Recent decisions (design-then-implement workflow)
 
