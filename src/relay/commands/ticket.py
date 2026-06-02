@@ -6,11 +6,13 @@ import os
 import shutil
 import subprocess
 import sys
+from hashlib import sha256
 from pathlib import Path
 from typing import cast
 
 import typer
 
+from relay import git
 from relay.commands.create import scaffold_draft
 from relay.commands.launch import (
     _format_agent_command_for_console,
@@ -24,6 +26,7 @@ from relay.tasks import (
     BootstrapRef,
     TaskNotFoundError,
     TaskRef,
+    list_tasks,
     read_ticket,
     resolve_bootstrap,
     resolve_task,
@@ -35,6 +38,7 @@ from relay.validate import format_task_issues, validate_task_dir
 AUTHORING_SKILL = "bootstrap/ticket"
 EDITABLE_STATUSES = {"draft", "active", "paused"}
 PROTECTED_STATUSES = {"in_progress", "done"}
+AUTHORING_SYNC_DIRS = ("tasks", "contexts", "skills")
 
 
 def ticket(
@@ -154,6 +158,8 @@ def _run_authoring_session(
         "Ticket: command: "
         f"{_format_agent_command_for_console(cmd, prompt)}"
     )
+    before_tasks = {task_ref.slug for task_ref in list_tasks(cfg)}
+    before_authoring = _snapshot_authoring_files(cfg)
     append_log(
         ref.path,
         f"human:{cfg.current_user}",
@@ -183,35 +189,121 @@ def _run_authoring_session(
     # Post-authoring validation: the agent edited the ticket directly during
     # the session. Surface schema breakage now, while the user is at the
     # terminal and can fix it before launch / Dream picks it up later.
-    if isinstance(ref, TaskRef):
-        issues = validate_task_dir(cfg, ref)
-        errors = [i for i in issues if i.severity == "error"]
-        if errors:
-            typer.secho(
-                "Ticket validation failed after authoring:\n"
-                + format_task_issues(errors),
-                fg=typer.colors.RED,
-                err=True,
-            )
-            sys.exit(2)
+    changed_paths = _changed_authoring_paths(before_authoring, cfg)
+    authored_refs = (
+        [ref] if isinstance(ref, TaskRef)
+        else _authored_task_refs(cfg, changed_paths, before_tasks)
+    )
+    for authored_ref in authored_refs:
+        _validate_authored_task(cfg, authored_ref)
 
-        # Guided authoring of a draft must land on a workflow. A workflow-less
-        # draft can't be activated (`relay mark active` refuses it), so handing
-        # one back would strand the human. Catch it here, at the terminal,
-        # rather than later at activation. Only drafts are gated — an already
-        # `active` ticket edited here may be a workflow-less recurring/retire
-        # task, which is legitimate.
-        authored = read_ticket(ref)
-        if authored.status == "draft" and not authored.workflow:
-            typer.secho(
-                f"Ticket authoring left {ref.id_slug} with no workflow. "
-                "Every ticket needs one to be activated — relaunch "
-                f"`relay ticket {ref.id_slug}` and pick a workflow "
-                "(see relay-os/workflows/).",
-                fg=typer.colors.RED,
-                err=True,
-            )
-            sys.exit(2)
+    sync_paths = [authored_ref.path for authored_ref in authored_refs]
+    sync_paths.extend(_support_paths(cfg, changed_paths))
+    if sync_paths:
+        anchor = authored_refs[0].path if authored_refs else ref.path
+        git.sync_paths(
+            cfg,
+            anchor,
+            sync_paths,
+            message=_authoring_sync_message(authored_refs),
+        )
+
+
+def _validate_authored_task(cfg: Config, ref: TaskRef) -> None:
+    issues = validate_task_dir(cfg, ref)
+    errors = [i for i in issues if i.severity == "error"]
+    if errors:
+        typer.secho(
+            "Ticket validation failed after authoring:\n"
+            + format_task_issues(errors),
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
+    # Guided authoring of a draft must land on a workflow. A workflow-less
+    # draft can't be activated (`relay mark active` refuses it), so handing
+    # one back would strand the human. Catch it here, at the terminal,
+    # rather than later at activation. Only drafts are gated — an already
+    # `active` ticket edited here may be a workflow-less recurring/retire
+    # task, which is legitimate.
+    authored = read_ticket(ref)
+    if authored.status == "draft" and not authored.workflow:
+        typer.secho(
+            f"Ticket authoring left {ref.id_slug} with no workflow. "
+            "Every ticket needs one to be activated — relaunch "
+            f"`relay ticket {ref.id_slug}` and pick a workflow "
+            "(see relay-os/workflows/).",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
+
+def _snapshot_authoring_files(cfg: Config) -> dict[Path, str]:
+    snapshot: dict[Path, str] = {}
+    for root_name in AUTHORING_SYNC_DIRS:
+        root = cfg.repo_root / root_name
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*")):
+            if path.is_file():
+                snapshot[path.resolve(strict=False)] = sha256(path.read_bytes()).hexdigest()
+    return snapshot
+
+
+def _changed_authoring_paths(before: dict[Path, str], cfg: Config) -> set[Path]:
+    after = _snapshot_authoring_files(cfg)
+    changed = {path for path, digest in after.items() if before.get(path) != digest}
+    changed.update(path for path in before if path not in after)
+    return changed
+
+
+def _authored_task_refs(
+    cfg: Config,
+    changed_paths: set[Path],
+    before_tasks: set[str],
+) -> list[TaskRef]:
+    tasks_root = (cfg.repo_root / "tasks").resolve(strict=False)
+    refs: dict[str, TaskRef] = {}
+    for path in changed_paths:
+        try:
+            rel = path.resolve(strict=False).relative_to(tasks_root)
+        except ValueError:
+            continue
+        if not rel.parts:
+            continue
+        slug = rel.parts[0]
+        task_path = tasks_root / slug
+        if (task_path / "ticket.md").is_file():
+            refs[slug] = TaskRef(slug=slug, path=task_path)
+
+    for task_ref in list_tasks(cfg):
+        if task_ref.slug not in before_tasks:
+            refs.setdefault(task_ref.slug, task_ref)
+    return [refs[slug] for slug in sorted(refs)]
+
+
+def _support_paths(cfg: Config, changed_paths: set[Path]) -> list[Path]:
+    support: list[Path] = []
+    for root_name in ("contexts", "skills"):
+        root = (cfg.repo_root / root_name).resolve(strict=False)
+        for path in changed_paths:
+            try:
+                path.resolve(strict=False).relative_to(root)
+            except ValueError:
+                continue
+            support.append(path)
+    return sorted(support)
+
+
+def _authoring_sync_message(authored_refs: list[TaskRef]) -> str:
+    if len(authored_refs) == 1:
+        return f"Ticket: {authored_refs[0].id_slug} — authored"
+    if authored_refs:
+        slugs = ", ".join(ref.id_slug for ref in authored_refs)
+        return f"Ticket authoring — authored {slugs}"
+    return "Ticket authoring — support files"
 
 
 def _bail(msg: str) -> None:

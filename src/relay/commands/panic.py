@@ -6,6 +6,7 @@ import sys
 
 import typer
 
+from relay import git
 from relay.blackboard import append_blocker
 from relay.config import ConfigError, load_config
 from relay.logfile import append_log
@@ -54,6 +55,14 @@ def panic(
         image_url=cfg.gif_for("panic"),
     )
     typer.echo(f"{ref.id_slug}: panicked (owner {owner} notified)")
+    # Sync the blocker (blackboard + log) to the control branch, the git
+    # analogue of the Slack post above. Scoped to the task dir by
+    # `sync_task_state` — never `git add -A` — so the feature worktree's
+    # uncommitted *code* (panic often fires from inside one) is left alone.
+    # Run it before `emit_done_marker` so the commit/push completes while we
+    # still own the process, not after a supervising `relay launch` has begun
+    # reaping the REPL on the teardown signal.
+    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — panic")
     # Panic *is* the session-end transition: tell a supervising
     # `relay launch` to tear down the agent's REPL. The non-zero exit
     # below is the distress signal, not a failure of panic itself. The

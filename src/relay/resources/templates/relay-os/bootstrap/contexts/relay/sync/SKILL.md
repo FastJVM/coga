@@ -148,10 +148,16 @@ Current surface:
 - `relay bump`.
 - `relay automerge`, through the shared `mark_done` finalizer.
 - `relay recurring` and `relay retire` scaffolds.
+- `relay panic` — the blocker written to the blackboard + log, synced before
+  the teardown signal so the commit lands while the process still owns itself.
+- `relay ticket` authoring — the edits the launched agent makes to `ticket.md`
+  (and the blackboard) inside the subprocess, committed once control returns
+  and the result passes validation. relay never calls `ticket.write()` for
+  those external edits, so this is the only thing that lands them.
 
-Deferred until follow-up tickets: `relay panic`, and `relay ticket` authoring
-edits made by the launched agent. Do not assume those paths are synced until
-their tickets land.
+Both `panic` and `ticket` sync through the same `git.sync_task_state` helper,
+strictly scoped to the task dir — `relay panic` in particular often fires from
+a feature worktree with uncommitted *code*, which is never swept in.
 
 Task state reaches the control branch from **any** branch. When HEAD is the
 control branch, Relay commits the task dir and pushes. When HEAD is a feature
