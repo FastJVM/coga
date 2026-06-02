@@ -6,12 +6,20 @@ team's live state until a human committed by hand. `sync_task_state` closes
 that gap. It is always-on (no per-command flag), the same way Slack is — the
 only opt-out is `[git].enabled = false`.
 
-This module is ticket A: the **same-branch** case only. When HEAD is already
-the control branch (normally `main`), it commits the changed task files and
-pushes. When HEAD is a feature branch, it no-ops with a warning — making task
-state reach `main` *from* a feature branch is ticket B's job, and the public
-signature here is shaped so B can slot that path in without reworking any
-call site.
+When HEAD is already the control branch (normally `main`), it commits the
+changed task files and pushes (the same-branch path). When HEAD is a feature
+branch, it still lands the task state on the control branch — by building the
+control branch's tree in a *temporary index* and pushing a fresh commit
+straight to `refs/heads/<control>`, never checking out `main` or touching the
+feature working tree — and *also* commits the task files on the current branch
+so the agent's checkout reflects the ticket state it works against.
+
+A non-fast-forward `origin/<control>` (it moved under us) is absorbed by a
+bounded fetch-rebuild-retry loop: the `git push <sha>:refs/heads/<control>` is
+the atomic compare-and-swap that serializes concurrent relay processes (local
+or cross-machine), so no lock is introduced — consistent with relay's no-mutex
+architecture. A detached HEAD takes the cross-branch landing path but skips the
+local commit (a commit on a detached HEAD would be orphaned).
 
 Failure model (settled with the owner, mirrors `relay/sync`'s crash-loud
 philosophy): a failed git *operation* on the control branch raises `GitError`,
@@ -26,14 +34,21 @@ binding, just `subprocess.run` with `check=False` and explicit error handling.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import typer
 
 from relay.config import Config
 from relay.logfile import append_log
+
+# Bounded retries when racing `refs/heads/<control>`: each loss is a refetch +
+# rebuild + repush, so a small ceiling is plenty under realistic contention
+# (the relay launch auto-chain, the post-merge hook, manual commands).
+_MAX_SYNC_ATTEMPTS = 5
 
 
 class GitError(Exception):
@@ -51,12 +66,17 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
 
       - `[git].enabled = false` → suppressed, one stderr line, no crash.
       - Not a git repo → soft no-op, one stderr line, no crash.
-      - HEAD is a feature branch → soft no-op + warning (ticket B handles
-        cross-branch land-on-`main`).
       - HEAD is the control branch → `git add` the task dir, and if anything
         is staged, commit with `message` and push to the configured remote.
-        Any git operation failure raises `GitError`, which is reported to
-        stderr + the task's `log.md` and re-raised as `typer.Exit(1)`.
+      - HEAD is a feature branch → commit the task dir on the current branch
+        (so the checkout reflects ticket state), then land the same files on
+        the control branch via the working-tree-free plumbing path.
+      - Detached HEAD → skip the local commit (it would be orphaned), still
+        land on the control branch.
+
+    Any git operation failure on the control-branch path raises `GitError`,
+    which is reported to stderr + the task's `log.md` and re-raised as
+    `typer.Exit(1)`.
 
     `task_path` is the task directory (`relay-os/tasks/<slug>/`); only files
     under it are staged, never `git add -A`, so unrelated working-tree changes
@@ -74,16 +94,24 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
             )
             return
 
+        rel = _relative_to_root(root, task_path)
         branch = _current_branch(root)
-        if branch != cfg.git_control_branch:
-            sys.stderr.write(
-                f"[git] on feature branch {branch!r} — ticket state not synced to "
-                f"{cfg.git_control_branch!r}; ticket B handles cross-branch sync. "
-                f"({message})\n"
-            )
+
+        if branch == cfg.git_control_branch:
+            _sync_on_control_branch(cfg, root, rel, message=message)
             return
 
-        _sync_on_control_branch(cfg, root, task_path, message=message)
+        # Feature branch (or detached HEAD): commit on the current branch so
+        # the checkout reflects ticket state, then land on the control branch
+        # without ever touching the feature working tree.
+        if branch == "HEAD":
+            sys.stderr.write(
+                f"[git] detached HEAD — task state landed on "
+                f"{cfg.git_control_branch!r} but not committed locally. ({message})\n"
+            )
+        else:
+            _commit_task_dir(root, rel, message)
+        _land_on_control_branch(cfg, root, rel, message=message)
     except GitError as exc:
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
         append_log(task_path, "git", f"sync failed: {exc}")
@@ -91,33 +119,176 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
 
 
 def _sync_on_control_branch(
-    cfg: Config, root: Path, task_path: Path, *, message: str
+    cfg: Config, root: Path, rel: str, *, message: str
 ) -> None:
     """Stage the task dir, commit if anything changed, and push.
 
     A no-change transition (nothing staged) is a clean no-op: there is
     nothing to sync, so we neither commit nor push.
     """
-    rel = _relative_to_root(root, task_path)
+    if not _commit_task_dir(root, rel, message):
+        return
+    _run_git(root, "push", cfg.git_remote, cfg.git_control_branch)
+
+
+def _commit_task_dir(root: Path, rel: str, message: str) -> bool:
+    """Stage and commit the task dir on the current branch; return whether a
+    commit was made.
+
+    Working-tree-safe: `git add -- rel` only stages the task pathspec, and
+    `git commit --only -- rel` commits exactly that pathspec, leaving any
+    unrelated staged or unstaged changes untouched. A no-change transition
+    (nothing staged under `rel`) is a clean no-op returning False.
+    """
     _run_git(root, "add", "--", rel)
     if not _has_staged_changes(root, rel):
-        return
+        return False
     _run_git(root, "commit", "--only", "-m", message, "--", rel)
-    _run_git(root, "push", cfg.git_remote, cfg.git_control_branch)
+    return True
+
+
+def _land_on_control_branch(
+    cfg: Config, root: Path, rel: str, *, message: str
+) -> None:
+    """Land the working-tree task dir on the control branch from any branch.
+
+    Pure plumbing: build the control branch's tree in a *temporary index*
+    (never the real index, never the working tree), overlay the current task
+    dir onto it, commit-tree, and push the new commit straight to
+    `refs/heads/<control>`. The push is a compare-and-swap — a non-fast-forward
+    rejection means another process landed first, so we refetch and rebuild on
+    the new tip. Bounded by `_MAX_SYNC_ATTEMPTS`.
+    """
+    remote = cfg.git_remote
+    branch = cfg.git_control_branch
+
+    for _ in range(_MAX_SYNC_ATTEMPTS):
+        _run_git(root, "fetch", remote, branch)
+        base = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+
+        tree = _build_overlay_tree(root, base, rel)
+        if tree == _run_git(root, "rev-parse", f"{base}^{{tree}}").strip():
+            # The control branch already has identical task content — nothing
+            # to land. (Common: same-content reruns, or the feature commit and
+            # the control branch already agree.)
+            return
+
+        new = _run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
+        result = _push_ref(root, remote, f"{new}:refs/heads/{branch}")
+        if result is None:
+            # Pushed. Best-effort fast-forward the local control ref so a later
+            # same-branch checkout sees it; failure here is non-fatal because
+            # origin already has the commit.
+            _try_update_local_ref(root, branch, new)
+            return
+        if not _is_non_fast_forward(result):
+            raise GitError(
+                f"`git push {remote} {new}:refs/heads/{branch}` failed: {result}"
+            )
+        # Non-fast-forward: another process moved the branch. Loop refetches.
+
+    raise GitError(
+        f"could not land on {branch!r} after {_MAX_SYNC_ATTEMPTS} attempts — "
+        f"contention on refs/heads/{branch}"
+    )
+
+
+def _build_overlay_tree(root: Path, base: str, rel: str) -> str:
+    """Build a tree = `base`'s tree with the working-tree `rel` subtree overlaid.
+
+    Runs entirely against a throwaway temporary index (`GIT_INDEX_FILE`), so
+    neither the real index nor the working tree is disturbed. Seeds the temp
+    index from `base`, drops the stale task subtree, re-adds the current
+    working-tree task files, and writes the resulting tree object.
+    """
+    fd, tmp_index = tempfile.mkstemp(prefix="relay-git-index-")
+    os.close(fd)
+    try:
+        os.unlink(tmp_index)  # read-tree wants to create it fresh
+        env = {"GIT_INDEX_FILE": tmp_index}
+        _run_git(root, "read-tree", base, env=env)
+        _run_git(root, "rm", "-r", "--cached", "--ignore-unmatch", "--", rel, env=env)
+        _run_git(root, "add", "--", rel, env=env)
+        return _run_git(root, "write-tree", env=env).strip()
+    finally:
+        try:
+            os.unlink(tmp_index)
+        except FileNotFoundError:
+            pass
+
+
+def _push_ref(root: Path, remote: str, refspec: str) -> str | None:
+    """Push `refspec` to `remote`. Return None on success, else stderr+stdout.
+
+    Unlike `_run_git`, a non-zero exit is returned (not raised) so the caller
+    can distinguish a recoverable non-fast-forward from a hard failure.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "push", remote, refspec],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise GitError("`git` not found on PATH") from exc
+    if result.returncode == 0:
+        return None
+    return (result.stderr + result.stdout).strip()
+
+
+def _is_non_fast_forward(push_output: str) -> bool:
+    """True when a push was rejected because the remote ref moved under us."""
+    lowered = push_output.lower()
+    return any(
+        marker in lowered
+        for marker in ("non-fast-forward", "fetch first", "rejected", "stale info")
+    )
+
+
+def _try_update_local_ref(root: Path, branch: str, new: str) -> None:
+    """Best-effort fast-forward the local control ref to `new`.
+
+    Non-fatal: origin already has the commit, so a failure here (e.g. the
+    branch isn't checked out anywhere, or moved on locally) only means a later
+    local checkout of the control branch must fetch. We don't update the ref if
+    HEAD points at it, since that would desync the index/working tree.
+    """
+    head = _run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+    if head == branch:
+        return
+    result = subprocess.run(
+        ["git", "-C", str(root), "update-ref", f"refs/heads/{branch}", new],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        sys.stderr.write(
+            f"[git] note: local {branch!r} not fast-forwarded "
+            f"(origin has the commit): {result.stderr.strip()}\n"
+        )
 
 
 # --- low-level git plumbing ----------------------------------------------------
 
 
-def _run_git(root: Path, *args: str) -> str:
+def _run_git(root: Path, *args: str, env: dict[str, str] | None = None) -> str:
     """Run a git subcommand in `root`, returning stdout. Raise GitError on
-    failure or a missing git binary."""
+    failure or a missing git binary.
+
+    `env` entries are overlaid on the current environment (not replacing it) —
+    used to thread `GIT_INDEX_FILE` through the temp-index plumbing without
+    losing the caller's PATH/HOME/git config.
+    """
+    run_env = {**os.environ, **env} if env else None
     try:
         result = subprocess.run(
             ["git", "-C", str(root), *args],
             capture_output=True,
             text=True,
             check=False,
+            env=run_env,
         )
     except FileNotFoundError as exc:
         raise GitError("`git` not found on PATH") from exc

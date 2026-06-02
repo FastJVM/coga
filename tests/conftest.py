@@ -136,6 +136,32 @@ class GitRepo:
         out = self.git("ls-tree", "-r", "--name-only", "main", cwd=self.origin)
         return relpath in out.splitlines()
 
+    def push_competing_commit(self, relpath: str, text: str) -> None:
+        """Land an unrelated commit straight on `origin/main` from a throwaway clone.
+
+        Simulates another relay process (or machine) advancing the control
+        branch under us, so B's cross-branch land hits a non-fast-forward and
+        must refetch/rebuild. The file is committed and pushed without touching
+        this working tree.
+        """
+        clone = self.origin.parent / "competing-clone"
+        if not clone.exists():
+            self.git("clone", str(self.origin), str(clone), cwd=self.origin.parent)
+            self.git("config", "user.email", "rival@example.com", cwd=clone)
+            self.git("config", "user.name", "Rival", cwd=clone)
+            self.git("config", "commit.gpgsign", "false", cwd=clone)
+            # The bare origin's symbolic HEAD isn't `main`, so the fresh clone
+            # lands on an unborn default branch — pin it to origin/main.
+            self.git("checkout", "-B", "main", "origin/main", cwd=clone)
+        else:
+            self.git("pull", "--ff-only", "origin", "main", cwd=clone)
+        target = clone / relpath
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text)
+        self.git("add", "--", relpath, cwd=clone)
+        self.git("commit", "-m", f"competing: {relpath}", cwd=clone)
+        self.git("push", "origin", "main", cwd=clone)
+
 
 def init_git_repo(tmp_path: Path) -> GitRepo:
     """Create a git working tree + bare `origin`, seeded with a relay-os layout.
