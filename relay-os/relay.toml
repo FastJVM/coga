@@ -109,11 +109,13 @@ zach = "U0AG5LKCK8E"
 # branch, so the git-backed repo never drifts from the team's live state.
 # Always-on — these defaults apply even with no `[git]` table below.
 #
-# Same-branch only today: when HEAD is the control branch the task files are
-# committed and pushed; on a feature branch the sync no-ops with a warning
-# (landing task state on the control branch from a feature branch is a later
-# ticket). A failed commit/push on the control branch crashes loud, the same
-# way a failed Slack post does.
+# When HEAD is the control branch the task files are committed and pushed; on
+# a feature branch (or detached HEAD) the same files are landed on the control
+# branch via a working-tree-free plumbing path. A failed commit/push is
+# non-fatal: it is surfaced to stderr + the task's log.md, but never aborts the
+# local state transition (the on-disk markdown is the source of truth; git is
+# only the sync layer, so a push that can't reach a protected/remote control
+# branch must not block a `bump` / `mark` / launch).
 #
 # Defaults: enabled = true, remote = "origin", control_branch = "main".
 # To opt out (a repo with no remote: dev/test, CI, solo branches), set
