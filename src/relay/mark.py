@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import typer
 
+from relay import git
 from relay.config import Config
 from relay.logfile import append_log
 from relay.paths import workflow_path
@@ -55,6 +56,7 @@ def mark_done(
         watchers=ticket.watchers,
         image_url=image_url,
     )
+    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — done")
 
 
 class RequiredExtensionMissing(RuntimeError):
@@ -160,6 +162,7 @@ def mark_active(
     if echo is not None:
         typer.echo(echo)
     post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
+    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — active")
 
 
 def mark_in_progress(
@@ -182,6 +185,7 @@ def mark_in_progress(
         typer.echo(echo)
     if slack_text is not None:
         post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
+    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — in_progress")
 
 
 def mark_paused(
@@ -203,6 +207,7 @@ def mark_paused(
     if echo is not None:
         typer.echo(echo)
     post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
+    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — paused")
 
 
 __all__ = [
