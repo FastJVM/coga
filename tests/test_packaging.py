@@ -20,15 +20,18 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
 )
 
 
-def test_package_force_includes_relay_resources() -> None:
+def test_package_includes_relay_resources() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text())
 
-    force_include = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"][
-        "force-include"
-    ]
-
-    assert force_include["src/relay/resources"] == "relay/resources"
+    # Resources live inside the `relay` package (`src/relay/resources/...`), so
+    # declaring `packages = ["src/relay"]` ships them — no separate
+    # `force-include` is needed (#259 dropped that duplicate). Guard that the
+    # package is still declared and that the bootstrap battery sources exist on
+    # disk to be shipped. `test_wheel_includes_bootstrap_batteries` proves they
+    # actually land in a built wheel.
+    packages = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"]
+    assert "src/relay" in packages
     for wheel_name in EXPECTED_BOOTSTRAP_RESOURCES:
         source_name = wheel_name.removeprefix("relay/resources/")
         assert (repo_root / "src" / "relay" / "resources" / source_name).is_file()
