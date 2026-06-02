@@ -3,7 +3,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: git-sync-c
 worktree: ../relay-git-sync-c (based on origin/main, which has A #262 + B #263)
-pr: (pending — open-pr step)
+pr: https://github.com/FastJVM/relay/pull/264
 commit: 8417a76
 
 ## Scope expanded (final, committed in 8417a76)
