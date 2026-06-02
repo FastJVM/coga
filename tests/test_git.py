@@ -15,7 +15,6 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
-import typer
 from typer.testing import CliRunner
 
 from relay import git
@@ -283,16 +282,21 @@ def test_sync_feature_branch_noop_when_identical(git_repo):
     assert git_repo.origin_subjects() == before
 
 
-def test_sync_feature_branch_crashes_loud_on_push_failure(git_repo):
-    """No remote on the cross-branch path → GitError → log + typer.Exit."""
+def test_sync_feature_branch_nonfatal_on_push_failure(git_repo, capsys):
+    """No remote on the cross-branch path → loud warning + log, but no crash.
+
+    A failed push must not abort a local state transition (it would break the
+    supervised launch chain). The miss is surfaced to stderr + log.md.
+    """
     cfg = load_config(git_repo.relay_os)
     git_repo.checkout_branch("feature/x")
     git_repo.git("remote", "remove", "origin")
     task = _task_dir(git_repo.relay_os)
 
-    with pytest.raises(typer.Exit):
-        git.sync_task_state(cfg, task, message="Ticket: demo — created")
+    # Must not raise.
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
+    assert "sync failed" in capsys.readouterr().err
     assert "sync failed" in (task / "log.md").read_text()
 
 
@@ -320,7 +324,7 @@ def test_sync_noop_when_not_a_git_repo(tmp_path, capsys, real_git):
     assert "not a git repo" in capsys.readouterr().err
 
 
-def test_sync_crashes_loud_on_rev_parse_failure(tmp_path, monkeypatch, real_git):
+def test_sync_nonfatal_on_rev_parse_failure(tmp_path, monkeypatch, real_git, capsys):
     cfg = _cfg(tmp_path)
     task = _task_dir(tmp_path)
 
@@ -331,9 +335,10 @@ def test_sync_crashes_loud_on_rev_parse_failure(tmp_path, monkeypatch, real_git)
 
     monkeypatch.setattr(git.subprocess, "run", lambda *a, **k: Result())
 
-    with pytest.raises(typer.Exit):
-        git.sync_task_state(cfg, task, message="Ticket: demo — created")
+    # A broken local git is surfaced loudly but does not abort the command.
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
+    assert "sync failed" in capsys.readouterr().err
     assert "sync failed" in (task / "log.md").read_text()
 
 
@@ -359,15 +364,16 @@ def test_sync_noop_when_nothing_changed(git_repo):
     assert git_repo.origin_subjects() == before
 
 
-def test_sync_crashes_loud_on_push_failure(git_repo):
-    """Crash-loud (owner decision): a failed push raises typer.Exit and logs."""
+def test_sync_nonfatal_on_push_failure(git_repo, capsys):
+    """A failed push is surfaced (stderr + log) but never crashes the command."""
     cfg = load_config(git_repo.relay_os)
     git_repo.git("remote", "remove", "origin")
     task = _task_dir(git_repo.relay_os)
 
-    with pytest.raises(typer.Exit):
-        git.sync_task_state(cfg, task, message="Ticket: demo — created")
+    # Must not raise.
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
+    assert "sync failed" in capsys.readouterr().err
     assert "sync failed" in (task / "log.md").read_text()
 
 

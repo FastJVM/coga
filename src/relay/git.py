@@ -21,12 +21,18 @@ or cross-machine), so no lock is introduced — consistent with relay's no-mutex
 architecture. A detached HEAD takes the cross-branch landing path but skips the
 local commit (a commit on a detached HEAD would be orphaned).
 
-Failure model (settled with the owner, mirrors `relay/sync`'s crash-loud
-philosophy): a failed git *operation* on the control branch raises `GitError`,
-which is caught at the boundary, written to stderr + the task's `log.md`, and
-re-raised as `typer.Exit(1)`. The one carve-out is "not a git repo": that is a
-soft no-op (single stderr line), not a crash — otherwise every command run in
-a non-git `relay-os/` checkout would fail. The git opt-out is `[git].enabled`.
+Failure model: a failed git *operation* raises `GitError` internally, but at
+the boundary (`sync_paths`) it is non-fatal — written to stderr + the task's
+`log.md`, then swallowed so the command keeps running. The task markdown on
+disk is the source of truth; git is only the sync layer, so a push that can't
+reach the control branch (protected `main`, offline, an agent on a feature
+branch, `origin/<control>` moved under us) must NOT abort a local state
+transition. Earlier this re-raised as `typer.Exit(1)`, which broke the
+supervised launch chain: `relay bump`'s sync aborted before `emit_done_marker`
+fired, so the supervisor never relaunched the next step, and launch's own
+`active → in_progress` flip died before spawning the agent. "Fail loud" here
+means surface the miss (stderr + log), not crash. "Not a git repo" stays a
+soft no-op (single stderr line). The git opt-out is `[git].enabled`.
 
 Subprocess usage mirrors `automerge.py` (`gh` shell-out): no third-party git
 binding, just `subprocess.run` with `check=False` and explicit error handling.
@@ -40,8 +46,6 @@ import sys
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
-
-import typer
 
 from relay.config import Config
 from relay.logfile import append_log
@@ -75,9 +79,10 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
       - Detached HEAD → skip the local commit (it would be orphaned), still
         land on the control branch.
 
-    Any git operation failure on the control-branch path raises `GitError`,
-    which is reported to stderr + the task's `log.md` and re-raised as
-    `typer.Exit(1)`.
+    Any git operation failure is non-fatal: it is reported to stderr + the
+    task's `log.md` and then swallowed, so the local state transition still
+    completes (the on-disk markdown is the source of truth; the push just
+    didn't land). See the module docstring's failure model.
 
     `task_path` is the task directory (`relay-os/tasks/<slug>/`); only files
     under it are staged, never `git add -A`, so unrelated working-tree changes
@@ -136,9 +141,17 @@ def sync_paths(
             _commit_paths(root, rels, message)
         _land_paths_on_control_branch(cfg, root, rels, message=message)
     except GitError as exc:
+        # Non-fatal: surface loudly (stderr + log.md) but do NOT abort the
+        # command. The task's markdown on disk is the source of truth; git is
+        # only the sync layer. A push that can't reach the control branch
+        # (protected `main`, offline, agent on a feature branch, origin moved
+        # under us) must not block a local state transition — coupling
+        # `relay bump` / `mark` / launch's `in_progress` flip to a remote push
+        # is what stalled the supervised launch chain (the bump exited before
+        # `emit_done_marker` fired, so the supervisor never relaunched the next
+        # step). "Fail loud" here means make the miss visible, not crash.
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
         append_log(anchor_path, "git", f"sync failed: {exc}")
-        raise typer.Exit(1)
 
 
 def _sync_on_control_branch(
