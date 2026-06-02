@@ -38,6 +38,7 @@ import os
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterable
 from pathlib import Path
 
 import typer
@@ -82,23 +83,45 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
     under it are staged, never `git add -A`, so unrelated working-tree changes
     are not swept in.
     """
+    sync_paths(cfg, task_path, [task_path], message=message)
+
+
+def sync_paths(
+    cfg: Config,
+    anchor_path: Path,
+    paths: Iterable[Path],
+    *,
+    message: str,
+) -> None:
+    """Commit explicit paths and push them to the control branch.
+
+    This is the multi-path variant used by `relay ticket` authoring, where the
+    subprocess may edit a task and create supporting local context/skill files.
+    Callers must pass exact paths they own; Relay still never stages the whole
+    worktree. `anchor_path` is used to find the git root and to record a sync
+    failure in an appropriate log.
+    """
+    selected = _dedupe_paths(paths)
+    if not selected:
+        return
+
     if not cfg.git_enabled:
         sys.stderr.write(f"[git] disabled (sync suppressed): {message}\n")
         return
 
     try:
-        root = _toplevel(task_path)
+        root = _toplevel(anchor_path)
         if root is None:
             sys.stderr.write(
                 f"[git] not a git repo (sync skipped): {message}\n"
             )
             return
 
-        rel = _relative_to_root(root, task_path)
+        rels = [_relative_to_root(root, path) for path in selected]
         branch = _current_branch(root)
 
         if branch == cfg.git_control_branch:
-            _sync_on_control_branch(cfg, root, rel, message=message)
+            _sync_paths_on_control_branch(cfg, root, rels, message=message)
             return
 
         # Feature branch (or detached HEAD): commit on the current branch so
@@ -110,11 +133,11 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
                 f"{cfg.git_control_branch!r} but not committed locally. ({message})\n"
             )
         else:
-            _commit_task_dir(root, rel, message)
-        _land_on_control_branch(cfg, root, rel, message=message)
+            _commit_paths(root, rels, message)
+        _land_paths_on_control_branch(cfg, root, rels, message=message)
     except GitError as exc:
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
-        append_log(task_path, "git", f"sync failed: {exc}")
+        append_log(anchor_path, "git", f"sync failed: {exc}")
         raise typer.Exit(1)
 
 
@@ -127,6 +150,15 @@ def _sync_on_control_branch(
     nothing to sync, so we neither commit nor push.
     """
     if not _commit_task_dir(root, rel, message):
+        return
+    _run_git(root, "push", cfg.git_remote, cfg.git_control_branch)
+
+
+def _sync_paths_on_control_branch(
+    cfg: Config, root: Path, rels: list[str], *, message: str
+) -> None:
+    """Stage explicit pathspecs, commit if anything changed, and push."""
+    if not _commit_paths(root, rels, message):
         return
     _run_git(root, "push", cfg.git_remote, cfg.git_control_branch)
 
@@ -144,6 +176,25 @@ def _commit_task_dir(root: Path, rel: str, message: str) -> bool:
     if not _has_staged_changes(root, rel):
         return False
     _run_git(root, "commit", "--only", "-m", message, "--", rel)
+    return True
+
+
+def _commit_paths(root: Path, rels: list[str], message: str) -> bool:
+    """Commit exactly the selected pathspecs on the current branch.
+
+    Existing paths are added from the working tree; missing paths are removed
+    from the index. Both operations are scoped to the caller-selected pathspecs,
+    so unrelated staged and unstaged files survive untouched.
+    """
+    existing = [rel for rel in rels if _path_exists(root, rel)]
+    missing = [rel for rel in rels if rel not in existing]
+    if existing:
+        _run_git(root, "add", "--", *existing)
+    if missing:
+        _run_git(root, "rm", "-rf", "--cached", "--ignore-unmatch", "--", *missing)
+    if not _has_staged_changes(root, rels):
+        return False
+    _run_git(root, "commit", "--only", "-m", message, "--", *rels)
     return True
 
 
@@ -166,7 +217,7 @@ def _land_on_control_branch(
         _run_git(root, "fetch", remote, branch)
         base = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
 
-        tree = _build_overlay_tree(root, base, rel)
+        tree = _build_overlay_tree(root, base, [rel])
         if tree == _run_git(root, "rev-parse", f"{base}^{{tree}}").strip():
             # The control branch already has identical task content — nothing
             # to land. (Common: same-content reruns, or the feature commit and
@@ -193,13 +244,45 @@ def _land_on_control_branch(
     )
 
 
-def _build_overlay_tree(root: Path, base: str, rel: str) -> str:
-    """Build a tree = `base`'s tree with the working-tree `rel` subtree overlaid.
+def _land_paths_on_control_branch(
+    cfg: Config, root: Path, rels: list[str], *, message: str
+) -> None:
+    """Land selected pathspecs on the control branch from any branch."""
+    remote = cfg.git_remote
+    branch = cfg.git_control_branch
+
+    for _ in range(_MAX_SYNC_ATTEMPTS):
+        _run_git(root, "fetch", remote, branch)
+        base = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+
+        tree = _build_overlay_tree(root, base, rels)
+        if tree == _run_git(root, "rev-parse", f"{base}^{{tree}}").strip():
+            return
+
+        new = _run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
+        result = _push_ref(root, remote, f"{new}:refs/heads/{branch}")
+        if result is None:
+            _try_update_local_ref(root, branch, new)
+            return
+        if not _is_non_fast_forward(result):
+            raise GitError(
+                f"`git push {remote} {new}:refs/heads/{branch}` failed: {result}"
+            )
+
+    raise GitError(
+        f"could not land on {branch!r} after {_MAX_SYNC_ATTEMPTS} attempts — "
+        f"contention on refs/heads/{branch}"
+    )
+
+
+def _build_overlay_tree(root: Path, base: str, rels: list[str]) -> str:
+    """Build a tree = `base`'s tree with selected pathspecs overlaid.
 
     Runs entirely against a throwaway temporary index (`GIT_INDEX_FILE`), so
     neither the real index nor the working tree is disturbed. Seeds the temp
-    index from `base`, drops the stale task subtree, re-adds the current
-    working-tree task files, and writes the resulting tree object.
+    index from `base`, drops stale content for every selected path, re-adds the
+    current working-tree content for paths that still exist, and writes the
+    resulting tree object.
     """
     fd, tmp_index = tempfile.mkstemp(prefix="relay-git-index-")
     os.close(fd)
@@ -207,14 +290,28 @@ def _build_overlay_tree(root: Path, base: str, rel: str) -> str:
         os.unlink(tmp_index)  # read-tree wants to create it fresh
         env = {"GIT_INDEX_FILE": tmp_index}
         _run_git(root, "read-tree", base, env=env)
-        _run_git(root, "rm", "-r", "--cached", "--ignore-unmatch", "--", rel, env=env)
-        _run_git(root, "add", "--", rel, env=env)
+        _overlay_paths(root, env, rels)
         return _run_git(root, "write-tree", env=env).strip()
     finally:
         try:
             os.unlink(tmp_index)
         except FileNotFoundError:
             pass
+
+
+def _overlay_paths(root: Path, env: dict[str, str], rels: list[str]) -> None:
+    for rel in rels:
+        # `-f`: this is a throwaway index we immediately rewrite, so `git rm`'s
+        # "staged content differs from file/HEAD" safety check is meaningless
+        # here — and it would otherwise *refuse* whenever the task already
+        # exists on the control branch and the feature HEAD changed it (the
+        # common cross-branch panic case). Force removal, then re-add from the
+        # working tree.
+        _run_git(
+            root, "rm", "-rf", "--cached", "--ignore-unmatch", "--", rel, env=env
+        )
+        if _path_exists(root, rel):
+            _run_git(root, "add", "--", rel, env=env)
 
 
 def _push_ref(root: Path, remote: str, refspec: str) -> str | None:
@@ -334,10 +431,13 @@ def _current_branch(root: Path) -> str:
     return _run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
 
 
-def _has_staged_changes(root: Path, pathspec: str) -> bool:
-    """True when `pathspec` has staged changes relative to HEAD."""
+def _has_staged_changes(root: Path, pathspec: str | list[str]) -> bool:
+    """True when selected pathspecs have staged changes relative to HEAD."""
+    paths = [pathspec] if isinstance(pathspec, str) else list(pathspec)
+    if not paths:
+        return False
     result = subprocess.run(
-        ["git", "-C", str(root), "diff", "--cached", "--quiet", "--", pathspec],
+        ["git", "-C", str(root), "diff", "--cached", "--quiet", "--", *paths],
         capture_output=True,
         text=True,
         check=False,
@@ -366,4 +466,23 @@ def _relative_to_root(root: Path, task_path: Path) -> str:
         return str(task_path.resolve())
 
 
-__all__ = ["GitError", "sync_task_state"]
+def _dedupe_paths(paths: Iterable[Path]) -> list[Path]:
+    out: list[Path] = []
+    seen: set[Path] = set()
+    for path in paths:
+        key = path.resolve(strict=False)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(path)
+    return out
+
+
+def _path_exists(root: Path, rel: str) -> bool:
+    path = Path(rel)
+    if not path.is_absolute():
+        path = root / path
+    return path.exists()
+
+
+__all__ = ["GitError", "sync_paths", "sync_task_state"]

@@ -21,6 +21,7 @@ from typer.testing import CliRunner
 from relay import git
 from relay.cli import app
 from relay.config import Config, ConfigError, load_config
+from relay.ticket import Ticket
 
 runner = CliRunner()
 
@@ -158,6 +159,38 @@ def test_sync_lands_on_main_from_feature_branch(git_repo):
     assert "Ticket: demo — created" in git_repo.git("log", "--format=%s", "feature/x")
     # The control branch was never checked out.
     assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
+
+
+def test_sync_feature_branch_relands_existing_task_after_local_change(git_repo):
+    """Regression: cross-branch land of a task that ALREADY exists on main.
+
+    The overlay-tree builder seeds a temp index from origin/main (which already
+    holds the task), then `git rm --cached` the task subtree. Before the `-rf`
+    fix that `rm` refused — the temp-index content differed from both the
+    working file and the feature HEAD (which the local commit had just moved),
+    tripping git's "staged content differs" guard — so the land crashed. This
+    is the common `relay panic` / re-author case: the ticket was created on a
+    prior run, then edited again from a feature worktree.
+    """
+    cfg = load_config(git_repo.relay_os)
+    task = _task_dir(git_repo.relay_os)
+
+    # First land: the task now exists on origin/main (created on an earlier run).
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+
+    # Now, from a feature branch, change the task and sync again.
+    git_repo.checkout_branch("feature/x")
+    (task / "blackboard.md").write_text("## Blockers\n\nstuck\n")
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — panic")
+
+    assert "Ticket: demo — panic" in git_repo.origin_subjects()
+    assert git_repo.origin_tracks("relay-os/tasks/demo/blackboard.md")
+    landed = git_repo.git(
+        "show", "main:relay-os/tasks/demo/blackboard.md", cwd=git_repo.origin
+    )
+    assert "stuck" in landed
 
 
 def test_sync_feature_branch_leaves_working_tree_untouched(git_repo):
@@ -372,3 +405,216 @@ def test_cli_bump_syncs_step_to_origin(git_repo):
         s.startswith(f"Ticket: {slug} — step 2 (review)")
         for s in git_repo.origin_subjects()
     )
+
+
+# --- bespoke call sites (ticket C): panic + ticket authoring -------------------
+#
+# A wired the clean finalizers (mark/bump/create/retire). C wires the two sites
+# that don't go through those: `relay panic` (blocker written straight to the
+# blackboard + log) and `relay ticket` authoring (the agent edits ticket.md in
+# a subprocess, so relay must commit the result after control returns).
+
+
+def test_cli_panic_syncs_blocker_to_origin(git_repo):
+    """`relay panic` lands the blocker (blackboard + log) on origin/main."""
+    result = runner.invoke(app, ["draft", "Demo task", "--workflow", "code"])
+    slug = result.output.split(":", 1)[0].strip()
+
+    panicked = runner.invoke(
+        app, ["panic", "--task", slug, "--reason", "retry ceiling unspecified"]
+    )
+    # Panic exits non-zero by design (the distress signal), but the sync still
+    # ran before the exit.
+    assert panicked.exit_code == 1, panicked.output
+
+    assert any(
+        s.startswith(f"Ticket: {slug} — panic") for s in git_repo.origin_subjects()
+    )
+    blackboard = git_repo.git(
+        "show", f"main:relay-os/tasks/{slug}/blackboard.md", cwd=git_repo.origin
+    )
+    assert "retry ceiling unspecified" in blackboard
+
+
+def test_cli_panic_from_feature_branch_leaves_code_untouched(git_repo):
+    """Panic often fires from a feature worktree with uncommitted code.
+
+    The blocker must land on origin/main, but uncommitted *code* in the
+    worktree must NOT be swept into the commit (the whole reason C scopes
+    strictly to the task dir).
+    """
+    result = runner.invoke(app, ["draft", "Demo task", "--workflow", "code"])
+    slug = result.output.split(":", 1)[0].strip()
+    git_repo.checkout_branch("feature/x")
+
+    stray = git_repo.root / "wip.py"
+    stray.write_text("# half-written change\n")
+
+    panicked = runner.invoke(
+        app, ["panic", "--task", slug, "--reason", "blocked on design"]
+    )
+    assert panicked.exit_code == 1, panicked.output
+
+    # Blocker landed on the control branch...
+    assert any(
+        s.startswith(f"Ticket: {slug} — panic") for s in git_repo.origin_subjects()
+    )
+    # ...but the uncommitted code did not, and is still sitting in the worktree.
+    assert not git_repo.origin_tracks("wip.py")
+    assert "wip.py" in git_repo.git("status", "--porcelain")
+
+
+def _seed_ticket_bootstrap(relay_os: Path) -> None:
+    """Add the `bootstrap/ticket` shim + skill the `relay ticket` cmd launches."""
+    shim = relay_os / "bootstrap" / "ticket"
+    shim.mkdir(parents=True)
+    (shim / "ticket.md").write_text(
+        dedent(
+            """
+            ---
+            title: Create a new ticket
+            mode: interactive
+            skills:
+              - bootstrap/ticket
+            assignee: claude
+            ---
+
+            ## Description
+
+            Persistent launch shim.
+            """
+        ).lstrip()
+    )
+    skill = relay_os / "skills" / "bootstrap" / "ticket"
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(
+        dedent(
+            """
+            ---
+            name: bootstrap/ticket
+            description: Author a Relay task.
+            ---
+
+            Interview and fill the ticket.
+            """
+        ).lstrip()
+    )
+
+
+def _fake_authoring_agent(monkeypatch, *, on_run=None) -> None:
+    """Stub the spawned authoring agent: fake a TTY, resolve the CLI, and run
+    `on_run` (which stands in for the agent's external edits) instead of a real
+    subprocess.
+
+    Patching `ticket.subprocess.run` patches the module-global `run`, which the
+    real git sync (also a `subprocess.run` caller) would otherwise hit — so git
+    invocations are delegated to the real `run`; only the agent launch is faked.
+    """
+    import subprocess as _subprocess
+
+    real_run = _subprocess.run
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, *args, **kwargs):
+        if cmd and cmd[0] == "git":
+            return real_run(cmd, *args, **kwargs)
+        if on_run is not None:
+            on_run()
+        return _Result()
+
+    monkeypatch.setattr(
+        "relay.commands.ticket._interactive_stdio_has_tty", lambda: True
+    )
+    monkeypatch.setattr(
+        "relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    monkeypatch.setattr("relay.commands.ticket.subprocess.run", fake_run)
+
+
+def test_cli_ticket_authoring_syncs_edits_to_origin(git_repo, monkeypatch):
+    """The agent's external edits to ticket.md are committed + pushed by relay."""
+    _seed_ticket_bootstrap(git_repo.relay_os)
+    result = runner.invoke(app, ["draft", "Demo task", "--workflow", "code"])
+    slug = result.output.split(":", 1)[0].strip()
+    task_dir = git_repo.relay_os / "tasks" / slug
+
+    def author():
+        t = Ticket.read(task_dir / "ticket.md")
+        t.body = t.body + "\n\nAuthored during the session.\n"
+        t.write(task_dir / "ticket.md")
+
+    _fake_authoring_agent(monkeypatch, on_run=author)
+
+    authored = runner.invoke(app, ["ticket", slug])
+    assert authored.exit_code == 0, authored.output
+
+    assert any(
+        s.startswith(f"Ticket: {slug} — authored")
+        for s in git_repo.origin_subjects()
+    )
+    body = git_repo.git(
+        "show", f"main:relay-os/tasks/{slug}/ticket.md", cwd=git_repo.origin
+    )
+    assert "Authored during the session." in body
+
+
+def test_cli_ticket_authoring_syncs_a_newly_created_task(git_repo, monkeypatch):
+    """`relay ticket "<title>"` with no existing task syncs the draft it creates.
+
+    The authoring flow scaffolds a brand-new task mid-session, so there is no
+    pre-resolved `TaskRef` to sync. `sync_paths` picks it up via the
+    before/after snapshot of `tasks/`, then commits + pushes it as authored.
+    """
+    _seed_ticket_bootstrap(git_repo.relay_os)
+
+    def author():
+        path = git_repo.relay_os / "tasks" / "fresh-idea" / "ticket.md"
+        t = Ticket.read(path)
+        t.frontmatter["workflow"] = "code"  # a draft must land on a workflow
+        t.body = t.body + "\n\nFleshed out during authoring.\n"
+        t.write(path)
+
+    _fake_authoring_agent(monkeypatch, on_run=author)
+
+    result = runner.invoke(app, ["ticket", "Fresh idea"])
+    assert result.exit_code == 0, result.output
+
+    assert git_repo.origin_tracks("relay-os/tasks/fresh-idea/ticket.md")
+    assert any(
+        s.startswith("Ticket: fresh-idea — authored")
+        for s in git_repo.origin_subjects()
+    )
+    body = git_repo.git(
+        "show", "main:relay-os/tasks/fresh-idea/ticket.md", cwd=git_repo.origin
+    )
+    assert "Fleshed out during authoring." in body
+
+
+def test_cli_ticket_authoring_records_session_without_ticket_edits(git_repo, monkeypatch):
+    """Even when the agent edits no ticket fields, the session is still synced.
+
+    `relay ticket` appends a "ticket authoring launched" line to `log.md`
+    *before* spawning the agent, so the task dir always has something to sync —
+    the authoring attempt lands on origin even if the ticket body is untouched.
+    (The genuine nothing-staged no-op is covered at the helper level by
+    `test_sync_noop_when_nothing_changed`.)
+    """
+    _seed_ticket_bootstrap(git_repo.relay_os)
+    result = runner.invoke(app, ["draft", "Demo task", "--workflow", "code"])
+    slug = result.output.split(":", 1)[0].strip()
+
+    _fake_authoring_agent(monkeypatch, on_run=None)  # agent edits nothing
+
+    authored = runner.invoke(app, ["ticket", slug])
+    assert authored.exit_code == 0, authored.output
+
+    assert any(
+        s.startswith(f"Ticket: {slug} — authored")
+        for s in git_repo.origin_subjects()
+    )
+    log = git_repo.git(
+        "show", f"main:relay-os/tasks/{slug}/log.md", cwd=git_repo.origin
+    )
+    assert "ticket authoring launched" in log
