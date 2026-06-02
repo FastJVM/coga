@@ -30,8 +30,29 @@ packages = ["src/relay"]
 # (.relay, .venv) and bytecode caches. Without this, a wheel built from a
 # dirty working tree drags in ~40MB of stale venv — which copy_fresh_templates
 # would then replicate into every fresh `relay init`.
+#
+# The `bootstrap/` exclude is paired with the force-include below: hatchling's
+# package-aware file selection (`packages`) silently drops pure-data
+# subdirectories — skill dirs under `bootstrap/skills/` that contain only a
+# SKILL.md and no `.py` (calendar-reminder, ticket-diagnostic, the
+# google-agents-cli-* set, retro/…). Before #259 a blanket `force-include`
+# masked this; dropping it shipped wheels missing most bundled skills. We
+# exclude the whole `bootstrap/` tree from the `packages` grab and force-include
+# it back wholesale (a literal copy that ships every dir) — which also correctly
+# ships `bootstrap/` even though the template `.gitignore` marks it ignored
+# (it's upstream-managed: gitignored in instantiated repos, but must ride in the
+# wheel so `relay init` can lay it down).
 exclude = [
   "**/.relay/**",
   "**/.venv/**",
   "**/__pycache__/**",
+  "**/relay-os/bootstrap/**",
 ]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/relay/resources/templates/relay-os/bootstrap" = "relay/resources/templates/relay-os/bootstrap"
+# `skills/_template` is the same pure-data drop (a scaffolding stub `relay init
+# --update` refreshes); force-include it too. Scoped to the leaf so hatchling's
+# walk never reaches the `.agent-skills`/`.claude`/`.codex` symlink views (which,
+# when traversed, resolve to the real skill dirs and dedup them away).
+"src/relay/resources/templates/relay-os/skills/_template" = "relay/resources/templates/relay-os/skills/_template"
