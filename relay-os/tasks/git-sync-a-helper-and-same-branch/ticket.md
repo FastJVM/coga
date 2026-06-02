@@ -1,11 +1,11 @@
 ---
 title: auto-commit & push ticket state — git.py helper + same-branch wiring (A)
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts:
 - relay/sync
 - relay/codebase
@@ -28,7 +28,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 > **This is ticket A of a 3-ticket split.** B

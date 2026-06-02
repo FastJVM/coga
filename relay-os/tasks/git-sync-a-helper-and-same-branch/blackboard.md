@@ -1,5 +1,115 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+branch: git-sync-a
+worktree: ../relay-git-sync-a
+pr: https://github.com/FastJVM/relay/pull/262
+commit: f0422dc (pushed to origin/git-sync-a)
+
+## Open PR done (claude, 2026-06-01)
+Branch pushed to origin; PR #262 opened against main.
+No CI configured in repo (.github/workflows/ absent) → no automated green check;
+noted in PR body. PR body calls out the deliberate auto-push-to-main carve-out
+and the crash-loud failure mode for the human reviewer.
+
+## Peer review done (codex, 2026-06-02)
+Status: peer-review step complete, committed on `git-sync-a`, NOT pushed/no PR.
+
+Review tool:
+- Initial `codex review --base main` completed and found 3 must-fix items.
+- A final rerun after fixes failed because Codex auth refresh token was revoked
+  (`401 Unauthorized`); this was after the required review completed, so I
+  verified locally instead of panicking.
+
+Findings addressed:
+- P1: `git commit -m` could sweep unrelated pre-staged files into the
+  task-state commit. Fixed by checking staged changes for the task pathspec and
+  committing with `git commit --only ... -- <task-dir>`.
+- P2: `rev-parse --show-toplevel` treated all failures as "not a git repo".
+  Fixed so only the explicit non-git error is a soft no-op; other failures
+  crash loud and append `log.md`.
+- P2: `relay/sync` context still described Slack only. Updated live and
+  packaged `relay/sync` contexts with the git sync contract, same-branch
+  limitation, deferred sites, narrow pathspec scope, config, and failure model.
+
+Verification:
+- `PYTHONPATH=src python -m pytest -q tests/test_git.py` -> 16 passed.
+- `PYTHONPATH=src python -m pytest -q` -> 500 passed, 1 skipped, 1 pre-existing
+  failure (`tests/test_packaging.py::test_package_force_includes_relay_resources`,
+  KeyError on missing `force-include`).
+- `git diff --check` -> clean.
+- `PYTHONPATH=/home/n/Code/relay-git-sync-a/src python -m relay.cli validate --json`
+  from `example/` -> clean.
+- `relay validate --json` against the primary checkout with branch code still
+  reports existing task warnings plus pre-existing `split-context-to-doc...`
+  `missing-step`; not caused by this change.
+
+## Implement done (claude, 2026-06-01)
+Status: implement step complete, committed on `git-sync-a`, NOT pushed/no PR.
+
+Delivered:
+- `src/relay/git.py` — `GitError` + `sync_task_state(cfg, task_path, *, message)`.
+  Resolves toplevel via `git rev-parse --show-toplevel`; same-branch commit+push;
+  feature-branch / not-a-repo / disabled / nothing-staged = soft no-op;
+  control-branch op failure = crash-loud (GitError → stderr + log.md → typer.Exit(1)).
+- `config.py` — `[git]` parsing: `git_enabled` (local-over-shared), `git_remote`,
+  `git_control_branch` (defaults true/origin/main) + validation.
+- Wiring (module-attr `git.sync_task_state` so the conftest stub has one patch
+  point): mark.py x4 finalizers, bump.advance_step, create.py, retire.py,
+  recurring.py (both scaffold posts).
+- Tests: `tests/conftest.py` got autouse `_stub_git` (no-op by default, mirrors
+  `_stub_slack`), a `real_git` opt-out fixture, and the reusable real-git
+  `git_repo` fixture (working tree + bare origin, laid out like the live repo —
+  B/C reuse it). `tests/test_git.py` covers config parsing + every sync branch
+  incl. crash-loud push + CLI integration (draft→active→bump land on origin).
+- `relay.toml` live + packaged template: documented `[git]` block.
+
+Verification: `python -m pytest` → 499 passed, 1 pre-existing unrelated failure
+(`test_packaging::test_package_force_includes_relay_resources` — KeyError on
+`pyproject [tool.hatch...force-include]`; fails identically on `main`, untouched
+by this change). `relay validate --json` on example/ fixture → clean.
+
+PR-description note for later steps / reviewer:
+- Auto-push of task state straight to `main` is a DELIBERATE exception to the
+  PR-review flow (task state is not code). Call this out in the PR and confirm
+  no conflict with the automerge post-merge hook.
+- Failure mode = crash-loud was the owner's call (see above). Reviewer can still
+  weigh warn-and-continue.
+- A dedicated `relay/git` context (parallel to `relay/sync`) could be a
+  follow-up; for now the durable explanation lives in git.py's docstring + the
+  `[git]` config block.
+
+## Implement notes (claude, 2026-06-01)
+
+Decision settled with owner (nick) in interactive session:
+- **Git failure mode on the control branch = crash-loud (like Slack).** A
+  failed commit/push raises `GitError`, which `sync_task_state` catches at the
+  boundary to write stderr + append `log.md`, then `raise typer.Exit(1)`.
+  Mirrors `slack.post`'s `RequestException → stderr + log + typer.Exit(1)`.
+- **Deliberate carve-out:** "not a git repo" (HEAD has no `.git` toplevel) is a
+  soft no-op + single stderr line, NOT a crash. Without this, every command run
+  in a non-git `relay-os/` checkout (incl. the entire existing test suite,
+  which runs in non-git tmp dirs with git enabled by default) would crash. The
+  real opt-out stays `[git].enabled = false`.
+
+Design:
+- `src/relay/git.py` — `GitError` + `sync_task_state(cfg, task_path, *, message)`.
+  Resolves git toplevel via `git rev-parse --show-toplevel` (cwd=task_path).
+  Branch check via `--abbrev-ref HEAD`. On control branch: `git add -- <task
+  dir>`, skip if nothing staged, else commit + `git push <remote> <branch>`.
+  On a feature branch: soft no-op + warning (ticket B owns cross-branch).
+  Public signature is shaped so B can slot the cross-branch path in without
+  reworking call sites.
+- Config: `[git]` table → `git_enabled` (local-override like slack, default
+  true), `git_remote` (default "origin"), `git_control_branch` (default "main").
+- Wired after `slack.post` in the logic-layer finalizers: `mark.py` (mark_done,
+  mark_active, mark_in_progress, mark_paused — covers `relay mark` + automerge
+  auto-bump), `bump.advance_step`; and the `commands/` scaffolds: `create.py`,
+  `retire.py`, `recurring.py` (both scaffold posts). Commit message style:
+  `Ticket: <slug> — <transition>`.
+- Real-git test fixture: `git init` tmp repo + bare `origin`, run command,
+  assert task files committed + pushed. Reusable for B/C.
+
 ## Bootstrap notes (nick + claude, 2026-06-01)
 
 Scope decided in interview:
