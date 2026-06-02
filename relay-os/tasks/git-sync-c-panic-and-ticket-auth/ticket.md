@@ -1,6 +1,6 @@
 ---
 title: auto-commit ticket state for panic and ticket-authoring edits (C)
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -28,7 +28,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (peer-review)
 ---
 
 > **This is ticket C of a 3-ticket split.** A
