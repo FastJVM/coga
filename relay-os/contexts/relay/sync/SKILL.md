@@ -1,9 +1,11 @@
 ---
 name: relay/sync
-description: Slack as relay's point of sync between agents and humans — why it's required by default, why failures crash, and how to design new features that respect the sync layer.
+description: Slack and git as relay's sync layers — why Slack is required by default, how task-state git sync works, why failures crash, and how to design new features that respect sync.
 ---
 
-# Slack — the team sync point
+# Sync layers — Slack and git
+
+## Slack — the team sync point
 
 Agents work asynchronously. The humans they collaborate with do not.
 Multi-user coordination needs a channel where state changes surface as
@@ -26,8 +28,8 @@ incoming webhook. The current broadcast surface:
   from active or in-progress work.
 - `relay bump` — step movement (workflow plane only).
   Optional `--message` piggy-backs an FYI onto any transition broadcast.
-- `relay automerge` (and the `post-merge` hook + `relay status` callers
-  that wrap it) — auto-bumps active/in-progress tickets to `done` when their
+- `relay automerge` (and the `post-merge` git hook that wraps it; never
+  `relay status`, which is read-only) — auto-bumps active/in-progress tickets to `done` when their
   blackboard `## Dev` PR has merged. Posts a distinct
   `🎉 *<slug>* "<title>" auto-bumped on merge of PR #<N>` line.
 - `relay panic` — blocker, owner named.
@@ -44,7 +46,7 @@ interactive or auto ticket. The sync-relevant start transition already
 happened when the ticket moved `active` → `in_progress`; subsequent launches
 are resume attempts.
 
-## Required by default
+## Slack required by default
 
 When `[slack].enabled` is true (the default), commands crash on any
 Slack failure:
@@ -59,7 +61,7 @@ Why crash instead of degrading to stderr-only? Because a silent FYI
 becomes a stale mental model on the human side, and that's worse than a
 noisy retry. Loud failures force resolution; quiet ones rot.
 
-## Why no retry
+## Why no Slack retry
 
 Earlier versions of `slack.post` retried with exponential backoff. PR
 #56 removed that. An FYI is fire-and-forget — by the time a retry
@@ -69,7 +71,7 @@ fast and let the user retry the command (which re-derives the message
 from current state), or use the manual `relay validate --check-slack`
 probe before the next batch of work.
 
-## The opt-out is an exit, not a default
+## The Slack opt-out is an exit, not a default
 
 `[slack].enabled = false` in `relay.local.toml` silences every Slack
 call to stderr and never crashes. It exists for genuinely solo
@@ -104,7 +106,7 @@ write-only: it can't call `users.list` / `users.lookupByEmail` to resolve
 a name itself. Member IDs aren't secret, so the table lives in shared
 `relay.toml`, not `relay.local.toml`.
 
-## Implementation pointers
+## Slack implementation pointers
 
 - `src/relay/slack.py::post(cfg, message, *, task_path=None, owner=None,
   watchers=None, image_url=None)` — the only public function. Three
@@ -131,12 +133,64 @@ a name itself. Member IDs aren't secret, so the table lives in shared
   empty-text payload that Slack rejects without notifying the channel.
   Honors the opt-out (skipped when `enabled = false`).
 
+## Git — durable task-state sync
+
+Slack tells the team what changed; git makes the markdown state durable and
+shareable. Relay-owned commands that mutate a task directory should commit
+the changed `relay-os/tasks/<slug>/` files and push them after the Slack post,
+so `origin/main` does not drift from the state humans saw in Slack.
+
+Current surface, same-branch phase:
+
+- `relay draft` / `relay create` raw scaffolds.
+- `relay mark active`, launch-time `active → in_progress`, `relay mark paused`,
+  and `relay mark done`.
+- `relay bump`.
+- `relay automerge`, through the shared `mark_done` finalizer.
+- `relay recurring` and `relay retire` scaffolds.
+
+Deferred until follow-up tickets: landing task state on `main` while the
+current checkout is a feature branch, `relay panic`, and `relay ticket`
+authoring edits made by the launched agent. Do not assume those paths are
+synced until their tickets land.
+
+Same-branch only means exactly that: when HEAD is the configured control
+branch, Relay commits and pushes. When HEAD is any other branch, Relay prints
+a warning and does not checkout `main`, stash, or mutate another branch. The
+primary checkout should stay on `main`; feature code belongs in a separate
+worktree.
+
+Scope is narrow. `src/relay/git.py::sync_task_state(cfg, task_path, *,
+message)` stages and commits only the task directory pathspec. It must not use
+`git add -A`, and it must not sweep unrelated unstaged or pre-staged files into
+the task-state commit.
+
+Failure model:
+
+- `[git].enabled = false` suppresses sync with a stderr line. Like Slack's
+  opt-out, this is a deliberate exit for dev/test/solo repos, not the normal
+  team path.
+- A non-git checkout is a soft warning and no-op.
+- On the control branch, git operation failures (missing git, invalid repo
+  state, commit failure, push failure, no remote, non-fast-forward) crash loud:
+  stderr plus a `log.md` line, then `typer.Exit(1)`.
+
+Config lives in `[git]`: `enabled` defaults true, `remote` defaults `origin`,
+and `control_branch` defaults `main`. `enabled` may be overridden in
+`relay.local.toml`; remote and branch are shared repo policy.
+
 ## Design rule for new features
 
 If a new command changes state that other team members need to know
 about, it must post. Don't add silent state mutations that bypass the
 sync layer. Conversely, don't post chatter that doesn't represent a
 state change — Slack is the sync log, not a debug stream.
+
+If the command mutates a task directory through Relay-owned code, it should
+also call `git.sync_task_state` after the Slack post unless the path is
+explicitly deferred and documented. The git sync call belongs at the logic
+boundary where the file write, validation, log append, and Slack post have
+all finalized.
 
 When the post needs to describe state that has *just* changed, the
 command echoes the local outcome to stdout *before* calling

@@ -128,6 +128,20 @@ def test_sync_scopes_commit_to_the_task_dir(git_repo):
     assert "STRAY.txt" in git_repo.git("status", "--porcelain")
 
 
+def test_sync_does_not_commit_unrelated_staged_changes(git_repo):
+    """A pre-staged unrelated change stays staged and is not pushed."""
+    cfg = load_config(git_repo.relay_os)
+    task = _task_dir(git_repo.relay_os)
+    stray = git_repo.root / "STRAY.txt"
+    stray.write_text("already staged by the user\n")
+    git_repo.git("add", "STRAY.txt")
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    assert not git_repo.origin_tracks("STRAY.txt")
+    assert "STRAY.txt" in git_repo.git("diff", "--cached", "--name-only")
+
+
 def test_sync_noop_on_feature_branch(git_repo, capsys):
     cfg = load_config(git_repo.relay_os)
     git_repo.checkout_branch("feature/x")
@@ -149,6 +163,23 @@ def test_sync_noop_when_not_a_git_repo(tmp_path, capsys, real_git):
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
     assert "not a git repo" in capsys.readouterr().err
+
+
+def test_sync_crashes_loud_on_rev_parse_failure(tmp_path, monkeypatch, real_git):
+    cfg = _cfg(tmp_path)
+    task = _task_dir(tmp_path)
+
+    class Result:
+        returncode = 128
+        stdout = ""
+        stderr = "fatal: detected dubious ownership in repository"
+
+    monkeypatch.setattr(git.subprocess, "run", lambda *a, **k: Result())
+
+    with pytest.raises(typer.Exit):
+        git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    assert "sync failed" in (task / "log.md").read_text()
 
 
 def test_sync_suppressed_when_disabled(tmp_path, capsys, real_git):

@@ -66,23 +66,23 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
         sys.stderr.write(f"[git] disabled (sync suppressed): {message}\n")
         return
 
-    root = _toplevel(task_path)
-    if root is None:
-        sys.stderr.write(
-            f"[git] not a git repo (sync skipped): {message}\n"
-        )
-        return
-
-    branch = _current_branch(root)
-    if branch != cfg.git_control_branch:
-        sys.stderr.write(
-            f"[git] on feature branch {branch!r} — ticket state not synced to "
-            f"{cfg.git_control_branch!r}; ticket B handles cross-branch sync. "
-            f"({message})\n"
-        )
-        return
-
     try:
+        root = _toplevel(task_path)
+        if root is None:
+            sys.stderr.write(
+                f"[git] not a git repo (sync skipped): {message}\n"
+            )
+            return
+
+        branch = _current_branch(root)
+        if branch != cfg.git_control_branch:
+            sys.stderr.write(
+                f"[git] on feature branch {branch!r} — ticket state not synced to "
+                f"{cfg.git_control_branch!r}; ticket B handles cross-branch sync. "
+                f"({message})\n"
+            )
+            return
+
         _sync_on_control_branch(cfg, root, task_path, message=message)
     except GitError as exc:
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
@@ -100,9 +100,9 @@ def _sync_on_control_branch(
     """
     rel = _relative_to_root(root, task_path)
     _run_git(root, "add", "--", rel)
-    if not _has_staged_changes(root):
+    if not _has_staged_changes(root, rel):
         return
-    _run_git(root, "commit", "-m", message)
+    _run_git(root, "commit", "--only", "-m", message, "--", rel)
     _run_git(root, "push", cfg.git_remote, cfg.git_control_branch)
 
 
@@ -147,8 +147,13 @@ def _toplevel(start: Path) -> Path | None:
     except FileNotFoundError as exc:
         raise GitError("`git` not found on PATH") from exc
     if result.returncode != 0:
-        # "not a git repository" (or `start` doesn't exist) → soft no-op.
-        return None
+        if "not a git repository" in result.stderr:
+            return None
+        raise GitError(
+            "`git rev-parse --show-toplevel` failed "
+            f"(exit {result.returncode}): "
+            f"{result.stderr.strip() or result.stdout.strip()}"
+        )
     top = result.stdout.strip()
     return Path(top) if top else None
 
@@ -158,10 +163,10 @@ def _current_branch(root: Path) -> str:
     return _run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
 
 
-def _has_staged_changes(root: Path) -> bool:
-    """True when the index has staged changes relative to HEAD."""
+def _has_staged_changes(root: Path, pathspec: str) -> bool:
+    """True when `pathspec` has staged changes relative to HEAD."""
     result = subprocess.run(
-        ["git", "-C", str(root), "diff", "--cached", "--quiet"],
+        ["git", "-C", str(root), "diff", "--cached", "--quiet", "--", pathspec],
         capture_output=True,
         text=True,
         check=False,
