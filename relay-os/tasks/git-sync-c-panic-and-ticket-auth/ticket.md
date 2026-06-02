@@ -1,17 +1,34 @@
 ---
 title: auto-commit ticket state for panic and ticket-authoring edits (C)
-status: draft
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
-  - relay/sync
-  - relay/codebase
-  - dev/code
+- relay/sync
+- relay/codebase
+- dev/code
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
+step: 2 (peer-review)
 ---
 
 > **This is ticket C of a 3-ticket split.** A
