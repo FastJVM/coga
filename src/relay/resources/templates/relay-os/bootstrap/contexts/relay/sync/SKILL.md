@@ -140,7 +140,7 @@ shareable. Relay-owned commands that mutate a task directory should commit
 the changed `relay-os/tasks/<slug>/` files and push them after the Slack post,
 so `origin/main` does not drift from the state humans saw in Slack.
 
-Current surface, same-branch phase:
+Current surface:
 
 - `relay draft` / `relay create` raw scaffolds.
 - `relay mark active`, launch-time `active → in_progress`, `relay mark paused`,
@@ -149,21 +149,35 @@ Current surface, same-branch phase:
 - `relay automerge`, through the shared `mark_done` finalizer.
 - `relay recurring` and `relay retire` scaffolds.
 
-Deferred until follow-up tickets: landing task state on `main` while the
-current checkout is a feature branch, `relay panic`, and `relay ticket`
-authoring edits made by the launched agent. Do not assume those paths are
-synced until their tickets land.
+Deferred until follow-up tickets: `relay panic`, and `relay ticket` authoring
+edits made by the launched agent. Do not assume those paths are synced until
+their tickets land.
 
-Same-branch only means exactly that: when HEAD is the configured control
-branch, Relay commits and pushes. When HEAD is any other branch, Relay prints
-a warning and does not checkout `main`, stash, or mutate another branch. The
-primary checkout should stay on `main`; feature code belongs in a separate
-worktree.
+Task state reaches the control branch from **any** branch. When HEAD is the
+control branch, Relay commits the task dir and pushes. When HEAD is a feature
+branch, Relay commits the task dir on the current branch (so the checkout
+reflects ticket state) **and** lands the same files on the control branch
+without ever checking out `main`: it builds the control branch's tree in a
+*temporary index* (`GIT_INDEX_FILE`), overlays the working-tree task dir,
+`commit-tree`s onto the fetched control tip, and pushes that commit straight to
+`refs/heads/<control>`. The feature working tree — staged and unstaged code
+alike — is never touched, stashed, or reset. A detached HEAD takes the same
+cross-branch path but skips the local commit (it would be orphaned).
+
+The push to `refs/heads/<control>` is a compare-and-swap: if the control branch
+moved under us (another relay process, the post-merge hook, a teammate), the
+push is rejected non-fast-forward, and a bounded fetch-rebuild-retry loop
+refetches the new tip and rebuilds. That push *is* the serialization point — no
+lock file is introduced, consistent with `relay/architecture`'s no-mutex model.
+Concurrent local or cross-machine processes each fetch→build→push; exactly one
+fast-forwards per round and the losers retry, so nothing on the control branch
+is clobbered.
 
 Scope is narrow. `src/relay/git.py::sync_task_state(cfg, task_path, *,
 message)` stages and commits only the task directory pathspec. It must not use
 `git add -A`, and it must not sweep unrelated unstaged or pre-staged files into
-the task-state commit.
+the task-state commit — the temp-index plumbing makes that structural for the
+cross-branch land, since every staging op runs against the throwaway index.
 
 Failure model:
 
@@ -171,9 +185,11 @@ Failure model:
   opt-out, this is a deliberate exit for dev/test/solo repos, not the normal
   team path.
 - A non-git checkout is a soft warning and no-op.
-- On the control branch, git operation failures (missing git, invalid repo
-  state, commit failure, push failure, no remote, non-fast-forward) crash loud:
-  stderr plus a `log.md` line, then `typer.Exit(1)`.
+- Git operation failures (missing git, invalid repo state, commit failure,
+  fetch/push failure, no remote, or contention exhausting the retry loop) crash
+  loud: stderr plus a `log.md` line, then `typer.Exit(1)`. The same-branch push
+  stays crash-loud on non-fast-forward; only the cross-branch land retries
+  (where rebuilding is trivial because no working tree is involved).
 
 Config lives in `[git]`: `enabled` defaults true, `remote` defaults `origin`,
 and `control_branch` defaults `main`. `enabled` may be overridden in

@@ -142,17 +142,139 @@ def test_sync_does_not_commit_unrelated_staged_changes(git_repo):
     assert "STRAY.txt" in git_repo.git("diff", "--cached", "--name-only")
 
 
-def test_sync_noop_on_feature_branch(git_repo, capsys):
+def test_sync_lands_on_main_from_feature_branch(git_repo):
+    """From a feature branch, task state lands on origin/main AND on HEAD."""
     cfg = load_config(git_repo.relay_os)
     git_repo.checkout_branch("feature/x")
     task = _task_dir(git_repo.relay_os)
 
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
-    # Nothing landed on origin, and the task dir is still uncommitted.
-    assert git_repo.origin_subjects() == ["init relay-os"]
+    # Landed on the shared control branch...
+    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    assert "Ticket: demo — created" in git_repo.origin_subjects()
+    # ...and committed on the feature branch (clean tree, reflects ticket state).
+    assert "tasks/" not in git_repo.git("status", "--porcelain")
+    assert "Ticket: demo — created" in git_repo.git("log", "--format=%s", "feature/x")
+    # The control branch was never checked out.
+    assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
+
+
+def test_sync_feature_branch_leaves_working_tree_untouched(git_repo):
+    """Pre-existing staged + unstaged code edits survive a cross-branch land."""
+    cfg = load_config(git_repo.relay_os)
+    git_repo.checkout_branch("feature/x")
+    task = _task_dir(git_repo.relay_os)
+
+    # An unstaged edit and a separately staged edit, both outside the task dir.
+    unstaged = git_repo.root / "UNSTAGED.txt"
+    unstaged.write_text("dirty unstaged\n")
+    staged = git_repo.root / "STAGED.txt"
+    staged.write_text("dirty staged\n")
+    git_repo.git("add", "STAGED.txt")
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    porcelain = git_repo.git("status", "--porcelain")
+    # Unstaged stays unstaged; staged stays staged; neither was pushed.
+    assert "?? UNSTAGED.txt" in porcelain
+    assert "A  STAGED.txt" in porcelain
+    assert not git_repo.origin_tracks("UNSTAGED.txt")
+    assert not git_repo.origin_tracks("STAGED.txt")
+    # Neither file is on the feature branch HEAD commit either.
+    assert "STAGED.txt" not in git_repo.git("ls-tree", "-r", "--name-only", "HEAD")
+
+
+def test_sync_feature_branch_retries_on_non_fast_forward(git_repo):
+    """A competing push to origin/main is absorbed by the retry loop, not clobbered."""
+    cfg = load_config(git_repo.relay_os)
+    git_repo.checkout_branch("feature/x")
+    task = _task_dir(git_repo.relay_os)
+
+    # Another process lands an unrelated file on origin/main first.
+    git_repo.push_competing_commit("RIVAL.txt", "landed first\n")
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    # Both the competing file and our task file are on origin/main — anti-clobber.
+    assert git_repo.origin_tracks("RIVAL.txt")
+    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    subjects = git_repo.origin_subjects()
+    assert "Ticket: demo — created" in subjects
+    assert "competing: RIVAL.txt" in subjects
+
+
+def test_sync_feature_branch_retry_loop_survives_mid_flight_race(git_repo, monkeypatch):
+    """Force a non-ff *between* fetch and push: the loop refetches and succeeds.
+
+    `push_competing_commit` before the call (above) may land as a clean
+    fast-forward because we fetch the latest tip first. To actually exercise
+    the retry branch, inject a competing commit on the first push attempt — so
+    our push is rejected non-ff — then let the second attempt go through.
+    """
+    cfg = load_config(git_repo.relay_os)
+    git_repo.checkout_branch("feature/x")
+    task = _task_dir(git_repo.relay_os)
+
+    real_push = git._push_ref
+    calls = {"n": 0}
+
+    def racing_push(root, remote, refspec):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # A rival lands first, after we already fetched — our push is non-ff.
+            git_repo.push_competing_commit("RIVAL.txt", "raced in\n")
+        return real_push(root, remote, refspec)
+
+    monkeypatch.setattr(git, "_push_ref", racing_push)
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    assert calls["n"] >= 2  # first push rejected, retried
+    assert git_repo.origin_tracks("RIVAL.txt")
+    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+
+
+def test_sync_feature_branch_noop_when_identical(git_repo):
+    """No second land when origin/main already has identical task content."""
+    cfg = load_config(git_repo.relay_os)
+    git_repo.checkout_branch("feature/x")
+    task = _task_dir(git_repo.relay_os)
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+    before = git_repo.origin_subjects()
+    # Re-run with no task-file change: HEAD commit is a no-op (nothing staged)
+    # and the overlay tree matches origin/main's tree, so no new land.
+    git.sync_task_state(cfg, task, message="Ticket: demo — again")
+
+    assert git_repo.origin_subjects() == before
+
+
+def test_sync_feature_branch_crashes_loud_on_push_failure(git_repo):
+    """No remote on the cross-branch path → GitError → log + typer.Exit."""
+    cfg = load_config(git_repo.relay_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("remote", "remove", "origin")
+    task = _task_dir(git_repo.relay_os)
+
+    with pytest.raises(typer.Exit):
+        git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    assert "sync failed" in (task / "log.md").read_text()
+
+
+def test_sync_detached_head_lands_without_local_commit(git_repo, capsys):
+    """Detached HEAD: still lands on main, skips the (orphan-ish) local commit."""
+    cfg = load_config(git_repo.relay_os)
+    git_repo.git("checkout", "--detach", "HEAD")
+    task = _task_dir(git_repo.relay_os)
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    # No local commit was made — the task dir is still uncommitted on disk.
     assert "tasks/" in git_repo.git("status", "--porcelain")
-    assert "feature branch" in capsys.readouterr().err
+    assert "detached HEAD" in capsys.readouterr().err
 
 
 def test_sync_noop_when_not_a_git_repo(tmp_path, capsys, real_git):
