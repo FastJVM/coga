@@ -228,8 +228,9 @@ def _render_people(cfg: Config, records: list[dict]) -> list[str]:
             owners.append(owner)
     for rec in records:
         by_owner[rec.get("owner")].append(rec)
-    # Sort so ownerless bucket (None) renders last.
-    owners.sort(key=lambda o: (o is None, o or ""))
+    # Stable sort: keep first-seen (chronological) order, just push the
+    # ownerless bucket (None) last.
+    owners.sort(key=lambda o: o is None)
 
     out: list[str] = []
     for owner in owners:

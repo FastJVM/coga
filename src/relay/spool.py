@@ -8,7 +8,10 @@ git-tracked blackboard — never a hidden dotfile — so the queue stays legible
 and recoverable, consistent with Relay's no-hidden-state rule.
 
 JSONL (not a table) so a record's free-text fields can hold any characters
-(pipes, arrows, emoji) without escaping, and each line stands alone.
+(pipes, arrows, emoji) without escaping, and each line stands alone. Records
+keep non-ASCII verbatim (`ensure_ascii=False`), so reads and writes pin
+`utf-8` explicitly rather than trusting the process locale — a digest fired
+from a bare cron environment (`LANG=C`) would otherwise crash encoding `→`/`✅`.
 
 Concurrency: Relay runs one CLI process at a time, so appends and drains are
 serialized by that. Writes still go through `atomic_write_text` so a crash
@@ -45,7 +48,7 @@ def append_record(path: Path, record: dict) -> None:
     doesn't already exist so it never collides with other sections.
     """
     line = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
-    text = path.read_text() if path.is_file() else ""
+    text = path.read_text(encoding="utf-8") if path.is_file() else ""
 
     match = _SECTION_RE.search(text)
     if match:
@@ -67,7 +70,7 @@ def read_records(path: Path) -> list[dict]:
     """
     if not path.is_file():
         return []
-    match = _SECTION_RE.search(path.read_text())
+    match = _SECTION_RE.search(path.read_text(encoding="utf-8"))
     if not match:
         return []
     return _parse_records(match.group(1))
@@ -85,7 +88,7 @@ def drain(path: Path) -> list[dict]:
     """
     if not path.is_file():
         return []
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     match = _SECTION_RE.search(text)
     if not match:
         return []

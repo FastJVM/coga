@@ -6,13 +6,14 @@ structured JSONL records onto the `recurring/digest/` ticket's blackboard as
 they happen (see `relay.slack.notify`). Once a day the digest recurring ticket
 fires as a `mode: script` task, and its script step runs this command:
 
-  drain the spool → group project → person → ticket → render one message →
-  post via the webhook → leave the spool emptied.
+  read the spool → group project → person → ticket → render one message →
+  post via the webhook → empty the spool.
 
 Idempotent: an empty spool is a silent no-op, so a same-day re-run (or a quiet
-day) posts nothing. `drain` empties the section under the same single-process
-serialization every other relay command runs under, so a record spooled after
-the drain simply waits for the next day's flush.
+day) posts nothing. The spool is emptied only after the post succeeds, under
+the same single-process serialization every other relay command runs under, so
+a failed post leaves the records for the next run and a record spooled after
+the flush simply waits for the next day's flush.
 """
 
 from __future__ import annotations
@@ -41,18 +42,19 @@ def digest(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
 
-    posted = run_digest(cfg, quiet_empty=quiet_empty)
-    if not posted and not quiet_empty:
-        typer.echo("digest: spool empty — nothing to post.")
+    run_digest(cfg, quiet_empty=quiet_empty)
 
 
 def run_digest(cfg, *, quiet_empty: bool = True) -> bool:
-    """Drain the spool, post the digest, and return whether anything was sent.
+    """Render and post the day's spool, then empty it; return whether anything sent.
 
     Returns False (no-op) when the digest ticket isn't installed or the spool
-    is empty. The drain-then-post order means records are removed before the
-    post; a post failure crashes loud (per `post`), and re-running re-derives an
-    empty digest rather than double-posting.
+    is empty. Posts *before* draining: the records are cleared only after a
+    successful `post`, so a webhook failure (which `post` turns into a
+    crash-loud `typer.Exit`) leaves the spool intact for the next run to retry,
+    rather than silently dropping the day's events. Both steps run under the
+    single-process serialization every relay command shares, so nothing spooled
+    mid-run is lost.
     """
     spool_path = digest_spool_path(cfg)
     if spool_path is None:
@@ -64,12 +66,15 @@ def run_digest(cfg, *, quiet_empty: bool = True) -> bool:
             )
         return False
 
-    records = spool.drain(spool_path)
+    records = spool.read_records(spool_path)
     if not records:
+        if not quiet_empty:
+            typer.echo("digest: spool empty — nothing to post.")
         return False
 
     date_label = datetime.now().strftime("%Y-%m-%d")
     message = render_digest(cfg, records, date_label=date_label)
     typer.echo(f"digest: posting {len(records)} event(s) for {date_label}")
     post(cfg, message, task_path=spool_path.parent)
+    spool.drain(spool_path)
     return True
