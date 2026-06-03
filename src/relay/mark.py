@@ -16,7 +16,7 @@ from relay import git
 from relay.config import Config
 from relay.logfile import append_log
 from relay.paths import workflow_path
-from relay.slack import post
+from relay.slack import notify, post
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
 from relay.validate import assert_task_valid
@@ -31,14 +31,20 @@ def mark_done(
     actor: str,
     log_message: str,
     slack_text: str,
+    digest_detail: str,
     image_url: str | None = None,
     echo: str | None = None,
 ) -> None:
-    """Flip a ticket to `done`: write frontmatter, log, post.
+    """Flip a ticket to `done`: write frontmatter, log, notify.
 
-    `echo` is the stdout line printed before the Slack post (so the local
-    outcome is visible even if Slack crashes). Pass `None` to suppress —
-    used by the quiet auto-bump path inside `relay status`.
+    `done` is a batchable event, so it routes through `slack.notify`: spooled
+    into the daily digest when that ticket is installed, else posted live as
+    `slack_text` (image and all). `digest_detail` is the one-liner shown under
+    this ticket in the digest.
+
+    `echo` is the stdout line printed before the notify (so the local outcome
+    is visible even if a live post crashes). Pass `None` to suppress — used by
+    the quiet auto-bump path inside `relay status`.
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "done"
@@ -48,12 +54,15 @@ def mark_done(
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    post(
+    notify(
         cfg,
         slack_text,
-        task_path=ref.path,
+        kind="done",
+        detail=digest_detail,
+        ticket=ref.id_slug,
         owner=owner,
         watchers=ticket.watchers,
+        task_path=ref.path,
         image_url=image_url,
     )
     git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — done")
@@ -137,14 +146,16 @@ def mark_active(
     actor: str,
     log_message: str,
     slack_text: str,
+    digest_detail: str,
     echo: str | None = None,
 ) -> None:
-    """Flip a ticket to `active`: write frontmatter, log, post.
+    """Flip a ticket to `active`: write frontmatter, log, notify.
 
     Refuses to activate a workflow-less ticket. A bare-string `workflow:`
     ref is frozen into its snapshot here so the activated ticket is
     launch-ready. Also refuses if any `required = true` extension field is
-    empty.
+    empty. The approval is a batchable event — spooled into the digest when
+    installed, else posted live (see `slack.notify`).
     """
     if not _has_workflow(ticket):
         raise WorkflowMissing()
@@ -161,7 +172,16 @@ def mark_active(
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
+    notify(
+        cfg,
+        slack_text,
+        kind="active",
+        detail=digest_detail,
+        ticket=ref.id_slug,
+        owner=owner,
+        watchers=ticket.watchers,
+        task_path=ref.path,
+    )
     git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — active")
 
 
@@ -196,9 +216,10 @@ def mark_paused(
     actor: str,
     log_message: str,
     slack_text: str,
+    digest_detail: str,
     echo: str | None = None,
 ) -> None:
-    """Flip a ticket to `paused`: write frontmatter, log, post."""
+    """Flip a ticket to `paused`: write frontmatter, log, notify (batchable)."""
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "paused"
     ticket.write(ref.path / "ticket.md")
@@ -206,7 +227,16 @@ def mark_paused(
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
+    notify(
+        cfg,
+        slack_text,
+        kind="paused",
+        detail=digest_detail,
+        ticket=ref.id_slug,
+        owner=owner,
+        watchers=ticket.watchers,
+        task_path=ref.path,
+    )
     git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — paused")
 
 

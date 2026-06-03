@@ -12,7 +12,7 @@ import typer
 from relay import git
 from relay.config import Config
 from relay.logfile import append_log
-from relay.slack import post
+from relay.slack import notify
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
 from relay.validate import assert_task_valid
@@ -82,6 +82,7 @@ def advance_step(
     actor: str,
     log_message: str,
     slack_text: str,
+    digest_detail: str,
     new_assignee: str | None = None,
     echo: str | None = None,
 ) -> None:
@@ -89,7 +90,10 @@ def advance_step(
 
     If `new_assignee` is given, also rewrites the ticket's `assignee:` to that
     nickname. Caller is responsible for resolving role tokens against the
-    ticket beforehand (see `resolve_step_assignee`).
+    ticket beforehand (see `resolve_step_assignee`). Step movement is a
+    batchable event: spooled into the daily digest when that ticket is
+    installed, else posted live (see `slack.notify`). `digest_detail` is the
+    one-liner shown under this ticket in the digest.
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["step"] = f"{next_step} ({new_step_name})"
@@ -100,7 +104,16 @@ def advance_step(
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    post(cfg, slack_text, task_path=ref.path, owner=owner, watchers=ticket.watchers)
+    notify(
+        cfg,
+        slack_text,
+        kind="bump",
+        detail=digest_detail,
+        ticket=ref.id_slug,
+        owner=owner,
+        watchers=ticket.watchers,
+        task_path=ref.path,
+    )
     git.sync_task_state(
         cfg,
         ref.path,

@@ -147,6 +147,7 @@ def _try_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool) -> bool:
         actor=actor,
         log_message=log_message,
         slack_text=slack_text,
+        digest_detail=f"auto-bumped on merge of {pr_label} ✅",
         image_url=cfg.gif_for("done"),
         echo=echo,
     )

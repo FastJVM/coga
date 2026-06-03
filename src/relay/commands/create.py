@@ -19,7 +19,7 @@ import typer
 from relay import git
 from relay.config import ConfigError, load_config
 from relay.scaffold import scaffold_task
-from relay.slack import post
+from relay.slack import notify
 
 
 def draft(
@@ -102,12 +102,15 @@ def scaffold_draft(
 
     slug = result["slug"]
     typer.echo(f"{slug}: created (draft)")
-    post(
+    notify(
         cfg,
         f"✨ {cfg.current_user} created *{slug}* "
         f"\"{title}\" in {cfg.project_name}",
-        task_path=result["path"],
+        kind="draft",
+        detail=f"created \"{title}\" (draft)",
+        ticket=slug,
         owner=cfg.current_user,
+        task_path=result["path"],
     )
     git.sync_task_state(cfg, result["path"], message=f"Ticket: {slug} — created")
     return result

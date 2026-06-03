@@ -12,39 +12,59 @@ Multi-user coordination needs a channel where state changes surface as
 they happen, or the human side accumulates a stale mental model of what
 the agents are doing. That channel, in relay, is Slack.
 
-State-changing CLI commands post to the same Slack channel via an
-incoming webhook. The current broadcast surface:
+State-changing CLI commands reach that channel via an incoming webhook,
+but not all at the same urgency. A channel shared across many projects and
+tickets drowns in real-time chatter — humans tune it out, which defeats the
+point. So relay routes events into **two tiers**:
 
-- `relay draft` / `relay create` — a new raw draft ticket lands in the queue.
-- `relay ticket "<title>"` — also posts the raw draft creation before the
-  authoring interview starts.
-- `relay recurring` — one post per scaffolded recurring task,
-  plus an end-of-run summary when any templates failed to parse.
-- `relay mark active` — the moment work is approved, distinct from
-  the *session* opening.
+- **Live (urgent)** — posted the moment they happen. A stuck agent or a
+  failure must never wait. This is the `slack.post` path.
+- **Batched (routine)** — collapsed into **one daily digest**, grouped per
+  project then per person. This is the `slack.notify` path: each event
+  appends a structured JSONL record to the `recurring/digest/` ticket's
+  blackboard (its `## Spool (pending)` section), and the digest recurring
+  ticket flushes the spool once a day via `relay digest` (drain → group
+  project → person → ticket → post one message → empty the spool).
+
+Live (urgent) surface — still posts immediately:
+
+- `relay panic` — blocker, owner named.
+- `relay slack` — explicit FYI (manual broadcast escape hatch); an
+  intentional human broadcast, so batching it would surprise the sender.
+- `relay launch` script-mode failure — non-zero exit on a `mode: script`
+  step.
 - `relay launch` — an approved `active` ticket starts and becomes
-  `in_progress`.
+  `in_progress`. The session-start signal stays live (one per task).
+
+Batched surface — spooled into the daily digest (live fallback below):
+
+- `relay draft` / `relay create` (and `relay ticket "<title>"`'s raw draft
+  creation) — a new draft ticket lands in the queue.
+- `relay mark active` — the moment work is approved.
 - `relay mark paused` / `relay mark done` — control-plane transitions away
   from active or in-progress work.
-- `relay bump` — step movement (workflow plane only).
-  Optional `--message` piggy-backs an FYI onto any transition broadcast.
+- `relay bump` — step movement (workflow plane only). Optional `--message`
+  still piggy-backs an FYI; it rides the spooled record's detail line.
 - `relay automerge` (and the `post-merge` git hook that wraps it; never
-  `relay status`, which is read-only) — auto-bumps active/in-progress tickets to `done` when their
-  blackboard `## Dev` PR has merged. Posts a distinct
-  `🎉 *<slug>* "<title>" auto-bumped on merge of PR #<N>` line.
-- `relay panic` — blocker, owner named.
-- `relay slack` — explicit FYI (manual broadcast escape hatch).
-- `relay launch` script-mode failure — non-zero exit on a
-  `mode: script` step.
+  `relay status`, which is read-only) — auto-bumps active/in-progress
+  tickets to `done` when their blackboard `## Dev` PR has merged.
+- `relay recurring` — one record per scaffolded recurring task, plus an
+  end-of-run summary when any templates failed to parse.
+
+The digest is **opt-in by installing the `recurring/digest/` ticket**. When
+that ticket is absent, `slack.notify` degrades to a live `post`, so a repo
+without the digest keeps the original real-time behavior on every event.
+Owners ping as `<@ID>` and watchers cc exactly as a live post does — the
+digest reuses `slack._mention`.
 
 Slack is not an "FYI nice-to-have" — it's the synchronization point
 between async agents and the people approving, unblocking, or watching
 their work.
 
-What deliberately does *not* post: relaunching an already-`in_progress`
-interactive or auto ticket. The sync-relevant start transition already
-happened when the ticket moved `active` → `in_progress`; subsequent launches
-are resume attempts.
+What deliberately does *not* post at all: relaunching an
+already-`in_progress` interactive or auto ticket. The sync-relevant start
+transition already happened when the ticket moved `active` → `in_progress`;
+subsequent launches are resume attempts.
 
 ## Slack required by default
 
@@ -109,10 +129,19 @@ a name itself. Member IDs aren't secret, so the table lives in shared
 ## Slack implementation pointers
 
 - `src/relay/slack.py::post(cfg, message, *, task_path=None, owner=None,
-  watchers=None, image_url=None)` — the only public function. Three
-  branches: not enabled → stderr; enabled + no webhook → crash; enabled +
-  webhook → POST then crash on failure. The private `_mention` helper
-  renders a name as `<@ID>` when mapped.
+  watchers=None, image_url=None)` — the **live** path. Three branches: not
+  enabled → stderr; enabled + no webhook → crash; enabled + webhook → POST
+  then crash on failure. The private `_mention` helper renders a name as
+  `<@ID>` when mapped.
+- `src/relay/slack.py::notify(cfg, slack_text, *, kind, detail, ticket=None,
+  owner=None, watchers=None, task_path=None, image_url=None)` — the
+  **batchable** path. When `digest_spool_path(cfg)` is non-None (the
+  `recurring/digest/` ticket is installed), it appends a structured record to
+  the spool; otherwise it falls back to `post(slack_text, …)`. `kind` is a
+  short event tag; `detail` is the digest one-liner.
+- `src/relay/slack.py::render_digest(cfg, records, *, date_label)` — groups
+  drained records project → person → ticket and returns one message (no
+  `[project]` prefix — `relay digest` hands it to `post`, which adds it).
 - `$SLACK_WEBHOOK_URL` — the only place the URL lives. The webhook is
   a bearer token; relay never reads it from `relay.toml`.
 - `cfg.slack_enabled` (`bool`, default `True`) and `cfg.slack_webhook`
@@ -120,18 +149,48 @@ a name itself. Member IDs aren't secret, so the table lives in shared
   `relay.local.toml` overrides shared.
 - `cfg.slack_users` (`dict[str, str]`, relay name → Slack member ID) —
   parsed from `[slack.users]` in `relay.toml` by `_parse_slack_users`.
-- Callers that post: `commands/create.py` (ticket created),
-  `commands/launch.py` (active → in_progress), `commands/mark.py`
-  (active / paused / done), `commands/recurring.py`
-  (per-scaffold + error summary), `commands/bump.py`, `commands/slack.py`,
-  `commands/panic.py`, `commands/launch_script.py` (failure path only), and
-  `automerge.auto_bump_merged` (called by `commands/automerge.py` and the
-  post-merge git hook — never by read-only `commands/status.py`). Each passes
-  `task_path=ref.path` (when a task exists) so failure traces also
-  land in the task's `log.md` for non-interactive runs.
+- Live callers (`post`): `commands/panic.py`, `commands/slack.py`,
+  `commands/launch_script.py` (failure path only), and
+  `commands/launch.py` / `mark.mark_in_progress` (active → in_progress
+  session start). Batchable callers (`notify`): `commands/create.py`,
+  `commands/retire.py`, `commands/recurring.py` (per-scaffold + error
+  summary), `mark.mark_active` / `mark_paused` / `mark_done`,
+  `bump.advance_step`, and `automerge.auto_bump_merged`. Both paths pass
+  `task_path=ref.path` (when a task exists) so a live-post failure trace lands
+  in the task's `log.md`.
 - `relay validate --check-slack` — probes the webhook with an
   empty-text payload that Slack rejects without notifying the channel.
   Honors the opt-out (skipped when `enabled = false`).
+
+## The daily digest — a blackboard producer/consumer
+
+The digest collapses the batchable surface into one Slack message a day. It
+is a **producer → blackboard → consumer** pipeline with no side mechanism:
+
+- **Producer.** `slack.notify` appends one JSONL record per event to the
+  `recurring/digest/` ticket's `blackboard.md`, under a `## Spool (pending)`
+  section. The record is self-describing — `ts`, `project`, `kind`, `detail`,
+  and (when present) `ticket`, `owner`, `watchers`. JSONL so `detail` can hold
+  any text (arrows, pipes, emoji) with no escaping. Captured at event time, so
+  a task deleted later the same day is already recorded — no git-log scan.
+- **The spool is a real blackboard.** It is git-tracked, human-readable, never
+  a hidden dotfile — consistent with relay's no-hidden-state rule. It shares
+  the file with `recurring._record_run`'s `scaffolded …` ledger lines; the
+  flush parses only valid-JSON lines and rewrites only the spool section, so
+  the ledger is untouched.
+- **Consumer.** The `recurring/digest/` ticket (`mode: script`, daily
+  `schedule:`) fires through the normal `relay recurring` scan. Its one
+  workflow step runs the `relay/digest/flush` skill, whose `script:` calls
+  `relay digest` → `commands/digest.run_digest`: drain the spool, render via
+  `render_digest`, `post` one message, leave the spool emptied. An empty spool
+  is a silent no-op (idempotent), so a quiet day or a same-day re-run posts
+  nothing.
+- **The primitive.** `src/relay/spool.py::append_record(path, record)` /
+  `drain(path)` / `read_records(path)` operate on a blackboard's
+  `## Spool (pending)` JSONL section via `atomicio.atomic_write_text`. Relay
+  runs one CLI process at a time, so appends and drains are serialized by that
+  — no lock is introduced, consistent with the no-mutex model. The primitive
+  is deliberately Slack-agnostic; the digest is its first caller.
 
 ## Git — durable task-state sync
 
@@ -204,9 +263,13 @@ and `control_branch` defaults `main`. `enabled` may be overridden in
 ## Design rule for new features
 
 If a new command changes state that other team members need to know
-about, it must post. Don't add silent state mutations that bypass the
-sync layer. Conversely, don't post chatter that doesn't represent a
-state change — Slack is the sync log, not a debug stream.
+about, it must reach the sync layer — `post` for genuinely urgent events
+(a blocker, a failure, an intentional human FYI), `notify` for routine
+state changes that can wait for the daily digest. Pick the tier by urgency:
+would a teammate need this within minutes (live), or is once-a-day, grouped
+per person, enough (batched)? Don't add silent state mutations that bypass
+both. Conversely, don't emit chatter that doesn't represent a state change —
+Slack is the sync log, not a debug stream.
 
 If the command mutates a task directory through Relay-owned code, it should
 also call `git.sync_task_state` after the Slack post unless the path is

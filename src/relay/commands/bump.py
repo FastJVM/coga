@@ -170,6 +170,10 @@ def bump(
                 f"👉 {finisher} {verb} "
                 f"*{ref.id_slug}* → step {next_step} ({new_step_name}){handoff}{suffix}"
             ),
+            digest_detail=(
+                f"{finisher} {verb} → step {next_step} "
+                f"({new_step_name}){handoff}{suffix}"
+            ),
             new_assignee=new_assignee,
             echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",
         )

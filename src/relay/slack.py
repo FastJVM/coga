@@ -5,7 +5,8 @@ commands post here so teammates see state changes as they happen. A silent
 FYI becomes a stale mental model on the human side, so failures crash
 loudly rather than degrade.
 
-Three branches:
+`post` is the **live** path for urgent events (`relay panic`, script-step
+failures, the manual `relay slack` FYI). It has three branches:
   - `slack_enabled = False` (opt-out via `[slack].enabled = false` in
     `relay.local.toml`) — every call writes to stderr, never crashes. The
     cost is being out of the sync loop.
@@ -14,18 +15,31 @@ Three branches:
   - `enabled` + webhook — POST. On any RequestException, append to the
     task's `log.md` (when `task_path` is given) and crash so the caller
     sees the failure.
+
+`notify` is the **batchable** path for routine state-change chatter (create,
+bump, mark active/paused/done, retire, automerge done, recurring scaffolds).
+When the daily-digest recurring ticket is installed (`recurring/digest/`
+exists), `notify` spools a structured record to that ticket's blackboard
+instead of posting; the spool is rendered and posted once a day by
+`relay digest` (see `render_digest`). When the digest ticket is *not*
+installed, `notify` degrades to a live `post`, so a repo without the digest
+keeps today's real-time behavior — the two-tier model is opt-in by installing
+the ticket.
 """
 
 from __future__ import annotations
 
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import requests
 import typer
 
+from relay import spool
 from relay.config import Config
 from relay.logfile import append_log
+from relay.paths import recurring_dir
 
 
 def _mention(cfg: Config, name: str) -> str:
@@ -106,4 +120,167 @@ def post(
         raise typer.Exit(1)
 
 
-__all__ = ["post"]
+# --- digest (batchable) path --------------------------------------------------
+
+DIGEST_RECURRING_NAME = "digest"
+
+
+def digest_spool_path(cfg: Config) -> Path | None:
+    """The digest ticket's spool blackboard, or None when it isn't installed.
+
+    The spool lives on the `recurring/digest/` ticket's own persistent
+    `blackboard.md` — a real, git-tracked, human-readable file (never a hidden
+    dotfile). Its presence is what switches `notify` from live posting to
+    batching, so a repo opts into the daily digest simply by installing the
+    ticket.
+    """
+    path = recurring_dir(cfg) / DIGEST_RECURRING_NAME / "blackboard.md"
+    return path if path.is_file() else None
+
+
+def notify(
+    cfg: Config,
+    slack_text: str,
+    *,
+    kind: str,
+    detail: str,
+    ticket: str | None = None,
+    owner: str | None = None,
+    watchers: list[str] | None = None,
+    task_path: Path | None = None,
+    image_url: str | None = None,
+) -> None:
+    """Route a batchable state-change event: spool it, or post live.
+
+    When the digest ticket is installed, append a structured JSONL record to
+    its spool (grouped and posted later by `relay digest`). Otherwise fall back
+    to a live `post(slack_text)` — identical to pre-digest behavior, so
+    `image_url` and the `[project] [owner]` formatting still apply on that path.
+
+    `kind` is a short event tag (e.g. `bump`, `done`, `recurring`); `detail` is
+    the human one-liner shown under the ticket in the digest. `ticket`/`owner`
+    drive the digest's project → person → ticket grouping; a record with no
+    `owner` (e.g. a recurring-scan error summary) renders in an ownerless
+    bucket.
+    """
+    spool_path = digest_spool_path(cfg)
+    if spool_path is None:
+        post(
+            cfg,
+            slack_text,
+            task_path=task_path,
+            owner=owner,
+            watchers=watchers,
+            image_url=image_url,
+        )
+        return
+
+    record = {
+        "ts": datetime.now().strftime("%Y-%m-%dT%H:%M"),
+        "project": cfg.project_name,
+        "kind": kind,
+        "detail": detail,
+    }
+    if ticket:
+        record["ticket"] = ticket
+    if owner:
+        record["owner"] = owner
+    if watchers:
+        record["watchers"] = list(watchers)
+    spool.append_record(spool_path, record)
+
+
+def render_digest(cfg: Config, records: list[dict], *, date_label: str) -> str:
+    """Render spooled records into one channel message, project → person → ticket.
+
+    Owner names render through `_mention` (a `<@ID>` ping when mapped, plain
+    text otherwise); per-ticket watcher cc's follow the same `[slack.users]`
+    rule `post` uses. Events under each ticket appear in spool (chronological)
+    order, so the digest is a once-a-day replay rather than only a final
+    snapshot. Records with no `ticket` (e.g. a recurring-scan error) list as
+    standalone lines under their owner, or under an ownerless bucket.
+
+    The returned text has no `[<project>]` prefix — `relay digest` hands it to
+    `post`, which adds the channel-disambiguating prefix exactly as it does for
+    a live event.
+    """
+    by_project: dict[str, list[dict]] = {}
+    for rec in records:
+        by_project.setdefault(rec.get("project") or cfg.project_name, []).append(rec)
+
+    lines: list[str] = [f"📋 Daily digest · {date_label}"]
+    for project in sorted(by_project):
+        if len(by_project) > 1:
+            lines.append("")
+            lines.append(f"=== {project} ===")
+        lines.extend(_render_people(cfg, by_project[project]))
+    return "\n".join(lines)
+
+
+def _render_people(cfg: Config, records: list[dict]) -> list[str]:
+    # Group by owner, preserving first-seen order; ownerless records last.
+    owners: list[str | None] = []
+    by_owner: dict[str | None, list[dict]] = {}
+    for rec in records:
+        owner = rec.get("owner")
+        if owner not in by_owner:
+            by_owner[owner] = []
+            owners.append(owner)
+    for rec in records:
+        by_owner[rec.get("owner")].append(rec)
+    # Stable sort: keep first-seen (chronological) order, just push the
+    # ownerless bucket (None) last.
+    owners.sort(key=lambda o: o is None)
+
+    out: list[str] = []
+    for owner in owners:
+        out.append("")
+        out.append(_mention(cfg, owner) if owner else "(no owner)")
+        out.extend(_render_tickets(cfg, by_owner[owner]))
+    return out
+
+
+def _render_tickets(cfg: Config, records: list[dict]) -> list[str]:
+    tickets: list[str | None] = []
+    by_ticket: dict[str | None, list[dict]] = {}
+    for rec in records:
+        slug = rec.get("ticket")
+        if slug not in by_ticket:
+            by_ticket[slug] = []
+            tickets.append(slug)
+        by_ticket[slug].append(rec)
+
+    out: list[str] = []
+    for slug in tickets:
+        group = by_ticket[slug]
+        cc = _cc_trailer(cfg, group)
+        if slug is None:
+            # Ownerless / ticketless lines (e.g. recurring-scan errors).
+            for rec in group:
+                out.append(f" • {rec.get('detail', '')}")
+            continue
+        out.append(f" • {slug}{cc}")
+        for rec in group:
+            out.append(f"     {rec.get('detail', '')}")
+    return out
+
+
+def _cc_trailer(cfg: Config, records: list[dict]) -> str:
+    """`(cc <@…> …)` for the union of mapped watchers across a ticket's events."""
+    seen: list[str] = []
+    for rec in records:
+        for w in rec.get("watchers") or []:
+            if w in cfg.slack_users and w not in seen:
+                seen.append(w)
+    if not seen:
+        return ""
+    return " (cc " + " ".join(f"<@{cfg.slack_users[w]}>" for w in seen) + ")"
+
+
+__all__ = [
+    "post",
+    "notify",
+    "render_digest",
+    "digest_spool_path",
+    "DIGEST_RECURRING_NAME",
+]
