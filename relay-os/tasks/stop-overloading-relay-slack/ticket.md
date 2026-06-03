@@ -1,6 +1,6 @@
 ---
 title: stop overloading relay slack
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
