@@ -1,6 +1,6 @@
 ---
 title: Atomic writes for ticket log and done-marker files
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
