@@ -91,3 +91,29 @@ Tests (`tests/test_compose.py`, `tests/test_launch.py`):
 
 branch: fail-loud-compose
 worktree: ../relay-fail-loud-compose
+
+## Peer review (codex)
+
+Ran `codex review --base main` from `../relay-fail-loud-compose`.
+
+Finding:
+- **P2 must-fix:** `relay ticket <slug>` also composes prompts for guided
+  authoring. With the new strict `ComposeError`, an editable task whose context
+  ref was deleted exited with an uncaught exception before the authoring command
+  could render a normal CLI error.
+
+Fix applied:
+- `src/relay/commands/ticket.py` catches `ComposeError` around
+  `compose_prompt(...)` and routes it through `_bail(...)`, matching the clean
+  launch error path.
+- Added `tests/test_ticket.py::test_ticket_reports_compose_error_for_broken_editable_task`
+  to assert exit code 2, the broken context/slug/path in output, and no agent
+  spawn.
+- Commit: `b87a486` (`peer-review: handle compose errors in ticket authoring`).
+
+Verification after fix:
+- `PYTHONPATH=src python -m pytest tests/test_ticket.py` → 7 passed.
+- `PYTHONPATH=src python -m pytest tests/test_compose.py tests/test_launch.py tests/test_ticket.py` → 65 passed.
+- `PYTHONPATH=src python -m pytest` → 518 passed, 1 skipped.
+- Pytest emitted a cache-write warning for `.pytest_cache` being read-only in
+  this sandbox; tests still passed.
