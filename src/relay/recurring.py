@@ -231,19 +231,7 @@ def scaffold_template(
     cfg: Config, template: Template, now: datetime
 ) -> ScaffoldOutcome:
     """Scaffold one recurring template for `now`'s firing. Idempotent."""
-    effective_mode = template.frontmatter.get("mode", "auto")
-
-    # Temporary policy: refuse to scaffold mode=auto recurring tasks.
-    # `claude -p` and `codex exec` buffer until completion, so scheduled
-    # runs would sit silently — worse than skipping. Lift when streaming
-    # lands. Templates can opt back in by setting `mode: script` (or
-    # `mode: interactive` if they can run from a TTY).
-    if effective_mode == "auto":
-        raise RecurringError(
-            "mode=auto is temporarily disabled (auto runs produce no live "
-            "console output). Set `mode: script` or `mode: interactive` "
-            "to re-enable."
-        )
+    effective_mode = _effective_mode(template)
 
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
@@ -256,7 +244,112 @@ def scaffold_template(
     # A stuck prior-period run (`in_progress` or `paused`) is the human's
     # problem — visible in `relay status` — not a reason to silently skip
     # today's scheduled task. The new period scaffolds independently.
+    outcome = _scaffold_at_slug(
+        cfg,
+        template,
+        target_slug=target_slug,
+        effective_mode=effective_mode,
+        title=_extract_title(template),
+    )
+    _record_run(template, outcome, now)
+    return outcome
 
+
+def scaffold_debug_run(
+    cfg: Config, template: Template, now: datetime
+) -> ScaffoldOutcome:
+    """Scaffold a throwaway debug run of one template — `relay recurring --all`.
+
+    Unlike `scaffold_template`, this ignores both the schedule-derived period
+    slug and the period ledger: it always creates a *fresh* task under a unique
+    `<template>-dbg-<timestamp>` slug, so it never collides with — or mutates —
+    the real current-period task (which may already be `done`/`in_progress`/
+    `paused`). The run is meant to be observed once and then deleted; it is not
+    recorded in the template's period ledger.
+    """
+    effective_mode = _effective_mode(template)
+    stamp = now.strftime("%Y%m%dT%H%M%S")
+    target_slug = f"{template.name}-dbg-{stamp}"
+    return _scaffold_at_slug(
+        cfg,
+        template,
+        target_slug=target_slug,
+        effective_mode=effective_mode,
+        title=f"[debug] {_extract_title(template)}",
+    )
+
+
+def scan_debug(cfg: Config, now: datetime | None = None) -> DueScan:
+    """Scaffold a fresh debug run for every recurring template.
+
+    The debug counterpart of `scan_due`: it walks the same templates (skipping
+    `_`-prefixed directories and `mode: auto`, with the same loud skips) but
+    scaffolds an isolated throwaway run per template instead of get-or-creating
+    the current period's task. `relay recurring --all` launches the results.
+    Real period state is left untouched.
+    """
+    now = now or datetime.now()
+    root = recurring_dir(cfg)
+    if not root.is_dir():
+        return DueScan(tasks=[], errors=[])
+
+    tasks: list[DueTask] = []
+    errors: list[tuple[str, str]] = []
+    for path in sorted(root.iterdir()):
+        if path.name.startswith("_"):
+            continue
+        if not path.is_dir():
+            continue
+        try:
+            template = Template.load(path)
+            outcome = scaffold_debug_run(cfg, template, now)
+        except RecurringError as exc:
+            sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
+            errors.append((path.name, str(exc)))
+            continue
+        ticket = read_ticket(outcome.ref)
+        tasks.append(
+            DueTask(
+                template=template.name,
+                ref=outcome.ref,
+                last_fire=now,
+                created=True,
+                status=ticket.status,
+            )
+        )
+    return DueScan(tasks=tasks, errors=errors)
+
+
+def _effective_mode(template: Template) -> str:
+    """Resolve a template's launch mode, enforcing the temporary auto ban.
+
+    Temporary policy: refuse `mode: auto` recurring tasks. `claude -p` and
+    `codex exec` buffer until completion, so scheduled runs would sit silently
+    — worse than skipping. Lift when streaming lands. Templates can opt back in
+    by setting `mode: script` (or `mode: interactive` if they can run from a
+    TTY).
+    """
+    effective_mode = template.frontmatter.get("mode", "auto")
+    if effective_mode == "auto":
+        raise RecurringError(
+            "mode=auto is temporarily disabled (auto runs produce no live "
+            "console output). Set `mode: script` or `mode: interactive` "
+            "to re-enable."
+        )
+    return effective_mode
+
+
+def _scaffold_at_slug(
+    cfg: Config,
+    template: Template,
+    *,
+    target_slug: str,
+    effective_mode: str,
+    title: str,
+) -> ScaffoldOutcome:
+    """Scaffold one recurring task at an explicit slug. Shared by period and
+    debug scaffolding — the only differences are the slug and ledger handling,
+    which the callers own."""
     # A recurring task is a machine-authored job: it scaffolds straight to
     # `active` and is meant to run, not be triaged. So when the template
     # doesn't name an assignee, default to the repo's configured default
@@ -278,7 +371,7 @@ def scaffold_template(
 
     ref = scaffold_task(
         cfg=cfg,
-        title=_extract_title(template),
+        title=title,
         workflow_name=template.frontmatter.get("workflow"),
         contexts=contexts,
         mode=effective_mode,
@@ -294,11 +387,9 @@ def scaffold_template(
         description=_extract_description(template),
         created_by="system",
     )
-    outcome = ScaffoldOutcome(
+    return ScaffoldOutcome(
         ref=TaskRef(slug=ref["slug"], path=ref["path"]), created=True
     )
-    _record_run(template, outcome, now)
-    return outcome
 
 
 # --- helpers ------------------------------------------------------------------
@@ -398,7 +489,9 @@ __all__ = [
     "DueTask",
     "DueScan",
     "scan_due",
+    "scan_debug",
     "scaffold_named",
     "scaffold_template",
+    "scaffold_debug_run",
     "RecurringError",
 ]
