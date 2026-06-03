@@ -114,7 +114,7 @@ def test_natural_exit_passes_through_exit_code(
 def test_sentinel_file_terminates_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Child that touches $RELAY_DONE_SENTINEL → supervisor SIGTERMs it.
+    """Child that writes $RELAY_DONE_SENTINEL → supervisor SIGTERMs it.
 
     This is the channel that survives TUI agents (Claude Code, Codex) which
     capture bash subprocess stdout into a private pipe rather than echoing it
@@ -123,7 +123,7 @@ def test_sentinel_file_terminates_child(
     """
     code = _run_through_pty(
         monkeypatch,
-        ["bash", "-c", f'touch "${SENTINEL_ENV}"; sleep 30'],
+        ["bash", "-c", f'printf done > "${SENTINEL_ENV}"; sleep 30'],
     )
     assert code == 0
 

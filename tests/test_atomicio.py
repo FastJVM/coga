@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import stat
 
 import pytest
 
@@ -15,6 +16,27 @@ def test_atomic_write_replaces_content(tmp_path) -> None:
     atomic_write_text(target, "first")
     atomic_write_text(target, "second")
     assert target.read_text() == "second"
+
+
+def test_atomic_write_preserves_existing_mode(tmp_path) -> None:
+    target = tmp_path / "state.txt"
+    target.write_text("old")
+    target.chmod(0o640)
+
+    atomic_write_text(target, "new")
+
+    assert stat.S_IMODE(target.stat().st_mode) == 0o640
+
+
+def test_atomic_write_uses_umask_mode_for_new_file(tmp_path) -> None:
+    target = tmp_path / "state.txt"
+    old_umask = os.umask(0o027)
+    try:
+        atomic_write_text(target, "payload")
+    finally:
+        os.umask(old_umask)
+
+    assert stat.S_IMODE(target.stat().st_mode) == 0o640
 
 
 def test_atomic_write_leaves_no_temp_files(tmp_path) -> None:

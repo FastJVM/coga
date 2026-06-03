@@ -12,8 +12,24 @@ non-atomic copy, defeating the point.
 from __future__ import annotations
 
 import os
+import stat
 import tempfile
 from pathlib import Path
+
+
+def _default_file_mode() -> int:
+    current_umask = os.umask(0)
+    try:
+        return 0o666 & ~current_umask
+    finally:
+        os.umask(current_umask)
+
+
+def _replacement_mode(path: Path) -> int:
+    try:
+        return stat.S_IMODE(path.stat().st_mode)
+    except FileNotFoundError:
+        return _default_file_mode()
 
 
 def atomic_write_text(path: Path, data: str, *, fsync: bool = True) -> None:
@@ -31,6 +47,7 @@ def atomic_write_text(path: Path, data: str, *, fsync: bool = True) -> None:
     )
     try:
         with os.fdopen(fd, "w") as f:
+            os.fchmod(f.fileno(), _replacement_mode(path))
             f.write(data)
             f.flush()
             if fsync:
