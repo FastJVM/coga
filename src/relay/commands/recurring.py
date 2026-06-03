@@ -10,7 +10,7 @@ import typer
 from relay import git
 from relay.config import ConfigError, load_config
 from relay.recurring import DueScan, RecurringError, scaffold_named, scan_due
-from relay.slack import post
+from relay.slack import notify
 from relay.tasks import TaskRef, read_ticket
 
 app = typer.Typer(
@@ -119,11 +119,16 @@ def launch(
     if outcome.created:
         ticket = read_ticket(ref)
         typer.echo(f"Created {ref.id_slug}")
-        post(
+        notify(
             cfg,
             f"🔁 recurring scaffolded *{ref.id_slug}* "
             f"\"{ticket.title}\" in {cfg.project_name} — "
             f"assignee {ticket.assignee or 'unassigned'}",
+            kind="recurring",
+            detail=f"recurring scaffolded \"{ticket.title}\" — "
+            f"assignee {ticket.assignee or 'unassigned'}",
+            ticket=ref.id_slug,
+            owner=ticket.owner,
             task_path=ref.path,
         )
         git.sync_task_state(
@@ -208,11 +213,16 @@ def _broadcast_scan(cfg, scan: DueScan) -> None:
             continue
         ticket = read_ticket(task.ref)
         typer.echo(f"Created {task.ref.id_slug}")
-        post(
+        notify(
             cfg,
             f"🔁 recurring scaffolded *{task.ref.id_slug}* "
             f"\"{ticket.title}\" in {cfg.project_name} — "
             f"assignee {ticket.assignee or 'unassigned'}",
+            kind="recurring",
+            detail=f"recurring scaffolded \"{ticket.title}\" — "
+            f"assignee {ticket.assignee or 'unassigned'}",
+            ticket=task.ref.id_slug,
+            owner=ticket.owner,
             task_path=task.ref.path,
         )
         git.sync_task_state(
@@ -225,7 +235,13 @@ def _broadcast_scan(cfg, scan: DueScan) -> None:
         n = len(scan.errors)
         plural = "" if n == 1 else "s"
         bullets = "\n".join(f"• {name}: {msg}" for name, msg in scan.errors)
-        post(cfg, f"⚠️ recurring scan skipped {n} template{plural}\n{bullets}")
+        inline = "; ".join(f"{name} ({msg})" for name, msg in scan.errors)
+        notify(
+            cfg,
+            f"⚠️ recurring scan skipped {n} template{plural}\n{bullets}",
+            kind="recurring-error",
+            detail=f"⚠️ recurring scan skipped {n} template{plural}: {inline}",
+        )
 
 
 def _print_table(scan: DueScan) -> None:

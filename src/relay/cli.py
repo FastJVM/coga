@@ -11,6 +11,7 @@ import typer
 from relay.commands import automerge as automerge_cmd
 from relay.commands import create as create_cmd
 from relay.commands import delete as delete_cmd
+from relay.commands import digest as digest_cmd
 from relay.commands import init as init_cmd
 from relay.commands import launch as launch_cmd
 from relay.commands import mark as mark_cmd
@@ -80,6 +81,7 @@ app.command("delete")(delete_cmd.delete)
 app.command("retire")(retire_cmd.retire)
 app.command("panic")(panic_cmd.panic)
 app.command("slack")(slack_cmd.slack)
+app.command("digest")(digest_cmd.digest)
 app.command("validate")(validate_cmd.validate)
 app.add_typer(skill_cmd.app, name="skill")
 app.add_typer(mark_cmd.app, name="mark")
@@ -92,7 +94,7 @@ app.add_typer(recurring_cmd.app, name="recurring")
 _BUILTIN_COMMANDS = frozenset(
     {
         "init", "create", "launch", "status", "show", "bump", "automerge",
-        "delete", "draft", "retire", "panic", "slack", "skill",
+        "delete", "draft", "retire", "panic", "slack", "digest", "skill",
         "mark", "recurring", "ticket", "validate",
     }
 )

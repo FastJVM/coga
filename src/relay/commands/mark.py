@@ -65,6 +65,7 @@ def active(
             actor=actor,
             log_message=log_message,
             slack_text=slack_text,
+            digest_detail=f"→ active — assignee {ticket.assignee or 'unassigned'}{suffix}",
             echo=f"{ref.id_slug}: active",
         )
     except WorkflowMissing:
@@ -118,6 +119,7 @@ def paused(
             actor=actor,
             log_message=log_message,
             slack_text=slack_text,
+            digest_detail=f"→ paused{suffix}",
             echo=f"{ref.id_slug}: paused",
         )
     except TaskValidationError as exc:
@@ -152,6 +154,7 @@ def done(
             actor=actor,
             log_message=log_message,
             slack_text=slack_text,
+            digest_detail=f"{finisher} finished → done ✅{suffix}",
             image_url=cfg.gif_for("done"),
             echo=f"{ref.id_slug}: done",
         )
