@@ -2,8 +2,22 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 branch: autobimp-smoke
-worktree: /home/n/Code/relay-autobimp-smoke
+worktree: /home/n/Code/claude/relay-autobimp-smoke
 pr: https://github.com/FastJVM/relay/pull/268
+
+## Re-run (rewound 17:45)
+
+Human rewound to step 1 (`implement`) and relaunched to re-exercise the
+auto-relaunch chain. Note: the prior run's worktree/branch lived in a
+*separate* checkout (`/home/n/Code/relay`); this control plane is
+`/home/n/Code/claude/relay`. Recreated the feature worktree here
+(`/home/n/Code/claude/relay-autobimp-smoke`, branch `autobimp-smoke`
+from `main`), restored `tests/test_autobimp_smoke.py` from
+`origin/autobimp-smoke`, verified 3 passed, committed `83f13d9`
+(working tree clean). No source change. The earlier `56140e6`/PR #268
+belong to the prior checkout's branch; the `pr` step will push this
+checkout's branch + refresh the PR line. Bumping → `self-qa` (predicted
+auto-relaunch).
 
 ## PR step (done)
 

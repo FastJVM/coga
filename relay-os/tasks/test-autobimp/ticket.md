@@ -27,7 +27,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
