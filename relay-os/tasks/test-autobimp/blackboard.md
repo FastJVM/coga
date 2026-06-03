@@ -3,7 +3,17 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: autobimp-smoke
 worktree: /home/n/Code/relay-autobimp-smoke
-pr: (pending — opened in the `pr` step)
+pr: https://github.com/FastJVM/relay/pull/268
+
+## PR step (done)
+
+Pushed `autobimp-smoke` to origin (`-u`, new branch) and opened
+PR #268 (https://github.com/FastJVM/relay/pull/268) via `gh pr create`.
+Title = ticket title; body summarizes the test + `Closes ticket:
+test-autobimp` + test plan. Worktree clean, single commit (56140e6).
+No CI status checked here (throwaway smoke PR); nothing to gate on.
+Bumping → `review` (owner gate) — this is the predicted **stop**: the
+supervisor should NOT auto-relaunch past here.
 
 ## Implement step (done)
 
