@@ -1,6 +1,6 @@
 ---
 title: test autobimp
-status: in_progress
+status: paused
 mode: interactive
 owner: nick
 human: nick
@@ -27,7 +27,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (self-qa)
+step: 1 (implement)
 ---
 
 ## Description

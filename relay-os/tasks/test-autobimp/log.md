@@ -9,5 +9,4 @@
 2026-06-02 17:22 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-02 17:23 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/268
 2026-06-02 17:45 [human:nick] rewound to step 1 (implement) → assigned to claude
-2026-06-02 17:45 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
-2026-06-02 17:52 [agent:claude] advanced to step 2 (self-qa)
+2026-06-02 17:53 [human:nick] paused (in_progress → paused)
