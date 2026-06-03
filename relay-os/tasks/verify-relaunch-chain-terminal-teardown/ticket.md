@@ -26,7 +26,7 @@ workflow:
   - name: finalize
     skills: []
     assignee: agent
-step: 1 (draft)
+step: 2 (expand)
 ---
 
 ## Description
