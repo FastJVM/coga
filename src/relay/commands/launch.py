@@ -24,6 +24,7 @@ from relay.agent_skills import refresh_agent_skill_view
 from relay.automerge import GhError, auto_bump_one
 from relay.blackboard import blackboard_size_warning, format_bytes
 from relay.compose import (
+    ComposeError,
     PromptComposition,
     compose_prompt,
     compose_prompt_report,
@@ -120,9 +121,12 @@ def launch(
         ticket = _read(ref)
         if ticket.mode == "script":
             _bail("mode=script tasks do not compose an agent prompt.")
-        composition = compose_prompt_report(
-            cfg, ref, ticket, mode_override=mode_override
-        )
+        try:
+            composition = compose_prompt_report(
+                cfg, ref, ticket, mode_override=mode_override
+            )
+        except ComposeError as exc:
+            _bail(str(exc))
         typer.echo(_format_prompt_report(ref.id_slug, composition))
         warning = blackboard_size_warning(ref.path / "blackboard.md")
         if warning:
@@ -238,6 +242,17 @@ def launch(
         _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
     typer.echo(f"Launch: found agent CLI at {agent_path}")
 
+    # Fail loud BEFORE flipping status: if a referenced context or skill is
+    # missing, the composed prompt would drop a layer the human expected the
+    # agent to have. Refuse to start — and don't flip the ticket to
+    # in_progress or post a "started" broadcast for a task that never runs.
+    # The per-step loop below re-composes; this is a cheap pre-flight (file
+    # reads only) so the flip and Slack post are never reached on a bad ref.
+    try:
+        compose_prompt(cfg, ref, ticket, mode_override=mode_override)
+    except ComposeError as exc:
+        _bail(str(exc))
+
     if isinstance(ref, TaskRef) and ticket.status == "active":
         try:
             mark_in_progress(
@@ -346,7 +361,10 @@ def launch(
                 typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
 
             typer.echo("Launch: composing prompt")
-            prompt = compose_prompt(cfg, ref, ticket, mode_override=mode_override)
+            try:
+                prompt = compose_prompt(cfg, ref, ticket, mode_override=mode_override)
+            except ComposeError as exc:
+                _bail(str(exc))
             prompt_file = write_prompt_file(prompt, ref)
             typer.echo(
                 f"Launch: prompt written to {prompt_file} "

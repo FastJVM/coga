@@ -345,6 +345,33 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert "launched in interactive mode" in log
 
 
+def test_launch_bails_on_missing_context(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ticket referencing a context with no file must refuse to launch,
+    rather than starting an agent with a silently-missing prompt layer."""
+    _allow_interactive_tty(monkeypatch)
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    ticket_md = ref.path / "ticket.md"
+    ticket_md.write_text(
+        ticket_md.read_text().replace("contexts: []", "contexts:\n- email/ghost")
+    )
+
+    def fail_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        raise AssertionError(f"agent must not be launched, got {cmd!r}")
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fail_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 2, result.output
+    assert "email/ghost" in result.output
+    # Ticket was not flipped to in_progress — launch refused before starting.
+    assert Ticket.read(ticket_md).status == "active"
+
+
 def test_launch_handles_agent_self_deleting_task(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

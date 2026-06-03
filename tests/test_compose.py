@@ -6,10 +6,16 @@ from textwrap import dedent
 import pytest
 
 from relay.scaffold import scaffold_task
-from relay.compose import compose_prompt, compose_prompt_report, write_prompt_file
+from relay.compose import (
+    ComposeError,
+    compose_prompt,
+    compose_prompt_report,
+    write_prompt_file,
+)
 from relay.config import load_config
 from relay.repl_supervisor import DONE_MARKER
 from relay.tasks import list_tasks, read_ticket
+from relay.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -247,6 +253,77 @@ def test_compose_defuses_done_marker_in_blackboard(repo: Path) -> None:
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
     assert marker not in prompt
+
+
+def test_compose_raises_on_missing_context(repo: Path) -> None:
+    """A referenced context with no file fails loud instead of silently dropping."""
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="Ghost ctx", workflow_name=None,
+        contexts=[], mode="interactive", owner=None, assignee=None,
+        watchers=[], status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+    # Simulate a context ref whose file was deleted after the ticket was authored.
+    ticket.frontmatter["contexts"] = ["email/ghost"]
+
+    with pytest.raises(ComposeError) as exc:
+        compose_prompt(cfg, ref, ticket)
+    msg = str(exc.value)
+    assert "email/ghost" in msg
+    assert ref.id_slug in msg
+    # Names the exact path the user should create.
+    assert "email/ghost/SKILL.md" in msg
+
+
+def test_compose_raises_on_missing_ticket_level_skill(repo: Path) -> None:
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="Ghost skill", workflow_name=None,
+        contexts=[], mode="interactive", owner=None, assignee=None,
+        watchers=[], status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+    ticket.frontmatter["skills"] = ["infra/ghost"]
+
+    with pytest.raises(ComposeError) as exc:
+        compose_prompt(cfg, ref, ticket)
+    msg = str(exc.value)
+    assert "infra/ghost" in msg
+    assert ref.id_slug in msg
+    assert "infra/ghost/SKILL.md" in msg
+
+
+def test_compose_raises_on_missing_step_skill(repo: Path) -> None:
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="Ghost step skill", workflow_name=None,
+        contexts=[], mode="interactive", owner=None, assignee=None,
+        watchers=[], status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    # Hand-build a ticket whose frozen workflow step points at a missing skill.
+    ticket = Ticket(
+        frontmatter={
+            "title": "Ghost step skill",
+            "status": "in_progress",
+            "mode": "interactive",
+            "contexts": [],
+            "skills": [],
+            "workflow": {
+                "name": "code/with-review",
+                "steps": [{"name": "implement", "skills": ["infra/ghost"]}],
+            },
+            "step": "1 (implement)",
+        },
+        body="## Description\n\nDo the thing.\n",
+    )
+
+    with pytest.raises(ComposeError) as exc:
+        compose_prompt(cfg, ref, ticket)
+    assert "infra/ghost" in str(exc.value)
 
 
 def test_write_prompt_file(repo: Path, tmp_path: Path) -> None:
