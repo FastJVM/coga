@@ -1,5 +1,51 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+
+- branch: `atomic-state-writes`
+- worktree: `../relay-atomic-state-writes` (based on `main`, which already carries this
+  ticket's active/in_progress commits)
+- Note: main checkout has unrelated uncommitted `_TTY_SANITIZE` work in
+  `repl_supervisor.py` + its test — left untouched; branching from main isolates this fix.
+
+## Implementation plan (confirmed)
+
+1. `Ticket.write` (`ticket.py:96`) → atomic temp-in-same-dir + fsync + `os.replace`.
+2. `emit_done_marker` (`repl_supervisor.py:340`) → same atomic-rename pattern.
+3. Harden legacy bare-touch branch (`_sentinel_signals_done`, `:87`): require non-empty
+   content. Caller audit (bump/mark/panic/launch) shows ALL production callers pass a real
+   `session_id` (resolved ticket path); nothing relies on `session_id=None`, so removal would
+   be safe too — but ticket prefers hardening (lower risk), so we harden.
+4. Shared helper `src/relay/atomicio.py::atomic_write_text` for both call sites.
+5. Regression test: simulate interrupted write, assert prior content survives.
+6. `append_log` left as-is — acceptance doesn't require it; line-atomic appends are fine.
+
+## Implementation outcome (implement step)
+
+Done. Commit `811e36e` on branch `atomic-state-writes`.
+
+- New `src/relay/atomicio.py::atomic_write_text` — same-dir temp + fsync + `os.replace`.
+  Same-dir is load-bearing (cross-fs rename degrades to non-atomic copy); cleans up the
+  temp on any failure.
+- `Ticket.write` and `emit_done_marker` now route through it.
+- `_sentinel_signals_done` legacy `session_id is None` branch hardened: requires non-empty
+  content (a zero-byte partial no longer reads as "done"). Kept rather than removed per ticket
+  preference, though caller audit shows nothing relies on `session_id=None`.
+- Tests: `tests/test_atomicio.py` (atomic replace, no temp debris, interrupted-write preserves
+  prior content for both the helper and `Ticket.write`) + 3 hardening tests in
+  `tests/test_repl_supervisor.py`.
+
+**Test run:** 526 passed, 1 failed. The single failure —
+`test_packaging.py::test_wheel_includes_bootstrap_batteries` — is PRE-EXISTING on the `main`
+base this worktree branched from: a wheel-build duplicate-file collision on
+`resources/templates/relay-os/skills/_template/SKILL.md` (force-include vs `packages` grab).
+It touches none of my 5 files and is already fixed in the commits the working branch carries
+ahead of main. Left untouched (out of scope). Ran with the relay venv python (3.12) since the
+default `python3` is 3.9 and lacks `tomllib`.
+
+Note for reviewer: this branch is based on `main`; the unrelated `_TTY_SANITIZE` work sitting
+uncommitted in the primary checkout is NOT included here.
+
 ## Bootstrap decisions
 
 - workflow: `code/with-review` (small, self-contained fix + test; peer review is cheap).
