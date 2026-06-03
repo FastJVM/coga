@@ -19,6 +19,30 @@ Verified in the worktree: new test 3 passed; full suite 517 passed,
 1 skipped. Committed on `autobimp-smoke` (56140e6), worktree clean.
 No push / no PR yet — that's the `pr` step. Bumping → `self-qa`.
 
+## Self-QA step (done)
+
+Ran `/code-review` and `/simplify` against `autobimp-smoke` vs `main`.
+**No actionable findings; no edits, no new commit.**
+
+- `/code-review`: verified all three assertions against `src/relay/slugify.py`.
+  All correct (`""`→`task`; `"Hello,   World!!!"`→`hello-world`;
+  whitespace trimmed). No correctness/reuse/simplification/efficiency/altitude
+  findings on the 23-line test.
+- `/simplify`: one minor reuse overlap noted — `test_primitives.py`
+  already exercises the `or "task"` fallback via `slugify("!!!")`, and the
+  new `test_slugify_empty_string_falls_back_to_task` re-hits it via `""`.
+  **Skipped:** `""` vs `"!!!"` are distinct boundary inputs sharing the
+  fallback line; trimming adds no value for an intentionally self-contained
+  smoke artifact, and the human reviewer is one step away. The other two
+  assertions are genuinely uncovered.
+
+Env note: this shell's default `python` is miniconda 3.9 without the
+editable `relay` install — `pytest` there fails at collection
+(`ModuleNotFoundError: No module named 'relay'`). Use the project venv:
+`/home/n/Code/relay/.venv/bin/python -m pytest`. Re-ran the full suite in
+the worktree that way: **517 passed, 1 skipped** (matches implement step).
+Working tree clean. Bumping → `pr`.
+
 ## Bootstrap notes
 
 Synthetic test ticket. Purpose: confirm `relay launch`'s auto-relaunch
