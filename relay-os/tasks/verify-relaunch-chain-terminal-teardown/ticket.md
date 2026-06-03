@@ -5,7 +5,7 @@ mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: nick
 contexts: []
 skills: []
 workflow:
@@ -26,7 +26,7 @@ workflow:
   - name: finalize
     skills: []
     assignee: agent
-step: 3 (peer-pass)
+step: 4 (human-check)
 ---
 
 ## Description
