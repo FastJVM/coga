@@ -1,6 +1,6 @@
 ---
 title: test autobimp
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
