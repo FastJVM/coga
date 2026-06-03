@@ -220,6 +220,46 @@ def test_ticket_existing_active_task_is_editable_without_status_change(
     assert "Skill: bootstrap/ticket" in prompts[0]
 
 
+def test_ticket_reports_compose_error_for_broken_editable_task(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg,
+        title="Broken context",
+        workflow_name=None,
+        contexts=[],
+        mode="interactive",
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    ticket_path = Path(ref["path"]) / "ticket.md"
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["contexts"] = ["email/ghost"]
+    ticket.write(ticket_path)
+
+    called = False
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("relay.commands.ticket.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, ["ticket", "broken-context"])
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "email/ghost" in combined
+    assert "broken-context" in combined
+    assert "email/ghost/SKILL.md" in combined
+    assert not called
+
+
 def test_ticket_refuses_in_progress_task(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
