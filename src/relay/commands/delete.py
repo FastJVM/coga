@@ -14,6 +14,7 @@ import sys
 
 import typer
 
+from relay import git
 from relay.commands.launch_script import (
     build_script_command,
     build_script_env,
@@ -75,6 +76,21 @@ def delete(
         if result.stderr:
             typer.secho(result.stderr, fg=typer.colors.RED, err=True, nl=False)
         sys.exit(result.returncode)
+
+    # Sync the removal to the control branch, the git analogue of the Slack
+    # broadcast every other state mutation posts. Without this, `relay delete`
+    # leaves an uncommitted working-tree deletion — the one command that
+    # bypassed the sync layer (create/mark/bump/panic all call it). The task
+    # dir is gone now, so anchor on its still-present parent for git-root
+    # resolution while staging the deleted dir itself as the pathspec;
+    # `sync_paths` already handles a removed path (it `git rm`s a missing
+    # pathspec and drops it from the landed tree).
+    git.sync_paths(
+        cfg,
+        ref.path.parent,
+        [ref.path],
+        message=f"Ticket: {ref.id_slug} — deleted",
+    )
 
 
 def _bail(msg: str) -> None:

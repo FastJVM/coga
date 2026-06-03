@@ -624,3 +624,48 @@ def test_cli_ticket_authoring_records_session_without_ticket_edits(git_repo, mon
         "show", f"main:relay-os/tasks/{slug}/log.md", cwd=git_repo.origin
     )
     assert "ticket authoring launched" in log
+
+
+# --- delete (the sync gap this fixes) -----------------------------------------
+#
+# `relay delete` removes the task dir through the `bootstrap/delete-task` skill
+# but historically never synced — the lone state mutation that left an
+# uncommitted working-tree deletion. It now lands the removal on the control
+# branch like every other command.
+
+_DELETE_SKILL_SRC = (
+    Path(__file__).resolve().parents[1]
+    / "src" / "relay" / "resources" / "templates" / "relay-os"
+    / "bootstrap" / "skills" / "bootstrap" / "delete-task"
+)
+
+
+def _install_delete_skill(relay_os: Path) -> None:
+    import shutil
+
+    shutil.copytree(
+        _DELETE_SKILL_SRC, relay_os / "skills" / "bootstrap" / "delete-task"
+    )
+
+
+def test_cli_delete_syncs_removal_to_origin(git_repo):
+    """`relay delete` lands the directory removal on origin/main.
+
+    The created ticket is committed first; deleting it must produce a real
+    deletion commit, not an orphaned working-tree change.
+    """
+    _install_delete_skill(git_repo.relay_os)
+    created = runner.invoke(app, ["draft", "Demo task", "--workflow", "code"])
+    slug = created.output.split(":", 1)[0].strip()
+    assert git_repo.origin_tracks(f"relay-os/tasks/{slug}/ticket.md")
+
+    deleted = runner.invoke(app, ["delete", slug])
+    assert deleted.exit_code == 0, deleted.output
+
+    # The removal landed: a deletion commit on origin, and the path is gone from
+    # the control-branch tree — not merely from the local working copy.
+    assert f"Ticket: {slug} — deleted" in git_repo.origin_subjects()
+    assert not git_repo.origin_tracks(f"relay-os/tasks/{slug}/ticket.md")
+    # And nothing is left dirty in the working tree (the bug's symptom).
+    status = git_repo.git("status", "--porcelain", cwd=git_repo.root)
+    assert slug not in status
