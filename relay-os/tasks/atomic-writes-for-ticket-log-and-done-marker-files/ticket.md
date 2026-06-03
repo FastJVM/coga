@@ -1,14 +1,32 @@
 ---
 title: Atomic writes for ticket log and done-marker files
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: nick
-contexts: []
+assignee: claude
+contexts:
+- relay/architecture
 skills: []
-workflow: null
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
+step: 1 (implement)
 ---
 
 ## Description
@@ -29,11 +47,11 @@ Task-state writes are not atomic:
   on.
 - `append_log` is a plain `open("a")` (`logfile.py:22`) — fine for line-atomic
   appends within one host, but no fsync.
-- `emit_done_marker` does `open(..., "w").write(...)` (`repl_supervisor.py:316`)
+- `emit_done_marker` does `open(..., "w").write(...)` (`repl_supervisor.py:340`)
   — not atomic, no `os.replace`. The supervisor tolerates a partial read by
   waiting for the next poll on the session-id path, but the legacy bare-touch
   path (`session_id is None`) treats *any* existing file — including a zero-byte
-  partial — as "done" and tears the agent down (`repl_supervisor.py:70-71`).
+  partial — as "done" and tears the agent down (`repl_supervisor.py:87-90`).
   That legacy path is a loaded footgun left in the API.
 
 Fix: write via temp-file + `os.replace` (atomic rename) for `Ticket.write` and
@@ -50,6 +68,13 @@ simulates a partial/interrupted write and asserts the prior content survives.
 ## Context
 
 Code: `src/relay/ticket.py:96-97`, `src/relay/logfile.py:22`,
-`src/relay/repl_supervisor.py:316` (+ legacy path `:70-71`). Related but
+`src/relay/repl_supervisor.py:340` (+ legacy path `:87-90`). Related but
 separate: `file-locking-for-concurrent-task-mutation` (concurrency, not
 atomicity).
+
+Implementation notes (from evaluator review):
+- Write the temp file in the *same directory* as the target so `os.replace`
+  stays a true atomic rename (cross-filesystem rename degrades to copy).
+- Prefer *hardening* the legacy `session_id is None` bare-touch branch (e.g.
+  require non-empty content) over deleting it, unless a caller audit shows
+  nothing relies on it — removal is a behavior change.
