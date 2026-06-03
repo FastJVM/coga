@@ -151,6 +151,7 @@ Branch: `daily-digest-slack`.
 
 branch: daily-digest-slack
 worktree: ../relay-daily-digest
+pr: https://github.com/FastJVM/relay/pull/275
 
 ## Implementation complete (claude, 2026-06-03)
 
@@ -260,3 +261,12 @@ Applied fixes committed in `3b5be2c` on the branch. Also removed two stray
   tradeoffs are acceptable rather than fix them silently.
 - **`_cc_trailer` mildly duplicates `post()`'s inline cc; per-call
   `digest_spool_path` stat** — out-of-diff / negligible; left alone.
+
+## Step: pr (claude, 2026-06-03)
+
+Pushed `daily-digest-slack` and opened **PR #275**
+(https://github.com/FastJVM/relay/pull/275). PR is `MERGEABLE`. **No CI
+checks are configured on this repo** (`gh pr checks` → "no checks reported"),
+so there is no green/red signal to gate on — verification rests on the local
+`pytest` (541 passed) + `relay validate --json` from the implement/self-qa
+steps. Bumping to the human review step.
