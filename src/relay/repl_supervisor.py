@@ -32,7 +32,10 @@ import tempfile
 import termios
 import time
 import tty
+from pathlib import Path
 from typing import Mapping
+
+from relay.atomicio import atomic_write_text
 
 
 # Unique sentinel — long enough that an agent's prose, code review, or
@@ -57,23 +60,27 @@ _SENTINEL_POLL_INTERVAL = 0.25
 def _sentinel_signals_done(path: str, session_id: str | None) -> bool:
     """True when the sentinel file says *this* session is done.
 
-    With no `session_id` the supervisor accepts any existing file (the legacy
-    bare-touch contract). With one, the file's content must name this session
-    — so an unrelated descendant that ran a session-ending `relay` command
-    against a *different* ticket (e.g. a test fixture in a tempdir that
-    inherited our `RELAY_DONE_SENTINEL`) is ignored rather than tearing the
-    session down. A partial/empty read just misses this poll; the next one
-    (≤`_SENTINEL_POLL_INTERVAL` later) sees the complete write.
+    With no `session_id` the supervisor accepts any *non-empty* file (the
+    legacy bare-touch contract, hardened): `emit_done_marker` always writes
+    at least `"done\n"`, so a zero-byte file is necessarily a partial write
+    rather than a finished signal and must not tear the session down. With a
+    `session_id` the file's content must name this session — so an unrelated
+    descendant that ran a session-ending `relay` command against a *different*
+    ticket (e.g. a test fixture in a tempdir that inherited our
+    `RELAY_DONE_SENTINEL`) is ignored. Either way a partial/empty read just
+    misses this poll; the next one (≤`_SENTINEL_POLL_INTERVAL` later) sees the
+    complete write.
     """
     if not os.path.exists(path):
         return False
-    if session_id is None:
-        return True
     try:
         with open(path) as f:
-            return f.read().strip() == session_id
+            content = f.read().strip()
     except OSError:
         return False
+    if session_id is None:
+        return bool(content)
+    return content == session_id
 
 
 def run_with_done_marker(
@@ -313,8 +320,10 @@ def emit_done_marker(session_id: str | None = None) -> None:
     sentinel = os.environ.get(SENTINEL_ENV)
     if sentinel:
         try:
-            with open(sentinel, "w") as f:
-                f.write(f"{session_id or 'done'}\n")
+            # Atomic so the supervisor's poll never observes a half-written
+            # sentinel — the bare-touch path treats any non-empty file as
+            # "done" (see `_sentinel_signals_done`).
+            atomic_write_text(Path(sentinel), f"{session_id or 'done'}\n")
         except OSError:
             pass
     print(DONE_MARKER.decode("ascii"), flush=True)

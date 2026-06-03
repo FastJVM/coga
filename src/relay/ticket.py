@@ -9,6 +9,8 @@ from typing import Any
 
 import yaml
 
+from relay.atomicio import atomic_write_text
+
 
 class TicketError(Exception):
     """Raised on malformed ticket files."""
@@ -94,7 +96,9 @@ class Ticket:
         return cls.parse(path.read_text())
 
     def write(self, path: Path) -> None:
-        path.write_text(self.render())
+        # Atomic so a crash mid-write can't leave a truncated ticket.md for the
+        # next `relay validate` to trip on (see relay.atomicio).
+        atomic_write_text(path, self.render())
 
     # --- helpers ---------------------------------------------------------------
 
