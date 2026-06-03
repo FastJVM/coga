@@ -203,5 +203,60 @@ urgent events (panic/slack/launch_script) bypass the spool.
 - **Spool not git-synced per-event** (deliberate; matches "don't rely on git").
 - Sibling tickets untouched: notification-module rename, rewrite-slack-messages,
   document-the-blackboard-producer-consumer-pattern.
-</content>
-</invoke>
+
+## Self-QA (claude, 2026-06-03)
+
+Ran `/code-review` (high) and `/simplify` against `daily-digest-slack` vs main.
+Applied fixes committed in `3b5be2c` on the branch. Also removed two stray
+`</content>`/`</invoke>` lines that had corrupted the end of this blackboard.
+
+### Fixes applied (correctness — from /code-review)
+
+1. **Spool data-loss on post failure** (`commands/digest.py`). `run_digest`
+   drained the spool *before* posting, so a transient webhook failure (which
+   `post` turns into a crash-loud `typer.Exit`) destroyed the whole day's
+   records with no way to recover. Reordered to **post → then drain**: records
+   clear only after a successful post; a failed post leaves them for the next
+   run. Single-process serialization means nothing spooled mid-run is lost.
+   Updated the module + function docstrings to match.
+2. **UnicodeEncodeError under a bare locale** (`spool.py` + `atomicio.py`).
+   Spool `detail` strings carry non-ASCII (`→`, `✅`, `🔁`, `⚠️`). `atomic_write_text`
+   opened the temp file with the platform-default encoding and `spool` read with
+   `read_text()` (locale too), so a digest fired from a `LANG=C` cron env — the
+   intended trigger host — would crash encoding the arrow/emoji. Pinned
+   `encoding="utf-8"` on the atomic write and the three spool reads. Fixed at the
+   shared-writer altitude; strictly safer (utf-8 is byte-identical for ASCII).
+3. **Owner ordering contradicted its own comment** (`slack.py::_render_people`).
+   Comment said "preserving first-seen order" but the code re-sorted owners
+   alphabetically, breaking the documented chronological-replay intent and the
+   ticket's example (@nick before @alice). Changed to a stable sort that only
+   pushes the ownerless bucket last, keeping first-seen order.
+
+### Fixes applied (cleanup — from /simplify)
+
+4. **Empty-spool messaging was split + double-printed** (`commands/digest.py`).
+   `digest()` re-derived an "empty" note that `run_digest` could also print, so
+   the not-installed case emitted two lines. Folded all empty/no-op messaging
+   into `run_digest`; `digest()` now just loads config and calls it.
+
+### Reviewed and deliberately NOT changed (left for the human reviewer)
+
+- **`test_packaging::test_wheel_includes_bootstrap_batteries` fails in this
+  linked worktree** — proven NOT a regression. The branch leaves `pyproject.toml`
+  and `skills/_template` byte-identical to main; stashing my edits still fails;
+  and a pristine `git archive` of *main itself* fails identically, while the real
+  primary checkout passes. The pass depends on relay-init'd template artifacts in
+  a real checkout that hatchling's file walk keys off — it can't be exercised
+  faithfully from a worktree. **Rest of suite: 541 passed** in the worktree;
+  `relay validate --json` clean (66 ok, only pre-existing unrelated-draft warns).
+- **Reuse: spool vs `blackboard.append_to_section`** — skipped. The existing
+  helper is append-only and non-atomic (`write_text`, `---` separators); the
+  spool needs atomic writes + a *drain*. Generalizing the pattern is explicitly
+  the sibling ticket's job.
+- **Batched events lose milestone GIFs / ticket titles / recurring-error bullet
+  detail; automerge-on-merge surfaces up to ~a day later** — these are the
+  intended consequences of batching (compact records, one daily post), per the
+  ticket's own scope decisions. Flagged here so the PR reviewer can confirm the
+  tradeoffs are acceptable rather than fix them silently.
+- **`_cc_trailer` mildly duplicates `post()`'s inline cc; per-call
+  `digest_spool_path` stat** — out-of-diff / negligible; left alone.
