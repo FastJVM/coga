@@ -12,6 +12,7 @@ from relay.repl_supervisor import (
     DONE_MARKER,
     SENTINEL_ENV,
     _classify_exit,
+    _sentinel_signals_done,
     emit_done_marker,
     run_with_done_marker,
 )
@@ -113,7 +114,7 @@ def test_natural_exit_passes_through_exit_code(
 def test_sentinel_file_terminates_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Child that touches $RELAY_DONE_SENTINEL → supervisor SIGTERMs it.
+    """Child that writes $RELAY_DONE_SENTINEL → supervisor SIGTERMs it.
 
     This is the channel that survives TUI agents (Claude Code, Codex) which
     capture bash subprocess stdout into a private pipe rather than echoing it
@@ -122,7 +123,7 @@ def test_sentinel_file_terminates_child(
     """
     code = _run_through_pty(
         monkeypatch,
-        ["bash", "-c", f'touch "${SENTINEL_ENV}"; sleep 30'],
+        ["bash", "-c", f'printf done > "${SENTINEL_ENV}"; sleep 30'],
     )
     assert code == 0
 
@@ -177,6 +178,27 @@ def test_emit_done_marker_writes_sentinel(
     assert sentinel.exists()
     # Fallback PTY marker still printed.
     assert DONE_MARKER.decode() in capsys.readouterr().out
+
+
+def test_bare_touch_ignores_empty_sentinel(tmp_path) -> None:
+    """Hardened legacy path: a zero-byte sentinel (a partial write) must NOT
+    read as done, even without a session_id — that was the teardown footgun."""
+    sentinel = tmp_path / "done"
+    sentinel.write_text("")
+    assert _sentinel_signals_done(str(sentinel), None) is False
+
+
+def test_bare_touch_accepts_nonempty_sentinel(tmp_path) -> None:
+    """Legacy contract preserved: any non-empty content ends the session when
+    no session_id scopes the channel."""
+    sentinel = tmp_path / "done"
+    sentinel.write_text("done\n")
+    assert _sentinel_signals_done(str(sentinel), None) is True
+
+
+def test_sentinel_missing_is_not_done(tmp_path) -> None:
+    assert _sentinel_signals_done(str(tmp_path / "absent"), None) is False
+    assert _sentinel_signals_done(str(tmp_path / "absent"), "/repo/x") is False
 
 
 def test_emit_done_marker_no_env_is_harmless(
