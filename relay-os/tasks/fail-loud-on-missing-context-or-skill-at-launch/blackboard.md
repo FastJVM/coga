@@ -91,6 +91,7 @@ Tests (`tests/test_compose.py`, `tests/test_launch.py`):
 
 branch: fail-loud-compose
 worktree: ../relay-fail-loud-compose
+pr: https://github.com/FastJVM/relay/pull/269
 
 ## Peer review (codex)
 
