@@ -18,6 +18,14 @@ steps:
     assignee: owner
 ---
 
+## pr
+
+Follow the `code/open-pr` skill to push and open the PR. In addition to
+the blackboard `## Dev` entry, **update the ticket**: write the PR link
+into `ticket.md` so the source of truth records where the change landed.
+Add a `## PR` section to the ticket body (or update it if present) with
+the PR URL before you `relay bump`.
+
 ## review
 
 Human reviews the open PR on GitHub. Edit, request changes, push fixes,
