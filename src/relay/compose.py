@@ -11,6 +11,7 @@ from pathlib import Path
 
 from relay.config import Config
 from relay.paths import (
+    context_resolution_paths,
     repo_context_path,
     resolve_context_path,
     resolve_skill_path,
@@ -22,6 +23,17 @@ from relay.repl_supervisor import DONE_MARKER
 from relay.tasks import TargetRef
 from relay.ticket import Ticket
 from relay.workflow import Workflow
+
+
+class ComposeError(RuntimeError):
+    """A referenced context or skill could not be resolved at compose time.
+
+    Raised rather than silently dropping the layer: a missing context/skill
+    means the launched agent would run without knowledge the human expected
+    it to have, producing confidently wrong output. `relay launch` catches
+    this and refuses to start the task. `relay validate` catches the same
+    condition statically.
+    """
 
 
 _SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
@@ -189,14 +201,20 @@ def compose_prompt_report(
     # 5. ticket-attached contexts
     for ref in ticket.contexts:
         cp = resolve_context_path(cfg, ref)
-        if cp is not None:
-            layers.append(PromptLayer(
-                "ticket_context",
-                f"Context — {ref}",
-                cp.read_text(),
-                ref=ref,
-                path=str(cp),
-            ))
+        if cp is None:
+            checked = _checked_context_paths(cfg, ref)
+            raise ComposeError(
+                f"Task {task_ref.id_slug!r} references context {ref!r}, but no "
+                f"context file exists for it. Checked: {checked}. Create one of "
+                f"those files or remove {ref!r} from the ticket's `contexts:` list."
+            )
+        layers.append(PromptLayer(
+            "ticket_context",
+            f"Context — {ref}",
+            cp.read_text(),
+            ref=ref,
+            path=str(cp),
+        ))
 
     # 6. inline `## Context` from ticket body
     inline_ctx = _extract_section(ticket.body, "Context")
@@ -211,8 +229,8 @@ def compose_prompt_report(
 
     # 7. ticket-level skills + current workflow step
     for skill_ref in ticket.skills:
-        layers.extend(_skill_layers(cfg, skill_ref))
-    layers.extend(_step_layers(cfg, ticket))
+        layers.extend(_skill_layers(cfg, skill_ref, slug=task_ref.id_slug))
+    layers.extend(_step_layers(cfg, ticket, slug=task_ref.id_slug))
 
     # 8. blackboard
     bb = task_ref.path / "blackboard.md"
@@ -276,27 +294,20 @@ def _extract_section(body: str, heading: str) -> str:
     return ""
 
 
-def _skill_layers(cfg: Config, skill_ref: str) -> list[PromptLayer]:
+def _skill_layers(cfg: Config, skill_ref: str, *, slug: str) -> list[PromptLayer]:
     sp = resolve_skill_path(cfg, skill_ref)
-    if sp is not None:
-        return [PromptLayer(
-            "top_level_skill",
-            f"Skill: {skill_ref}",
-            sp.read_text(),
-            ref=skill_ref,
-            path=str(sp),
-        )]
-    checked = _checked_skill_paths(cfg, skill_ref)
+    if sp is None:
+        raise ComposeError(_missing_skill_message(cfg, skill_ref, slug))
     return [PromptLayer(
         "top_level_skill",
         f"Skill: {skill_ref}",
-        f"*Skill file not found. Checked: {checked}.*",
+        sp.read_text(),
         ref=skill_ref,
-        path=checked,
+        path=str(sp),
     )]
 
 
-def _step_layers(cfg: Config, ticket: Ticket) -> list[PromptLayer]:
+def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]:
     current = ticket.current_step()
     if not current:
         return []
@@ -308,23 +319,15 @@ def _step_layers(cfg: Config, ticket: Ticket) -> list[PromptLayer]:
         out: list[PromptLayer] = []
         for skill_ref in skill_refs:
             sp = resolve_skill_path(cfg, skill_ref)
-            if sp is not None:
-                out.append(PromptLayer(
-                    "workflow_skill",
-                    f"Current step: {name} (skill: {skill_ref})",
-                    sp.read_text(),
-                    ref=skill_ref,
-                    path=str(sp),
-                ))
-            else:
-                checked = _checked_skill_paths(cfg, skill_ref)
-                out.append(PromptLayer(
-                    "workflow_skill",
-                    f"Current step: {name} (skill: {skill_ref})",
-                    f"*Skill file not found. Checked: {checked}.*",
-                    ref=skill_ref,
-                    path=checked,
-                ))
+            if sp is None:
+                raise ComposeError(_missing_skill_message(cfg, skill_ref, slug))
+            out.append(PromptLayer(
+                "workflow_skill",
+                f"Current step: {name} (skill: {skill_ref})",
+                sp.read_text(),
+                ref=skill_ref,
+                path=str(sp),
+            ))
         return out
 
     # Inline: load workflow, pull the matching heading
@@ -364,7 +367,21 @@ def _checked_skill_paths(cfg: Config, skill_ref: str) -> str:
     return ", ".join(str(path) for path in skill_resolution_paths(cfg, skill_ref))
 
 
+def _checked_context_paths(cfg: Config, ref: str) -> str:
+    return ", ".join(str(path) for path in context_resolution_paths(cfg, ref))
+
+
+def _missing_skill_message(cfg: Config, skill_ref: str, slug: str) -> str:
+    checked = _checked_skill_paths(cfg, skill_ref)
+    return (
+        f"Task {slug!r} references skill {skill_ref!r}, but no skill file exists "
+        f"for it. Checked: {checked}. Create one of those files or remove "
+        f"{skill_ref!r} from the workflow step / ticket `skills:` list."
+    )
+
+
 __all__ = [
+    "ComposeError",
     "PromptComposition",
     "PromptLayer",
     "compose_prompt",

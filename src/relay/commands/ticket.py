@@ -19,7 +19,7 @@ from relay.commands.launch import (
     _interactive_stdio_has_tty,
     build_agent_command,
 )
-from relay.compose import compose_prompt, write_prompt_file
+from relay.compose import ComposeError, compose_prompt, write_prompt_file
 from relay.config import Config, ConfigError, load_config
 from relay.logfile import append_log
 from relay.tasks import (
@@ -151,7 +151,10 @@ def _run_authoring_session(
     typer.echo(
         f"Ticket: authoring {ref.id_slug} with {launch_assignee} -> {agent.name}"
     )
-    prompt = compose_prompt(cfg, ref, ticket)
+    try:
+        prompt = compose_prompt(cfg, ref, ticket)
+    except ComposeError as exc:
+        _bail(str(exc))
     prompt_file = write_prompt_file(prompt, ref)
     cmd = build_agent_command(agent, "interactive", prompt, discussion=True)
     typer.echo(
