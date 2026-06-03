@@ -220,7 +220,33 @@ def test_bump_supervised_prints_handoff_hint_when_assignee_changes(repo: Path) -
     result = runner.invoke(app, ["bump", slug], env={"RELAY_SUPERVISED": "1"})
     assert result.exit_code == 0, result.output
     assert "Supervised launch" in result.output
-    assert "handoff" in result.output
+    # owner is a human, not a configured agent → the supervisor stops.
+    assert "will stop and return to the caller" in result.output
+
+
+def test_bump_supervised_prints_chain_hint_on_agent_rotation(repo: Path) -> None:
+    # Regression: bumping from a claude step into an `other-agent` (codex) step
+    # is an assignee *change*, but the supervisor chains across agent rotations
+    # — so the hint must announce the relaunch, not a stop. The old
+    # `new_assignee is None` logic wrongly printed the handoff/"will stop" hint.
+    _add_codex_agent(repo)
+    _write_peer_review_workflow(repo)
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="W", workflow_name="peer",
+        contexts=[], mode="interactive",
+        owner="marc", assignee="claude",
+        human="marc", agent="claude",
+        watchers=[], status="in_progress",
+    )
+    slug = ref["slug"]
+    runner = CliRunner()
+    result = runner.invoke(app, ["bump", slug], env={"RELAY_SUPERVISED": "1"})
+    assert result.exit_code == 0, result.output
+    assert "Supervised launch" in result.output
+    # claude → codex is a rotation between two configured agents → chains.
+    assert "spawn a fresh agent session" in result.output
+    assert "will stop and return to the caller" not in result.output
 
 
 def test_bump_supervised_prints_chain_hint_when_assignee_unchanged(repo: Path) -> None:

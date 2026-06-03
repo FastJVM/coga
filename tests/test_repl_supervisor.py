@@ -11,6 +11,7 @@ import pytest
 from relay.repl_supervisor import (
     DONE_MARKER,
     SENTINEL_ENV,
+    _TTY_SANITIZE,
     _classify_exit,
     _sentinel_signals_done,
     emit_done_marker,
@@ -156,6 +157,60 @@ def test_session_id_mismatch_is_ignored(
         session_id="/repo/tasks/mine",
     )
     assert code == 5
+
+
+def _run_through_pty_capture(
+    monkeypatch: pytest.MonkeyPatch,
+    cmd: list[str],
+    *,
+    session_id: str | None = None,
+) -> tuple[int, bytes]:
+    """Force the PTY path with a pipe for output so we can inspect what the
+    watcher wrote to the terminal. Returns (exit_code, captured_output)."""
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    read_fd, write_fd = os.pipe()
+    devnull_in = os.open(os.devnull, os.O_RDONLY)
+    try:
+        code = run_with_done_marker(
+            cmd,
+            env={"PATH": os.environ.get("PATH", "")},
+            session_id=session_id,
+            output_fd=write_fd,
+            input_fd=devnull_in,
+        )
+    finally:
+        os.close(write_fd)  # EOF-bound the read below
+        captured = os.read(read_fd, 1 << 16)
+        os.close(read_fd)
+        os.close(devnull_in)
+    return code, captured
+
+
+def test_tty_sanitize_emitted_after_signal_teardown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A signal-killed TUI never restores its own terminal modes, so the
+    watcher must emit the sanitizing reset itself — otherwise the keyboard is
+    left "dead" (alt-screen / mouse / bracketed-paste still on) and the session
+    reads as hung even though the bump already succeeded."""
+    code, out = _run_through_pty_capture(
+        monkeypatch,
+        ["bash", "-c", f'printf "/repo/tasks/mine" > "${SENTINEL_ENV}"; sleep 30'],
+        session_id="/repo/tasks/mine",
+    )
+    assert code == 0
+    assert _TTY_SANITIZE in out
+
+
+def test_tty_sanitize_skipped_on_self_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child that exits on its own runs its own terminal cleanup, so the
+    watcher must NOT inject the reset — doing so would clobber the modes a
+    still-running parent UI legitimately set."""
+    code, out = _run_through_pty_capture(monkeypatch, ["bash", "-c", "exit 0"])
+    assert code == 0
+    assert _TTY_SANITIZE not in out
 
 
 def test_emit_done_marker_writes_session_id_content(

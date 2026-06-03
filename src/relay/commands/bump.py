@@ -154,6 +154,11 @@ def bump(
         finisher = ticket.assignee or cfg.current_user
         verb = "advanced"
 
+    # The assignee the supervisor will see after this bump: the freshly
+    # resolved one if the step changed it, else the unchanged current assignee.
+    # Captured before `advance_step` so it can't be perturbed by the write.
+    next_assignee = new_assignee if new_assignee is not None else ticket.assignee
+
     try:
         advance_step(
             cfg, ref, ticket,
@@ -177,15 +182,24 @@ def bump(
     # human what happens next so a long-running interactive session isn't
     # surprising.
     if os.environ.get("RELAY_SUPERVISED"):
-        will_chain = new_assignee is None
+        # Mirror `_harness_stop_reason` (launch.py): the supervisor chains
+        # whenever the next step's assignee is a configured agent — including an
+        # agent *rotation* (e.g. claude -> codex for peer review) — and only
+        # returns control to the caller when the next step hands off to a human
+        # (an assignee that is not a configured agent type) or is unassigned.
+        # The old `new_assignee is None` check wrongly framed every rotation as
+        # a stop, so a claude -> codex bump printed "will stop" while the
+        # supervisor actually chained.
+        will_chain = bool(next_assignee) and next_assignee in cfg.agents
         if will_chain:
             hint = (
                 "Supervised launch: step done. relay launch will spawn "
                 "a fresh agent session for the next step."
             )
         else:
+            who = next_assignee or "an unassigned step"
             hint = (
-                "Supervised launch: step done. Next step is a handoff "
+                f"Supervised launch: step done. Next step hands off to {who} "
                 "— relay launch will stop and return to the caller."
             )
         typer.secho(hint, fg=typer.colors.CYAN)

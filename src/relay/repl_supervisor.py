@@ -56,6 +56,25 @@ _KILL_GRACE_SECONDS = 2.0
 # stat) and bounds the worst-case autoquit latency to this interval.
 _SENTINEL_POLL_INTERVAL = 0.25
 
+# Terminal-sanitizing reset, emitted to the real terminal only when *we* tore
+# the child down with a signal. A SIGTERM/SIGKILL'd TUI (Claude Code, Codex)
+# never reaches its own atexit cleanup, so any output-side DEC private modes it
+# enabled stay on after it dies. The `termios` restore below fixes line
+# discipline (raw->cooked) but not these — left on, they make the keyboard look
+# dead: input echoes to the wrong screen, arrow keys garble, pastes get
+# wrapped, and the session reads as "hung" when the bump already succeeded. We
+# undo the usual culprits (not a full `reset`, which would also clear
+# scrollback the human may still want):
+#   ?2004l bracketed paste     ?25h show cursor        ?1l normal cursor keys
+#   >      normal keypad        ?1049l leave alt-screen ?1004l focus reporting
+#   ?1000/1002/1003/1006/1015 l  mouse tracking (all encodings) off
+# A child that exits on its own runs its own cleanup, so we skip this for it.
+_TTY_SANITIZE = (
+    b"\x1b[?2004l\x1b[?25h\x1b[?1l\x1b>"
+    b"\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l"
+    b"\x1b[?1004l\x1b[?1049l"
+)
+
 
 def _sentinel_signals_done(path: str, session_id: str | None) -> bool:
     """True when the sentinel file says *this* session is done.
@@ -238,6 +257,14 @@ def run_with_done_marker(
                 termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_attrs)
             except termios.error:
                 pass
+        # A child we signalled never ran its own terminal cleanup, so undo the
+        # output-side DEC private modes it may have left enabled (see
+        # `_TTY_SANITIZE`) — otherwise the shell underneath looks hung.
+        if sent_term:
+            try:
+                os.write(out_fd, _TTY_SANITIZE)
+            except OSError:
+                pass
         signal.signal(signal.SIGWINCH, prev_winch)
         try:
             os.unlink(sentinel_path)
@@ -329,4 +356,10 @@ def emit_done_marker(session_id: str | None = None) -> None:
     print(DONE_MARKER.decode("ascii"), flush=True)
 
 
-__all__ = ["DONE_MARKER", "SENTINEL_ENV", "emit_done_marker", "run_with_done_marker"]
+__all__ = [
+    "DONE_MARKER",
+    "SENTINEL_ENV",
+    "_TTY_SANITIZE",
+    "emit_done_marker",
+    "run_with_done_marker",
+]
