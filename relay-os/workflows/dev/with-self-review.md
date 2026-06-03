@@ -18,6 +18,23 @@ steps:
     assignee: owner
 ---
 
+## pr
+
+Follow the `code/open-pr` skill to push and open the PR. In addition to
+the blackboard `## Dev` entry, **update the ticket**: write the PR link
+into `ticket.md` so the source of truth records where the change landed.
+Add a `## PR` section to the ticket body (or update it if present) with
+the PR URL before you `relay bump`.
+
+After the PR is open, **resolve any merge conflicts with the base branch
+before the handoff**: check that the PR is mergeable (e.g. `gh pr view
+<PR#> --json mergeable,mergeStateStatus`), and if it conflicts with
+`main`, merge/rebase `main` into the feature branch, resolve the
+conflicts, re-run `python -m pytest`, and push so the human reviewer
+receives a clean, mergeable PR. Only then `relay bump` to hand off to the
+owner. If a conflict needs a judgment call you can't make, write it to
+the blackboard and `relay panic` instead of bumping.
+
 ## review
 
 Human reviews the open PR on GitHub. Edit, request changes, push fixes,
