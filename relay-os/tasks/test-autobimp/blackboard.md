@@ -1,5 +1,24 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+branch: autobimp-smoke
+worktree: /home/n/Code/relay-autobimp-smoke
+pr: (pending — opened in the `pr` step)
+
+## Implement step (done)
+
+Added `tests/test_autobimp_smoke.py` — three deterministic `slugify`
+assertions not already covered by `test_primitives.py`:
+- empty string → `"task"` fallback
+- separator-run collapsing (`"Hello,   World!!!"` → `"hello-world"`)
+- surrounding-whitespace trimming
+
+No source change. Chose `slugify` because it's a pure, env-independent
+function — nothing timing/CI-flaky to muddy the relaunch signal.
+Verified in the worktree: new test 3 passed; full suite 517 passed,
+1 skipped. Committed on `autobimp-smoke` (56140e6), worktree clean.
+No push / no PR yet — that's the `pr` step. Bumping → `self-qa`.
+
 ## Bootstrap notes
 
 Synthetic test ticket. Purpose: confirm `relay launch`'s auto-relaunch
