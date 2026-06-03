@@ -5,6 +5,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - branch: `atomic-state-writes`
 - worktree: `../relay-atomic-state-writes` (based on `main`, which already carries this
   ticket's active/in_progress commits)
+- pr: https://github.com/FastJVM/relay/pull/273
+- CI: no checks configured on this repo (`gh pr checks` reports none) — no green/red gate.
+  Local suite green: 528 passed, 1 skipped.
 - Note: main checkout has unrelated uncommitted `_TTY_SANITIZE` work in
   `repl_supervisor.py` + its test — left untouched; branching from main isolates this fix.
 
@@ -45,6 +48,28 @@ default `python3` is 3.9 and lacks `tomllib`.
 
 Note for reviewer: this branch is based on `main`; the unrelated `_TTY_SANITIZE` work sitting
 uncommitted in the primary checkout is NOT included here.
+
+## Peer review (codex)
+
+Reviewed branch `atomic-state-writes` against `main` with `codex review --base main`.
+Codex found two must-fix regressions:
+
+- `atomic_write_text` used `mkstemp`'s default `0600` mode, so replacing an
+  existing markdown state file would drop group/world readability. Fixed by
+  applying the existing target mode to the temp file, or the normal
+  `0666 & ~umask` mode for new files, before `os.replace`.
+- `test_sentinel_file_terminates_child` still used a zero-byte `touch`, so the
+  hardened sentinel predicate ignored it and the test waited through the
+  fallback `sleep 30`. Fixed the integration command to write a non-empty
+  sentinel so it still exercises watcher teardown.
+
+Added regression tests for existing-mode preservation and new-file umask
+behavior. Verification:
+
+- `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest tests/test_atomicio.py tests/test_repl_supervisor.py`
+  → 21 passed.
+- `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest`
+  → 528 passed, 1 skipped.
 
 ## Bootstrap decisions
 
