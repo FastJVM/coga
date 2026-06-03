@@ -9,7 +9,13 @@ import typer
 
 from relay import git
 from relay.config import ConfigError, load_config
-from relay.recurring import DueScan, RecurringError, scaffold_named, scan_due
+from relay.recurring import (
+    DueScan,
+    RecurringError,
+    scaffold_named,
+    scan_debug,
+    scan_due,
+)
 from relay.slack import notify
 from relay.tasks import TaskRef, read_ticket
 
@@ -30,6 +36,14 @@ def main(
         "ones whose ticket says `mode: auto`. For debugging; ticket files "
         "are not modified.",
     ),
+    all_: bool = typer.Option(
+        False,
+        "--all",
+        help="Debug: ignore the schedule and status filter — scaffold a fresh "
+        "throwaway run of EVERY template and launch them all, regardless of "
+        "whether this period already ran. Real period tasks are left "
+        "untouched; the debug runs are yours to `relay delete` afterward.",
+    ),
 ) -> None:
     """Scan every recurring template and launch any due tasks, sequentially.
 
@@ -39,6 +53,11 @@ def main(
     Current period only: running this once a month for a weekly template
     produces one run, not a backlog. It does not install or manage system
     cron; nothing runs unless you invoke it.
+
+    `--all` is the debug escape hatch: it scaffolds a fresh, isolated
+    throwaway run of every template and launches them all, bypassing both the
+    schedule and the "already ran this period" skip. Use it to exercise the
+    launch path without waiting for a schedule or disturbing real period state.
 
     `relay recurring launch <name>` force-runs one named template now.
     """
@@ -50,6 +69,10 @@ def main(
     except ConfigError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
+
+    if all_:
+        _launch_all_debug(cfg)
+        return
 
     scan = scan_due(cfg)
     _broadcast_scan(cfg, scan)
@@ -80,6 +103,54 @@ def main(
             mode_override=mode_override,
         )
         _stop_if_unfinished_after_launch(task.ref, interactive=interactive)
+
+
+def _launch_all_debug(cfg) -> None:
+    """Scaffold and launch a fresh throwaway run of every template (`--all`).
+
+    Debug-only. Unlike the bare sweep this does not broadcast to Slack or
+    commit task state — the runs are disposable scratch tasks, not real
+    recurring work — and it never bails on an unfinished run (the human is
+    driving). Script templates run as scripts; everything else launches
+    interactively so there is a live console to watch.
+    """
+    scan = scan_debug(cfg)
+    _print_table(scan)
+    for name, msg in scan.errors:
+        typer.secho(f"  skipped {name}: {msg}", fg=typer.colors.YELLOW, err=True)
+
+    runs = scan.tasks
+    if not runs:
+        typer.echo("No recurring templates to launch.")
+        return
+
+    for task in runs:
+        typer.echo(f"Created {task.ref.id_slug} (debug)")
+
+    typer.echo(f"\nLaunching {len(runs)} debug run(s) sequentially...\n")
+    from relay.commands.launch import launch as launch_cmd
+
+    for i, task in enumerate(runs, 1):
+        typer.secho(
+            f"[{i}/{len(runs)}] {task.ref.id_slug}", fg=typer.colors.CYAN, bold=True
+        )
+        ticket = read_ticket(task.ref)
+        # Force interactive so there's a live console — except script tickets,
+        # which compose no agent prompt and reject a mode override.
+        mode_override = None if ticket.mode == "script" else "interactive"
+        launch_cmd(
+            task.ref.slug,
+            agent_override=None,
+            prompt_report=False,
+            no_verify=False,
+            mode_override=mode_override,
+        )
+
+    slugs = " ".join(t.ref.slug for t in runs)
+    typer.secho(
+        f"\nDebug runs left on disk. Clean up with: relay delete {slugs}",
+        fg=typer.colors.BRIGHT_BLACK,
+    )
 
 
 @app.command("launch")

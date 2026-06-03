@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from relay.cli import app
 from relay.config import load_config
-from relay.recurring import scaffold_named, scan_due
+from relay.recurring import scaffold_named, scan_debug, scan_due
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
 
@@ -488,6 +488,68 @@ def test_recurring_launch_and_scan_converge(dream_repo: Path) -> None:
     assert [t.created for t in scan.tasks] == [False]
     assert scan.errors == []
     assert len(list_tasks(cfg)) == 1
+
+
+# --- relay recurring --all (debug) --------------------------------------------
+
+
+def test_scan_debug_scaffolds_fresh_isolated_run(repo: Path) -> None:
+    """`--all` scaffolds a throwaway run per template, even when the real
+    current-period task already exists and is past `active`."""
+    cfg = load_config(repo)
+    now = datetime(2026, 4, 22, 10, 0, 0)
+
+    # The real current-period task exists and has moved past `active`, so the
+    # normal sweep would skip it.
+    period = scan_due(cfg, now=now)
+    period_slug = period.tasks[0].ref.slug
+    ticket_path = period.tasks[0].ref.path / "ticket.md"
+    t = Ticket.read(ticket_path)
+    t.frontmatter["status"] = "done"
+    ticket_path.write_text(t.render())
+    assert scan_due(cfg, now=now).due == []  # nothing launchable normally
+
+    debug = scan_debug(cfg, now=now)
+    assert debug.errors == []
+    assert len(debug.tasks) == 1
+    run = debug.tasks[0]
+    # Fresh, isolated slug — never the real period slug.
+    assert run.ref.slug != period_slug
+    assert "-dbg-" in run.ref.slug
+    assert run.launchable is True  # scaffolds straight to `active`
+    assert Ticket.read(run.ref.path / "ticket.md").title.startswith("[debug]")
+
+    # Real period task untouched, two task dirs now on disk.
+    assert Ticket.read(ticket_path).status == "done"
+    assert len(list_tasks(cfg)) == 2
+
+
+def test_scan_debug_does_not_pollute_period_ledger(repo: Path) -> None:
+    """A debug run must not be recorded in the template's period ledger —
+    otherwise the next real scan would think the period already ran."""
+    cfg = load_config(repo)
+    now = datetime(2026, 4, 22, 10, 0, 0)
+    scan_debug(cfg, now=now)
+    ledger = repo / "recurring" / "weekly-check" / "blackboard.md"
+    if ledger.is_file():
+        assert "-dbg-" not in ledger.read_text()
+
+
+def test_recurring_all_launches_every_template(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    launched: list[str] = []
+    monkeypatch.setattr(
+        "relay.commands.launch.launch",
+        lambda slug, **k: launched.append(slug),
+    )
+    monkeypatch.chdir(repo)
+    result = CliRunner().invoke(app, ["recurring", "--all"])
+
+    assert result.exit_code == 0, result.output
+    assert len(launched) == 1
+    assert "-dbg-" in launched[0]
+    assert "relay delete" in result.output  # cleanup hint
 
 
 def test_recurring_launch_unknown_template_fails(dream_repo: Path) -> None:

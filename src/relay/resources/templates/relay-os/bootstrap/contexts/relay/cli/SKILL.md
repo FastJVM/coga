@@ -356,6 +356,18 @@ for that run, even ones whose template says `mode: auto` — the debug knob
 for stepping through a recurring run by hand. It threads `relay launch
 --mode interactive` through and rewrites no ticket files.
 
+`relay recurring --all` is the heavier debug escape hatch: it bypasses both
+the schedule and the status filter. For every template it scaffolds a *fresh,
+isolated* throwaway run under a `<template>-dbg-<timestamp>` slug and launches
+them all sequentially — regardless of whether this period's real task already
+exists or has run. The real period tasks are left untouched (the debug runs
+have their own slugs and are not recorded in the period ledger), and the runs
+launch interactively (script templates run as scripts) so there is a live
+console to watch. Debug runs are disposable scratch tasks — they don't post to
+Slack or commit task state — and the command prints the `relay delete` line to
+clean them up afterward. Use it to exercise the launch path without waiting for
+a schedule or disturbing real recurring state.
+
 **`mode: auto` templates are temporarily skipped** with a stderr line and
 a Slack scan-error summary. The auto-launch path produces no live console
 output, so scheduled runs would sit silently. Templates should use
@@ -414,6 +426,8 @@ only; they don't accept their own flags.
   `launch bootstrap/orient`).
 - Running Relay cleanup now → `relay dream`.
 - Launching every due recurring task → `relay recurring`.
+- Debug-launching every template now, isolated from real state →
+  `relay recurring --all`.
 - Launching one named recurring task now → `relay recurring launch <name>`.
 - Starting or resuming agent work on a task → `relay launch <slug>`.
 - Other bootstrap shim → `relay launch bootstrap/<name>`.
