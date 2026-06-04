@@ -406,7 +406,10 @@ def _scaffold_at_slug(
         # workflow-less tickets.
         status="active",
         slug_override=target_slug,
-        description=_extract_description(template),
+        # Carry the template body verbatim so sections beyond `## Description`
+        # (notably `## Script config`, which sets a script step's mode/sync)
+        # reach the period task instead of being dropped at scaffold time.
+        body=template.body,
         created_by="system",
     )
     return ScaffoldOutcome(
@@ -485,17 +488,6 @@ def _period_already_scaffolded(template: Template, target_slug: str) -> bool:
         return False
     needle = f"scaffolded {target_slug}"
     return any(line.rstrip().endswith(needle) for line in bb.read_text().splitlines())
-
-
-def _extract_description(template: Template) -> str:
-    # Mirrors the logic in compose._extract_section but keeps this module standalone.
-    body = template.body
-    m = re.search(r"(?m)^##\s+Description\s*$", body)
-    if not m:
-        return ""
-    after = body[m.end():]
-    next_heading = re.search(r"(?m)^##\s+", after)
-    return (after[:next_heading.start()] if next_heading else after).strip()
 
 
 def _extract_title(template: Template) -> str:

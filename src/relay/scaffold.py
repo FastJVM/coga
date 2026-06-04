@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from relay.blackboard import render_blackboard
@@ -36,9 +37,18 @@ def scaffold_task(
     skills: list[str] | None = None,
     slug_override: str | None = None,
     description: str | None = None,
+    body: str | None = None,
     created_by: str = "human",
 ) -> dict[str, Any]:
-    """Create a task directory. Returns dict with {slug, path}."""
+    """Create a task directory. Returns dict with {slug, path}.
+
+    Pass `description` for the common case — the body is built as the canonical
+    `## Description` / `## Context` skeleton. Pass `body` instead to write a
+    full ticket body verbatim (recurring scaffolding does this so template
+    sections like `## Script config` survive); a `## Context` section is
+    appended when the verbatim body lacks one. `body` takes precedence over
+    `description`.
+    """
     from relay.validate import format_task_issues, validate_task_dir
 
     owner = owner or cfg.current_user
@@ -139,9 +149,19 @@ def scaffold_task(
     for field_name, spec in cfg.ticket_fields.items():
         fm[field_name] = spec.default
 
-    desc_body = (description or "").strip()
-    body = f"## Description\n\n{desc_body}\n\n## Context\n\n"
-    Ticket(frontmatter=fm, body=body).write(task_dir / "ticket.md")
+    if body is not None:
+        # Recurring scaffolding passes the template body verbatim so sections
+        # beyond `## Description` survive into the period task — notably
+        # `## Script config`, which drives a script step's mode/sync. Ensure
+        # the canonical `## Context` section exists so the body shape stays
+        # uniform and compose can read inline task context.
+        ticket_body = body.rstrip() + "\n"
+        if not re.search(r"(?m)^##\s+Context\s*$", ticket_body):
+            ticket_body += "\n## Context\n\n"
+    else:
+        desc_body = (description or "").strip()
+        ticket_body = f"## Description\n\n{desc_body}\n\n## Context\n\n"
+    Ticket(frontmatter=fm, body=ticket_body).write(task_dir / "ticket.md")
 
     (task_dir / "blackboard.md").write_text(render_blackboard(title))
 
