@@ -258,6 +258,16 @@ def test_tty_sanitize_emitted_after_signal_teardown(
     assert _TTY_SANITIZE in out
 
 
+def test_tty_sanitize_clears_keyboard_protocols() -> None:
+    """A leftover keyboard-input protocol turns every keypress into an escape
+    report (e.g. `\x1b[5;1:3u`), so the sanitize payload must disable the kitty
+    keyboard protocol and xterm modifyOtherKeys, not just the DEC private
+    modes. Regression guard for the wedged-keyboard-after-bump bug."""
+    assert b"\x1b[<u" in _TTY_SANITIZE  # kitty protocol: pop stack
+    assert b"\x1b[=0;1u" in _TTY_SANITIZE  # kitty protocol: clear flags
+    assert b"\x1b[>4;0m" in _TTY_SANITIZE  # xterm modifyOtherKeys off
+
+
 def test_tty_sanitize_skipped_on_self_exit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
