@@ -32,9 +32,11 @@ no in-memory state.
   `relay-os/workflows/`. Frozen into a ticket's frontmatter at
   creation — in-flight tickets are unaffected by later workflow edits.
   Each step may declare an `assignee:` role token (`owner` | `human` |
-  `agent`); on bump, the token resolves against the ticket's
-  matching role field and rewrites `assignee:`. Steps without one
-  leave the assignee unchanged.
+  `agent` | `other-agent`); on bump, the token resolves against the ticket's
+  matching role field and rewrites `assignee:`. `other-agent` resolves to the
+  peer agent (it needs two configured `[agents.*]`) and drives peer-review
+  flips (e.g. `code/with-review`) and agent-rotation relaunches. Steps without
+  one leave the assignee unchanged.
 - **Recurring templates** live in `relay-os/recurring/`. `relay recurring`
   scans them, scaffolds the current period's task for each, and launches the
   due ones; the created tasks then use the same ticket, workflow, launch,

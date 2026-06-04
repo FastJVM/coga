@@ -118,3 +118,10 @@ Feature worktree is clean after the peer-review commit.
 
 - PR #251 opened: https://github.com/FastJVM/relay/pull/251 (base `main`, head `bump-backward-step`), links the ticket via `Closes ticket: bump-backward-possible`.
 - CI: repo has no GitHub checks configured (`gh pr checks 251` -> "no checks reported"), so there is nothing to be green; local `pytest` (479 passed, 1 skipped) and `relay validate --json` (exit 0) stand as the verification (see Dev/Peer review above).
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: relay/architecture — add other-agent assignee role token
