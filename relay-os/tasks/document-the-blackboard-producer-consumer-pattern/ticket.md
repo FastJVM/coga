@@ -73,10 +73,14 @@ producer  ──append(record)──▶  recurring/<job>/blackboard.md  ──dr
   payload field can hold arbitrary text (pipes, emoji, arrows) with no
   escaping, and each record stands alone. Still plain text in a visible
   blackboard.
-- **Append and drain are lock-guarded.** Many producers append at once;
-  the consumer holds the lock across read-and-empty so records produced
-  mid-flush are never dropped. (Depends on Relay's file-locking — see
-  `file-locking-for-concurrent-task-mutation`.)
+- **Append and drain rely on single-process serialization, not a lock.**
+  Relay runs one CLI process at a time, so appends and the consumer's
+  read-and-empty never overlap. Writes go through `atomic_write_text` for
+  crash-safety (a reader sees the old or new complete file; a crash can't
+  truncate it) — that is *not* mutual exclusion. Genuinely concurrent
+  producers would need the not-yet-built primitive in
+  `file-locking-for-concurrent-task-mutation`; until it lands, do not
+  document the spool as lock-guarded.
 - **Drain empties the spool section** back to its seed; an empty spool makes
   the consumer a no-op (safe to run twice).
 
@@ -85,36 +89,38 @@ producer  ──append(record)──▶  recurring/<job>/blackboard.md  ──dr
 - **Document the pattern in a context** so it's discoverable: either a
   section in `relay/architecture` (SKILL.md) or a dedicated
   `relay/patterns` context. Cover: when to reach for it, the JSONL +
-  `## Spool (pending)` convention, the lock-guarded append/drain contract,
-  and the recurring-ticket-as-consumer wiring. Mirror to the packaged copy
-  under `src/relay/resources/templates/relay-os/` if the context ships.
-- **(Optional, decide during authoring) extract the primitive.** A small
-  `src/relay/spool.py` with lock-guarded `append_record(blackboard, obj)`
-  and `drain(blackboard) -> list[obj]`, so callers don't hand-roll JSONL +
-  locking. The Slack digest would be its first caller. If this grows beyond
-  a thin helper, keep it in the digest ticket and let this one stay
-  documentation-only.
+  `## Spool (pending)` convention, the serialized (not lock-guarded)
+  append/drain contract, and the recurring-ticket-as-consumer wiring. Mirror
+  to the packaged copy under `src/relay/resources/templates/relay-os/` if the
+  context ships.
+- **The primitive already exists — no extraction needed here.**
+  `src/relay/spool.py` shipped with the Slack digest (#275): `append_record`,
+  `read_records`, `drain` over a `## Spool (pending)` JSONL section via
+  `atomic_write_text`. So this ticket is documentation-only; the doc points at
+  the existing module rather than hand-rolling JSONL + serialization.
 
 ### Related
 
 - `stop-overloading-relay-slack` — the motivating first instance (Slack
   digest); this pattern was abstracted out of its design.
-- `file-locking-for-concurrent-task-mutation` — the locking this pattern
-  depends on for concurrent append / atomic drain.
+- `file-locking-for-concurrent-task-mutation` — the not-yet-built primitive
+  the spool would need *only if* it ever has genuinely concurrent producers;
+  today it relies on single-process serialization instead.
 - `blackboard-for-recurring-task-must-use-the-permant` — the recurring
   consumer must append to / drain the *persistent* blackboard, not a
   per-period copy; this pattern has to land on the same resolution.
 
-### Open questions
+### Open questions (resolved during implement)
 
-- Pattern's home: a section in `relay/architecture` vs a new
-  `relay/patterns` context.
-- Whether to ship the `spool.py` primitive here or leave it to the digest
-  ticket and keep this documentation-only.
+- Pattern's home: **new `relay/patterns` context** (keeps `architecture`
+  lean; gives future patterns a home). A pointer from `relay/architecture`'s
+  "does NOT cover" list makes it discoverable.
+- Ship `spool.py` here? **No — it already exists** (shipped in #275). This
+  ticket stays documentation-only and points at the existing module.
 
 ## Context
 
 Abstracted from the `stop-overloading-relay-slack` digest design. The
 pattern's mechanics lean on `relay/architecture` (blackboard primitive,
-recurring tasks, locking) and `relay/sync` (why we avoid hidden state and
-git-scan reconstruction).
+recurring tasks, single-process serialization) and `relay/sync` (why we
+avoid hidden state and git-scan reconstruction).
