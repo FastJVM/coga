@@ -289,3 +289,5 @@ is not plugged into bootstrap Dream.
 - Where files live in source / how to test (see `relay/codebase`).
 - The "why" / philosophy (see `relay/principles`).
 - Current iteration's open decisions (see `relay/current-direction`).
+- Reusable compositions of these primitives — e.g. the spool, a blackboard
+  used as a producer/consumer queue (see `relay/patterns`).
