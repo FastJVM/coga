@@ -198,6 +198,16 @@ file. Layers, in order:
 The agent gets all of this as one input. There is no follow-up
 loading.
 
+The composer defuses the session-teardown marker before returning the
+assembled prompt. An interactive launch's PTY supervisor tears down the REPL
+when it sees the `DONE_MARKER` byte sequence (emitted on the success path of
+`relay bump` / `mark done` / `panic`). Because any layer above — an injected
+context, a ticket body — could quote that literal sequence verbatim,
+`compose._defuse_done_marker` inserts a zero-width joiner right after the
+leading `<<<` so the marker can never appear intact in composed text. Without
+that defuse, quoting the marker in a context or body would SIGTERM the agent
+mid-session.
+
 ## Status is the signal
 
 There is no filesystem mutex. The ticket's `status` (`draft`, `active`,
