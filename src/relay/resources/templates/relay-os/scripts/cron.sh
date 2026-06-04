@@ -9,8 +9,8 @@
 # any due tasks. Exits non-zero if relay returns non-zero.
 #
 # Cron has no TTY: templates meant to run unattended this way should be
-# `mode: auto` or `mode: script`. An interactive template will scaffold
-# but fail to launch without a terminal.
+# `mode: script`. Interactive templates are skipped, and `mode: auto`
+# remains disabled until Relay grows streaming agent output.
 
 set -eu
 

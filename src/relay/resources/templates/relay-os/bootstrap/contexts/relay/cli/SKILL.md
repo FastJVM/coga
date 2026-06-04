@@ -352,9 +352,9 @@ nothing runs unless you invoke it. `relay-os/scripts/cron.sh` is the
 optional entry point if you later wire it into a scheduler yourself.
 
 `relay recurring --interactive` launches every due task in interactive mode
-for that run, even ones whose template says `mode: auto` — the debug knob
-for stepping through a recurring run by hand. It threads `relay launch
---mode interactive` through and rewrites no ticket files.
+for that run from an attended TTY, even ones whose template says `mode: auto`
+— the debug knob for stepping through a recurring run by hand. It threads
+`relay launch --mode interactive` through and rewrites no ticket files.
 
 `relay recurring --all` is the heavier debug escape hatch: it bypasses both
 the schedule and the status filter. For every template it scaffolds a *fresh,
@@ -370,9 +370,23 @@ a schedule or disturbing real recurring state.
 
 **`mode: auto` templates are temporarily skipped** with a stderr line and
 a Slack scan-error summary. The auto-launch path produces no live console
-output, so scheduled runs would sit silently. Templates should use
-`mode: script` (or `mode: interactive` if they can run from a TTY) until
-streaming lands.
+output, so scheduled runs would sit silently. **`mode: interactive` templates
+are also skipped when `relay recurring` has no stdin/stdout TTY**, because the
+agent REPL cannot be driven. Templates should use `mode: script` (or
+`mode: interactive` when the scan is launched from a real TTY) until streaming
+lands.
+
+**Idle-timeout backstop.** A `mode: interactive` template that *does* launch
+(a TTY is present) but whose agent stalls or crashes before signalling done —
+never reaching `relay bump` / `mark done` / `panic` — would otherwise block the
+sequential sweep forever. `relay recurring --all` arms a generous idle timeout
+on the spawned REPL: if it produces no output and takes no input for that long,
+the supervisor tears it down (reported as a clean exit) so the sweep moves on.
+The window is set via the `RELAY_REPL_IDLE_TIMEOUT` environment variable (in
+seconds), which `relay launch` reads; it is unset — and so the backstop is off,
+preserving an attended session that waits indefinitely — for the bare sweep and
+`relay recurring --interactive`. Export it before an unattended driver to arm
+the backstop there too.
 
 Dream, REM, and other recurring maintenance loops all use this surface.
 

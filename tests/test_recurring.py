@@ -57,6 +57,12 @@ def _seed_period_task_context(company: Path) -> None:
     )
 
 
+def _allow_interactive_recurring(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "relay.commands.recurring._interactive_stdio_has_tty", lambda: True
+    )
+
+
 @pytest.fixture
 def repo(tmp_path: Path):
     company = tmp_path / "relay-os"
@@ -316,6 +322,44 @@ def test_scan_due_skips_auto_mode_template(repo: Path, capsys) -> None:
     assert "skipping daily-auto" in capsys.readouterr().err
 
 
+def test_scan_due_skips_interactive_template_without_tty(
+    repo: Path, capsys
+) -> None:
+    """Unattended scans skip interactive templates before scaffolding.
+
+    This mirrors the `mode: auto` skip path: the error lands in
+    `DueScan.errors`, so `relay recurring` can post its scan-error summary and
+    still continue to other due templates.
+    """
+    _write_recurring(
+        repo,
+        "z-script-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Script check"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Script.
+        """,
+    )
+    cfg = load_config(repo)
+    scan = scan_due(
+        cfg, now=datetime(2026, 4, 22, 10, 0, 0), allow_interactive=False
+    )
+    assert len(scan.tasks) == 1
+    assert scan.tasks[0].template == "z-script-check"
+    assert len(scan.errors) == 1
+    assert scan.errors[0][0] == "weekly-check"
+    assert "mode=interactive requires a TTY" in scan.errors[0][1]
+    assert "skipping weekly-check" in capsys.readouterr().err
+
+
 def test_scan_due_template_without_explicit_mode_is_skipped(
     repo: Path, capsys
 ) -> None:
@@ -539,6 +583,7 @@ def test_recurring_all_launches_every_template(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     launched: list[str] = []
+    _allow_interactive_recurring(monkeypatch)
     monkeypatch.setattr(
         "relay.commands.launch.launch",
         lambda slug, **k: launched.append(slug),
@@ -550,6 +595,30 @@ def test_recurring_all_launches_every_template(
     assert len(launched) == 1
     assert "-dbg-" in launched[0]
     assert "relay delete" in result.output  # cleanup hint
+
+
+def test_recurring_all_skips_interactive_template_without_tty(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    launched: list[str] = []
+    monkeypatch.setattr(
+        "relay.commands.recurring._interactive_stdio_has_tty", lambda: False
+    )
+    monkeypatch.setattr(
+        "relay.commands.launch.launch",
+        lambda slug, **k: launched.append(slug),
+    )
+    monkeypatch.chdir(repo)
+
+    result = CliRunner().invoke(app, ["recurring", "--all"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == []
+    assert "No recurring templates to launch." in result.output
+    combined = result.output + (result.stderr or "")
+    assert "skipping weekly-check" in combined
+    assert "mode=interactive requires a TTY" in combined
+    assert list_tasks(load_config(repo)) == []
 
 
 def test_recurring_launch_unknown_template_fails(dream_repo: Path) -> None:
@@ -607,6 +676,7 @@ def test_bare_recurring_scans_and_launches_due(
 ) -> None:
     """Bare `relay recurring` scaffolds the due task and launches it."""
     calls: list[str] = []
+    _allow_interactive_recurring(monkeypatch)
 
     def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
         calls.append(task)
@@ -622,6 +692,66 @@ def test_bare_recurring_scans_and_launches_due(
     assert "Recurring scan" in result.output
     assert len(calls) == 1
     assert calls[0].startswith("dream-")
+
+
+def test_bare_recurring_skips_interactive_without_tty_and_continues(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unattended recurring skips interactive work and launches later due tasks."""
+    _write_recurring(
+        repo,
+        "z-script-check",
+        """
+        ---
+        schedule: "* * * * *"
+        title: "Script check"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Script.
+        """,
+    )
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "relay.commands.recurring._interactive_stdio_has_tty", lambda: False
+    )
+    calls: list[str] = []
+    slack_msgs: list[str] = []
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        calls.append(task)
+        ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
+        ticket.frontmatter["status"] = "done"
+        ticket.write(repo / "tasks" / task / "ticket.md")
+
+    def capture_slack(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        slack_msgs.append(json["text"])
+
+        class R:
+            status_code = 200
+            text = "ok"
+
+        return R()
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("relay.slack.requests.post", capture_slack)
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    assert calls[0].startswith("z-script-check-")
+    combined = result.output + (result.stderr or "")
+    assert "skipping weekly-check" in combined
+    assert "mode=interactive requires a TTY" in combined
+    assert any(
+        "skipped 1 template" in msg and "weekly-check" in msg
+        for msg in slack_msgs
+    )
 
 
 def test_bare_recurring_continues_past_unfinished_interactive_task(
@@ -652,6 +782,7 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
     )
     monkeypatch.chdir(repo)
     calls: list[str] = []
+    _allow_interactive_recurring(monkeypatch)
 
     def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
         calls.append(task)
@@ -751,6 +882,7 @@ def test_bare_recurring_interactive_overrides_mode(
 ) -> None:
     """`relay recurring --interactive` threads mode_override to each launch."""
     seen: list[str | None] = []
+    _allow_interactive_recurring(monkeypatch)
 
     def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
         seen.append(kwargs.get("mode_override"))
@@ -771,6 +903,7 @@ def test_bare_recurring_defaults_to_no_mode_override(
 ) -> None:
     """Without --interactive the ticket's own `mode:` is left to win."""
     seen: list[str | None] = []
+    _allow_interactive_recurring(monkeypatch)
 
     def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
         seen.append(kwargs.get("mode_override"))
@@ -791,6 +924,7 @@ def test_bare_recurring_nothing_due(
 ) -> None:
     """A second bare run in the same period — the task is in_progress/done — is a no-op."""
     monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    _allow_interactive_recurring(monkeypatch)
     runner = CliRunner()
     runner.invoke(app, ["recurring"])  # scaffolds + "launches" (no-op stub)
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import signal
 import sys
+import time
 
 import pytest
 
@@ -109,6 +110,61 @@ def test_natural_exit_passes_through_exit_code(
 ) -> None:
     """Child that exits on its own without the marker → exit code is forwarded."""
     code = _run_through_pty(monkeypatch, ["bash", "-c", "exit 7"])
+    assert code == 7
+
+
+def _run_through_pty_idle(
+    monkeypatch: pytest.MonkeyPatch,
+    cmd: list[str],
+    *,
+    idle_timeout: float,
+) -> int:
+    """Force the PTY path with an idle-timeout backstop and /dev/null fds."""
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+    devnull_out = os.open(os.devnull, os.O_WRONLY)
+    devnull_in = os.open(os.devnull, os.O_RDONLY)
+    try:
+        return run_with_done_marker(
+            cmd,
+            env={"PATH": os.environ.get("PATH", "")},
+            idle_timeout=idle_timeout,
+            output_fd=devnull_out,
+            input_fd=devnull_in,
+        )
+    finally:
+        os.close(devnull_out)
+        os.close(devnull_in)
+
+
+def test_idle_timeout_terminates_silent_child(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A REPL that never signals done and goes silent is torn down by the
+    idle-timeout backstop and reports a clean 0.
+
+    This is the stuck-agent case — an agent that stalls or crashes before
+    reaching `relay bump` / `mark done` / `panic` — that would otherwise block
+    a `relay recurring` sweep forever. Without the timeout the `sleep 30` here
+    would hang the test; we assert it returns promptly instead.
+    """
+    start = time.monotonic()
+    code = _run_through_pty_idle(
+        monkeypatch, ["bash", "-c", "sleep 30"], idle_timeout=0.5
+    )
+    elapsed = time.monotonic() - start
+    assert code == 0
+    assert elapsed < 10  # torn down on idle, not after the full sleep
+
+
+def test_idle_timeout_does_not_fire_on_self_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A child that exits within the idle window is left alone — the backstop
+    must not pre-empt a REPL that finishes on its own, so its real exit code
+    still passes through."""
+    code = _run_through_pty_idle(
+        monkeypatch, ["bash", "-c", "exit 7"], idle_timeout=30
+    )
     assert code == 7
 
 

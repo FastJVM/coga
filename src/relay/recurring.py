@@ -121,7 +121,9 @@ class DueScan:
         )
 
 
-def scan_due(cfg: Config, now: datetime | None = None) -> DueScan:
+def scan_due(
+    cfg: Config, now: datetime | None = None, *, allow_interactive: bool = True
+) -> DueScan:
     """Scan every recurring template and get-or-create its current-period task.
 
     For each recurring task directory under `relay-os/recurring/` (skipping
@@ -187,7 +189,9 @@ def scan_due(cfg: Config, now: datetime | None = None) -> DueScan:
             continue
 
         try:
-            outcome = scaffold_template(cfg, template, now)
+            outcome = scaffold_template(
+                cfg, template, now, allow_interactive=allow_interactive
+            )
         except RecurringError as exc:
             # Don't let one bad template block the rest. Stderr keeps an
             # interactive `relay recurring` honest; the command also posts a
@@ -228,10 +232,14 @@ def scaffold_named(
 
 
 def scaffold_template(
-    cfg: Config, template: Template, now: datetime
+    cfg: Config,
+    template: Template,
+    now: datetime,
+    *,
+    allow_interactive: bool = True,
 ) -> ScaffoldOutcome:
     """Scaffold one recurring template for `now`'s firing. Idempotent."""
-    effective_mode = _effective_mode(template)
+    effective_mode = _effective_mode(template, allow_interactive=allow_interactive)
 
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
@@ -256,7 +264,11 @@ def scaffold_template(
 
 
 def scaffold_debug_run(
-    cfg: Config, template: Template, now: datetime
+    cfg: Config,
+    template: Template,
+    now: datetime,
+    *,
+    allow_interactive: bool = True,
 ) -> ScaffoldOutcome:
     """Scaffold a throwaway debug run of one template — `relay recurring --all`.
 
@@ -267,7 +279,7 @@ def scaffold_debug_run(
     `paused`). The run is meant to be observed once and then deleted; it is not
     recorded in the template's period ledger.
     """
-    effective_mode = _effective_mode(template)
+    effective_mode = _effective_mode(template, allow_interactive=allow_interactive)
     stamp = now.strftime("%Y%m%dT%H%M%S")
     target_slug = f"{template.name}-dbg-{stamp}"
     return _scaffold_at_slug(
@@ -279,7 +291,9 @@ def scaffold_debug_run(
     )
 
 
-def scan_debug(cfg: Config, now: datetime | None = None) -> DueScan:
+def scan_debug(
+    cfg: Config, now: datetime | None = None, *, allow_interactive: bool = True
+) -> DueScan:
     """Scaffold a fresh debug run for every recurring template.
 
     The debug counterpart of `scan_due`: it walks the same templates (skipping
@@ -302,7 +316,9 @@ def scan_debug(cfg: Config, now: datetime | None = None) -> DueScan:
             continue
         try:
             template = Template.load(path)
-            outcome = scaffold_debug_run(cfg, template, now)
+            outcome = scaffold_debug_run(
+                cfg, template, now, allow_interactive=allow_interactive
+            )
         except RecurringError as exc:
             sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
             errors.append((path.name, str(exc)))
@@ -320,7 +336,7 @@ def scan_debug(cfg: Config, now: datetime | None = None) -> DueScan:
     return DueScan(tasks=tasks, errors=errors)
 
 
-def _effective_mode(template: Template) -> str:
+def _effective_mode(template: Template, *, allow_interactive: bool = True) -> str:
     """Resolve a template's launch mode, enforcing the temporary auto ban.
 
     Temporary policy: refuse `mode: auto` recurring tasks. `claude -p` and
@@ -335,6 +351,12 @@ def _effective_mode(template: Template) -> str:
             "mode=auto is temporarily disabled (auto runs produce no live "
             "console output). Set `mode: script` or `mode: interactive` "
             "to re-enable."
+        )
+    if effective_mode == "interactive" and not allow_interactive:
+        raise RecurringError(
+            "mode=interactive requires a TTY (stdin and stdout must both be "
+            "terminals). Run `relay recurring --interactive` from a real shell, "
+            "or change the template to mode: script."
         )
     return effective_mode
 

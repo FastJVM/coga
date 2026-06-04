@@ -108,6 +108,7 @@ def run_with_done_marker(
     marker: bytes = DONE_MARKER,
     *,
     session_id: str | None = None,
+    idle_timeout: float | None = None,
     output_fd: int | None = None,
     input_fd: int | None = None,
 ) -> int:
@@ -122,6 +123,15 @@ def run_with_done_marker(
     `emit_done_marker` writes this string into the file and the supervisor
     only tears down on a match. Leave it None for the legacy "any touch ends
     the session" behavior.
+
+    `idle_timeout`, when set, is a backstop for a REPL that never signals done
+    — an agent that stalls or crashes before reaching `relay bump` / `mark
+    done` / `panic`. If no PTY output and no stdin reaches the loop for that
+    many seconds, the supervisor tears the REPL down (`idle-timeout` trigger,
+    reported exit 0) instead of blocking its caller forever. Leave it None to
+    wait indefinitely for the done signal — the default, so an attended
+    interactive session is never killed mid-think. Unattended sweeps
+    (`relay recurring`) arm it so one stuck agent can't starve later tasks.
 
     `output_fd` / `input_fd` exist for tests; production callers leave them
     None and the supervisor proxies the real stdio.
@@ -179,6 +189,7 @@ def run_with_done_marker(
     sent_term = False
     term_deadline: float | None = None
     sent_kill = False
+    last_activity = time.monotonic()
 
     def _trigger_term(reason: str) -> None:
         nonlocal sent_term, term_deadline
@@ -227,6 +238,15 @@ def run_with_done_marker(
             if not sent_term and _sentinel_signals_done(sentinel_path, session_id):
                 _trigger_term("sentinel-file (RELAY_DONE_SENTINEL touched)")
 
+            if (
+                idle_timeout is not None
+                and not sent_term
+                and time.monotonic() - last_activity >= idle_timeout
+            ):
+                _trigger_term(
+                    f"idle-timeout (no REPL activity for {idle_timeout:.0f}s)"
+                )
+
             if master_fd in rlist:
                 try:
                     chunk = os.read(master_fd, 4096)
@@ -234,6 +254,7 @@ def run_with_done_marker(
                     chunk = b""
                 if not chunk:
                     break
+                last_activity = time.monotonic()
                 try:
                     os.write(out_fd, chunk)
                 except OSError:
@@ -251,6 +272,7 @@ def run_with_done_marker(
                     data = b""
                 if data:
                     os.write(master_fd, data)
+                    last_activity = time.monotonic()
     finally:
         if old_attrs is not None:
             try:
