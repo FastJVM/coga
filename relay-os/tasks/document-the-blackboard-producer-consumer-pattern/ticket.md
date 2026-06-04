@@ -9,17 +9,16 @@ assignee: nick
 contexts: []
 skills: []
 workflow:
-  name: dev/with-self-review
+  name: code/with-review
   steps:
   - name: implement
     skills:
     - code/implement
     assignee: agent
-  - name: self-qa
-    skills:
-    - code/self-qa
-    assignee: agent
-  - name: pr
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
     skills:
     - code/open-pr
     assignee: agent
