@@ -68,11 +68,20 @@ _SENTINEL_POLL_INTERVAL = 0.25
 #   ?2004l bracketed paste     ?25h show cursor        ?1l normal cursor keys
 #   >      normal keypad        ?1049l leave alt-screen ?1004l focus reporting
 #   ?1000/1002/1003/1006/1015 l  mouse tracking (all encodings) off
+# The keyboard-input protocols are a separate family: unlike the DEC private
+# modes above they reshape what bytes the *keyboard* sends, so a leftover one
+# turns every keypress into an escape report (e.g. `\x1b[5;1:3u`) and the shell
+# beneath looks like its keys are dead. We clear both:
+#   <u  + =0;1u   kitty keyboard protocol — pop the stack, then force flags to 0
+#                 (covers both push/pop users and the set-flags form)
+#   >4;0m         xterm modifyOtherKeys off
+# Unsupported sequences are silently ignored by terminals that lack them.
 # A child that exits on its own runs its own cleanup, so we skip this for it.
 _TTY_SANITIZE = (
     b"\x1b[?2004l\x1b[?25h\x1b[?1l\x1b>"
     b"\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1015l"
     b"\x1b[?1004l\x1b[?1049l"
+    b"\x1b[<u\x1b[=0;1u\x1b[>4;0m"
 )
 
 
