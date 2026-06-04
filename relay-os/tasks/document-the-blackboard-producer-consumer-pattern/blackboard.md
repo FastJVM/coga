@@ -24,6 +24,12 @@ drives the rest.
 ## Dev
 
 branch: patterns-spool-doc (off main / eb4e7ef)
+PR: https://github.com/FastJVM/relay/pull/284 — opened directly at owner's
+  request (Codex peer-review step bypassed; straight to owner review). The
+  relay ticket stayed parked at implement/active because this manual session
+  could not flip active→in_progress (only `relay launch` does that), so no
+  bump fired. If you want the formal workflow state, `relay launch` the task
+  and let it advance; otherwise merge the PR and let automerge mark it done.
 worktree: none — built directly in the primary checkout per human request
   (external worktrees were being cleaned up off-disk; we don't want stray ones).
   The primary was on `recurring-launch-all` (divergent, 37 behind main) with
