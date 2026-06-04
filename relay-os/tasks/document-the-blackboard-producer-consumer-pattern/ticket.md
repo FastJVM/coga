@@ -1,6 +1,6 @@
 ---
 title: Document the blackboard producer/consumer pattern
-status: active
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -25,7 +25,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
