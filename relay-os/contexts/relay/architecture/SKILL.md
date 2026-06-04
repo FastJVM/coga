@@ -32,9 +32,11 @@ no in-memory state.
   `relay-os/workflows/`. Frozen into a ticket's frontmatter at
   creation — in-flight tickets are unaffected by later workflow edits.
   Each step may declare an `assignee:` role token (`owner` | `human` |
-  `agent`); on bump, the token resolves against the ticket's
-  matching role field and rewrites `assignee:`. Steps without one
-  leave the assignee unchanged.
+  `agent` | `other-agent`); on bump, the token resolves against the ticket's
+  matching role field and rewrites `assignee:`. `other-agent` resolves to the
+  peer agent (it needs two configured `[agents.*]`) and drives peer-review
+  flips (e.g. `code/with-review`) and agent-rotation relaunches. Steps without
+  one leave the assignee unchanged.
 - **Recurring templates** live in `relay-os/recurring/`. `relay recurring`
   scans them, scaffolds the current period's task for each, and launches the
   due ones; the created tasks then use the same ticket, workflow, launch,
@@ -195,6 +197,16 @@ file. Layers, in order:
 
 The agent gets all of this as one input. There is no follow-up
 loading.
+
+The composer defuses the session-teardown marker before returning the
+assembled prompt. An interactive launch's PTY supervisor tears down the REPL
+when it sees the `DONE_MARKER` byte sequence (emitted on the success path of
+`relay bump` / `mark done` / `panic`). Because any layer above — an injected
+context, a ticket body — could quote that literal sequence verbatim,
+`compose._defuse_done_marker` inserts a zero-width joiner right after the
+leading `<<<` so the marker can never appear intact in composed text. Without
+that defuse, quoting the marker in a context or body would SIGTERM the agent
+mid-session.
 
 ## Status is the signal
 
