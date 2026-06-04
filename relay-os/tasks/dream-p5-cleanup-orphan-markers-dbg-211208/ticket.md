@@ -1,6 +1,6 @@
 ---
 title: Dream P5 cleanup-orphan-markers (dbg 211208)
-status: active
+status: in_progress
 mode: script
 owner: nick
 human: nick
