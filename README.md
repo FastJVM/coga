@@ -294,8 +294,10 @@ template (excluding `_`-prefixed inert templates), `relay recurring`
 get-or-creates the **current period's** task, prints a scan table, then
 launches the still-`active` ones sequentially, most-overdue first. Tasks
 already `done`, `in_progress`, or `paused` are left alone — no auto-resume.
-If an older period task for the same template is not `done`, Relay skips
-scaffolding the new period and reports the blocked template. During a bare
+If an older period task for the same template is not `done`, Relay still
+scaffolds the new period independently and surfaces the unfinished prior task
+in `relay status` — a stuck prior run is the human's to resolve, not a reason
+to skip today's scheduled task. During a bare
 recurring sweep, if a launched task returns still `active`, `in_progress`,
 or otherwise unfinished, the sweep stops before launching the next due task.
 
@@ -441,7 +443,9 @@ the debug knob for stepping through a `mode: auto` ticket in an attended
 terminal (and vice versa). It is ephemeral: the ticket file is never
 rewritten, and both the spawned command and the composed mode-specific prompt
 block follow the override. It is rejected for `mode: script` tasks, which
-compose no agent prompt.
+compose no agent prompt. **`auto` is temporarily disabled** (until streaming
+lands): `relay launch --mode auto` is refused, so today the override is only
+useful for running an `auto` ticket `interactive`ly.
 
 `bootstrap/<name>` tickets are stateless re-entry points for skills.
 Concurrent launches are safe — they have no status, no log of state changes,
@@ -551,15 +555,17 @@ relay retire add-retry --no-launch           # scaffold without launching
 ```
 
 `retire` runs interactively by default so the Retro pass writes live
-console output; `--mode auto` runs it as a one-shot headless `claude -p`
-session whose output is buffered to the task log.
+console output. **`--mode auto` is temporarily disabled** (until streaming
+lands) and is currently refused; it is intended to run the pass as a one-shot
+headless `claude -p` session whose output is buffered to the task log.
 
 ### `relay panic --task <slug> --reason "..."`
 
-The agent gives up. Writes a blocker entry to the ticket, posts to the
-Slack channel naming the owner, and releases the task lock so a human
-(or another agent) can pick it up. Intended for the agent to call when
-it's truly stuck — not for routine handoffs.
+The agent gives up. Writes a blocker entry to the ticket and posts to the
+Slack channel naming the owner so a human (or another agent) can pick it up.
+Relay has no task lock to release — the ticket's `status` is the only signal.
+Intended for the agent to call when it's truly stuck — not for routine
+handoffs.
 
 ```sh
 relay panic --task add-retry --reason "Auth flow needs prod creds I don't have"
@@ -663,7 +669,7 @@ Rules, checked at config load — fail loud, not silent:
 git clone https://github.com/FastJVM/relay
 cd relay
 python -m pip install -e .
-python -m pytest                    # 83 tests
+python -m pytest                    # run the test suite
 relay validate --json               # validate the bundled example/ fixture
 relay validate --fix                # repair missing blackboard.md/log.md only
 ```
