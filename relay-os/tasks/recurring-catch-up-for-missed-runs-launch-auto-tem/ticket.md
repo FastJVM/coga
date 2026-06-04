@@ -1,6 +1,6 @@
 ---
 title: 'recurring: catch-up for missed runs + launch auto templates interactively'
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
