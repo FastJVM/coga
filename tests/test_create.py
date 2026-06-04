@@ -467,6 +467,9 @@ def test_recurring_scaffolds_and_broadcasts(
         return R()
 
     monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr(
+        "relay.commands.recurring._interactive_stdio_has_tty", lambda: True
+    )
     # The bare scan launches due tasks sequentially; mark the stubbed launch
     # done so the recurring sweep sees a completed run.
     def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]

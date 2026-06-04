@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from datetime import datetime
 
@@ -18,6 +19,15 @@ from relay.recurring import (
 )
 from relay.slack import notify
 from relay.tasks import TaskRef, read_ticket
+
+# Idle-timeout backstop (seconds) armed for the `--all` debug sweep. That path
+# force-launches interactive REPLs with no workflow driving them to a done
+# signal, so a stalled or crashed agent would otherwise block the sequential
+# sweep forever — the hang this command was seen to hit. Generous enough that a
+# slow-but-progressing agent (which streams PTY output) never trips it; only a
+# genuinely silent REPL does. Overridable via the `RELAY_REPL_IDLE_TIMEOUT`
+# env var, which `relay launch` reads.
+_DEBUG_REPL_IDLE_TIMEOUT = "900"
 
 app = typer.Typer(
     name="recurring",
@@ -74,7 +84,7 @@ def main(
         _launch_all_debug(cfg)
         return
 
-    scan = scan_due(cfg)
+    scan = scan_due(cfg, allow_interactive=_interactive_stdio_has_tty())
     _broadcast_scan(cfg, scan)
     _print_table(scan)
 
@@ -92,9 +102,9 @@ def main(
             f"[{i}/{len(due)}] {task.ref.id_slug}", fg=typer.colors.CYAN, bold=True
         )
         # Sequential by design: each launch blocks until the agent session
-        # exits before the next begins. A launch that bails (e.g. an
-        # interactive template with no TTY) stops the run here — re-running
-        # `relay recurring` is safe, since finished tasks are skipped.
+        # exits before the next begins. `scan_due` filters launches that
+        # cannot run in the current stdio context, so every task here should
+        # be spawnable.
         launch_cmd(
             task.ref.slug,
             agent_override=None,
@@ -114,7 +124,7 @@ def _launch_all_debug(cfg) -> None:
     driving). Script templates run as scripts; everything else launches
     interactively so there is a live console to watch.
     """
-    scan = scan_debug(cfg)
+    scan = scan_debug(cfg, allow_interactive=_interactive_stdio_has_tty())
     _print_table(scan)
     for name, msg in scan.errors:
         typer.secho(f"  skipped {name}: {msg}", fg=typer.colors.YELLOW, err=True)
@@ -129,6 +139,11 @@ def _launch_all_debug(cfg) -> None:
 
     typer.echo(f"\nLaunching {len(runs)} debug run(s) sequentially...\n")
     from relay.commands.launch import launch as launch_cmd
+
+    # Arm the supervisor idle-timeout so one stuck interactive REPL can't block
+    # the rest of the sweep (see `_DEBUG_REPL_IDLE_TIMEOUT`). `setdefault` lets
+    # an operator override the window without losing the backstop.
+    os.environ.setdefault("RELAY_REPL_IDLE_TIMEOUT", _DEBUG_REPL_IDLE_TIMEOUT)
 
     for i, task in enumerate(runs, 1):
         typer.secho(
@@ -275,6 +290,10 @@ def _stop_if_unfinished_after_launch(ref: TaskRef, *, interactive: bool) -> None
 
 
 # --- scan reporting -----------------------------------------------------------
+
+
+def _interactive_stdio_has_tty() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
 
 
 def _broadcast_scan(cfg, scan: DueScan) -> None:
