@@ -168,6 +168,52 @@ def test_scaffold_does_not_duplicate_explicit_period_task_context(
     assert ticket.contexts == ["relay/period-task"]
 
 
+def test_scaffold_preserves_non_description_template_sections(repo: Path) -> None:
+    """Template sections beyond `## Description` survive into the period task.
+
+    Regression: the scaffolder used to keep only the `## Description` slice, so
+    a template's `## Script config` (which sets a script step's mode/sync) was
+    dropped and scheduled runs silently fell back to the default mode. The full
+    template body must be carried verbatim, with a `## Context` appended.
+    """
+    _write_recurring(
+        repo,
+        "script-config-template",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Has script config"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Verify daily that every row has an alert.
+
+        ## Script config
+
+        ```yaml
+        mode: watchdog
+        ```
+
+        ## Output
+
+        Writes one JSON summary to stdout.
+        """,
+    )
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    task = next(t for t in scan.tasks if t.template == "script-config-template")
+    body = (task.ref.path / "ticket.md").read_text()
+    assert "## Script config" in body
+    assert "mode: watchdog" in body
+    assert "## Output" in body
+    # The canonical `## Context` section is still appended for body uniformity.
+    assert "## Context" in body
+
+
 def test_scan_due_idempotent(repo: Path) -> None:
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)
