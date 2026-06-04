@@ -1,6 +1,6 @@
 ---
 title: Dream P1 validate-drift (dbg 211208)
-status: draft
+status: active
 mode: script
 owner: nick
 human: nick
