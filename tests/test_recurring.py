@@ -919,6 +919,62 @@ def test_bare_recurring_defaults_to_no_mode_override(
     assert seen == [None]
 
 
+def _capture_idle_timeout(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, argv: list[str]
+) -> list[float | None]:
+    """Run a recurring sweep with a stubbed launch and return the
+    `idle_timeout` each launch was called with."""
+    seen: list[float | None] = []
+    _allow_interactive_recurring(monkeypatch)
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        seen.append(kwargs.get("idle_timeout"))
+        ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
+        ticket.frontmatter["status"] = "done"
+        ticket.write(repo / "tasks" / task / "ticket.md")
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    assert CliRunner().invoke(app, argv).exit_code == 0
+    return seen
+
+
+def test_bare_recurring_arms_idle_timeout(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The automatic sweep arms the default idle backstop on each launch."""
+    assert _capture_idle_timeout(dream_repo, monkeypatch, ["recurring"]) == [900.0]
+
+
+def test_bare_recurring_interactive_leaves_idle_timeout_off(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--interactive` (a human driving by hand) leaves the REPL unbounded."""
+    assert _capture_idle_timeout(
+        dream_repo, monkeypatch, ["recurring", "--interactive"]
+    ) == [None]
+
+
+def test_recurring_idle_timeout_env_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`RELAY_REPL_IDLE_TIMEOUT` overrides the default window; a `<= 0`,
+    non-finite, or unparseable value disarms the backstop."""
+    from relay.commands.recurring import (
+        _RECURRING_IDLE_TIMEOUT_SECONDS,
+        _recurring_idle_timeout,
+    )
+
+    monkeypatch.delenv("RELAY_REPL_IDLE_TIMEOUT", raising=False)
+    assert _recurring_idle_timeout() == _RECURRING_IDLE_TIMEOUT_SECONDS
+
+    monkeypatch.setenv("RELAY_REPL_IDLE_TIMEOUT", "30")
+    assert _recurring_idle_timeout() == 30.0
+
+    for disarm in ("0", "-5", "inf", "nan", "later"):
+        monkeypatch.setenv("RELAY_REPL_IDLE_TIMEOUT", disarm)
+        assert _recurring_idle_timeout() is None, disarm
+
+
 def test_bare_recurring_nothing_due(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

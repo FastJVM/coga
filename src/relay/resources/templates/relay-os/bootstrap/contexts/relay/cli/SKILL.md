@@ -379,14 +379,14 @@ lands.
 **Idle-timeout backstop.** A `mode: interactive` template that *does* launch
 (a TTY is present) but whose agent stalls or crashes before signalling done —
 never reaching `relay bump` / `mark done` / `panic` — would otherwise block the
-sequential sweep forever. `relay recurring --all` arms a generous idle timeout
-on the spawned REPL: if it produces no output and takes no input for that long,
+sequential sweep forever. Both the bare sweep and `relay recurring --all` arm a
+generous idle timeout on each spawned REPL (passed through as `relay launch
+--idle-timeout`): if it produces no output and takes no input for that long,
 the supervisor tears it down (reported as a clean exit) so the sweep moves on.
-The window is set via the `RELAY_REPL_IDLE_TIMEOUT` environment variable (in
-seconds), which `relay launch` reads; it is unset — and so the backstop is off,
-preserving an attended session that waits indefinitely — for the bare sweep and
-`relay recurring --interactive`. Export it before an unattended driver to arm
-the backstop there too.
+`relay recurring --interactive` — a human stepping through by hand — leaves the
+REPL unbounded, as does a plain `relay launch`. The default window is 15
+minutes; set `RELAY_REPL_IDLE_TIMEOUT` (seconds) to change it, or to `0` /
+a non-finite value to disarm the backstop for the sweep.
 
 Dream, REM, and other recurring maintenance loops all use this surface.
 

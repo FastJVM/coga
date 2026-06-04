@@ -76,6 +76,14 @@ def launch(
         "overriding the ticket's `mode:`. For debugging — the ticket file is "
         "not modified.",
     ),
+    idle_timeout: float | None = typer.Option(
+        None,
+        "--idle-timeout",
+        help="Tear down a stalled interactive REPL after this many seconds with "
+        "no output or input (it never signalled done). Off by default — an "
+        "attended launch waits indefinitely. `relay recurring` sets it so one "
+        "stuck agent can't block the sweep.",
+    ),
 ) -> None:
     """Compose context, start work on a task."""
     try:
@@ -410,7 +418,7 @@ def launch(
                         cmd,
                         env,
                         session_id=str(ref.path.resolve()),
-                        idle_timeout=_repl_idle_timeout(),
+                        idle_timeout=idle_timeout,
                     )
                 else:
                     result = subprocess.run(cmd, env=env, check=False)
@@ -597,25 +605,6 @@ def _launch_log_message(
 
 def _interactive_stdio_has_tty() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
-
-
-def _repl_idle_timeout() -> float | None:
-    """Idle-timeout backstop for the spawned interactive REPL, from env.
-
-    Off by default (None) so an attended `relay launch` waits indefinitely for
-    the agent's done signal. A sweep that can't afford one stuck agent to block
-    later work — `relay recurring` over an unattended run — exports
-    `RELAY_REPL_IDLE_TIMEOUT` (seconds) to arm the backstop. A non-positive or
-    unparseable value is treated as off.
-    """
-    raw = os.environ.get("RELAY_REPL_IDLE_TIMEOUT")
-    if not raw:
-        return None
-    try:
-        seconds = float(raw)
-    except ValueError:
-        return None
-    return seconds if seconds > 0 else None
 
 
 def _refresh_agent_skills_for_launch(relay_os: Path) -> None:
