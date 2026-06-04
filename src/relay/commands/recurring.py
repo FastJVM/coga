@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import sys
 from datetime import datetime
@@ -9,6 +10,7 @@ from datetime import datetime
 import typer
 
 from relay import git
+from relay.commands.launch import _interactive_stdio_has_tty
 from relay.config import ConfigError, load_config
 from relay.recurring import (
     DueScan,
@@ -20,14 +22,14 @@ from relay.recurring import (
 from relay.slack import notify
 from relay.tasks import TaskRef, read_ticket
 
-# Idle-timeout backstop (seconds) armed for the `--all` debug sweep. That path
-# force-launches interactive REPLs with no workflow driving them to a done
-# signal, so a stalled or crashed agent would otherwise block the sequential
-# sweep forever — the hang this command was seen to hit. Generous enough that a
-# slow-but-progressing agent (which streams PTY output) never trips it; only a
-# genuinely silent REPL does. Overridable via the `RELAY_REPL_IDLE_TIMEOUT`
-# env var, which `relay launch` reads.
-_DEBUG_REPL_IDLE_TIMEOUT = "900"
+# Default idle-timeout backstop (seconds) the sweep arms on the interactive
+# REPLs it spawns: one that stalls or crashes before signalling done would
+# otherwise block the sequential sweep forever — the hang this command was seen
+# to hit. Generous enough that a slow-but-progressing agent (which streams PTY
+# output) never trips it; only a genuinely silent REPL does. `--interactive`
+# (a human driving by hand) leaves it off; `RELAY_REPL_IDLE_TIMEOUT` overrides
+# the window or, at `<= 0` / non-finite, disarms it.
+_RECURRING_IDLE_TIMEOUT_SECONDS = 900.0
 
 app = typer.Typer(
     name="recurring",
@@ -94,6 +96,10 @@ def main(
         return
 
     mode_override = "interactive" if interactive else None
+    # `--interactive` is a human stepping through by hand, so leave the spawned
+    # REPL unbounded; an automatic sweep arms the idle backstop so one stuck
+    # agent can't block the tasks behind it.
+    idle_timeout = None if interactive else _recurring_idle_timeout()
     typer.echo(f"\nLaunching {len(due)} due task(s) sequentially...\n")
     from relay.commands.launch import launch as launch_cmd
 
@@ -102,15 +108,16 @@ def main(
             f"[{i}/{len(due)}] {task.ref.id_slug}", fg=typer.colors.CYAN, bold=True
         )
         # Sequential by design: each launch blocks until the agent session
-        # exits before the next begins. `scan_due` filters launches that
-        # cannot run in the current stdio context, so every task here should
-        # be spawnable.
+        # exits before the next begins. `scan_due` filters out templates that
+        # cannot run in the current stdio context (interactive with no TTY), and
+        # the idle backstop releases any that launch but then stall.
         launch_cmd(
             task.ref.slug,
             agent_override=None,
             prompt_report=False,
             no_verify=False,
             mode_override=mode_override,
+            idle_timeout=idle_timeout,
         )
         _stop_if_unfinished_after_launch(task.ref, interactive=interactive)
 
@@ -141,9 +148,8 @@ def _launch_all_debug(cfg) -> None:
     from relay.commands.launch import launch as launch_cmd
 
     # Arm the supervisor idle-timeout so one stuck interactive REPL can't block
-    # the rest of the sweep (see `_DEBUG_REPL_IDLE_TIMEOUT`). `setdefault` lets
-    # an operator override the window without losing the backstop.
-    os.environ.setdefault("RELAY_REPL_IDLE_TIMEOUT", _DEBUG_REPL_IDLE_TIMEOUT)
+    # the rest of the debug sweep.
+    idle_timeout = _recurring_idle_timeout()
 
     for i, task in enumerate(runs, 1):
         typer.secho(
@@ -159,6 +165,7 @@ def _launch_all_debug(cfg) -> None:
             prompt_report=False,
             no_verify=False,
             mode_override=mode_override,
+            idle_timeout=idle_timeout,
         )
 
     slugs = " ".join(t.ref.slug for t in runs)
@@ -292,8 +299,25 @@ def _stop_if_unfinished_after_launch(ref: TaskRef, *, interactive: bool) -> None
 # --- scan reporting -----------------------------------------------------------
 
 
-def _interactive_stdio_has_tty() -> bool:
-    return sys.stdin.isatty() and sys.stdout.isatty()
+def _recurring_idle_timeout() -> float | None:
+    """Idle-timeout (seconds) for interactive REPLs the sweep spawns.
+
+    Defaults to `_RECURRING_IDLE_TIMEOUT_SECONDS`; `RELAY_REPL_IDLE_TIMEOUT`
+    overrides the window. A `<= 0`, non-finite (`inf`/`nan`), or unparseable
+    value disarms the backstop (returns None). Read-only — the value is passed
+    explicitly to `relay launch`, never written back to the environment, so it
+    cannot leak into the process or a spawned child.
+    """
+    raw = os.environ.get("RELAY_REPL_IDLE_TIMEOUT")
+    if raw is None:
+        return _RECURRING_IDLE_TIMEOUT_SECONDS
+    try:
+        seconds = float(raw)
+    except ValueError:
+        return None
+    if not math.isfinite(seconds) or seconds <= 0:
+        return None
+    return seconds
 
 
 def _broadcast_scan(cfg, scan: DueScan) -> None:
