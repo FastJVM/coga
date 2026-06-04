@@ -56,6 +56,30 @@ the package-backed bootstrap roots. Claude Code and Codex are pointed at the
 generated `relay-os/.agent-skills/` view, which exposes the same effective
 local-plus-bundled skill set.
 
+## Authoring bundled batteries
+
+Bundled (package-backed) skills and contexts are authored in the *source* tree
+under `src/relay/resources/templates/relay-os/bootstrap/{skills,contexts}/`,
+not in the live `relay-os/bootstrap/` of a working repo — that copy is
+gitignored and overwritten wholesale on `relay init --update`.
+
+Two sharp gotchas live here:
+
+- **Force-add new battery files.** `src/relay/resources/templates/relay-os/.gitignore`
+  ignores `bootstrap/` (it is the `.gitignore` shipped *into* generated repos,
+  where `bootstrap/` is materialized, not committed — but it also sits inside
+  the source template dir, so it applies there too). A new bundled skill or
+  context file therefore must be added with `git add -f`, or it silently never
+  commits and ships nothing despite passing local validation and tests.
+- **Skill Python deps via `requirements.txt`.** A bundled skill declares its
+  dependencies in a `requirements.txt` beside its `SKILL.md`.
+  `install_skill_requirements` (the tail of `install_venv` in
+  `src/relay/commands/update.py`) pip-installs every
+  `relay-os/**/skills/**/requirements.txt` into `.relay/.venv` on `relay init`
+  and `relay init --update`, after the battery is materialized into
+  `relay-os/bootstrap/`. That ordering is what makes a bootstrapped skill's
+  deps land.
+
 ## Daily commands
 
 - Install editable: `python -m pip install -e .`
