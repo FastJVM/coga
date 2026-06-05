@@ -4,6 +4,13 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 - branch: `resume-orphaned-recurring`
 - worktree: `../relay-resume-orphaned-recurring`
+- pr: https://github.com/FastJVM/relay/pull/287
+
+### open-pr step (2026-06-05)
+Pushed `resume-orphaned-recurring` to origin and opened PR #287. Worktree was
+clean on the recorded branch (2 commits: implement `9c79927`, peer-review
+`fdcb463`). `gh` authed as nicktoper. CI status to be confirmed by the human
+reviewer on the PR; no CI run observed yet at open time.
 
 ### Implementation log (2026-06-05)
 Grounding confirmed by reading source before touching anything:
@@ -146,3 +153,20 @@ This confirms a critical gap: `sync_task_state` does `git add` the whole task di
 
 #### Bottom line
 A well-written, correctly-scoped ticket that a cold agent can start from. The heartbeat-marker + automatic-reclaim design is sound in shape and the code references are accurate. Before launch, pin down: (a) the threshold default + env var name + beat cadence, (b) what a stale `in_progress` with **no** marker means (the common non-TTY/auto case the marker doesn't cover), (c) confirm the `.gitignore` pattern actually excludes the marker under `git add -- <pathspec>` since the launch-time auto-commit will otherwise push it cross-machine, and (d) soften the concurrency and `pid`-liveness claims so the implementer treats `beat` staleness as primary.
+
+## Peer review (Codex, 2026-06-05)
+
+Review tool: `codex review --base main` from `../relay-resume-orphaned-recurring`.
+
+Finding applied:
+- P2: widening `DueTask.launchable` to every `in_progress` current-period task conflicted with the existing interactive sweep behavior: exiting an interactive REPL without marking done was previously treated as "continue to the next task" while leaving the task `in_progress`, so the next scan would relaunch intentionally parked work.
+
+Fix:
+- Commit `fdcb463` (`peer-review: pause unfinished interactive recurring runs`) makes `_stop_if_unfinished_after_launch` pause an unfinished interactive run before continuing the sweep. That preserves `in_progress` as the orphan-resume signal while keeping human-parked interactive runs skipped.
+- Updated `relay/recurring` context and CLI docs to describe `active` launch, orphan `in_progress` resume, and unfinished interactive runs becoming `paused`.
+- Extended `test_bare_recurring_continues_past_unfinished_interactive_task` to assert paused status and no relaunch on the next scan.
+
+Verification:
+- `codex review --base main` produced the P2 above; no other must-fix findings.
+- `PYTHONPATH=src python -m pytest tests/test_recurring.py -q` → 40 passed.
+- `PYTHONPATH=/home/n/Code/relay-resume-orphaned-recurring/src /home/n/Code/relay/.venv/bin/python -m pytest -q` → 558 passed, 1 skipped. Pytest emitted a cache warning because `.pytest_cache` is read-only in this sandbox; tests passed.
