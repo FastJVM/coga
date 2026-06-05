@@ -270,3 +270,10 @@ checks are configured on this repo** (`gh pr checks` → "no checks reported"),
 so there is no green/red signal to gate on — verification rests on the local
 `pytest` (541 passed) + `relay validate --json` from the implement/self-qa
 steps. Bumping to the human review step.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for stop-overloading-relay-slack

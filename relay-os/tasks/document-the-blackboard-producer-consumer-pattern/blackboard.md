@@ -109,3 +109,10 @@ already shipped in #275 and is NOT modified here.
 - NOTE on checkout: this was built in the primary checkout (no worktree). The
   primary may be sitting on `recurring-launch-all` with the human's unrelated
   WIP; `git checkout patterns-spool-doc` to review the change.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: no-new-durable-knowledge
+title: No new durable knowledge for document-the-blackboard-producer-consumer-pattern
