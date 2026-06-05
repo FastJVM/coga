@@ -1,6 +1,6 @@
 ---
 title: Dream cleanup-orphan-markers (dbg-20260604T171753)
-status: draft
+status: active
 mode: script
 owner: nick
 human: nick
