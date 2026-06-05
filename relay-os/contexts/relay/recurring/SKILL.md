@@ -26,10 +26,16 @@ scanner skips it. That is how the starter templates ship without firing.
 
 - `relay recurring` (bare) — scans every recurring task, get-or-creates the
   current period's task for each, and launches the ones still `active`. Run
-  from `scripts/cron.sh`. A stuck prior-period task (anything past `done`)
-  is the human's problem in `relay status` — it does not block the new
-  period's scaffold. If a launched task returns still unfinished, the sweep
-  stops before the next due task.
+  from `scripts/cron.sh`. A current-period task left `in_progress` by a sweep
+  whose supervisor died mid-run (laptop sleep, SSH drop) is **relaunched and
+  resumed from its current step**, not skipped: `relay recurring` is a
+  foreground command with no daemon and no concurrent sweep, so a frozen
+  `in_progress` period task can only be a dead run's orphan, never a live
+  session — `relay launch` re-composes it from `step:`. `done` (finished work)
+  and `paused` (a human parked it) stay skipped. A *prior*-period stuck task is
+  the human's problem in `relay status` — it does not block the new period's
+  scaffold. If a launched task returns still unfinished, the sweep stops before
+  the next due task.
 - `relay recurring launch <name>` — scaffolds one named recurring task now,
   ignoring its schedule. `<name>` is the directory name.
 

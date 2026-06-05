@@ -82,8 +82,9 @@ class DueTask:
     """One recurring template's current-period task, after get-or-create.
 
     `relay recurring` materializes this for every template, then launches the
-    ones that are still `active`. `last_fire` is the scheduled firing this
-    task covers — used to report "ready" vs "overdue" and to order launches.
+    `launchable` ones (`active`, plus an `in_progress` orphan it resumes —
+    see `launchable`). `last_fire` is the scheduled firing this task covers —
+    used to report "ready" vs "overdue" and to order launches.
 
     `ref` is `None` when the period was already scaffolded earlier this cycle
     and the task directory has since been removed (Dream self-deletes itself
@@ -100,10 +101,28 @@ class DueTask:
 
     @property
     def launchable(self) -> bool:
-        # `active` means scaffolded-and-not-yet-run: either created this scan
-        # or carried over from an earlier scan that never launched it.
-        # `in_progress`/`paused`/`done` are already handled — never relaunch.
-        return self.status == "active"
+        # `active` → scaffolded-and-not-yet-run (created this scan or carried
+        # over from one that never launched it).
+        # `in_progress` → a *past* sweep died mid-run and left this period task
+        # frozen. `relay recurring` is a foreground command — no daemon, no
+        # concurrent sweep in normal use — so an `in_progress` period task at
+        # scan time can only be a dead sweep's orphan, never a live session.
+        # Relaunch it: `relay launch` resumes an `in_progress` ticket from its
+        # current `step:` (it only flips status on an `active` launch). Worst
+        # case a false relaunch redoes a step the human then catches — cheaper
+        # than a liveness mechanism.
+        # `done` → finished work, never re-run. `paused` → a human parked it.
+        return self.status in {"active", "in_progress"}
+
+    @property
+    def resuming(self) -> bool:
+        """A launchable orphan being resumed, not a fresh launch.
+
+        True only for an `in_progress` period task — a dead sweep's orphan
+        that `relay launch` will re-compose from its current `step:`. Drives
+        the "→ resume" vs "→ launch" distinction in the scan table.
+        """
+        return self.launchable and self.status == "in_progress"
 
 
 @dataclass

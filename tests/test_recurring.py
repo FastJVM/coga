@@ -475,6 +475,52 @@ def test_scan_due_excludes_handled_task(repo: Path) -> None:
     assert second.due == []
 
 
+def test_scan_due_resumes_orphaned_in_progress_task(repo: Path) -> None:
+    """An `in_progress` current-period task is a dead sweep's orphan — resume it.
+
+    A sweep whose supervisor died mid-run (laptop sleep) leaves its in-flight
+    period task frozen `in_progress`. There is no daemon and no concurrent
+    sweep, so the next bare `relay recurring` re-includes it in `.due` and
+    `relay launch` resumes it from its current step — rather than skipping it
+    forever (the old behavior, which stranded the orphan).
+    """
+    cfg = load_config(repo)
+    now = datetime(2026, 4, 22, 10, 0, 0)
+    first = scan_due(cfg, now=now)
+    task = first.tasks[0]
+
+    # Simulate the supervisor dying mid-run: the task is frozen `in_progress`.
+    ticket = Ticket.read(task.ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.write(task.ref.path / "ticket.md")
+
+    second = scan_due(cfg, now=now)
+    resumed = second.tasks[0]
+    assert resumed.status == "in_progress"
+    assert resumed.created is False  # get-or-create returned the existing dir
+    assert resumed.launchable is True
+    assert resumed.resuming is True
+    assert resumed in second.due
+
+
+def test_scan_due_skips_paused_task(repo: Path) -> None:
+    """A `paused` period task stays skipped — a human deliberately parked it."""
+    cfg = load_config(repo)
+    now = datetime(2026, 4, 22, 10, 0, 0)
+    first = scan_due(cfg, now=now)
+    task = first.tasks[0]
+
+    ticket = Ticket.read(task.ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "paused"
+    ticket.write(task.ref.path / "ticket.md")
+
+    second = scan_due(cfg, now=now)
+    assert second.tasks[0].status == "paused"
+    assert second.tasks[0].launchable is False
+    assert second.tasks[0].resuming is False
+    assert second.due == []
+
+
 # --- relay recurring launch / the `dream` alias path --------------------------
 
 
@@ -697,6 +743,61 @@ def test_recurring_launch_invokes_launch(
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
     assert calls[0].startswith("dream-")
+
+
+def test_recurring_launch_resumes_in_progress_orphan(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`relay recurring launch <name>` resumes an orphaned `in_progress` task.
+
+    The on-demand path (the `relay dream` alias) follows the same rule as the
+    bare sweep: an `in_progress` period task left by a dead supervisor is
+    relaunched (resumed), not refused.
+    """
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "relay.commands.launch.launch", lambda task, **k: calls.append(task)
+    )
+
+    # First call scaffolds the period task (`active`); freeze it `in_progress`
+    # to mimic a sweep that died mid-run.
+    CliRunner().invoke(app, ["recurring", "launch", "dream"])
+    cfg = load_config(dream_repo)
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.write(ref.path / "ticket.md")
+    calls.clear()
+
+    result = CliRunner().invoke(app, ["recurring", "launch", "dream"])
+
+    assert result.exit_code == 0, result.output
+    assert "Resuming" in result.output
+    assert calls == [ref.slug]  # relaunched, not refused
+
+
+def test_recurring_launch_refuses_done_task(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `done` period task is left alone — re-running finished work is wrong."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "relay.commands.launch.launch", lambda task, **k: calls.append(task)
+    )
+
+    CliRunner().invoke(app, ["recurring", "launch", "dream"])
+    cfg = load_config(dream_repo)
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+    calls.clear()
+
+    result = CliRunner().invoke(app, ["recurring", "launch", "dream"])
+
+    assert result.exit_code == 0, result.output
+    assert "is done; not launching" in result.output
+    assert calls == []
 
 
 def test_recurring_launch_interactive_overrides_mode(
@@ -1024,7 +1125,11 @@ def test_recurring_idle_timeout_env_override(
 def test_bare_recurring_nothing_due(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A second bare run in the same period — the task is in_progress/done — is a no-op."""
+    """A second bare run in the same period whose task is `done` is a no-op.
+
+    (An `in_progress` task is no longer a no-op — it is resumed; see
+    `test_scan_due_resumes_orphaned_in_progress_task`.)
+    """
     monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
     _allow_interactive_recurring(monkeypatch)
     runner = CliRunner()

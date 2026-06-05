@@ -61,10 +61,14 @@ def main(
 
     Bare `relay recurring` is the default action. For each template under
     `relay-os/recurring/` it get-or-creates the current period's task, then
-    launches every one still `active` — most-overdue first, one at a time.
-    Current period only: running this once a month for a weekly template
-    produces one run, not a backlog. It does not install or manage system
-    cron; nothing runs unless you invoke it.
+    launches every one still `active` — most-overdue first, one at a time. A
+    period task left `in_progress` by a sweep whose supervisor died mid-run
+    (laptop sleep, SSH drop) is **resumed** from its current step on the next
+    sweep — there is no concurrent sweep to make it a live session, so a frozen
+    `in_progress` can only be a dead run's orphan. `done` and `paused` tasks are
+    skipped. Current period only: running this once a month for a weekly
+    template produces one run, not a backlog. It does not install or manage
+    system cron; nothing runs unless you invoke it.
 
     `--all` is the debug escape hatch: it scaffolds a fresh, isolated
     throwaway run of every template and launches them all, bypassing both the
@@ -234,23 +238,26 @@ def launch(
 
 
 def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> None:
-    """Launch a freshly scaffolded recurring task.
+    """Launch (or resume) a scaffolded recurring task.
 
-    Recurring tasks scaffold straight to `active` — they are machine-authored
-    ready jobs, so there is no separate activation step. A task already past
-    `active` (a finished or paused run, e.g. re-running `relay dream` mid-week)
-    is left alone — re-launching it would be wrong, and saying so beats
-    silently doing nothing.
+    Recurring tasks scaffold straight to `active` — machine-authored ready
+    jobs, no separate activation step. An `in_progress` task is a *resume*: a
+    past sweep died mid-run and left it frozen (`relay recurring` is a
+    foreground command with no concurrent sweep, so it can only be an orphan),
+    and `relay launch` re-composes it from its current `step:`. `done`/`paused`
+    are left alone — re-launching finished or human-parked work would be wrong,
+    and saying so beats silently doing nothing.
     """
     ticket = read_ticket(ref)
-    if ticket.status != "active":
+    if ticket.status not in {"active", "in_progress"}:
         typer.secho(
             f"{ref.id_slug} is {ticket.status}; not launching.",
             fg=typer.colors.YELLOW,
         )
         return
 
-    typer.echo(f"Launching {ref.id_slug}")
+    verb = "Resuming" if ticket.status == "in_progress" else "Launching"
+    typer.echo(f"{verb} {ref.id_slug}")
     from relay.commands.launch import launch as launch_cmd
 
     launch_cmd(
@@ -373,6 +380,10 @@ def _print_table(scan: DueScan) -> None:
             action = typer.style(
                 "skip (ran this period)", fg=typer.colors.BRIGHT_BLACK
             )
+        elif task.resuming:
+            # An orphaned `in_progress` period task from a dead sweep — relaunch
+            # resumes its current step rather than starting a fresh run.
+            action = typer.style("→ resume", fg=typer.colors.YELLOW)
         elif task.launchable:
             action = typer.style("→ launch", fg=typer.colors.GREEN)
         else:
