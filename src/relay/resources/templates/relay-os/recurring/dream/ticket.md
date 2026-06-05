@@ -168,22 +168,25 @@ ticket, carries one running delta across the whole run, and partitions the
 tickets into coherent PR batches — each PR within its hard limits (≤5 source
 tickets, ≤3 knowledge files, ≤1 new context/skill file, one theme). Every
 processed done ticket is deleted: a ticket that contributed durable knowledge
-is deleted in its theme's knowledge PR; a ticket carrying nothing durable gets
-a `no-new-durable-knowledge` marker and is deleted too — folded into a
-knowledge PR's `## Pruned` section, or, when the run opens no knowledge PR at
-all, in one delete-only prune PR. Retro never leaves a processed done ticket on
-disk and never opens a marker-only PR.
+is deleted in its theme's knowledge PR, which also records its `## Retro`
+marker; a ticket carrying nothing durable is direct-deleted with
+`relay delete <slug>` (a working-tree `git rm` plus a direct
+`Ticket: <slug> — deleted` commit), with no PR and no marker. Recovery is via
+`git restore`. Retro never leaves a processed done ticket on disk and never
+opens a marker-only PR.
 
-Summarize each PR — knowledge PRs and any prune PR — in this run's blackboard.
+Summarize each knowledge PR — and the directly-deleted no-knowledge tickets —
+in this run's blackboard.
 
 ### Phase 5 — cleanup-orphan-markers
 
 Recovery path for done tickets whose blackboard carries a processed Retro
 marker from a knowledge PR but whose task directory was not deleted by that
-PR. Phase 4 PRs delete the source directory in the same PR, so this pass should
-usually find nothing. A `result: no-new-durable-knowledge` ticket is Phase 4's
-to delete — Phase 4 re-picks it each run until its prune PR merges — so this
-cleanup gate ignores those markers.
+PR. Phase 4 knowledge PRs delete the source directory in the same PR, so this
+pass should usually find nothing. A no-durable-knowledge ticket is direct-deleted
+by Phase 4 in the run and never carries a `## Retro` marker, so it can never be a
+candidate here; the gate still excludes any `result: no-new-durable-knowledge`
+marker left behind by an older run.
 
 Launch a child `mode: script` task whose current workflow step references
 `bootstrap/dream/tasks/cleanup-orphan-markers`. The skill detects cleanup
@@ -213,7 +216,7 @@ rest — this task is retired and its blackboard with it.
 Route each finding by class:
 
 - `extract` — already handled by Phase 4 (a knowledge PR, or — when the ticket
-  carried nothing durable — a `no-new-durable-knowledge` marker and deletion).
+  carried nothing durable — a direct `relay delete`).
 - `stale` — open a proposal PR that edits the named context or skill to match
   reality. The PR is `pr-required`: a human reviews and merges it; Dream never
   auto-merges and never edits a context or skill directly on `main`. If a

@@ -71,15 +71,20 @@ Last updated: 2026-06-01.
   cleanup belong in a dev maintenance task or workflow, not the generic Dream
   cleanup pass.
 - **Done-ticket cleanup is retro-first, and every processed done ticket is
-  deleted.** A done task whose directory still exists, with no open PR adding
+  deleted — knowledge-bearing tickets in a PR, knowledge-less tickets
+  directly.** A done task whose directory still exists, with no open PR adding
   its `## Retro` marker or deleting it, is eligible for Retro. If Retro extracts
   durable knowledge, its PR records the marker, updates the knowledge base, and
-  deletes the source task directory in the same PR. If Retro finds no new
-  durable knowledge, it records `result: no-new-durable-knowledge` and the
-  ticket is still deleted — folded into a knowledge PR's `## Pruned` section, or
-  in one delete-only prune PR when the run opens no knowledge PR. After deletion
-  git history is the audit trail. Retro never leaves a processed done ticket on
-  disk and never opens a marker-only PR.
+  deletes the source task directory in the same PR — so a human can reject or
+  edit the knowledge change and the deletion together, atomically. If Retro
+  finds no new durable knowledge, there is no PR to bundle the deletion into, so
+  the ticket is **direct-deleted** via `relay delete <slug>` (working-tree
+  `git rm` plus a direct `Ticket: <slug> — deleted` commit); no marker, no
+  `## Pruned` section, no delete-only prune PR. After deletion git history is the
+  audit trail and recovery is via `git restore`. This replaces the earlier model
+  that bundled every deletion — including knowledge-less ones — into a knowledge
+  PR or a single delete-only prune PR. Retro never leaves a processed done
+  ticket on disk and never opens a marker-only PR.
 
 ## Recent decisions (assignees flattened out)
 

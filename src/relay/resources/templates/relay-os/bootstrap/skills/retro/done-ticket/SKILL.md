@@ -1,6 +1,6 @@
 ---
 name: retro/done-ticket
-description: Extract durable knowledge from one done ticket or every eligible done ticket in a single run into Relay contexts or skills, then delete every processed source task in a reviewable PR — one per coherent knowledge theme, with no-durable-knowledge tickets folded in or pruned in a single delete-only PR.
+description: Extract durable knowledge from one done ticket or every eligible done ticket in a single run into Relay contexts or skills. A ticket that yields durable knowledge is deleted in its theme's reviewable knowledge PR; a ticket with no durable knowledge is direct-deleted via `relay delete`, with no PR and no marker.
 ---
 
 # Retro Done Ticket
@@ -11,21 +11,22 @@ is not Dream, not a Python worker, and not a cleanup command. Its job is to
 read one completed ticket — or every eligible done ticket Dream passes in a
 single run — compare the evidence against the repo's context and skill corpus,
 and decide whether each task contains durable knowledge worth adding to Relay.
-A run loads the corpus once and processes every slug it was given; it then
+A run loads the corpus once and processes every slug it was given. It then
 partitions the tickets that hold new knowledge into coherent themes and opens
-one reviewable PR per theme, each recording the source-task `## Retro` markers,
+one reviewable PR per theme, each recording the source-task `## Retro` marker,
 updating the knowledge base, and deleting those source task directories in the
-same PR. A source task with no new durable knowledge is still deleted: its
-`## Retro` marker is recorded and its directory removed inside a knowledge PR
-of the same run — folded in under a `## Pruned` section — or, when the run
-opens no knowledge PR at all, inside a single delete-only prune PR. Retro never
-leaves a processed done ticket on disk and never opens a marker-only PR.
+same PR. A source task with no new durable knowledge is still deleted, but
+**directly**: Retro removes its directory with `relay delete <slug>` — a
+working-tree `git rm` plus a direct `Ticket: <slug> — deleted` commit — with no
+PR, no `## Retro` marker, and no `## Pruned` bookkeeping. Recovery is via
+`git restore`. Retro never leaves a processed done ticket on disk.
 
 ## Known Skill Contract
 
 - Purpose: extract durable knowledge from one done ticket or every eligible
-  done ticket in a single run, mark that Retro has processed each source task,
-  and delete every processed source task directory through a reviewable PR.
+  done ticket in a single run, and delete every processed source task — a
+  knowledge-bearing ticket through its reviewable knowledge PR, a
+  no-durable-knowledge ticket directly via `relay delete`.
 - Runs: `retro/done-ticket <task-slug> [<task-slug> ...]` after a human
   chooses one exact done ticket, or Dream passes every eligible done ticket in
   one run. The run partitions them into coherent PR batches itself.
@@ -36,23 +37,24 @@ leaves a processed done ticket on disk and never opens a marker-only PR.
   extraction.
 - May change: warranted context files, warranted skill files, and the exact
   source task directories `relay-os/tasks/<slug>/` for every processed source
-  task — deleted in its theme's knowledge PR, folded into a knowledge PR's
-  `## Pruned` section, or removed in the run's single delete-only prune PR.
-- Action: `pr-required` — every knowledge edit and every source-task deletion
-  lands in a reviewable PR; nothing is deleted on the working tree.
+  task — a knowledge-bearing ticket deleted in its theme's knowledge PR, a
+  no-durable-knowledge ticket deleted directly via `relay delete`.
+- Action: `pr-required` for knowledge edits and the source-task deletions
+  bundled with them; `direct-delete` for no-durable-knowledge source tasks.
+  Every knowledge edit lands in a reviewable PR; nothing in the knowledge base
+  is changed on the working tree.
 - Idempotency: for each source task, the task directory is gone, or an open PR
-  is adding its `## Retro` marker or deleting the source task directory. A
-  processed `## Retro` marker on a still-present directory does not settle the
-  task — Retro re-picks it for deletion.
+  is adding its `## Retro` marker and deleting the source task directory. A
+  no-durable-knowledge ticket is direct-deleted during the run, so afterward its
+  directory is simply gone. A processed `## Retro` marker on a still-present
+  directory does not settle the task — Retro re-picks it for deletion.
 - Stop and ask: any slug is ambiguous, any task is not `status: done`, any
   required evidence file is missing, a single coherent theme still exceeds the
   per-PR hard limits, or the diff would touch anything outside the allowed
   files or the exact source task directories.
 - Output: one coherent PR per knowledge theme, each with knowledge edits and
-  source task deletion for the tickets that contributed new knowledge;
-  no-new-durable-knowledge tickets deleted in a folded `## Pruned` section of a
-  knowledge PR, or in one delete-only prune PR when the run opens no knowledge
-  PR at all.
+  the source-task deletion for the tickets that contributed new knowledge;
+  no-durable-knowledge tickets removed by direct `relay delete` with no PR.
 
 ## Scope
 
@@ -70,15 +72,13 @@ Do:
 - update, create, split, merge, or delete context blocks when warranted;
 - update or create a skill only when a ticket contains repeatable process
   knowledge that is not already covered;
-- append or update exactly one `## Retro` marker in each source task's
-  `blackboard.md`;
-- delete every processed source task directory `relay-os/tasks/<slug>/` in a
-  PR after recording its `## Retro` marker;
+- for a knowledge-bearing source task, append or update exactly one `## Retro`
+  marker in its `blackboard.md` and delete its directory in the same knowledge
+  PR;
+- for a no-durable-knowledge source task, delete its directory directly with
+  `relay delete <slug>` — no marker, no PR;
 - open one PR per coherent knowledge theme, containing that theme's
   knowledge-base changes and the deletion of its contributing source tasks;
-- delete each no-new-durable-knowledge source task by folding its directory
-  deletion into a knowledge PR of the same run under a `## Pruned` section, or
-  — when the run opens no knowledge PR — into a single delete-only prune PR;
 - post a one-line Slack FYI with the PR title and link when Slack is
   available. The title should carry the new finding.
 
@@ -87,10 +87,11 @@ Do not:
 - delete any task directory except the exact source ticket directories passed
   to this skill;
 - delete local or remote git branches;
+- open a delete-only PR, fold a deletion into a `## Pruned` section, or open any
+  PR at all for a no-durable-knowledge ticket — those are direct-deleted via
+  `relay delete`;
 - open a marker-only PR — a PR whose only change is a blackboard `## Retro`
   marker with the source task directory left in place;
-- split no-new-durable-knowledge prunings across more than one PR, or open more
-  than one delete-only prune PR per run;
 - mutate ticket frontmatter, `log.md`, or `task.lock` before deleting the
   source task directory;
 - preserve one-off execution noise as context.
@@ -187,15 +188,11 @@ within the per-PR hard limits below, or there is already an open PR adding a
    the run still covers every slug. If a single coherent theme cannot fit
    within one PR's limits, stop and ask.
 
-   Tickets with no new durable knowledge are not a batch theme — they are
-   *pruned*, not extracted. After settling the knowledge batches, fold every
-   no-new-durable-knowledge source-task deletion into one of the run's
-   knowledge PRs under a `## Pruned` section. Pruned deletions do not count
-   toward that batch's five-source-ticket limit and never change its title or
-   theme. If the run opens no knowledge PR at all — every processed ticket
-   carried nothing durable — open exactly one delete-only prune PR carrying
-   every no-new-durable-knowledge deletion. Never split prunings across PRs and
-   never open more than one prune PR.
+   Tickets with no new durable knowledge are not a batch theme — they are not
+   extracted and not bundled into any PR. After settling the knowledge batches,
+   delete every no-durable-knowledge source task directly with
+   `relay delete <slug>` (see step 9). They get no `## Retro` marker and never
+   appear in a knowledge PR.
 
 6. **Classify each candidate.**
    Use this table:
@@ -222,58 +219,53 @@ within the per-PR hard limits below, or there is already an open PR adding a
    Delete a context or skill block only when it is obsolete, duplicated, or
    replaced by the new edit.
 
-8. **Record the Retro markers.**
-   Append or update exactly one `## Retro` section in each selected source
-   task's `blackboard.md`:
+8. **Record the Retro markers for knowledge-bearing tickets.**
+   For each source task that contributed new durable knowledge, append or update
+   exactly one `## Retro` section in its `blackboard.md`:
 
    ```markdown
    ## Retro
 
    status: processed
    skill: retro/done-ticket
-   result: <knowledge-pr | no-new-durable-knowledge>
-   title: <PR title or no-op title>
+   result: knowledge-pr
+   title: <PR title>
    ```
 
-   If no durable knowledge is found for a source task, write the marker with
-   `result: no-new-durable-knowledge` and a title such as
-   `No new durable knowledge for <slug>`. That task is still deleted — its
-   directory removal is folded into a knowledge PR's `## Pruned` section, or
-   into the run's single delete-only prune PR. Never open a marker-only PR that
-   writes the marker and leaves the directory in place. Return a one-line no-op
-   result when no source task in the run contributed new durable knowledge —
-   the prune PR still deletes those directories.
+   A source task with no new durable knowledge gets **no** marker — it is
+   direct-deleted in step 9. Never open a marker-only PR that writes the marker
+   and leaves the directory in place. Return a one-line result naming the
+   direct-deleted tickets when no source task in the run contributed new durable
+   knowledge.
 
 9. **Delete every processed source task.**
-   Delete `relay-os/tasks/<slug>/` for every processed source task, inside the
-   PR that records its `## Retro` marker, after recording that marker. A source
-   task that contributed new durable knowledge is deleted in its theme's
-   knowledge PR. A no-new-durable-knowledge source task is deleted in a folded
-   `## Pruned` section of a knowledge PR, or in the run's single delete-only
-   prune PR. The marker is preserved in PR history, and after merge git history
-   is the audit trail for the deleted task.
+   A source task that contributed new durable knowledge is deleted inside the PR
+   that records its `## Retro` marker, after recording that marker — in its
+   theme's knowledge PR. A source task with no new durable knowledge is deleted
+   **directly** with `relay delete <slug>`: that removes its directory on the
+   working tree and commits `Ticket: <slug> — deleted` straight to the control
+   branch — no PR, no marker, no `## Pruned` section. After deletion git history
+   is the audit trail for the deleted task, and recovery is via `git restore`.
 
 10. **Self-review the diff.**
-   Confirm each PR changes only context files, warranted skill files, and the
-   exact source task directories unless the human explicitly asked for something
-   else. Confirm every processed source task directory is deleted in exactly
-   one PR, that no-new-durable-knowledge prunings are not split across PRs, and
-   that no marker-only PR (marker written, directory left in place) is opened.
+   Confirm each knowledge PR changes only context files, warranted skill files,
+   and the exact source task directories that contributed knowledge unless the
+   human explicitly asked for something else. Confirm every knowledge-bearing
+   source task directory is deleted in exactly one PR, that no-durable-knowledge
+   tickets are direct-deleted (not bundled into any PR), and that no marker-only
+   PR (marker written, directory left in place) is opened.
 
 11. **Open the PRs.**
    Work in the current checkout — do not create a `git worktree`. For each
    coherent knowledge batch, branch directly off `origin/main` with
    `git checkout -b codex/retro-<ticket-slug>-knowledge origin/main` for a
    single source task or `codex/retro-<theme>-knowledge origin/main` for a
-   multi-ticket batch, make that batch's edits and source-task deletions —
-   including any folded `## Pruned` deletions — there, commit, push, and open
-   the PR, then return to `origin/main` for the next batch. Title each
-   knowledge PR for its knowledge change, not the act of running Retro. Prefer
-   `New context: <finding>` or `New skill: <finding>`. When the run opens no
-   knowledge PR at all, branch `codex/retro-prune-done-tickets origin/main`,
-   delete every no-new-durable-knowledge source task directory there, and open
-   one delete-only prune PR titled `Prune done tickets with no durable
-   knowledge`.
+   multi-ticket batch, make that batch's edits and source-task deletions there,
+   commit, push, and open the PR, then return to `origin/main` for the next
+   batch. Title each knowledge PR for its knowledge change, not the act of
+   running Retro. Prefer `New context: <finding>` or `New skill: <finding>`.
+   No-durable-knowledge tickets are not part of any branch — remove each with
+   `relay delete <slug>` from the checkout.
 
 12. **Post Slack FYI for PRs.**
    If Slack is configured, post one short message per PR that is useful without
@@ -300,31 +292,15 @@ Knowledge PR — use this shape:
 - Already covered: <bullets or "none">
 - Dropped as one-off: <bullets or "none">
 
-## Pruned
-- Deleted with no durable knowledge: `relay-os/tasks/<slug>/`, ... (or "none").
-
 ## Test Plan
 - Reviewed context/skill diff against ticket evidence, the existing knowledge
   inventory, and the per-PR coherence limits.
 ```
 
-Delete-only prune PR (opened only when the run produced no knowledge PR) — use
-this shape:
-
-```markdown
-## Summary
-- Pruned done tickets with no new durable knowledge: `<slug>`, ...
-- Deleted: `relay-os/tasks/<slug>/`, ...
-
-## Source
-- Markers: PR history for each deleted `blackboard.md` records `## Retro`
-  with `status: processed` and `result: no-new-durable-knowledge`.
-- After merge, git history is the audit trail for each deleted task.
-
-## Test Plan
-- Confirmed each task is `status: done`, carries no new durable knowledge, and
-  that the diff deletes only the named source task directories.
-```
+No-durable-knowledge tickets do not get a PR — they are removed directly with
+`relay delete <slug>`, which commits `Ticket: <slug> — deleted` to the control
+branch. After the run, git history is the audit trail for each direct-deleted
+task.
 
 ## Quality Bar
 
@@ -332,7 +308,7 @@ Each knowledge PR should make future task prompts better, and must stay small
 enough to review and describe with one clear title — that is what the per-PR
 limits protect. Splitting a run into several focused PRs is correct; a single
 sprawling PR is not. A ticket with no new durable knowledge contributes no
-knowledge edit, but it is still deleted — folded into a knowledge PR's
-`## Pruned` section or removed in the run's single delete-only prune PR. Never
-open a marker-only PR that writes a `## Retro` marker and leaves the source
-task directory on disk; a processed done ticket should not survive the run.
+knowledge edit and is direct-deleted via `relay delete` — it never rides in a
+knowledge PR. Never open a marker-only PR that writes a `## Retro` marker and
+leaves the source task directory on disk; a processed done ticket should not
+survive the run.

@@ -1,9 +1,11 @@
 Retire the done ticket `{slug}`.
 
 Retire is the slug-targeted launcher for `retro/done-ticket`: extract durable
-knowledge from one finished task and open a PR only when new durable knowledge
-exists. If no new durable knowledge exists, Retro records a no-op marker on
-the source blackboard and leaves the task directory in place. This task is the
+knowledge from one finished task, then delete it. When new durable knowledge
+exists, Retro opens a PR that records the `## Retro` marker, edits the knowledge
+base, and deletes the source task directory in the same PR. When no new durable
+knowledge exists, there is no PR to bundle the deletion into, so Retro
+direct-deletes the task via `relay delete` — no marker, no PR. This task is the
 ad-hoc shell that drives that single skill against the named slug. Do not
 invent additional steps. Branch hygiene (local prune, stale-branch sweep) is a
 Dream concern, not retire's.
@@ -26,12 +28,14 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
    or any required evidence file is missing. When new durable knowledge exists,
    it opens a PR that records the `## Retro` marker, edits the knowledge base,
    and deletes `relay-os/tasks/{slug}/` in the same PR. When no new durable
-   knowledge exists, it records `result: no-new-durable-knowledge` directly on
-   the source blackboard and does not open a PR or delete the directory.
+   knowledge exists, it direct-deletes `relay-os/tasks/{slug}/` via
+   `relay delete` — a working-tree `git rm` plus a direct
+   `Ticket: {slug} — deleted` commit, with no PR and no marker. Recovery is via
+   `git restore`.
 
 2. **Mark this retire task done.** Run `relay mark done <this-task-slug>`
    with a `--message` summarizing what happened: the retro PR link, or
-   "no-op" if retro found no durable knowledge.
+   "direct-deleted, no durable knowledge" when retro found nothing durable.
 
 ### Stop conditions
 

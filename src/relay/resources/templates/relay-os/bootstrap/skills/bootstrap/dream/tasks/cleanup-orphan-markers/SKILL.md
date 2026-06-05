@@ -8,11 +8,12 @@ script: run.py
 
 This Dream skill is the recovery path for done tickets whose blackboard already
 contains the processed Retro marker from a knowledge PR but whose task
-directory still exists. Normal Retro PRs delete the source task directory in
-the same PR, so this skill should usually report no work. Retro markers with
-`result: no-new-durable-knowledge` belong to the Phase 4 Retro pass, which
-deletes those tickets itself and re-picks any whose deletion PR has not yet
-merged — they are not cleanup candidates here.
+directory still exists. Normal Retro knowledge PRs delete the source task
+directory in the same PR, so this skill should usually report no work.
+No-durable-knowledge tickets are direct-deleted by the Phase 4 Retro pass and
+never carry a marker, so they never reach this gate; for safety the gate still
+excludes any `result: no-new-durable-knowledge` marker left behind by an older
+run.
 
 ## Known Skill Contract
 
