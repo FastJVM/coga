@@ -1,7 +1,7 @@
 ---
 title: 'Dream/Retro: direct-delete done tickets instead of bundling deletion into
   knowledge PRs'
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
