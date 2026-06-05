@@ -1,5 +1,46 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+
+- branch: `resume-orphaned-recurring`
+- worktree: `../relay-resume-orphaned-recurring`
+
+### Implementation log (2026-06-05)
+Grounding confirmed by reading source before touching anything:
+- `relay launch` **already** accepts `in_progress` (`launch.py:190`) and only
+  flips `active → in_progress` (`launch.py:264`); an already-`in_progress`
+  ticket is composed from its current `step:` untouched. So "resume the step"
+  needs **no launch.py change** — just stop the recurring layer from filtering
+  `in_progress` out.
+
+Changes:
+1. `recurring.py` `DueTask.launchable` → `status in {"active", "in_progress"}`
+   (was `== "active"`). Drives the bare sweep's `.due`.
+2. `commands/recurring.py` `_launch_scaffolded` (the `relay recurring launch
+   <name>` / `relay dream` path) → also relaunch `in_progress` (resume), still
+   skip `done`/`paused`. "Resuming" vs "Launching" echo.
+3. `_print_table` → "→ resume" label for an `in_progress` launchable task so the
+   scan output is honest about relaunch-vs-fresh.
+4. Context `relay-os/contexts/relay/recurring/SKILL.md` + CLI help — state the
+   new behavior. (Local context only; no packaged copy under resources/.)
+
+### Result (implement step done)
+- Commit `9c79927` on branch `resume-orphaned-recurring`.
+- Tests: full suite **558 passed, 1 skipped**. Added 4 regression tests:
+  `test_scan_due_resumes_orphaned_in_progress_task`,
+  `test_scan_due_skips_paused_task`,
+  `test_recurring_launch_resumes_in_progress_orphan`,
+  `test_recurring_launch_refuses_done_task`. Fixed a now-stale docstring in
+  `test_bare_recurring_nothing_due`.
+- `relay validate` only flagged the worktree's missing machine-local
+  `relay.local.toml` `user` (gitignored, unrelated to this change); structural
+  validation otherwise clean. No validation behavior changed.
+- Running tests in the worktree: the dev venv is 3.9 by default; relay needs
+  3.11+ (`tomllib`). Use `PYTHONPATH=$PWD/src /home/n/Code/relay/.venv/bin/python
+  -m pytest`. Noted for the reviewer.
+- Scope held: no liveness detection, no launch.py change, no cleanup of
+  half-written crash artifacts (that's the resumed step's job, per ticket).
+
 ## Final design (2026-06-05, with nick) — SIMPLE: no liveness detection
 
 After iterating, nick steered to the minimal design. **No heartbeat, no
