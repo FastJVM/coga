@@ -1,6 +1,6 @@
 ---
 title: '[debug] Dream'
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
