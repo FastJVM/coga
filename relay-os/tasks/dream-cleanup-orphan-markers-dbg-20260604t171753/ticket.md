@@ -1,0 +1,26 @@
+---
+title: Dream cleanup-orphan-markers (dbg-20260604T171753)
+status: draft
+mode: script
+owner: nick
+human: nick
+agent: claude
+assignee: claude
+contexts: []
+skills: []
+workflow:
+  name: dream/cleanup-orphan-markers
+  steps:
+  - name: run
+    skills:
+    - bootstrap/dream/tasks/cleanup-orphan-markers
+    assignee: agent
+step: 1 (run)
+---
+
+## Description
+
+
+
+## Context
+
