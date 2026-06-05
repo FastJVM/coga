@@ -1,6 +1,6 @@
 ---
 title: Recover recurring runs orphaned when the supervisor dies (e.g. laptop sleep)
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
