@@ -907,8 +907,8 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
     """Interactive templates do not gate the sweep on `status: done`.
 
     The human is driving — exiting the agent without marking done is a
-    "move on" signal, not a stuck task. The sweep prints a note and
-    proceeds to the next due task.
+    "park this run and move on" signal, not a stuck task. The sweep pauses
+    that task, prints a note, and proceeds to the next due task.
     """
     _write_recurring(
         repo,
@@ -945,7 +945,17 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
     assert len(calls) == 2
     assert calls[0].startswith("weekly-check-")
     assert calls[1].startswith("z-weekly-check-")
-    assert "continuing to next due task (interactive)" in result.output
+    assert "paused and continuing to next due task (interactive)" in result.output
+
+    cfg = load_config(repo)
+    refs = list_tasks(cfg)
+    assert {Ticket.read(ref.path / "ticket.md").status for ref in refs} == {"paused"}
+
+    calls.clear()
+    second = CliRunner().invoke(app, ["recurring"])
+    assert second.exit_code == 0, second.output
+    assert calls == []
+    assert "No recurring tasks due." in second.output
 
 
 def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
