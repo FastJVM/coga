@@ -20,5 +20,7 @@ untouched.
 
 
 
-[2026-06-06 09:24] scaffolded digest-2026-06-06
-{"ts":"2026-06-06T14:47","project":"relay","kind":"done","detail":"→ done (script)","ticket":"digest-dbg-20260606T144723","owner":"nick"}
+
+
+{"ts":"2026-06-06T15:36","project":"relay","kind":"done","detail":"→ done (script)","ticket":"digest-dbg-20260606T153608","owner":"nick"}
+{"ts":"2026-06-06T15:38","project":"relay","kind":"done","detail":"claude finished → done ✅","ticket":"relay-dev-update-dbg-20260606T153608","owner":"nick"}
