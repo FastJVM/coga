@@ -11,7 +11,7 @@ import typer
 
 from relay import git
 from relay.commands.launch import _interactive_stdio_has_tty
-from relay.config import ConfigError, load_config
+from relay.config import Config, ConfigError, load_config
 from relay.recurring import (
     DueScan,
     RecurringError,
@@ -19,8 +19,10 @@ from relay.recurring import (
     scan_debug,
     scan_due,
 )
+from relay.mark import mark_paused
 from relay.slack import notify
 from relay.tasks import TaskRef, read_ticket
+from relay.validate import TaskValidationError
 
 # Default idle-timeout backstop (seconds) the sweep arms on the interactive
 # REPLs it spawns: one that stalls or crashes before signalling done would
@@ -61,10 +63,15 @@ def main(
 
     Bare `relay recurring` is the default action. For each template under
     `relay-os/recurring/` it get-or-creates the current period's task, then
-    launches every one still `active` — most-overdue first, one at a time.
-    Current period only: running this once a month for a weekly template
-    produces one run, not a backlog. It does not install or manage system
-    cron; nothing runs unless you invoke it.
+    launches every one still `active` or orphaned `in_progress` —
+    most-overdue first, one at a time. A period task left `in_progress` by a
+    sweep whose supervisor died mid-run (laptop sleep, SSH drop) is **resumed**
+    from its current step on the next sweep. If an interactive launch returns
+    unfinished, the sweep pauses it before continuing, so a frozen
+    `in_progress` can still mean "dead run's orphan". `done` and `paused` tasks
+    are skipped. Current period only: running this once a month for a weekly
+    template produces one run, not a backlog. It does not install or manage
+    system cron; nothing runs unless you invoke it.
 
     `--all` is the debug escape hatch: it scaffolds a fresh, isolated
     throwaway run of every template and launches them all, bypassing both the
@@ -119,7 +126,7 @@ def main(
             mode_override=mode_override,
             idle_timeout=idle_timeout,
         )
-        _stop_if_unfinished_after_launch(task.ref, interactive=interactive)
+        _stop_if_unfinished_after_launch(cfg, task.ref, interactive=interactive)
 
 
 def _launch_all_debug(cfg) -> None:
@@ -234,23 +241,26 @@ def launch(
 
 
 def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> None:
-    """Launch a freshly scaffolded recurring task.
+    """Launch (or resume) a scaffolded recurring task.
 
-    Recurring tasks scaffold straight to `active` — they are machine-authored
-    ready jobs, so there is no separate activation step. A task already past
-    `active` (a finished or paused run, e.g. re-running `relay dream` mid-week)
-    is left alone — re-launching it would be wrong, and saying so beats
-    silently doing nothing.
+    Recurring tasks scaffold straight to `active` — machine-authored ready
+    jobs, no separate activation step. An `in_progress` task is a *resume*: a
+    past sweep died mid-run and left it frozen (`relay recurring` is a
+    foreground command with no concurrent sweep, so it can only be an orphan),
+    and `relay launch` re-composes it from its current `step:`. `done`/`paused`
+    are left alone — re-launching finished or human-parked work would be wrong,
+    and saying so beats silently doing nothing.
     """
     ticket = read_ticket(ref)
-    if ticket.status != "active":
+    if ticket.status not in {"active", "in_progress"}:
         typer.secho(
             f"{ref.id_slug} is {ticket.status}; not launching.",
             fg=typer.colors.YELLOW,
         )
         return
 
-    typer.echo(f"Launching {ref.id_slug}")
+    verb = "Resuming" if ticket.status == "in_progress" else "Launching"
+    typer.echo(f"{verb} {ref.id_slug}")
     from relay.commands.launch import launch as launch_cmd
 
     launch_cmd(
@@ -262,26 +272,48 @@ def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> Non
     )
 
 
-def _stop_if_unfinished_after_launch(ref: TaskRef, *, interactive: bool) -> None:
+def _stop_if_unfinished_after_launch(
+    cfg: Config, ref: TaskRef, *, interactive: bool
+) -> None:
     """Stop a bare recurring sweep if one launched task is still in flight.
 
     `interactive` is set when the sweep is `--interactive` (or the just-
     launched template's own `mode:` was interactive). In that case the human
-    is driving — exiting the agent without marking done is a valid "move on"
-    signal, not a stuck task — so we print a note and continue instead of
-    bailing the sweep.
+    is driving — exiting the agent without marking done is a valid "park this
+    run and move on" signal, not a stuck task. Make that durable by pausing the
+    task, then continue instead of bailing the sweep; otherwise the next scan
+    would treat the leftover `in_progress` state as a dead supervisor's orphan
+    and relaunch it.
     """
     if not (ref.path / "ticket.md").exists():
         return
 
     ticket = read_ticket(ref)
-    if ticket.status == "done":
+    if ticket.status in {"done", "paused"}:
         return
 
     if interactive or ticket.mode == "interactive":
+        suffix = "interactive recurring launch exited unfinished"
+        try:
+            mark_paused(
+                cfg,
+                ref,
+                ticket,
+                actor=f"human:{cfg.current_user}",
+                log_message=f"paused ({ticket.status} → paused) — {suffix}",
+                slack_text=(
+                    f"⏸️ {cfg.current_user} paused *{ref.id_slug}* "
+                    f"\"{ticket.title}\" — {suffix}"
+                ),
+                digest_detail=f"→ paused — {suffix}",
+                echo=None,
+            )
+        except TaskValidationError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            sys.exit(2)
         typer.secho(
             f"{ref.id_slug}: ended with status={ticket.status!r}; "
-            "continuing to next due task (interactive).",
+            "paused and continuing to next due task (interactive).",
             fg=typer.colors.YELLOW,
         )
         return
@@ -373,6 +405,10 @@ def _print_table(scan: DueScan) -> None:
             action = typer.style(
                 "skip (ran this period)", fg=typer.colors.BRIGHT_BLACK
             )
+        elif task.resuming:
+            # An orphaned `in_progress` period task from a dead sweep — relaunch
+            # resumes its current step rather than starting a fresh run.
+            action = typer.style("→ resume", fg=typer.colors.YELLOW)
         elif task.launchable:
             action = typer.style("→ launch", fg=typer.colors.GREEN)
         else:
