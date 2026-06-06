@@ -79,8 +79,12 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "Extract durable knowledge from done tickets, then delete every one of them." in text
     assert "its directory `relay-os/tasks/<slug>/` still exists" in text
     assert "Retro never leaves a processed done ticket on" in text
-    assert "delete-only prune PR" in text
-    assert "no-new-durable-knowledge" in text
+    # Knowledge-less tickets are direct-deleted, not bundled into a prune PR.
+    assert "is direct-deleted with" in text
+    assert "`relay delete <slug>`" in text
+    assert "with no PR and no marker" in text
+    assert "delete-only prune PR" not in text
+    assert "## Pruned" not in text
     assert "Dream-owned scripts\nare skills attached to Relay tasks" in text
     assert "--blackboard" not in text
     assert "Dream Run Summary" in text

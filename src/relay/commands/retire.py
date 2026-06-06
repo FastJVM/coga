@@ -45,8 +45,9 @@ def retire(
     The retro skill opens a PR when it extracts new durable knowledge; that PR
     records the `## Retro` marker, edits the knowledge base, and deletes the
     source task directory in the same PR. If no new durable knowledge exists,
-    Retro records a no-op marker and opens no PR. Branch hygiene (local prune,
-    stale-branch sweep) is a Dream concern, not retire's.
+    Retro direct-deletes the task via `relay delete` (no PR, no marker; recover
+    with `git restore`). Branch hygiene (local prune, stale-branch sweep) is a
+    Dream concern, not retire's.
     """
     if mode == "auto":
         _bail(
