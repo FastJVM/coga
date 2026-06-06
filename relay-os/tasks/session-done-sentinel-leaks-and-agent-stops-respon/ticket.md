@@ -1,6 +1,6 @@
 ---
 title: Session-done sentinel leaks and agent stops responding to a present human
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
