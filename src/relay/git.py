@@ -15,19 +15,24 @@ feature working tree — and *also* commits the task files on the current branch
 so the agent's checkout reflects the ticket state it works against.
 
 A non-fast-forward `origin/<control>` (it moved under us) is absorbed by a
-bounded fetch-rebuild-retry loop: the `git push <sha>:refs/heads/<control>` is
-the atomic compare-and-swap that serializes concurrent relay processes (local
-or cross-machine), so no lock is introduced — consistent with relay's no-mutex
-architecture. A detached HEAD takes the cross-branch landing path but skips the
-local commit (a commit on a detached HEAD would be orphaned).
+bounded retry loop on both push paths. On the cross-branch landing path the
+`git push <sha>:refs/heads/<control>` is the atomic compare-and-swap that
+serializes concurrent relay processes (local or cross-machine), so no lock is
+introduced — consistent with relay's no-mutex architecture; it rebuilds the
+overlay tree on the new tip and repushes. On the same-branch path (HEAD *is*
+the control branch) a rejected push triggers a fetch + `rebase --autostash`
+onto the new tip, then a retry — the working tree is already checked out there,
+so integrating the remote move means a rebase, with autostash keeping unrelated
+dirty changes intact. A detached HEAD takes the cross-branch landing path but
+skips the local commit (a commit on a detached HEAD would be orphaned).
 
 Failure model: a failed git *operation* raises `GitError` internally, but at
 the boundary (`sync_paths`) it is non-fatal — written to stderr + the task's
 `log.md`, then swallowed so the command keeps running. The task markdown on
 disk is the source of truth; git is only the sync layer, so a push that can't
-reach the control branch (protected `main`, offline, an agent on a feature
-branch, `origin/<control>` moved under us) must NOT abort a local state
-transition. Earlier this re-raised as `typer.Exit(1)`, which broke the
+reach the control branch (protected `main`, offline, or a recovery that itself
+fails — e.g. a rebase conflict when integrating a moved `origin/<control>`)
+must NOT abort a local state transition. Earlier this re-raised as `typer.Exit(1)`, which broke the
 supervised launch chain: `relay bump`'s sync aborted before `emit_done_marker`
 fired, so the supervisor never relaunched the next step, and launch's own
 `active → in_progress` flip died before spawning the agent. "Fail loud" here
@@ -164,7 +169,7 @@ def _sync_on_control_branch(
     """
     if not _commit_task_dir(root, rel, message):
         return
-    _run_git(root, "push", cfg.git_remote, cfg.git_control_branch)
+    _push_control_branch(cfg, root)
 
 
 def _sync_paths_on_control_branch(
@@ -173,7 +178,71 @@ def _sync_paths_on_control_branch(
     """Stage explicit pathspecs, commit if anything changed, and push."""
     if not _commit_paths(root, rels, message):
         return
-    _run_git(root, "push", cfg.git_remote, cfg.git_control_branch)
+    _push_control_branch(cfg, root)
+
+
+def _push_control_branch(cfg: Config, root: Path) -> None:
+    """Push the checked-out control branch, absorbing a moved `origin/<control>`.
+
+    The fast path is a single `git push <remote> <control>`. If `origin/<control>`
+    advanced under us (another relay process, another machine, or a merged PR),
+    the push is rejected non-fast-forward; we fetch and rebase the local control
+    branch onto the new tip — protecting any unrelated dirty working-tree changes
+    with autostash — and retry. Bounded by `_MAX_SYNC_ATTEMPTS`.
+
+    This gives the same-branch path the same resilience the cross-branch landing
+    path already has. Without it, the bare push had no fetch-first and no retry,
+    so any concurrent remote commit left every later relay push on the control
+    branch rejected and the local branch silently accumulating unpushed commits.
+    """
+    remote = cfg.git_remote
+    branch = cfg.git_control_branch
+    for _ in range(_MAX_SYNC_ATTEMPTS):
+        result = _push_ref(root, remote, branch)
+        if result is None:
+            return
+        if not _is_non_fast_forward(result):
+            raise GitError(f"`git push {remote} {branch}` failed: {result}")
+        # `origin/<control>` moved under us — integrate it and retry.
+        _rebase_onto_remote(root, remote, branch)
+
+    raise GitError(
+        f"could not push {branch!r} after {_MAX_SYNC_ATTEMPTS} attempts — "
+        f"contention on {remote}/{branch}"
+    )
+
+
+def _rebase_onto_remote(root: Path, remote: str, branch: str) -> None:
+    """Rebase the local control branch onto the freshly-fetched remote tip.
+
+    `--autostash` keeps any unrelated dirty working-tree changes intact across
+    the rebase (the user's uncommitted edits are not relay's to commit, but they
+    must survive the recovery). On *any* failure — most likely a content
+    conflict between a local relay commit and concurrent remote work — we
+    `git rebase --abort` so the repo never lingers mid-rebase and the autostash
+    is restored, then raise. The caller surfaces that as a non-fatal sync miss
+    (stderr + log), never a crash: the on-disk markdown is still the source of
+    truth.
+    """
+    _run_git(root, "fetch", remote, branch)
+    proc = subprocess.run(
+        ["git", "-C", str(root), "-c", "rebase.autoStash=true",
+         "rebase", "FETCH_HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        subprocess.run(
+            ["git", "-C", str(root), "rebase", "--abort"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        raise GitError(
+            f"could not rebase {branch!r} onto {remote}/{branch}: "
+            f"{(proc.stderr + proc.stdout).strip()}"
+        )
 
 
 def _commit_task_dir(root: Path, rel: str, message: str) -> bool:
