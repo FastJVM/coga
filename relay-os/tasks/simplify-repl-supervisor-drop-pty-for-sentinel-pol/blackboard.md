@@ -43,3 +43,34 @@ NOTE: local interpreter is Python 3.9.12 (repo targets 3.11+ but uses
 ## Dev
 branch: sentinel-poll-supervisor
 worktree: /home/n/Code/relay-sentinel-poll
+commit: 45a0611 (not pushed — open-pr step handles that)
+
+## Implement — outcome
+Done. 8 files changed:
+- `src/relay/repl_supervisor.py` — rewritten to `subprocess.Popen(start_new_session=True)`
+  + sentinel poll. Dropped pty/select/termios/tty/fcntl/struct, `_resize_pty`, SIGWINCH,
+  raw-mode, proxy loop, match buffer, `DONE_MARKER`, `marker`/`input_fd` params. Added
+  `_status_from_returncode` so `_classify_exit` (and its tests) stays raw-waitpid-status
+  based. `_TTY_SANITIZE` now written to stdout (`output_fd`). idle_timeout is now a flat
+  wall-clock cap from launch. emit OSError branch is now silent (no print fallback).
+- `src/relay/compose.py` — removed `_defuse_done_marker` + DONE_MARKER import; `prompt`
+  returns assembled text unchanged.
+- `src/relay/commands/launch.py` — comment updated; call signature unchanged.
+- architecture SKILL.md (live + packaged template) — sentinel-poll model documented.
+- 3 test files updated (byte-match test removed; helpers drop PTY framing/input_fd;
+  emit-fallback test now asserts silence; compose test asserts token passes through).
+
+### Verification
+- `python -m pytest` → 569 passed, 1 skipped (ran in a fresh py3.12 venv in the
+  worktree; system default python is 3.9 which can't install the pkg).
+- `relay validate --json` against `example/` fixture → clean (no issues).
+- No dangling refs to removed symbols; `relay.repl_supervisor`/`compose`/`launch`
+  import clean.
+
+### NOT done (later steps)
+- No push / PR (that's `code/open-pr`).
+- End-to-end manual verification with a real `claude` session and
+  `relay recurring --interactive` (idle-timeout + done-signal) is in "Done looks like"
+  but requires a real TTY + agent CLI — flag for the human / self-qa step. Automated
+  tests exercise sentinel teardown, session-id scoping, idle-timeout, group kill,
+  `_classify_exit`, and `_TTY_SANITIZE` on signal teardown.
