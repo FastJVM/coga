@@ -389,6 +389,100 @@ def test_delete_skill_runs_as_script_step(repo: Path) -> None:
     assert not task_path.exists()
 
 
+def _install_noop_script_skill(repo: Path) -> None:
+    """A trivial `mode: script` skill: a no-op `run.sh` that exits 0."""
+    skill_dir = repo / "skills" / "local" / "noop"
+    _write(
+        skill_dir / "SKILL.md",
+        """
+        ---
+        name: local/noop
+        description: No-op script step for tests.
+        script: run.sh
+        ---
+
+        # Noop
+        """,
+    )
+    (skill_dir / "run.sh").write_text("#!/bin/sh\nexit 0\n")
+
+
+def test_script_mode_marks_done_after_final_step(repo: Path) -> None:
+    """A successful script step on a single-step workflow finishes the task.
+
+    Regression: `run_script_mode` ran the script and left the task at
+    `in_progress`, so a recurring scan halted on it ("stopping before the next
+    due task"). The launcher must apply the agent completion contract itself.
+    """
+    _install_noop_script_skill(repo)
+    _write(
+        repo / "workflows" / "flush-once.md",
+        """
+        ---
+        name: flush-once
+        description: One-step script workflow.
+        steps:
+          - name: flush
+            skills:
+              - local/noop
+            assignee: agent
+        ---
+        """,
+    )
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="Daily flush", workflow_name="flush-once",
+        contexts=[], mode="script", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    task_path = ref["path"]
+
+    result = CliRunner().invoke(app, ["launch", ref["slug"]])
+    assert result.exit_code == 0, result.output
+
+    ticket = Ticket.read(task_path / "ticket.md")
+    assert ticket.status == "done"
+    assert "script ran successfully" in result.output
+    assert "done" in result.output
+
+
+def test_script_mode_advances_to_next_step(repo: Path) -> None:
+    """On a multi-step workflow a script step bumps to the next step, not done."""
+    _install_noop_script_skill(repo)
+    _write(
+        repo / "workflows" / "flush-twice.md",
+        """
+        ---
+        name: flush-twice
+        description: Two-step script workflow.
+        steps:
+          - name: first
+            skills:
+              - local/noop
+            assignee: agent
+          - name: second
+            skills:
+              - local/noop
+            assignee: agent
+        ---
+        """,
+    )
+    cfg = load_config(repo)
+    ref = scaffold_task(
+        cfg=cfg, title="Two stage", workflow_name="flush-twice",
+        contexts=[], mode="script", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    task_path = ref["path"]
+
+    result = CliRunner().invoke(app, ["launch", ref["slug"]])
+    assert result.exit_code == 0, result.output
+
+    ticket = Ticket.read(task_path / "ticket.md")
+    assert ticket.status == "in_progress"
+    assert ticket.step_index() == 2
+
+
 # --- slack --------------------------------------------------------------------
 
 
