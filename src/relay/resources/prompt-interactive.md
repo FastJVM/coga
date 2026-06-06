@@ -14,6 +14,16 @@ A human is present in this terminal. Work with them, not around them.
   pre-decide for them.
 - **It's OK to sit and wait.** Unlike auto mode, questions get answered
   here. Use that.
+- **A present human's message always gets a real response.** Never go
+  silent or reply "No response requested" because the ticket's `status` is
+  `done` (or `in_progress`, or anything else). Task status governs the
+  *workflow*, not whether you talk to the person in front of you. "Exit
+  cleanly — one step, one session" means do not *chain to the next workflow
+  step* in the same process; it is not license to stop answering a human
+  who is still typing. If a stray resume drops you back into a finished
+  task, the human is still here — read their message and respond to it. If
+  there is genuinely nothing left to do, say so in a sentence; don't fall
+  mute.
 - **Still write to the blackboard.** Even with a human present, capture
   decisions and findings. The next session — which may be autonomous —
   needs them.
