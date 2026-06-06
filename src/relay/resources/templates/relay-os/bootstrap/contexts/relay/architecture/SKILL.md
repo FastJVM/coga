@@ -140,9 +140,11 @@ user-authored drafts.
 - **Control plane (`status`)** — `draft → active → in_progress →
   done`, plus `paused`. Governs *whether* work happens. `relay mark`
   owns the `draft`/`active`/`paused`/`done` transitions; `relay launch`
-  owns the one remaining transition, flipping an `active` ticket to
-  `in_progress` when it spawns the agent. `bump` ignores `status:`
-  entirely (it owns `step:`, not `status:`).
+  flips an `active` ticket to `in_progress` when it spawns the agent, and —
+  since launching is itself the readiness signal — also performs the
+  `mark active` step inline for a ticket that is still `draft`/`paused`/`done`
+  before that flip. `bump` ignores `status:` entirely (it owns `step:`,
+  not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `relay bump`. Only moves when
   status is `in_progress`. Bare `relay bump` advances one step; a human
@@ -154,9 +156,10 @@ statuses directly via `relay mark`. `relay bump` refuses them.
 
 The split is deliberate: each command owns its writes. `relay create`
 authors a draft, `relay mark` flips status across the lifecycle,
-`relay bump` moves steps, and `relay launch` spawns the agent — flipping
-`active → in_progress` as it does. Only `launch` touches both planes, and
-only for that single transition.
+`relay bump` moves steps, and `relay launch` spawns the agent — bringing the
+ticket to `active` first if it isn't already (reusing `relay mark active`),
+then flipping `active → in_progress` as it does. `launch` is the one command
+that touches both planes.
 
 ## Three modes
 
@@ -168,7 +171,9 @@ only for that single transition.
   launch supervisor via the session-scoped `$RELAY_DONE_SENTINEL` file, and
   the supervisor SIGTERMs the REPL. The legacy `DONE_MARKER` PTY byte-match
   exists only as a last-resort fallback if the sentinel file write fails; it
-  is not printed on the success path. After teardown, `relay launch` re-reads
+  is not printed on the success path, and the supervisor honors it only when
+  the marker carries the launched task's session id appended — so a bare
+  marker an agent reads, greps, or quotes at runtime cannot trigger teardown. After teardown, `relay launch` re-reads
   the ticket and either spawns a fresh REPL for the next workflow step (whenever
   it is an *agent's* turn — relaunching the next agent's CLI, so it rotates
   e.g. claude → codex → claude across a peer-review workflow) or returns
@@ -205,20 +210,25 @@ assembled prompt. An interactive launch's PTY supervisor tears down the REPL
 when the session-scoped `$RELAY_DONE_SENTINEL` file names the launched task.
 It still keeps a legacy PTY byte-match fallback for the `DONE_MARKER` byte
 sequence, used only if a session-ending command cannot write the sentinel
-file. Because any layer above — an injected context, a ticket body — could
-quote that literal sequence verbatim, `compose._defuse_done_marker` inserts a
-zero-width joiner right after the leading `<<<` so the marker can never appear
-intact in composed text. Without that defuse, quoting the marker in a context
-or body could SIGTERM the agent mid-session through the fallback watcher.
+file — and the supervisor honors that match only when the marker carries the
+launched task's session id appended, so a *bare* marker (one an agent reads,
+greps, or a dev-update/digest quotes at runtime) can never trigger teardown.
+As additional defense for the composed prompt, `compose._defuse_done_marker`
+inserts a zero-width joiner right after the leading `<<<` so the bare marker
+sequence cannot appear intact in composed text either.
 
 ## Status is the signal
 
 There is no filesystem mutex. The ticket's `status` (`draft`, `active`,
 `in_progress`, `paused`, `done`) is the signal that someone is — or
 isn't — working on a task. `relay launch` accepts an `active` or
-`in_progress` ticket and refuses any other status, pointing the
-operator at `relay mark active <slug>` — there is no auto-flip from
-draft. The failure mode of two divergent workers (two blackboard edits,
+`in_progress` ticket directly, and treats a launch of any other status as
+the readiness decision itself: a `draft` / `paused` / `done` ticket is run
+through `relay mark active` inline before the agent starts (re-activating a
+`done` ticket restarts its workflow at step 1). A workflow-less or
+required-extension-incomplete ticket still can't be activated, so those
+launches fail loud with the same remedy `mark active` gives. The failure
+mode of two divergent workers (two blackboard edits,
 two PR branches) is visible and recoverable in git; the cost of a hard
 mutex (stale lock files, `--force` flags, orphan-lock cleanup) is not.
 

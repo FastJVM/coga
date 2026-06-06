@@ -96,20 +96,25 @@ subcommand>`.
 
 `--message` piggy-backs an FYI onto the Slack broadcast.
 
-`relay launch` owns the `active` → `in_progress` start transition. `relay
-bump` no longer marks final-step tickets done. The status state machine and
-the step state machine are separate.
+`relay launch` owns the `active` → `in_progress` start transition, and will
+run `mark active` itself when launched against a `draft`/`paused`/`done`
+ticket (launching is the readiness signal). `relay bump` no longer marks
+final-step tickets done. The status state machine and the step state machine
+are separate.
 
 ## relay launch \<target\>
 
 Compose every relevant file (rules + repo context + ticket contexts +
 current step's skill + blackboard + ticket body) into one prompt and
-start the configured agent. Requires `status: active` or `in_progress` —
-drafts must be activated via `relay mark active <slug>` first; paused / done
-tickets must be marked back to active before they can be launched. Launching
-an `active` ticket marks it `in_progress` (posting `▶️`) before spawning the
-agent; launching an already-`in_progress` ticket resumes it without another
-status flip. Interactive launches require stdin and stdout to both be
+start the configured agent. Accepts `status: active` or `in_progress`
+directly; a `draft` / `paused` / `done` ticket is activated inline first —
+typing `relay launch` is the readiness signal, so it runs the `relay mark
+active` step for you (re-activating a `done` ticket restarts its workflow at
+step 1) rather than refusing. A ticket that can't be activated — no workflow,
+or an empty `required` extension field — still fails loud with the same
+remedy `mark active` gives. Launching an `active` ticket then marks it
+`in_progress` (posting `▶️`) before spawning the agent; launching an
+already-`in_progress` ticket resumes it without another status flip. Interactive launches require stdin and stdout to both be
 terminals. **`mode: auto` is temporarily disabled** — auto runs (claude
 `-p`, codex `exec`) buffer stdout until completion, leaving the operator
 with no live console signal. Use `mode: script` for unattended wrappers

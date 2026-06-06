@@ -392,11 +392,14 @@ Compose every relevant file for a task — rules, project context, ticket,
 attached contexts, current workflow step, frozen skills — into a single
 prompt and start the configured agent against it.
 
-`launch` accepts `status: active` or `status: in_progress`. Drafts must be
-activated with `relay mark active <slug>` first; paused / done tickets must
-be marked back to active before they can be launched. Launching an active
-ticket marks it `in_progress`; launching an already-`in_progress` ticket
-resumes it.
+`launch` accepts `status: active` or `status: in_progress` directly. A
+`draft` / `paused` / `done` ticket is activated inline first — typing `relay
+launch` is the readiness signal, so it runs the `relay mark active` step for
+you (re-activating a `done` ticket restarts its workflow at step 1) rather
+than refusing. A ticket that can't be activated — no workflow, or an empty
+`required` extension field — fails loud with the same remedy `mark active`
+gives. Launching an active ticket then marks it `in_progress`; launching an
+already-`in_progress` ticket resumes it.
 
 ```sh
 relay launch add-retry-to-webhook-handler          # full slug

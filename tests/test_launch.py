@@ -780,56 +780,103 @@ def test_launch_harness_stops_on_agent_panic(
     assert "test panic" in (Path(ref["path"]) / "blackboard.md").read_text()
 
 
-def test_launch_rejects_draft_with_mark_active_hint(
+def _launch_single_spawn(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+    """Mock the agent spawn so launch runs one REPL and stops (no bump → no
+    progress → supervisor halts). Returns the list of spawned argvs."""
+    calls: list[list[str]] = []
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+    return calls
+
+
+@pytest.mark.parametrize("prior", ["draft", "paused"])
+def test_launch_auto_activates_draft_and_paused(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch, prior: str
+) -> None:
+    """`relay launch` is itself the readiness signal: a draft/paused ticket
+    with a workflow is activated inline, then flipped to in_progress."""
+    from relay.ticket import Ticket
+
+    ref = _scaffold_chain_task(active_task, mode="interactive")
+    slug = str(ref["slug"])
+    ticket_md = Path(ref["path"]) / "ticket.md"
+    t = Ticket.read(ticket_md)
+    t.frontmatter["status"] = prior
+    t.write(ticket_md)
+
+    calls = _launch_single_spawn(monkeypatch)
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1  # agent spawned
+
+    after = Ticket.read(ticket_md)
+    assert after.status == "in_progress"
+    assert after.step == "1 (implement)"
+    log = (Path(ref["path"]) / "log.md").read_text()
+    assert f"activated ({prior} → active) (auto on launch)" in log
+
+
+def test_launch_auto_activates_done_and_reseeds_step(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Launch no longer flips draft → active. It errors with a hint."""
-    cfg = load_config(active_task)
-    ref = list_tasks(cfg)[0]
-    _allow_interactive_tty(monkeypatch)
+    """A done ticket had its `step:` cleared by `mark done`; re-activating on
+    launch restarts the frozen workflow from step 1."""
     from relay.ticket import Ticket
+
+    ref = _scaffold_chain_task(active_task, mode="interactive")
+    slug = str(ref["slug"])
+    ticket_md = Path(ref["path"]) / "ticket.md"
+    t = Ticket.read(ticket_md)
+    t.frontmatter["status"] = "done"
+    t.frontmatter.pop("step", None)  # mark done clears the step
+    t.write(ticket_md)
+
+    calls = _launch_single_spawn(monkeypatch)
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+
+    after = Ticket.read(ticket_md)
+    assert after.status == "in_progress"
+    assert after.step == "1 (implement)"
+
+
+def test_launch_auto_activate_bails_without_workflow(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A workflow-less ticket still can't be activated — launch fails loud
+    (it can never be advanced by `relay bump`) and never spawns an agent."""
+    from relay.ticket import Ticket
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]  # the default fixture task has no workflow
     t = Ticket.read(ref.path / "ticket.md")
     t.frontmatter["status"] = "draft"
     t.write(ref.path / "ticket.md")
 
-    called = False
+    calls = _launch_single_spawn(monkeypatch)
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
-        nonlocal called
-        called = True
-        class R: returncode = 0
-        return R()
-
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
-
-    runner = CliRunner()
-    result = runner.invoke(app, ["launch", "fix-retry-logic"])
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 2, result.output
-    assert "draft" in (result.output + (result.stderr or ""))
-    assert "relay mark active fix-retry-logic" in (result.output + (result.stderr or ""))
-    assert not called  # agent never spawned
-
-    # Ticket stayed draft — launch did not mutate status.
-    t = Ticket.read(ref.path / "ticket.md")
-    assert t.status == "draft"
-
-
-def test_launch_rejects_paused(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg = load_config(active_task)
-    ref = list_tasks(cfg)[0]
-    from relay.ticket import Ticket
-    t = Ticket.read(ref.path / "ticket.md")
-    t.frontmatter["status"] = "paused"
-    t.write(ref.path / "ticket.md")
-
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
-    runner = CliRunner()
-    result = runner.invoke(app, ["launch", "fix-retry-logic"])
-    assert result.exit_code == 2
     combined = result.output + (result.stderr or "")
-    assert "'paused'" in combined
-    assert "relay mark active fix-retry-logic" in combined
+    assert "no workflow" in combined
+    assert not calls  # agent never spawned
+
+    # Ticket stayed draft — the failed activation did not mutate status.
+    assert Ticket.read(ref.path / "ticket.md").status == "draft"
 
 
 def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
