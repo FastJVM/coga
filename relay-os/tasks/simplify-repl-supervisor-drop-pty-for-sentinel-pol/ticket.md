@@ -1,6 +1,6 @@
 ---
 title: Simplify the REPL supervisor — drop the PTY for a sentinel-poll subprocess
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
