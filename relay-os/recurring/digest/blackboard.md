@@ -13,3 +13,12 @@ records and rewrites only the spool section, so those ledger lines are left
 untouched.
 
 ## Spool (pending)
+
+
+
+
+
+
+
+[2026-06-06 09:24] scaffolded digest-2026-06-06
+{"ts":"2026-06-06T14:47","project":"relay","kind":"done","detail":"→ done (script)","ticket":"digest-dbg-20260606T144723","owner":"nick"}

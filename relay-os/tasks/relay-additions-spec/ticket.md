@@ -8,7 +8,18 @@ agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: docs/create-google-doc
+workflow:
+  name: docs/create-google-doc
+  steps:
+  - name: preflight
+    skills: []
+    assignee: agent
+  - name: draft
+    skills: []
+    assignee: agent
+  - name: revise
+    skills: []
+    assignee: agent
 ---
 
 ## Description
