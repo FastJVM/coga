@@ -77,3 +77,10 @@ Yes — single deliverable, one document, one workflow. It does not bundle multi
 - **Frontmatter.** `workflow: docs/create-google-doc` is set but there is no `step:` field. Per the canonical shape, a set workflow without `step:` will trip `bad-shape — workflow is set, but step is missing` at validate/launch. Either let the CLI assign both (set `workflow: null` in the draft) or add `step: "1 (preflight)"`. This will block `relay launch` as-is.
 
 **Bottom line:** Content is rich and the workflow choice is right. The gaps are all in the `## Context` block (folder ID, tone, audience, table-vs-narrative) and one frontmatter defect (`step:` missing). Tighten those four context facts and fix the frontmatter before launch, and an agent can run this cleanly.
+
+## Revise outcome — approved (2026-06-06)
+
+- Handed the human the real Doc link at the top of the revise step; explicit approval given in-terminal: "I approve." No changes requested — the Doc already carried the human's own edits from the draft step.
+- **Agreed-final Doc**: https://docs.google.com/document/d/1IbQ4qh17rK2SZNFIGrMZVkvc_qSSHHiAFvANs7a60eU/edit ("Agent Tool Buckets — Is Relay Better?", Narrative Version)
+- Leftover narrative HTML file (`1cIW_ZM5Hkd0C7xQuMd8mI0Lc7XY6YqlJ`) still in the Drive folder; human trashes at their discretion (MCP has no delete).
+- Side fix during this step: resolved a `git stash pop` (autostash) conflict on `relay-os/recurring/digest/blackboard.md` left by the admin-update pull flow — union of both spool sides in timestamp order, no records lost; redundant autostash entry dropped. This was blocking all git commits (incl. `relay mark done`).

@@ -1,6 +1,6 @@
 ---
 title: bucket-comparison-document
-status: in_progress
+status: done
 mode: interactive
 owner: zach
 human: zach
@@ -20,7 +20,6 @@ workflow:
   - name: revise
     skills: []
     assignee: agent
-step: 3 (revise)
 ---
 
 ## Description
