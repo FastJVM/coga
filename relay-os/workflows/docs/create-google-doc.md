@@ -1,6 +1,6 @@
 ---
 name: docs/create-google-doc
-description: Author a document as HTML, import-and-convert it into a native Google Doc via Drive (MCP), then loop human review and revision against the real Doc until the human signs off.
+description: Author a document as HTML, upload it to Drive (MCP), have the human convert it to a native Google Doc, then loop human review and revision against the real Doc until the human signs off.
 steps:
   - name: preflight
     assignee: agent
@@ -8,8 +8,6 @@ steps:
     assignee: agent
   - name: revise
     assignee: agent
-  - name: sign-off
-    assignee: owner
 ---
 
 ## Why HTML, and why the Doc is the artifact
@@ -17,18 +15,42 @@ steps:
 The document is built in **HTML for every case**, tables or not — one code
 path. HTML expresses headings, lists, and tables cleanly, and importing it
 sidesteps the pain of constructing tables through the Docs API directly.
-Once imported, the **native Google Doc — not the HTML — is the artifact**
-everything downstream operates on. Conversion can introduce minor rendering
-drift, so the human always reviews the real imported Doc, never the
-pre-import HTML.
+The import is split between the two of you: the **agent uploads the HTML
+to Drive as `text/html`**, and the **human converts it** by opening the
+file with "Open with → Google Docs" — the MCP server has no server-side
+HTML→Doc conversion (see preflight). Once converted, the **native Google
+Doc — not the HTML — is the artifact** everything downstream operates on.
+Conversion can introduce minor rendering drift, so the human always
+reviews the real converted Doc, never the pre-import HTML.
 
 ## preflight
 
 A connection gate. Before any content work, **verify the Google connection
-(via MCP) is live** and confirm the server exposes Drive's HTML
-upload-and-convert (the `Google_Drive` create/convert tools) — the entire
-workflow depends on it. A quick read-only call (e.g. list recent Drive
-files) is enough to prove the connection.
+(via MCP) is live** and confirm the server exposes `Google_Drive
+create_file` for uploading the HTML — the workflow depends on it. A quick
+read-only call (e.g. list recent Drive files) is enough to prove the
+connection.
+
+Known contract of the MCP Drive server (learned on the conductor-report
+task — do not rediscover it by trial uploads):
+
+- `create_file` auto-converts **only** `text/plain` → Doc and
+  `text/csv` → Sheet. **`text/html` is not converted** — it lands as a
+  raw HTML file. That raw file is the expected, correct artifact for
+  `draft`.
+- Do **not** force `contentMimeType: application/vnd.google-apps.document`
+  on HTML or docx content: you get a native Doc containing the literal
+  markup (or binary garbage) as text.
+- The HTML→Doc conversion is the **human's click** ("Open with → Google
+  Docs" in Drive), not an API call. The tool description's conversion
+  claims do not apply to HTML.
+- That click does **not** convert in place: it leaves the HTML file
+  untouched and creates a **new Doc with the same title** next to it —
+  which looks like "nothing happened." One click is enough; verify by
+  listing the folder for a new `application/vnd.google-apps.document`
+  rather than clicking again (each click mints another duplicate Doc).
+- The server has **no update or delete tools** — superseded files are
+  trashed by the human.
 
 If the connection fails or the convert capability is missing, **stop here**:
 write what failed to the blackboard and `relay panic` with a specific
@@ -49,12 +71,19 @@ Produce the first Google Doc.
    draft. Skip if the request is already clear.
 3. **Generate the document as HTML** — headings, lists, and any tables, all
    in HTML.
-4. **Import into Google Docs.** Upload the HTML and convert it to a native
-   Google Doc via Drive's upload-and-convert.
+4. **Upload the HTML to Drive** with `contentMimeType: text/html`, next
+   to any sibling docs the ticket points at. No conversion happens here —
+   the upload lands as a raw HTML file, and that's correct.
+5. **Hand the file link to the human to convert.** The human opens it in
+   Drive with "Open with → Google Docs", which performs the
+   formatting-preserving HTML→Doc conversion. Wait for their confirmation
+   and the resulting Doc link.
 
-Write the Doc link to the blackboard and finish the step with
-`relay bump <slug> --message "draft Doc: <link>"`. If the import fails,
-capture the error on the blackboard and `relay panic`.
+Write the resulting **Doc** link (not the HTML file link) to the
+blackboard and finish the step with
+`relay bump <slug> --message "draft Doc: <link>"`. If the upload errors
+or the converted Doc comes out wrong, capture the details on the
+blackboard and `relay panic`.
 
 ## revise
 
@@ -70,19 +99,15 @@ as backward bumps.
 3. **Revise.** Produce an updated version from **(current Doc + requested
    changes)**, not from the original request — this preserves prior edits
    and applies the new feedback on top rather than regenerating from
-   scratch. Re-import the revised HTML the same way `draft` did, replacing
-   the Doc's contents.
+   scratch. Upload the revised HTML as a **new** file the same way `draft`
+   did (the MCP server cannot replace a Doc's contents), and have the
+   human convert it via "Open with → Google Docs". The new Doc becomes
+   current; note superseded files/Docs on the blackboard for the human
+   to trash.
 4. **Repeat** 1–3 as many times as needed.
 
-When the human has no further changes, note the agreed-final Doc link on the
-blackboard and `relay bump <slug>` into `sign-off`. (If the human walks away
-mid-loop, leave the latest Doc link and current feedback on the blackboard
-so a relaunched session can resume cleanly.)
-
-## sign-off
-
-Human's explicit final approval on the real Google Doc. The workflow is
-complete only when the human signs off. On approval, `relay mark done
-<slug>`. If the human surfaces more changes here instead of approving, that
-belongs back in `revise` — `relay panic` with the requested changes so the
-owner can rewind to the revision step.
+The loop ends with the human's explicit approval of the real Google Doc —
+not merely an absence of further feedback. On approval, note the
+agreed-final Doc link on the blackboard and `relay mark done <slug>`. (If
+the human walks away mid-loop, leave the latest Doc link and current
+feedback on the blackboard so a relaunched session can resume cleanly.)
