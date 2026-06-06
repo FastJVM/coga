@@ -4,7 +4,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 - branch: `fix/session-done-sentinel-and-mute`
 - worktree: `/home/n/Code/relay-session-done-fix`
-- commit: `cefd10e`
+- commit: `455f503`
+- pr: https://github.com/FastJVM/relay/pull/290
+- ci: no checks reported (repo has no PR CI workflow); local suite green — 562 passed, 1 skipped
 
 ## Root cause
 

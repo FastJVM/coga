@@ -5,7 +5,7 @@ mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts: []
 skills: []
 workflow:
@@ -25,7 +25,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
