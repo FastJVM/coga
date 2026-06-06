@@ -1,7 +1,7 @@
 ---
 title: 'Dream/Retro: direct-delete done tickets instead of bundling deletion into
   knowledge PRs'
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -26,7 +26,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
