@@ -1,8 +1,11 @@
 """`relay launch` — compose context and start work on a task.
 
-Launching an `active` task moves it to `in_progress`. Drafts must be
-activated via `relay mark active <slug>` first; paused / done tickets must be
-marked back to `active` before they can be launched.
+Launching an `active` task moves it to `in_progress`. A draft / paused / done
+ticket is activated inline first — typing `relay launch` is the readiness
+signal, so launch performs the `relay mark active` step itself rather than
+refusing. (A workflow-less or required-extension-incomplete ticket still
+can't be activated, so those fail loud with the same remedy `mark active`
+gives.) An already-`in_progress` ticket resumes without another status flip.
 
 Bootstrap shims are stateless re-entry points (no status, no log of state
 changes) — launch is the only way to run a skill against one.
@@ -32,7 +35,12 @@ from relay.compose import (
 )
 from relay.config import Config, ConfigError, load_config
 from relay.logfile import append_log
-from relay.mark import mark_in_progress
+from relay.mark import (
+    RequiredExtensionMissing,
+    WorkflowMissing,
+    mark_active,
+    mark_in_progress,
+)
 from relay.repl_supervisor import run_with_done_marker
 from relay.tasks import (
     BootstrapRef,
@@ -43,6 +51,7 @@ from relay.tasks import (
 )
 from relay.ticket import Ticket
 from relay.validate import TaskValidationError
+from relay.workflow import WorkflowError
 
 
 DISCUSSION_BOOTSTRAP_SHIMS = frozenset({"bootstrap/orient", "bootstrap/ticket"})
@@ -181,17 +190,18 @@ def launch(
             fg=typer.colors.YELLOW,
         )
 
-    if not is_bootstrap:
-        if ticket.status == "draft":
-            _bail(
-                f"Task {ref.id_slug} is draft. "
-                f"Run `relay mark active {ref.id_slug}` first."
-            )
-        if ticket.status not in {"active", "in_progress"}:
-            _bail(
-                f"Task {ref.id_slug} is {ticket.status!r}. "
-                f"Run `relay mark active {ref.id_slug}` to relaunch."
-            )
+    # Typing `relay launch` *is* the readiness signal: a draft / paused /
+    # done ticket is brought to `active` inline rather than refused with a
+    # "run `relay mark active` first" hint. The flip to `in_progress` still
+    # happens later (after the compose pre-flight), so this only does the
+    # `mark active` half. Done before the script-mode dispatch so both
+    # interactive and script launches start from an activated, stepped ticket.
+    if (
+        not is_bootstrap
+        and isinstance(ref, TaskRef)
+        and ticket.status not in {"active", "in_progress"}
+    ):
+        _auto_activate(cfg, ref, ticket)
 
     assignee = ticket.assignee
     if not assignee:
@@ -460,6 +470,61 @@ def launch(
 
 
 # --- helpers ------------------------------------------------------------------
+
+
+def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+    """Bring a draft / paused / done ticket to `active` inline.
+
+    `relay launch` used to refuse any status but `active`/`in_progress` and
+    point the operator at `relay mark active`. Now launching *is* the
+    readiness decision, so we run that activation here. The core `mark_active`
+    mutates `ticket` in place — status → active, a bare-string `workflow:`
+    frozen, and `step:` seeded (re-seeded to step 1 for a re-activated `done`
+    ticket whose step was cleared by `mark done`) — so the later
+    `mark_in_progress` flip fires off the same object.
+
+    Fails loud, leaving the ticket untouched, when activation can't legally
+    happen: the ticket has no workflow to advance, its `workflow:` ref can't
+    be frozen, or a `required` extension field is empty. These mirror the
+    `relay mark active` errors so the remedy is the same.
+    """
+    prior = ticket.status
+    suffix = " (auto on launch)"
+    assignee_label = ticket.assignee or "unassigned"
+    try:
+        mark_active(
+            cfg,
+            ref,
+            ticket,
+            actor=f"human:{cfg.current_user}",
+            log_message=f"activated ({prior} → active){suffix}",
+            slack_text=(
+                f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
+                f"\"{ticket.title}\" — assignee {assignee_label}{suffix}"
+            ),
+            digest_detail=f"→ active — assignee {assignee_label}{suffix}",
+            echo=f"{ref.id_slug}: active{suffix}",
+        )
+    except WorkflowMissing:
+        _bail(
+            f"Cannot launch {ref.id_slug}: it is {prior!r} and has no workflow, "
+            "so there is nothing to activate or advance. Set `workflow: <name>` "
+            "in `ticket.md` (see relay-os/workflows/) or run "
+            f"`relay ticket {ref.id_slug}` to fill it in, then retry."
+        )
+    except WorkflowError as exc:
+        _bail(
+            f"Cannot launch {ref.id_slug}: its `workflow:` ref could not be "
+            f"frozen — {exc}"
+        )
+    except RequiredExtensionMissing as exc:
+        names = ", ".join(repr(f) for f in exc.fields)
+        _bail(
+            f"Cannot launch {ref.id_slug}: required extension field(s) empty: "
+            f"{names}. Fill them in `ticket.md` then retry."
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
 
 
 def build_agent_command(

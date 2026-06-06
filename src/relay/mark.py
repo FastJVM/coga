@@ -107,22 +107,30 @@ def _has_workflow(ticket: Ticket) -> bool:
 
 
 def _freeze_workflow_ref(cfg: Config, ticket: Ticket) -> None:
-    """Freeze a bare-string `workflow:` ref into its snapshot, in place.
+    """Freeze a bare-string `workflow:` ref and ensure the ticket has a step.
 
     Hand-authored / guided-authored draft tickets carry `workflow:` as a
     plain workflow name. Activation is when that becomes real: we freeze the
-    snapshot and seed `step: 1` so the activated ticket is launch-ready —
-    `relay launch` composes the current step's skill from the frozen
-    workflow. No-op when the workflow is already a frozen dict. Raises
-    `WorkflowError` if the ref names no known workflow.
+    snapshot. We also seed `step: 1` whenever the ticket has no current step,
+    so the activated ticket is launch-ready — `relay launch` composes the
+    current step's skill from the frozen workflow. That covers two cases: a
+    fresh draft (never stepped) and a re-activated `done` ticket whose `step:`
+    was cleared by `mark done` — re-activation restarts the frozen workflow
+    from the top. No-op for the workflow dict of an `active`/`paused` ticket
+    that already carries a step. Raises `WorkflowError` if a string ref names
+    no known workflow.
+
+    Precondition: `_has_workflow(ticket)` is true, so `ticket.workflow` is a
+    non-empty string or dict by the time we read its steps.
     """
     wf = ticket.workflow
-    if not isinstance(wf, str):
-        return
-    wf_def = Workflow.load(workflow_path(cfg, wf))
-    ticket.frontmatter["workflow"] = wf_def.freeze()
+    if isinstance(wf, str):
+        wf_def = Workflow.load(workflow_path(cfg, wf))
+        ticket.frontmatter["workflow"] = wf_def.freeze()
     if not ticket.step:
-        ticket.frontmatter["step"] = f"1 ({wf_def.steps[0].name})"
+        steps = (ticket.workflow or {}).get("steps") or []
+        if steps:
+            ticket.frontmatter["step"] = f"1 ({steps[0]['name']})"
 
 
 def _missing_required_extensions(cfg: Config, ticket: Ticket) -> list[str]:
