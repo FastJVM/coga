@@ -14,6 +14,13 @@ The blackboard is a notepad to be written to often as the human and agent works 
 4. Drive folder → "Relay Wishlist/ Bucket Comparison" is the **literal name of one folder** (slash is part of the title, not a subfolder path). Added to `## Context`.
 5. `contexts: []` stays — doc carries the author's editorial verbatim, no fact-checking against relay/principles.
 
+## Preflight (2026-06-06)
+
+- ✅ Google Drive MCP connection live — `list_recent_files` returned results (read-only proof, no trial uploads).
+- ✅ `Google_Drive create_file` exposed; schema matches the known contract (auto-convert only `text/plain`→Doc and `text/csv`→Sheet; HTML lands raw, human converts via "Open with → Google Docs").
+- **Target folder resolved as a side effect**: "Relay Wishlist/ Bucket Comparison " exists as a single folder, id `1W3cjsWsmMn_OysmjTYIuaoeEF9RRobat` (parent: My Drive root). Note the actual title has a **trailing space** after "Comparison" — confirms the human's "literal name of one folder" decision; no path resolution needed at draft time. Use this id as `parentId` for the upload.
+- Folder already contains a prior pair from another task: `Relay Additions` (text/html + converted Doc) — expect this when listing; not ours to touch.
+
 ## Evaluator review
 
 ## Review: bucket-comparison-document ticket
