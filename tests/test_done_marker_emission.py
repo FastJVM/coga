@@ -1,10 +1,13 @@
-"""Tests for `DONE_MARKER` emission on session-ending commands.
+"""Tests for the session-done signal on session-ending commands.
 
-`relay bump`, `relay mark done`, and `relay panic` emit the marker on
-their success paths so a supervising `relay launch` can SIGTERM the
-agent's REPL (see `relay.repl_supervisor`). Other transitions
-(`mark active`, `mark paused`, or any error path) must NOT emit it —
-the session is not over.
+`relay bump`, `relay mark done`, and `relay panic` signal the supervising
+`relay launch` that the session is over so it can SIGTERM the agent's REPL
+(see `relay.repl_supervisor`). The signal travels over the *sentinel file*
+(`$RELAY_DONE_SENTINEL`), not stdout: the raw `DONE_MARKER` must never leak
+into the command's visible output, or a TUI shows it to the human and it can
+cross-talk into a parent supervisor's PTY. Other transitions (`mark active`,
+`mark paused`, or any error path) must NOT signal at all — the session is
+not over.
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ from typer.testing import CliRunner
 
 from relay.cli import app
 from relay.config import load_config
-from relay.repl_supervisor import DONE_MARKER
+from relay.repl_supervisor import DONE_MARKER, SENTINEL_ENV
 from relay.scaffold import scaffold_task
 
 
@@ -73,20 +76,45 @@ def _make_task(
     return ref["slug"], ref["path"]
 
 
-def _last_nonempty_line(output: str) -> str:
-    lines = [line for line in output.splitlines() if line.strip()]
-    return lines[-1] if lines else ""
+@pytest.fixture
+def sentinel(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Pretend a `relay launch` supervisor is watching: advertise the sentinel
+    file path the way `run_with_done_marker` does for its child."""
+    path = tmp_path / "relay-done" / "sentinel"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv(SENTINEL_ENV, str(path))
+    return path
+
+
+def _no_supervisor(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(SENTINEL_ENV, raising=False)
 
 
 # --- bump ---------------------------------------------------------------------
 
 
-def test_bump_success_emits_marker_as_last_line(repo: Path) -> None:
+def test_bump_success_signals_via_sentinel_not_stdout(
+    repo: Path, sentinel: Path
+) -> None:
+    slug, path = _make_task(repo)
+    result = CliRunner().invoke(app, ["bump", slug])
+    assert result.exit_code == 0, result.output
+    # The signal goes to the side-channel file, scoped to this task...
+    assert sentinel.read_text().strip() == str(path.resolve())
+    # ...and never leaks the raw marker into visible output.
+    assert _MARKER not in result.output
+
+
+def test_bump_success_unsupervised_does_not_leak_marker(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No supervisor (no env var): nothing watches for the marker, so it must
+    not be printed into the human's transcript."""
+    _no_supervisor(monkeypatch)
     slug, _ = _make_task(repo)
     result = CliRunner().invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
-    assert _MARKER in result.output
-    assert _last_nonempty_line(result.output) == _MARKER
+    assert _MARKER not in result.output
 
 
 def test_bump_error_past_final_step_does_not_emit_marker(repo: Path) -> None:
@@ -116,12 +144,24 @@ def test_bump_error_wrong_status_does_not_emit_marker(repo: Path) -> None:
 # --- mark done ----------------------------------------------------------------
 
 
-def test_mark_done_success_emits_marker_as_last_line(repo: Path) -> None:
+def test_mark_done_success_signals_via_sentinel_not_stdout(
+    repo: Path, sentinel: Path
+) -> None:
+    slug, path = _make_task(repo, status="active")
+    result = CliRunner().invoke(app, ["mark", "done", slug])
+    assert result.exit_code == 0, result.output
+    assert sentinel.read_text().strip() == str(path.resolve())
+    assert _MARKER not in result.output
+
+
+def test_mark_done_success_unsupervised_does_not_leak_marker(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _no_supervisor(monkeypatch)
     slug, _ = _make_task(repo, status="active")
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
-    assert _MARKER in result.output
-    assert _last_nonempty_line(result.output) == _MARKER
+    assert _MARKER not in result.output
 
 
 def test_mark_done_error_does_not_emit_marker(repo: Path) -> None:
@@ -149,16 +189,30 @@ def test_mark_paused_does_not_emit_marker(repo: Path) -> None:
 # --- panic --------------------------------------------------------------------
 
 
-def test_panic_success_emits_marker_as_last_line(repo: Path) -> None:
+def test_panic_success_signals_via_sentinel_not_stdout(
+    repo: Path, sentinel: Path
+) -> None:
+    slug, path = _make_task(repo)
+    result = CliRunner().invoke(
+        app, ["panic", "--task", slug, "--reason", "stuck on 429 backoff ceiling"]
+    )
+    # Panic exits non-zero on the success path; the supervisor is still
+    # released — via the sentinel file, not a visible marker.
+    assert result.exit_code == 1, result.output
+    assert sentinel.read_text().strip() == str(path.resolve())
+    assert _MARKER not in result.output
+
+
+def test_panic_success_unsupervised_does_not_leak_marker(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _no_supervisor(monkeypatch)
     slug, _ = _make_task(repo)
     result = CliRunner().invoke(
         app, ["panic", "--task", slug, "--reason", "stuck on 429 backoff ceiling"]
     )
-    # Panic exits non-zero on the success path; marker still required so the
-    # supervisor releases the REPL.
     assert result.exit_code == 1, result.output
-    assert _MARKER in result.output
-    assert _last_nonempty_line(result.output) == _MARKER
+    assert _MARKER not in result.output
 
 
 def test_panic_error_empty_reason_does_not_emit_marker(repo: Path) -> None:

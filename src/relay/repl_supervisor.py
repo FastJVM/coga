@@ -362,12 +362,25 @@ def _resize_pty(master_fd: int) -> None:
 def emit_done_marker(session_id: str | None = None) -> None:
     """Tell a supervising `run_with_done_marker` that this session is done.
 
-    Writes `$RELAY_DONE_SENTINEL` if set (primary channel — survives TUI
-    agents that capture bash subprocess stdout). Also prints `DONE_MARKER`
-    on its own line (fallback channel for shell-shaped agents that echo
-    stdout to the PTY). In a non-supervised terminal the printed line is
-    harmless visible chrome and the env var is unset, so the file write is
-    skipped.
+    The signal travels over the **sentinel file** (`$RELAY_DONE_SENTINEL`):
+    a session-scoped, side-channel write the supervisor polls. It survives
+    TUI agents (Claude Code, Codex) that capture bash subprocess stdout into
+    a private pipe, and — because its content names the session — it never
+    tears down a *different* session that merely inherited the env var (e.g.
+    a parent orchestrator marking a child task done).
+
+    We deliberately do **not** print `DONE_MARKER` to stdout on the success
+    path. That print used to be a "fallback" PTY-byte-match channel, but the
+    file write already covers every supervised agent regardless of shape, so
+    the print was redundant — and actively harmful: a TUI captures it into
+    visible tool output (the human sees the raw teardown marker), and when a
+    TUI renders that captured output back to its display the unscoped bytes
+    can cross-talk into a *parent* supervisor's PTY and tear the parent down.
+    In a non-supervised terminal nothing watches for it at all, so printing
+    only leaks the internal protocol string into the transcript. The marker
+    is emitted to stdout *only* as a genuine last resort if the file write
+    itself fails — then the PTY-byte-match in `run_with_done_marker` is the
+    only channel left for a shell-shaped agent.
 
     `session_id` is written as the file content so the supervisor can verify
     the signal names *its* session and ignore stray writes from unrelated
@@ -376,15 +389,23 @@ def emit_done_marker(session_id: str | None = None) -> None:
     bare call writes the legacy `"done"` sentinel.
     """
     sentinel = os.environ.get(SENTINEL_ENV)
-    if sentinel:
-        try:
-            # Atomic so the supervisor's poll never observes a half-written
-            # sentinel — the bare-touch path treats any non-empty file as
-            # "done" (see `_sentinel_signals_done`).
-            atomic_write_text(Path(sentinel), f"{session_id or 'done'}\n")
-        except OSError:
-            pass
-    print(DONE_MARKER.decode("ascii"), flush=True)
+    if not sentinel:
+        # No supervisor is watching (e.g. a bare `claude`/`codex` session, or
+        # a debug run outside `relay launch`). Emitting the marker here would
+        # only print the internal teardown string into the human's visible
+        # transcript with nothing to consume it. Stay silent.
+        return
+    try:
+        # Atomic so the supervisor's poll never observes a half-written
+        # sentinel — the bare-touch path treats any non-empty file as
+        # "done" (see `_sentinel_signals_done`).
+        atomic_write_text(Path(sentinel), f"{session_id or 'done'}\n")
+    except OSError:
+        # File channel failed — fall back to the PTY-byte-match channel so a
+        # shell-shaped agent can still be torn down. A TUI captures this into
+        # private tool output where it can't reach the supervisor's PTY watch,
+        # so it won't help there, but it is the last resort either way.
+        print(DONE_MARKER.decode("ascii"), flush=True)
 
 
 __all__ = [
