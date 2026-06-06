@@ -21,6 +21,31 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - **Target folder resolved as a side effect**: "Relay Wishlist/ Bucket Comparison " exists as a single folder, id `1W3cjsWsmMn_OysmjTYIuaoeEF9RRobat` (parent: My Drive root). Note the actual title has a **trailing space** after "Comparison" — confirms the human's "literal name of one folder" decision; no path resolution needed at draft time. Use this id as `parentId` for the upload.
 - Folder already contains a prior pair from another task: `Relay Additions` (text/html + converted Doc) — expect this when listing; not ours to touch.
 
+## Draft-step plan (2026-06-06)
+
+1. Treat the ticket Description as the gathered request (per evaluator item 2) — no re-interview. All prior decisions stand: verbatim source, internal/teammate audience, two versions (table-led + narrative) for comparison, agent picks title.
+2. **Open question for human**: one HTML file containing both versions back-to-back (one convert click, side-by-side compare in a single Doc) vs. two separate HTML files (two converts, two Docs, more folder clutter given MCP has no delete). Recommending single file.
+3. Proposed title: **"Agent Tool Buckets — Is Relay Better?"** (becomes the Doc title on conversion; trivial to rename in Drive if disliked).
+4. Generate HTML: Version A leads with a comparison table across buckets/tools (autonomy axis, failure-handling timing, human intervention, outcome), followed by short per-bucket notes; Version B is pure narrative sections (Bucket 1/2/3 + "Is Relay Better?"). Author's claims and anecdotes carried verbatim in both.
+5. Upload via `Google_Drive create_file`, `contentMimeType: text/html`, `parentId: 1W3cjsWsmMn_OysmjTYIuaoeEF9RRobat` (resolved in preflight).
+6. Hand the HTML file link to human → they convert via "Open with → Google Docs" → wait for Doc link.
+7. Write Doc link here, then `relay bump bucket-comparison-document --message "draft Doc: <link>"`.
+
+## Draft uploads (2026-06-06)
+
+- Human chose **two separate files** for the version comparison (one convert click each, winner kept as its own Doc).
+- Title (agent-chosen per Context): "Agent Tool Buckets — Is Relay Better?" — version suffix in file titles only; h1 inside is suffix-free so the winning Doc needs no edit.
+- Uploaded as `text/html` to folder `1W3cjsWsmMn_OysmjTYIuaoeEF9RRobat`:
+  - Table Version — HTML file id `1QN5njVmQjcFQzA7b2tipHXSAHdFqsqn5` (bucket comparison table + "problem seen / Relay's answer" table in the Relay section)
+  - Narrative Version — HTML file id `1cIW_ZM5Hkd0C7xQuMd8mI0Lc7XY6YqlJ` (pure prose sections, author's wording near-verbatim)
+- Awaiting human "Open with → Google Docs" conversion on both; Doc links to be recorded here before bump.
+
+## Draft outcome (2026-06-06)
+
+- Human converted the **Narrative Version**, edited it directly in Docs, and **deleted the table version** (HTML + any Doc). Structure question is settled: narrative won.
+- **Draft Doc link**: https://docs.google.com/document/d/1IbQ4qh17rK2SZNFIGrMZVkvc_qSSHHiAFvANs7a60eU/edit
+- Human's verdict verbatim: "It's totally good to go" — the doc already reflects their own edits, so the upcoming review/revise step should expect little or no rework. The narrative HTML file (`1cIW_ZM5Hkd0C7xQuMd8mI0Lc7XY6YqlJ`) is now a leftover next to the Doc; human trashes at their discretion.
+
 ## Evaluator review
 
 ## Review: bucket-comparison-document ticket
