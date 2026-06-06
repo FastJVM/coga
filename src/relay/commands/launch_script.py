@@ -9,9 +9,14 @@ from pathlib import Path
 
 import typer
 
+from relay.bump import (
+    AssigneeResolutionError,
+    advance_step,
+    resolve_step_assignee,
+)
 from relay.config import Config
 from relay.logfile import append_log
-from relay.mark import mark_in_progress
+from relay.mark import mark_done, mark_in_progress
 from relay.paths import resolve_skill_path, skill_resolution_paths
 from relay.skill import Skill
 from relay.slack import post
@@ -153,6 +158,87 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         sys.exit(exit_code)
 
     typer.echo(f"{ref.id_slug}: script ran successfully")
+
+    # A `mode: script` step has no agent to run `relay bump` / `relay mark
+    # done`, so the launcher applies the same completion contract itself:
+    # advance to the next step, or finish the task when the script completed the
+    # final step (or the task has no workflow). Without this the task ran its
+    # script and then sat in `in_progress` forever, stalling the recurring scan
+    # on the next due task. Skip when the script deleted its own directory (the
+    # `bootstrap/delete-task` self-delete case) — there is nothing left to
+    # advance.
+    if ref.path.is_dir():
+        _advance_after_script(cfg, ref, ticket)
+
+
+def _advance_after_script(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+    """Bump to the next workflow step, or mark the task done after its last."""
+    wf = ticket.workflow
+    steps = wf.get("steps") if isinstance(wf, dict) else None
+
+    if not steps:
+        _mark_script_done(cfg, ref, ticket)
+        return
+
+    total = len(steps)
+    current_idx = ticket.step_index() or 0
+    if current_idx >= total:
+        _mark_script_done(cfg, ref, ticket)
+        return
+
+    next_step = current_idx + 1
+    new_step = steps[next_step - 1]
+    new_step_name = new_step["name"]
+
+    role = new_step.get("assignee")
+    new_assignee: str | None = None
+    if role is not None:
+        try:
+            resolved = resolve_step_assignee(cfg, ticket, role)
+        except AssigneeResolutionError as exc:
+            _bail(str(exc))
+        if resolved != ticket.assignee:
+            new_assignee = resolved
+    handoff = f" → assigned to {new_assignee}" if new_assignee else ""
+
+    try:
+        advance_step(
+            cfg, ref, ticket,
+            next_step=next_step,
+            new_step_name=new_step_name,
+            actor="system",
+            log_message=(
+                f"advanced to step {next_step} ({new_step_name}){handoff} "
+                "after script step"
+            ),
+            slack_text=(
+                f"👉 script advanced *{ref.id_slug}* → step "
+                f"{next_step} ({new_step_name}){handoff}"
+            ),
+            digest_detail=(
+                f"script advanced → step {next_step} ({new_step_name}){handoff}"
+            ),
+            new_assignee=new_assignee,
+            echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
+
+
+def _mark_script_done(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+    try:
+        mark_done(
+            cfg, ref, ticket,
+            actor="system",
+            log_message="completed (final script step ran) via relay launch",
+            slack_text=(
+                f"✅ script completed *{ref.id_slug}* \"{ticket.title}\""
+            ),
+            digest_detail="→ done (script)",
+            echo=f"{ref.id_slug}: done",
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
 
 
 def _bail(msg: str) -> None:
