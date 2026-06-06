@@ -292,12 +292,27 @@ def test_emit_done_marker_writes_session_id_content(
 def test_emit_done_marker_writes_sentinel(
     tmp_path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """`emit_done_marker` writes the sentinel file when env var is set."""
+    """`emit_done_marker` writes the sentinel file when env var is set, and
+    does NOT print the marker — the file is the channel, and a printed marker
+    would leak into a TUI's visible output / a parent supervisor's PTY."""
     sentinel = tmp_path / "done"
     monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
     emit_done_marker()
     assert sentinel.exists()
-    # Fallback PTY marker still printed.
+    assert DONE_MARKER.decode() not in capsys.readouterr().out
+
+
+def test_emit_done_marker_prints_only_if_file_write_fails(
+    tmp_path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Last-resort fallback: if the sentinel file write raises, fall back to
+    the PTY-byte-match channel by printing the marker so a shell-shaped agent
+    can still be torn down."""
+    # Parent directory does not exist → the atomic write's `mkstemp` raises.
+    sentinel = tmp_path / "missing-dir" / "done"
+    monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
+    emit_done_marker()
+    assert not sentinel.exists()
     assert DONE_MARKER.decode() in capsys.readouterr().out
 
 
@@ -322,10 +337,12 @@ def test_sentinel_missing_is_not_done(tmp_path) -> None:
     assert _sentinel_signals_done(str(tmp_path / "absent"), "/repo/x") is False
 
 
-def test_emit_done_marker_no_env_is_harmless(
+def test_emit_done_marker_no_env_is_silent(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Without the env var (non-supervised terminal), only prints the marker."""
+    """Without the env var (non-supervised terminal), nothing watches for the
+    marker, so emit nothing — printing it would only leak the internal
+    teardown string into the human's visible transcript."""
     monkeypatch.delenv(SENTINEL_ENV, raising=False)
     emit_done_marker()
-    assert DONE_MARKER.decode() in capsys.readouterr().out
+    assert DONE_MARKER.decode() not in capsys.readouterr().out

@@ -165,9 +165,11 @@ only for that single transition.
 - **`interactive`** — human-attended terminal session. Agent gets the
   composed prompt, human stays in the loop. The REPL doesn't terminate on
   its own — `relay bump` / `relay mark done` / `relay panic` signal the
-  launch supervisor (via `$RELAY_DONE_SENTINEL` and a marker line) and the
-  supervisor SIGTERMs the REPL. After teardown, `relay launch` re-reads the
-  ticket and either spawns a fresh REPL for the next workflow step (whenever
+  launch supervisor via the session-scoped `$RELAY_DONE_SENTINEL` file, and
+  the supervisor SIGTERMs the REPL. The legacy `DONE_MARKER` PTY byte-match
+  exists only as a last-resort fallback if the sentinel file write fails; it
+  is not printed on the success path. After teardown, `relay launch` re-reads
+  the ticket and either spawns a fresh REPL for the next workflow step (whenever
   it is an *agent's* turn — relaunching the next agent's CLI, so it rotates
   e.g. claude → codex → claude across a peer-review workflow) or returns
   control to the caller (the next step hands off to an owner/human, status
@@ -200,13 +202,14 @@ loading.
 
 The composer defuses the session-teardown marker before returning the
 assembled prompt. An interactive launch's PTY supervisor tears down the REPL
-when it sees the `DONE_MARKER` byte sequence (emitted on the success path of
-`relay bump` / `mark done` / `panic`). Because any layer above — an injected
-context, a ticket body — could quote that literal sequence verbatim,
-`compose._defuse_done_marker` inserts a zero-width joiner right after the
-leading `<<<` so the marker can never appear intact in composed text. Without
-that defuse, quoting the marker in a context or body would SIGTERM the agent
-mid-session.
+when the session-scoped `$RELAY_DONE_SENTINEL` file names the launched task.
+It still keeps a legacy PTY byte-match fallback for the `DONE_MARKER` byte
+sequence, used only if a session-ending command cannot write the sentinel
+file. Because any layer above — an injected context, a ticket body — could
+quote that literal sequence verbatim, `compose._defuse_done_marker` inserts a
+zero-width joiner right after the leading `<<<` so the marker can never appear
+intact in composed text. Without that defuse, quoting the marker in a context
+or body could SIGTERM the agent mid-session through the fallback watcher.
 
 ## Status is the signal
 
