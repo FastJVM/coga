@@ -82,3 +82,19 @@ pointer.
   it's harmless defense and still the channel the OSError fallback targets.
 - `prompt-interactive.md` is a single core resource (not duplicated under
   `templates/relay-os/`), so no sync needed.
+
+## Peer review
+
+Ran `codex review --base main` from the feature worktree. Must-fix finding:
+the shipped Relay architecture contexts still taught the old success-path
+stdout marker contract. Applied the fix in both copies:
+- `relay-os/contexts/relay/architecture/SKILL.md`
+- `src/relay/resources/templates/relay-os/bootstrap/contexts/relay/architecture/SKILL.md`
+
+The contexts now say normal teardown is the session-scoped
+`$RELAY_DONE_SENTINEL` file, and the `DONE_MARKER` PTY byte-match is only a
+last-resort fallback if writing the sentinel fails.
+
+Verification after peer-review fix:
+- `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest tests/test_done_marker_emission.py tests/test_repl_supervisor.py -q` → 34 passed.
+- `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest -p no:cacheprovider` → 562 passed, 1 skipped.
