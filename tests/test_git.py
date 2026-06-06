@@ -364,6 +364,99 @@ def test_sync_noop_when_nothing_changed(git_repo):
     assert git_repo.origin_subjects() == before
 
 
+def test_sync_control_branch_retries_on_non_fast_forward(git_repo):
+    """On `main`, a competing remote push is absorbed by fetch+rebase, not dropped.
+
+    Regression: the same-branch path used a bare `git push` with no fetch-first
+    and no retry, so any concurrent remote commit (a merged PR, another machine)
+    left every later relay push on `main` rejected and silently swallowed, with
+    the local branch accumulating unpushed commits.
+    """
+    cfg = load_config(git_repo.relay_os)
+    task = _task_dir(git_repo.relay_os)
+
+    # Another process lands an unrelated file on origin/main first.
+    git_repo.push_competing_commit("RIVAL.txt", "landed first\n")
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    # Both the competing file and our task file are on origin/main — anti-clobber.
+    assert git_repo.origin_tracks("RIVAL.txt")
+    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    subjects = git_repo.origin_subjects()
+    assert "Ticket: demo — created" in subjects
+    assert "competing: RIVAL.txt" in subjects
+
+
+def test_sync_control_branch_nonff_preserves_dirty_worktree(git_repo):
+    """The fetch+rebase recovery autostashes unrelated dirty changes, not loses them."""
+    cfg = load_config(git_repo.relay_os)
+    task = _task_dir(git_repo.relay_os)
+    stray = git_repo.root / "STRAY.txt"
+    stray.write_text("uncommitted user work\n")
+
+    git_repo.push_competing_commit("RIVAL.txt", "landed first\n")
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    # Pushed despite the moved origin...
+    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("RIVAL.txt")
+    # ...and the user's uncommitted file survived the rebase, still uncommitted.
+    assert stray.read_text() == "uncommitted user work\n"
+    assert "STRAY.txt" in git_repo.git("status", "--porcelain")
+    assert not git_repo.origin_tracks("STRAY.txt")
+
+
+def test_sync_control_branch_retry_loop_survives_mid_flight_race(git_repo, monkeypatch):
+    """Force a non-ff *between* fetch and push on `main`: the loop rebases and succeeds."""
+    cfg = load_config(git_repo.relay_os)
+    task = _task_dir(git_repo.relay_os)
+
+    real_push = git._push_ref
+    calls = {"n": 0}
+
+    def racing_push(root, remote, refspec):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # A rival lands first, after we already committed — our push is non-ff.
+            git_repo.push_competing_commit("RIVAL.txt", "raced in\n")
+        return real_push(root, remote, refspec)
+
+    monkeypatch.setattr(git, "_push_ref", racing_push)
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    assert calls["n"] >= 2  # first push rejected, rebased, retried
+    assert git_repo.origin_tracks("RIVAL.txt")
+    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+
+
+def test_sync_control_branch_nonfatal_on_rebase_conflict(git_repo, capsys):
+    """An unresolvable rebase during recovery aborts cleanly and is non-fatal.
+
+    The local relay commit and the competing remote commit touch the *same*
+    file, so the rebase conflicts. We must abort (no lingering rebase state) and
+    surface the miss to stderr + log without crashing.
+    """
+    cfg = load_config(git_repo.relay_os)
+    task = _task_dir(git_repo.relay_os)
+
+    # Local relay commit writes the task's ticket; the rival writes the SAME path
+    # with different content on origin/main → guaranteed rebase conflict.
+    git_repo.push_competing_commit(
+        "relay-os/tasks/demo/ticket.md", "rival content\n"
+    )
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    err = capsys.readouterr().err
+    assert "sync failed" in err
+    assert "sync failed" in (task / "log.md").read_text()
+    # The repo is not left mid-rebase.
+    assert not (git_repo.root / ".git" / "rebase-merge").exists()
+    assert not (git_repo.root / ".git" / "rebase-apply").exists()
+
+
 def test_sync_nonfatal_on_push_failure(git_repo, capsys):
     """A failed push is surfaced (stderr + log) but never crashes the command."""
     cfg = load_config(git_repo.relay_os)
