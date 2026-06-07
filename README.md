@@ -346,8 +346,9 @@ recurring` run scaffolds and launches it when its schedule is due, and the
 housekeeping skills such as `validate-drift` and `retro/done-ticket`, proposes
 cleanup, writes results to that run's blackboard, and leaves a human-reviewable
 trail. Retro work is batched for done tickets: Dream loads the context/skill
-corpus once, processes up to five coherent tickets with a running knowledge
-delta, and opens one small PR only when durable knowledge changed.
+corpus once, processes every eligible done ticket in a single run with a
+running knowledge delta, and opens one small PR per coherent theme (at most
+five source tickets each) only when durable knowledge changed.
 
 REM is repo/user-specific recurring maintenance. It is opt-in user space: copy
 the inert `relay-os/recurring/_rem/` template, give it a schedule and
