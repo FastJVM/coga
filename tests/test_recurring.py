@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from relay.cli import app
 from relay.config import load_config
+from relay.paths import tasks_dir
 from relay.recurring import is_debug_slug, scaffold_named, scan_debug, scan_due
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
@@ -320,6 +321,36 @@ def test_is_debug_slug() -> None:
     assert not is_debug_slug("fix-dbg-output")
     assert not is_debug_slug("add-retry-to-webhook")
     assert not is_debug_slug("relay-dev-update-2026-W17")
+
+
+def test_reap_debug_orphans_removes_only_debug_dirs(repo: Path) -> None:
+    """`_reap_debug_orphans` clears `*-dbg-*` scratch a crashed sweep left behind,
+    sparing real tasks and `_template` — the "take over on relaunch" guarantee."""
+    from relay.commands.recurring import _reap_debug_orphans
+
+    cfg = load_config(repo)
+    tasks_root = tasks_dir(cfg)
+    tasks_root.mkdir(parents=True, exist_ok=True)
+
+    def _mk(slug: str) -> Path:
+        d = tasks_root / slug
+        d.mkdir(parents=True)
+        (d / "ticket.md").write_text("---\ntitle: x\n---\n\nbody\n")
+        return d
+
+    orphan = _mk("digest-dbg-20260607T084314")
+    other_orphan = _mk("relay-dev-update-dbg-20260606T222205")
+    child_orphan = _mk("dream-cleanup-child-of-dream-dbg-20260607T084314")
+    real = _mk("add-retry-to-webhook")
+    template = _mk("_template")
+
+    _reap_debug_orphans(cfg)
+
+    assert not orphan.exists()
+    assert not other_orphan.exists()
+    assert not child_orphan.exists()
+    assert real.exists()  # real tasks untouched
+    assert template.exists()  # `_template` is spared
 
 
 def test_scan_due_recognizes_legacy_blackboard_ledger(repo: Path) -> None:

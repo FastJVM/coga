@@ -75,6 +75,8 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
     Always-on git analogue of `slack.post`. Behaviour:
 
       - `[git].enabled = false` → suppressed, one stderr line, no crash.
+      - `relay recurring --all` debug run (`-dbg-<digit>` slug) → suppressed
+        the same way: disposable scratch must never enter git history.
       - Not a git repo → soft no-op, one stderr line, no crash.
       - HEAD is the control branch → `git add` the task dir, and if anything
         is staged, commit with `message` and push to the configured remote.
@@ -93,6 +95,20 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
     under it are staged, never `git add -A`, so unrelated working-tree changes
     are not swept in.
     """
+    # A `relay recurring --all` debug run is disposable scratch: it must never
+    # write committed git history — the same reason it never reaches Slack
+    # (`slack.post` skips it via this exact predicate). The `-dbg-<digit>` marker
+    # travels with the ticket slug on disk, so this suppresses the commit whether
+    # the call originates in the sweep itself or in a child `relay mark` / `relay
+    # bump` the agent runs inside the debug REPL. Without it, the launch
+    # `active → in_progress` flip and the agent's `mark done` committed the
+    # scratch dir, and `_finalize_debug_run`'s rmtree then left a dangling
+    # uncommitted deletion behind. Lazy import: `relay.recurring` imports us.
+    from relay.recurring import is_debug_slug
+
+    if is_debug_slug(task_path.name):
+        sys.stderr.write(f"[git] debug run (sync suppressed): {message}\n")
+        return
     sync_paths(cfg, task_path, [task_path], message=message)
 
 
