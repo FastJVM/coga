@@ -23,7 +23,7 @@ record to this recurring task's own `blackboard.md` (the `## Spool (pending)`
 section) — see `relay.slack.notify`. Once a day this ticket fires on its
 schedule and its `mode: script` step runs `relay digest`, which:
 
-1. drains the pending records under a single-process lock,
+1. drains the pending records (single-process serialization, not a lock),
 2. groups them **project → person → ticket** (owners pinged via `<@ID>`,
    watchers cc'd exactly as a live post would),
 3. posts one sectioned message to the shared channel, and
