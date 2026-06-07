@@ -190,8 +190,9 @@ marker left behind by an older run.
 
 Launch a child `mode: script` task whose current workflow step references
 `bootstrap/dream/tasks/cleanup-orphan-markers`. The skill detects cleanup
-candidates and gates deletion through `bootstrap/delete-task`. Until that
-delete skill exists, it reports `human-needed` and deletes nothing.
+candidates and gates deletion through `bootstrap/delete-task`. That delete
+skill ships, but until its cleanup PR-dispatch wiring is finished the worker
+reports `human-needed` and deletes nothing.
 
 For each candidate, cleanup must open a PR that deletes only
 `relay-os/tasks/<slug>/`. The deletion goes in the PR, not the working tree, so

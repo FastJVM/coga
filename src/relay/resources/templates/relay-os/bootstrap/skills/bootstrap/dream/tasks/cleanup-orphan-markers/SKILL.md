@@ -49,5 +49,6 @@ A task is a cleanup candidate only when all of these are true:
 - no open PR is already touching `relay-os/tasks/<slug>/`;
 - the public delete surface `bootstrap/delete-task` is available.
 
-Until `bootstrap/delete-task` is installed by the sibling ticket, this skill
-reports eligible candidates as `human-needed` and does not delete anything.
+`bootstrap/delete-task` now ships, but until cleanup's PR-dispatch wiring
+follows that skill's launch contract, this skill reports eligible candidates as
+`human-needed` and does not delete anything.
