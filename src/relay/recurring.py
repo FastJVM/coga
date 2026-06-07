@@ -297,6 +297,20 @@ def scaffold_template(
     return outcome
 
 
+# A `relay recurring --all` throwaway run is slugged `<name>-dbg-<timestamp>`
+# (see `scaffold_debug_run`), and any child task it spawns embeds that slug, so
+# both carry the `-dbg-<digit>` infix. Requiring a digit after the marker spares
+# ordinary hyphenated ticket names (e.g. `fix-dbg-output`) from matching.
+_DEBUG_SLUG_RE = re.compile(r"-dbg-\d")
+
+
+def is_debug_slug(slug: str) -> bool:
+    """True if `slug` belongs to a `relay recurring --all` debug run (or its
+    descendants). Debug runs are disposable scratch and must never reach Slack
+    or the digest spool — only the task's own `log.md` records their events."""
+    return bool(_DEBUG_SLUG_RE.search(slug))
+
+
 def scaffold_debug_run(
     cfg: Config,
     template: Template,
@@ -553,5 +567,6 @@ __all__ = [
     "scaffold_named",
     "scaffold_template",
     "scaffold_debug_run",
+    "is_debug_slug",
     "RecurringError",
 ]
