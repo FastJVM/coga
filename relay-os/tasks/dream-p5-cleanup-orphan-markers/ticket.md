@@ -1,6 +1,6 @@
 ---
 title: '[dream] P5 cleanup-orphan-markers'
-status: active
+status: in_progress
 mode: script
 owner: nick
 human: nick
