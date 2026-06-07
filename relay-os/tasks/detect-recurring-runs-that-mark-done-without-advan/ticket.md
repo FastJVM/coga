@@ -1,6 +1,6 @@
 ---
 title: Detect recurring runs that mark done without advancing declared state
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
