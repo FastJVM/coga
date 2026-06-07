@@ -61,9 +61,10 @@ Last updated: 2026-06-01.
 - **First enabled Dream skill pass:** `validate-drift` for deterministic repo
   validation and safe file-presence repairs; `retro/done-ticket` for batched
   durable-knowledge extraction from completed tasks. Dream loads the
-  context/skill corpus once per Retro batch, processes up to five coherent done
-  tickets with a running knowledge delta, and keeps each knowledge PR small
-  enough to describe with one clear title.
+  context/skill corpus once per run, processes every eligible done ticket with
+  a running knowledge delta, batches them into coherent PRs of at most five
+  source tickets each, and keeps each knowledge PR small enough to describe
+  with one clear title.
 - **REM is repo/user-specific recurring maintenance.** It is opt-in user space:
   each repo can copy `recurring/_rem/`, define its own cadence, scan, domain
   skills, output conventions, and review gates.
