@@ -205,6 +205,15 @@ file. Layers, in order:
 The agent gets all of this as one input. There is no follow-up
 loading.
 
+Note what is deliberately **absent**: no `log.md` is ever a composition
+layer — not the task's, not a recurring template's. `log.md` is append-only
+audit history and never enters an agent's context, so it can grow without
+bound. Only `blackboard.md` (layer 7) carries state forward into the prompt.
+The consequence is a hard division of labor: working state that the next run
+must read goes in the blackboard (and is therefore composed, so keep it
+small); durable history goes in the log (never composed, so let it
+accumulate).
+
 The composer defuses the session-teardown marker before returning the
 assembled prompt. An interactive launch's PTY supervisor tears down the REPL
 when the session-scoped `$RELAY_DONE_SENTINEL` file names the launched task.

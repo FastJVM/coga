@@ -275,10 +275,11 @@ def test_scan_due_does_not_rescaffold_after_period_task_deleted(
     """A completed-this-period task that has been deleted stays completed.
 
     Dream's contract is to self-delete after `relay mark done`; a human
-    `relay delete` is the other case. The recurring template's
-    `blackboard.md` is the period ledger — `scan_due` reads it instead of
-    just checking for the task directory, so a successful run isn't
-    silently re-launched by the next `relay recurring`.
+    `relay delete` is the other case. The recurring template's `log.md` is
+    the period ledger — `scan_due` reads it instead of just checking for the
+    task directory, so a successful run isn't silently re-launched by the next
+    `relay recurring`. The ledger lives in `log.md` (never composed), not the
+    `blackboard.md` (composed into every run), so it can grow unbounded.
     """
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)  # a Wednesday after Monday 9am
@@ -287,10 +288,13 @@ def test_scan_due_does_not_rescaffold_after_period_task_deleted(
     assert first.tasks[0].created is True
     ref = first.tasks[0].ref
 
-    # The ledger line lands in the template's persistent blackboard.md,
-    # not in a separate log.md.
-    bb = (repo / "recurring" / "weekly-check" / "blackboard.md").read_text()
-    assert f"scaffolded {ref.slug}" in bb
+    # The ledger line lands in the template's persistent log.md (uncomposed),
+    # not the blackboard.
+    log = (repo / "recurring" / "weekly-check" / "log.md").read_text()
+    assert f"scaffolded {ref.slug}" in log
+    bb_path = repo / "recurring" / "weekly-check" / "blackboard.md"
+    if bb_path.is_file():
+        assert f"scaffolded {ref.slug}" not in bb_path.read_text()
 
     # Simulate the run completing and deleting itself.
     shutil.rmtree(ref.path)
@@ -305,6 +309,30 @@ def test_scan_due_does_not_rescaffold_after_period_task_deleted(
     assert second.due == []
     # The directory stays gone — no re-scaffold.
     assert list_tasks(cfg) == []
+
+
+def test_scan_due_recognizes_legacy_blackboard_ledger(repo: Path) -> None:
+    """A period recorded only in the legacy `blackboard.md` ledger is honored.
+
+    Before the ledger moved to `log.md`, `_record_run` wrote `scaffolded …`
+    lines into the template `blackboard.md`. Such a pre-migration period —
+    its task dir long since deleted — must still count as handled, so the
+    fallback read of `blackboard.md` keeps `scan_due` from re-scaffolding it.
+    """
+    now = datetime(2026, 4, 22, 10, 0, 0)  # week 17
+    # Simulate a legacy ledger: only the blackboard records the period, the
+    # log.md does not exist, and the task dir is gone.
+    legacy_slug = "weekly-check-2026-W17"
+    bb = repo / "recurring" / "weekly-check" / "blackboard.md"
+    bb.write_text(f"### State\n\n[2026-04-20 09:00] scaffolded {legacy_slug}\n")
+
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=now)
+    assert scan.errors == []
+    assert len(scan.tasks) == 1
+    assert scan.tasks[0].created is False  # recognized as already handled
+    assert scan.due == []
+    assert list_tasks(cfg) == []  # not re-scaffolded
 
 
 def test_scan_due_skips_bad_template(repo: Path, capsys) -> None:

@@ -60,8 +60,23 @@ class Template:
 
     @property
     def blackboard_path(self) -> Path:
-        """Persistent blackboard — also the period ledger (see `_record_run`)."""
+        """Persistent working state, composed into each run's prompt (layer 7).
+
+        Kept small on purpose: the period ledger and run records live in
+        `log_path` (never composed), so the blackboard carries only the
+        forward state the next run actually reads.
+        """
         return self.path / "blackboard.md"
+
+    @property
+    def log_path(self) -> Path:
+        """Append-only period ledger + run history (see `_record_run`).
+
+        Never a prompt-composition layer, so it can grow without bloating any
+        run's context. `scan_due` reads it to decide whether a period has
+        already been handled even after the period task dir is gone.
+        """
+        return self.path / "log.md"
 
 
 @dataclass
@@ -440,23 +455,26 @@ def _scaffold_at_slug(
 
 
 def _record_run(template: Template, outcome: ScaffoldOutcome, now: datetime) -> None:
-    """Append a scaffolding line to the template's persistent `blackboard.md`.
+    """Append a scaffolding line to the template's persistent `log.md`.
 
-    The blackboard is the period ledger: `scan_due` reads it to decide whether
-    this period has already been handled, even after the period task has been
-    deleted (Dream's self-delete contract, or a human `relay delete`). Only a
-    freshly created period task is recorded — re-scanning within the same
-    period must not re-log.
+    The log is the period ledger: `scan_due` reads it to decide whether this
+    period has already been handled, even after the period task has been
+    deleted (Dream's self-delete contract, or a human `relay delete`). The
+    ledger lives in `log.md`, not `blackboard.md`, precisely because the log is
+    never composed into a run's prompt — so the ledger can grow indefinitely
+    without bloating context, and the blackboard stays small. Only a freshly
+    created period task is recorded — re-scanning within the same period must
+    not re-log.
     """
     if not outcome.created:
         return
-    bb = template.blackboard_path
-    existing = bb.read_text() if bb.is_file() else ""
+    log = template.log_path
+    existing = log.read_text() if log.is_file() else ""
     # Make sure the appended line lands on its own line, even when the
-    # existing blackboard does not end with a newline.
+    # existing log does not end with a newline.
     sep = "" if not existing or existing.endswith("\n") else "\n"
     stamp = now.strftime("%Y-%m-%d %H:%M")
-    bb.write_text(f"{existing}{sep}[{stamp}] scaffolded {outcome.ref.slug}\n")
+    log.write_text(f"{existing}{sep}{stamp} [system] scaffolded {outcome.ref.slug}\n")
 
 
 def _last_firing(cron: str, now: datetime) -> datetime:
@@ -497,16 +515,25 @@ def _task_with_slug(cfg: Config, target_slug: str) -> TaskRef | None:
 def _period_already_scaffolded(template: Template, target_slug: str) -> bool:
     """Has this period's task ever been scaffolded?
 
-    Reads the template's persistent `blackboard.md`, which `_record_run`
-    appends to each time a new period task is created. The blackboard is
-    the period ledger — consulted when the task directory itself is missing
-    (Dream's self-delete-after-mark-done contract; a human `relay delete`).
+    Reads the template's persistent `log.md`, which `_record_run` appends to
+    each time a new period task is created. The log is the period ledger —
+    consulted when the task directory itself is missing (Dream's
+    self-delete-after-mark-done contract; a human `relay delete`).
+
+    For backward compatibility it also consults the legacy ledger location,
+    `blackboard.md`: pre-migration templates recorded `scaffolded …` lines
+    there, so a period handled before this change is still recognized.
     """
-    bb = template.blackboard_path
-    if not bb.is_file():
-        return False
     needle = f"scaffolded {target_slug}"
-    return any(line.rstrip().endswith(needle) for line in bb.read_text().splitlines())
+
+    def _has_needle(path: Path) -> bool:
+        if not path.is_file():
+            return False
+        return any(
+            line.rstrip().endswith(needle) for line in path.read_text().splitlines()
+        )
+
+    return _has_needle(template.log_path) or _has_needle(template.blackboard_path)
 
 
 def _extract_title(template: Template) -> str:
