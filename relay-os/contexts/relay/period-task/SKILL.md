@@ -43,6 +43,14 @@ The recurring task's `ticket.md` body names *which* keys it persists
 (e.g. `last_commit`, a cursor section). That's the contract; this
 context covers *where* the state lives.
 
+If the recurring task declares `state_keys:` in its frontmatter, those
+keys are checked: when you `relay mark done`, any declared key still
+holding the value it had when this period started is flagged (a local
+warning, a Slack FYI, and a `relay validate` issue) — the signal that you
+did the work but forgot to record the new high-water mark, so the next
+firing would redo the same range. Advance the key (the run's record-state
+step) before finishing.
+
 ## Do not write last-run state to your own blackboard
 
 Your own task `blackboard.md` is fresh this period and gone next. Notes for

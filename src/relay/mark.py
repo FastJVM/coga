@@ -17,6 +17,7 @@ from relay import git
 from relay.config import Config
 from relay.logfile import append_log
 from relay.paths import workflow_path
+from relay.period_state import read_snapshot, stale_keys
 from relay.slack import notify, post
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
@@ -67,6 +68,57 @@ def mark_done(
         image_url=image_url,
     )
     git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — done")
+    _warn_if_state_not_advanced(cfg, ref, ticket, owner)
+
+
+def _warn_if_state_not_advanced(
+    cfg: Config, ref: TaskRef, ticket: Ticket, owner: str
+) -> None:
+    """Flag a period task that completed without advancing its declared state.
+
+    A recurring task can declare the blackboard keys it owns (`state_keys:`);
+    the scaffolder snapshots their values into the period task. If a declared
+    key still equals that snapshot when the run finishes, the run did the work
+    but never recorded its high-water mark — the next firing will redo the same
+    range. Warn locally and broadcast an FYI (suppressed for throwaway `-dbg-`
+    runs, which never reach Slack).
+
+    No-op for any task without a snapshot — i.e. every non-recurring task. This
+    is advisory only: it runs after the transition has already committed, and a
+    failed broadcast must never turn a successful `mark done` into an error.
+    """
+    snapshot = read_snapshot(ref.path)
+    if snapshot is None:
+        return
+    stale = stale_keys(cfg, snapshot)
+    if not stale:
+        return
+
+    keys = ", ".join(stale)
+    typer.echo(
+        f"⚠ declared state key(s) {keys} did not advance this run. The parent "
+        f"recurring task's blackboard still holds the value this period started "
+        f"with, so the next firing will redo the same range. Record state before "
+        f"finishing (or record an explicit skip)."
+    )
+
+    from relay.recurring import is_debug_slug
+
+    if is_debug_slug(ref.slug):
+        return
+    try:
+        post(
+            cfg,
+            f"⚠ {ref.id_slug} finished without advancing declared state "
+            f"({keys}) — next run may duplicate work.",
+            task_path=ref.path,
+            owner=owner,
+            watchers=ticket.watchers,
+        )
+    except Exception as exc:  # advisory broadcast — never break completion
+        import sys
+
+        sys.stderr.write(f"[period-state] FYI broadcast failed: {exc}\n")
 
 
 class RequiredExtensionMissing(RuntimeError):
