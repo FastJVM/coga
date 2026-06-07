@@ -1,6 +1,6 @@
 ---
 title: Dream cleanup-orphan-markers (child of dream-dbg-20260606T193741)
-status: in_progress
+status: done
 mode: script
 owner: nick
 human: nick
@@ -15,7 +15,6 @@ workflow:
     skills:
     - bootstrap/dream/tasks/cleanup-orphan-markers
     assignee: agent
-step: 1 (run)
 ---
 
 ## Description
