@@ -607,9 +607,21 @@ def _harness_stop_reason(
             return f"{ref.id_slug}: task is paused"
         return f"{ref.id_slug}: task status is {after.status!r}"
 
+    # A workflow-less task has no step machinery — the whole ticket is the one
+    # unit of work, and the supervisor only ever chains *across workflow steps*.
+    # Reaching here means the agent exited (often after emitting the session-done
+    # marker) without `relay mark done`, so it is still in_progress. There is
+    # nothing to advance to; stop and return to the caller. This is distinct from
+    # the no-progress case below — don't report it as "still on no workflow
+    # step", which reads as a failed step advance.
+    if not isinstance(after.workflow, dict):
+        return (
+            f"{ref.id_slug}: no workflow to chain — task is still in_progress "
+            "(agent exited without `relay mark done`); stopping"
+        )
+
     if (after.step, after.status) == (before.step, before.status):
-        current = after.step or "no workflow step"
-        return f"{ref.id_slug}: still on {current}; stopping"
+        return f"{ref.id_slug}: still on {after.step}; stopping"
 
     current = after.current_step()
     if current is None:
