@@ -1,6 +1,6 @@
 ---
 title: Dream validate-drift (child of dream-dbg-20260606T193741)
-status: draft
+status: active
 mode: script
 owner: nick
 human: nick
