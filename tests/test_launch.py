@@ -1340,6 +1340,29 @@ def test_harness_stops_when_no_progress(active_task: Path) -> None:
     assert "still on" in reason
 
 
+def test_harness_stops_on_workflowless_task_without_marking_done(
+    active_task: Path,
+) -> None:
+    """A workflow-less task left in_progress reports 'no workflow to chain',
+    not the misleading 'still on no workflow step' no-progress message."""
+    from relay.commands.launch import _harness_stop_reason
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    wfless = Ticket(
+        frontmatter={
+            "status": "in_progress",
+            "assignee": "claude",
+            "workflow": None,
+        },
+        body="",
+    )
+    reason = _harness_stop_reason(ref, wfless, wfless, cfg)
+    assert reason is not None
+    assert "no workflow to chain" in reason
+    assert "still on" not in reason
+
+
 def test_launch_interactive_rotates_across_agents(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
