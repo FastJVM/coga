@@ -94,6 +94,23 @@ has a non-editable install.
 Reinstall against the venv that backs your `relay` shim:
 `<that venv's python> -m pip install -e .` from the repo root.
 
+Sharper failure mode: an editable install's `.pth` can point at a
+worktree that was later deleted. Then `relay` and `import relay` are
+unimportable and pytest fails to even collect. Reinstalling fixes it, but
+when you only need to run the suite, the proven workaround is to bypass the
+broken `.pth` with an explicit `PYTHONPATH`:
+
+```
+PYTHONPATH=$PWD/src <repo>/.relay/.venv/bin/python -m pytest
+```
+
+Two non-obvious requirements:
+
+- **`PYTHONPATH` must be absolute.** The script-launch subprocess tests run
+  from a different cwd, so a relative `src` breaks them.
+- **Use a 3.11+ interpreter.** relay needs `tomllib`, which is stdlib only
+  on 3.11+.
+
 ## Secrets
 
 Never commit. Shared config goes in `relay.toml`; per-machine paths

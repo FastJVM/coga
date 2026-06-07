@@ -109,3 +109,10 @@ pushed: origin/retro-direct-delete-no-knowledge
 PR: https://github.com/FastJVM/relay/pull/288 (opened early at nick's request,
 during the implement step, for review before bump — workflow NOT yet bumped;
 peer-review step not started)
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: 'New context detail: dev venv PYTHONPATH test workaround'
