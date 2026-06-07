@@ -1,6 +1,6 @@
 ---
 title: Dream cleanup-orphan-markers child of dream-dbg-20260606T204523
-status: draft
+status: active
 mode: script
 owner: nick
 human: nick
