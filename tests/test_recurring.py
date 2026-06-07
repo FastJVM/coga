@@ -685,8 +685,14 @@ def test_recurring_all_launches_every_template(
 
     assert result.exit_code == 0, result.output
     assert len(launched) == 1
-    assert "-dbg-" in launched[0]
-    assert "relay delete" in result.output  # cleanup hint
+    dbg_slug = launched[0]
+    assert "-dbg-" in dbg_slug
+    # The throwaway run is folded back into the template log and its scratch
+    # dir removed, so nothing lingers in `relay status`.
+    assert "scratch dir removed" in result.output
+    assert not (repo / "tasks" / dbg_slug).exists()
+    template_log = (repo / "recurring" / "weekly-check" / "log.md").read_text()
+    assert f"debug run {dbg_slug}" in template_log
 
 
 def test_recurring_all_skips_interactive_template_without_tty(
