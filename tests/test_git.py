@@ -114,6 +114,33 @@ def test_sync_commits_and_pushes_on_control_branch(git_repo):
     assert "Ticket: demo — created" in git_repo.origin_subjects()
 
 
+def test_sync_suppressed_for_debug_run(git_repo, capsys):
+    """A `relay recurring --all` debug run never writes committed git history.
+
+    The launch `active → in_progress` flip and the agent's in-REPL `relay mark`
+    / `relay bump` all route through `sync_task_state`; gating it on the
+    `-dbg-<digit>` slug keeps disposable scratch out of git, which is what
+    prevents the dangling uncommitted-deletion the old rmtree-without-commit
+    left behind.
+    """
+    cfg = load_config(git_repo.relay_os)
+    task = _task_dir(git_repo.relay_os, slug="digest-dbg-20260607T084314")
+
+    git.sync_task_state(
+        cfg, task, message="Ticket: digest-dbg-20260607T084314 — done"
+    )
+
+    # Nothing committed — not on origin, not on the local control branch.
+    assert not git_repo.origin_tracks(
+        "relay-os/tasks/digest-dbg-20260607T084314/ticket.md"
+    )
+    assert git_repo.origin_subjects() == ["init relay-os"]
+    assert "digest-dbg" not in git_repo.git("log", "--format=%s", "main")
+    # The scratch dir is still on disk (untracked) — reaping, not git, removes it.
+    assert (task / "ticket.md").is_file()
+    assert "debug run (sync suppressed)" in capsys.readouterr().err
+
+
 def test_sync_scopes_commit_to_the_task_dir(git_repo):
     """An unrelated working-tree change is not swept into the task commit."""
     cfg = load_config(git_repo.relay_os)

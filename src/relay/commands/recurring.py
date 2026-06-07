@@ -17,12 +17,14 @@ from relay.logfile import append_log
 from relay.recurring import (
     DueScan,
     RecurringError,
+    is_debug_slug,
     recurring_dir,
     scaffold_named,
     scan_debug,
     scan_due,
 )
 from relay.mark import mark_paused
+from relay.paths import tasks_dir
 from relay.slack import notify
 from relay.tasks import TaskRef, read_ticket
 from relay.validate import TaskValidationError
@@ -94,6 +96,10 @@ def main(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
 
+    # Take over on relaunch: clear any debug scratch a crashed prior sweep left
+    # behind before doing anything else. Runs for both the bare sweep and `--all`.
+    _reap_debug_orphans(cfg)
+
     if all_:
         _launch_all_debug(cfg)
         return
@@ -137,11 +143,14 @@ def main(
 def _launch_all_debug(cfg) -> None:
     """Scaffold and launch a fresh throwaway run of every template (`--all`).
 
-    Debug-only. Unlike the bare sweep this does not broadcast to Slack or
-    commit task state — the runs are disposable scratch tasks, not real
-    recurring work — and it never bails on an unfinished run (the human is
-    driving). Script templates run as scripts; everything else launches
-    interactively so there is a live console to watch.
+    Debug-only. The runs are disposable scratch, not real recurring work: they
+    never broadcast to Slack or commit task state (`git.sync_task_state`
+    suppresses the `-dbg-<digit>` slug, so nothing they do reaches git history),
+    and the sweep never bails on an unfinished run (the human is driving).
+    `_finalize_debug_run` rmtrees each run as it completes; `_reap_debug_orphans`
+    (run at sweep start) clears any dir a crashed earlier sweep left behind.
+    Script templates run as scripts; everything else launches interactively so
+    there is a live console to watch.
     """
     scan = scan_debug(cfg, allow_interactive=_interactive_stdio_has_tty())
     _print_table(scan)
@@ -229,6 +238,39 @@ def _finalize_debug_run(cfg: Config, task) -> None:
         f"logged to recurring/{task.template}/log.md",
         fg=typer.colors.BRIGHT_BLACK,
     )
+
+
+def _reap_debug_orphans(cfg: Config) -> None:
+    """Remove `*-dbg-*` scratch dirs a crashed prior `--all` sweep left behind.
+
+    A `relay recurring --all` debug run is disposable scratch (see
+    `scaffold_debug_run`); `_finalize_debug_run` rmtrees it when the run
+    completes. If the sweep dies mid-run (laptop sleep, SSH drop) that cleanup
+    never fires and the scratch dir is orphaned. Because debug runs never commit
+    task state (`git.sync_task_state` suppresses the `-dbg-<digit>` slug), the
+    orphan lives only in the working tree — there is nothing to uncommit, so
+    reaping is a plain `rmtree`.
+
+    Run at the start of every `relay recurring` (bare or `--all`): the sweep is a
+    foreground command with no concurrent peer, so a `-dbg-<digit>` dir present
+    when it starts cannot belong to a live run — it is always a dead sweep's
+    litter. This is the "relay takes over and cleans up on relaunch" guarantee,
+    the debug-run analogue of resuming an orphaned `in_progress` period task.
+    """
+    tasks_root = tasks_dir(cfg)
+    if not tasks_root.is_dir():
+        return
+    reaped: list[str] = []
+    for entry in sorted(tasks_root.iterdir()):
+        if entry.is_dir() and is_debug_slug(entry.name):
+            shutil.rmtree(entry, ignore_errors=True)
+            reaped.append(entry.name)
+    if reaped:
+        typer.secho(
+            f"Reaped {len(reaped)} orphaned debug run(s) from a prior sweep: "
+            f"{', '.join(reaped)}",
+            fg=typer.colors.BRIGHT_BLACK,
+        )
 
 
 @app.command("launch")

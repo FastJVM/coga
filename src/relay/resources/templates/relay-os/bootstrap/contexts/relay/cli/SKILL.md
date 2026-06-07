@@ -368,10 +368,13 @@ them all sequentially — regardless of whether this period's real task already
 exists or has run. The real period tasks are left untouched (the debug runs
 have their own slugs and are not recorded in the period ledger), and the runs
 launch interactively (script templates run as scripts) so there is a live
-console to watch. Debug runs are disposable scratch tasks — they don't post to
-Slack or commit task state — and the command prints the `relay delete` line to
-clean them up afterward. Use it to exercise the launch path without waiting for
-a schedule or disturbing real recurring state.
+console to watch. Debug runs are disposable scratch tasks: the `-dbg-<digit>`
+slug keeps them out of both Slack and git history (`sync_task_state` suppresses
+it, so a debug run never commits task state), each run's scratch dir is removed
+when it finishes, and any dir a crashed sweep left behind is reaped at the start
+of the next `relay recurring` (bare or `--all`) — no manual `relay delete`
+needed. Use it to exercise the launch path without waiting for a schedule or
+disturbing real recurring state.
 
 **`mode: auto` templates are temporarily skipped** with a stderr line and
 a Slack scan-error summary. The auto-launch path produces no live console

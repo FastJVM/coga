@@ -35,7 +35,11 @@ scanner skips it. That is how the starter templates ship without firing.
   `done` (finished work) and `paused` (a human parked it) stay skipped. A
   *prior*-period stuck task is the human's problem in `relay status` — it does
   not block the new period's scaffold. If a non-interactive launched task
-  returns still unfinished, the sweep stops before the next due task.
+  returns still unfinished, the sweep stops before the next due task. Before
+  scaffolding anything, the sweep also reaps leftover `*-dbg-*` debug scratch
+  from a crashed `relay recurring --all` run — debug runs never commit task
+  state, so this is a plain delete; it is the disposable-run analogue of the
+  orphan-resume above.
 - `relay recurring launch <name>` — scaffolds one named recurring task now,
   ignoring its schedule. `<name>` is the directory name.
 
