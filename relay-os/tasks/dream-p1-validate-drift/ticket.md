@@ -1,6 +1,6 @@
 ---
 title: '[dream] P1 validate-drift'
-status: active
+status: in_progress
 mode: script
 owner: nick
 human: nick
