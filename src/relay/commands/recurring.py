@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import os
+import shutil
 import sys
 from datetime import datetime
 
@@ -12,9 +13,11 @@ import typer
 from relay import git
 from relay.commands.launch import _interactive_stdio_has_tty
 from relay.config import Config, ConfigError, load_config
+from relay.logfile import append_log
 from relay.recurring import (
     DueScan,
     RecurringError,
+    recurring_dir,
     scaffold_named,
     scan_debug,
     scan_due,
@@ -56,7 +59,9 @@ def main(
         help="Debug: ignore the schedule and status filter — scaffold a fresh "
         "throwaway run of EVERY template and launch them all, regardless of "
         "whether this period already ran. Real period tasks are left "
-        "untouched; the debug runs are yours to `relay delete` afterward.",
+        "untouched; each throwaway run's outcome is appended to its template's "
+        "log.md and the scratch dir is removed when it finishes, so nothing "
+        "lingers in `relay status`.",
     ),
 ) -> None:
     """Scan every recurring template and launch any due tasks, sequentially.
@@ -174,10 +179,54 @@ def _launch_all_debug(cfg) -> None:
             mode_override=mode_override,
             idle_timeout=idle_timeout,
         )
+        # A debug run has no persistent identity: record its outcome on the
+        # template's own log.md (never composed into any prompt — see
+        # compose_prompt, which only loads blackboard.md), then remove the
+        # throwaway scratch dir so it never pollutes `relay status`.
+        _finalize_debug_run(cfg, task)
 
-    slugs = " ".join(t.ref.slug for t in runs)
+
+def _finalize_debug_run(cfg: Config, task) -> None:
+    """Fold a `--all` debug run back into the template log and delete its dir.
+
+    Read the post-run ticket status (and a panic line, if any) *before*
+    removing the scratch dir, append a one-line outcome to the recurring
+    template's `log.md`, then `rmtree` the disposable task directory. The
+    template log is an audit trail only — it is never part of prompt
+    composition, so it can grow without bloating any agent's context.
+    """
+    scratch = task.ref.path
+    try:
+        ticket = read_ticket(task.ref)
+        status = ticket.status
+    except Exception:  # dir already gone / unreadable — nothing to fold back
+        status = "unknown"
+
+    # `relay panic` leaves the ticket in_progress and writes a marker to the
+    # blackboard; surface that distinction in the outcome line.
+    panicked = False
+    bb = scratch / "blackboard.md"
+    if bb.is_file():
+        try:
+            panicked = "PANIC" in bb.read_text()
+        except OSError:
+            pass
+
+    if status == "done":
+        outcome = "completed → done"
+    elif panicked:
+        outcome = "panicked (ended in_progress) — see prior session logs"
+    else:
+        outcome = f"ended {status!r} without `relay mark done`"
+
+    template_dir = recurring_dir(cfg) / task.template
+    if template_dir.is_dir():
+        append_log(template_dir, "system", f"debug run {task.ref.slug}: {outcome}")
+
+    shutil.rmtree(scratch, ignore_errors=True)
     typer.secho(
-        f"\nDebug runs left on disk. Clean up with: relay delete {slugs}",
+        f"  {task.ref.id_slug}: {outcome} — scratch dir removed, "
+        f"logged to recurring/{task.template}/log.md",
         fg=typer.colors.BRIGHT_BLACK,
     )
 
