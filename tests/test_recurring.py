@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from relay.cli import app
 from relay.config import load_config
-from relay.recurring import scaffold_named, scan_debug, scan_due
+from relay.recurring import is_debug_slug, scaffold_named, scan_debug, scan_due
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
 
@@ -309,6 +309,17 @@ def test_scan_due_does_not_rescaffold_after_period_task_deleted(
     assert second.due == []
     # The directory stays gone — no re-scaffold.
     assert list_tasks(cfg) == []
+
+
+def test_is_debug_slug() -> None:
+    """Debug runs (and their children) match; ordinary names don't."""
+    # `recurring --all` throwaway run and a child task embedding its slug.
+    assert is_debug_slug("relay-dev-update-dbg-20260606T204523")
+    assert is_debug_slug("dream-cleanup-orphan-markers-child-of-dream-dbg-20")
+    # A digit must follow `-dbg-`, so an ordinary hyphenated name is spared.
+    assert not is_debug_slug("fix-dbg-output")
+    assert not is_debug_slug("add-retry-to-webhook")
+    assert not is_debug_slug("relay-dev-update-2026-W17")
 
 
 def test_scan_due_recognizes_legacy_blackboard_ledger(repo: Path) -> None:
