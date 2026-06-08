@@ -17,6 +17,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "relay/resources/templates/relay-os/bootstrap/skills/"
     "google-agents-cli-workflow/SKILL.md",
     "relay/resources/templates/relay-os/bootstrap/contexts/relay/sync/SKILL.md",
+    "relay/resources/templates/relay-os/skills/_template/SKILL.md",
 )
 
 
