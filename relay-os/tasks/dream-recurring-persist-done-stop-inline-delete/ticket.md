@@ -1,6 +1,6 @@
 ---
 title: Recurring runs persist as done; stop inline deletion
-status: in_progress
+status: paused
 mode: interactive
 owner: nick
 human: nick
