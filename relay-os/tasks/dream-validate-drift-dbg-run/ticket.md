@@ -1,6 +1,6 @@
 ---
 title: Dream validate-drift (dbg run)
-status: in_progress
+status: done
 mode: script
 owner: nick
 human: nick
@@ -15,7 +15,6 @@ workflow:
     skills:
     - bootstrap/dream/tasks/validate-drift
     assignee: agent
-step: 1 (run)
 ---
 
 ## Description
