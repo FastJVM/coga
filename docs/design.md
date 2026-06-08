@@ -75,15 +75,28 @@ Mechanism: naming convention on created tasks, not `last_run` in the template.
    - Weekly → `YYYY-WW` (ISO week)
    - Monthly → `YYYY-MM`
    - Fallback / other → the raw datetime `YYYYMMDDTHHMM`
-4. Expected task slug: `<template-name>-<period-key>` in the template's `project`.
-5. If no task exists with that slug, first check whether an older period task for the same template is still unfinished. If so, skip this template and report the blocked prior run.
-6. Otherwise, create it using the template's frontmatter (mode, workflow, assignee, owner, contexts, description).
+4. Expected task slug: `recurring-<template-name>-<period-key>` in the
+   template's `project`. The `recurring-` prefix is the identity marker; the
+   period-key disambiguates instances.
+5. **One live task per template.** Look for any generated task under the
+   `recurring-<template-name>-` prefix that is `active` or `in_progress`
+   (excluding `-dbg-` debug runs). If one exists — even from an *older*
+   period — it is *the* live run: launch/resume it (an `in_progress` orphan
+   is resumed from its current step) and do **not** scaffold a new period.
+6. Only when none is live, consider the current period: if its task already
+   ran (still on disk as `done`/`paused`, or recorded in the template `log.md`
+   ledger after self-deleting), it's handled — skip. Otherwise create it using
+   the template's frontmatter (mode, workflow, assignee, owner, contexts,
+   description).
 
 This is idempotent — running `relay recurring` twice inside the same period is a no-op.
 Across periods, a template does not start a new run while an older period run
-is still not `done`.
+is still `active`/`in_progress`: that stuck run is resumed first and **defers**
+the next period until it reaches `done`/`paused`.
 
-"Due" is implicit in the period-key check: if the current period's task doesn't exist yet, it's due.
+"Due" is implicit: a template is due when no live task exists for it and the
+current period hasn't been handled. Launch order is orphaned `in_progress`
+resumes first, then fresh launches, each most-overdue first.
 
 ---
 

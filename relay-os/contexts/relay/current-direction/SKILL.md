@@ -44,8 +44,8 @@ Last updated: 2026-06-01.
   recurring` scaffolds and launches it when its weekly schedule is due;
   `relay dream` is a default alias for `recurring launch dream`, which
   scaffolds and launches it on demand through the same path. The task slug is
-  the recurring period key (`dream-2026-W21`), so the two paths converge on
-  one task. This reverses the earlier "ad-hoc command" decision: there was
+  `recurring-<name>-<period>` (`recurring-dream-2026-W21`), so the two paths
+  converge on one task. This reverses the earlier "ad-hoc command" decision: there was
   nothing left in a dedicated command worth keeping once the workers became
   skills.
 - **`relay recurring launch <name>` is the on-demand recurring entry point.**

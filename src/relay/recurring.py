@@ -118,14 +118,17 @@ class DueTask:
     def launchable(self) -> bool:
         # `active` → scaffolded-and-not-yet-run (created this scan or carried
         # over from one that never launched it).
-        # `in_progress` → a *past* sweep died mid-run and left this period task
+        # `in_progress` → a *past* sweep died mid-run and left a recurring task
         # frozen. `relay recurring` is a foreground command — no daemon, no
-        # concurrent sweep in normal use — so an `in_progress` period task at
+        # concurrent sweep in normal use — so an `in_progress` recurring task at
         # scan time can only be a dead sweep's orphan, never a live session.
         # Relaunch it: `relay launch` resumes an `in_progress` ticket from its
         # current `step:` (it only flips status on an `active` launch). Worst
         # case a false relaunch redoes a step the human then catches — cheaper
-        # than a liveness mechanism.
+        # than a liveness mechanism. The orphan need not be the *current*
+        # period's — identity is the `recurring-<name>-` slug prefix, so a
+        # stuck prior-period run is found and resumed too (and defers the next
+        # period until it reaches done/paused: one live task per template).
         # `done` → finished work, never re-run. `paused` → a human parked it.
         return self.status in {"active", "in_progress"}
 
@@ -149,9 +152,16 @@ class DueScan:
 
     @property
     def due(self) -> list[DueTask]:
-        """Launchable tasks, most-overdue first."""
+        """Launchable tasks: orphaned `in_progress` resumes first, then fresh
+        launches, each group most-overdue first.
+
+        Resuming a dead sweep's orphan before starting any fresh run is the
+        "resume any in_progress first" rule — a stuck recurring task gets
+        picked back up before the sweep spends effort scaffolding new work.
+        """
         return sorted(
-            (t for t in self.tasks if t.launchable), key=lambda t: t.last_fire
+            (t for t in self.tasks if t.launchable),
+            key=lambda t: (not t.resuming, t.last_fire),
         )
 
 
@@ -200,15 +210,21 @@ def scan_due(
 
         last_fire = _last_firing(template.schedule, now)
         period_key = _period_key(template.schedule, last_fire)
-        target_slug = f"{template.name}-{period_key}"
+        target_slug = _recurring_slug(template.name, period_key)
 
-        # The recurring template's persistent `blackboard.md` is the period
-        # ledger. If it already records a scaffolding for this period and
-        # the task directory is gone (Dream self-deletes after `relay mark
-        # done`; `relay delete` is the other case), the period has been
-        # handled — do not re-scaffold and re-launch what already ran.
+        # One live task per template. A live (active/in_progress) recurring
+        # task for this template — even from a *prior* period — is resumed by
+        # `scaffold_template` below rather than superseded by a fresh period;
+        # so the "already ran" skip only applies when nothing is live.
+        #
+        # The template's persistent `log.md` is the period ledger. If it
+        # records a scaffolding for this period and the task directory is gone
+        # (Dream self-deletes after `relay mark done`; `relay delete` is the
+        # other case), the period was handled — do not re-scaffold what already
+        # ran.
         if (
-            _task_with_slug(cfg, target_slug) is None
+            _live_task_for_template(cfg, template.name) is None
+            and _task_with_slug(cfg, target_slug) is None
             and _period_already_scaffolded(template, target_slug)
         ):
             tasks.append(
@@ -277,15 +293,21 @@ def scaffold_template(
 
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
-    target_slug = f"{template.name}-{period_key}"
+    target_slug = _recurring_slug(template.name, period_key)
+
+    # One live task per template: an `active`/`in_progress` instance — current
+    # period or a dead sweep's prior-period orphan — is *the* live run. Return
+    # it (resume) instead of scaffolding a competing new period. A stuck run
+    # therefore defers the next period until it reaches `done`/`paused`; that
+    # is deliberate — finish the in-flight run before piling another on.
+    live = _live_task_for_template(cfg, template.name)
+    if live is not None:
+        return ScaffoldOutcome(ref=live, created=False)
 
     existing = _task_with_slug(cfg, target_slug)
     if existing is not None:
         return ScaffoldOutcome(ref=existing, created=False)
 
-    # A stuck prior-period run (`in_progress` or `paused`) is the human's
-    # problem — visible in `relay status` — not a reason to silently skip
-    # today's scheduled task. The new period scaffolds independently.
     outcome = _scaffold_at_slug(
         cfg,
         template,
@@ -519,11 +541,52 @@ def _period_key(cron: str, fire_time: datetime) -> str:
     return fire_time.strftime("%Y%m%dT%H%M")
 
 
+# Every generated recurring task's slug carries this prefix. It is the
+# identity marker: `_live_task_for_template` matches on `recurring-<name>-`,
+# so a recurring task is recognizable (and a prior-period orphan resumable)
+# regardless of which period suffix it ended up with. Debug runs
+# (`scaffold_debug_run`) intentionally do NOT carry it — they are excluded
+# from resume/dedup by `is_debug_slug`, and leaving them unprefixed keeps the
+# `-dbg-` reaper's template extraction simple.
+_RECURRING_PREFIX = "recurring-"
+
+
+def _recurring_slug(template_name: str, period_key: str) -> str:
+    return f"{_RECURRING_PREFIX}{template_name}-{period_key}"
+
+
 def _task_with_slug(cfg: Config, target_slug: str) -> TaskRef | None:
     for ref in list_tasks(cfg):
         if ref.slug == target_slug:
             return ref
     return None
+
+
+def _live_task_for_template(cfg: Config, template_name: str) -> TaskRef | None:
+    """The template's single live (`active`/`in_progress`) recurring task.
+
+    Identity is the slug prefix `recurring-<name>-`: any non-debug task under
+    it is this template's instance, whatever period suffix it carries. That is
+    what lets a *prior*-period orphan be found and resumed — the period-exact
+    lookup it complements only ever sees the current period.
+
+    Prefers an `in_progress` orphan (a dead sweep's frozen run, resumed from
+    its step) over a never-launched `active`. Assumes a flat recurring
+    namespace — no template name is a `-`-delimited prefix of another (e.g.
+    `digest` vs `digest-weekly`); the shipped templates honor that, and
+    `_reap_debug_orphans` makes the same assumption.
+    """
+    prefix = f"{_RECURRING_PREFIX}{template_name}-"
+    live: TaskRef | None = None
+    for ref in list_tasks(cfg):
+        if not ref.slug.startswith(prefix) or is_debug_slug(ref.slug):
+            continue
+        status = read_ticket(ref).status
+        if status == "in_progress":
+            return ref
+        if status == "active" and live is None:
+            live = ref
+    return live
 
 
 def _period_already_scaffolded(template: Template, target_slug: str) -> bool:
