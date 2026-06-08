@@ -58,7 +58,7 @@ scanner skips it. That is how the starter templates ship without firing.
 ## Last-run state lives in the recurring task's blackboard
 
 Each scheduled firing scaffolds a **fresh** per-period task under
-`relay-os/tasks/<name>-<period_key>/`, with its own fresh blackboard. That
+`relay-os/tasks/recurring-<name>-<period_key>/`, with its own fresh blackboard. That
 per-period blackboard does **not** carry over — it is gone next period.
 
 So a recurring task that needs continuity between runs (a last-processed
@@ -73,10 +73,13 @@ task, which carries that rule.
 
 ## The scaffold contract
 
-- **Period task slug** is `<name>-<period_key>`. `period_key` buckets the
-  firing: hourly → `YYYY-MM-DD-HH`, daily → `YYYY-MM-DD`, weekly →
-  `YYYY-Www`, monthly → `YYYY-MM`. Scaffolding is idempotent within a
-  period: two runs in the same period converge on one period task.
+- **Period task slug** is `recurring-<name>-<period_key>`. The `recurring-`
+  prefix is the identity marker (`_RECURRING_PREFIX` in
+  `src/relay/recurring.py`) that lets the scaffolder find a template's live
+  task. `period_key` buckets the firing: hourly → `YYYY-MM-DD-HH`, daily →
+  `YYYY-MM-DD`, weekly → `YYYY-Www`, monthly → `YYYY-MM`. Scaffolding is
+  idempotent within a period: two runs in the same period converge on one
+  period task.
 - **The recurring template's `log.md` is the period ledger.** Bare
   `relay recurring` reads it before scaffolding: a period whose log already
   records a `scaffolded <slug>` line and whose task directory is now gone
