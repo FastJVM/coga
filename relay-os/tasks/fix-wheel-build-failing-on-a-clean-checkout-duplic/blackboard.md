@@ -5,6 +5,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - branch: `fix-wheel-template`
 - worktree: `/home/n/Code/codex/relay-fix-wheel-template`
 - build env: `/tmp/wheelenv` (python3.12 venv with hatchling+pip; system python is 3.9, project needs >=3.11)
+- pr: https://github.com/FastJVM/relay/pull/319
 
 ## Reproduction (confirmed)
 
@@ -54,3 +55,27 @@ symlink views present) leaks ~51 `.agent-skills/...` view entries into the wheel
 Pre-existing; real releases build from clean trees (no symlinks) so it doesn't affect
 shipped wheels. Could be fixed by excluding `**/.agent-skills/**`, `**/.claude/**`,
 `**/.codex/**` from the wheel walk. Left for a separate ticket to keep this scoped.
+
+## Peer review
+
+- Native review: `codex review --base main` from `/home/n/Code/codex/relay-fix-wheel-template`.
+  Initial restricted run failed before findings with the known read-only app-server
+  initialization error; reran with local-state access and it reported no regressions
+  or packaging breakage from the diff.
+- Review patch: committed `2829abf` (`peer-review: assert template ships in wheel`),
+  adding `relay/resources/templates/relay-os/skills/_template/SKILL.md` to the
+  existing packaging test's expected wheel resources so the test covers the exact
+  file involved in this ticket.
+- Verification rerun with `/tmp/wheelenv/bin/python` (Python 3.12 + hatchling):
+  - `python -m pytest tests/test_packaging.py -q` -> 2 passed.
+  - Clean template tree direct wheel build:
+    `/tmp/wheelenv/bin/python -m pip wheel --no-build-isolation --no-deps . -w /tmp/relay-peer-clean-wheel-26848`
+    -> succeeds; `_template/SKILL.md` appears exactly once; no duplicate archive names.
+  - Dev symlink tree build after recreating `.agent-skills` plus `.claude`/`.codex`
+    links -> succeeds; `_template/SKILL.md` appears exactly once; no duplicate archive names.
+    Generated symlinks were removed afterward.
+  - Full `python -m pytest` still cannot collect `test_gmail_skill.py` and
+    `test_google_calendar_skill.py` because `googleapiclient` is absent in the env.
+  - Remainder excluding those two files: 561 passed, 1 failed. The failure is the
+    previously recorded unrelated Dream line-wrap assertion in
+    `test_cleanup_orphan_markers_declares_contract`.
