@@ -20,6 +20,17 @@ dependencies = [
   "requests>=2.31",
 ]
 
+[project.optional-dependencies]
+# Dev/test-only. `hatchling` is the build backend; it is required so
+# `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` actually
+# builds a wheel instead of `importorskip`-skipping (which masked the clean-
+# checkout wheel build failure). Relay never imports hatchling at runtime, so
+# it stays out of `requirements.txt` / `[project.dependencies]`.
+test = [
+  "pytest>=8",
+  "hatchling>=1.18",
+]
+
 [project.scripts]
 relay = "relay.cli:main"
 
@@ -47,6 +58,15 @@ exclude = [
   "**/.venv/**",
   "**/__pycache__/**",
   "**/relay-os/bootstrap/**",
+  # Paired with the `skills/_template` force-include below, exactly like
+  # `bootstrap/`. On a clean checkout (no `relay init` symlinks under the
+  # templates tree) the `packages` walk DOES grab `_template/SKILL.md`, which
+  # then collides with the force-include and aborts the wheel build
+  # ("A second file is being added to the wheel archive at the same path").
+  # The symlink views in a dev tree only dedup that collision away by accident,
+  # so we exclude the leaf from the walk and let the force-include be its single
+  # deterministic shipper — matching the bootstrap exclude+force-include pairing.
+  "**/relay-os/skills/_template/**",
 ]
 
 [tool.hatch.build.targets.wheel.force-include]
