@@ -3,3 +3,4 @@
 2026-06-08 15:15 [human:nick] started (active → in_progress) via relay launch
 2026-06-08 15:15 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-08 15:16 [human:nick] paused (in_progress → paused)
+2026-06-08 15:16 [human:nick] activated (paused → active)
