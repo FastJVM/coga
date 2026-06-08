@@ -12,10 +12,12 @@ gone with you when this run ends.
 
 ## Your slug names your parent
 
-Your slug is `<parent-name>-<period_key>`, where `period_key` is the
-firing's bucket: `YYYY-MM-DD-HH` (hourly), `YYYY-MM-DD` (daily),
-`YYYY-Www` (weekly), or `YYYY-MM` (monthly). Strip the trailing period
-suffix from your own slug to get the parent name.
+Your slug is `recurring-<parent-name>-<period_key>`, where the leading
+`recurring-` is a fixed identity prefix and `period_key` is the firing's
+bucket: `YYYY-MM-DD-HH` (hourly), `YYYY-MM-DD` (daily), `YYYY-Www`
+(weekly), or `YYYY-MM` (monthly). Strip the leading `recurring-` prefix
+**and** the trailing period suffix from your own slug to get the parent
+name.
 
 Your parent recurring task lives at
 `relay-os/recurring/<parent-name>/`. Its `blackboard.md` persists across
