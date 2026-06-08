@@ -1,6 +1,6 @@
 ---
 title: Dream validate-drift (dbg run)
-status: draft
+status: active
 mode: script
 owner: nick
 human: nick
