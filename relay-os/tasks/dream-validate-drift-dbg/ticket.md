@@ -1,6 +1,6 @@
 ---
 title: Dream validate-drift (dbg)
-status: active
+status: in_progress
 mode: script
 owner: nick
 human: nick
