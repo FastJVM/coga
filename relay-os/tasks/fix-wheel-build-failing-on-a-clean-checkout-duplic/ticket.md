@@ -1,6 +1,6 @@
 ---
 title: Fix wheel build failing on a clean checkout (duplicate skills/_template force-include)
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
