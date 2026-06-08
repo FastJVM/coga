@@ -1,6 +1,6 @@
 ---
 title: '[debug] Daily digest'
-status: in_progress
+status: done
 mode: script
 owner: nick
 human: nick
@@ -16,7 +16,6 @@ workflow:
     skills:
     - relay/digest/flush
     assignee: agent
-step: 1 (flush)
 ---
 
 ## Description
