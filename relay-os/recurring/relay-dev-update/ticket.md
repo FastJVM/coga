@@ -2,6 +2,7 @@
 schedule: "0 9 * * *"
 schedule_comment: "Every day at 9am — daily digest of commits merged to main"
 title: "Relay dev update"
+workflow: dev-update/post
 # `mode: auto` is temporarily disabled (no live console output from
 # headless agent runs), so this template runs in `interactive` mode and
 # requires a human terminal: `relay recurring launch relay-dev-update`.
@@ -20,9 +21,11 @@ summarizes it in a few lines, and posts that summary to the team Slack
 channel. The point is a low-effort daily pulse on what is shipping in Relay
 that nobody has to write by hand.
 
-This task has no workflow — this body is the whole run instruction. When the
-work below is done, finish with `relay mark done` on this task. If something
-blocks the run, `relay panic` with a reason instead of stopping silently.
+This task runs the single-step `dev-update/post` workflow — this body is the
+whole run instruction for that one step. When the work below is done, finish
+with `relay mark done` on this task (one step, so there is nothing to `relay
+bump`). If something blocks the run, `relay panic` with a reason instead of
+stopping silently.
 
 ### Step 1 — Find where the last run stopped
 
