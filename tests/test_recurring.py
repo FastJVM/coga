@@ -239,15 +239,16 @@ def test_scan_due_different_period_creates_new(repo: Path) -> None:
     assert len(list_tasks(cfg)) == 2
 
 
-def test_scan_due_scaffolds_new_period_despite_stuck_prior_run(
+def test_scan_due_resumes_stuck_prior_run_instead_of_new_period(
     repo: Path,
 ) -> None:
-    """A stuck prior-period `in_progress` task does not block the new period.
+    """A stuck prior-period `in_progress` run is resumed, deferring the new period.
 
-    The stuck run stays visible in `relay status` for the human to handle;
-    today's scheduled task scaffolds and launches normally. Silently skipping
-    today's task because a 4-day-old run never finished is exactly the
-    "silent wrong answer" failure mode the principles forbid.
+    One live task per template: identity is the `recurring-<name>-` slug
+    prefix, so a prior-period orphan is found and resumed (`created=False`)
+    rather than a fresh current-period task scaffolded alongside it. The
+    in-flight run must reach `done`/`paused` before the next period starts —
+    no piling unfinished recurring work on top of itself.
     """
     cfg = load_config(repo)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
@@ -260,14 +261,15 @@ def test_scan_due_scaffolds_new_period_despite_stuck_prior_run(
 
     assert scan.errors == []
     assert len(scan.tasks) == 1
-    assert scan.tasks[0].created is True
-    assert scan.tasks[0].launchable is True
-    assert scan.tasks[0].ref.slug.endswith("-2026-W18")
-    # Both the stuck prior run and the new period task exist.
-    assert {ref.slug for ref in list_tasks(cfg)} == {
-        "weekly-check-2026-W17",
-        "weekly-check-2026-W18",
-    }
+    resumed = scan.tasks[0]
+    # The prior-period orphan is resumed, not superseded by a week-18 task.
+    assert resumed.created is False
+    assert resumed.launchable is True
+    assert resumed.resuming is True
+    assert resumed.ref.slug == ref.slug
+    assert resumed.ref.slug.endswith("-2026-W17")
+    # Only the stuck prior run exists — no new period scaffolded.
+    assert {r.slug for r in list_tasks(cfg)} == {"recurring-weekly-check-2026-W17"}
 
 
 def test_scan_due_does_not_rescaffold_after_period_task_deleted(
@@ -353,18 +355,19 @@ def test_reap_debug_orphans_removes_only_debug_dirs(repo: Path) -> None:
     assert template.exists()  # `_template` is spared
 
 
-def test_scan_due_recognizes_legacy_blackboard_ledger(repo: Path) -> None:
-    """A period recorded only in the legacy `blackboard.md` ledger is honored.
+def test_scan_due_recognizes_blackboard_ledger(repo: Path) -> None:
+    """A period recorded only in the `blackboard.md` ledger is honored.
 
-    Before the ledger moved to `log.md`, `_record_run` wrote `scaffolded …`
-    lines into the template `blackboard.md`. Such a pre-migration period —
-    its task dir long since deleted — must still count as handled, so the
-    fallback read of `blackboard.md` keeps `scan_due` from re-scaffolding it.
+    `_period_already_scaffolded` reads the template `log.md` first but falls
+    back to `blackboard.md`, where `_record_run` used to write `scaffolded …`
+    lines. A period recorded only there — its task dir long since deleted —
+    must still count as handled, so the fallback keeps `scan_due` from
+    re-scaffolding it.
     """
     now = datetime(2026, 4, 22, 10, 0, 0)  # week 17
-    # Simulate a legacy ledger: only the blackboard records the period, the
-    # log.md does not exist, and the task dir is gone.
-    legacy_slug = "weekly-check-2026-W17"
+    # Simulate a blackboard-only ledger: only the blackboard records the
+    # period, the log.md does not exist, and the task dir is gone.
+    legacy_slug = "recurring-weekly-check-2026-W17"
     bb = repo / "recurring" / "weekly-check" / "blackboard.md"
     bb.write_text(f"### State\n\n[2026-04-20 09:00] scaffolded {legacy_slug}\n")
 
@@ -633,7 +636,7 @@ def test_recurring_launch_creates_dream_task(
     result = CliRunner().invoke(app, ["recurring", "launch", "dream"])
 
     assert result.exit_code == 0, result.output
-    assert "Created dream-" in result.output
+    assert "Created recurring-dream-" in result.output
 
     cfg = load_config(dream_repo)
     refs = list_tasks(cfg)
@@ -644,8 +647,9 @@ def test_recurring_launch_creates_dream_task(
     assert ticket.workflow is None
     # The recurring template's `## Description` body composes into the ticket.
     assert "Run the Dream cleanup pass for this Relay repo." in ticket.body
-    # Slug uses the schedule-derived period key, not plain `dream`.
-    assert refs[0].slug.startswith("dream-")
+    # Slug carries the `recurring-` identity prefix and the schedule-derived
+    # period key, not plain `dream`.
+    assert refs[0].slug.startswith("recurring-dream-")
     assert refs[0].slug != "dream"
 
 
@@ -675,7 +679,7 @@ def test_recurring_launch_is_idempotent(
 
     assert first.exit_code == 0, first.output
     assert second.exit_code == 0, second.output
-    assert "Created dream-" in first.output
+    assert "Created recurring-dream-" in first.output
     assert "already scaffolded for this period" in second.output
     # Idempotent: one task directory, not two.
     assert len(list_tasks(load_config(dream_repo))) == 1
@@ -818,7 +822,7 @@ def test_recurring_launch_invokes_launch(
 
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
-    assert calls[0].startswith("dream-")
+    assert calls[0].startswith("recurring-dream-")
 
 
 def test_recurring_launch_resumes_in_progress_orphan(
@@ -914,7 +918,7 @@ def test_bare_recurring_scans_and_launches_due(
     assert result.exit_code == 0, result.output
     assert "Recurring scan" in result.output
     assert len(calls) == 1
-    assert calls[0].startswith("dream-")
+    assert calls[0].startswith("recurring-dream-")
 
 
 def test_bare_recurring_skips_interactive_without_tty_and_continues(
@@ -967,7 +971,7 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
 
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
-    assert calls[0].startswith("z-script-check-")
+    assert calls[0].startswith("recurring-z-script-check-")
     combined = result.output + (result.stderr or "")
     assert "skipping weekly-check" in combined
     assert "mode=interactive requires a TTY" in combined
@@ -1019,8 +1023,8 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
 
     assert result.exit_code == 0, result.output
     assert len(calls) == 2
-    assert calls[0].startswith("weekly-check-")
-    assert calls[1].startswith("z-weekly-check-")
+    assert calls[0].startswith("recurring-weekly-check-")
+    assert calls[1].startswith("recurring-z-weekly-check-")
     assert "paused and continuing to next due task (interactive)" in result.output
 
     cfg = load_config(repo)
@@ -1105,7 +1109,7 @@ def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
 
     assert result.exit_code == 1, result.output
     assert len(calls) == 1
-    assert calls[0].startswith("nightly-check-")
+    assert calls[0].startswith("recurring-nightly-check-")
     combined = result.output + (result.stderr or "")
     assert "stopping before the next due task" in combined
 

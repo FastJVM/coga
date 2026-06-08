@@ -289,22 +289,27 @@ broadcast — one post instead of two.
 
 ### `relay recurring`
 
-Scan `relay-os/recurring/` and launch the templates that are due. For each
-template (excluding `_`-prefixed inert templates), `relay recurring`
-get-or-creates the **current period's** task, prints a scan table, then
-launches the still-`active` ones sequentially, most-overdue first. Tasks
-already `done`, `in_progress`, or `paused` are left alone — no auto-resume.
-If an older period task for the same template is not `done`, Relay still
-scaffolds the new period independently and surfaces the unfinished prior task
-in `relay status` — a stuck prior run is the human's to resolve, not a reason
-to skip today's scheduled task. During a bare
-recurring sweep, if a launched task returns still `active`, `in_progress`,
-or otherwise unfinished, the sweep stops before launching the next due task.
+Scan `relay-os/recurring/` and launch the templates that are due. Relay keeps
+**one live task per template**: a generated task is identified by its slug
+prefix `recurring-<name>-`, and if one is already `active` or orphaned
+`in_progress` — even from a *prior* period — that one is launched/resumed and
+no new period is scaffolded. Only when none is live does `relay recurring`
+get-or-create the **current period's** task. It prints a scan table, then
+launches the due ones sequentially: orphaned `in_progress` resumes first
+(a dead sweep's frozen run, picked back up from its step), then fresh
+launches, each group most-overdue first. `done` and `paused` tasks are left
+alone. A stuck `in_progress` run therefore **defers** the next period until it
+reaches `done`/`paused` — finish the in-flight run before piling another on,
+and it stays visible in `relay status` meanwhile. During a bare recurring
+sweep, if a launched task returns still `active`, `in_progress`, or otherwise
+unfinished, the sweep stops before launching the next due task.
 
 Only the current period is considered; `relay recurring` never chases missed
 periods, so a template runs at most once per period no matter how long since
-the last invocation. The task slug is the schedule-derived period key
-(`dream-2026-W21`), which makes the get-or-create idempotent.
+the last invocation. The task slug is `recurring-<name>-<period>`
+(`recurring-dream-2026-W21`) — the `recurring-` prefix is the identity marker
+and the schedule-derived period disambiguates, which makes the get-or-create
+idempotent.
 
 Recurring scaffolding goes through `scaffold_task()` in `relay.scaffold`
 directly with the template's full frontmatter. Recurring tasks are
@@ -323,9 +328,10 @@ through a recurring run in an attended terminal. It threads `relay launch
 ### `relay recurring launch <name>`
 
 Scaffold one named recurring template now, ignoring its schedule, and launch
-it. The task slug still uses the template's schedule-derived period key, so a
-manual `launch` and a bare `relay recurring` run converge on one task
-directory per period. This is the on-demand entry point behind aliases like
+it. The task slug is `recurring-<name>-<period>`, so a manual `launch` and a
+bare `relay recurring` run converge on one task directory per period; an
+orphaned `in_progress` run (even a prior period's) is resumed rather than
+duplicated. This is the on-demand entry point behind aliases like
 `relay dream`. `--interactive` runs it in interactive mode even if the
 template says `mode: auto` — handy for debugging one template by hand.
 
@@ -333,9 +339,11 @@ template says `mode: auto` — handy for debugging one template by hand.
 
 Run Relay's generic cleanup pass now. `dream` is an alias for
 `relay recurring launch dream`: it scaffolds the `recurring/dream/`
-recurring task and launches it. The slug is the recurring period key
-(`dream-2026-W21`), shared with the scheduled run — running `relay dream`
-mid-week reuses that week's task rather than creating a second one.
+recurring task and launches it. The slug is `recurring-<name>-<period>`
+(`recurring-dream-2026-W21`), shared with the scheduled run — running
+`relay dream` mid-week reuses that week's task rather than creating a second
+one (and resumes a still-running prior week's Dream instead of starting a
+new one).
 
 ### Dream and REM
 

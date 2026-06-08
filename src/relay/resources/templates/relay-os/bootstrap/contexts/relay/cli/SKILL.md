@@ -334,21 +334,29 @@ Run Relay's generic cleanup pass now. `dream` is not a built-in command — it
 is a default alias for `recurring launch dream`. It scaffolds the
 `relay-os/recurring/dream/` recurring task and launches it interactively.
 
-The task slug is the recurring period key (`dream-2026-W21`): running
-`relay dream` mid-week reuses that week's task instead of creating a second
-one. Dream scans current task state, runs the known Relay housekeeping pass,
-writes results to that run's blackboard, and finishes with `relay mark done`.
+The task slug is `recurring-<name>-<period>` (`recurring-dream-2026-W21`):
+the `recurring-` prefix marks it as generated and the period disambiguates.
+Running `relay dream` mid-week reuses that week's task instead of creating a
+second one — and if a prior week's Dream run is still `in_progress` (a dead
+sweep's orphan), it resumes *that* rather than starting a new one (one live
+task per template). Dream scans current task state, runs the known Relay
+housekeeping pass, writes results to that run's blackboard, and finishes with
+`relay mark done`.
 
 ## relay recurring
 
 Scan `relay-os/recurring/`, then scaffold and launch every task that is due.
 
-For each template (skipping `_`-prefixed files) `relay recurring`
-get-or-creates the **current period's** task and launches the ones still
-`active`, **sequentially** — most-overdue first, one finishing before the
-next starts. It prints a scan table (`ready` vs `overdue Nd`) before
-launching. Already-`done`/`in_progress`/`paused` tasks are skipped — never
-relaunched.
+For each template (skipping `_`-prefixed files) `relay recurring` enforces
+**one live task per template**: if a generated task (slug prefix
+`recurring-<name>-`) is already `active` or orphaned `in_progress`, that one
+is launched/resumed and no new period is scaffolded; only when none is live
+does it get-or-create the **current period's** task. It launches the due ones
+**sequentially** — orphaned `in_progress` resumes first, then fresh launches,
+each group most-overdue first, one finishing before the next starts. It prints
+a scan table (`→ resume` / `→ launch` / `ready` vs `overdue Nd`) before
+launching. `done` and `paused` tasks are skipped — never relaunched; a stuck
+`in_progress` run defers the next period until it reaches one of those.
 
 Current period only: it does not chase missed periods. Running `relay
 recurring` once a month for a weekly template produces one run (this
@@ -401,12 +409,13 @@ Dream, REM, and other recurring maintenance loops all use this surface.
 ## relay recurring launch \<name\>
 
 Scaffold one named recurring template now and launch it, ignoring its
-schedule. `name` is the directory name under `relay-os/recurring/`. The task slug
-still uses the template's schedule-derived period key, so a manual `launch`
-and a bare `relay recurring` converge on one task directory per period
-(idempotent — a second `launch` in the same period reuses the existing
-task). A task already past `active` (a finished or paused run) is left
-alone. This is exactly what the `relay dream` alias expands to.
+schedule. `name` is the directory name under `relay-os/recurring/`. The task
+slug is `recurring-<name>-<period>`, so a manual `launch` and a bare `relay
+recurring` converge on one task directory per period (idempotent — a second
+`launch` in the same period reuses the existing task). An orphaned
+`in_progress` run — even from a prior period — is resumed rather than
+duplicated; a `done` or `paused` run is left alone. This is exactly what the
+`relay dream` alias expands to.
 `--interactive` runs it in interactive mode even if the template says
 `mode: auto`, for debugging one template by hand.
 
