@@ -195,6 +195,31 @@ def _launch_all_debug(cfg) -> None:
         _finalize_debug_run(cfg, task)
 
 
+def _read_debug_outcome(scratch) -> tuple[str, bool]:
+    """Best-effort `(status, panicked)` for a debug run's scratch dir.
+
+    Reads the ticket status and scans the blackboard for a `relay panic`
+    marker, swallowing any error — the dir may be half-written or already
+    gone. `relay panic` leaves the ticket `in_progress` and writes the marker
+    to the blackboard, so the two signals together distinguish a panic from a
+    plain unfinished run. Shared by `_finalize_debug_run` (clean completion)
+    and `_reap_debug_orphans` (crashed-sweep cleanup) so both fold the same
+    outcome vocabulary into the template log.
+    """
+    try:
+        status = read_ticket(TaskRef(slug=scratch.name, path=scratch)).status
+    except Exception:  # dir already gone / unreadable — nothing to fold back
+        status = "unknown"
+    panicked = False
+    bb = scratch / "blackboard.md"
+    if bb.is_file():
+        try:
+            panicked = "PANIC" in bb.read_text()
+        except OSError:
+            pass
+    return status, panicked
+
+
 def _finalize_debug_run(cfg: Config, task) -> None:
     """Fold a `--all` debug run back into the template log and delete its dir.
 
@@ -205,21 +230,7 @@ def _finalize_debug_run(cfg: Config, task) -> None:
     composition, so it can grow without bloating any agent's context.
     """
     scratch = task.ref.path
-    try:
-        ticket = read_ticket(task.ref)
-        status = ticket.status
-    except Exception:  # dir already gone / unreadable — nothing to fold back
-        status = "unknown"
-
-    # `relay panic` leaves the ticket in_progress and writes a marker to the
-    # blackboard; surface that distinction in the outcome line.
-    panicked = False
-    bb = scratch / "blackboard.md"
-    if bb.is_file():
-        try:
-            panicked = "PANIC" in bb.read_text()
-        except OSError:
-            pass
+    status, panicked = _read_debug_outcome(scratch)
 
     if status == "done":
         outcome = "completed → done"
@@ -249,13 +260,19 @@ def _reap_debug_orphans(cfg: Config) -> None:
     never fires and the scratch dir is orphaned. Because debug runs never commit
     task state (`git.sync_task_state` suppresses the `-dbg-<digit>` slug), the
     orphan lives only in the working tree — there is nothing to uncommit, so
-    reaping is a plain `rmtree`.
+    reaping is a log-then-`rmtree`.
 
     Run at the start of every `relay recurring` (bare or `--all`): the sweep is a
     foreground command with no concurrent peer, so a `-dbg-<digit>` dir present
     when it starts cannot belong to a live run — it is always a dead sweep's
     litter. This is the "relay takes over and cleans up on relaunch" guarantee,
     the debug-run analogue of resuming an orphaned `in_progress` period task.
+
+    Before deleting each orphan, fold its outcome into the originating
+    template's `log.md` — which period it was and how it ended — so a crashed
+    sweep's run is recorded, not silently erased. This mirrors the audit trail
+    `_finalize_debug_run` writes on a clean completion; the template is the
+    slug up to its `-dbg-<stamp>` infix.
     """
     tasks_root = tasks_dir(cfg)
     if not tasks_root.is_dir():
@@ -263,6 +280,17 @@ def _reap_debug_orphans(cfg: Config) -> None:
     reaped: list[str] = []
     for entry in sorted(tasks_root.iterdir()):
         if entry.is_dir() and is_debug_slug(entry.name):
+            status, panicked = _read_debug_outcome(entry)
+            ended = "panicked" if panicked else f"ended {status!r}"
+            template = entry.name.rsplit("-dbg-", 1)[0]
+            template_dir = recurring_dir(cfg) / template
+            if template_dir.is_dir():
+                append_log(
+                    template_dir,
+                    "system",
+                    f"orphaned debug run {entry.name} reaped: {ended} "
+                    "(prior sweep died before cleanup)",
+                )
             shutil.rmtree(entry, ignore_errors=True)
             reaped.append(entry.name)
     if reaped:
