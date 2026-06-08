@@ -5,7 +5,7 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 # Relay — current direction
 
-Last updated: 2026-06-01.
+Last updated: 2026-06-07.
 
 ## Open rename (workflow → playbook)
 
@@ -159,10 +159,6 @@ ones that affect implementation:
   each, and launches the due ones sequentially — current period only, no
   backlog of missed periods. `scripts/cron.sh` calls it directly rather than
   going through `relay draft` / `scaffold_task()`.
-- **Lock cleanup is human-needed by default.** `relay validate`
-  reports stale locks but doesn't auto-clean. Dream's `validate-drift` skill
-  classifies stale locks for human review unless a narrower skill contract has
-  exact evidence that deletion is safe.
 - **Control plane and data plane are fully split.** `draft` is unapproved,
   `active` is approved/queued, and `in_progress` is launched work. `relay
   launch` owns the `active` → `in_progress` start transition; `relay bump`
@@ -170,29 +166,23 @@ ones that affect implementation:
   The normal boot is `relay ticket "<title>"` → review the draft →
   `relay mark active <slug>` → `relay launch <slug>`.
 
-## Open ticket queue (audit-driven bugs)
+## Open ticket queue (Slack / notifications)
 
-In suggested order:
+The earlier audit-driven bug queue has been worked off — its tickets are
+completed-and-pruned and no longer on disk. The live work now centers on
+Slack/notifications. As of this refresh the on-disk tickets are:
 
-1. **`diagnose-slack-notifications-not-firing-in-practic`** —
-   blocks all other Slack work. Slack isn't actually firing in
-   nick's setup. Investigate first.
-2. **`reconcile-recurring-command-spec-contradiction`** —
-   doc-only, fast.
-3. **`make-relay-panic-exit-non-zero`** — small, isolated.
-4. **`fix-relay-status-narrow-terminal-table-wrapping`** — small,
-   isolated.
-5. **`fail-loud-on-missing-context-or-skill-at-launch`** — touches
-   compose.py + validate.
-6. **`post-slack-notification-on-mode-script-failures`** — depends
-   on #1 being green.
+- **`rename-slack-to-a-notification-system-with-pluggab`** (active) — the
+  broader rename of Slack into a pluggable notification system. The other
+  Slack tickets should stay narrow rather than fold into this one.
+- Open Slack bug/feature drafts:
+  `post-slack-notification-on-mode-script-failures`,
+  `slack-post-ignores-http-response-so-bad-webhook-fa`,
+  `slack-webhook-is-env-only-despite-toml-comment-imp`,
+  `rewrite-slack-messages`, and `use-slack-as-a-sync-channel-for-tickets`.
 
-## Larger ticket in flight
-
-- **`finish-slack-integration-features`** — broader Slack
-  roadmap (channel routing, threading, retry, error visibility).
-  Don't scope-creep the small Slack tickets into this one;
-  let them stay narrow.
+This reflects the tickets present on disk at refresh time, not a committed
+priority order — re-prioritize as needed.
 
 ## Deliberately deferred
 
