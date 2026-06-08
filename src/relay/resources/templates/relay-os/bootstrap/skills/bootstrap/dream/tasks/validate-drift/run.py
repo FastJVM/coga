@@ -208,6 +208,18 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
+    if kind == "recurring-state-stuck":
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_HUMAN_NEEDED,
+            remediation=(
+                "A recurring period finished without advancing its declared "
+                "state. Ask the owner to inspect the run and update the parent "
+                "recurring blackboard's cursor, or rerun the period if the "
+                "output cannot be trusted."
+            ),
+        )
+
     if kind in {"invalid-status", "unknown-assignee", "unfrozen-workflow"}:
         return ClassifiedIssue(
             issue=issue,

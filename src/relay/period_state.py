@@ -102,6 +102,8 @@ def read_snapshot(task_dir: Path) -> StateSnapshot | None:
         data = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
         return None
+    if not isinstance(data, dict):
+        return None
     parent = data.get("parent")
     keys = data.get("keys")
     if not isinstance(parent, str) or not isinstance(keys, dict):
@@ -112,14 +114,20 @@ def read_snapshot(task_dir: Path) -> StateSnapshot | None:
 def stale_keys(cfg: Config, snapshot: StateSnapshot) -> list[str]:
     """Declared keys whose current parent-blackboard value equals the snapshot.
 
-    An unchanged value means the run finished without advancing that key.
-    Returns the stale keys in their declared (snapshot) order; an empty list
-    means every declared key moved (a healthy run).
+    An unchanged, missing, or blank current value means the run finished without
+    advancing that key. Returns the stale keys in their declared (snapshot)
+    order; an empty list means every declared key moved (a healthy run).
     """
     blackboard = recurring_dir(cfg) / snapshot.parent / "blackboard.md"
+    if not blackboard.parent.is_dir():
+        return []
     text = blackboard.read_text() if blackboard.is_file() else ""
     current = parse_keys(text, list(snapshot.keys))
-    return [key for key, was in snapshot.keys.items() if current.get(key) == was]
+    return [
+        key
+        for key, was in snapshot.keys.items()
+        if current.get(key) in {None, ""} or current.get(key) == was
+    ]
 
 
 __all__ = [

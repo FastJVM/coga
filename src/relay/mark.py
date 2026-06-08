@@ -16,8 +16,8 @@ import typer
 from relay import git
 from relay.config import Config
 from relay.logfile import append_log
-from relay.paths import workflow_path
-from relay.period_state import read_snapshot, stale_keys
+from relay.paths import recurring_dir, workflow_path
+from relay.period_state import StateSnapshot, read_snapshot, stale_keys
 from relay.slack import notify, post
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
@@ -67,12 +67,38 @@ def mark_done(
         task_path=ref.path,
         image_url=image_url,
     )
-    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — done")
-    _warn_if_state_not_advanced(cfg, ref, ticket, owner)
+    snapshot = read_snapshot(ref.path)
+    _sync_done_state(cfg, ref, snapshot)
+    _warn_if_state_not_advanced(cfg, ref, ticket, owner, snapshot)
+
+
+def _sync_done_state(
+    cfg: Config, ref: TaskRef, snapshot: StateSnapshot | None
+) -> None:
+    message = f"Ticket: {ref.id_slug} — done"
+    if snapshot is None:
+        git.sync_task_state(cfg, ref.path, message=message)
+        return
+
+    from relay.recurring import is_debug_slug
+
+    if is_debug_slug(ref.slug):
+        git.sync_task_state(cfg, ref.path, message=message)
+        return
+
+    paths = [ref.path]
+    parent_blackboard = recurring_dir(cfg) / snapshot.parent / "blackboard.md"
+    if parent_blackboard.parent.is_dir():
+        paths.append(parent_blackboard)
+    git.sync_paths(cfg, ref.path, paths, message=message)
 
 
 def _warn_if_state_not_advanced(
-    cfg: Config, ref: TaskRef, ticket: Ticket, owner: str
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+    owner: str,
+    snapshot: StateSnapshot | None,
 ) -> None:
     """Flag a period task that completed without advancing its declared state.
 
@@ -87,7 +113,6 @@ def _warn_if_state_not_advanced(
     is advisory only: it runs after the transition has already committed, and a
     failed broadcast must never turn a successful `mark done` into an error.
     """
-    snapshot = read_snapshot(ref.path)
     if snapshot is None:
         return
     stale = stale_keys(cfg, snapshot)

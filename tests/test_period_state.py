@@ -24,7 +24,7 @@ from relay.period_state import (
     stale_keys,
     write_snapshot,
 )
-from relay.recurring import scan_due
+from relay.recurring import RecurringError, Template, scan_due
 
 
 def _write(path: Path, text: str) -> None:
@@ -78,6 +78,14 @@ def test_read_snapshot_absent_returns_none(tmp_path: Path) -> None:
 
 def test_read_snapshot_corrupt_returns_none(tmp_path: Path) -> None:
     (tmp_path / SNAPSHOT_FILE).write_text("{not json")
+    assert read_snapshot(tmp_path) is None
+
+
+@pytest.mark.parametrize("payload", ["null", "[]", '"snapshot"'])
+def test_read_snapshot_valid_json_non_object_returns_none(
+    tmp_path: Path, payload: str
+) -> None:
+    (tmp_path / SNAPSHOT_FILE).write_text(payload)
     assert read_snapshot(tmp_path) is None
 
 
@@ -154,6 +162,26 @@ def test_stale_keys_clears_when_advanced(repo: Path) -> None:
     assert stale_keys(cfg, snap) == []
 
 
+@pytest.mark.parametrize("text", ["### Dev Update State\n\n", "last_commit:\n"])
+def test_stale_keys_flags_missing_or_blank_current_value(
+    repo: Path, text: str
+) -> None:
+    cfg = load_config(repo)
+    (repo / "recurring" / "dev-update" / "blackboard.md").write_text(text)
+    snap = StateSnapshot(parent="dev-update", keys={"last_commit": "AAA"})
+    assert stale_keys(cfg, snap) == ["last_commit"]
+
+
+def test_stale_keys_ignores_removed_parent(repo: Path) -> None:
+    cfg = load_config(repo)
+    parent = repo / "recurring" / "dev-update"
+    (parent / "blackboard.md").unlink()
+    (parent / "ticket.md").unlink()
+    parent.rmdir()
+    snap = StateSnapshot(parent="dev-update", keys={"last_commit": "AAA"})
+    assert stale_keys(cfg, snap) == []
+
+
 # --- scaffold writes the snapshot ---------------------------------------------
 
 
@@ -212,6 +240,41 @@ def test_scaffold_without_state_keys_writes_no_snapshot(tmp_path: Path) -> None:
     assert read_snapshot(scan.tasks[0].ref.path) is None
 
 
+@pytest.mark.parametrize(
+    "state_keys_line",
+    [
+        "state_keys: last_commit",
+        'state_keys: ""',
+        "state_keys: 0",
+        "state_keys: {}",
+        "state_keys:",
+    ],
+)
+def test_template_rejects_malformed_state_keys(
+    tmp_path: Path, state_keys_line: str
+) -> None:
+    template = tmp_path / "recurring" / "bad"
+    _write(
+        template / "ticket.md",
+        f"""
+        ---
+        schedule: "0 9 * * *"
+        title: "Bad"
+        mode: interactive
+        assignee: claude
+        owner: marc
+        {state_keys_line}
+        ---
+
+        ## Description
+
+        Bad state key shape.
+        """,
+    )
+    with pytest.raises(RecurringError, match="state_keys"):
+        Template.load(template)
+
+
 # --- mark done warns ----------------------------------------------------------
 
 
@@ -241,6 +304,36 @@ def test_mark_done_quiet_when_cursor_advanced(repo: Path, monkeypatch) -> None:
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
     assert "did not advance" not in result.output
+
+
+def test_mark_done_syncs_parent_blackboard_when_cursor_advanced(
+    repo: Path, monkeypatch
+) -> None:
+    monkeypatch.chdir(repo)
+    slug = _scaffold_period(repo)
+    (repo / "recurring" / "dev-update" / "blackboard.md").write_text(
+        "### Dev Update State\n\nlast_commit: BBB\n"
+    )
+
+    synced: list[tuple[Path, list[Path], str]] = []
+
+    def _capture_sync(cfg, anchor_path, paths, *, message):
+        synced.append((anchor_path, list(paths), message))
+
+    def _unexpected_task_sync(*args, **kwargs):
+        raise AssertionError("state-keyed period tasks should sync explicit paths")
+
+    monkeypatch.setattr("relay.git.sync_paths", _capture_sync)
+    monkeypatch.setattr("relay.git.sync_task_state", _unexpected_task_sync)
+
+    result = CliRunner().invoke(app, ["mark", "done", slug])
+    assert result.exit_code == 0, result.output
+
+    task_dir = repo / "tasks" / slug
+    parent_blackboard = repo / "recurring" / "dev-update" / "blackboard.md"
+    assert synced == [
+        (task_dir, [task_dir, parent_blackboard], f"Ticket: {slug} — done")
+    ]
 
 
 def test_mark_done_plain_task_unaffected(repo: Path, monkeypatch) -> None:

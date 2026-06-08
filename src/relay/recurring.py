@@ -53,6 +53,14 @@ class Template:
             raise RecurringError("frontmatter must be a mapping")
         if "schedule" not in fm:
             raise RecurringError("`schedule` is required")
+        if "state_keys" in fm:
+            state_keys = fm["state_keys"]
+            if not isinstance(state_keys, list) or not all(
+                isinstance(key, str) and key.strip() for key in state_keys
+            ):
+                raise RecurringError(
+                    "`state_keys` must be a list of non-empty strings"
+                )
         return cls(path=path, name=path.name, frontmatter=fm, body=match.group(2))
 
     @property
