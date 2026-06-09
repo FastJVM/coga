@@ -1,6 +1,6 @@
 ---
 title: Fix wheel build failing on a clean checkout (duplicate skills/_template force-include)
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -25,7 +25,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
