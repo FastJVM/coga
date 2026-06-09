@@ -137,6 +137,7 @@ def _try_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool) -> bool:
     # A workflow-less ticket has no current step, so collapse the transition.
     prev = ticket.current_step()
     transition = f": {prev['name']} → done" if prev else " finished"
+    digest_transition = f"{prev['name']} → done" if prev else "finished"
     slack_text = (
         f"🎉 *{ref.id_slug}* \"{ticket.title}\"{transition} — {pr_link} merged"
     )
@@ -150,7 +151,7 @@ def _try_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool) -> bool:
         actor=actor,
         log_message=log_message,
         slack_text=slack_text,
-        digest_detail=f"auto-bumped on merge of {pr_label} ✅",
+        digest_detail=f"auto-bumped: {digest_transition} — {pr_link} merged ✅",
         image_url=cfg.gif_for("done"),
         echo=echo,
     )

@@ -240,9 +240,9 @@ state as a side effect of rendering — principle 6, fail loud, names
 post-merge git hook. The explicit command surfaces `gh` errors (missing,
 unauthed) loudly.
 
-Posts a distinct Slack line — `🎉 *<slug>* "<title>" auto-bumped on
-merge of PR #<N>` — so the team can tell auto-bumps apart from manual
-ones.
+Posts a distinct Slack line with the ticket title, previous step, and linked
+PR (`🎉 *<slug>* "<title>": <prev> → done — <pr-url|PR #<N>> merged`), so the
+team can tell auto-bumps apart from manual ones.
 
 ## relay delete \<slug\>
 

@@ -21,6 +21,7 @@ import pytest
 from typer.testing import CliRunner
 
 from relay import automerge as am
+from relay import spool
 from relay.cli import app
 from relay.config import load_config
 from relay.scaffold import scaffold_task
@@ -241,6 +242,29 @@ def test_automerge_workflowless_collapses_and_links(
     assert count == 1
     assert _body(posts, "🎉") == (
         f"🎉 *{slug}* \"Work\" finished — <{url}|PR #9> merged"
+    )
+
+
+def test_automerge_digest_preserves_transition_and_pr_link(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    url = "https://github.com/o/r/pull/7"
+    slug, _ = _make_task(repo, status="active", on_final=True, pr_url=url)
+    monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
+    posts = _capture(monkeypatch)
+    digest_blackboard = repo / "recurring" / "digest" / "blackboard.md"
+    _write(digest_blackboard, "## Spool (pending)\n")
+
+    count = am.auto_bump_merged(load_config(repo), quiet=True)
+
+    assert count == 1
+    assert posts == []
+    records = spool.read_records(digest_blackboard)
+    assert len(records) == 1
+    assert records[0]["ticket"] == slug
+    assert records[0]["kind"] == "done"
+    assert records[0]["detail"] == (
+        f"auto-bumped: merge → done — <{url}|PR #7> merged ✅"
     )
 
 
