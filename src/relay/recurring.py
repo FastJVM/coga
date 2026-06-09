@@ -30,8 +30,8 @@ class Template:
     """A recurring task — a ticket-format directory under `recurring/<name>/`.
 
     `ticket.md` carries the schedule and run body; `blackboard.md` persists
-    across runs and doubles as the period ledger (`_record_run` appends a
-    scaffolding line every time a new period task is created).
+    across runs for forward state. `log.md` is the period ledger: `_record_run`
+    appends a scaffolding line every time a new period task is created.
     """
 
     path: Path  # the recurring task directory
@@ -104,7 +104,7 @@ class DueTask:
     `ref` is `None` when the period was already scaffolded earlier this cycle
     and the task directory has since been removed (a later Dream run deletes
     done recurring period tickets via its retro pass; a human `relay delete` is
-    the other case). The template's blackboard is the period ledger — see
+    the other case). The template's `log.md` is the period ledger — see
     `_period_already_scaffolded`.
     """
 

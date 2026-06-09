@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import math
 import os
+import subprocess
 import shutil
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import typer
 
@@ -336,23 +338,31 @@ def launch(
 
     ref = outcome.ref
     if outcome.created:
-        ticket = read_ticket(ref)
-        typer.echo(f"Created {ref.id_slug}")
-        notify(
-            cfg,
-            f"🔁 recurring scaffolded *{ref.id_slug}* "
-            f"\"{ticket.title}\" in {cfg.project_name} — "
-            f"assignee {ticket.assignee or 'unassigned'}",
-            kind="recurring",
-            detail=f"recurring scaffolded \"{ticket.title}\" — "
-            f"assignee {ticket.assignee or 'unassigned'}",
-            ticket=ref.id_slug,
-            owner=ticket.owner,
-            task_path=ref.path,
+        created_on_control = _sync_recurring_scaffold(
+            cfg, name, ref, respect_handled_period=False
         )
-        git.sync_task_state(
-            cfg, ref.path, message=f"Ticket: {ref.id_slug} — recurring scaffold"
-        )
+        if not (ref.path / "ticket.md").is_file():
+            typer.secho(
+                f"{ref.id_slug} was already handled on the control branch; "
+                "not launching.",
+                fg=typer.colors.BRIGHT_BLACK,
+            )
+            return
+        if created_on_control:
+            ticket = read_ticket(ref)
+            typer.echo(f"Created {ref.id_slug}")
+            notify(
+                cfg,
+                f"🔁 recurring scaffolded *{ref.id_slug}* "
+                f"\"{ticket.title}\" in {cfg.project_name} — "
+                f"assignee {ticket.assignee or 'unassigned'}",
+                kind="recurring",
+                detail=f"recurring scaffolded \"{ticket.title}\" — "
+                f"assignee {ticket.assignee or 'unassigned'}",
+                ticket=ref.id_slug,
+                owner=ticket.owner,
+                task_path=ref.path,
+            )
     else:
         typer.echo(f"{ref.id_slug} already scaffolded for this period")
 
@@ -370,6 +380,13 @@ def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> Non
     are left alone — re-launching finished or human-parked work would be wrong,
     and saying so beats silently doing nothing.
     """
+    if not (ref.path / "ticket.md").is_file():
+        typer.secho(
+            f"{ref.id_slug} was already handled on the control branch; not launching.",
+            fg=typer.colors.BRIGHT_BLACK,
+        )
+        return
+
     ticket = read_ticket(ref)
     if ticket.status not in {"active", "in_progress"}:
         typer.secho(
@@ -389,6 +406,444 @@ def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> Non
         no_verify=False,
         mode_override=mode_override,
     )
+
+
+def _sync_recurring_scaffold(
+    cfg: Config,
+    template_name: str,
+    ref: TaskRef,
+    *,
+    respect_handled_period: bool = True,
+) -> bool:
+    """Sync the period task and the ledger line that makes deletion idempotent."""
+    template_log = recurring_dir(cfg) / template_name / "log.md"
+    if not template_log.is_file():
+        git.sync_paths(
+            cfg,
+            ref.path,
+            [ref.path],
+            message=f"Ticket: {ref.id_slug} — recurring scaffold",
+        )
+        return True
+
+    original_log = template_log.read_text()
+    local_log = _without_debug_log_entries(original_log)
+    message = f"Ticket: {ref.id_slug} — recurring scaffold"
+    restore_log = original_log
+    created_on_control = True
+    try:
+        restore_log, created_on_control = _sync_recurring_scaffold_paths(
+            cfg,
+            anchor_path=ref.path,
+            paths=[ref.path, template_log],
+            template_log=template_log,
+            original_log=original_log,
+            local_log=local_log,
+            message=message,
+            respect_handled_period=respect_handled_period,
+        )
+    finally:
+        template_log.write_text(restore_log)
+    return created_on_control
+
+
+def _sync_recurring_scaffold_paths(
+    cfg: Config,
+    *,
+    anchor_path: Path,
+    paths: list[Path],
+    template_log: Path,
+    original_log: str,
+    local_log: str,
+    message: str,
+    respect_handled_period: bool,
+) -> tuple[str, bool]:
+    """Sync scaffold paths while merging the append-only recurring ledger."""
+    if not cfg.git_enabled:
+        sys.stderr.write(f"[git] disabled (sync suppressed): {message}\n")
+        return original_log, True
+
+    root = _git_toplevel(anchor_path)
+    if root is None:
+        sys.stderr.write(f"[git] not a git repo (sync skipped): {message}\n")
+        return original_log, True
+
+    try:
+        rels = [_relative_to_root(root, path) for path in paths]
+        log_rel = _relative_to_root(root, template_log)
+        template_ticket_rel = _relative_to_root(root, template_log.parent / "ticket.md")
+        branch = _current_branch(root)
+
+        try:
+            _fetch_control_branch(cfg, root)
+        except git.GitError:
+            template_log.write_text(local_log)
+            git.sync_paths(cfg, anchor_path, paths, message=message)
+            return original_log, True
+        base = _rev_parse(root, "FETCH_HEAD")
+        task_rel = _relative_to_root(root, anchor_path)
+        if _control_already_has_period(
+            root,
+            base,
+            log_rel,
+            task_rel,
+            include_ledger=respect_handled_period,
+        ):
+            if branch == cfg.git_control_branch:
+                _restore_selected_paths_from_ref(root, "HEAD", rels)
+                _rebase_checked_out_branch_onto(root, base)
+                return (
+                    _control_log_with_local_debug(root, "HEAD", log_rel, original_log),
+                    False,
+                )
+            _restore_selected_paths_from_ref(root, base, rels)
+            if branch != "HEAD":
+                git._commit_paths(root, rels, message)
+                return (
+                    _control_log_with_local_debug(root, "HEAD", log_rel, original_log),
+                    False,
+                )
+            return (
+                _control_log_with_local_debug(root, base, log_rel, original_log),
+                False,
+            )
+        _write_merged_log_for_ref(root, template_log, log_rel, base, local_log)
+
+        if branch == cfg.git_control_branch:
+            return _sync_recurring_scaffold_on_checked_out_control_branch(
+                cfg,
+                root,
+                rels,
+                template_log=template_log,
+                log_rel=log_rel,
+                template_ticket_rel=template_ticket_rel,
+                original_log=original_log,
+                local_log=local_log,
+                message=message,
+                respect_handled_period=respect_handled_period,
+            )
+
+        committed_log = template_log.read_text()
+        if branch == "HEAD":
+            sys.stderr.write(
+                f"[git] detached HEAD — task state landed on "
+                f"{cfg.git_control_branch!r} but not committed locally. ({message})\n"
+            )
+        else:
+            git._commit_paths(root, rels, message)
+            committed_log = _show_path(root, "HEAD", log_rel)
+        landed, already_handled = _land_recurring_scaffold_on_control_branch(
+            cfg,
+            root,
+            rels,
+            template_log=template_log,
+            log_rel=log_rel,
+            template_ticket_rel=template_ticket_rel,
+            task_rel=task_rel,
+            local_log=local_log,
+            message=message,
+            respect_handled_period=respect_handled_period,
+        )
+        if already_handled:
+            _restore_selected_paths_from_ref(root, landed, rels)
+            if branch != "HEAD":
+                git._commit_paths(root, rels, message)
+                return (
+                    _control_log_with_local_debug(root, "HEAD", log_rel, original_log),
+                    False,
+                )
+            return (
+                _control_log_with_local_debug(root, landed, log_rel, original_log),
+                False,
+            )
+        return _merge_log_entries(committed_log, original_log), True
+    except git.GitError as exc:
+        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
+        _append_sync_failure(anchor_path, exc)
+        return original_log, True
+
+
+def _without_debug_log_entries(text: str) -> str:
+    """Return log text without local-only `relay recurring --all` debug lines."""
+    return "".join(
+        line for line in text.splitlines(keepends=True) if not is_debug_slug(line)
+    )
+
+
+def _debug_log_entries(text: str) -> str:
+    """Return only local-only `relay recurring --all` debug lines."""
+    return "".join(
+        line for line in text.splitlines(keepends=True) if is_debug_slug(line)
+    )
+
+
+def _control_log_with_local_debug(
+    root: Path, ref: str, log_rel: str, original_log: str
+) -> str:
+    return _merge_log_entries(
+        _show_path(root, ref, log_rel), _debug_log_entries(original_log)
+    )
+
+
+def _merge_log_entries(*texts: str) -> str:
+    """Merge append-only log lines, preserving first-seen order."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for text in texts:
+        for line in text.splitlines():
+            if line in seen:
+                continue
+            seen.add(line)
+            out.append(line)
+    return "".join(f"{line}\n" for line in out)
+
+
+def _append_sync_failure(anchor_path: Path, exc: Exception) -> None:
+    """Best-effort task log note for non-fatal git sync failures."""
+    if not anchor_path.is_dir():
+        return
+    try:
+        append_log(anchor_path, "git", f"sync failed: {exc}")
+    except OSError:
+        return
+
+
+def _land_recurring_scaffold_on_control_branch(
+    cfg: Config,
+    root: Path,
+    rels: list[str],
+    *,
+    template_log: Path,
+    log_rel: str,
+    template_ticket_rel: str,
+    task_rel: str,
+    local_log: str,
+    message: str,
+    respect_handled_period: bool,
+) -> tuple[str, bool]:
+    remote = cfg.git_remote
+    branch = cfg.git_control_branch
+
+    for _ in range(git._MAX_SYNC_ATTEMPTS):
+        _fetch_control_branch(cfg, root)
+        base = _rev_parse(root, "FETCH_HEAD")
+        if _control_already_has_period(
+            root,
+            base,
+            log_rel,
+            task_rel,
+            include_ledger=respect_handled_period,
+        ):
+            return base, True
+        _write_merged_log_for_ref(root, template_log, log_rel, base, local_log)
+        control_rels = _control_scaffold_rels(root, base, rels, template_ticket_rel)
+
+        tree = git._build_overlay_tree(root, base, control_rels)
+        if tree == _rev_parse(root, f"{base}^{{tree}}"):
+            return base, False
+
+        new = git._run_git(root, "commit-tree", tree, "-p", base, "-m", message).strip()
+        result = git._push_ref(root, remote, f"{new}:refs/heads/{branch}")
+        if result is None:
+            git._try_update_local_ref(root, branch, new)
+            return new, False
+        if not git._is_non_fast_forward(result):
+            raise git.GitError(
+                f"`git push {remote} {new}:refs/heads/{branch}` failed: {result}"
+            )
+
+    raise git.GitError(
+        f"could not land on {branch!r} after {git._MAX_SYNC_ATTEMPTS} attempts — "
+        f"contention on refs/heads/{branch}"
+    )
+
+
+def _sync_recurring_scaffold_on_checked_out_control_branch(
+    cfg: Config,
+    root: Path,
+    rels: list[str],
+    *,
+    template_log: Path,
+    log_rel: str,
+    template_ticket_rel: str,
+    original_log: str,
+    local_log: str,
+    message: str,
+    respect_handled_period: bool,
+) -> tuple[str, bool]:
+    landed, already_handled = _land_recurring_scaffold_on_control_branch(
+        cfg,
+        root,
+        rels,
+        template_log=template_log,
+        log_rel=log_rel,
+        template_ticket_rel=template_ticket_rel,
+        task_rel=rels[0],
+        local_log=local_log,
+        message=message,
+        respect_handled_period=respect_handled_period,
+    )
+    if already_handled:
+        _restore_selected_paths_from_ref(root, "HEAD", rels)
+        _rebase_checked_out_branch_onto(root, landed)
+        git._push_control_branch(cfg, root)
+        return _control_log_with_local_debug(root, "HEAD", log_rel, original_log), False
+
+    _restore_selected_paths_from_ref(root, "HEAD", rels)
+    _rebase_checked_out_branch_onto(root, landed)
+    git._push_control_branch(cfg, root)
+    return _merge_log_entries(_show_path(root, "HEAD", log_rel), original_log), True
+
+
+def _control_scaffold_rels(
+    root: Path, ref: str, rels: list[str], template_ticket_rel: str
+) -> list[str]:
+    if _ref_has_path(root, ref, template_ticket_rel):
+        return rels
+    return rels[:1]
+
+
+def _control_already_has_period(
+    root: Path,
+    ref: str,
+    log_rel: str,
+    task_rel: str,
+    *,
+    include_ledger: bool = True,
+) -> bool:
+    if _ref_has_path(root, ref, task_rel):
+        return True
+    if not include_ledger:
+        return False
+    slug = Path(task_rel).name
+    needle = f"scaffolded {slug}"
+    return any(
+        line.rstrip().endswith(needle)
+        for line in _show_path(root, ref, log_rel).splitlines()
+    )
+
+
+def _restore_selected_paths_from_ref(root: Path, ref: str, rels: list[str]) -> None:
+    for rel in rels:
+        if _ref_has_path(root, ref, rel):
+            git._run_git(
+                root, "restore", "--source", ref, "--staged", "--worktree", "--", rel
+            )
+            continue
+        git._run_git(root, "rm", "-rf", "--cached", "--ignore-unmatch", "--", rel)
+        path = Path(rel) if Path(rel).is_absolute() else root / rel
+        if path.is_dir():
+            shutil.rmtree(path)
+        elif path.exists():
+            path.unlink()
+
+
+def _ref_has_path(root: Path, ref: str, rel: str) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(root), "cat-file", "-e", f"{ref}:{rel}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def _rebase_checked_out_branch_onto(root: Path, target: str) -> None:
+    if _rev_parse(root, "HEAD") == target:
+        return
+
+    proc = subprocess.run(
+        ["git", "-C", str(root), "-c", "rebase.autoStash=true", "rebase", target],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode == 0:
+        return
+
+    subprocess.run(
+        ["git", "-C", str(root), "rebase", "--abort"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    raise git.GitError(
+        f"could not rebase checked-out control branch onto {target}: "
+        f"{(proc.stderr + proc.stdout).strip()}"
+    )
+
+
+def _write_merged_log_for_ref(
+    root: Path, template_log: Path, log_rel: str, ref: str, local_log: str
+) -> None:
+    control_log = _show_path(root, ref, log_rel)
+    template_log.write_text(
+        _merge_log_entries(_without_debug_log_entries(control_log), local_log)
+    )
+
+
+def _show_path(root: Path, ref: str, rel: str) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "show", f"{ref}:{rel}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return ""
+    if result.returncode != 0:
+        return ""
+    return result.stdout
+
+
+def _fetch_control_branch(cfg: Config, root: Path) -> None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "fetch", cfg.git_remote, cfg.git_control_branch],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise git.GitError("`git` not found on PATH") from exc
+    if result.returncode != 0:
+        raise git.GitError(
+            f"`git fetch {cfg.git_remote} {cfg.git_control_branch}` failed "
+            f"(exit {result.returncode}): "
+            f"{result.stderr.strip() or result.stdout.strip()}"
+        )
+
+
+def _rev_parse(root: Path, ref: str) -> str:
+    return git._run_git(root, "rev-parse", ref).strip()
+
+
+def _current_branch(root: Path) -> str:
+    return git._run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+
+
+def _relative_to_root(root: Path, path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(root.resolve()))
+    except ValueError:
+        return str(path.resolve())
+
+
+def _git_toplevel(start: Path) -> Path | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return None
+    if result.returncode != 0:
+        return None
+    top = result.stdout.strip()
+    return Path(top) if top else None
 
 
 def _stop_if_unfinished_after_launch(
@@ -473,28 +928,34 @@ def _recurring_idle_timeout() -> float | None:
 
 def _broadcast_scan(cfg, scan: DueScan) -> None:
     """Post Slack lines for newly scaffolded tasks and skipped templates."""
-    for task in scan.tasks:
+    for task in list(scan.tasks):
         if not task.created:
             continue
+        created_on_control = _sync_recurring_scaffold(cfg, task.template, task.ref)
+        if not (task.ref.path / "ticket.md").is_file():
+            scan.tasks.remove(task)
+            typer.secho(
+                f"{task.ref.id_slug} was already handled on the control branch; "
+                "not launching.",
+                fg=typer.colors.BRIGHT_BLACK,
+            )
+            continue
         ticket = read_ticket(task.ref)
-        typer.echo(f"Created {task.ref.id_slug}")
-        notify(
-            cfg,
-            f"🔁 recurring scaffolded *{task.ref.id_slug}* "
-            f"\"{ticket.title}\" in {cfg.project_name} — "
-            f"assignee {ticket.assignee or 'unassigned'}",
-            kind="recurring",
-            detail=f"recurring scaffolded \"{ticket.title}\" — "
-            f"assignee {ticket.assignee or 'unassigned'}",
-            ticket=task.ref.id_slug,
-            owner=ticket.owner,
-            task_path=task.ref.path,
-        )
-        git.sync_task_state(
-            cfg,
-            task.ref.path,
-            message=f"Ticket: {task.ref.id_slug} — recurring scaffold",
-        )
+        task.status = ticket.status
+        if created_on_control:
+            typer.echo(f"Created {task.ref.id_slug}")
+            notify(
+                cfg,
+                f"🔁 recurring scaffolded *{task.ref.id_slug}* "
+                f"\"{ticket.title}\" in {cfg.project_name} — "
+                f"assignee {ticket.assignee or 'unassigned'}",
+                kind="recurring",
+                detail=f"recurring scaffolded \"{ticket.title}\" — "
+                f"assignee {ticket.assignee or 'unassigned'}",
+                ticket=task.ref.id_slug,
+                owner=ticket.owner,
+                task_path=task.ref.path,
+            )
 
     if scan.errors:
         n = len(scan.errors)
@@ -520,7 +981,7 @@ def _print_table(scan: DueScan) -> None:
         when = _firing_label(task.last_fire, now)
         if task.ref is None:
             # The period was scaffolded earlier this cycle and the task
-            # was removed afterwards (Dream self-delete or `relay delete`).
+            # was removed afterwards (a later Dream retro pass or `relay delete`).
             action = typer.style(
                 "skip (ran this period)", fg=typer.colors.BRIGHT_BLACK
             )
