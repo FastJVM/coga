@@ -1,6 +1,6 @@
 ---
 title: Dream sweeps done recurring period tickets
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
@@ -37,7 +37,7 @@ Stage 3 of the recurring-lifecycle redesign in `relay/current-direction`
 ("Open redesign (recurring lifecycle: generate → done → Dream-deletes)").
 
 Once `relay recurring` stops deleting anything (sibling ticket
-`recurring-runs-persist-as-done-stop-inline-deletio`), finished period tickets
+`dream-recurring-persist-done-stop-inline-delete`), finished period tickets
 sit on disk as `status: done`. Make **Dream** the single deleter that cleans
 them up — the same retro-first pass that already deletes every other processed
 `done` ticket (see `relay/current-direction` → "Done-ticket cleanup is
@@ -82,7 +82,7 @@ and reaps, the two cleanup paths overlap.
 ## Out of Scope
 
 - Stages 1–2 (stop inline deletion, `--all` force-run, paused handling) —
-  sibling ticket `recurring-runs-persist-as-done-stop-inline-deletio`.
+  sibling ticket `dream-recurring-persist-done-stop-inline-delete`.
 - Changing the retro knowledge-extraction model for ordinary (non-recurring)
   done tickets.
 
