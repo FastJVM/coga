@@ -281,7 +281,7 @@ def launch(
                 log_message="started (active → in_progress) via relay launch",
                 slack_text=(
                     f"▶️ {cfg.current_user} started *{ref.id_slug}* "
-                    f"\"{ticket.title}\" — assignee {launch_assignee}"
+                    f"\"{ticket.title}\" (assignee: {launch_assignee})"
                 ),
                 echo=f"{ref.id_slug}: in_progress",
             )
@@ -489,7 +489,7 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     `relay mark active` errors so the remedy is the same.
     """
     prior = ticket.status
-    suffix = " (auto on launch)"
+    suffix = " — auto on launch"
     assignee_label = ticket.assignee or "unassigned"
     try:
         mark_active(
@@ -500,9 +500,9 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
             log_message=f"activated ({prior} → active){suffix}",
             slack_text=(
                 f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
-                f"\"{ticket.title}\" — assignee {assignee_label}{suffix}"
+                f"\"{ticket.title}\" (assignee: {assignee_label}){suffix}"
             ),
-            digest_detail=f"→ active — assignee {assignee_label}{suffix}",
+            digest_detail=f"→ active (assignee: {assignee_label}){suffix}",
             echo=f"{ref.id_slug}: active{suffix}",
         )
     except WorkflowMissing:

@@ -341,11 +341,11 @@ def launch(
         notify(
             cfg,
             f"🔁 recurring scaffolded *{ref.id_slug}* "
-            f"\"{ticket.title}\" in {cfg.project_name} — "
-            f"assignee {ticket.assignee or 'unassigned'}",
+            f"\"{ticket.title}\" in {cfg.project_name} "
+            f"(assignee: {ticket.assignee or 'unassigned'})",
             kind="recurring",
-            detail=f"recurring scaffolded \"{ticket.title}\" — "
-            f"assignee {ticket.assignee or 'unassigned'}",
+            detail=f"recurring scaffolded \"{ticket.title}\" "
+            f"(assignee: {ticket.assignee or 'unassigned'})",
             ticket=ref.id_slug,
             owner=ticket.owner,
             task_path=ref.path,
@@ -481,11 +481,11 @@ def _broadcast_scan(cfg, scan: DueScan) -> None:
         notify(
             cfg,
             f"🔁 recurring scaffolded *{task.ref.id_slug}* "
-            f"\"{ticket.title}\" in {cfg.project_name} — "
-            f"assignee {ticket.assignee or 'unassigned'}",
+            f"\"{ticket.title}\" in {cfg.project_name} "
+            f"(assignee: {ticket.assignee or 'unassigned'})",
             kind="recurring",
-            detail=f"recurring scaffolded \"{ticket.title}\" — "
-            f"assignee {ticket.assignee or 'unassigned'}",
+            detail=f"recurring scaffolded \"{ticket.title}\" "
+            f"(assignee: {ticket.assignee or 'unassigned'})",
             ticket=task.ref.id_slug,
             owner=ticket.owner,
             task_path=task.ref.path,

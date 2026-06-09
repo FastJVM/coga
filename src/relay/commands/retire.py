@@ -118,9 +118,9 @@ def retire(
     notify(
         cfg,
         f"🚀 {cfg.current_user} created *{created.id_slug}* "
-        f"\"{created_ticket.title}\" (active) — relay retire",
+        f"\"{created_ticket.title}\" in {cfg.project_name} — relay retire (active)",
         kind="retire",
-        detail=f"created \"{created_ticket.title}\" (active) — relay retire",
+        detail=f"created \"{created_ticket.title}\" — relay retire (active)",
         ticket=created.id_slug,
         owner=cfg.current_user,
         task_path=created.path,

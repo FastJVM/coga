@@ -825,7 +825,7 @@ def test_launch_auto_activates_draft_and_paused(
     assert after.status == "in_progress"
     assert after.step == "1 (implement)"
     log = (Path(ref["path"]) / "log.md").read_text()
-    assert f"activated ({prior} → active) (auto on launch)" in log
+    assert f"activated ({prior} → active) — auto on launch" in log
 
 
 def test_launch_auto_activates_done_and_reseeds_step(

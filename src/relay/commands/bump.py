@@ -132,6 +132,9 @@ def bump(
 
     new_step = steps[next_step - 1]
     new_step_name = new_step["name"]
+    prev_step_name = (
+        steps[current_idx - 1]["name"] if current_idx >= 1 else f"step {current_idx}"
+    )
 
     role = new_step.get("assignee")
     new_assignee: str | None = None
@@ -167,12 +170,13 @@ def bump(
             actor=actor,
             log_message=f"{verb} to step {next_step} ({new_step_name}){handoff}{suffix}",
             slack_text=(
-                f"👉 {finisher} {verb} "
-                f"*{ref.id_slug}* → step {next_step} ({new_step_name}){handoff}{suffix}"
+                f"👉 {finisher} {verb} *{ref.id_slug}* \"{ticket.title}\": "
+                f"{prev_step_name} → {new_step_name} "
+                f"(step {next_step}/{total}){handoff}{suffix}"
             ),
             digest_detail=(
-                f"{finisher} {verb} → step {next_step} "
-                f"({new_step_name}){handoff}{suffix}"
+                f"{finisher} {verb}: {prev_step_name} → {new_step_name} "
+                f"(step {next_step}/{total}){handoff}{suffix}"
             ),
             new_assignee=new_assignee,
             echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",

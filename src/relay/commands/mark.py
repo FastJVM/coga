@@ -56,7 +56,7 @@ def active(
     log_message = f"activated ({ticket.status} → active){suffix}"
     slack_text = (
         f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
-        f"\"{ticket.title}\" — assignee {ticket.assignee or 'unassigned'}{suffix}"
+        f"\"{ticket.title}\" (assignee: {ticket.assignee or 'unassigned'}){suffix}"
     )
 
     try:
@@ -65,7 +65,7 @@ def active(
             actor=actor,
             log_message=log_message,
             slack_text=slack_text,
-            digest_detail=f"→ active — assignee {ticket.assignee or 'unassigned'}{suffix}",
+            digest_detail=f"→ active (assignee: {ticket.assignee or 'unassigned'}){suffix}",
             echo=f"{ref.id_slug}: active",
         )
     except WorkflowMissing:
@@ -144,8 +144,12 @@ def done(
     finisher = ticket.assignee or cfg.current_user
     actor = f"human:{cfg.current_user}"
     log_message = f"task done{suffix}"
+    # A workflow-less ticket has no current step, so collapse the transition.
+    prev = ticket.current_step()
+    transition = f": {prev['name']} → done" if prev else ""
     slack_text = (
-        f"🎉 {finisher} finished *{ref.id_slug}* \"{ticket.title}\"{suffix}"
+        f"🎉 {finisher} finished *{ref.id_slug}* "
+        f"\"{ticket.title}\"{transition}{suffix}"
     )
 
     try:
@@ -154,7 +158,7 @@ def done(
             actor=actor,
             log_message=log_message,
             slack_text=slack_text,
-            digest_detail=f"{finisher} finished → done ✅{suffix}",
+            digest_detail=f"{finisher} finished{transition or ' → done'} ✅{suffix}",
             image_url=cfg.gif_for("done"),
             echo=f"{ref.id_slug}: done",
         )
