@@ -79,3 +79,10 @@ shipped wheels. Could be fixed by excluding `**/.agent-skills/**`, `**/.claude/*
   - Remainder excluding those two files: 561 passed, 1 failed. The failure is the
     previously recorded unrelated Dream line-wrap assertion in
     `test_cleanup_orphan_markers_declares_contract`.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: "relay/codebase: document clean-checkout wheel build force-include collision"
