@@ -102,9 +102,9 @@ class DueTask:
     used to report "ready" vs "overdue" and to order launches.
 
     `ref` is `None` when the period was already scaffolded earlier this cycle
-    and the task directory has since been removed (Dream self-deletes itself
-    after `relay mark done`; a human `relay delete` is the other case).
-    The template's blackboard is the period ledger — see
+    and the task directory has since been removed (a later Dream run deletes
+    done recurring period tickets via its retro pass; a human `relay delete` is
+    the other case). The template's blackboard is the period ledger — see
     `_period_already_scaffolded`.
     """
 
@@ -219,9 +219,9 @@ def scan_due(
         #
         # The template's persistent `log.md` is the period ledger. If it
         # records a scaffolding for this period and the task directory is gone
-        # (Dream self-deletes after `relay mark done`; `relay delete` is the
-        # other case), the period was handled — do not re-scaffold what already
-        # ran.
+        # (a later Dream run deletes done recurring period tickets via its retro
+        # pass; `relay delete` is the other case), the period was handled — do
+        # not re-scaffold what already ran.
         if (
             _live_task_for_template(cfg, template.name) is None
             and _task_with_slug(cfg, target_slug) is None
@@ -495,7 +495,7 @@ def _record_run(template: Template, outcome: ScaffoldOutcome, now: datetime) -> 
 
     The log is the period ledger: `scan_due` reads it to decide whether this
     period has already been handled, even after the period task has been
-    deleted (Dream's self-delete contract, or a human `relay delete`). The
+    deleted (a later Dream run's retro pass, or a human `relay delete`). The
     ledger lives in `log.md`, not `blackboard.md`, precisely because the log is
     never composed into a run's prompt — so the ledger can grow indefinitely
     without bloating context, and the blackboard stays small. Only a freshly
@@ -594,8 +594,8 @@ def _period_already_scaffolded(template: Template, target_slug: str) -> bool:
 
     Reads the template's persistent `log.md`, which `_record_run` appends to
     each time a new period task is created. The log is the period ledger —
-    consulted when the task directory itself is missing (Dream's
-    self-delete-after-mark-done contract; a human `relay delete`).
+    consulted when the task directory itself is missing (a later Dream run's
+    retro pass deletes done recurring period tickets; a human `relay delete`).
 
     For backward compatibility it also consults the legacy ledger location,
     `blackboard.md`: pre-migration templates recorded `scaffolded …` lines
