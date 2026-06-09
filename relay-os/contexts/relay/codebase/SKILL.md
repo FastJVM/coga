@@ -80,6 +80,41 @@ Two sharp gotchas live here:
   `relay-os/bootstrap/`. That ordering is what makes a bootstrapped skill's
   deps land.
 
+## Wheel packaging: force-include vs the package walk
+
+`[tool.hatch.build.targets.wheel]` ships pure-data skill/context dirs (no
+`.py` files) two ways, and they can collide. The `packages = ["src/relay"]`
+filesystem walk and an explicit `force-include` of a template dir (e.g.
+`skills/_template`) both try to add the same file — hatchling treats them as
+two archive entries at one path and aborts:
+
+```
+ValueError: A second file is being added to the wheel archive at the same
+path: `relay/resources/templates/relay-os/skills/_template/SKILL.md`.
+```
+
+Two non-obvious traps make this a clean-checkout-only failure that hides in dev:
+
+- **It only fails on a pristine tree.** On a dev tree, `relay init` has created
+  gitignored symlink views under the templates tree
+  (`.agent-skills/`, `.claude/skills/`, `.codex/skills/`); hatchling's walk
+  dedups the collision away through them, so the build succeeds. A fresh
+  `git clone` / `git worktree` (what a release or `pip install git+…` uses) has
+  no symlinks, so the collision is fatal. Always verify a packaging fix against
+  **both** tree shapes.
+- **The only wheel-building test silently skips.** `tests/test_packaging.py`
+  opens with `pytest.importorskip("hatchling")`. With no build backend in the
+  venv it skips, so the suite is green while the wheel is unbuildable. Keep
+  `hatchling` a tracked **dev/test** dep (`[project.optional-dependencies].test`,
+  never runtime `requirements.txt` — relay never imports it at runtime) so the
+  test actually runs.
+
+Fix shape: exclude the colliding dir from the walk (`exclude` glob) and let the
+`force-include` be its single deterministic shipper — mirroring the existing
+`bootstrap/` exclude+force-include pairing. Don't just drop the force-include:
+the walk silently omits pure-data (no-`.py`) skill dirs on some trees, so the
+force-include is what guarantees they ship.
+
 ## Daily commands
 
 - Install editable: `python -m pip install -e .`
