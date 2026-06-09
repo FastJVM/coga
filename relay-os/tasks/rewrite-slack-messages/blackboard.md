@@ -3,7 +3,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: slack-message-rewrite
 worktree: ../relay-slack-msgs
-pr: (not yet)
+pr: https://github.com/FastJVM/relay/pull/321
 
 ## Decisions (nick, 2026-06-09)
 - Rewrote the ticket: #2 (mark/create/retire split) already landed, so scope is
@@ -95,6 +95,34 @@ Findings:
 - example/ fixture NOT touched (no task-layout / prompt / workflow change).
 - src/relay/resources/templates sync NOT needed (only .py source changed, no
   relay-os contexts/templates).
+
+## Peer Review (codex, 2026-06-09)
+
+Ran `codex review --base main` from `../relay-slack-msgs`.
+The sandboxed attempt failed with the known read-only app-server error, then
+the approved rerun produced one must-fix:
+- automerge live Slack text had the new transition/link, but the installed
+  digest path still spooled `auto-bumped on merge of PR #N ✅`, so digest users
+  would miss `{prev} → done` and `<url|PR #N>`.
+
+Applied fix in feature-worktree commit `0318bfb`:
+- `src/relay/automerge.py` digest detail now includes the transition and
+  Slack PR link.
+- `tests/test_slack_messages.py` now installs a digest spool and asserts the
+  queued automerge record, not just the live fallback.
+- `src/relay/resources/templates/relay-os/bootstrap/contexts/relay/cli/SKILL.md`
+  now documents the updated automerge Slack line. This supersedes the
+  implementation note above that no packaged context/template sync was needed.
+
+Verification:
+- `PYTHONPATH=src python -m pytest -q tests/test_slack_messages.py tests/test_launch.py`
+  -> 60 passed.
+- `PYTHONPATH=src python -m pytest -q -p no:cacheprovider tests/test_slack_messages.py`
+  -> 10 passed after the peer-review fix.
+- `PYTHONPATH=src python -m pytest -q -p no:cacheprovider`
+  -> 589 passed, 1 skipped, 1 failed. Failure is the pre-existing untouched
+  `tests/test_dream_worker_templates.py::test_cleanup_orphan_markers_declares_contract`
+  line-wrap mismatch already recorded from the implement step.
 
 ## Plan (DONE — kept for history)
 1. Add `fmt_owner(ticket)` helper (ticket.owner or "unassigned") — likely in ticket.py.
