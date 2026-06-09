@@ -518,12 +518,11 @@ workflow) whose blackboard `## Dev` section names a merged PR, and
 auto-bump them to `done`. Looks the PR up via `gh pr view`. Posts to
 Slack with a distinct `auto-bumped on merge of PR #<N>` line.
 
-`relay init` symlinks this into `.git/hooks/post-merge`, so a normal
-`git pull` after a teammate merges runs it for you. `relay status` does
-**not** trigger automerge — it stays a strictly read-only view (no
-network, no state mutation as a side effect of rendering). Run `relay
-automerge` by hand to catch the long tail. No `gh`? The explicit command
-surfaces the error.
+`relay automerge` is explicit-only — run it by hand to catch the long
+tail. It is no longer wired into any implicit trigger: `relay status` does
+**not** trigger automerge (it stays a strictly read-only view — no
+network, no state mutation as a side effect of rendering), and there is no
+post-merge git hook. No `gh`? The explicit command surfaces the error.
 
 ```sh
 relay automerge   # one-shot. Safe to run by hand.

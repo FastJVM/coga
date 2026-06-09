@@ -50,7 +50,6 @@ OBSOLETE_PATHS: tuple[str, ...] = (
     "contexts/relay/cli",  # consolidated under bootstrap/contexts/relay/cli
     "contexts/relay/sync",  # consolidated under bootstrap/contexts/relay/sync
     "contexts/dev/code",  # consolidated under bootstrap/contexts/dev/code
-    "hooks",  # consolidated under bootstrap/hooks
 )
 
 # Recurring-template files Relay vendors and keeps fresh on every `--update`.
@@ -186,8 +185,8 @@ def refresh_templates(
     Four things are treated as upstream-owned (always overwritten on update):
       - `_*` template scaffolds (`_template/` etc.)
       - `bootstrap/` — the single relay-vendored umbrella. Holds launch shims
-        plus all upstream-managed skills, contexts, and git hooks
-        (`bootstrap/skills/`, `bootstrap/contexts/*`, `bootstrap/hooks/`).
+        plus all upstream-managed skills and contexts
+        (`bootstrap/skills/`, `bootstrap/contexts/*`).
         Mirrored as one unit by `_copy_vendored_bootstrap`. Runtime resolvers
         read local user roots first and this bundled root second.
       - `VENDORED_RECURRING_TEMPLATES` — named relay-owned recurring batteries
@@ -717,8 +716,8 @@ def _copy_vendored_bootstrap(src_root: Traversable, dst_root: Path) -> list[str]
 
     `bootstrap/` is the single home for everything relay vendors and updates
     wholesale: launch shims (`bootstrap/<name>/ticket.md`), the skills they
-    reference (`bootstrap/skills/`), canonical contexts
-    (`bootstrap/contexts/*`), and git-hook scripts (`bootstrap/hooks/`).
+    reference (`bootstrap/skills/`), and canonical contexts
+    (`bootstrap/contexts/*`).
     Runtime resolution reads local roots first, then this package-backed tree.
 
     Wholesale replacement means renames and removals propagate cleanly. Don't
@@ -829,13 +828,6 @@ def _chmod_packaged_executables(relay_os: Path) -> None:
     if scripts_dir.is_dir():
         for script in scripts_dir.glob("*.sh"):
             _chmod_executable(script)
-
-    hooks_dir = relay_os / "bootstrap" / "hooks"
-    if not hooks_dir.is_dir():
-        return
-    for hook in hooks_dir.iterdir():
-        if hook.is_file():
-            _chmod_executable(hook)
 
 
 def _chmod_executable(path: Path) -> None:

@@ -10,7 +10,7 @@ under `## Dev` on the blackboard. We parse it directly; relay-the-CLI
 treats the blackboard as plain text on purpose.
 
 Two callers:
-  - `relay automerge` (post-merge git hook + manual invocation) — uses
+  - `relay automerge` (explicit manual invocation) — uses
     `auto_bump_merged` to sweep all active/in-progress tickets.
   - `relay launch <slug>` (pre-launch freshness check) — uses
     `auto_bump_one` to check just the ticket about to be launched.

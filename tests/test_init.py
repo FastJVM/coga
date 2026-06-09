@@ -22,7 +22,6 @@ EXPECTED_FILES = {
     "relay-os/rules.md",
     "relay-os/context.md",
     "relay-os/scripts/cron.sh",
-    "relay-os/bootstrap/hooks/post-merge",
     "relay-os/bootstrap/contexts/dev/code/SKILL.md",
     "relay-os/bootstrap/contexts/relay/sync/SKILL.md",
     "relay-os/bootstrap/skills/eval/ticket-diagnostic/SKILL.md",
@@ -49,10 +48,6 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     (templates / "context.md").write_text("context\n")
     (templates / "scripts").mkdir()
     (templates / "scripts" / "cron.sh").write_text("#!/bin/sh\n")
-    (templates / "bootstrap" / "hooks").mkdir(parents=True)
-    hook = templates / "bootstrap" / "hooks" / "post-merge"
-    hook.write_text("#!/bin/sh\nrelay automerge || true\n")
-    hook.chmod(0o755)
     # Vendored skills + canonical relay/* contexts both live under bootstrap/.
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text(
@@ -413,7 +408,7 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "rules.md").write_text("NEW upstream rules — should NOT be copied (no _ prefix)\n")
     (templates / "bootstrap" / "create").mkdir(parents=True)
     (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap shim\n")
-    # All vendored skills, contexts, and hooks now live under `bootstrap/`.
+    # All vendored skills and contexts now live under `bootstrap/`.
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text(
         "NEW bootstrap/ticket skill\n"
@@ -457,11 +452,6 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "bootstrap" / "contexts" / "dev" / "code" / "SKILL.md").write_text(
         "NEW dev/code context\n"
     )
-    (templates / "bootstrap" / "hooks").mkdir(parents=True)
-    (templates / "bootstrap" / "hooks" / "post-merge").write_text(
-        "#!/bin/sh\nrelay automerge || true\n"
-    )
-    (templates / "bootstrap" / "hooks" / "post-merge").chmod(0o755)
     (templates / ".gitignore").write_text(
         "relay.local.toml\n.relay/\nbootstrap/\n.agent-skills/\n"
         "**/_template/\n**/_template.md\n"
@@ -667,8 +657,9 @@ def test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors(
     (relay_os / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
         "SOURCE retro/done-ticket\n"
     )
-    (relay_os / "hooks").mkdir()
-    (relay_os / "hooks" / "post-merge").write_text("SOURCE hook\n")
+    # An obsolete top-level path (prune-listed) must survive in a source
+    # checkout, where pruning is skipped entirely.
+    (relay_os / "counter").write_text("SOURCE counter\n")
 
     package_clone = tmp_path / "package"
     _seed_fake_upstream_for_update(package_clone)
@@ -717,7 +708,7 @@ def test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors(
     assert (
         relay_os / "skills" / "retro" / "done-ticket" / "SKILL.md"
     ).read_text() == "SOURCE retro/done-ticket\n"
-    assert (relay_os / "hooks" / "post-merge").read_text() == "SOURCE hook\n"
+    assert (relay_os / "counter").read_text() == "SOURCE counter\n"
     assert not (relay_os / "recurring" / "_rem.md").exists()
 
     # Gitignored mirrors must still land — that's the whole point of this path.
@@ -1118,74 +1109,88 @@ def test_init_skips_host_gitignore_when_not_git_repo(
     assert not (target / ".gitignore").exists()
 
 
-# --- post-merge hook install --------------------------------------------------
+# --- post-merge hook removal --------------------------------------------------
+#
+# Relay no longer installs a post-merge automerge hook. Older installs left a
+# `.git/hooks/post-merge` symlink → `relay-os/bootstrap/hooks/post-merge`;
+# `_remove_post_merge_hook` cleans up that stale link on init/update (and
+# `relay init --update` wipes the target when it mirrors `bootstrap/`, so the
+# link is typically dangling by the time we see it). It must never touch a
+# user's own post-merge hook.
 
 
-def test_init_installs_post_merge_hook_in_git_repo(
-    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    target = tmp_path / "company"
-    target.mkdir()
-    subprocess.run(["git", "init", "-q", str(target)], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target)])
-    assert result.exit_code == 0, result.output
-
-    link = target / ".git" / "hooks" / "post-merge"
-    src = target / "relay-os" / "bootstrap" / "hooks" / "post-merge"
-    assert link.is_symlink()
-    assert link.resolve() == src.resolve()
-    assert "Installed post-merge hook" in result.output
+def _make_relay_hook_symlink(target: Path, relay_os: Path, *, dangling: bool) -> Path:
+    """Recreate the symlink an older Relay installed. If `dangling`, leave the
+    bootstrap target absent (the post-`bootstrap/`-mirror state)."""
+    hooks_dir = target / ".git" / "hooks"
+    hooks_dir.mkdir(parents=True)
+    src = relay_os / "bootstrap" / "hooks" / "post-merge"
+    if not dangling:
+        src.parent.mkdir(parents=True, exist_ok=True)
+        src.write_text("#!/bin/sh\nrelay automerge || true\n")
+    link = hooks_dir / "post-merge"
+    link.symlink_to(src)
+    return link
 
 
-def test_init_skips_post_merge_hook_when_not_git_repo(
-    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    target = tmp_path / "company"
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target)])
-    assert result.exit_code == 0, result.output
-    assert "Installed post-merge hook" not in result.output
-
-
-def test_init_does_not_clobber_existing_post_merge_hook(
-    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    target = tmp_path / "company"
-    target.mkdir()
-    subprocess.run(["git", "init", "-q", str(target)], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.email", "t@t"], check=True)
-    subprocess.run(["git", "-C", str(target), "config", "user.name", "T"], check=True)
-    existing = target / ".git" / "hooks" / "post-merge"
-    existing.write_text("#!/bin/sh\necho user-owned\n")
-    existing.chmod(0o755)
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target)])
-    assert result.exit_code == 0, result.output
-
-    # User's hook left intact, surfaced as a warning.
-    assert existing.read_text() == "#!/bin/sh\necho user-owned\n"
-    assert "Skipped post-merge hook" in result.output
-
-
-def test_install_post_merge_hook_is_idempotent(tmp_path: Path) -> None:
+def test_remove_post_merge_hook_removes_dangling_relay_symlink(tmp_path: Path) -> None:
     target = tmp_path / "company"
     relay_os = target / "relay-os"
-    (target / ".git" / "hooks").mkdir(parents=True)
-    (relay_os / "bootstrap" / "hooks").mkdir(parents=True)
-    src = relay_os / "bootstrap" / "hooks" / "post-merge"
-    src.write_text("#!/bin/sh\nrelay automerge || true\n")
-    src.chmod(0o755)
+    link = _make_relay_hook_symlink(target, relay_os, dangling=True)
 
-    s1, _ = init_cmd._install_post_merge_hook(target, relay_os)
-    s2, _ = init_cmd._install_post_merge_hook(target, relay_os)
-    assert s1 == "installed"
-    assert s2 == "present"
+    assert init_cmd._remove_post_merge_hook(target, relay_os) is True
+    assert not link.exists() and not link.is_symlink()
+
+
+def test_remove_post_merge_hook_removes_live_relay_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    relay_os = target / "relay-os"
+    link = _make_relay_hook_symlink(target, relay_os, dangling=False)
+
+    assert init_cmd._remove_post_merge_hook(target, relay_os) is True
+    assert not link.is_symlink()
+
+
+def test_remove_post_merge_hook_leaves_user_hook(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    relay_os = target / "relay-os"
+    hooks_dir = target / ".git" / "hooks"
+    hooks_dir.mkdir(parents=True)
+    user_hook = hooks_dir / "post-merge"
+    user_hook.write_text("#!/bin/sh\necho user-owned\n")
+    user_hook.chmod(0o755)
+
+    assert init_cmd._remove_post_merge_hook(target, relay_os) is False
+    assert user_hook.read_text() == "#!/bin/sh\necho user-owned\n"
+
+
+def test_remove_post_merge_hook_leaves_foreign_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    relay_os = target / "relay-os"
+    hooks_dir = target / ".git" / "hooks"
+    hooks_dir.mkdir(parents=True)
+    elsewhere = tmp_path / "their-hook.sh"
+    elsewhere.write_text("#!/bin/sh\n")
+    link = hooks_dir / "post-merge"
+    link.symlink_to(elsewhere)
+
+    assert init_cmd._remove_post_merge_hook(target, relay_os) is False
+    assert link.is_symlink()
+
+
+def test_remove_post_merge_hook_noop_without_git_repo(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    assert init_cmd._remove_post_merge_hook(target, target / "relay-os") is False
+
+
+def test_remove_post_merge_hook_is_idempotent(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    relay_os = target / "relay-os"
+    _make_relay_hook_symlink(target, relay_os, dangling=True)
+
+    assert init_cmd._remove_post_merge_hook(target, relay_os) is True
+    assert init_cmd._remove_post_merge_hook(target, relay_os) is False
 
 
 def test_ensure_host_gitignore_is_idempotent(tmp_path: Path) -> None:
@@ -1785,8 +1790,7 @@ def test_update_all_continues_past_a_failing_repo(
             pruned=[],
             wired_agents=[],
             blocked_agents=[],
-            hook_status="present",
-            hook_blocker=None,
+            hook_removed=False,
             host_gitignore_changed=False,
             written_guides=[],
             retrofitted=[],
