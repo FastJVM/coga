@@ -57,7 +57,7 @@ from relay.logfile import append_log
 
 # Bounded retries when racing `refs/heads/<control>`: each loss is a refetch +
 # rebuild + repush, so a small ceiling is plenty under realistic contention
-# (the relay launch auto-chain, the post-merge hook, manual commands).
+# (the relay launch auto-chain, manual commands).
 _MAX_SYNC_ATTEMPTS = 5
 
 

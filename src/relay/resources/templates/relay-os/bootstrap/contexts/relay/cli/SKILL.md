@@ -231,13 +231,14 @@ section names a PR that has merged on GitHub. Looks each PR up via
 `gh pr view`. Scope: tickets on their final workflow step, or with no
 workflow at all. Mid-workflow merges stay alone — those need a human eye.
 
-`relay init` symlinks this into `.git/hooks/post-merge` so a normal
-`git pull` after a teammate's merge runs it for you — that hook is the
-catch-up path. `relay status` does **not** trigger automerge: it is a
-strictly read-only view that never hits the network or mutates ticket
-state as a side effect of rendering (principle 6, fail loud, names
-`status`/`show`/`validate` as forbidden mutators). The explicit command
-surfaces `gh` errors (missing, unauthed) loudly.
+`relay automerge` is an explicit-only surface — you run it by hand to
+catch up tickets whose PR merged out of band. It is no longer wired into
+any implicit trigger: `relay status` does **not** trigger automerge (it is
+a strictly read-only view that never hits the network or mutates ticket
+state as a side effect of rendering — principle 6, fail loud, names
+`status`/`show`/`validate` as forbidden mutators), and there is no
+post-merge git hook. The explicit command surfaces `gh` errors (missing,
+unauthed) loudly.
 
 Posts a distinct Slack line — `🎉 *<slug>* "<title>" auto-bumped on
 merge of PR #<N>` — so the team can tell auto-bumps apart from manual
@@ -464,7 +465,7 @@ only; they don't accept their own flags.
 - Other bootstrap shim → `relay launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `relay bump`.
 - Catching up tickets after a teammate merged a PR → `relay automerge`
-  (also fires automatically on `git pull` via the post-merge hook).
+  (explicit-only; run it by hand).
 - Triage view → `relay status`.
 - Reading a single task without opening the file → `relay show <slug>`.
 - Surfacing a non-blocker note tied to a step transition → `relay bump --message`.

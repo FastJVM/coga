@@ -78,5 +78,5 @@ the blackboard and `relay panic` instead of bumping.
 Human reviews the open PR on GitHub. The peer-review pass has already
 applied its must-fix findings to the branch, so the diff you see is the
 post-review state. Edit, request changes, push fixes, or merge when
-satisfied. After merging, `automerge` bumps the task to `done` on your
-next `git pull` (or `relay status`).
+satisfied. After merging, run `relay automerge` explicitly (or rely on a
+later `relay launch` freshness check) to mark the task `done`.

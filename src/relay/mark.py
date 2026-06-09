@@ -44,7 +44,7 @@ def mark_done(
 
     `echo` is the stdout line printed before the notify (so the local outcome
     is visible even if a live post crashes). Pass `None` to suppress — used by
-    the quiet auto-bump path inside `relay status`.
+    quiet auto-bump paths such as launch-time freshness checks.
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "done"

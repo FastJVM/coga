@@ -1,8 +1,7 @@
 """`relay automerge` — finish started tickets whose linked PR has merged.
 
-Thin wrapper over `automerge.auto_bump_merged`. Designed to be called by
-the post-merge git hook (which `relay init` installs) and to be safe to
-run by hand.
+Thin wrapper over `automerge.auto_bump_merged`. An explicit-only surface:
+run by hand to catch up tickets whose PR merged out of band.
 
 Failures from `gh` (missing, unauthed, network) bubble up here as a
 non-zero exit so the caller sees them.

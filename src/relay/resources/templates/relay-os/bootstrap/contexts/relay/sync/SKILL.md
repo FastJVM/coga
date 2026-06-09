@@ -45,8 +45,8 @@ Batched surface — spooled into the daily digest (live fallback below):
   from active or in-progress work.
 - `relay bump` — step movement (workflow plane only). Optional `--message`
   still piggy-backs an FYI; it rides the spooled record's detail line.
-- `relay automerge` (and the `post-merge` git hook that wraps it; never
-  `relay status`, which is read-only) — auto-bumps active/in-progress
+- `relay automerge` (explicit-only; never `relay status`, which is
+  read-only) — auto-bumps active/in-progress
   tickets to `done` when their blackboard `## Dev` PR has merged.
 - `relay recurring` — one record per scaffolded recurring task, plus an
   end-of-run summary when any templates failed to parse.
@@ -230,7 +230,7 @@ alike — is never touched, stashed, or reset. A detached HEAD takes the same
 cross-branch path but skips the local commit (it would be orphaned).
 
 The push to `refs/heads/<control>` is a compare-and-swap: if the control branch
-moved under us (another relay process, the post-merge hook, a teammate), the
+moved under us (another relay process, a teammate), the
 push is rejected non-fast-forward, and a bounded fetch-rebuild-retry loop
 refetches the new tip and rebuilds. That push *is* the serialization point — no
 lock file is introduced, consistent with `relay/architecture`'s no-mutex model.

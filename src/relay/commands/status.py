@@ -70,8 +70,7 @@ def status(
     # `status` is strictly read-only: it never hits the network or mutates
     # ticket state as a side effect of rendering (principle 6, fail loud,
     # names `status`/`show`/`validate` as forbidden mutators). Catching up
-    # merged PRs is the job of `relay automerge` — run explicitly or via the
-    # `.git/hooks/post-merge` symlink that fires on `git pull`.
+    # merged PRs is the job of `relay automerge`, run explicitly.
     refs = list_tasks(cfg)
     console = Console()
     narrow = console.width < NARROW_WIDTH
