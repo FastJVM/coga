@@ -1,6 +1,6 @@
 ---
 title: Rewrite Slack messages — owner suffix, prev → new transitions, PR links
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
