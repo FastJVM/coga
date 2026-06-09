@@ -161,9 +161,8 @@ def auto_bump_merged(cfg: Config, *, quiet: bool = False) -> int:
 
     `quiet=True` suppresses stdout echoes and swallows `GhError` (gh
     missing or unauthed). The explicit `relay automerge` command sets
-    `quiet=False` so a missing `gh` surfaces as a real failure;
-    `relay status` sets `quiet=True` so a missing `gh` doesn't break
-    the fast command.
+    `quiet=False` so a missing `gh` surfaces as a real failure; quiet callers
+    such as launch-time freshness checks decide how to warn and continue.
     """
     bumped = 0
     for ref in list_tasks(cfg):
@@ -172,8 +171,8 @@ def auto_bump_merged(cfg: Config, *, quiet: bool = False) -> int:
                 bumped += 1
         except GhError:
             if quiet:
-                # Status fallback: don't break the fast command. The
-                # explicit `relay automerge` path will surface this.
+                # Quiet callers use this as a best-effort freshness check; the
+                # explicit `relay automerge` path will surface gh failures.
                 return bumped
             raise
     return bumped

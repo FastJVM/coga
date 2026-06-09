@@ -40,5 +40,5 @@ the blackboard and `relay panic` instead of bumping.
 Human reviews the open PR on GitHub. Edit, request changes, push fixes,
 or merge when satisfied. The PR diff has already been through
 `/code-review` and `/simplify`, so the agent QA is done — your job is
-the human-judgment gate. After merging, `automerge` bumps the task to
-`done` on your next `git pull` (or `relay status`).
+the human-judgment gate. After merging, run `relay automerge` explicitly
+(or rely on a later `relay launch` freshness check) to mark the task `done`.

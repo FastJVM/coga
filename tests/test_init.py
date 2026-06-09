@@ -1112,19 +1112,27 @@ def test_init_skips_host_gitignore_when_not_git_repo(
 # --- post-merge hook removal --------------------------------------------------
 #
 # Relay no longer installs a post-merge automerge hook. Older installs left a
-# `.git/hooks/post-merge` symlink → `relay-os/bootstrap/hooks/post-merge`;
-# `_remove_post_merge_hook` cleans up that stale link on init/update (and
-# `relay init --update` wipes the target when it mirrors `bootstrap/`, so the
-# link is typically dangling by the time we see it). It must never touch a
-# user's own post-merge hook.
+# `.git/hooks/post-merge` symlink → `relay-os/bootstrap/hooks/post-merge`; older
+# pre-bootstrap installs used `relay-os/hooks/post-merge`. `_remove_post_merge_hook`
+# cleans up those stale links on init/update. It must never touch a user's own
+# post-merge hook.
 
 
-def _make_relay_hook_symlink(target: Path, relay_os: Path, *, dangling: bool) -> Path:
+def _make_relay_hook_symlink(
+    target: Path,
+    relay_os: Path,
+    *,
+    dangling: bool,
+    legacy_root: bool = False,
+) -> Path:
     """Recreate the symlink an older Relay installed. If `dangling`, leave the
-    bootstrap target absent (the post-`bootstrap/`-mirror state)."""
+    target absent (the post-update/prune state)."""
     hooks_dir = target / ".git" / "hooks"
     hooks_dir.mkdir(parents=True)
-    src = relay_os / "bootstrap" / "hooks" / "post-merge"
+    if legacy_root:
+        src = relay_os / "hooks" / "post-merge"
+    else:
+        src = relay_os / "bootstrap" / "hooks" / "post-merge"
     if not dangling:
         src.parent.mkdir(parents=True, exist_ok=True)
         src.write_text("#!/bin/sh\nrelay automerge || true\n")
@@ -1149,6 +1157,17 @@ def test_remove_post_merge_hook_removes_live_relay_symlink(tmp_path: Path) -> No
 
     assert init_cmd._remove_post_merge_hook(target, relay_os) is True
     assert not link.is_symlink()
+
+
+def test_remove_post_merge_hook_removes_legacy_root_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "company"
+    relay_os = target / "relay-os"
+    link = _make_relay_hook_symlink(
+        target, relay_os, dangling=True, legacy_root=True
+    )
+
+    assert init_cmd._remove_post_merge_hook(target, relay_os) is True
+    assert not link.exists() and not link.is_symlink()
 
 
 def test_remove_post_merge_hook_leaves_user_hook(tmp_path: Path) -> None:

@@ -50,6 +50,7 @@ OBSOLETE_PATHS: tuple[str, ...] = (
     "contexts/relay/cli",  # consolidated under bootstrap/contexts/relay/cli
     "contexts/relay/sync",  # consolidated under bootstrap/contexts/relay/sync
     "contexts/dev/code",  # consolidated under bootstrap/contexts/dev/code
+    "hooks",  # legacy pre-bootstrap post-merge hook dir, now removed
 )
 
 # Recurring-template files Relay vendors and keeps fresh on every `--update`.

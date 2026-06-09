@@ -620,10 +620,11 @@ def _remove_post_merge_hook(host_repo: Path, relay_os: Path) -> bool:
 
     Relay no longer ships or installs a post-merge hook (automerge is an
     explicit-only surface). Older installs symlinked `.git/hooks/post-merge`
-    → `relay-os/bootstrap/hooks/post-merge`, and `relay init --update` then
-    wipes that target when it mirrors `bootstrap/`, leaving a dangling
-    symlink behind. Clean it up — but only when it still points at our
-    (now-absent) bootstrap hook, never a user's own post-merge hook.
+    → `relay-os/bootstrap/hooks/post-merge`; pre-bootstrap installs used
+    `relay-os/hooks/post-merge`. `relay init --update` prunes both owned
+    targets, so the symlink may be dangling by the time we see it. Clean it
+    up — but only when it still points at a Relay-owned hook target, never a
+    user's own post-merge hook.
 
     Returns True iff we removed our symlink. Idempotent. Never raises.
     """
@@ -634,12 +635,15 @@ def _remove_post_merge_hook(host_repo: Path, relay_os: Path) -> bool:
     if not link.is_symlink():
         # A regular file is a user's own hook; nothing to remove.
         return False
-    expected = (relay_os / "bootstrap" / "hooks" / "post-merge").resolve()
+    relay_hook_targets = {
+        (relay_os / "bootstrap" / "hooks" / "post-merge").resolve(),
+        (relay_os / "hooks" / "post-merge").resolve(),
+    }
     try:
         target = link.resolve(strict=False)
     except OSError:
         return False
-    if target != expected:
+    if target not in relay_hook_targets:
         return False
     try:
         link.unlink()
