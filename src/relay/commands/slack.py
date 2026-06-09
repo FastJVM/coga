@@ -47,8 +47,8 @@ def slack(
 
     post(
         cfg,
-        f"💬 {ticket.assignee or cfg.current_user} on *{ref.id_slug}*: "
-        f"{message}",
+        f"💬 {ticket.assignee or cfg.current_user} on *{ref.id_slug}* "
+        f"\"{ticket.title}\": {message}",
         task_path=ref.path,
         owner=ticket.owner or cfg.current_user,
         watchers=ticket.watchers,

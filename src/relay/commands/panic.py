@@ -48,7 +48,7 @@ def panic(
     post(
         cfg,
         f"🚨 {panicker} needs help on *{ref.id_slug}* "
-        f"\"{ticket.title}\" — \"{reason}\"",
+        f"\"{ticket.title}\": {reason}",
         task_path=ref.path,
         owner=owner,
         watchers=ticket.watchers,

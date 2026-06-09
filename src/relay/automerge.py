@@ -132,10 +132,13 @@ def _try_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool) -> bool:
 
     number = parse_pr_number(url)
     pr_label = f"PR #{number}" if number is not None else "the linked PR"
+    pr_link = f"<{url}|{pr_label}>"
     actor = f"human:{cfg.current_user}"
+    # A workflow-less ticket has no current step, so collapse the transition.
+    prev = ticket.current_step()
+    transition = f": {prev['name']} → done" if prev else " finished"
     slack_text = (
-        f"🎉 *{ref.id_slug}* \"{ticket.title}\" "
-        f"auto-bumped on merge of {pr_label}"
+        f"🎉 *{ref.id_slug}* \"{ticket.title}\"{transition} — {pr_link} merged"
     )
     log_message = f"auto-bumped on merge of {pr_label} → done"
     echo = None if quiet else f"{ref.id_slug}: done (auto, {pr_label})"

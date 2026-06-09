@@ -109,6 +109,8 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         _bail(f"Script not found: {script_path}")
 
     if ticket.status == "active":
+        cur = ticket.current_step()
+        step_note = f" (step {ticket.step_index()}: {cur['name']})" if cur else ""
         try:
             mark_in_progress(
                 cfg,
@@ -117,8 +119,8 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
                 actor="system",
                 log_message="started (active → in_progress) via relay launch",
                 slack_text=(
-                    f"▶️ script started on *{ref.id_slug}* \"{ticket.title}\" "
-                    f"— step {ticket.step}"
+                    f"▶️ script started *{ref.id_slug}* "
+                    f"\"{ticket.title}\"{step_note}"
                 ),
                 echo=f"{ref.id_slug}: in_progress",
             )
@@ -148,11 +150,15 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         append_log(ref.path, "system", f"script exited with code {exit_code}")
 
     if exit_code != 0:
+        cur = ticket.current_step()
+        where = f" at step {ticket.step_index()} ({cur['name']})" if cur else ""
         post(
             cfg,
-            f"💥 script failed on *{ref.id_slug}* \"{ticket.title}\" "
-            f"— exit {exit_code}, stuck at step {ticket.step}",
+            f"💥 script failed on *{ref.id_slug}* "
+            f"\"{ticket.title}\": exit {exit_code}{where}",
             task_path=ref.path,
+            owner=ticket.owner or cfg.current_user,
+            watchers=ticket.watchers,
         )
         typer.secho(f"Script exited with {exit_code}.", fg=typer.colors.YELLOW, err=True)
         sys.exit(exit_code)
@@ -189,6 +195,9 @@ def _advance_after_script(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     next_step = current_idx + 1
     new_step = steps[next_step - 1]
     new_step_name = new_step["name"]
+    prev_step_name = (
+        steps[current_idx - 1]["name"] if current_idx >= 1 else f"step {current_idx}"
+    )
 
     role = new_step.get("assignee")
     new_assignee: str | None = None
@@ -212,11 +221,13 @@ def _advance_after_script(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
                 "after script step"
             ),
             slack_text=(
-                f"👉 script advanced *{ref.id_slug}* → step "
-                f"{next_step} ({new_step_name}){handoff}"
+                f"👉 script advanced *{ref.id_slug}* \"{ticket.title}\": "
+                f"{prev_step_name} → {new_step_name} "
+                f"(step {next_step}/{total}){handoff}"
             ),
             digest_detail=(
-                f"script advanced → step {next_step} ({new_step_name}){handoff}"
+                f"script advanced: {prev_step_name} → {new_step_name} "
+                f"(step {next_step}/{total}){handoff}"
             ),
             new_assignee=new_assignee,
             echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",
