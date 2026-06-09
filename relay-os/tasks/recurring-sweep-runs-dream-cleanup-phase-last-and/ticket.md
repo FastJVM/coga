@@ -1,15 +1,32 @@
 ---
 title: Recurring sweep runs Dream cleanup phase last and consolidates ticket deletion
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: claude
 contexts:
-  - relay/recurring
+- relay/recurring
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
+step: 1 (implement)
 ---
 
 ## Description
