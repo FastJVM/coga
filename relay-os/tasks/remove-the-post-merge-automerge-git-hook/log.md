@@ -8,3 +8,4 @@
 2026-06-08 20:54 [git] sync failed: `git add -- relay-os/tasks/remove-the-post-merge-automerge-git-hook` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
 2026-06-08 20:54 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-08 20:56 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/320
+2026-06-08 21:03 [human:nick] auto-bumped on merge of PR #320 → done
