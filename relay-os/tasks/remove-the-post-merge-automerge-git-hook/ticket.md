@@ -1,6 +1,6 @@
 ---
 title: Remove the post-merge automerge git hook
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
