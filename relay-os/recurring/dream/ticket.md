@@ -177,10 +177,10 @@ opens a marker-only PR.
 
 A done `recurring-<name>-<period>` ticket is an eligible done ticket like any
 other — this is how recurring period tickets get cleaned up. The recurring
-command no longer deletes anything; a finished period task sits on disk as
-`status: done` until a Dream run sweeps it here. Period tickets carry nothing
-durable (their output is the Slack post or PR they already produced), so Retro
-finds no new knowledge in them and **direct-deletes** them via
+command does not delete real done period tasks; a finished period task sits on
+disk as `status: done` until a Dream run sweeps it here. Period tickets carry
+nothing durable (their output is the Slack post or PR they already produced),
+so Retro finds no new knowledge in them and **direct-deletes** them via
 `relay delete <slug>` — no PR, no marker — leaving the recurring template's
 period-ledger line in `relay-os/recurring/<name>/log.md` untouched so the
 period is not re-scaffolded. This includes the **previous Dream run's own**

@@ -25,6 +25,7 @@ RECURRING_TEMPLATES = (
 # Dream is a recurring task template, not a built-in command. Its body lives
 # in the recurring template's `## Description` section.
 DREAM_PROMPT = RECURRING_TEMPLATES / "dream" / "ticket.md"
+DREAM_BLACKBOARD = RECURRING_TEMPLATES / "dream" / "blackboard.md"
 REM_TEMPLATE = RECURRING_TEMPLATES / "_rem" / "ticket.md"
 
 
@@ -107,7 +108,7 @@ def test_dream_is_the_single_deleter_of_done_recurring_tickets() -> None:
     # `recurring-<name>-<period>` ticket is an eligible done ticket like any
     # other and, carrying nothing durable, is direct-deleted.
     assert "A done `recurring-<name>-<period>` ticket is an eligible done ticket" in norm
-    assert "The recurring command no longer deletes anything" in norm
+    assert "The recurring command does not delete real done period tasks" in norm
     assert "the previous Dream run's own `recurring-dream-<period>` ticket" in norm
 
     # Phase 6 marks the Dream task done and STOPS — it must not self-delete.
@@ -117,6 +118,14 @@ def test_dream_is_the_single_deleter_of_done_recurring_tickets() -> None:
     # The old self-delete instruction is gone.
     assert "relay delete <this-dream-task>" not in text
     assert "Dream cleans up after itself in the same run" not in text
+
+    blackboard = DREAM_BLACKBOARD.read_text()
+    blackboard_norm = " ".join(blackboard.split())
+    assert "Dream's per-period task is disposable after it is marked done" in blackboard_norm
+    assert "Dream keeps no durable state here" in blackboard_norm
+    assert "not delete itself mid-run" in blackboard_norm
+    assert "deletes itself" not in blackboard
+    assert "self-deleted" not in blackboard
 
 
 def test_dream_documents_the_contract_audit_phase() -> None:
@@ -157,6 +166,7 @@ def test_validate_drift_worker_declares_contract() -> None:
 
 def test_cleanup_orphan_markers_declares_contract() -> None:
     text = (TEMPLATES / "cleanup-orphan-markers" / "SKILL.md").read_text()
+    norm = " ".join(text.split())
 
     assert "## Known Skill Contract" in text
     assert "- Purpose: detect already-processed done tickets" in text
@@ -167,7 +177,7 @@ def test_cleanup_orphan_markers_declares_contract() -> None:
     assert "`status: processed`" in text
     assert "`result: no-new-durable-knowledge`" in text
     assert "not a prefix match" in text
-    assert "reports eligible candidates as `human-needed`" in text
+    assert "reports eligible candidates as `human-needed`" in norm
 
 
 def test_rem_template_documents_user_specific_recurring_maintenance() -> None:

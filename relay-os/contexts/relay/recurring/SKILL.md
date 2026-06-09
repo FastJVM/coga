@@ -116,8 +116,10 @@ is already gone is never a candidate).
 Each Dream run is itself a `recurring-dream-<period>` ticket. Dream does **not**
 delete itself mid-run: it marks itself `done` and stops, and the **next** Dream
 run's retro pass cleans up the previous one — exactly like every other done
-recurring period ticket. There is no self-delete and no recurring-command
-deletion; Dream-acting-on-`done` is the only path.
+recurring period ticket. For real done recurring period tickets, there is no
+self-delete and no recurring-command deletion; Dream-acting-on-`done` is the
+only cleanup path. `relay recurring --all` debug scratch is still reaped by the
+recurring command until the sibling redesign removes that debug path.
 
 ## Gotchas
 
