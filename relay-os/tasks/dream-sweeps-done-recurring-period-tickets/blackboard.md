@@ -52,6 +52,7 @@ is therefore safe to land independently. (Confirmed with nick — see below.)
 
 branch: dream-recurring-janitor
 worktree: /home/n/Code/relay-dream-recurring-janitor
+pr: https://github.com/FastJVM/relay/pull/322
 
 ## Implementation done (2026-06-08)
 
@@ -90,3 +91,39 @@ Scoped, committed on `dream-recurring-janitor`. Changes:
 ### Decision recorded (acceptance criterion)
 No dedicated worker needed — reused retro/done-ticket (Phase 4), which already
 processes every eligible done ticket generically. Confirmed with nick.
+
+## Peer Review (2026-06-09)
+
+Ran `codex review --base origin/main` from a clean clone of
+`dream-recurring-janitor` after the sandboxed review failed with the known
+read-only app-server error. Review produced one P2 must-fix:
+
+- The Dream prompt/test said "the recurring command no longer deletes anything",
+  but current code still deletes `relay recurring --all` debug scratch via
+  `_finalize_debug_run` / `_reap_debug_orphans`. The contract needed to be
+  scoped to real done period tickets until the sibling debug-removal work lands.
+
+Applied and committed `86e22eb peer-review: narrow recurring delete contract`:
+
+- Dream prompt (live + packaged) now says the recurring command does not delete
+  **real done period tasks**, rather than claiming it deletes nothing.
+- `relay/recurring` now explicitly notes that debug scratch is still reaped by
+  the recurring command until the sibling redesign removes that path.
+- Dream blackboard template wording no longer says Dream deletes itself.
+- Test coverage checks the narrower contract and normalizes the existing
+  cleanup-orphan-markers assertion so the full suite is not blocked by a line
+  wrap.
+
+Verification in clean clone `/tmp/relay-review-dream.5hncOd/repo` with the
+peer-review patch applied:
+
+- `python -m pytest tests/test_dream_worker_templates.py` → 7 passed.
+- `PYTHONPATH=src python -m pytest` → 578 passed, 1 skipped.
+
+Bare `python -m pytest` in the clean clone imported `/home/n/Code/relay/src`
+instead of the clone's `src` and failed 5 `tests/test_init.py` tests due that
+environment mismatch; reran with `PYTHONPATH=src` so tests covered the reviewed
+branch. The feature worktree still contains unrelated unstaged recurring-sync
+changes in `pyproject.toml`, `src/relay/commands/recurring.py`,
+`src/relay/recurring.py`, and `tests/test_recurring.py`; they were intentionally
+left out of the peer-review commit.
