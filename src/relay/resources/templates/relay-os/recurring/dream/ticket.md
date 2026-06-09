@@ -18,8 +18,8 @@ half reads the whole repo while it is still intact and classifies every
 housekeeping repair and knowledge change worth making. The **execute** half
 turns those decisions into reviewable PRs, tracked draft tickets, and safe
 repairs. Every Dream finding ends in a durable artifact — a PR, a draft
-ticket, or a recorded marker — never only in this task's blackboard, which is
-retired along with the task.
+ticket, or a recorded marker — never only in this task's blackboard, which a
+later Dream run retires along with the task.
 
 Dream is not REM. Repo/user-specific recurring maintenance belongs in a
 separate REM task under `relay-os/recurring/`, with its own cadence, skill
@@ -175,6 +175,18 @@ marker; a ticket carrying nothing durable is direct-deleted with
 `git restore`. Retro never leaves a processed done ticket on disk and never
 opens a marker-only PR.
 
+A done `recurring-<name>-<period>` ticket is an eligible done ticket like any
+other — this is how recurring period tickets get cleaned up. The recurring
+command no longer deletes anything; a finished period task sits on disk as
+`status: done` until a Dream run sweeps it here. Period tickets carry nothing
+durable (their output is the Slack post or PR they already produced), so Retro
+finds no new knowledge in them and **direct-deletes** them via
+`relay delete <slug>` — no PR, no marker — leaving the recurring template's
+period-ledger line in `relay-os/recurring/<name>/log.md` untouched so the
+period is not re-scaffolded. This includes the **previous Dream run's own**
+`recurring-dream-<period>` ticket: Dream does not delete itself mid-run, so the
+last finished Dream period ticket is one of the done tickets this pass deletes.
+
 Summarize each knowledge PR — and the directly-deleted no-knowledge tickets —
 in this run's blackboard.
 
@@ -253,9 +265,11 @@ Keep the message to one line, for example:
 `Dream: validate-drift clean, 2 knowledge PRs, 1 stale-fix PR, 1 gap ticket.`
 
 Run `relay mark done <this-dream-task>` once the blackboard is up to date and
-the Slack summary is posted. Then, as the very last action, run
-`relay delete <this-dream-task>`: the run's durable artifacts — every PR,
-draft ticket, and the Slack summary — carry the findings, so this task and its
-blackboard are disposable. Deleting it here is what "retired along with the
-task" means above: Dream cleans up after itself in the same run, instead of
-leaving a done task for the next run's Phase 4 retro pass to prune.
+the Slack summary is posted. That is the last action — **do not delete this
+task.** The run's durable artifacts — every PR, draft ticket, and the Slack
+summary — carry the findings, so this `done` task and its blackboard are
+disposable, but Dream does not delete itself mid-run. It sits on disk as a
+done `recurring-dream-<period>` ticket and is cleaned up by the **next** Dream
+run's Phase 4 retro pass, exactly like every other done recurring period
+ticket. Dream is the single deleter of done recurring tickets; it just never
+turns that deleter on itself in the same run.

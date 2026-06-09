@@ -83,10 +83,11 @@ task, which carries that rule.
 - **The recurring template's `log.md` is the period ledger.** Bare
   `relay recurring` reads it before scaffolding: a period whose log already
   records a `scaffolded <slug>` line and whose task directory is now gone
-  (Dream self-deletes after `relay mark done`; a human `relay delete` is
-  the other case) has been handled — it is not re-scaffolded and not
-  re-launched. The on-demand `relay recurring launch <name>` (and aliases
-  like `relay dream`) bypass this check: it's the explicit override.
+  (a later Dream run deletes the done period ticket — see "Dream is the
+  recurring janitor" below; a human `relay delete` is the other case) has been
+  handled — it is not re-scaffolded and not re-launched. The on-demand
+  `relay recurring launch <name>` (and aliases like `relay dream`) bypass this
+  check: it's the explicit override.
 - Period tasks scaffold **straight to `status: active`** — ready jobs, not
   drafts to triage. (A workflow-less one could not otherwise be activated:
   `relay mark active` refuses workflow-less tickets.)
@@ -97,6 +98,26 @@ task, which carries that rule.
   `## Description` section: everything from that heading to the next
   top-level `## ` heading. **Convention:** keep every other heading in the
   body at `###` so the whole run instruction lands in the description.
+
+## Dream is the recurring janitor
+
+A finished period task is **not** deleted by the recurring command — it sits on
+disk as an ordinary `status: done` ticket. The single deleter of done recurring
+period tickets is **Dream**: its Phase 4 retro pass (`retro/done-ticket`)
+processes every eligible done ticket, and a `recurring-<name>-<period>` ticket
+is eligible like any other. Period tickets carry nothing durable — their output
+is the Slack post or PR they already produced — so Retro extracts no new
+knowledge and **direct-deletes** them via `relay delete <slug>` (working-tree
+`git rm` plus a `Ticket: <slug> — deleted` commit), with no PR and no marker.
+The template's `log.md` period-ledger line is left untouched, so a completed
+period is not re-scaffolded; deletion is idempotent (a ticket whose directory
+is already gone is never a candidate).
+
+Each Dream run is itself a `recurring-dream-<period>` ticket. Dream does **not**
+delete itself mid-run: it marks itself `done` and stops, and the **next** Dream
+run's retro pass cleans up the previous one — exactly like every other done
+recurring period ticket. There is no self-delete and no recurring-command
+deletion; Dream-acting-on-`done` is the only path.
 
 ## Gotchas
 

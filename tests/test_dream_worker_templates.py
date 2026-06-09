@@ -94,6 +94,31 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "tasks/**/SKILL.md" not in text
 
 
+def test_dream_is_the_single_deleter_of_done_recurring_tickets() -> None:
+    """Stage 3 of the recurring-lifecycle redesign: Dream's Phase 4 retro pass
+    is the single deleter of done `recurring-*` period tickets, and Dream no
+    longer self-deletes mid-run — the next run's retro pass cleans it up."""
+    text = DREAM_PROMPT.read_text()
+    # Prose wraps across lines; normalize whitespace and bold markers so phrase
+    # assertions don't depend on where the line breaks fall.
+    norm = " ".join(text.replace("**", "").split())
+
+    # Phase 4 explicitly owns done recurring period-ticket cleanup: a
+    # `recurring-<name>-<period>` ticket is an eligible done ticket like any
+    # other and, carrying nothing durable, is direct-deleted.
+    assert "A done `recurring-<name>-<period>` ticket is an eligible done ticket" in norm
+    assert "The recurring command no longer deletes anything" in norm
+    assert "the previous Dream run's own `recurring-dream-<period>` ticket" in norm
+
+    # Phase 6 marks the Dream task done and STOPS — it must not self-delete.
+    assert "do not delete this task" in norm
+    assert "cleaned up by the next Dream run's Phase 4 retro pass" in norm
+    assert "Dream is the single deleter of done recurring tickets" in norm
+    # The old self-delete instruction is gone.
+    assert "relay delete <this-dream-task>" not in text
+    assert "Dream cleans up after itself in the same run" not in text
+
+
 def test_dream_documents_the_contract_audit_phase() -> None:
     """Phase 3 is a dedicated consistency audit: a subagent checks the living
     contract surface (contexts, skills, recurring templates, shipped docs)
