@@ -4,6 +4,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 - Attached `workflow: code/with-review` to the draft ticket per human direction.
 - Applied evaluator recommendations: narrowed the ticket to the TOML-backed webhook contract, attached `relay/sync`, `relay/codebase`, and `dev/code`, refreshed stale code/example pointers, and made the durable context/template touchpoints explicit.
+- Corrected `assignee:` to `claude` after activation. The frozen `code/with-review` workflow is at `step: 1 (implement)`, whose assignee token is `agent`; this ticket's `agent:` is `claude`.
 
 ## Evaluator review
 

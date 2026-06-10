@@ -1,11 +1,11 @@
 ---
 title: Slack webhook is env-only despite TOML comment implying it is configurable
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: claude
 contexts:
 - relay/sync
 - relay/codebase
