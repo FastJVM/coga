@@ -10,3 +10,4 @@
 2026-06-09 21:51 [git] sync failed: `git add -- relay-os/tasks/close-imported-skill-provenance-conflict-and-dream` failed (exit 128): fatal: Unable to create '/home/n/Code/relay/.git/index.lock': Read-only file system
 2026-06-09 21:51 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-09 21:52 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/329
+2026-06-10 11:19 [human:nick] auto-bumped on merge of PR #329 → done
