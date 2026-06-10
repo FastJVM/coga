@@ -51,3 +51,23 @@ history if needed.)
   `split-context-to-doc-user-accessible-and-editable` missing `step:`).
 - Stale `browser/<tier>` grep with `.relay` excluded only hits this ticket's
   own move-spec prose.
+
+## Self-QA
+
+- `codex review --commit f08b4b6 --title "Add autonomy triage tiers"` ran after
+  sandbox retry; it found no correctness issues.
+- Ran a simplify-equivalent Codex pass in `/tmp/relay-selfqa-simplify-4Ctcyg` to
+  avoid unrelated primary-checkout churn. Applied its safe markdown cleanups:
+  shorter frontmatter descriptions, wrapped dense workflow/context prose, and
+  corrected `autonomy/triage` from "human-assigned steps" to `assignee:` choices
+  because `autonomy/fully-automated` is all-agent.
+- Re-verified live and packaged copies match byte-for-byte for the touched
+  autonomy/build-automation files.
+- `PYTHONPATH=/home/n/Code/relay/src /home/n/Code/relay/.venv/bin/python -m pytest`
+  passed: 610 passed, 1 skipped.
+- `relay validate --task automation-triage --json` and
+  `relay validate --task wire-autonomy-triage-into-impl-ready-workflows --json`
+  passed.
+- Full `relay validate --json` still exits non-zero on unrelated backlog issues,
+  including `relay-additions-spec` and
+  `split-context-to-doc-user-accessible-and-editable` missing `step:`.
