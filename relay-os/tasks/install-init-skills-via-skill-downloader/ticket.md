@@ -1,6 +1,6 @@
 ---
 title: Install init skills via skill downloader
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
