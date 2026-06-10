@@ -3,14 +3,17 @@ name: code/design-then-implement
 description: A thin ticket is designed into a spec by an agent, the owner reviews the spec, then an agent implements it and opens a PR for the owner to review and merge.
 steps:
   - name: design
+    assignee: agent
     skills:
       - code/design
   - name: review-design
     assignee: owner
   - name: implement
+    assignee: agent
     skills:
       - code/implement
   - name: open-pr
+    assignee: agent
     skills:
       - code/open-pr
   - name: review

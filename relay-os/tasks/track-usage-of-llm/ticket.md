@@ -59,7 +59,121 @@ Scope:
    report / autoroute / free-token tickets call, so none of them re-parse
    transcripts themselves.
 
-## Context
+## Acceptance Criteria
+
+- A new module `src/relay/usage.py` holds all parsing, pricing, and rollup
+  logic. `launch.py` and `commands/usage.py` stay thin (call into it).
+- After every `relay launch` *session* (one per `while True:` loop iteration
+  in `launch.py`, not one per launch invocation), exactly one record is
+  appended to `relay-os/usage/ledger.jsonl`.
+  - Records are written for chained steps too (implement → peer-review →
+    open-pr), each carrying its own `slug`, `step`, `agent`, `cli`, `model`.
+  - A session that burned tokens and then exited non-zero is still recorded
+    (capture runs in a `finally`, before launch.py's `sys.exit(exit_code)`).
+  - Capture never raises into the launch path: any failure to find/parse a
+    transcript yields a record with `usage_status: "unknown"` (tokens null),
+    not an exception.
+- Each ledger record is a single self-describing JSON object with a `schema`
+  version field and the shape pinned in Proposed Shape below.
+- Token cost is derived from `model` + a per-category price table (base input,
+  cache-create, cache-read, output priced separately). An unpriced model
+  yields `cost_usd: null` (tokens still recorded) — never a silent `0`.
+- `relay usage` prints overall totals (four token categories + total cost) and
+  by-model / by-task breakdowns; `--json` emits the same data as a structured
+  object for downstream consumers; `--since` / `--until` / `--task` filter the
+  rows. It is the only code path that reads the ledger.
+- `relay-os/usage/summary.md` holds a human-readable rollup regenerated from
+  the ledger on capture (the committed report surface).
+- No transcript is matched by file mtime alone. Within a session window the
+  per-line `timestamp` (or a minted session id, see Proposed Shape) scopes
+  which `usage` lines count, so a resumed/append-only transcript is not
+  double-counted and an unrelated concurrent session in the same cwd is not
+  mis-attributed.
+- Codex sessions produce a record (`usage_status: "unknown"` is acceptable for
+  the stub) rather than crashing or being attributed Claude usage.
+- `pytest` covers the parser (synthetic transcript → expected token sums),
+  the price table (per-category cost math + unknown-model → null), and the
+  rollup. `python -m pytest` and `relay validate --json` pass.
+
+## Proposed Shape
+
+**New module `src/relay/usage.py`** — the seam. Public surface:
+
+- `@dataclass UsageRecord` with fields: `ts` (ISO-8601 UTC, session end),
+  `slug`, `step` (str|None), `agent`, `cli`, `provider`, `model` (str|None),
+  `session_id` (str|None), `input_tokens`, `cache_creation_input_tokens`,
+  `cache_read_input_tokens`, `output_tokens` (each int|None), `cost_usd`
+  (float|None), `usage_status` (`"ok"`|`"unknown"`), `schema` (int, start at
+  `1`). `to_json()` / `from_json()` round-trip one JSONL line.
+- A **provider seam**: `parse_session(provider, *, transcript_dir, cwd,
+  session_id, window_start, window_end) -> ParsedUsage`. `provider="claude"`
+  is implemented; `provider="codex"` returns usage-unknown. Dispatch on the
+  agent's `provider` (derive from `agent.cli` name — `claude`/`codex`).
+- Claude parser: resolve the transcript path
+  `~/.claude/projects/<cwd-hash>/<session-id>.jsonl` where `<cwd-hash>` is the
+  cwd with `/` and `.` replaced by `-` (verified against the live layout).
+  Sum `message.usage.*` over `type=="assistant"` lines, taking `model` from
+  the lines. Filter lines to the session window by per-line `timestamp` as a
+  guard even when the file is session-scoped.
+- `PRICES`: module-level `dict[str, dict[str, float]]` — per-model, per-token-
+  category USD-per-token (or per-Mtok) rates, with an "as of <date>" comment.
+  `cost(model, tokens) -> float|None` returns `None` for an unpriced model.
+- `append_record(relay_os: Path, record: UsageRecord) -> None` — append one
+  JSONL line to `relay-os/usage/ledger.jsonl` (atomic, via `atomicio`).
+- `load_records(relay_os) -> list[UsageRecord]` and
+  `rollup(records, *, by=None, since=None, until=None, task=None) -> Rollup`
+  — pure aggregation used by both `summary.md` regeneration and `relay usage`.
+- `write_summary(relay_os) -> None` — regenerate `usage/summary.md` from the
+  ledger.
+
+**Session-id capture (resolves the matching/double-count risk).** `claude`
+accepts `--session-id <uuid>`. In `build_agent_command` (launch.py), for the
+claude provider mint a `uuid4` per session and pass `--session-id <that>`,
+returning it to the loop so capture reads exactly that transcript file. This
+turns transcript matching from a fragile mtime/window heuristic into a
+deterministic lookup. Codex has no equivalent flag today → its records are
+usage-unknown until a Codex parser lands. Keep the minting behind the provider
+seam; never assume every CLI takes the flag.
+
+**Capture hook in `launch.py`** (the `while True:` loop, ~418–448):
+
+- Before spawning, record `window_start` (wall clock) and the minted
+  `session_id` (claude) / `None` (codex).
+- Wrap the subprocess call's existing `try/finally` so that in the `finally`
+  — after `_cleanup_prompt()`, before the `sys.exit(exit_code)` non-zero
+  early return — it calls a single thin helper
+  `usage.capture_session(...)` with the step's `slug`, `step` name, `agent`,
+  `cli`, `provider`, `session_id`, `window_start`, `window_end=now`. The
+  helper builds and appends the record and regenerates `summary.md`, swallowing
+  all exceptions (log to stderr) so capture can never break a launch.
+- One record per loop iteration ⇒ chained steps and agent rotations each get
+  their own entry.
+
+**New command `src/relay/commands/usage.py`** registered in `cli.py` as
+`relay usage`. Thin Typer entrypoint: options `--by`
+(`task|model|agent|step`), `--since`, `--until`, `--task`, `--json`. Loads
+records via `usage.load_records`, calls `usage.rollup`, prints a table
+(human) or `json.dumps` (machine). No ledger parsing logic in the command.
+
+**Order of work:** (1) `usage.py` record + Claude parser + price table +
+rollup, with unit tests on a synthetic transcript fixture. (2) `relay usage`
+command + tests. (3) launch.py capture hook + session-id minting. (4)
+`summary.md` regeneration. (5) `relay validate --json`, update `example/` only
+if task/layout semantics change (they should not).
+
+## Out of Scope
+
+- Budget caps, "remaining" tokens, and any enforcement — consumer tickets
+  (`autoroute-agent-based-on-remaining-usage`, the free-token launcher).
+- Autorouting decisions and the opportunistic "launch when tokens are free"
+  feature.
+- Wiring usage totals into digest / dev-update output.
+- A full Codex transcript parser — Codex is stubbed at usage-unknown behind
+  the provider seam this ticket builds.
+- Auto-committing the ledger to git (open question; default is to leave the
+  write in the working tree for the normal commit flow).
+
+## Implementation Notes (from ticket author)
 
 **Where it lives.** Relay is markdown-first and git-backed — there is no
 database and no daemon. The ledger must be plain committed files under

@@ -107,3 +107,30 @@ Note: tests in a worktree run via
   no longer match → no false warning.
 - Debug runs still snapshot + warn locally but never broadcast.
 - Corrupt snapshot → treated as absent (advisory must never crash a finish).
+
+## Peer Review (2026-06-07)
+
+Ran `codex review --base main` from feature worktree
+`../relay-state-advance`. Review surfaced must-fix issues; applied and
+committed them as `c0dc001 peer-review: apply recurring state fixes`.
+
+Fixes applied:
+- Treat missing/blank current state values as stale, while still ignoring a
+  removed parent recurring template.
+- Ignore valid JSON snapshot files whose top-level value is not an object.
+- Sync the parent recurring blackboard alongside the period task on successful
+  non-debug `mark done`, so cursor writes are included in the state-transition
+  commit.
+- Validate `state_keys` frontmatter strictly as a list of non-empty strings.
+- Classify `recurring-state-stuck` in Dream's validate-drift skill as
+  `human-needed`.
+- Correct period-task context wording so final completion says
+  `relay mark done`, not final-step `relay bump`.
+
+Verification:
+- `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest tests/test_period_state.py tests/test_dream_validate_drift.py -q -o cache_dir=/tmp/relay-state-advance-pytest-cache`
+  -> 34 passed.
+- `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest -q -o cache_dir=/tmp/relay-state-advance-pytest-cache`
+  -> 605 passed, 1 skipped.
+- Final `codex review --base main` -> no prioritized actionable correctness
+  issues.

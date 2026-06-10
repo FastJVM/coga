@@ -5,3 +5,4 @@
 2026-06-08 15:16 [human:nick] paused (in_progress → paused)
 2026-06-08 15:16 [human:nick] activated (paused → active)
 2026-06-08 15:16 [human:nick] paused (active → paused)
+2026-06-08 15:16 [human:nick] ticket authoring launched (assignee=claude, agent=claude)

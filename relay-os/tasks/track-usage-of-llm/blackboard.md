@@ -58,4 +58,63 @@ Assessment below.
 - **Robustness path interaction with the freshness check / exit codes.** launch.py `sys.exit(exit_code)` on non-zero agent exit (line 442–448) returns before the loop re-reads state. Where capture sits relative to that early exit matters: a crashed/non-zero session would be skipped entirely unless capture runs in the `finally` around the subprocess call. The ticket says "must never break a launch" but doesn't address the non-zero-exit early-return, where a session that burned tokens then errored would silently produce no record.
 
 Relevant files: ticket at `/home/n/Code/relay/relay-os/tasks/track-usage-of-llm/ticket.md`; capture hook reality at `/home/n/Code/relay/src/relay/commands/launch.py` (the `while True:` loop, lines 334–467, and the non-zero-exit early return at 442–448); workflow at `/home/n/Code/relay/relay-os/workflows/code/with-review.md` (no design gate; peer-review is a diff review).
-</content>
+
+## Design step (2026-06-09, claude)
+
+Spec written into ticket.md: Acceptance Criteria, Proposed Shape, Out of Scope.
+The evaluator's five risks are now all addressed in the spec:
+
+1. **Multi-session per launch** — spec mandates one record per `while True:`
+   loop iteration, each carrying its own slug/step/agent/cli/model; covers
+   the claude↔codex rotation explicitly.
+2. **Transcript matching** — *resolved by a new finding*: `claude` accepts
+   `--session-id <uuid>`. launch.py mints a uuid4 per claude session, passes
+   it, and reads exactly `~/.claude/projects/<cwd-hash>/<uuid>.jsonl`.
+   Deterministic lookup, no mtime/window heuristic. Verified the path layout
+   against the live `~/.claude/projects/-home-n-Code-relay/` dir and confirmed
+   assistant lines carry `timestamp`, `sessionId`, `message.model`,
+   `message.usage.{input,cache_creation_input,cache_read_input,output}_tokens`.
+3. **Double-counting** — minted-session file is session-scoped, so summing it
+   is safe; per-line `timestamp` window filter kept as a defensive guard and as
+   the fallback when session-id is unknown (codex / older claude).
+4. **Cache-token cost** — spec requires a per-category price table (4 rates),
+   not a single input rate.
+5. **Non-zero-exit early return** — capture runs in the `finally` around the
+   subprocess call, before launch.py's `sys.exit(exit_code)`.
+
+## Open Questions (for review-design)
+
+1. **Price table source of truth.** Recommend a hardcoded `PRICES` dict in
+   `usage.py` with an "as of <date>" comment + unknown-model → `cost_usd: null`.
+   Alternative: put rates in `relay.toml` so they're editable without a code
+   change. Hardcoded is simpler and keeps the contract in one place; config-
+   driven survives price changes without a PR. Which do you want? (Default:
+   hardcoded.)
+
+2. **summary.md regeneration cadence.** Recommend regenerating on every capture
+   so the committed file is always current. Tradeoff: noisier git diffs (a line
+   changes on every launch). Alternative: only regenerate on
+   `relay usage --write-summary`. (Default: on every capture.)
+
+3. **Does capture auto-commit the ledger?** Currently launch.py commits nothing;
+   the ledger write would sit in the working tree for the next commit to pick
+   up. Auto-committing per session is possible but adds git side effects to
+   `relay launch`. (Default: no auto-commit — leave it to normal flow. Listed in
+   Out of Scope.)
+
+4. **Minting `claude --session-id`.** This changes the spawned command (relay
+   dictates the session id instead of letting claude generate one). Low risk and
+   it's the cleanest matching strategy, but confirm you're OK with relay owning
+   the session id. (Default: yes, mint it.)
+
+5. **Codex stub acceptability.** A supervised run that rotates to codex will
+   produce a `usage_status: "unknown"` record this ticket. Confirm that's an
+   acceptable interim state vs. blocking on a real codex parser. (Default: stub
+   is fine — full codex parser is a follow-up.)
+
+6. **Contexts.** Evaluator suggested attaching `relay/architecture` (and maybe
+   `relay/principles`) since the spec leans on the "no hidden state, plain
+   committed files" model. Want me to add `relay/architecture` to `contexts:`
+   before implement? (Default: add it — the implementer should read the
+   primitive model it's told to respect.)
+

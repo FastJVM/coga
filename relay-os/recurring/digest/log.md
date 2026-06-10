@@ -8,3 +8,10 @@
 {"ts":"2026-06-06T20:58","project":"relay","kind":"done","detail":"→ done (script)","ticket":"dream-cleanup-orphan-markers-child-of-dream-dbg-20","owner":"nick"}
 {"ts":"2026-06-06T21:03","project":"relay","kind":"done","detail":"claude finished → done ✅","ticket":"dream-dbg-20260606T204523","owner":"nick"}
 {"ts":"2026-06-06T21:06","project":"relay","kind":"done","detail":"claude finished → done ✅","ticket":"relay-dev-update-dbg-20260606T204523","owner":"nick"}
+2026-06-07 20:02 [system] debug run digest-dbg-20260607T200210: completed → done
+2026-06-07 20:02 [system] debug run digest-dbg-20260607T200234: completed → done
+2026-06-07 20:29 [system] debug run digest-dbg-20260607T202906: completed → done
+2026-06-07 20:29 [system] debug run digest-dbg-20260607T202919: completed → done
+2026-06-07 20:30 [system] debug run digest-dbg-20260607T203015: completed → done
+2026-06-07 21:09 [system] debug run digest-dbg-20260607T210907: completed → done
+2026-06-08 12:07 [system] debug run digest-dbg-20260608T120715: completed → done
