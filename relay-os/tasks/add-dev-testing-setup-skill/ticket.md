@@ -1,6 +1,6 @@
 ---
 title: Add dev testing setup skill
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
