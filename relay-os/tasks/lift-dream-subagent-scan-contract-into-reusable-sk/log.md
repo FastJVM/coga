@@ -6,3 +6,4 @@
 2026-06-10 05:55 [agent:codex] started (active → in_progress) via implementation recovery
 2026-06-10 05:56 [agent:codex] advanced to step 2 (peer-review) → assigned to claude
 2026-06-10 15:24 [agent:claude] advanced to step 3 (open-pr) → assigned to codex
+2026-06-10 15:24 [agent:codex] advanced to step 4 (review) → assigned to nick
