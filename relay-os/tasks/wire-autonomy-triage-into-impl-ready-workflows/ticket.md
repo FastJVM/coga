@@ -1,13 +1,13 @@
 ---
 title: Wire autonomy triage into impl-ready workflows
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: claude
 contexts:
-  - autonomy/triage
+- autonomy/triage
 skills: []
 workflow:
   name: code/design-then-implement
