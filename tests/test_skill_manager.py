@@ -538,15 +538,27 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
         if command == ["relay", "validate", "--json"]:
             return _completed(command, stdout='{"issues":[]}\n')
         if command == ["git", "branch", "--show-current"]:
-            return _completed(command, stdout="codex/skill-updates\n")
+            return _completed(command, stdout="main\n")
+        if command == ["git", "checkout", "-B", "relay/skill-update"]:
+            return _completed(command)
+        if command[:3] == ["git", "add", "--"]:
+            return _completed(command)
+        if command[:4] == ["git", "diff", "--cached", "--quiet"]:
+            # returncode 1 == there are staged changes to commit.
+            return _completed(command, returncode=1)
+        if command == ["git", "commit", "-m", "Update Relay-managed skills"]:
+            return _completed(command)
         if command[:4] == ["gh", "pr", "list", "--head"]:
+            assert command[4] == "relay/skill-update"
             return _completed(command, stdout="")
-        if command == ["git", "push", "-u", "origin", "codex/skill-updates"]:
+        if command == ["git", "push", "-u", "origin", "relay/skill-update"]:
             return _completed(command, stdout="")
         if command[:4] == ["gh", "pr", "create", "--draft"]:
             body_file = Path(command[command.index("--body-file") + 1])
             assert "`tools/example`: updated" in body_file.read_text()
             return _completed(command, stdout="https://github.com/FastJVM/relay/pull/143\n")
+        if command == ["git", "checkout", "main"]:
+            return _completed(command)
         raise AssertionError(f"unexpected command: {command}")
 
     result = run_skill_update_pr_flow(
@@ -559,7 +571,97 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
 
     assert result.pr_url == "https://github.com/FastJVM/relay/pull/143"
     assert result.verification[0].returncode == 0
-    assert ["git", "push", "-u", "origin", "codex/skill-updates"] in commands
+    # Updates are committed onto the dedicated branch and the checkout is
+    # restored to where the caller left it (`main`), never committed there.
+    assert ["git", "checkout", "-B", "relay/skill-update"] in commands
+    assert ["git", "commit", "-m", "Update Relay-managed skills"] in commands
+    assert ["git", "push", "-u", "origin", "relay/skill-update"] in commands
+    assert ["git", "checkout", "main"] in commands
+
+
+def test_dream_pr_summary_skips_pr_when_nothing_changed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A run where no skill changed must open no PR — opening an empty PR would
+    just fail on `gh pr create` — and must touch git at all."""
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    summary = SkillUpdateSummary(
+        results=[
+            SkillResult(
+                name="bootstrap/example",
+                source_type="bundled",
+                status="skipped-bundled",
+                message="bundled skill updates come from the relay package",
+                changed=False,
+            )
+        ]
+    )
+
+    def runner(args, cwd=None):
+        raise AssertionError(f"no command expected, got: {list(args)}")
+
+    result = run_skill_update_pr_flow(
+        cfg,
+        summary,
+        title="Update Relay-managed skills",
+        verification_commands=["relay validate --json"],
+        runner=runner,
+    )
+
+    assert result.pr_url is None
+    assert result.verification == []
+
+
+def test_dream_pr_summary_skips_pr_when_commit_is_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `changed=True` result that leaves no on-disk diff (e.g. an opaque
+    `gh skill update` that found nothing upstream) must not error on an empty
+    commit — it stages, sees no diff, opens no PR, and restores the branch."""
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    summary = SkillUpdateSummary(
+        results=[
+            SkillResult(
+                name="gh-managed",
+                source_type="github",
+                status="delegated",
+                message="delegated GitHub-backed skill updates to gh skill",
+                changed=True,
+            )
+        ]
+    )
+    commands: list[list[str]] = []
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        if command == ["git", "branch", "--show-current"]:
+            return _completed(command, stdout="main\n")
+        if command == ["git", "checkout", "-B", "relay/skill-update"]:
+            return _completed(command)
+        if command[:3] == ["git", "add", "--"]:
+            return _completed(command)
+        if command[:4] == ["git", "diff", "--cached", "--quiet"]:
+            # returncode 0 == nothing staged; the flow must bail out cleanly.
+            return _completed(command, returncode=0)
+        if command == ["git", "checkout", "main"]:
+            return _completed(command)
+        raise AssertionError(f"unexpected command: {command}")
+
+    result = run_skill_update_pr_flow(
+        cfg,
+        summary,
+        title="Update Relay-managed skills",
+        verification_commands=["relay validate --json"],
+        runner=runner,
+    )
+
+    assert result.pr_url is None
+    assert result.verification == []
+    # No commit, no PR — but the dedicated branch was created and the checkout
+    # restored to where the caller left it.
+    assert ["git", "commit", "-m", "Update Relay-managed skills"] not in commands
+    assert ["git", "checkout", "main"] in commands
 
 
 def test_update_cli_emits_json_summary(

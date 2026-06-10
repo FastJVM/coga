@@ -24,6 +24,10 @@ from relay.skill import Skill
 
 SOURCE_METADATA = ".relay-source.json"
 SOURCE_SCHEMA = "relay.skill-source.v1"
+# Dedicated branch the `--pr` flow commits skill updates onto. The flow is
+# launched from the control-plane checkout (on `main` during a Dream run), so
+# updates must never be committed or pushed on the caller's branch.
+SKILL_UPDATE_BRANCH = "relay/skill-update"
 GH_SKILL_REQUIRED = (
     "GitHub CLI 2.90.0+ with `gh skill` is required for this command. "
     "Upgrade `gh`, then verify with `gh skill --help`."
@@ -335,20 +339,93 @@ def run_skill_update_pr_flow(
     title: str,
     verification_commands: Sequence[str],
     runner: Runner | None = None,
+    branch: str = SKILL_UPDATE_BRANCH,
 ) -> SkillUpdateSummary:
-    for command in verification_commands:
-        result = run_command_string(command, runner=runner, cwd=cfg.repo_root.parent)
-        summary.verification.append(
-            VerificationResult(
-                command=command,
-                returncode=result.returncode,
-                stdout=result.stdout,
-                stderr=result.stderr,
+    changed = [result for result in summary.results if result.changed]
+    if not changed:
+        # `update_skills` wrote nothing to the working tree, so there is nothing
+        # to commit. Opening a PR with no diff just fails on `gh pr create`, so
+        # leave `pr_url` unset and let the caller report a clean no-op.
+        return summary
+
+    run = runner or run_subprocess
+    git_cwd = cfg.repo_root.parent
+    original_branch = _current_git_branch(run, git_cwd)
+    committed = _commit_skill_updates(cfg, branch=branch, runner=runner, cwd=git_cwd)
+    try:
+        if not committed:
+            # A `changed=True` result that produced no on-disk diff — e.g. an
+            # opaque `gh skill update` that found nothing upstream. Nothing to
+            # PR; the `finally` still restores the caller's branch.
+            return summary
+        for command in verification_commands:
+            result = run_command_string(command, runner=runner, cwd=git_cwd)
+            summary.verification.append(
+                VerificationResult(
+                    command=command,
+                    returncode=result.returncode,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                )
             )
+        body = render_update_pr_body(summary)
+        summary.pr_url = open_or_update_pr(
+            title, body, branch=branch, runner=runner, cwd=git_cwd
         )
-    body = render_update_pr_body(summary)
-    summary.pr_url = open_or_update_pr(title, body, runner=runner, cwd=cfg.repo_root.parent)
+    finally:
+        # Return the checkout to where the caller left it. A Dream run launches
+        # this on `main`; it must not be left sitting on the skill-update branch.
+        if original_branch and original_branch != branch:
+            _checkout(run, git_cwd, original_branch)
     return summary
+
+
+def _current_git_branch(run: Runner, cwd: Path) -> str:
+    result = run(["git", "branch", "--show-current"], cwd)
+    if result.returncode != 0:
+        raise SkillManagerError("Could not determine current git branch for skill update PR.")
+    return result.stdout.strip()
+
+
+def _checkout(run: Runner, cwd: Path, branch: str, *, create: bool = False) -> None:
+    args = ["git", "checkout", "-B", branch] if create else ["git", "checkout", branch]
+    result = run(args, cwd)
+    if result.returncode != 0:
+        raise SkillManagerError((result.stderr or result.stdout).strip())
+
+
+def _commit_skill_updates(
+    cfg: Config,
+    *,
+    branch: str,
+    runner: Runner | None,
+    cwd: Path,
+) -> bool:
+    """Carry the just-applied skill changes onto a dedicated branch and commit.
+
+    `update_skills` has already written the updated files into the working tree
+    under `skills_root(cfg)`. `git checkout -B` carries those uncommitted
+    changes onto a dedicated branch — so the commit never lands on the caller's
+    branch, which in a Dream run is `main` — and we stage only the skills tree
+    so the PR diff is exactly the skill update and nothing the caller left
+    uncommitted alongside it.
+
+    Returns `True` when a commit was made, `False` when staging the skills tree
+    produced no diff (e.g. an opaque `gh skill update` that changed nothing) so
+    the caller can skip the PR instead of failing on an empty commit.
+    """
+    run = runner or run_subprocess
+    _checkout(run, cwd, branch, create=True)
+    added = run(["git", "add", "--", str(skills_root(cfg))], cwd)
+    if added.returncode != 0:
+        raise SkillManagerError((added.stderr or added.stdout).strip())
+    staged = run(["git", "diff", "--cached", "--quiet", "--", str(skills_root(cfg))], cwd)
+    if staged.returncode == 0:
+        return False
+    committed = run(["git", "commit", "-m", "Update Relay-managed skills"], cwd)
+    if committed.returncode != 0:
+        raise SkillManagerError((committed.stderr or committed.stdout).strip())
+    return True
 
 
 def render_update_pr_body(summary: SkillUpdateSummary) -> str:
@@ -469,13 +546,17 @@ def open_or_update_pr(
     title: str,
     body: str,
     *,
+    branch: str | None = None,
     runner: Runner | None = None,
     cwd: Path | None = None,
 ) -> str:
-    branch_result = (runner or run_subprocess)(["git", "branch", "--show-current"], cwd)
-    if branch_result.returncode != 0 or not branch_result.stdout.strip():
-        raise SkillManagerError("Could not determine current git branch for skill update PR.")
-    branch = branch_result.stdout.strip()
+    if branch is None:
+        branch_result = (runner or run_subprocess)(["git", "branch", "--show-current"], cwd)
+        if branch_result.returncode != 0 or not branch_result.stdout.strip():
+            raise SkillManagerError(
+                "Could not determine current git branch for skill update PR."
+            )
+        branch = branch_result.stdout.strip()
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as fh:
         fh.write(body)
         body_file = fh.name

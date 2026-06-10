@@ -64,8 +64,10 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "### Phase 4" in text
     assert "### Phase 5" in text
     assert "### Phase 6" in text
-    assert "Dream runs six phases in order" in text
+    assert "### Phase 7" in text
+    assert "Dream runs seven phases in order" in text
     assert "`bootstrap/dream/tasks/validate-drift`" in text
+    assert "`bootstrap/dream/tasks/skill-update`" in text
     assert "retro/done-ticket" in text
     assert "`bootstrap/dream/tasks/cleanup-orphan-markers`" in text
     assert "`bootstrap/dream/tasks/dev/stale-branches`" not in text
@@ -96,7 +98,7 @@ def test_dream_documents_decide_then_execute_phases() -> None:
 
 
 def test_dream_is_the_single_deleter_of_done_recurring_tickets() -> None:
-    """Stage 3 of the recurring-lifecycle redesign: Dream's Phase 4 retro pass
+    """Stage 3 of the recurring-lifecycle redesign: Dream's Phase 5 retro pass
     is the single deleter of done `recurring-*` period tickets, and Dream no
     longer self-deletes mid-run — the next run's retro pass cleans it up."""
     text = DREAM_PROMPT.read_text()
@@ -104,16 +106,16 @@ def test_dream_is_the_single_deleter_of_done_recurring_tickets() -> None:
     # assertions don't depend on where the line breaks fall.
     norm = " ".join(text.replace("**", "").split())
 
-    # Phase 4 explicitly owns done recurring period-ticket cleanup: a
+    # Phase 5 explicitly owns done recurring period-ticket cleanup: a
     # `recurring-<name>-<period>` ticket is an eligible done ticket like any
     # other and, carrying nothing durable, is direct-deleted.
     assert "A done `recurring-<name>-<period>` ticket is an eligible done ticket" in norm
     assert "The recurring command does not delete real done period tasks" in norm
     assert "the previous Dream run's own `recurring-dream-<period>` ticket" in norm
 
-    # Phase 6 marks the Dream task done and STOPS — it must not self-delete.
+    # Phase 7 marks the Dream task done and STOPS — it must not self-delete.
     assert "do not delete this task" in norm
-    assert "cleaned up by the next Dream run's Phase 4 retro pass" in norm
+    assert "cleaned up by the next Dream run's Phase 5 retro pass" in norm
     assert "Dream is the single deleter of done recurring tickets" in norm
     # The old self-delete instruction is gone.
     assert "relay delete <this-dream-task>" not in text
@@ -132,7 +134,7 @@ def test_dream_documents_the_contract_audit_phase() -> None:
     """Phase 3 is a dedicated consistency audit: a subagent checks the living
     contract surface (contexts, skills, recurring templates, shipped docs)
     against code reality, missing artifacts, and live/packaged copy drift,
-    and classifies each finding as `drift` for Phase 6 to route."""
+    and classifies each finding as `drift` for Phase 7 to route."""
     text = DREAM_PROMPT.read_text()
 
     assert "### Phase 3 — contract audit" in text
@@ -146,7 +148,7 @@ def test_dream_documents_the_contract_audit_phase() -> None:
     assert "copy divergence" in text
     # Frozen task artifacts are not contracts.
     assert "Frozen task artifacts under `relay-os/tasks/` are historical" in text
-    # Phase 6 disposition routes `drift` findings to a proposal PR.
+    # Phase 7 disposition routes `drift` findings to a proposal PR.
     assert "Every Phase 2 and Phase 3 finding gets a durable home" in text
     assert "- `drift` — open a proposal PR" in text
 
@@ -178,6 +180,22 @@ def test_cleanup_orphan_markers_declares_contract() -> None:
     assert "`result: no-new-durable-knowledge`" in text
     assert "not a prefix match" in text
     assert "reports eligible candidates as `human-needed`" in norm
+
+
+def test_skill_update_worker_declares_contract() -> None:
+    text = (TEMPLATES / "skill-update" / "SKILL.md").read_text()
+    norm = " ".join(text.split())
+
+    assert "## Known Skill Contract" in text
+    assert "- Purpose: update clean imported skills" in text
+    assert "- Action: `pr-required`" in text
+    assert "relay skill update --all --pr" in text
+    assert "`relay/skill-update` branch" in norm
+    assert "never the caller's branch" in norm
+    assert "Bundled (package-backed) skills are not updated here" in norm
+    assert "- Output: append `## Dream Skill: skill-update`" in text
+    assert "RELAY_TASK_BLACKBOARD" in text
+    assert "--blackboard" not in text
 
 
 def test_rem_template_documents_user_specific_recurring_maintenance() -> None:
