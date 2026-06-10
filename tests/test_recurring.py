@@ -315,6 +315,80 @@ def test_scan_due_does_not_rescaffold_after_period_task_deleted(
     assert list_tasks(cfg) == []
 
 
+def test_due_orders_dream_last(repo: Path) -> None:
+    """A bare sweep launches the cleanup template (Dream) after every other
+    due template, so Dream's retro pass reaps this sweep's freshly-`done`
+    period tickets instead of trailing them by a full sweep.
+
+    Alphabetically `dream` sorts between `digest` and `relay-dev-update`; the
+    layered `due` key (`is_cleanup` leading) overrides that so it lands last.
+    """
+    # Three due weekly templates whose names bracket `dream` alphabetically.
+    for name in ("digest", "dream", "relay-dev-update"):
+        _write_recurring(
+            repo,
+            name,
+            f"""
+            ---
+            schedule: "0 9 * * 1"
+            title: "{name}"
+            mode: interactive
+            assignee: claude
+            owner: marc
+            ---
+
+            ## Description
+
+            Run {name}.
+            """,
+        )
+
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # Wed after Mon 9am
+
+    order = [t.template for t in scan.due]
+    assert order[-1] == "dream"
+    assert set(order) == {"digest", "dream", "relay-dev-update", "weekly-check"}
+
+
+def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
+    """Dream-last leads the sort key, but resume-first still holds *among the
+    non-cleanup templates*: a stuck `in_progress` orphan is picked up before a
+    fresh Dream launch."""
+    for name in ("digest", "dream"):
+        _write_recurring(
+            repo,
+            name,
+            f"""
+            ---
+            schedule: "0 9 * * 1"
+            title: "{name}"
+            mode: interactive
+            assignee: claude
+            owner: marc
+            ---
+
+            ## Description
+
+            Run {name}.
+            """,
+        )
+
+    cfg = load_config(repo)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
+    # Strand the digest period task as a dead-sweep orphan.
+    digest_ref = next(t.ref for t in first.tasks if t.template == "digest")
+    ticket = Ticket.read(digest_ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.write(digest_ref.path / "ticket.md")
+
+    scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))  # week 18
+    order = [t.template for t in scan.due]
+    # Resumed digest orphan first; Dream still last.
+    assert order[0] == "digest"
+    assert order[-1] == "dream"
+
+
 def test_is_debug_slug() -> None:
     """Debug runs (and their children) match; ordinary names don't."""
     # `recurring --all` throwaway run and a child task embedding its slug.

@@ -26,7 +26,14 @@ scanner skips it. That is how the starter templates ship without firing.
 
 - `relay recurring` (bare) — scans every recurring task, get-or-creates the
   current period's task for each, and launches the ones still `active` or
-  orphaned `in_progress`. Run from `scripts/cron.sh`. A current-period task
+  orphaned `in_progress`. **Launch order is phased, not alphabetical:** the
+  cleanup template — Dream, the recurring janitor (see below) — is sorted
+  **last** so its retro pass acts on the period tickets the *same* sweep just
+  drove to `done`, instead of trailing them by a full sweep. Among the
+  non-cleanup templates the existing order holds — orphaned `in_progress`
+  resumes first, then fresh launches, each most-overdue first — and a resuming
+  Dream orphan still sorts last (cleanup-after-the-rest wins for the janitor
+  itself). Run from `scripts/cron.sh`. A current-period task
   left `in_progress` by a sweep whose supervisor died mid-run (laptop sleep,
   SSH drop) is **relaunched and resumed from its current step**, not skipped:
   `relay launch` re-composes it from `step:`. If an interactive launch returns
