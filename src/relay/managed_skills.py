@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from importlib.resources import files
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from pathlib import PurePosixPath
 import tomllib
 
 from relay.config import Config
@@ -17,9 +16,9 @@ from relay.skill_manager import (
     SkillManagerError,
     SkillResult,
     SkillUpdateSummary,
+    _skill_target,
     install_github_skill,
     install_url_skill,
-    skills_root,
     update_skills,
 )
 
@@ -28,10 +27,6 @@ MANAGED_SKILL_MANIFEST_PACKAGE = "relay.resources"
 MANAGED_SKILL_MANIFEST_PATH = ("managed-skills.toml",)
 
 GithubInstaller = Callable[
-    [Config, str, str | None],
-    SkillResult,
-]
-UrlInstaller = Callable[
     [Config, str, str | None],
     SkillResult,
 ]
@@ -136,7 +131,6 @@ def install_managed_skills(
     runner: Runner | None = None,
     downloader: Downloader | None = None,
     github_installer: GithubInstaller | None = None,
-    url_installer: UrlInstaller | None = None,
 ) -> ManagedSkillSummary:
     cfg = _manifest_skill_config(relay_os)
     summary = ManagedSkillSummary()
@@ -161,7 +155,6 @@ def install_managed_skills(
                 runner=runner,
                 downloader=downloader,
                 github_installer=github_installer,
-                url_installer=url_installer,
             )
         )
     return summary
@@ -174,7 +167,6 @@ def reconcile_managed_skills(
     runner: Runner | None = None,
     downloader: Downloader | None = None,
     github_installer: GithubInstaller | None = None,
-    url_installer: UrlInstaller | None = None,
     updater: SkillUpdater | None = None,
 ) -> ManagedSkillSummary:
     cfg = _manifest_skill_config(relay_os)
@@ -190,7 +182,6 @@ def reconcile_managed_skills(
                     runner=runner,
                     downloader=downloader,
                     github_installer=github_installer,
-                    url_installer=url_installer,
                 )
             )
             continue
@@ -226,15 +217,12 @@ def _run_install(
     runner: Runner | None,
     downloader: Downloader | None,
     github_installer: GithubInstaller | None,
-    url_installer: UrlInstaller | None,
 ) -> SkillResult:
     try:
         if spec.source_type == "github":
             if github_installer is not None:
                 return github_installer(cfg, spec.source, spec.ref)
             return install_github_skill(cfg, spec.source, spec.ref, runner=runner)
-        if url_installer is not None:
-            return url_installer(cfg, spec.source, spec.selector)
         return install_url_skill(
             cfg,
             spec.source,
@@ -267,16 +255,6 @@ def _required_failure_message(spec: ManagedSkillSpec, exc: object) -> str:
         f"Required managed skill `{spec.ref}` failed from {spec.source}: {exc}\n"
         f"Remediation: {spec.remediation_command()}"
     )
-
-
-def _skill_target(cfg: Config, ref: str) -> Path:
-    cleaned = ref.strip()
-    path = PurePosixPath(cleaned)
-    if not cleaned or str(path) == "." or path.is_absolute():
-        raise ManagedSkillError(f"Invalid managed skill ref: {ref!r}")
-    if any(part in {"", ".", ".."} for part in path.parts):
-        raise ManagedSkillError(f"Invalid managed skill ref: {ref!r}")
-    return skills_root(cfg).joinpath(*path.parts)
 
 
 def _manifest_skill_config(relay_os: Path) -> Config:
