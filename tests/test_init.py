@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -14,6 +15,8 @@ from typer.testing import CliRunner
 from relay.cli import app
 from relay.commands import init as init_cmd
 from relay.commands import update as update_cmd
+from relay.managed_skills import ManagedSkillError, ManagedSkillSummary
+from relay.skill_manager import SkillResult
 
 
 EXPECTED_FILES = {
@@ -25,7 +28,6 @@ EXPECTED_FILES = {
     "relay-os/bootstrap/contexts/dev/code/SKILL.md",
     "relay-os/bootstrap/contexts/relay/sync/SKILL.md",
     "relay-os/bootstrap/skills/eval/ticket-diagnostic/SKILL.md",
-    "relay-os/bootstrap/skills/relay/calendar-reminder/SKILL.md",
     "relay-os/contexts/_template/SKILL.md",
     "relay-os/skills/_template/SKILL.md",
     "relay-os/workflows/_template.md",
@@ -68,17 +70,6 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         / "ticket-diagnostic"
         / "SKILL.md"
     ).write_text("---\nname: eval/ticket-diagnostic\n---\neval skill\n")
-    (templates / "bootstrap" / "skills" / "relay" / "calendar-reminder").mkdir(
-        parents=True
-    )
-    (
-        templates
-        / "bootstrap"
-        / "skills"
-        / "relay"
-        / "calendar-reminder"
-        / "SKILL.md"
-    ).write_text("---\nname: relay-calendar-reminder\n---\ncalendar skill\n")
     for ctx in ("architecture", "principles", "cli"):
         (templates / "bootstrap" / "contexts" / "relay" / ctx).mkdir(parents=True)
         (templates / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").write_text(
@@ -164,10 +155,34 @@ def fake_venv(monkeypatch: pytest.MonkeyPatch):
     return calls
 
 
+@pytest.fixture(autouse=True)
+def fake_managed_skill_sync(monkeypatch: pytest.MonkeyPatch):
+    state = SimpleNamespace(
+        install_calls=[],
+        reconcile_calls=[],
+        install_summary=ManagedSkillSummary(),
+        reconcile_summary=ManagedSkillSummary(),
+    )
+
+    def fake_install(relay_os: Path) -> ManagedSkillSummary:
+        state.install_calls.append(relay_os)
+        return state.install_summary
+
+    def fake_reconcile(relay_os: Path) -> ManagedSkillSummary:
+        state.reconcile_calls.append(relay_os)
+        return state.reconcile_summary
+
+    monkeypatch.setattr(init_cmd, "install_managed_skills", fake_install)
+    monkeypatch.setattr(init_cmd, "reconcile_managed_skills", fake_reconcile)
+    return state
+
+
 # --- fresh init ---------------------------------------------------------------
 
 
-def test_init_into_empty_dir(tmp_path: Path, fake_clone, fake_venv) -> None:
+def test_init_into_empty_dir(
+    tmp_path: Path, fake_clone, fake_venv, fake_managed_skill_sync
+) -> None:
     target = tmp_path / "company"
     target.mkdir()
 
@@ -191,22 +206,71 @@ def test_init_into_empty_dir(tmp_path: Path, fake_clone, fake_venv) -> None:
         / "SKILL.md"
     ).read_text().startswith("---\nname: eval/ticket-diagnostic\n")
     assert (
-        target
-        / "relay-os"
-        / "bootstrap"
-        / "skills"
-        / "relay"
-        / "calendar-reminder"
-        / "SKILL.md"
-    ).read_text().startswith("---\nname: relay-calendar-reminder\n")
-    assert (
         target / "relay-os" / ".agent-skills" / "eval" / "ticket-diagnostic"
     ).is_symlink()
+    assert not (target / "relay-os" / "bootstrap" / "skills" / "relay").exists()
+    assert not (target / "relay-os" / ".agent-skills" / "relay").exists()
+
+    assert "version = 1" in (target / "relay-os" / "relay.toml").read_text()
+    assert fake_managed_skill_sync.install_calls == [target / "relay-os"]
+
+
+def test_init_reports_installed_managed_skills(
+    tmp_path: Path,
+    fake_clone,
+    fake_venv,
+    fake_managed_skill_sync,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "company"
+
+    def fake_install(relay_os: Path) -> ManagedSkillSummary:
+        fake_managed_skill_sync.install_calls.append(relay_os)
+        skill = relay_os / "skills" / "relay" / "calendar-reminder"
+        skill.mkdir(parents=True)
+        (skill / "SKILL.md").write_text("---\nname: relay/calendar-reminder\n---\n")
+        return ManagedSkillSummary(
+            [
+                SkillResult(
+                    name="relay/calendar-reminder",
+                    source_type="github",
+                    status="installed",
+                    message="installed relay/calendar-reminder through gh skill",
+                    changed=True,
+                )
+            ]
+        )
+
+    fake_managed_skill_sync.install_summary = ManagedSkillSummary()
+    monkeypatch.setattr(init_cmd, "install_managed_skills", fake_install)
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    assert "Managed skills: installed=1" in result.output
     assert (
         target / "relay-os" / ".agent-skills" / "relay" / "calendar-reminder"
     ).is_symlink()
+    assert fake_managed_skill_sync.install_calls == [target / "relay-os"]
 
-    assert "version = 1" in (target / "relay-os" / "relay.toml").read_text()
+
+def test_init_fails_loud_when_required_managed_skill_fails(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "company"
+
+    def fail_required(_: Path) -> ManagedSkillSummary:
+        raise ManagedSkillError(
+            "Required managed skill `relay/core` failed from example/repo: missing gh\n"
+            "Remediation: relay skill install example/repo relay/core"
+        )
+
+    monkeypatch.setattr(init_cmd, "install_managed_skills", fail_required)
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 2
+    assert "Required managed skill `relay/core` failed from example/repo" in result.output
+    assert "Remediation: relay skill install example/repo relay/core" in result.output
 
 
 def test_init_vendors_cli_and_links_wrapper_to_venv(
@@ -354,8 +418,8 @@ def _seed_local_relay_os(root: Path) -> Path:
     # Stale nested dir from a bootstrap skill rename (create → ticket in 350c4ed).
     (relay_os / "skills" / "bootstrap" / "create").mkdir(parents=True)
     (relay_os / "skills" / "bootstrap" / "create" / "SKILL.md").write_text("OLD bootstrap/create skill\n")
-    # Stale relay-owned skill namespace from before relay/calendar-reminder moved
-    # under the vendored bootstrap umbrella.
+    # Optional Relay-owned skill content now lives in skills/ and should be
+    # preserved for the managed-skill reconciler, not pruned as obsolete.
     (relay_os / "skills" / "relay" / "calendar-reminder").mkdir(parents=True)
     (relay_os / "skills" / "relay" / "calendar-reminder" / "SKILL.md").write_text(
         "OLD relay/calendar-reminder skill\n"
@@ -428,17 +492,6 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
         / "ticket-diagnostic"
         / "SKILL.md"
     ).write_text("NEW eval/ticket-diagnostic skill\n")
-    (templates / "bootstrap" / "skills" / "relay" / "calendar-reminder").mkdir(
-        parents=True
-    )
-    (
-        templates
-        / "bootstrap"
-        / "skills"
-        / "relay"
-        / "calendar-reminder"
-        / "SKILL.md"
-    ).write_text("NEW relay/calendar-reminder skill\n")
     for ctx in ("architecture", "principles", "cli"):
         (templates / "bootstrap" / "contexts" / "relay" / ctx).mkdir(parents=True)
         (templates / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").write_text(
@@ -466,7 +519,7 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
 
 
 def test_init_update_refreshes_cli_and_underscore_templates(
-    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, fake_venv, fake_managed_skill_sync, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     relay_os = _seed_local_relay_os(tmp_path)
     package_clone = tmp_path / "package"
@@ -493,6 +546,16 @@ def test_init_update_refreshes_cli_and_underscore_templates(
         return real_run(cmd, **kwargs)
 
     monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+    fake_managed_skill_sync.reconcile_summary = ManagedSkillSummary(
+        [
+            SkillResult(
+                name="relay/calendar-reminder",
+                source_type="github",
+                status="delegated",
+                message="delegated update to gh skill",
+            )
+        ]
+    )
 
     result = CliRunner().invoke(app, ["init", "--update"])
     assert result.exit_code == 0, result.output
@@ -514,10 +577,7 @@ def test_init_update_refreshes_cli_and_underscore_templates(
         (relay_os / "bootstrap" / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md").read_text()
         == "NEW eval/ticket-diagnostic skill\n"
     )
-    assert (
-        (relay_os / "bootstrap" / "skills" / "relay" / "calendar-reminder" / "SKILL.md").read_text()
-        == "NEW relay/calendar-reminder skill\n"
-    )
+    assert not (relay_os / "bootstrap" / "skills" / "relay").exists()
     for ctx in ("architecture", "principles", "cli"):
         assert (
             (relay_os / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").read_text()
@@ -556,7 +616,7 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert "  counter" in result.output
     assert "  meta" in result.output
     assert "  skills/bootstrap/create" in result.output
-    assert "  skills/relay/calendar-reminder" in result.output
+    assert "  skills/relay/calendar-reminder" not in result.output
     assert "  skills/eval" not in result.output
     assert "  contexts/dev/code" in result.output
     assert "  contexts/relay/sync" in result.output
@@ -565,7 +625,13 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert "recurring/_template_old.md" in result.output
     # User-edited content untouched.
     assert (relay_os / "skills" / "myteam" / "real-skill" / "SKILL.md").read_text() == "user content\n"
+    assert (
+        (relay_os / "skills" / "relay" / "calendar-reminder" / "SKILL.md").read_text()
+        == "OLD relay/calendar-reminder skill\n"
+    )
     assert (relay_os / "rules.md").read_text() == "user-edited rules\n"
+    assert fake_managed_skill_sync.reconcile_calls == [relay_os]
+    assert "Managed skills: delegated=1" in result.output
 
     assert (relay_os / ".relay" / "src" / "relay" / "cli.py").read_text() == "# NEW vendored cli\n"
     assert (relay_os / ".relay" / "pyproject.toml").is_file()
@@ -639,7 +705,7 @@ def test_init_update_refreshes_vendored_recurring_template(
 
 
 def test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors(
-    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, fake_venv, fake_managed_skill_sync, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """`init --update` in Relay's own repo must leave git-tracked fixtures
     alone but still materialize the gitignored package-backed mirrors
@@ -697,7 +763,9 @@ def test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors(
     assert fake_venv == [relay_os]
     assert "Skipped tracked-fixture refresh/prune in Relay source checkout" in result.output
     assert "Refreshed gitignored mirrors" in result.output
+    assert "skipped managed skill reconciliation" in result.output
     assert "Pruned" not in result.output
+    assert fake_managed_skill_sync.reconcile_calls == []
 
     for ctx in ("architecture", "principles", "cli"):
         path = relay_os / "contexts" / "relay" / ctx
@@ -1813,6 +1881,7 @@ def test_update_all_continues_past_a_failing_repo(
             host_gitignore_changed=False,
             written_guides=[],
             retrofitted=[],
+            managed_skills=ManagedSkillSummary(),
         )
 
     monkeypatch.setattr(init_cmd, "_refresh_one", flaky_refresh)

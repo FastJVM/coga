@@ -41,6 +41,12 @@ from relay.commands.update import (
     write_pin,
 )
 from relay.config import ConfigError, find_repo_root, load_config
+from relay.managed_skills import (
+    ManagedSkillError,
+    ManagedSkillSummary,
+    install_managed_skills,
+    reconcile_managed_skills,
+)
 from relay.retrofit import backfill_role_fields
 
 
@@ -179,6 +185,7 @@ def _do_init(path: Path) -> None:
         refresh_cli(clone_dir, relay_os)
         sha = upstream_sha(clone_dir)
 
+    managed_skills = _install_managed_skills_or_exit(relay_os)
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
@@ -198,6 +205,7 @@ def _do_init(path: Path) -> None:
 
     typer.echo("")
     typer.echo(f"Initialized relay repo at {relay_os}")
+    _print_managed_skill_summary(managed_skills)
     typer.echo(f"Wrote {local_toml} (set `user` to your assignee name).")
     if sha is not None:
         typer.echo(f"Pinned to upstream {sha[:12]}.")
@@ -270,6 +278,36 @@ def _print_slack_state(local_toml: Path) -> None:
     )
 
 
+def _install_managed_skills_or_exit(relay_os: Path) -> ManagedSkillSummary:
+    try:
+        return install_managed_skills(relay_os)
+    except ManagedSkillError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        sys.exit(2)
+
+
+def _print_managed_skill_summary(summary: ManagedSkillSummary) -> None:
+    if not summary.results:
+        return
+    counts = summary.counts()
+    rendered = ", ".join(f"{key}={value}" for key, value in sorted(counts.items()))
+    typer.echo(f"Managed skills: {rendered}")
+    for result in summary.results:
+        if result.status != "failed":
+            continue
+        source = result.details.get("source")
+        remediation = result.details.get("remediation")
+        source_note = f" from {source}" if source else ""
+        typer.secho(
+            f"Warning: optional managed skill `{result.name}` failed{source_note}: "
+            f"{result.message}",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        if remediation:
+            typer.secho(f"  Remediation: {remediation}", fg=typer.colors.YELLOW, err=True)
+
+
 @dataclass
 class _UpdateResult:
     """What one repo's `--update` refresh did — enough to print a report."""
@@ -284,6 +322,7 @@ class _UpdateResult:
     host_gitignore_changed: bool
     written_guides: list[str]
     retrofitted: list[str]
+    managed_skills: ManagedSkillSummary
 
 
 def _refresh_one(relay_os: Path, clone_dir: Path) -> _UpdateResult:
@@ -310,8 +349,10 @@ def _refresh_one(relay_os: Path, clone_dir: Path) -> _UpdateResult:
 
     if source_checkout:
         pruned = []
+        managed_skills = ManagedSkillSummary()
     else:
         pruned = prune_obsolete(relay_os) + pruned_templates
+        managed_skills = reconcile_managed_skills(relay_os)
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
@@ -331,6 +372,7 @@ def _refresh_one(relay_os: Path, clone_dir: Path) -> _UpdateResult:
         host_gitignore_changed=host_gitignore_changed,
         written_guides=written_guides,
         retrofitted=retrofitted,
+        managed_skills=managed_skills,
     )
 
 
@@ -338,7 +380,11 @@ def _do_update() -> None:
     relay_os = find_repo_root()
     with tempfile.TemporaryDirectory(prefix="relay-init-update-") as tmp:
         clone_dir = clone_upstream(Path(tmp) / "repo")
-        result = _refresh_one(relay_os, clone_dir)
+        try:
+            result = _refresh_one(relay_os, clone_dir)
+        except ManagedSkillError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            sys.exit(2)
 
     _print_update_result(relay_os, result)
     cli_kind, cli_venv = running_cli_location(relay_os)
@@ -366,11 +412,13 @@ def _print_update_result(relay_os: Path, result: _UpdateResult) -> None:
         typer.echo(f"Refreshed {len(result.copied)} template file(s):")
         for rel in result.copied:
             typer.echo(f"  {rel}")
+    _print_managed_skill_summary(result.managed_skills)
     if result.source_checkout:
         typer.echo(
             "Skipped tracked-fixture refresh/prune in Relay source checkout "
             "(source files are managed by git). Refreshed gitignored "
-            "mirrors (bootstrap/, recurring/dream/) from package resources."
+            "mirrors (bootstrap/, recurring/dream/) from package resources; "
+            "skipped managed skill reconciliation."
         )
     if result.pruned:
         typer.echo(f"Pruned {len(result.pruned)} obsolete path(s):")
@@ -475,6 +523,14 @@ def _do_update_all(scan_root: Path) -> None:
                 notes.append(f"{len(result.copied)} file(s)")
             if result.pruned:
                 notes.append(f"{len(result.pruned)} pruned")
+            skill_counts = result.managed_skills.counts()
+            if skill_counts:
+                notes.append(
+                    "skills "
+                    + ", ".join(
+                        f"{key}={value}" for key, value in sorted(skill_counts.items())
+                    )
+                )
             suffix = f" — {', '.join(notes)}" if notes else ""
             typer.secho(f"  ✓ {label} → {pin}{suffix}", fg=typer.colors.GREEN)
             updated.append(relay_os)
