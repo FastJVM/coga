@@ -3,7 +3,14 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: skill-update-phase
 worktree: /home/n/Code/codex/relay-skill-update-phase
-pr: (not opened yet — opens in code/open-pr step)
+pr: https://github.com/FastJVM/relay/pull/327
+
+## Open PR (step: open-pr)
+
+- Pushed `skill-update-phase` to origin.
+- Opened PR #327: https://github.com/FastJVM/relay/pull/327
+- `gh pr checks 327` → "no checks reported" — this repo has no CI workflow
+  configured (same as sibling branches). Nothing to gate on.
 
 ## Peer Review (step: peer-review) — committed a9ebfe0
 
