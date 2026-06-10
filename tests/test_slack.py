@@ -26,6 +26,8 @@ def _scaffold_min(tmp_path: Path) -> None:
         cli = "claude"
         auto = "-p"
         file = "CLAUDE.md"
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
         """,
     )
     _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
@@ -156,19 +158,50 @@ def test_gifs_invalid_shape_raises_config_error(tmp_path: Path) -> None:
         load_config(tmp_path)
 
 
-def test_env_var_only_is_the_webhook_source(
+def test_toml_webhook_env_indirection_resolves(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """`[slack].webhook = "env:VAR"` resolves the env var — the canonical path."""
+    # `_scaffold_min` ships `webhook = "env:SLACK_WEBHOOK_URL"`.
     _scaffold_min(tmp_path)
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/from-env")
     cfg = load_config(tmp_path)
     assert cfg.slack_webhook == "https://hooks.slack.com/services/from-env"
 
 
-def test_toml_webhook_field_is_ignored(
+def test_bare_env_without_toml_key_is_not_configured(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A leftover [slack].webhook in relay.toml must not be read — env var only."""
+    """A bare exported SLACK_WEBHOOK_URL with no `[slack].webhook` is unconfigured."""
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/from-env")
+    cfg = load_config(tmp_path)
+    assert cfg.slack_webhook is None
+
+
+def test_toml_env_indirection_unset_var_is_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`webhook = "env:VAR"` with the var unset resolves to None, not empty string."""
+    _scaffold_min(tmp_path)
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    cfg = load_config(tmp_path)
+    assert cfg.slack_webhook is None
+
+
+def test_toml_literal_webhook_accepted(tmp_path: Path) -> None:
+    """A literal URL is accepted by the parser (docs steer to `env:`, but it works)."""
     _write(
         tmp_path / "relay.toml",
         """
@@ -179,13 +212,63 @@ def test_toml_webhook_field_is_ignored(
         auto = "-p"
         file = "CLAUDE.md"
         [slack]
-        webhook = "https://hooks.slack.com/services/from-toml"
+        webhook = "https://hooks.slack.com/services/literal"
         """,
     )
     _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
-    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     cfg = load_config(tmp_path)
-    assert cfg.slack_webhook is None
+    assert cfg.slack_webhook == "https://hooks.slack.com/services/literal"
+
+
+def test_local_webhook_overrides_shared(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If both shared and local set `[slack].webhook`, local wins."""
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+        """,
+    )
+    _write(
+        tmp_path / "relay.local.toml",
+        """
+        user = "marc"
+        [slack]
+        webhook = "https://hooks.slack.com/services/local-machine"
+        """,
+    )
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/shared-env")
+    cfg = load_config(tmp_path)
+    assert cfg.slack_webhook == "https://hooks.slack.com/services/local-machine"
+
+
+def test_webhook_non_string_raises_config_error(tmp_path: Path) -> None:
+    from relay.config import ConfigError
+
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        [slack]
+        webhook = 123
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    with pytest.raises(ConfigError, match=r"\[slack\]\.webhook"):
+        load_config(tmp_path)
 
 
 def test_enabled_default_is_true(tmp_path: Path) -> None:
@@ -278,7 +361,7 @@ def test_enabled_but_no_webhook_crashes(
         post(cfg, "should crash")
     assert exc.value.exit_code == 1
     err = capsys.readouterr().err
-    assert "$SLACK_WEBHOOK_URL" in err
+    assert "[slack].webhook" in err
 
 
 def test_post_failure_crashes(
@@ -341,6 +424,8 @@ def cfg_with_users(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         cli = "claude"
         auto = "-p"
         file = "CLAUDE.md"
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
         [slack.users]
         marc = "U01MARC"
         ada = "U02ADA"

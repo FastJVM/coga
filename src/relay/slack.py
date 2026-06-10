@@ -11,7 +11,7 @@ failures, the manual `relay slack` FYI). It has three branches:
     `relay.local.toml`) — every call writes to stderr, never crashes. The
     cost is being out of the sync loop.
   - `enabled` + no webhook — crash with a message pointing the user at
-    `$SLACK_WEBHOOK_URL` and the opt-out.
+    `[slack].webhook` and the opt-out.
   - `enabled` + webhook — POST. On any RequestException, append to the
     task's `log.md` (when `task_path` is given) and crash so the caller
     sees the failure.
@@ -98,8 +98,9 @@ def post(
 
     if not cfg.slack_webhook:
         sys.stderr.write(
-            "[slack] $SLACK_WEBHOOK_URL is not set. "
-            "Export it, or opt out with [slack].enabled = false in relay.local.toml.\n"
+            "[slack] no webhook configured. Set [slack].webhook in relay.toml "
+            '(e.g. webhook = "env:SLACK_WEBHOOK_URL", then export SLACK_WEBHOOK_URL), '
+            "or opt out with [slack].enabled = false in relay.local.toml.\n"
         )
         raise typer.Exit(1)
 

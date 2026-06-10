@@ -210,6 +210,8 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         version = 1
         default_status = "draft"
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
         auto = "-p"
@@ -993,6 +995,8 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         version = 1
         default_status = "draft"
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
         auto = "-p"
@@ -1114,6 +1118,8 @@ def test_launch_discussion_bootstrap_uses_discussion_template(
         """
         version = 1
         default_status = "draft"
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
         auto = "-p"
@@ -1158,6 +1164,8 @@ def test_launch_regular_task_does_not_use_discussion_template(
         """
         version = 1
         default_status = "draft"
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
         auto = "-p"

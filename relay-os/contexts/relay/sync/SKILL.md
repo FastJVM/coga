@@ -71,8 +71,9 @@ subsequent launches are resume attempts.
 When `[slack].enabled` is true (the default), commands crash on any
 Slack failure:
 
-- `$SLACK_WEBHOOK_URL` is unset → `typer.Exit(1)` with a message
-  pointing the user at the env var or the opt-out.
+- `[slack].webhook` resolves empty (key absent, or an `env:` reference
+  whose variable is unset) → `typer.Exit(1)` with a message pointing the
+  user at the `[slack].webhook` key or the opt-out.
 - Network or webhook-rejection error during `requests.post` →
   `typer.Exit(1)` with the error and (when `task_path` is given) a line
   appended to that task's `log.md`.
@@ -142,11 +143,19 @@ a name itself. Member IDs aren't secret, so the table lives in shared
 - `src/relay/slack.py::render_digest(cfg, records, *, date_label)` — groups
   drained records project → person → ticket and returns one message (no
   `[project]` prefix — `relay digest` hands it to `post`, which adds it).
-- `$SLACK_WEBHOOK_URL` — the only place the URL lives. The webhook is
-  a bearer token; relay never reads it from `relay.toml`.
+- `[slack].webhook` in `relay.toml` (or `relay.local.toml`) — the single
+  source for the webhook URL. It is a bearer token, so the committed value
+  is an `env:SLACK_WEBHOOK_URL` reference, resolved like `[secrets]` via
+  `config._resolve_secret_value`. A bare exported `SLACK_WEBHOOK_URL` with no
+  `webhook` key is *not* configured — the environment reaches relay only
+  through that reference. A literal URL is accepted by the parser but must
+  never be committed; use `env:` indirection.
 - `cfg.slack_enabled` (`bool`, default `True`) and `cfg.slack_webhook`
-  (`str | None`) — both come from `relay.config`. `[slack].enabled` in
-  `relay.local.toml` overrides shared.
+  (`str | None`) — both come from `relay.config`. `[slack].enabled` and
+  `[slack].webhook` each resolve with `relay.local.toml` overriding shared
+  (`_resolve_slack_enabled` / `_resolve_slack_webhook`), so a machine can
+  carry its own webhook while shared `relay.toml` holds a safe `env:`
+  reference or omits the key.
 - `cfg.slack_users` (`dict[str, str]`, relay name → Slack member ID) —
   parsed from `[slack.users]` in `relay.toml` by `_parse_slack_users`.
 - Live callers (`post`): `commands/panic.py`, `commands/slack.py`,

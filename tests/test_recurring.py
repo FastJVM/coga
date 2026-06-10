@@ -73,6 +73,8 @@ def repo(tmp_path: Path):
         """
         version = 1
         default_status = "draft"
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
         auto = "-p"
@@ -2072,6 +2074,8 @@ def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
         """
         version = 1
         default_status = "draft"
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
         auto = "-p"

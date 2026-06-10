@@ -32,14 +32,22 @@ discussion = "-c developer_instructions={prompt}"
 # Slack is the team sync point — every state change (ticket created,
 # draft → active, active → in_progress, paused/done, bump, panic, slack,
 # script-mode failure, recurring scaffolds) posts to the channel pointed at by
-# `$SLACK_WEBHOOK_URL`. Relaunching an already-in-progress ticket does not post. Each
-# user exports the env var locally (the URL itself is a bearer token;
-# never commit it).
+# `[slack].webhook`. Relaunching an already-in-progress ticket does not post.
+#
+# The webhook is the single way to configure Slack. Use `env:` indirection so
+# the URL (a bearer token) stays out of this committed file — export
+# SLACK_WEBHOOK_URL locally and relay resolves it. A bare exported
+# SLACK_WEBHOOK_URL with no `webhook` key does NOT count as configured: the
+# value reaches relay only through this reference.
+[slack]
+webhook = "env:SLACK_WEBHOOK_URL"
+# A machine-specific webhook can override this in relay.local.toml (local wins),
+# e.g. a literal URL there for a personal channel. Never commit a real URL.
 # `relay validate --check-slack` probes the webhook so dead URLs surface
 # at config time, not at first bump.
 #
-# To opt out (solo runs, dev/test, CI without notifications), uncomment
-# in relay.local.toml:
+# To opt out (solo runs, dev/test, CI without notifications), set in
+# relay.local.toml:
 #   [slack]
 #   enabled = false
 #

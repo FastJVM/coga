@@ -35,6 +35,8 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         version = 1
         default_status = "draft"
 
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
         auto = "-p"
@@ -137,6 +139,8 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
         version = 1
         default_status = "draft"
 
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
         auto = "-p"
