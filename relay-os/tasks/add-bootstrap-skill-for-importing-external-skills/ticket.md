@@ -1,6 +1,6 @@
 ---
 title: Add bootstrap skill for importing external skills
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
