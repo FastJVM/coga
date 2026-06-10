@@ -81,3 +81,47 @@ scoped the fix to the **bare sweep** path (the `--all` debug path is out of
 scope — Dream doesn't delete there), added the layered-sort-key note for
 Option B, corrected line numbers, and fixed the sync touchpoint (no packaged
 context twin; only the dream template has one).
+
+## Dev
+
+branch: dream-runs-last
+worktree: /home/n/Code/codex/relay-dream-last
+
+### Design decision (human, interactive)
+
+Asked Option A (hardcode `dream` last) vs Option B (generic `phase: cleanup`
+frontmatter). **Human chose Option A.** Simplest; makes Dream load-bearing in
+the engine, accepted tradeoff.
+
+### What changed (implement step)
+
+`src/relay/recurring.py`:
+- New module constant `_CLEANUP_TEMPLATE = "dream"` with a comment explaining
+  why the janitor must sort last and the legible-vs-load-bearing tradeoff.
+- New `DueTask.is_cleanup` property (`template == _CLEANUP_TEMPLATE`).
+- `DueScan.due` sort key changed from `(not resuming, last_fire)` to
+  `(is_cleanup, not resuming, last_fire)` — layered so cleanup sorts last,
+  composing with (not replacing) the existing resume-first / most-overdue-first
+  order. Docstrings updated. A resuming Dream orphan still sorts last by design.
+
+`tests/test_recurring.py`:
+- `test_due_orders_dream_last` — three templates bracketing `dream`
+  alphabetically (`digest`, `dream`, `relay-dev-update`) + fixture's
+  `weekly-check`; asserts `dream` is launched last.
+- `test_due_resuming_orphan_runs_before_fresh_dream` — a resumed `digest`
+  orphan leads, fresh `dream` still last (resume-first holds among non-cleanup).
+
+`relay-os/contexts/relay/recurring/SKILL.md`:
+- Documented the phased launch order in the bare-`relay recurring` bullet
+  ("Launch order is phased, not alphabetical … cleanup template sorted last").
+- No packaged twin (`src/relay/resources/templates/.../contexts/relay/` not
+  shipped — verified), and the dream *template* is untouched, so nothing to sync.
+
+### Verification
+
+- `python3.12 -m pytest tests/test_recurring.py -q` → 62 passed.
+- `python3.12 -m pytest -q` → 610 passed, 1 skipped.
+- NOTE: the default `python` is 3.9 (no `tomllib`); use `python3.12`.
+
+Scope held to ordering only — no deletion logic touched, `--all` path
+untouched.
