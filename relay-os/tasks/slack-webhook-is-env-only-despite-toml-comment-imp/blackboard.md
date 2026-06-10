@@ -3,8 +3,16 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: slack-webhook-toml
 worktree: ../relay-slack-webhook-toml
-pr: (pending — opens in code/open-pr step)
+pr: https://github.com/FastJVM/relay/pull/330
 commit: c22b09a
+
+## Open PR (step 3)
+
+- Pushed `slack-webhook-toml` to origin; opened PR #330:
+  https://github.com/FastJVM/relay/pull/330
+- No CI checks configured on the repo (`gh pr checks` → "no checks reported").
+  Verification is the local `python -m pytest` run recorded above (634 passed,
+  1 skipped) plus `relay validate --json` → `issues: []`.
 
 ## Peer review
 
