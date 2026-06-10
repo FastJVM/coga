@@ -1,11 +1,11 @@
 ---
 title: Lift Dream subagent-scan contract into reusable skills
-status: draft
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
-agent: claude
-assignee: claude
+agent: codex
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -100,4 +100,3 @@ outside the surface the audit reads — the audit won't audit the skills that
 define it. That mirrors the existing `tasks/` skills (already outside the glob),
 so it's pre-existing, not introduced here. Note it on the blackboard as a
 possible follow-up; do not widen the audit glob as part of this change.
-

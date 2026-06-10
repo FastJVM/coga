@@ -1,5 +1,56 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+
+branch: dream-scan-skills
+worktree: /tmp/relay-dream-scan-skills
+
+## Implementation notes
+
+Created prompt-only scan skill contracts for:
+
+- `bootstrap/dream/scan/knowledge-scan`
+- `bootstrap/dream/scan/contract-audit`
+
+Trimmed both Dream recurring ticket copies so Phase 2/3 delegate to those
+skills and keep only the phase framing plus `## Findings` handoff.
+
+Important packaging detail: `relay-os/bootstrap/` is generated/ignored in this
+source checkout. The committed durable skill files are under
+`src/relay/resources/templates/relay-os/bootstrap/skills/bootstrap/dream/scan/`;
+`relay init --update` materializes them into `relay-os/bootstrap/`. I also
+materialized ignored live copies in `/tmp/relay-dream-scan-skills` for local
+parity checks, but they are not staged.
+
+Verification:
+
+- `cmp` confirmed live and packaged Dream recurring tickets match.
+- `cmp` confirmed ignored live scan skills and packaged scan skills match in the
+  feature worktree.
+- `rg` confirmed the new scan skills have no `script:` and no
+  `## Known Skill Contract`.
+- `PYTHONPATH=/tmp/relay-dream-scan-skills/src python -m relay.cli validate --task lift-dream-subagent-scan-contract-into-reusable-sk --json`
+  passed with 1 ok and no issues.
+- `PYTHONPATH=/tmp/relay-dream-scan-skills/src python -m pytest` passed:
+  624 passed, 1 skipped.
+- Full `relay validate --json` is not clean in this checkout before/aside from
+  this change: it reports pre-existing draft/workflow issues and missing
+  generated bootstrap skills in the fresh worktree. The targeted task validation
+  above is clean.
+
+Follow-up still out of scope: Phase 3's contract-audit corpus globs
+`relay-os/contexts/**` and `relay-os/skills/**`, not
+`relay-os/bootstrap/skills/**`, so it still will not audit the bundled Dream
+skills that define it. This ticket intentionally did not widen that audit
+surface.
+
+Workflow-state note: the ticket was still `draft` when implementation started,
+so the first `relay bump` refused. I activated it with `relay mark active`;
+that updated the ticket but git sync hit the sandboxed `.git/index.lock` write
+restriction. I also corrected `agent:` / `assignee:` from `claude` to `codex`
+because Codex implemented this step; otherwise `other-agent` would resolve the
+peer-review step back to Codex instead of Claude.
+
 ## Ticket refinement (2026-06-09, pre-launch)
 
 Human flagged the ticket looked obsolete. Verified it is NOT — the two skill
