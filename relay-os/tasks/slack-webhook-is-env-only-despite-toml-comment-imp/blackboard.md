@@ -1,1 +1,42 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Bootstrap notes
+
+- Attached `workflow: code/with-review` to the draft ticket per human direction.
+- Applied evaluator recommendations: narrowed the ticket to the TOML-backed webhook contract, attached `relay/sync`, `relay/codebase`, and `dev/code`, refreshed stale code/example pointers, and made the durable context/template touchpoints explicit.
+
+## Evaluator review
+
+**Review**
+
+The ticket is understandable, but not quite launch-ready. The concrete bug is clear: [ticket.md](/home/n/Code/relay/relay-os/tasks/slack-webhook-is-env-only-despite-toml-comment-imp/ticket.md:19) says the loader reads only `SLACK_WEBHOOK_URL`, while the fixture config implies `[slack].webhook`. However, [ticket.md](/home/n/Code/relay/relay-os/tasks/slack-webhook-is-env-only-despite-toml-comment-imp/ticket.md:28) asks the agent to “pick one,” which leaves a product/config decision to the implementer.
+
+### Findings
+
+- **Objective / Done — GAP:** Acceptance allows two materially different designs. Two agents could both pass “make it consistent” while choosing opposite config contracts.
+  **Recommendation:** Decide before launch: either “keep webhook env-only; remove stale TOML example and update docs/tests” or “support `[slack].webhook = "env:SLACK_WEBHOOK_URL"` as the canonical path.”
+
+- **Knowledge — GAP:** `contexts: []` is missing the focused context. `relay/sync` already states the current contract: `$SLACK_WEBHOOK_URL` is the only webhook location and Relay never reads it from `relay.toml`.
+  **Recommendation:** Attach `relay/sync`, `relay/codebase`, and `dev/code`. Add `relay/project-stage` only if choosing a breaking config change and you want the no-backcompat posture in prompt.
+
+- **Context Placement — GAP:** If option (a) changes the webhook contract, the durable explanation belongs in `relay/sync`, not only the ticket or PR. If option (b) wins, `relay/sync` already has the right durable fact and the ticket should say the fixture drift is the target.
+  **Recommendation:** Add a line: “If the webhook contract changes, update `relay-os/contexts/relay/sync/SKILL.md` and the packaged template copy; otherwise keep `relay/sync` unchanged and fix only stale examples.”
+
+- **Facts — GAP:** The referenced example path is imprecise. The stale comment is in `example/relay-os/relay.toml:28-30`; the packaged template at `src/relay/resources/templates/relay-os/relay.toml` already documents env-only Slack setup.
+  **Recommendation:** Replace `example/.../relay.toml:29-30` with exact paths and note whether the packaged template is intentionally already correct.
+
+- **Scope — GAP:** Option (b) is a fixture/docs cleanup. Option (a) touches config parsing, secret resolution semantics, docs/templates, tests that currently assert TOML webhook is ignored, and probably init/validate wording.
+  **Recommendation:** Narrow scope before launch, or switch to `code/design-then-implement` if the agent is meant to choose the config design.
+
+### Workflow Fit
+
+`code/with-review` fits once the product decision is made: this is a code/config/docs/test change with peer-review value. As written, `code/design-then-implement` would fit better because the first real task is deciding the contract, not implementing it.
+
+### Assumptions To Question Before Launch
+
+- Is `[slack].webhook` actually meant to become supported, or is env-only the intended security boundary?
+- If TOML support is added, is a literal URL allowed, or only `env:` indirection?
+- If both env var and TOML are present, which wins?
+- Should webhook config live in shared `relay.toml`, machine-local `relay.local.toml`, or both?
+- Should this launch wait for or coordinate with the active notification rename ticket, since that ticket changes the Slack config surface?
+- Is the user-facing trap real in shipped templates, or only in the `example/` fixture?
