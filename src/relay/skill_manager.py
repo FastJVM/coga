@@ -163,6 +163,8 @@ def install_url_skill(
             "--dir",
             str(skills_root(cfg)),
         ]
+        if force:
+            args.append("--force")
         target = _skill_target(cfg, skill_ref)
         metadata = read_source_metadata(target) if target.is_dir() else None
         installed_digest = (

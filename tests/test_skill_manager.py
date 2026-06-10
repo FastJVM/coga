@@ -80,6 +80,15 @@ def _gh_install_runner(commands: list[list[str]]):
             skill = Skill.load(source / "SKILL.md")
             target = dest.joinpath(*skill.name.split("/"))
             if target.exists():
+                if "--force" not in command:
+                    return _completed(
+                        command,
+                        returncode=1,
+                        stderr=(
+                            f"skills already installed: {skill.name} "
+                            "(use --force to overwrite)"
+                        ),
+                    )
                 shutil.rmtree(target)
             shutil.copytree(source, target)
             return _completed(command, stdout="installed")
@@ -246,6 +255,7 @@ def test_install_url_force_overwrites_dirty_skill_and_resets_notes(
     refreshed = read_source_metadata(skill_dir)
     assert result.status == "installed"
     assert "forced" in (skill_dir / "SKILL.md").read_text()
+    assert "--force" in commands[-1]
     assert refreshed is not None
     assert refreshed["installed_tree_digest"] == hash_skill_tree(skill_dir)
     assert refreshed["local_adaptation_notes"] == ""
