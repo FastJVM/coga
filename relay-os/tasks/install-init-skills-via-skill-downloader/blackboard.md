@@ -1,3 +1,55 @@
+## Dev
+branch: codex/init-managed-skills
+worktree: /tmp/relay-init-managed-skills
+pr: 
+
+## Peer review (2026-06-10)
+
+Reviewed branch diff vs `main` with `/code-review` (default effort). Ran 2
+correctness angles (line-by-line + cross-file) plus a removed-behavior auditor
+and a cleanup/altitude angle, then verified candidates.
+
+**Correctness: clean.** No bugs. All `managed_skills.py` calls into
+`skill_manager` match real signatures; every `_UpdateResult` construction site
+includes the new `managed_skills` field; required/optional failure propagation
+is sound; fresh `relay init` still works offline (optional skills `required=false`
+soft-fail). Removed-behavior findings (gmail/gcal pip deps + deleted skill tests
+gone) are by-design tradeoffs of moving those skills to optional manifest installs.
+
+**Two cleanups applied** (commit `5f677a8`), both matching anti-patterns the repo
+contexts call out:
+- Reuse `skill_manager._skill_target`/`_safe_skill_ref` instead of a byte-for-byte
+  duplicate of the path-traversal validator in `managed_skills.py`. (Side effect:
+  invalid-ref now raises `SkillManagerError` not `ManagedSkillError`; uncovered
+  internal manifest-integrity path, acceptable.)
+- Dropped the unused `url_installer` injectable seam (no test/caller passed it;
+  `github_installer`/`updater` are used by tests, `url_installer` was dead —
+  `relay/project-stage` forbids abstraction-for-future-use). `install_url_skill`
+  already accepts `runner`/`downloader` for testing.
+
+Verification after cleanup (venv py3.12, `PYTHONPATH=src`):
+- `pytest tests/test_managed_skills.py tests/test_init.py tests/test_packaging.py` — 77 passed.
+- `python -m pytest` — 627 passed (packaging test now runs, not skipped).
+
+Decision (human, interactive): apply both cleanups. Carried over to commit above.
+
+## Implementation Notes
+
+Committed implementation at `5e16521` on `codex/init-managed-skills`.
+
+What changed:
+- Added `src/relay/managed_skills.py` plus `src/relay/resources/managed-skills.toml`.
+- Fresh `relay init` now runs the managed-skill installer after template scaffold and before venv dependency installation, so installed optional skill requirements can be picked up.
+- `relay init --update` reconciles manifest-listed managed skills one by one; source checkouts skip this reconciliation and only refresh gitignored bootstrap/recurring mirrors.
+- Optional domain skills were removed from packaged template payloads. Package-backed bootstrap now keeps only core/control-plane batteries; optional domain skills are manifest-installed into `relay-os/skills/`.
+- `skills/relay/calendar-reminder` is no longer pruned as obsolete, because optional Relay-owned skills now live under `relay-os/skills/`.
+- Relay architecture/codebase contexts were updated to describe the two-tier model.
+
+Verification:
+- `python -m pytest tests/test_managed_skills.py tests/test_init.py tests/test_packaging.py` — passed, 76 passed / 1 skipped.
+- `python -m pytest` — passed, 626 passed / 1 skipped.
+- `relay validate --task install-init-skills-via-skill-downloader --json` from the primary checkout — passed.
+
 ## Creation Notes
 
 Created from bootstrap/orient after the user clarified that `relay init` should
