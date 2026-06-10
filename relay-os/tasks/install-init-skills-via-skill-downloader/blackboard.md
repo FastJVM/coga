@@ -1,7 +1,14 @@
 ## Dev
 branch: codex/init-managed-skills
 worktree: /tmp/relay-init-managed-skills
-pr: 
+pr: https://github.com/FastJVM/relay/pull/334
+
+## Open PR (2026-06-10)
+
+Opened PR: https://github.com/FastJVM/relay/pull/334
+
+CI: `gh pr checks 334` reports no checks reported on the
+`codex/init-managed-skills` branch.
 
 ## Peer review (2026-06-10)
 
