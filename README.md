@@ -109,8 +109,9 @@ relay ticket "First task"
 ```
 
 Multi-surface companies (e.g. an admin repo + a code repo) run multiple
-relay-os/ side by side — coordinate them by pointing each repo's
-`$SLACK_WEBHOOK_URL` at the same channel.
+relay-os/ side by side — coordinate them by giving each repo a
+`[slack].webhook = "env:SLACK_WEBHOOK_URL"` entry whose env var resolves to
+the same channel webhook.
 
 ## Layout
 
@@ -597,8 +598,8 @@ relay slack --task add-retry --message "Reassigned to pierre"
 ### Slack — the team sync point
 
 Slack is required by default. Every state change posts to the channel
-pointed at by `$SLACK_WEBHOOK_URL`: ticket created, draft → active,
-active → in_progress, `bump`, `panic`, `slack`, script-mode failure, and each
+configured by `[slack].webhook`: ticket created, draft → active, active →
+in_progress, `bump`, `panic`, `slack`, script-mode failure, and each
 recurring scaffold. Relaunching an already-`in_progress` ticket does *not*
 post — that isn't a new state change. Failures are loud: if Slack is
 unreachable or the webhook isn't set, the command exits non-zero
@@ -607,17 +608,29 @@ stale mental model on the human side, and that's worse than a noisy
 retry.
 
 **Setup (solo or team).** Create a Slack incoming webhook for the
-channel and export the URL in your shell rc:
+channel, keep the shared config pointed at an env var, and export the URL
+locally. Fresh `relay.toml` files include this entry; older or minimal repos
+should add it:
+
+```toml
+[slack]
+webhook = "env:SLACK_WEBHOOK_URL"
+```
+
+Then set the env var in your shell rc:
 
 ```sh
 export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
 ```
 
-The URL is a bearer token — anyone holding it can post to that channel
-as the app. Don't commit it; don't paste it in tickets or logs. Rotate
-via the Slack app's webhook page if it ever leaks. For multi-user
-setups, each member exports the same URL locally; the `relay.toml` does
-not carry the webhook.
+Relay reads the webhook from `[slack].webhook`, not directly from the bare
+process environment. `SLACK_WEBHOOK_URL` only counts when referenced with
+`env:` as above. The URL is a bearer token — anyone holding it can post to
+that channel as the app. Don't commit a literal URL; don't paste it in tickets
+or logs. Rotate via the Slack app's webhook page if it ever leaks. For
+multi-user setups, commit the safe `env:` reference and have each member export
+the same URL locally; `relay.local.toml` may override `[slack].webhook` for a
+machine-specific channel.
 
 Run `relay validate --check-slack` to probe the webhook (POSTs an
 empty-text payload that Slack rejects without posting to the channel)
