@@ -86,6 +86,7 @@ context twin; only the dream template has one).
 
 branch: dream-runs-last
 worktree: /home/n/Code/codex/relay-dream-last
+pr: https://github.com/FastJVM/relay/pull/326
 
 ### Design decision (human, interactive)
 
@@ -125,3 +126,20 @@ the engine, accepted tradeoff.
 
 Scope held to ordering only — no deletion logic touched, `--all` path
 untouched.
+
+## Peer review
+
+Ran native Codex review from `/home/n/Code/codex/relay-dream-last`:
+
+- `codex review --base main`
+
+The first sandboxed attempt failed with the known read-only filesystem app-server
+initialization error, then the escalated run completed successfully. Review
+verdict: no must-fix findings. It checked the branch diff, confirmed the
+ordering change layers Dream-last onto the existing `DueScan.due` sort, verified
+the context/template sync scope, and ran:
+
+- `python -m pytest tests/test_recurring.py -q` -> 62 passed
+- `python -m pytest -q` -> 610 passed, 1 skipped
+
+No peer-review patch or commit was needed.
