@@ -70,3 +70,4 @@ section, so any stray non-JSON line is left untouched.
 {"ts":"2026-06-10T15:24","project":"relay","kind":"bump","detail":"codex advanced → step 4 (review) → assigned to nick","ticket":"lift-dream-subagent-scan-contract-into-reusable-sk","owner":"nick"}
 {"ts":"2026-06-10T15:25","project":"relay","kind":"bump","detail":"codex advanced → step 4 (review) → assigned to nick","ticket":"install-init-skills-via-skill-downloader","owner":"nick"}
 {"ts":"2026-06-10T15:32","project":"relay","kind":"done","detail":"nick finished → done ✅","ticket":"lift-dream-subagent-scan-contract-into-reusable-sk","owner":"nick"}
+{"ts":"2026-06-10T15:35","project":"relay","kind":"done","detail":"nick finished → done ✅","ticket":"install-init-skills-via-skill-downloader","owner":"nick"}

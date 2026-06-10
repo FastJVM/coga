@@ -16,3 +16,5 @@ relay-os/recurring/digest/blackboard.md: needs merge
 2026-06-10 15:23 [human:nick] launched in interactive mode (assignee=codex, agent=codex)
 2026-06-10 15:25 [agent:codex] advanced to step 4 (review) → assigned to nick
 2026-06-10 15:25 [git] sync failed: `git add -- relay-os/tasks/install-init-skills-via-skill-downloader` failed (exit 128): fatal: Unable to create '/home/n/Code/relay/.git/index.lock': Read-only file system
+2026-06-10 15:35 [human:nick] task done
+2026-06-10 15:35 [git] sync failed: `git add -- relay-os/tasks/install-init-skills-via-skill-downloader` failed (exit 128): fatal: Unable to create '/home/n/Code/relay/.git/index.lock': Read-only file system
