@@ -1,5 +1,5 @@
 ---
-name: browser/fully-automated
+name: autonomy/fully-automated
 description: Triage assigned this because a machine can do the task reliably and the failure radius is small or nonexistent. The agent runs it unattended end to end and reports the result to the team.
 steps:
   - name: prerequisites-and-handoff
