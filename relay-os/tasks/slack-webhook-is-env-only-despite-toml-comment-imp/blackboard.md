@@ -4,7 +4,21 @@ The blackboard is a notepad to be written to often as the human and agent works 
 branch: slack-webhook-toml
 worktree: ../relay-slack-webhook-toml
 pr: (pending — opens in code/open-pr step)
-commit: a7f017d
+commit: c22b09a
+
+## Peer review
+
+- `codex review --base main` ran from `../relay-slack-webhook-toml` after the
+  sandboxed attempt hit `failed to initialize in-process app-server client:
+  Read-only file system`.
+- Must-fix finding: README still documented the old env-only Slack webhook
+  setup, so users of older/minimal configs could export `SLACK_WEBHOOK_URL`
+  without adding `[slack].webhook` and remain unconfigured.
+- Fixed in commit `c22b09a`: README now documents
+  `webhook = "env:SLACK_WEBHOOK_URL"` as the setup path, says the bare env var
+  is not enough, and includes the older/minimal repo migration note.
+- Verification after peer-review fix: `python -m pytest -q` from the feature
+  worktree -> `634 passed, 1 skipped`.
 
 ## Implement done (step 1)
 
