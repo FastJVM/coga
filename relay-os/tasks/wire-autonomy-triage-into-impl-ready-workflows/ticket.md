@@ -1,6 +1,6 @@
 ---
 title: Wire autonomy triage into impl-ready workflows
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
