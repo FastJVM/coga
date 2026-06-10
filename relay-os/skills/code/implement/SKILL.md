@@ -29,7 +29,18 @@ later `code/open-pr` step does that, after self-review and fixes.
    write it on the blackboard for a follow-up ticket; don't fix it here.
 4. **Test.** Add a regression test before the fix when the ticket is a
    bug. Run `python -m pytest`. If validation behavior changed, run
-   `relay validate --json` against the example fixture.
+   `relay validate --json` against the example fixture. **Make new tests
+   conform to the existing suite, not to your own taste** — agents
+   reliably skip this because a clean-from-scratch test is easier to
+   write than one that matches a quirky neighbor:
+   - Read a sibling `tests/test_*.py` first and mirror its naming,
+     structure, and fixture style. Match the suite; don't reinvent it.
+   - Reuse the project's existing harness and helpers. Do not introduce
+     a new test framework, assertion library, or mocking dependency the
+     repo doesn't already use.
+   - Keep coverage deterministic and low-scaffolding: no real time,
+     network, or filesystem nondeterminism; no sprawling mocks where a
+     fixture or a plain call would do.
 5. **Update the example fixture** when behavior affects task layout,
    prompt composition, or workflow semantics (per CLAUDE.md).
 6. **Commit.** Conventional, present-tense summary line. Reference the
