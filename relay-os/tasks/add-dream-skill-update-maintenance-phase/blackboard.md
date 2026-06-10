@@ -5,6 +5,35 @@ branch: skill-update-phase
 worktree: /home/n/Code/codex/relay-skill-update-phase
 pr: (not opened yet — opens in code/open-pr step)
 
+## Peer Review (step: peer-review) — committed a9ebfe0
+
+Required review command:
+
+- `codex review --base main` first failed with the known sandbox init error
+  (`failed to initialize in-process app-server client: Read-only file system`).
+- Reran the same command with approval from the feature worktree. It produced
+  three P2 must-fix findings in `src/relay/skill_manager.py`.
+
+Findings applied in commit `a9ebfe0`:
+
+1. Existing `relay/skill-update` PR reruns now push the new local commit before
+   editing the existing PR title/body, so the remote PR diff cannot stay stale.
+   The dedicated branch uses `git push --force-with-lease -u origin
+   relay/skill-update`.
+2. `_commit_skill_updates` now resets `relay/skill-update` from the configured
+   git control branch (`cfg.git_control_branch`, default `main`) before
+   committing, so a caller's feature commits cannot leak into the skill-update
+   PR.
+3. The branch restore `finally` now wraps the commit step too, so `git add` /
+   `git commit` failures restore the caller's branch instead of leaving the
+   checkout on `relay/skill-update`.
+
+Verification after the peer-review fix:
+
+- `PYTHONPATH=/home/n/Code/codex/relay-skill-update-phase/src python -m pytest -q -p no:cacheprovider tests/test_skill_manager.py tests/test_dream_skill_update.py tests/test_dream_skill_scripts.py tests/test_dream_worker_templates.py` — 44 passed.
+- `PYTHONPATH=/home/n/Code/codex/relay-skill-update-phase/src python -m pytest -p no:cacheprovider` — 623 passed, 1 skipped.
+- `git diff --check` — clean.
+
 ## Implemented (step: implement) — committed 24ee488
 
 What landed on `skill-update-phase`:
@@ -47,11 +76,9 @@ What landed on `skill-update-phase`:
 - Engine scope was expanded on nick's explicit call ("make the engine in
   scope") — beyond the ticket's original "engine out of scope" note. The PR
   body should call this out.
-- Re-run idempotency of the `--pr` branch (force-push / existing-PR body edit
-  on a second run) is **not** hardened here — first-run clean-PR is the target;
-  the existing `open_or_update_pr` early-returns on an existing PR before
-  pushing, so a second run updates the body but not the commit. Left as-is
-  (pre-existing #143 behavior); flag if review wants more.
+- Re-run idempotency of the `--pr` branch was hardened by peer-review commit
+  `a9ebfe0`: the dedicated branch is reset from the control branch and pushed
+  with `--force-with-lease` before an existing PR is edited.
 
 ## Origin
 
