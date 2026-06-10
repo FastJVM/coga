@@ -1,6 +1,6 @@
 ---
 title: Add dev testing setup skill
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
