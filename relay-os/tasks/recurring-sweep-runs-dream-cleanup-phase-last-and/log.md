@@ -8,3 +8,4 @@
 2026-06-09 18:26 [git] sync failed: `git add -- relay-os/tasks/recurring-sweep-runs-dream-cleanup-phase-last-and` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
 2026-06-09 18:26 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-09 18:27 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/326
+2026-06-09 18:31 [human:nick] auto-bumped on merge of PR #326 → done

@@ -1,6 +1,6 @@
 ---
 title: Recurring sweep runs Dream cleanup phase last and consolidates ticket deletion
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -26,7 +26,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
