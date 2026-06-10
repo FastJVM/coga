@@ -24,7 +24,6 @@ EXPECTED_FILES = {
     "relay-os/scripts/cron.sh",
     "relay-os/bootstrap/contexts/dev/code/SKILL.md",
     "relay-os/bootstrap/contexts/relay/sync/SKILL.md",
-    "relay-os/bootstrap/skills/eval/ticket-diagnostic/SKILL.md",
     "relay-os/bootstrap/skills/relay/calendar-reminder/SKILL.md",
     "relay-os/contexts/_template/SKILL.md",
     "relay-os/skills/_template/SKILL.md",
@@ -177,19 +176,9 @@ def test_init_into_empty_dir(tmp_path: Path, fake_clone, fake_venv) -> None:
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
     assert os.access(target / "relay-os" / "scripts" / "cron.sh", os.X_OK)
-    assert not (target / "relay-os" / "skills" / "eval").exists()
     assert not (target / "relay-os" / "skills" / "relay").exists()
     assert not (target / "relay-os" / "contexts" / "dev").exists()
     assert not (target / "relay-os" / "contexts" / "relay").exists()
-    assert (
-        target
-        / "relay-os"
-        / "bootstrap"
-        / "skills"
-        / "eval"
-        / "ticket-diagnostic"
-        / "SKILL.md"
-    ).read_text().startswith("---\nname: eval/ticket-diagnostic\n")
     assert (
         target
         / "relay-os"
@@ -199,9 +188,6 @@ def test_init_into_empty_dir(tmp_path: Path, fake_clone, fake_venv) -> None:
         / "calendar-reminder"
         / "SKILL.md"
     ).read_text().startswith("---\nname: relay-calendar-reminder\n")
-    assert (
-        target / "relay-os" / ".agent-skills" / "eval" / "ticket-diagnostic"
-    ).is_symlink()
     assert (
         target / "relay-os" / ".agent-skills" / "relay" / "calendar-reminder"
     ).is_symlink()
@@ -785,7 +771,7 @@ def test_init_links_skills_into_agent_dirs(
         link = target / dirname / "skills" / "relay"
         assert link.is_symlink(), f"missing symlink for {dirname}"
         assert link.resolve() == skills_src
-    assert (target / "relay-os" / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
+    assert (target / "relay-os" / ".agent-skills" / "relay" / "calendar-reminder").is_symlink()
     assert "Wired skill discovery for Claude Code, Codex" in result.output
 
 
