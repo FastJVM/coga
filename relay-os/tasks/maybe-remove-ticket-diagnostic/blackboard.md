@@ -49,6 +49,7 @@
 
 branch: remove-ticket-diagnostic
 worktree: /Users/zach2179/Desktop/relay-remove-ticket-diagnostic
+pr: https://github.com/FastJVM/relay/pull/332
 
 ## Decisions
 
@@ -90,3 +91,22 @@ Live gitignored copies removed in the primary checkout (not a commit):
 --update`.
 
 No push, no PR — that's the next step.
+
+## Peer-review step — done
+
+Ran `codex review --base main` from
+`/Users/zach2179/Desktop/relay-remove-ticket-diagnostic` on 2026-06-10.
+Result: **no actionable correctness issues** relative to removal of the bundled
+`eval/ticket-diagnostic` skill.
+
+No follow-up patch or peer-review commit was needed. Verification rerun from
+the feature worktree with `.venv-test/bin/python -m pytest`: **635 passed in
+27.38s**.
+
+## Open-pr step — done
+
+Pushed `remove-ticket-diagnostic` to origin and opened
+https://github.com/FastJVM/relay/pull/332 (2026-06-10). No CI checks are
+configured on this repo (`gh pr checks` reports "no checks reported"), so
+there is no green/red CI state to wait on — nothing failing, nothing pending.
+Handed off to human review via `relay bump`.
