@@ -97,20 +97,46 @@ answer.
 2. **Context** — what's the agent who picks this up later going to wish they
    knew? Codebase pointers, gotchas, related tickets, out-of-scope notes.
    This becomes the `## Context` body.
-3. **Workflow** — which workflow fits? `ls relay-os/workflows/` for the
-   options (e.g. `code/with-review` for a code change shipped via PR). Every
-   ticket needs one — a workflow-less ticket can't be activated — so pick
-   the lightest workflow that matches the shape of the work. If genuinely
-   nothing fits (e.g. pure concept-capture with no sequence of steps), do
-   not leave the field off: tell the human so, since the repo may need a
-   new workflow or the idea may not be ready to be a ticket yet.
-4. **Contexts to attach** — which exact context bodies must be included in the
+3. **Autonomy triage** — before settling the workflow, run the three-question
+   test from `relay-os/contexts/autonomy/triage/SKILL.md` against the task as
+   described so far. Land on exactly one tier and capture a one-line answer per
+   question (you surface all three in the step-7 summary):
+   - **fully-automated** — all three questions pass and the failure radius is
+     low; the task can run unattended.
+   - **assist-only** — Q2 fails: feasible, but conventional output isn't good
+     enough, so a human owns the result.
+   - **human-verify** — verifiable or bounded, but medium/high failure radius;
+     an agent prepares to the brink and a human commits.
+   - **human-only** — Q1 fails outright, or the task is unverifiable with high
+     failure radius; the human performs it, the agent supports read-only.
+   The tier is **advisory input to the workflow choice below** — it is never
+   stored in a ticket field or body section (it's read off the chosen
+   workflow/assignees). Advisory tier→workflow mapping:
+   - `human-only` → `autonomy/human-only`
+   - `assist-only` → `autonomy/assist-only`
+   - `human-verify` → any workflow with an owner gate before the irreversible
+     step (`autonomy/human-verify`, or a `code/*` workflow with an owner
+     review step already qualifies)
+   - `fully-automated` → an all-agent workflow (`autonomy/fully-automated`, or
+     an all-agent `code/*`); you may *suggest* an unattended `mode` (`script`,
+     or `auto` = `script` + `claude -p`), but do not set `mode` semantics or
+     encode a tier↔mode mapping here — that's a separate ticket.
+4. **Workflow** — which workflow fits? `ls relay-os/workflows/` for the
+   options (e.g. `code/with-review` for a code change shipped via PR). Let the
+   triage tier above advise this choice, but never override a workflow the
+   human explicitly picks. Every ticket needs one — a workflow-less ticket
+   can't be activated — so pick the lightest workflow that matches the shape
+   of the work. If genuinely nothing fits (e.g. pure concept-capture with no
+   sequence of steps), do not leave the field off: tell the human so, since
+   the repo may need a new workflow or the idea may not be ready to be a
+   ticket yet.
+5. **Contexts to attach** — which exact context bodies must be included in the
    future prompt? Keep the list narrow. If only a specific fact is needed, put
    it in `## Context` instead of attaching the whole context.
-5. **Assignee** — default to whatever the shim seeded (usually the human's
+6. **Assignee** — default to whatever the shim seeded (usually the human's
    primary agent). Confirm if the work clearly fits a different agent or
    needs to go to a human.
-6. **Extension fields** — if `relay.toml` declares any `[ticket.fields.<name>]`
+7. **Extension fields** — if `relay.toml` declares any `[ticket.fields.<name>]`
    entries, the scaffold seeded each one with its default (or `""`) below
    the `# --- extensions ---` marker. For every declared field that is empty
    on the draft, ask the human for a value — particularly anything marked
@@ -202,8 +228,9 @@ it directly.
 
 Before exiting, print a compact summary the human can sanity-check at a
 glance. The point is to surface the choices that are easy to get wrong and
-hard to spot once the ticket has launched — workflow shape and the skills
-each step will run.
+hard to spot once the ticket has launched — workflow shape, the skills each
+step will run, and the autonomy tier you landed on (so the human validates the
+classification before launch).
 
 Read `relay-os/workflows/<name>.md` for the workflow you picked and pull
 its step list (each step's `name:` and `skills:`). Then print:
@@ -219,6 +246,11 @@ Workflow: <name>
 Contexts: <ref>, <ref>          # or "none"
 Skills (ticket-level): <ref>    # omit line if empty
 Assignee: <agent-or-human>
+
+Autonomy tier: <tier>  (advisory — expressed via the workflow/assignees above)
+  Q1 documented:           <one line>
+  Q2 conventional enough:  <one line>
+  Q3 verifiable/bounded:   <one line>
 
 Summary
   <2–3 sentences in your own words: what this ticket is, what done looks
