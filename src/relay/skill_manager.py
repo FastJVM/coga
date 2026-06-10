@@ -351,8 +351,14 @@ def run_skill_update_pr_flow(
     run = runner or run_subprocess
     git_cwd = cfg.repo_root.parent
     original_branch = _current_git_branch(run, git_cwd)
-    committed = _commit_skill_updates(cfg, branch=branch, runner=runner, cwd=git_cwd)
     try:
+        committed = _commit_skill_updates(
+            cfg,
+            branch=branch,
+            base_branch=cfg.git_control_branch,
+            runner=runner,
+            cwd=git_cwd,
+        )
         if not committed:
             # A `changed=True` result that produced no on-disk diff — e.g. an
             # opaque `gh skill update` that found nothing upstream. Nothing to
@@ -387,8 +393,20 @@ def _current_git_branch(run: Runner, cwd: Path) -> str:
     return result.stdout.strip()
 
 
-def _checkout(run: Runner, cwd: Path, branch: str, *, create: bool = False) -> None:
-    args = ["git", "checkout", "-B", branch] if create else ["git", "checkout", branch]
+def _checkout(
+    run: Runner,
+    cwd: Path,
+    branch: str,
+    *,
+    create: bool = False,
+    start_point: str | None = None,
+) -> None:
+    if create:
+        args = ["git", "checkout", "-B", branch]
+        if start_point:
+            args.append(start_point)
+    else:
+        args = ["git", "checkout", branch]
     result = run(args, cwd)
     if result.returncode != 0:
         raise SkillManagerError((result.stderr or result.stdout).strip())
@@ -398,15 +416,17 @@ def _commit_skill_updates(
     cfg: Config,
     *,
     branch: str,
+    base_branch: str,
     runner: Runner | None,
     cwd: Path,
 ) -> bool:
     """Carry the just-applied skill changes onto a dedicated branch and commit.
 
     `update_skills` has already written the updated files into the working tree
-    under `skills_root(cfg)`. `git checkout -B` carries those uncommitted
-    changes onto a dedicated branch — so the commit never lands on the caller's
-    branch, which in a Dream run is `main` — and we stage only the skills tree
+    under `skills_root(cfg)`. `git checkout -B <branch> <base>` carries those
+    uncommitted changes onto a dedicated branch based on Relay's configured
+    control branch — so the commit never lands on the caller's branch, and the
+    PR never inherits unrelated feature commits. We stage only the skills tree
     so the PR diff is exactly the skill update and nothing the caller left
     uncommitted alongside it.
 
@@ -415,7 +435,7 @@ def _commit_skill_updates(
     the caller can skip the PR instead of failing on an empty commit.
     """
     run = runner or run_subprocess
-    _checkout(run, cwd, branch, create=True)
+    _checkout(run, cwd, branch, create=True, start_point=base_branch)
     added = run(["git", "add", "--", str(skills_root(cfg))], cwd)
     if added.returncode != 0:
         raise SkillManagerError((added.stderr or added.stdout).strip())
@@ -561,6 +581,12 @@ def open_or_update_pr(
         fh.write(body)
         body_file = fh.name
     try:
+        pushed = (runner or run_subprocess)(
+            ["git", "push", "--force-with-lease", "-u", "origin", branch],
+            cwd,
+        )
+        if pushed.returncode != 0:
+            raise SkillManagerError((pushed.stderr or pushed.stdout).strip())
         existing = (runner or run_subprocess)(
             [
                 "gh",
@@ -588,9 +614,6 @@ def open_or_update_pr(
             if edited.returncode != 0:
                 raise SkillManagerError((edited.stderr or edited.stdout).strip())
             return existing_url
-        pushed = (runner or run_subprocess)(["git", "push", "-u", "origin", branch], cwd)
-        if pushed.returncode != 0:
-            raise SkillManagerError((pushed.stderr or pushed.stdout).strip())
         created = (runner or run_subprocess)(
             ["gh", "pr", "create", "--draft", "--title", title, "--body-file", body_file],
             cwd,

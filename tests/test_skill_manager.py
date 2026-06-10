@@ -539,7 +539,7 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
             return _completed(command, stdout='{"issues":[]}\n')
         if command == ["git", "branch", "--show-current"]:
             return _completed(command, stdout="main\n")
-        if command == ["git", "checkout", "-B", "relay/skill-update"]:
+        if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
             return _completed(command)
         if command[:3] == ["git", "add", "--"]:
             return _completed(command)
@@ -551,7 +551,14 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
         if command[:4] == ["gh", "pr", "list", "--head"]:
             assert command[4] == "relay/skill-update"
             return _completed(command, stdout="")
-        if command == ["git", "push", "-u", "origin", "relay/skill-update"]:
+        if command == [
+            "git",
+            "push",
+            "--force-with-lease",
+            "-u",
+            "origin",
+            "relay/skill-update",
+        ]:
             return _completed(command, stdout="")
         if command[:4] == ["gh", "pr", "create", "--draft"]:
             body_file = Path(command[command.index("--body-file") + 1])
@@ -573,10 +580,136 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
     assert result.verification[0].returncode == 0
     # Updates are committed onto the dedicated branch and the checkout is
     # restored to where the caller left it (`main`), never committed there.
-    assert ["git", "checkout", "-B", "relay/skill-update"] in commands
+    assert ["git", "checkout", "-B", "relay/skill-update", "main"] in commands
     assert ["git", "commit", "-m", "Update Relay-managed skills"] in commands
-    assert ["git", "push", "-u", "origin", "relay/skill-update"] in commands
+    assert [
+        "git",
+        "push",
+        "--force-with-lease",
+        "-u",
+        "origin",
+        "relay/skill-update",
+    ] in commands
     assert ["git", "checkout", "main"] in commands
+
+
+def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    summary = SkillUpdateSummary(
+        results=[
+            SkillResult(
+                name="tools/example",
+                source_type="url",
+                status="updated",
+                message="updated from URL source",
+                changed=True,
+            )
+        ]
+    )
+    commands: list[list[str]] = []
+    existing_url = "https://github.com/FastJVM/relay/pull/143"
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        if command == ["relay", "validate", "--json"]:
+            return _completed(command, stdout='{"issues":[]}\n')
+        if command == ["git", "branch", "--show-current"]:
+            return _completed(command, stdout="main\n")
+        if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
+            return _completed(command)
+        if command[:3] == ["git", "add", "--"]:
+            return _completed(command)
+        if command[:4] == ["git", "diff", "--cached", "--quiet"]:
+            return _completed(command, returncode=1)
+        if command == ["git", "commit", "-m", "Update Relay-managed skills"]:
+            return _completed(command)
+        if command == [
+            "git",
+            "push",
+            "--force-with-lease",
+            "-u",
+            "origin",
+            "relay/skill-update",
+        ]:
+            return _completed(command)
+        if command[:4] == ["gh", "pr", "list", "--head"]:
+            return _completed(command, stdout=f"{existing_url}\n")
+        if command[:3] == ["gh", "pr", "edit"]:
+            assert command[3] == existing_url
+            return _completed(command)
+        if command == ["git", "checkout", "main"]:
+            return _completed(command)
+        raise AssertionError(f"unexpected command: {command}")
+
+    result = run_skill_update_pr_flow(
+        cfg,
+        summary,
+        title="Update Relay-managed skills",
+        verification_commands=["relay validate --json"],
+        runner=runner,
+    )
+
+    push = [
+        "git",
+        "push",
+        "--force-with-lease",
+        "-u",
+        "origin",
+        "relay/skill-update",
+    ]
+    edit = next(command for command in commands if command[:3] == ["gh", "pr", "edit"])
+    assert result.pr_url == existing_url
+    assert commands.index(push) < commands.index(edit)
+    assert not any(command[:4] == ["gh", "pr", "create", "--draft"] for command in commands)
+
+
+def test_dream_pr_summary_restores_branch_when_commit_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    summary = SkillUpdateSummary(
+        results=[
+            SkillResult(
+                name="tools/example",
+                source_type="url",
+                status="updated",
+                message="updated from URL source",
+                changed=True,
+            )
+        ]
+    )
+    commands: list[list[str]] = []
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        if command == ["git", "branch", "--show-current"]:
+            return _completed(command, stdout="feature/work\n")
+        if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
+            return _completed(command)
+        if command[:3] == ["git", "add", "--"]:
+            return _completed(command)
+        if command[:4] == ["git", "diff", "--cached", "--quiet"]:
+            return _completed(command, returncode=1)
+        if command == ["git", "commit", "-m", "Update Relay-managed skills"]:
+            return _completed(command, returncode=1, stderr="missing git identity")
+        if command == ["git", "checkout", "feature/work"]:
+            return _completed(command)
+        raise AssertionError(f"unexpected command: {command}")
+
+    with pytest.raises(SkillManagerError, match="missing git identity"):
+        run_skill_update_pr_flow(
+            cfg,
+            summary,
+            title="Update Relay-managed skills",
+            verification_commands=["relay validate --json"],
+            runner=runner,
+        )
+
+    assert ["git", "checkout", "feature/work"] in commands
 
 
 def test_dream_pr_summary_skips_pr_when_nothing_changed(
@@ -637,7 +770,7 @@ def test_dream_pr_summary_skips_pr_when_commit_is_empty(
         commands.append(command)
         if command == ["git", "branch", "--show-current"]:
             return _completed(command, stdout="main\n")
-        if command == ["git", "checkout", "-B", "relay/skill-update"]:
+        if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
             return _completed(command)
         if command[:3] == ["git", "add", "--"]:
             return _completed(command)
