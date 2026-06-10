@@ -38,3 +38,14 @@ section, so any stray non-JSON line is left untouched.
 {"ts":"2026-06-09T19:57","project":"relay","kind":"bump","detail":"claude advanced → step 2 (peer-review) → assigned to codex","ticket":"add-dream-skill-update-maintenance-phase","owner":"nick"}
 {"ts":"2026-06-09T20:50","project":"relay","kind":"bump","detail":"codex advanced: peer-review → open-pr (step 3/4) → assigned to claude","ticket":"add-dream-skill-update-maintenance-phase","owner":"nick"}
 {"ts":"2026-06-09T20:51","project":"relay","kind":"bump","detail":"claude advanced → step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/327","ticket":"add-dream-skill-update-maintenance-phase","owner":"nick"}
+{"ts":"2026-06-09T21:44","project":"relay","kind":"bump","detail":"claude advanced → step 2 (peer-review) → assigned to codex","ticket":"close-imported-skill-provenance-conflict-and-dream","owner":"nick"}
+{"ts":"2026-06-09T21:51","project":"relay","kind":"bump","detail":"codex advanced → step 3 (open-pr) → assigned to claude — Peer review fix committed: 59f3721; tests green.","ticket":"close-imported-skill-provenance-conflict-and-dream","owner":"nick"}
+{"ts":"2026-06-09T21:52","project":"relay","kind":"bump","detail":"claude advanced → step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/329","ticket":"close-imported-skill-provenance-conflict-and-dream","owner":"nick"}
+{"ts":"2026-06-10T05:53","project":"relay","kind":"active","detail":"→ active — assignee nick (auto on launch)","ticket":"slack-webhook-is-env-only-despite-toml-comment-imp","owner":"nick"}
+{"ts":"2026-06-10T06:15","project":"relay","kind":"bump","detail":"claude advanced → step 2 (peer-review) → assigned to codex","ticket":"slack-webhook-is-env-only-despite-toml-comment-imp","owner":"nick"}
+{"ts":"2026-06-10T09:05","project":"relay","kind":"bump","detail":"codex advanced → step 3 (open-pr) → assigned to claude","ticket":"slack-webhook-is-env-only-despite-toml-comment-imp","owner":"nick"}
+{"ts":"2026-06-10T09:07","project":"relay","kind":"bump","detail":"claude advanced → step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/330","ticket":"slack-webhook-is-env-only-despite-toml-comment-imp","owner":"nick"}
+{"ts":"2026-06-10T11:19","project":"relay","kind":"done","detail":"auto-bumped on merge of PR #329 ✅","ticket":"close-imported-skill-provenance-conflict-and-dream","owner":"nick"}
+{"ts":"2026-06-10T11:19","project":"relay","kind":"done","detail":"auto-bumped on merge of PR #330 ✅","ticket":"slack-webhook-is-env-only-despite-toml-comment-imp","owner":"nick"}
+{"ts":"2026-06-10T11:25","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"add-dev-unit-test-writing-skill","owner":"nick"}
+{"ts":"2026-06-10T11:25","project":"relay","kind":"done","detail":"claude finished → done ✅","ticket":"add-dev-unit-test-writing-skill","owner":"nick"}
