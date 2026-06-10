@@ -1,6 +1,6 @@
 ---
 title: maybe-remove-ticket-diagnostic
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach
