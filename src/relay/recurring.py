@@ -92,6 +92,17 @@ class ScaffoldOutcome:
     created: bool
 
 
+# The cleanup template runs last in a bare sweep so its retro/cleanup pass acts
+# on the period tickets the *same* sweep just produced. Dream is Relay's
+# recurring janitor: its Phase-4 retro pass is the sole deleter of `done`
+# recurring period tickets, so if it launched before the templates it reaps
+# (alphabetical order put it mid-rotation), the sweep's own freshly-`done`
+# tickets weren't cleaned up until the *next* Dream run — cleanup lagged a full
+# sweep. Hardcoding the name here keeps the ordering legible at the cost of
+# making Dream load-bearing in the engine; see `DueScan.due`.
+_CLEANUP_TEMPLATE = "dream"
+
+
 @dataclass
 class DueTask:
     """One recurring template's current-period task, after get-or-create.
@@ -142,6 +153,13 @@ class DueTask:
         """
         return self.launchable and self.status == "in_progress"
 
+    @property
+    def is_cleanup(self) -> bool:
+        """True for the cleanup template (Dream), which `DueScan.due` orders
+        last so its retro pass sees this sweep's freshly-`done` period tickets.
+        """
+        return self.template == _CLEANUP_TEMPLATE
+
 
 @dataclass
 class DueScan:
@@ -152,16 +170,22 @@ class DueScan:
 
     @property
     def due(self) -> list[DueTask]:
-        """Launchable tasks: orphaned `in_progress` resumes first, then fresh
-        launches, each group most-overdue first.
+        """Launchable tasks in launch order: non-cleanup templates first, the
+        cleanup template (Dream) last; within each group, orphaned `in_progress`
+        resumes first, then fresh launches, each most-overdue first.
 
-        Resuming a dead sweep's orphan before starting any fresh run is the
-        "resume any in_progress first" rule — a stuck recurring task gets
+        The sort key is layered. `is_cleanup` leads so Dream lands at the end of
+        the sweep — its retro pass then reaps the period tickets the *same*
+        sweep just drove to `done`, instead of trailing them by a full sweep.
+        Underneath that, resuming a dead sweep's orphan before any fresh run is
+        the "resume any in_progress first" rule — a stuck recurring task gets
         picked back up before the sweep spends effort scaffolding new work.
+        (A resuming Dream orphan still sorts last: cleanup-after-the-rest wins
+        over resume-first for the janitor itself, which is what we want.)
         """
         return sorted(
             (t for t in self.tasks if t.launchable),
-            key=lambda t: (not t.resuming, t.last_fire),
+            key=lambda t: (t.is_cleanup, not t.resuming, t.last_fire),
         )
 
 
