@@ -62,3 +62,5 @@ section, so any stray non-JSON line is left untouched.
 {"ts":"2026-06-10T11:35","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"add-bootstrap-skill-for-importing-external-skills","owner":"nick"}
 {"ts":"2026-06-10T11:40","project":"relay","kind":"draft","detail":"created \"Detect missing skills\" (draft)","ticket":"detect-missing-skills","owner":"nick"}
 {"ts":"2026-06-10T14:46","project":"relay","kind":"draft","detail":"created \"Add relay skill search with candidate eval\" (draft)","ticket":"add-relay-skill-search-with-candidate-eval","owner":"nick"}
+{"ts":"2026-06-10T15:24","project":"relay","kind":"bump","detail":"claude advanced → step 3 (open-pr) → assigned to codex","ticket":"lift-dream-subagent-scan-contract-into-reusable-sk","owner":"nick"}
+{"ts":"2026-06-10T15:24","project":"relay","kind":"bump","detail":"codex advanced → step 4 (review) → assigned to nick","ticket":"lift-dream-subagent-scan-contract-into-reusable-sk","owner":"nick"}
