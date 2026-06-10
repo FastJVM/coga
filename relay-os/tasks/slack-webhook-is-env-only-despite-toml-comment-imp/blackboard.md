@@ -1,5 +1,51 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+branch: slack-webhook-toml
+worktree: ../relay-slack-webhook-toml
+pr: (pending — opens in code/open-pr step)
+commit: a7f017d
+
+## Implement done (step 1)
+
+- Committed on branch `slack-webhook-toml`. Full suite green:
+  `635 passed` (PYTHONPATH=<worktree>/src <venv>/bin/python -m pytest).
+- `relay validate --json` against `example/relay-os` → `issues: []`.
+- Verified `env:` indirection resolves at runtime, and template/example/live
+  `relay.toml` all parse as valid TOML.
+
+Notable catch beyond the ticket's listed touchpoints: this repo's OWN
+`relay-os/relay.toml` had no `[slack].webhook` key (only `[slack.gifs]` /
+`[slack.users]`). Under the new contract the relay team's own posts would have
+gone silent, so I added `webhook = "env:SLACK_WEBHOOK_URL"` there too. Code +
+this config land in the same PR, so there's no window where the loader requires
+the key but the config lacks it.
+
+Test-fixture blast radius: every test repo that posts live now declares
+`[slack].webhook`. Added it to ~17 fixtures (conftest git repo + per-file `repo`
+fixtures), inserted at fresh-TOML-block boundaries so blocks already carrying
+`[slack.*]` config were untouched. `test_validate` left alone — it appends its
+own `[slack]` table at runtime to drive the probe.
+
+## Implement plan & decisions
+
+Settled design (per ticket + evaluator): make `[slack].webhook` the single
+canonical, TOML-backed way to configure the webhook. The bare process env var
+is no longer an independent source — `SLACK_WEBHOOK_URL` only reaches relay when
+referenced via `webhook = "env:SLACK_WEBHOOK_URL"`.
+
+Changes:
+- `config.py`: `slack_webhook` now from `_resolve_slack_webhook(shared, local)`
+  (local overrides shared, `env:` resolved like secrets via a shared
+  `_resolve_secret_value` helper). Unset env / empty literal → `None`.
+- `slack.py` / `validate.py` / `init.py`: "not configured" messaging points at
+  `[slack].webhook`, not the bare env var.
+- `example/relay-os/relay.toml`: active `webhook = "env:SLACK_WEBHOOK_URL"` line
+  (no commented no-op). Template `relay.toml` + `relay/sync` context (project-local
+  and source-template copies) updated to document the TOML-backed contract.
+- Tests: replaced the two "TOML webhook ignored" tests with the new contract;
+  added `webhook` to shared fixtures.
+
 ## Bootstrap notes
 
 - Attached `workflow: code/with-review` to the draft ticket per human direction.
