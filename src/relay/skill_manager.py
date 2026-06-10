@@ -146,6 +146,7 @@ def install_url_skill(
     url: str,
     selector: str | None = None,
     *,
+    force: bool = False,
     runner: Runner | None = None,
     downloader: Downloader | None = None,
     now: Callable[[], str] | None = None,
@@ -162,8 +163,23 @@ def install_url_skill(
             "--dir",
             str(skills_root(cfg)),
         ]
-        run_gh_skill(args, runner=runner, checked=True)
+        if force:
+            args.append("--force")
         target = _skill_target(cfg, skill_ref)
+        metadata = read_source_metadata(target) if target.is_dir() else None
+        installed_digest = (
+            metadata.get("installed_tree_digest")
+            if metadata and metadata.get("source_type") == "url"
+            else None
+        )
+        dirty_existing_skill = bool(
+            installed_digest and hash_skill_tree(target) != installed_digest
+        )
+        if dirty_existing_skill and not force:
+            raise SkillManagerError(
+                f"{skill_ref} has local adaptations; rerun with --force to overwrite."
+            )
+        run_gh_skill(args, runner=runner, checked=True)
         if not target.is_dir():
             raise SkillManagerError(
                 "`gh skill install` completed, but the expected Relay skill "
@@ -467,6 +483,19 @@ def render_update_pr_body(summary: SkillUpdateSummary) -> str:
         lines.append(
             f"- `{result.name}`: {result.status} ({result.source_type}) - {result.message}"
         )
+    conflicts = [result for result in summary.results if result.status == "conflict"]
+    if conflicts:
+        lines.extend(["", "## Conflicts", ""])
+        for result in conflicts:
+            details = result.details
+            previous = details.get("previous_source_tree_digest") or details.get(
+                "source_tree_digest"
+            )
+            upstream = details.get("upstream_tree_digest")
+            lines.append(
+                f"- `{result.name}`: manual resolution required "
+                f"(recorded={previous}, upstream={upstream})"
+            )
     lines.extend(["", "## Verification", ""])
     if not summary.verification:
         lines.append("- Not run.")
@@ -807,17 +836,7 @@ def _update_url_skill_dir(
     ref = _skill_ref_from_path(skills_root(cfg), skill_dir)
     current_digest = hash_skill_tree(skill_dir)
     installed_digest = metadata.get("installed_tree_digest")
-    if installed_digest and current_digest != installed_digest:
-        return SkillResult(
-            name=ref,
-            source_type="url",
-            status="skipped-local-adaptation",
-            message="local files differ from recorded installed digest; not overwriting",
-            details={
-                "expected_digest": installed_digest,
-                "current_digest": current_digest,
-            },
-        )
+    locally_adapted = bool(installed_digest and current_digest != installed_digest)
 
     url = metadata.get("source_url")
     if not isinstance(url, str) or not url:
@@ -842,12 +861,46 @@ def _update_url_skill_dir(
             materialized = materialize_url_skill(url, data, Path(tmp), selector)
             previous_source_tree = metadata.get("source_tree_digest")
             if materialized.source_tree_digest == previous_source_tree:
+                if locally_adapted:
+                    return SkillResult(
+                        name=ref,
+                        source_type="url",
+                        status="skipped-local-adaptation",
+                        message=(
+                            "local files differ from recorded installed digest; "
+                            "upstream digest unchanged; not overwriting"
+                        ),
+                        details={
+                            "expected_digest": installed_digest,
+                            "current_digest": current_digest,
+                            "source_tree_digest": previous_source_tree,
+                        },
+                    )
                 return SkillResult(
                     name=ref,
                     source_type="url",
                     status="unchanged",
                     message="upstream digest unchanged",
                     details={"source_tree_digest": previous_source_tree},
+                )
+            if locally_adapted:
+                return SkillResult(
+                    name=ref,
+                    source_type="url",
+                    status="conflict",
+                    message=(
+                        "local files differ from recorded installed digest and "
+                        "upstream changed; manual resolution required"
+                    ),
+                    details={
+                        "installed_ref": metadata.get("installed_ref"),
+                        "source_url": url,
+                        "expected_digest": installed_digest,
+                        "current_digest": current_digest,
+                        "previous_source_tree_digest": previous_source_tree,
+                        "upstream_source_digest": materialized.source_digest,
+                        "upstream_tree_digest": materialized.source_tree_digest,
+                    },
                 )
             _replace_skill_tree(materialized.path, skill_dir)
             installed_tree_digest = hash_skill_tree(skill_dir)
@@ -859,6 +912,7 @@ def _update_url_skill_dir(
                 source_tree_digest=materialized.source_tree_digest,
                 installed_tree_digest=installed_tree_digest,
                 timestamp=(now or utc_now)(),
+                local_adaptation_notes=_local_adaptation_notes(metadata),
             )
             write_source_metadata(skill_dir, refreshed)
             return SkillResult(
@@ -895,7 +949,8 @@ def _status_url_skill(
 ) -> SkillResult:
     current_digest = hash_skill_tree(skill_dir)
     installed_digest = metadata.get("installed_tree_digest")
-    if installed_digest and current_digest != installed_digest:
+    locally_adapted = bool(installed_digest and current_digest != installed_digest)
+    if locally_adapted and not check:
         return SkillResult(
             name=ref,
             source_type="url",
@@ -930,6 +985,32 @@ def _status_url_skill(
         upstream_changed = (
             materialized.source_tree_digest != metadata.get("source_tree_digest")
         )
+        if locally_adapted:
+            details = {
+                "source_url": url,
+                "expected_digest": installed_digest,
+                "current_digest": current_digest,
+                "source_tree_digest": metadata.get("source_tree_digest"),
+                "upstream_tree_digest": materialized.source_tree_digest,
+            }
+            if upstream_changed:
+                return SkillResult(
+                    name=ref,
+                    source_type="url",
+                    status="conflict",
+                    message=(
+                        "installed files differ from recorded digest and "
+                        "upstream changed"
+                    ),
+                    details=details,
+                )
+            return SkillResult(
+                name=ref,
+                source_type="url",
+                status="locally-adapted",
+                message="installed files differ from recorded digest; upstream unchanged",
+                details=details,
+            )
         return SkillResult(
             name=ref,
             source_type="url",
@@ -1006,6 +1087,7 @@ def _url_metadata(
     source_tree_digest: str,
     installed_tree_digest: str,
     timestamp: str,
+    local_adaptation_notes: str = "",
 ) -> dict[str, Any]:
     return {
         "schema": SOURCE_SCHEMA,
@@ -1018,7 +1100,13 @@ def _url_metadata(
         "source_digest": source_digest,
         "source_tree_digest": source_tree_digest,
         "installed_tree_digest": installed_tree_digest,
+        "local_adaptation_notes": local_adaptation_notes,
     }
+
+
+def _local_adaptation_notes(metadata: dict[str, Any]) -> str:
+    notes = metadata.get("local_adaptation_notes", "")
+    return notes if isinstance(notes, str) else ""
 
 
 def _infer_non_relay_source_type(skill_dir: Path) -> str:
