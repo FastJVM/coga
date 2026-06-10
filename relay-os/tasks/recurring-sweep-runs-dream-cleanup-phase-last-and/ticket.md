@@ -1,6 +1,6 @@
 ---
 title: Recurring sweep runs Dream cleanup phase last and consolidates ticket deletion
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
