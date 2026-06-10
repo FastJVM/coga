@@ -8,3 +8,4 @@
 2026-06-10 09:05 [agent:codex] advanced to step 3 (open-pr) → assigned to claude
 2026-06-10 09:05 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-10 09:07 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/330
+2026-06-10 11:19 [human:nick] auto-bumped on merge of PR #330 → done
