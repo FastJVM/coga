@@ -64,3 +64,4 @@ section, so any stray non-JSON line is left untouched.
 {"ts":"2026-06-10T14:46","project":"relay","kind":"draft","detail":"created \"Add relay skill search with candidate eval\" (draft)","ticket":"add-relay-skill-search-with-candidate-eval","owner":"nick"}
 {"ts":"2026-06-10T15:24","project":"relay","kind":"bump","detail":"claude advanced → step 3 (open-pr) → assigned to codex","ticket":"lift-dream-subagent-scan-contract-into-reusable-sk","owner":"nick"}
 {"ts":"2026-06-10T15:24","project":"relay","kind":"bump","detail":"codex advanced → step 4 (review) → assigned to nick","ticket":"lift-dream-subagent-scan-contract-into-reusable-sk","owner":"nick"}
+{"ts":"2026-06-10T15:32","project":"relay","kind":"done","detail":"nick finished → done ✅","ticket":"lift-dream-subagent-scan-contract-into-reusable-sk","owner":"nick"}
