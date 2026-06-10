@@ -159,7 +159,11 @@ def load_config(repo_root: Path | None = None) -> Config:
             "[assignees.*] tables — ticket `assignee:` now names an agent "
             "type (e.g. `claude`) or a human directly. See docs/spec.md."
         )
-    slack_webhook = os.environ.get("SLACK_WEBHOOK_URL")
+    # The webhook is read from `[slack].webhook` (local overriding shared) and
+    # resolves `env:` indirection like any other secret. The bare process
+    # environment is not a second source: `SLACK_WEBHOOK_URL` only reaches relay
+    # when a `webhook = "env:SLACK_WEBHOOK_URL"` key points at it.
+    slack_webhook = _resolve_slack_webhook(shared.get("slack"), local.get("slack"))
     # `[slack].enabled = false` (in either toml) is the explicit opt-out.
     # Local overrides shared. Default is enabled — slack is the team sync point.
     slack_enabled = _resolve_slack_enabled(shared.get("slack"), local.get("slack"))
@@ -419,6 +423,33 @@ def _parse_slack_users(shared: dict | None) -> dict[str, str]:
     return out
 
 
+def _resolve_slack_webhook(shared: dict | None, local: dict | None) -> str | None:
+    """Resolve `[slack].webhook` with local overriding shared. Default: None.
+
+    The value may be a literal URL or an `env:VAR` reference resolved the same
+    way `[secrets]` are (see `_resolve_secret_value`). This is the *only* webhook
+    source — the bare process environment is not a second, independent one:
+    `SLACK_WEBHOOK_URL` reaches relay only when a `webhook = "env:SLACK_WEBHOOK_URL"`
+    key points at it. An `env:` whose var is unset (or an empty literal) resolves
+    to None — i.e. unconfigured — matching `slack_webhook`'s `str | None` contract
+    and the "enabled but no webhook" crash path in `slack.post`.
+
+    `[slack].webhook` is a machine-specific secret, so `relay.local.toml` may
+    carry it and override a safe `env:` reference (or omitted key) in shared
+    `relay.toml`. Examples and docs steer users to `env:` indirection; a literal
+    URL is accepted by the parser but must never be committed.
+    """
+    for table in (local, shared):
+        if isinstance(table, dict) and "webhook" in table:
+            value = table["webhook"]
+            if not isinstance(value, str):
+                raise ConfigError(
+                    f"[slack].webhook must be a string (got {type(value).__name__})"
+                )
+            return _resolve_secret_value(value) or None
+    return None
+
+
 def _resolve_slack_enabled(shared: dict | None, local: dict | None) -> bool:
     """Resolve [slack].enabled with local overriding shared. Default: True."""
     for table in (local, shared):
@@ -475,6 +506,19 @@ def _parse_git(shared: dict | None) -> tuple[str, str]:
     return remote, control_branch
 
 
+def _resolve_secret_value(value: str) -> str:
+    """Resolve an `env:VAR` reference to the env var's value; pass literals through.
+
+    A missing env var resolves to the empty string — secrets are validated at
+    launch time when they're actually needed, not at config load. Shared by
+    `[secrets]` and `[slack].webhook`, which both treat the bare environment as
+    reachable only through an explicit `env:` reference.
+    """
+    if value.startswith("env:"):
+        return os.environ.get(value[len("env:") :], "")
+    return value
+
+
 def _resolve_secrets(raw: dict) -> dict[str, str]:
     """Resolve `env:VAR` references to the env var's current value.
 
@@ -485,8 +529,5 @@ def _resolve_secrets(raw: dict) -> dict[str, str]:
     for key, value in raw.items():
         if not isinstance(value, str):
             raise ConfigError(f"secrets.{key} must be a string (got {type(value).__name__})")
-        if value.startswith("env:"):
-            out[key] = os.environ.get(value[len("env:") :], "")
-        else:
-            out[key] = value
+        out[key] = _resolve_secret_value(value)
     return out

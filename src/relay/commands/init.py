@@ -251,11 +251,17 @@ def _print_slack_state(local_toml: Path) -> None:
     """End-of-init line on Slack — set ✓, unset ⚠. Doesn't gate the init."""
     typer.echo("")
     if os.environ.get("SLACK_WEBHOOK_URL"):
-        typer.secho("✓ Slack: $SLACK_WEBHOOK_URL is set — relay will post.", fg=typer.colors.GREEN)
+        typer.secho(
+            "✓ Slack: $SLACK_WEBHOOK_URL is set — relay will post once "
+            '[slack].webhook = "env:SLACK_WEBHOOK_URL" is in relay.toml (the default).',
+            fg=typer.colors.GREEN,
+        )
         return
     typer.secho(
-        "⚠ Slack: $SLACK_WEBHOOK_URL is not set. Relay requires it for the team\n"
-        "  sync point — bump/slack/panic/launch will refuse to run until you export it.\n"
+        "⚠ Slack: $SLACK_WEBHOOK_URL is not set. Relay requires a webhook for the team\n"
+        "  sync point — bump/slack/panic/launch will refuse to run until you point\n"
+        '  [slack].webhook at it (relay.toml ships webhook = "env:SLACK_WEBHOOK_URL")\n'
+        "  and export the env var.\n"
         "  To opt out (solo runs, dev/test), add to "
         f"{local_toml}:\n"
         "      [slack]\n"

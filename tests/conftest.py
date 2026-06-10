@@ -205,6 +205,8 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             cli = "claude"
             auto = "-p"
             file = "CLAUDE.md"
+            [slack]
+            webhook = "env:SLACK_WEBHOOK_URL"
             """
         ).lstrip()
     )

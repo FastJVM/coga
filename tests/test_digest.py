@@ -30,6 +30,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         version = 1
         default_status = "draft"
 
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+
         [slack.users]
         nick = "Unick"
         bob = "Ubob"

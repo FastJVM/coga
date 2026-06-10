@@ -693,7 +693,7 @@ def _slack_issues(cfg: Config) -> list[Issue]:
         return [Issue(
             kind="slack-misconfigured",
             task="(slack)",
-            message="$SLACK_WEBHOOK_URL is not set (relay requires it unless [slack].enabled = false)",
+            message="no Slack webhook configured — set [slack].webhook (relay requires it unless [slack].enabled = false)",
             severity="error",
         )]
     status, detail = probe_slack(cfg.slack_webhook)
