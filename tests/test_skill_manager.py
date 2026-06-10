@@ -79,6 +79,8 @@ def _gh_install_runner(commands: list[list[str]]):
             dest = Path(command[command.index("--dir") + 1])
             skill = Skill.load(source / "SKILL.md")
             target = dest.joinpath(*skill.name.split("/"))
+            if target.exists():
+                shutil.rmtree(target)
             shutil.copytree(source, target)
             return _completed(command, stdout="installed")
         if command[:3] == ["gh", "skill", "update"]:
@@ -178,8 +180,75 @@ def test_install_url_downloads_local_installs_and_records_relay_metadata(
     assert metadata["source_type"] == "url"
     assert metadata["source_url"] == "https://example.test/skill.zip"
     assert metadata["installed_ref"] == "tools/example"
+    assert metadata["local_adaptation_notes"] == ""
     assert commands[1][:4] == ["gh", "skill", "install", commands[1][3]]
     assert "--from-local" in commands[1]
+
+
+def test_install_url_refuses_dirty_overwrite_without_force(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner(commands),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    metadata = read_source_metadata(skill_dir)
+    assert metadata is not None
+    metadata["local_adaptation_notes"] = "Local edit for this repo."
+    write_source_metadata(skill_dir, metadata)
+    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n")
+
+    with pytest.raises(SkillManagerError, match="--force"):
+        install_url_skill(
+            cfg,
+            "https://example.test/skill.zip",
+            downloader=lambda url: _skill_zip("tools/example", body="new\n"),
+            runner=_gh_install_runner(commands),
+        )
+
+    assert "local edit" in (skill_dir / "SKILL.md").read_text()
+
+
+def test_install_url_force_overwrites_dirty_skill_and_resets_notes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner(commands),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    metadata = read_source_metadata(skill_dir)
+    assert metadata is not None
+    metadata["local_adaptation_notes"] = "Local edit for this repo."
+    write_source_metadata(skill_dir, metadata)
+    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n")
+
+    result = install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        force=True,
+        downloader=lambda url: _skill_zip("tools/example", body="forced\n"),
+        runner=_gh_install_runner(commands),
+        now=lambda: "2026-05-13T12:30:00Z",
+    )
+
+    refreshed = read_source_metadata(skill_dir)
+    assert result.status == "installed"
+    assert "forced" in (skill_dir / "SKILL.md").read_text()
+    assert refreshed is not None
+    assert refreshed["installed_tree_digest"] == hash_skill_tree(skill_dir)
+    assert refreshed["local_adaptation_notes"] == ""
 
 
 def test_install_local_delegates_to_gh_skill_from_local(
@@ -206,37 +275,66 @@ def test_install_local_delegates_to_gh_skill_from_local(
     ]
 
 
-def test_url_update_skips_locally_adapted_skill_without_fetch(
+def test_url_update_skips_locally_adapted_skill_when_upstream_unchanged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(_repo(tmp_path, monkeypatch))
-    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
-    _write(skill_dir / "SKILL.md", "---\nname: tools/example\n---\nold\n")
-    digest = hash_skill_tree(skill_dir)
-    write_source_metadata(
-        skill_dir,
-        {
-            "schema": SOURCE_SCHEMA,
-            "source_type": "url",
-            "source_url": "https://example.test/skill.zip",
-            "selector": None,
-            "installed_ref": "tools/example",
-            "installed_at": "2026-05-13T12:00:00Z",
-            "updated_at": "2026-05-13T12:00:00Z",
-            "source_digest": "old-source",
-            "source_tree_digest": digest,
-            "installed_tree_digest": digest,
-        },
+    commands: list[list[str]] = []
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner(commands),
+        now=lambda: "2026-05-13T12:00:00Z",
     )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
     (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n")
+    fetched: list[str] = []
 
-    def no_fetch(url: str) -> bytes:
-        raise AssertionError("locally adapted skills should not be fetched")
+    def same_fetch(url: str) -> bytes:
+        fetched.append(url)
+        return _skill_zip("tools/example", body="old\n")
 
-    summary = update_skills(cfg, "tools/example", downloader=no_fetch)
+    summary = update_skills(cfg, "tools/example", downloader=same_fetch)
 
+    assert fetched == ["https://example.test/skill.zip"]
     assert summary.results[0].status == "skipped-local-adaptation"
     assert "local edit" in (skill_dir / "SKILL.md").read_text()
+
+
+def test_url_update_reports_conflict_when_local_and_upstream_changed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner(commands),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    original_metadata = read_source_metadata(skill_dir)
+    assert original_metadata is not None
+    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n")
+
+    summary = update_skills(
+        cfg,
+        "tools/example",
+        downloader=lambda url: _skill_zip("tools/example", body="new\n"),
+    )
+
+    result = summary.results[0]
+    assert result.status == "conflict"
+    assert result.changed is False
+    assert "local edit" in (skill_dir / "SKILL.md").read_text()
+    assert result.details["previous_source_tree_digest"] == original_metadata[
+        "source_tree_digest"
+    ]
+    assert result.details["upstream_tree_digest"] != original_metadata[
+        "source_tree_digest"
+    ]
 
 
 def test_url_update_replaces_clean_skill_and_refreshes_metadata(
@@ -277,6 +375,37 @@ def test_url_update_replaces_clean_skill_and_refreshes_metadata(
     assert metadata["installed_tree_digest"] == hash_skill_tree(skill_dir)
 
 
+def test_url_update_preserves_local_adaptation_notes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner(commands),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    metadata = read_source_metadata(skill_dir)
+    assert metadata is not None
+    metadata["local_adaptation_notes"] = "Keep the local usage guidance."
+    write_source_metadata(skill_dir, metadata)
+
+    summary = update_skills(
+        cfg,
+        "tools/example",
+        downloader=lambda url: _skill_zip("tools/example", body="new\n"),
+        now=lambda: "2026-05-13T12:30:00Z",
+    )
+
+    refreshed = read_source_metadata(skill_dir)
+    assert summary.results[0].status == "updated"
+    assert refreshed is not None
+    assert refreshed["local_adaptation_notes"] == "Keep the local usage guidance."
+
+
 def test_status_check_reports_url_update_availability(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -308,6 +437,34 @@ def test_status_check_reports_url_update_availability(
 
     assert results[0].name == "tools/example"
     assert results[0].status == "upstream-changed"
+
+
+def test_status_check_reports_conflict_when_local_and_upstream_changed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    commands: list[list[str]] = []
+    install_url_skill(
+        cfg,
+        "https://example.test/skill.zip",
+        downloader=lambda url: _skill_zip("tools/example", body="old\n"),
+        runner=_gh_install_runner(commands),
+        now=lambda: "2026-05-13T12:00:00Z",
+    )
+    skill_dir = cfg.repo_root / "skills" / "tools" / "example"
+    (skill_dir / "SKILL.md").write_text("---\nname: tools/example\n---\nlocal edit\n")
+
+    results = status_skills(
+        cfg,
+        check=True,
+        downloader=lambda url: _skill_zip("tools/example", body="new\n"),
+    )
+
+    assert results[0].name == "tools/example"
+    assert results[0].status == "conflict"
+    assert results[0].details["source_tree_digest"] != results[0].details[
+        "upstream_tree_digest"
+    ]
 
 
 def test_status_labels_non_relay_skill_provenance(
@@ -824,6 +981,45 @@ def test_update_cli_emits_json_summary(
     assert payload["counts"] == {"delegated": 1}
 
 
+def test_install_url_cli_passes_force(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+
+    def fake_install_url_skill(
+        cfg_arg,
+        url,
+        selector=None,
+        *,
+        force=False,
+    ):
+        assert cfg_arg.repo_root == cfg.repo_root
+        assert url == "https://example.test/skill.zip"
+        assert selector == "tools/example"
+        assert force is True
+        return SkillResult(
+            name="tools/example",
+            source_type="url",
+            status="installed",
+            message="installed tools/example from URL",
+        )
+
+    monkeypatch.setattr("relay.commands.skill.install_url_skill", fake_install_url_skill)
+    result = CliRunner().invoke(
+        app,
+        [
+            "skill",
+            "install-url",
+            "https://example.test/skill.zip",
+            "tools/example",
+            "--force",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "installed tools/example from URL" in result.output
+
+
 def test_pr_body_lists_skipped_local_adaptations() -> None:
     body = render_update_pr_body(
         SkillUpdateSummary(
@@ -840,3 +1036,27 @@ def test_pr_body_lists_skipped_local_adaptations() -> None:
 
     assert "`tools/example`: skipped-local-adaptation" in body
     assert "not overwriting" in body
+
+
+def test_pr_body_lists_conflicts() -> None:
+    body = render_update_pr_body(
+        SkillUpdateSummary(
+            results=[
+                SkillResult(
+                    name="tools/example",
+                    source_type="url",
+                    status="conflict",
+                    message="local and upstream changed",
+                    details={
+                        "previous_source_tree_digest": "old-tree",
+                        "upstream_tree_digest": "new-tree",
+                    },
+                )
+            ]
+        )
+    )
+
+    assert "`tools/example`: conflict" in body
+    assert "## Conflicts" in body
+    assert "`tools/example`: manual resolution required" in body
+    assert "recorded=old-tree, upstream=new-tree" in body

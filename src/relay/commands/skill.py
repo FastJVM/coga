@@ -64,11 +64,16 @@ def install_url(
         None,
         help="Path to the skill directory inside the archive when the URL has more than one.",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Overwrite a locally adapted URL skill and reset Relay provenance notes.",
+    ),
 ) -> None:
     """Download a non-GitHub URL, install locally, and preserve Relay metadata."""
     cfg = _load_config_or_exit()
     try:
-        result = install_url_skill(cfg, url, skill_or_path)
+        result = install_url_skill(cfg, url, skill_or_path, force=force)
     except SkillManagerError as exc:
         _bail(str(exc))
     typer.echo(result.message)
