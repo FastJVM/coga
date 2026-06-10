@@ -4,3 +4,4 @@
 2026-06-09 22:19 [human:nick] activated (draft → active)
 2026-06-09 22:19 [git] sync failed: `git add -- relay-os/tasks/lift-dream-subagent-scan-contract-into-reusable-sk` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
 2026-06-10 05:55 [agent:codex] started (active → in_progress) via implementation recovery
+2026-06-10 05:56 [agent:codex] advanced to step 2 (peer-review) → assigned to claude
