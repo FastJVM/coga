@@ -1,6 +1,6 @@
 ---
 title: Add dev unit-test writing skill
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
