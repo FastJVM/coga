@@ -44,7 +44,6 @@ OBSOLETE_PATHS: tuple[str, ...] = (
     "skills/bootstrap/dream/tasks/validate-drift",  # consolidated under bootstrap/skills
     "skills/bootstrap/dream/tasks/cleanup-orphan-markers",  # consolidated under bootstrap/skills
     "skills/retro/done-ticket",  # consolidated under bootstrap/skills/retro/done-ticket
-    "skills/relay/calendar-reminder",  # consolidated under bootstrap/skills/relay/calendar-reminder
     "contexts/relay/architecture",  # consolidated under bootstrap/contexts/relay/architecture
     "contexts/relay/principles",  # consolidated under bootstrap/contexts/relay/principles
     "contexts/relay/cli",  # consolidated under bootstrap/contexts/relay/cli
@@ -185,11 +184,13 @@ def refresh_templates(
 
     Four things are treated as upstream-owned (always overwritten on update):
       - `_*` template scaffolds (`_template/` etc.)
-      - `bootstrap/` — the single relay-vendored umbrella. Holds launch shims
-        plus all upstream-managed skills and contexts
-        (`bootstrap/skills/`, `bootstrap/contexts/*`).
-        Mirrored as one unit by `_copy_vendored_bootstrap`. Runtime resolvers
-        read local user roots first and this bundled root second.
+      - `bootstrap/` — the relay-vendored umbrella. Holds launch shims plus
+        package-backed core skills and contexts
+        (`bootstrap/skills/`, `bootstrap/contexts/*`). Optional domain skills
+        are installed into `skills/` through the managed-skill manifest instead
+        of being mirrored from templates. `_copy_vendored_bootstrap` mirrors
+        the package-backed bootstrap tree as one unit. Runtime resolvers read
+        local user roots first and this bundled root second.
       - `VENDORED_RECURRING_TEMPLATES` — named relay-owned recurring batteries
         (`recurring/dream/ticket.md`) that sit outside `bootstrap/` and carry
         no `_` prefix, refreshed by `_copy_vendored_recurring`. The sibling
@@ -715,10 +716,12 @@ def _drop_matching_lines(text: str, drop: set[str]) -> str:
 def _copy_vendored_bootstrap(src_root: Traversable, dst_root: Path) -> list[str]:
     """Mirror the `bootstrap/` umbrella — wipe, copy fresh.
 
-    `bootstrap/` is the single home for everything relay vendors and updates
-    wholesale: launch shims (`bootstrap/<name>/ticket.md`), the skills they
-    reference (`bootstrap/skills/`), and canonical contexts
-    (`bootstrap/contexts/*`).
+    `bootstrap/` is the single home for package-backed control-plane batteries
+    Relay vendors and updates wholesale: launch shims
+    (`bootstrap/<name>/ticket.md`), the core skills they reference
+    (`bootstrap/skills/`), and canonical contexts (`bootstrap/contexts/*`).
+    Optional domain skills are installed into `skills/` by the managed-skill
+    manifest and updater, not copied through this mirror.
     Runtime resolution reads local roots first, then this package-backed tree.
 
     Wholesale replacement means renames and removals propagate cleanly. Don't

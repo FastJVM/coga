@@ -46,12 +46,16 @@ no in-memory state.
   ticket-less re-entry points like `relay launch bootstrap/orient`
   (the `chat` alias). They are never factories — `relay launch` no
   longer scaffolds new tickets from shims; use `relay create` for that.
-- **Bundled batteries** are package-backed skills, contexts, hooks, and launch
-  shims materialized under `relay-os/bootstrap/` by `relay init` and
+- **Bundled batteries** are package-backed core skills, contexts, hooks, and
+  launch shims materialized under `relay-os/bootstrap/` by `relay init` and
   `relay init --update`. `pip install relay-os` puts them in the wheel; init
   materializes them into each repo. They are inspectable local files, but
-  edits under `bootstrap/` are overwritten on update. Copy a skill or context
-  to the matching `relay-os/skills/` or `relay-os/contexts/` ref to override it.
+  edits under `bootstrap/` are overwritten on update. Optional domain skills
+  declared in Relay's managed-skill manifest install into `relay-os/skills/`
+  through the public skill installer instead of being copied from templates;
+  install failures for optional skills warn without breaking offline init.
+  Copy a skill or context to the matching `relay-os/skills/` or
+  `relay-os/contexts/` ref to override it.
 - **Dream** is Relay's generic ticket cleanup pass. It is a recurring task
   template (`relay-os/recurring/dream/`) plus a `dream` alias — not a
   built-in command. `relay recurring` scaffolds and launches it when its

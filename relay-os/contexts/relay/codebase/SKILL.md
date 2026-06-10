@@ -42,7 +42,7 @@ relay-os/
   recurring/<name>/      ← recurring task template directories
                            (ticket.md + blackboard.md + log.md)
   bootstrap/<name>/      ← stateless launch shims
-  bootstrap/skills/      ← package-backed bundled skills (overwritten on update)
+  bootstrap/skills/      ← package-backed core skills (overwritten on update)
   bootstrap/contexts/    ← package-backed bundled contexts (overwritten on update)
   tasks/<slug>/          ← live tickets
   skills/<ns>/<name>/    ← project-local process knowledge / overrides
@@ -54,14 +54,20 @@ relay-os/
 Relay resolves skills and contexts from project-local roots first, then from
 the package-backed bootstrap roots. Claude Code and Codex are pointed at the
 generated `relay-os/.agent-skills/` view, which exposes the same effective
-local-plus-bundled skill set.
+local-plus-bundled skill set. Optional Relay-owned domain skills are declared
+in `src/relay/resources/managed-skills.toml` and installed into
+`relay-os/skills/` through the public skill installer during init/update; they
+are not copied from the template tree.
 
 ## Authoring bundled batteries
 
-Bundled (package-backed) skills and contexts are authored in the *source* tree
-under `src/relay/resources/templates/relay-os/bootstrap/{skills,contexts}/`,
+Bundled (package-backed) core skills and contexts are authored in the *source*
+tree under `src/relay/resources/templates/relay-os/bootstrap/{skills,contexts}/`,
 not in the live `relay-os/bootstrap/` of a working repo — that copy is
-gitignored and overwritten wholesale on `relay init --update`.
+gitignored and overwritten wholesale on `relay init --update`. Optional domain
+skills belong in a published skill source plus
+`src/relay/resources/managed-skills.toml`, not under the packaged template
+payload.
 
 Two sharp gotchas live here:
 
@@ -71,14 +77,15 @@ Two sharp gotchas live here:
   the source template dir, so it applies there too). A new bundled skill or
   context file therefore must be added with `git add -f`, or it silently never
   commits and ships nothing despite passing local validation and tests.
-- **Skill Python deps via `requirements.txt`.** A bundled skill declares its
+- **Skill Python deps via `requirements.txt`.** A skill declares its
   dependencies in a `requirements.txt` beside its `SKILL.md`.
   `install_skill_requirements` (the tail of `install_venv` in
   `src/relay/commands/update.py`) pip-installs every
   `relay-os/**/skills/**/requirements.txt` into `.relay/.venv` on `relay init`
-  and `relay init --update`, after the battery is materialized into
-  `relay-os/bootstrap/`. That ordering is what makes a bootstrapped skill's
-  deps land.
+  and `relay init --update`, after package-backed batteries are materialized
+  into `relay-os/bootstrap/` and after managed optional skills have had a
+  chance to install into `relay-os/skills/`. That ordering is what makes a
+  bootstrapped or managed skill's deps land.
 
 ## Wheel packaging: force-include vs the package walk
 
