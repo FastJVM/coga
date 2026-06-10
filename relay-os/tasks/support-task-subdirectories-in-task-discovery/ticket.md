@@ -1,6 +1,6 @@
 ---
 title: Support task subdirectories in task discovery
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
