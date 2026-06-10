@@ -17,5 +17,7 @@ Build a project command in Relay. "Relay project" interviews a human about a pro
 
 From the answers, it creates an ordered set of draft tickets, one per each step. 
 
+It can also seed the interview from an existing vision doc instead of starting from scratch (covers the deleted vision-to-plan ticket).
+
 ## Context
 
