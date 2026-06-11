@@ -24,3 +24,5 @@ relay-os/recurring/relay-dev-update/log.md: needs merge
 2026-06-11 15:58 [git] sync failed: `git add -- relay-os/tasks/recurring-task-check-ticket-done` failed (exit 128): fatal: Unable to create '/home/n/Code/relay/.git/index.lock': Read-only file system
 2026-06-11 15:58 [human:nick] launched in interactive mode (assignee=codex, agent=codex)
 2026-06-11 16:07 [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-06-11 16:07 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-11 16:08 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/347

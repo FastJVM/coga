@@ -4,7 +4,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: autoclose-merged
 worktree: /tmp/relay-autoclose-merged
-pr:
+pr: https://github.com/FastJVM/relay/pull/347
 
 ## Peer review notes (codex, 2026-06-11)
 
