@@ -19,3 +19,8 @@ relay-os/recurring/relay-dev-update/log.md: needs merge
 2026-06-11 13:05 [human:nick] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-11 15:45 [human:nick] activated (draft → active) (auto on launch)
 2026-06-11 15:45 [human:nick] started (active → in_progress) via relay launch
+2026-06-11 15:45 [human:nick] launched in interactive mode (assignee=nick, launch_assignee=codex, agent=codex)
+2026-06-11 15:58 [agent:nick] advanced to step 2 (peer-review) → assigned to codex
+2026-06-11 15:58 [git] sync failed: `git add -- relay-os/tasks/recurring-task-check-ticket-done` failed (exit 128): fatal: Unable to create '/home/n/Code/relay/.git/index.lock': Read-only file system
+2026-06-11 15:58 [human:nick] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-11 16:07 [agent:codex] advanced to step 3 (open-pr) → assigned to claude

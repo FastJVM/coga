@@ -1,5 +1,51 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+
+branch: autoclose-merged
+worktree: /tmp/relay-autoclose-merged
+pr:
+
+## Peer review notes (codex, 2026-06-11)
+
+- Ran `codex review --base main` from `/tmp/relay-autoclose-merged`.
+  The first sandboxed run failed with `Read-only file system (os error 30)`;
+  reran outside the sandbox with approval. Result: no must-fix findings.
+- No code changes were made in peer review; branch `autoclose-merged` remains
+  clean at commit `3538671`.
+- Verification in `/tmp/relay-autoclose-merged`:
+  - `PYTHONPATH=/tmp/relay-autoclose-merged/src python -m pytest -q` -> 672
+    passed, 1 skipped.
+  - `PYTHONPATH=/tmp/relay-autoclose-merged/src python -m relay.validate
+    --task recurring-task-check-ticket-done --json` -> clean.
+
+## Implement notes (codex, 2026-06-11)
+
+- Commit `3538671` on branch `autoclose-merged` adds the daily
+  `recurring/autoclose-merged/` script template, one-step
+  `autoclose-merged/sweep` workflow, and `relay/autoclose/sweep` script skill.
+- The script calls the existing `relay.automerge.auto_bump_merged(cfg,
+  quiet=False)` directly. No second sweep implementation and no unused wrapper
+  function were added; existing `relay automerge` and launch-freshness callers
+  remain live for the follow-up ticket.
+- Installed repos get the skill through the package-backed
+  `bootstrap/skills/relay/autoclose/sweep/` copy. The Relay source checkout has
+  the matching local `relay-os/skills/relay/autoclose/sweep/` copy so validation
+  works without depending on a generated `relay-os/bootstrap/` tree.
+- Verification in `/tmp/relay-autoclose-merged`:
+  - `PYTHONPATH=/tmp/relay-autoclose-merged/src python -m pytest -q` -> 672
+    passed, 1 skipped.
+  - `PYTHONPATH=/tmp/relay-autoclose-merged/src python -m pytest
+    tests/test_autoclose_sweep.py tests/test_automerge.py
+    tests/test_recurring.py tests/test_init.py tests/test_packaging.py -q` ->
+    162 passed, 1 skipped.
+  - `PYTHONPATH=/tmp/relay-autoclose-merged/src python -m relay.validate
+    --task recurring-task-check-ticket-done --json` -> clean.
+  - Full `relay validate --json` from the feature worktree still fails on
+    pre-existing repo task-state drift unrelated to this branch (for example
+    `relay-crm` missing `docs/gdrive-mcp` and
+    `split-context-to-doc-user-accessible-and-editable` missing `step:`).
+
 ## Bootstrap decisions (nick, interactive, 2026-06-11)
 
 - **Discovery:** `relay automerge` already implements the merged→done sweep
