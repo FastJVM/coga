@@ -45,3 +45,30 @@ Phase 2 is Relay building Relay. It uses the answers that the user gave in phase
 ## Context
 
 We found we were missing an easy opportunity for a new user to build reusable artifacts from installation — without it, relay-os starts empty and every future agent starts from zero. This fills that gap.
+
+Design points validated by a pre-implementation dry run (2026-06-11; full
+eval, scorecard, and Zach's recorded interview answers are on the
+blackboard; fixtures kept at `~/Desktop/admin-init-test` and
+`~/Desktop/admin-fresh` so the identical test can be replayed against the
+real implementation):
+
+- The interview captures intent; the scan captures the operation. Answers
+  alone preserved about a third of ground-truth facts at partial
+  fidelity; the scan recovered all of them, including scheduled work the
+  human forgot to mention. Treat the scan step as load-bearing.
+- The setup ticket should emit an **open-questions list** as a
+  first-class output alongside the artifacts. On the empty-repo path it
+  is the main deliverable — that path produces a starter relay-os, not a
+  complete one.
+- Conflict precedence: repo docs win on facts, interview answers win on
+  intent. This resolved all four answer/doc conflicts in the dry run
+  correctly.
+- Generation must stub-and-ask rather than fabricate. Both dry-run
+  agents did this unprompted (zero invented facts); make it an explicit
+  requirement, not luck.
+- Interview refinements worth adopting: probe enumerables ("a few
+  year-end processes" → "list them"); ask *where* referenced documents
+  live so the scan can ingest them; ask for anchor dates on cadences
+  cron can't express (bi-weekly payroll broke both legs' schedules).
+- The scan must degrade gracefully to answers-only: real ops repos can
+  be nearly empty outside relay-os.

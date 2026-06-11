@@ -1,1 +1,2 @@
 2026-06-08 16:50 [human:zach] created (mode=interactive, status=draft)
+2026-06-11 12:28 [agent:nick] slack: Dry-ran the two-phase init design end-to-end with a round-trip eval (admin knowledge flattened to a pre-relay fixture, fresh agents regenerated relay-os from scan+answers vs answers-only, scored against a 20-fact key). Scan+answers: 20/20 recall, zero invented facts; answers-only: 7/20 partial. Validated design points folded into the ticket; full scorecard + replayable fixtures on the blackboard.
