@@ -34,3 +34,114 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - Correct/extend the template-copy note: packaged Relay context copies live under `src/relay/resources/templates/relay-os/bootstrap/contexts/relay/...`, not a plain `templates/relay-os/contexts/...` path.
 
 **Scope:** Reasonable, not bundled. It spans config parsing, ticket schema/validation, launch command construction, docs/templates, and tests, but those are all necessary for one coherent feature.
+
+## Implement step — plan (2026-06-10)
+
+Code reading findings:
+
+- `config.py::_parse_agents` reads `[agents]` from shared `relay.toml` only;
+  there is no local-override merge today. New plumbing: pass
+  `local.get("agents", {})` into the parser and allow partial
+  `[agents.<name>]` local tables carrying ONLY `skip_permissions` /
+  `skip_permissions_argv`.
+- `launch.py` hard-disables `mode: auto` (bails at launch.py:224-236,
+  "temporarily disabled" pending streaming). The skip-permissions live path
+  is therefore dormant until the streaming ticket re-enables auto; the
+  feature is still implementable and testable at the
+  `build_agent_command`/policy-helper level.
+- `build_agent_command` is also called from `commands/ticket.py` (discussion,
+  interactive) — signature change must keep that call site working (keyword
+  default).
+- Tests: `tests/test_launch.py` has an established `test_build_command_*`
+  style to mirror; `tests/test_config.py` for parser coverage.
+
+Planned shape:
+
+- `AgentType` gains `skip_permissions: str = ""` (normalized "" | "auto";
+  TOML `false` normalizes to "") and `skip_permissions_argv: tuple[str, ...]`
+  (from `shlex.split` of a string).
+- Validation at config load: `skip_permissions` accepts only unset/false/
+  "auto" (bad value/type → ConfigError); `skip_permissions_argv` must be a
+  string (bad type → ConfigError). Local `[agents.<name>]` for an unknown
+  agent → ConfigError; keys other than the two skip keys in a local agent
+  table → ConfigError (no silent partial-override surface).
+- Proposed: REJECT `skip_permissions` / `skip_permissions_argv` in shared
+  `relay.toml` agents tables (fail loud) so dangerous argv can't be committed.
+- Fail-loud placement for "auto"-without-argv: at LAUNCH time when the policy
+  actually applies (auto-mode normal task resolving that agent), per
+  acceptance criterion — not at config load, which would break every relay
+  command on that machine.
+- `build_agent_command(..., skip_permissions_argv=())` inserts after
+  name-flag argv, before `agent.auto` argv / prompt. Launch computes
+  applicability per step: normal TaskRef (not bootstrap), effective mode
+  "auto", current step's effective agent has `skip_permissions == "auto"`.
+  First step honors `--agent` override; chained steps use the re-read
+  ticket's assignee.
+- Docs/templates: README/local-config docs, `example/relay-os/relay.local.toml`,
+  template `relay.local.toml` guidance comment, live + packaged
+  `relay/architecture` context.
+
+Human decisions (interactive, 2026-06-10):
+
+- Proceed with implementation even though `mode: auto` launches are currently
+  hard-disabled in launch.py — cover behavior with unit tests at the
+  build_agent_command/policy level; feature goes live when auto re-enables.
+- Reject `skip_permissions` / `skip_permissions_argv` in shared `relay.toml`
+  `[agents.*]` tables with a loud ConfigError — the keys are local-only.
+
+## Dev
+
+branch: skip-permissions
+worktree: /home/n/Code/relay-skip-permissions
+
+## Implement step — done (2026-06-10)
+
+Committed on branch `skip-permissions` (b686e96), worktree
+/home/n/Code/relay-skip-permissions. No push, no PR (later steps).
+
+What changed:
+
+- `src/relay/config.py` — `AgentType` gains `skip_permissions` ("" | "auto")
+  and `skip_permissions_argv` (tuple from `shlex.split`). `_parse_agents` now
+  takes the local `[agents]` table: partial local `[agents.<name>]` tables may
+  carry ONLY the two skip keys (anything else → ConfigError), unknown local
+  agent names → ConfigError, and either skip key in shared relay.toml →
+  ConfigError. `skip_permissions` accepts only unset/false/"auto";
+  `skip_permissions_argv` must be a string. "auto" with no argv is legal at
+  config load (so a half-written local table doesn't brick every relay
+  command) — launch is the fail-loud point.
+- `src/relay/commands/launch.py` — `build_agent_command` takes
+  `skip_permissions_argv`, inserted after name argv and before the
+  mode-specific argv/prompt (`claude -n <t> <skip> -p <p>`,
+  `codex <skip> exec <p>`). New `_skip_permissions_argv_for_launch(agent,
+  mode, ref)` is the policy: returns () unless effective mode == "auto" AND
+  ref is a normal TaskRef AND agent.skip_permissions == "auto"; raises
+  ConfigError when policy applies but argv is empty. Wired twice: a pre-flight
+  right after first-step agent resolution (fails before the in_progress flip
+  and Slack broadcast) and per step inside the chain loop using
+  `mode_override or ticket.mode` and that step's rotated agent.
+- Tests: `tests/test_config.py` (+11) parsing/validation/shared-rejection;
+  `tests/test_launch.py` (+10) command construction, policy no-ops
+  (interactive/bootstrap/unconfigured), per-step rotation, fail-loud, and an
+  integration test that interactive launches ignore the local policy.
+- Docs/templates: README launch section, init.py LOCAL_TOML_TEMPLATE,
+  example/relay-os/relay.local.toml, live + template relay.toml agents-header
+  note, live + packaged `relay/architecture` context (auto-mode bullet).
+
+Verification:
+
+- Full suite: 649 passed (`PYTHONPATH=$PWD/src .relay/.venv python -m pytest`).
+- `python -m relay.validate --json` on example fixture: no issues (matches main).
+- Flags verified against installed CLIs on this machine: claude exposes
+  `--dangerously-skip-permissions`, codex exposes
+  `--dangerously-bypass-approvals-and-sandbox` — examples/docs use these.
+
+Notes for self-qa:
+
+- The live applying path is dormant: launch.py still bails on mode=auto
+  ("temporarily disabled" pending streaming). Behavior is covered at the
+  helper/build_agent_command level; nothing needs to change when auto
+  re-enables.
+- `--mode interactive` on an auto ticket correctly disables the policy
+  (effective mode is what's checked); `--mode auto` is still refused by the
+  temporary auto bail.
