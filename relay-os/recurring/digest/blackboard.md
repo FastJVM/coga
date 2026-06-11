@@ -123,3 +123,20 @@ posted:
 {"ts":"2026-06-11T12:44","project":"relay-cli","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/335|PR #335> merged ✅","ticket":"support-task-subdirectories-in-task-discovery","owner":"nick"}
 {"ts":"2026-06-11T12:55","project":"relay-cli","kind":"active","detail":"→ active (assignee: claude)","ticket":"establish-marketing-area-inside-relay-os","owner":"zach"}
 {"ts":"2026-06-11T12:55","project":"relay-cli","kind":"done","detail":"claude finished: implement → done ✅","ticket":"establish-marketing-area-inside-relay-os","owner":"zach"}
+{"ts":"2026-06-11T11:55","project":"relay","kind":"done","detail":"→ done (script)","ticket":"recurring-digest-2026-06-11","owner":"nick"}
+{"ts":"2026-06-11T11:56","project":"relay","kind":"done","detail":"claude finished → done ✅","ticket":"recurring-relay-dev-update-2026-06-11","owner":"nick"}
+{"ts":"2026-06-11T12:18","project":"relay","kind":"bump","detail":"codex advanced: peer-review → open-pr (step 3/4) → assigned to claude — Peer review fix committed: c01cd4c; tests: 633 passed, 1 skipped.","ticket":"restructure-slack-message","owner":"nick"}
+{"ts":"2026-06-11T12:19","project":"relay","kind":"bump","detail":"claude advanced → step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/344","ticket":"restructure-slack-message","owner":"nick"}
+{"ts":"2026-06-11T12:21","project":"relay","kind":"paused","detail":"→ paused","ticket":"add-imported-skill-update-check","owner":"nick"}
+{"ts":"2026-06-11T12:21","project":"relay","kind":"active","detail":"→ active — assignee codex","ticket":"add-imported-skill-update-check","owner":"nick"}
+{"ts":"2026-06-11T12:57","project":"relay","kind":"bump","detail":"codex advanced: peer-review → open-pr (step 3/4) → assigned to claude","ticket":"add-imported-skill-update-check","owner":"nick"}
+{"ts":"2026-06-11T12:58","project":"relay","kind":"bump","detail":"claude advanced → step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/345","ticket":"add-imported-skill-update-check","owner":"nick"}
+{"ts":"2026-06-11T13:05","project":"relay","kind":"draft","detail":"created \"recurring task check ticket done\" (draft)","ticket":"recurring-task-check-ticket-done","owner":"nick"}
+{"ts":"2026-06-11T13:05","project":"relay","kind":"draft","detail":"created \"recurring-task-check-ticket-done*\" (draft)","ticket":"recurring-task-check-ticket-done-2","owner":"nick"}
+{"ts":"2026-06-11T14:50","project":"relay","kind":"draft","detail":"created \"Retire standalone relay automerge triggers — recurring sweep is sole trigger\" (draft)","ticket":"retire-standalone-relay-automerge-triggers-recurri","owner":"nick"}
+{"ts":"2026-06-11T15:45","project":"relay","kind":"active","detail":"→ active — assignee nick (auto on launch)","ticket":"recurring-task-check-ticket-done","owner":"nick"}
+{"ts":"2026-06-11T16:07","project":"relay","kind":"bump","detail":"codex advanced → step 3 (open-pr) → assigned to claude","ticket":"recurring-task-check-ticket-done","owner":"nick"}
+{"ts":"2026-06-11T16:08","project":"relay","kind":"bump","detail":"claude advanced → step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/347","ticket":"recurring-task-check-ticket-done","owner":"nick"}
+{"ts":"2026-06-11T16:13","project":"relay","kind":"draft","detail":"created \"Dev-loop git hygiene: lift sync-with-main into code/open-pr + add recurring merged-branch cleanup\" (draft)","ticket":"dev-loop-git-hygiene-lift-sync-with-main-into-code","owner":"nick"}
+{"ts":"2026-06-11T16:16","project":"relay","kind":"draft","detail":"created \"Audit rules.md usage across relay and decide whether to keep, gut, or remove it\" (draft)","ticket":"audit-rules-md-usage-across-relay-and-decide-wheth","owner":"nick"}
+{"ts":"2026-06-11T16:30","project":"relay","kind":"draft","detail":"created \"simplify command lines\" (draft)","ticket":"simplify-command-lines","owner":"nick"}

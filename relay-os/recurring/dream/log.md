@@ -8,3 +8,4 @@
 2026-06-08 12:18 [system] debug run dream-dbg-20260608T120715: completed → done
 2026-06-09 15:16 [system] debug run dream-dbg-20260609T151629: ended 'in_progress' without `relay mark done`
 2026-06-09 15:54 [system] debug run dream-dbg-20260609T151909: completed → done
+2026-06-11 11:16 [system] scaffolded recurring-dream-2026-W24
