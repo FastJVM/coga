@@ -416,6 +416,35 @@ def test_run_digest_posts_git_commits_even_with_empty_spool(
     assert "last_commit:" in bb.read_text()
 
 
+def test_run_digest_flushes_done_when_git_disabled(
+    git_repo, captured_posts: list[dict]
+) -> None:
+    bb = _install_digest(git_repo.relay_os)
+    _write(
+        git_repo.relay_os / "relay.local.toml",
+        'user = "nick"\n[git]\nenabled = false\n',
+    )
+    cfg = load_config(git_repo.relay_os)
+    git_repo.git("remote", "remove", "origin")
+    slack.notify(
+        cfg,
+        "done",
+        kind="done",
+        detail="nick finished → done ✅",
+        ticket="manual-done",
+        owner="nick",
+    )
+
+    assert run_digest(cfg) is True
+
+    text = captured_posts[0]["text"]
+    assert "Done:" in text
+    assert "manual-done" in text
+    assert "Also merged" not in text
+    assert spool.read_records(bb) == []
+    assert "last_commit:" not in bb.read_text()
+
+
 def test_run_digest_skips_filtered_commits_but_advances_high_water(
     git_repo, captured_posts: list[dict]
 ) -> None:

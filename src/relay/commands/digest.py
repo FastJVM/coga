@@ -133,10 +133,14 @@ def _scan_control_branch(
 ) -> tuple[list[dict], dict[str, str] | None]:
     """Fetch and scan the configured control branch for unclaimed commits.
 
-    A non-git repo behaves like "no commits" so tests and solo scratch repos can
-    still flush Done records. A real fetch/log failure is crash-loud because a
-    stale commit digest is worse than no digest.
+    A non-git repo, or one with git sync explicitly disabled, behaves like
+    "no commits" so tests and solo scratch repos can still flush Done records.
+    A real fetch/log failure is crash-loud because a stale commit digest is
+    worse than no digest.
     """
+    if not cfg.git_enabled:
+        return [], None
+
     root = _git_toplevel(cfg.repo_root)
     if root is None:
         return [], None
