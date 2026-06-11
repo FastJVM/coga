@@ -1,9 +1,10 @@
 """Status transitions — the shared core of `relay mark` and `relay automerge`.
 
-These finalizers mutate ticket frontmatter, append a `log.md` line, echo the
-local outcome, and post to Slack. The CLI commands and the auto-merge scanner
-all reuse the same helpers so the on-disk shape stays identical regardless
-of who triggered the transition.
+These finalizers mutate ticket frontmatter, append a `log.md` line, and echo
+the local outcome. Done outcomes still enter Slack through the digest path;
+routine active/paused transitions are intentionally local-only noise. The CLI
+commands and the auto-merge scanner all reuse the same helpers so the on-disk
+shape stays identical regardless of who triggered the transition.
 
 `advance_step` lives in `relay.bump` — that's the workflow plane.
 """
@@ -37,10 +38,10 @@ def mark_done(
 ) -> None:
     """Flip a ticket to `done`: write frontmatter, log, notify.
 
-    `done` is a batchable event, so it routes through `slack.notify`: spooled
-    into the daily digest when that ticket is installed, else posted live as
-    `slack_text` (image and all). `digest_detail` is the one-liner shown under
-    this ticket in the digest.
+    `done` is the routine outcome Slack still needs, so it routes through
+    `slack.notify`: spooled into the daily digest when that ticket is
+    installed, else posted live as `slack_text` (image and all).
+    `digest_detail` is the one-liner shown under this ticket in the digest.
 
     `echo` is the stdout line printed before the notify (so the local outcome
     is visible even if a live post crashes). Pass `None` to suppress — used by
@@ -153,17 +154,15 @@ def mark_active(
     *,
     actor: str,
     log_message: str,
-    slack_text: str,
-    digest_detail: str,
     echo: str | None = None,
 ) -> None:
-    """Flip a ticket to `active`: write frontmatter, log, notify.
+    """Flip a ticket to `active`: write frontmatter and log.
 
     Refuses to activate a workflow-less ticket. A bare-string `workflow:`
     ref is frozen into its snapshot here so the activated ticket is
     launch-ready. Also refuses if any `required = true` extension field is
-    empty. The approval is a batchable event — spooled into the digest when
-    installed, else posted live (see `slack.notify`).
+    empty. Activation is intentionally silent in Slack; the task log and git
+    sync remain the audit trail.
     """
     if not _has_workflow(ticket):
         raise WorkflowMissing()
@@ -173,23 +172,12 @@ def mark_active(
     if missing:
         raise RequiredExtensionMissing(missing)
 
-    owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "active"
     ticket.write(ref.path / "ticket.md")
     assert_task_valid(cfg, ref, action="mark active")
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    notify(
-        cfg,
-        slack_text,
-        kind="active",
-        detail=digest_detail,
-        ticket=ref.id_slug,
-        owner=owner,
-        watchers=ticket.watchers,
-        task_path=ref.path,
-    )
     git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — active")
 
 
@@ -223,28 +211,15 @@ def mark_paused(
     *,
     actor: str,
     log_message: str,
-    slack_text: str,
-    digest_detail: str,
     echo: str | None = None,
 ) -> None:
-    """Flip a ticket to `paused`: write frontmatter, log, notify (batchable)."""
-    owner = ticket.owner or cfg.current_user
+    """Flip a ticket to `paused`: write frontmatter and log."""
     ticket.frontmatter["status"] = "paused"
     ticket.write(ref.path / "ticket.md")
     assert_task_valid(cfg, ref, action="mark paused")
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
-    notify(
-        cfg,
-        slack_text,
-        kind="paused",
-        detail=digest_detail,
-        ticket=ref.id_slug,
-        owner=owner,
-        watchers=ticket.watchers,
-        task_path=ref.path,
-    )
     git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — paused")
 
 

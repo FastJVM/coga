@@ -16,19 +16,19 @@ failures, the manual `relay slack` FYI). It has three branches:
     task's `log.md` (when `task_path` is given) and crash so the caller
     sees the failure.
 
-`notify` is the **batchable** path for routine state-change chatter (create,
-bump, mark active/paused/done, retire, automerge done, recurring scaffolds).
-When the daily-digest recurring ticket is installed (`recurring/digest/`
-exists), `notify` spools a structured record to that ticket's blackboard
-instead of posting; the spool is rendered and posted once a day by
-`relay digest` (see `render_digest`). When the digest ticket is *not*
-installed, `notify` degrades to a live `post`, so a repo without the digest
-keeps today's real-time behavior — the two-tier model is opt-in by installing
-the ticket.
+`notify` is the **outcome digest** path, not a generic lifecycle broadcaster.
+Only ticket outcomes (`done`) and recurring scan errors enter the daily digest.
+Routine lifecycle churn (draft, active, bump, paused, retire, recurring
+scaffold) is intentionally silent: the task `log.md` remains the audit trail,
+while Slack carries outcomes and urgent exceptions. When the daily-digest
+recurring ticket is installed (`recurring/digest/` exists), `notify` spools a
+structured record to that ticket's blackboard; when it is absent, those same
+outcome/error events fall back to a live `post`.
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -121,9 +121,12 @@ def post(
         raise typer.Exit(1)
 
 
-# --- digest (batchable) path --------------------------------------------------
+# --- digest (outcome) path ----------------------------------------------------
 
 DIGEST_RECURRING_NAME = "digest"
+DIGEST_EVENT_KINDS = {"done", "recurring-error"}
+_DETAIL_PR_RE = re.compile(r"PR #(\d+)")
+_SLACK_PR_LINK_RE = re.compile(r"<[^>|]+?\|PR #\d+>")
 
 
 def digest_spool_path(cfg: Config) -> Path | None:
@@ -131,9 +134,8 @@ def digest_spool_path(cfg: Config) -> Path | None:
 
     The spool lives on the `recurring/digest/` ticket's own persistent
     `blackboard.md` — a real, git-tracked, human-readable file (never a hidden
-    dotfile). Its presence is what switches `notify` from live posting to
-    batching, so a repo opts into the daily digest simply by installing the
-    ticket.
+    dotfile). Its presence is what routes outcome/error `notify` records into
+    the daily digest instead of posting them live.
     """
     path = recurring_dir(cfg) / DIGEST_RECURRING_NAME / "blackboard.md"
     return path if path.is_file() else None
@@ -151,19 +153,24 @@ def notify(
     task_path: Path | None = None,
     image_url: str | None = None,
 ) -> None:
-    """Route a batchable state-change event: spool it, or post live.
+    """Route an outcome/error event: spool it, or post live.
+
+    Only `done` and `recurring-error` belong here. Other lifecycle transitions
+    are intentionally silent and should not call this helper.
 
     When the digest ticket is installed, append a structured JSONL record to
-    its spool (grouped and posted later by `relay digest`). Otherwise fall back
-    to a live `post(slack_text)` — identical to pre-digest behavior, so
-    `image_url` and the `[project] [owner]` formatting still apply on that path.
+    its spool (rendered and posted later by `relay digest`). Otherwise fall back
+    to a live `post(slack_text)`, so `image_url` and the `[project] [owner]`
+    formatting still apply on that path.
 
-    `kind` is a short event tag (e.g. `bump`, `done`, `recurring`); `detail` is
-    the human one-liner shown under the ticket in the digest. `ticket`/`owner`
-    drive the digest's project → person → ticket grouping; a record with no
-    `owner` (e.g. a recurring-scan error summary) renders in an ownerless
-    bucket.
+    `kind` is the event tag; `detail` is the human one-liner shown in the
+    digest. `ticket`/`owner` drive the Done grouping; a record with no `ticket`
+    (for example a recurring-scan error summary) renders in its own section.
     """
+    if kind not in DIGEST_EVENT_KINDS:
+        allowed = ", ".join(sorted(DIGEST_EVENT_KINDS))
+        raise ValueError(f"slack.notify only accepts digest outcome kinds: {allowed}")
+
     # A `relay recurring --all` debug run (and any child it spawns) is
     # disposable scratch that must never reach Slack or the digest spool —
     # `--all` is documented not to broadcast. The state change is still in the
@@ -203,34 +210,61 @@ def notify(
     spool.append_record(spool_path, record)
 
 
-def render_digest(cfg: Config, records: list[dict], *, date_label: str) -> str:
-    """Render spooled records into one channel message, project → person → ticket.
+def done_pr_numbers(records: list[dict]) -> set[int]:
+    """PR numbers already represented by spooled Done records."""
+    numbers: set[int] = set()
+    for rec in records:
+        if rec.get("kind") != "done":
+            continue
+        detail = str(rec.get("detail") or "")
+        numbers.update(int(match.group(1)) for match in _DETAIL_PR_RE.finditer(detail))
+    return numbers
 
-    Owner names render through `_mention` (a `<@ID>` ping when mapped, plain
-    text otherwise); per-ticket watcher cc's follow the same `[slack.users]`
-    rule `post` uses. Events under each ticket appear in spool (chronological)
-    order, so the digest is a once-a-day replay rather than only a final
-    snapshot. Records with no `ticket` (e.g. a recurring-scan error) list as
-    standalone lines under their owner, or under an ownerless bucket.
+
+def render_digest(
+    cfg: Config,
+    records: list[dict],
+    *,
+    date_label: str,
+    also_merged: list[dict] | None = None,
+) -> str:
+    """Render one outcome-focused daily digest message.
+
+    The digest is no longer a chronological replay. It lists Done tickets,
+    grouped by owner, then commits that reached the control branch without
+    matching one of those Done PRs. Recurring scan errors stay visible because
+    they represent skipped scheduled work.
 
     The returned text has no `[<project>]` prefix — `relay digest` hands it to
     `post`, which adds the channel-disambiguating prefix exactly as it does for
     a live event.
     """
-    by_project: dict[str, list[dict]] = {}
-    for rec in records:
-        by_project.setdefault(rec.get("project") or cfg.project_name, []).append(rec)
+    done_records = [rec for rec in records if rec.get("kind") == "done"]
+    error_records = [rec for rec in records if rec.get("kind") == "recurring-error"]
+    merged = also_merged or []
 
-    lines: list[str] = [f"📋 Daily digest · {date_label}"]
-    for project in sorted(by_project):
-        if len(by_project) > 1:
+    lines: list[str] = [f"📋 Daily digest · {date_label} · {cfg.project_name}"]
+    if done_records:
+        lines.append("Done:")
+        lines.extend(_render_done_people(cfg, done_records))
+    if merged:
+        if len(lines) > 1:
             lines.append("")
-            lines.append(f"=== {project} ===")
-        lines.extend(_render_people(cfg, by_project[project]))
+        lines.append("Also merged (no ticket):")
+        for commit in merged:
+            sha = str(commit.get("sha") or "")[:7]
+            subject = str(commit.get("subject") or "").strip()
+            lines.append(f" • {sha} {subject}".rstrip())
+    if error_records:
+        if len(lines) > 1:
+            lines.append("")
+        lines.append("Recurring errors:")
+        for rec in error_records:
+            lines.append(f" • {rec.get('detail', '')}")
     return "\n".join(lines)
 
 
-def _render_people(cfg: Config, records: list[dict]) -> list[str]:
+def _render_done_people(cfg: Config, records: list[dict]) -> list[str]:
     # Group by owner, preserving first-seen order; ownerless records last.
     owners: list[str | None] = []
     by_owner: dict[str | None, list[dict]] = {}
@@ -247,35 +281,36 @@ def _render_people(cfg: Config, records: list[dict]) -> list[str]:
 
     out: list[str] = []
     for owner in owners:
-        out.append("")
         out.append(_mention(cfg, owner) if owner else "(no owner)")
-        out.extend(_render_tickets(cfg, by_owner[owner]))
+        for rec in by_owner[owner]:
+            out.append(_render_done_record(cfg, rec))
     return out
 
 
-def _render_tickets(cfg: Config, records: list[dict]) -> list[str]:
-    tickets: list[str | None] = []
-    by_ticket: dict[str | None, list[dict]] = {}
-    for rec in records:
-        slug = rec.get("ticket")
-        if slug not in by_ticket:
-            by_ticket[slug] = []
-            tickets.append(slug)
-        by_ticket[slug].append(rec)
+def _render_done_record(cfg: Config, rec: dict) -> str:
+    slug = rec.get("ticket") or "(no ticket)"
+    cc = _cc_trailer(cfg, [rec])
+    detail = str(rec.get("detail") or "").strip()
+    pr_label = _done_pr_label(detail)
+    if pr_label:
+        return f" • {slug}{cc} — {pr_label} merged ✅"
+    return f" • {slug}{cc} — {_clean_done_detail(detail)}"
 
-    out: list[str] = []
-    for slug in tickets:
-        group = by_ticket[slug]
-        cc = _cc_trailer(cfg, group)
-        if slug is None:
-            # Ownerless / ticketless lines (e.g. recurring-scan errors).
-            for rec in group:
-                out.append(f" • {rec.get('detail', '')}")
-            continue
-        out.append(f" • {slug}{cc}")
-        for rec in group:
-            out.append(f"     {rec.get('detail', '')}")
-    return out
+
+def _done_pr_label(detail: str) -> str | None:
+    link = _SLACK_PR_LINK_RE.search(detail)
+    if link:
+        return link.group(0)
+    match = _DETAIL_PR_RE.search(detail)
+    if match:
+        return f"PR #{match.group(1)}"
+    return None
+
+
+def _clean_done_detail(detail: str) -> str:
+    if not detail:
+        return "done"
+    return detail.removeprefix("→ ").strip()
 
 
 def _cc_trailer(cfg: Config, records: list[dict]) -> str:
@@ -294,6 +329,8 @@ __all__ = [
     "post",
     "notify",
     "render_digest",
+    "done_pr_numbers",
     "digest_spool_path",
     "DIGEST_RECURRING_NAME",
+    "DIGEST_EVENT_KINDS",
 ]

@@ -1,6 +1,6 @@
 ---
 name: relay/digest/flush
-description: Flush the daily-digest spool into one Slack post. Drains the recurring/digest blackboard, renders project → person → ticket, posts via the webhook, and empties the spool.
+description: Post the daily Slack digest. Combines Done records from recurring/digest with a git scan of merged commits, posts one outcome-focused message, drains the spool, and records the high-water commit.
 script: run.py
 ---
 
@@ -9,16 +9,19 @@ script: run.py
 This skill is the `mode: script` body of the `recurring/digest/` ticket. It
 runs `relay digest`, which:
 
-1. drains the JSONL records spooled under `## Spool (pending)` on the
+1. reads the JSONL Done/error records spooled under `## Spool (pending)` on the
    `recurring/digest/` blackboard,
-2. groups them **project → person → ticket** (owners pinged via `<@ID>`,
-   watchers cc'd),
-3. posts one sectioned message to the shared Slack channel, and
-4. empties the spool section back to its seed.
+2. fetches `origin/main` and scans commits since `### Digest State`
+   `last_commit`,
+3. renders Done tickets plus an "Also merged (no ticket)" section,
+4. posts one sectioned message to the shared Slack channel,
+5. empties the spool section back to its seed, and
+6. records the new high-water commit in `### Digest State`.
 
-An empty spool is a silent no-op, so a quiet day or a same-day re-run posts
-nothing. The flush honors the `[slack].enabled = false` opt-out exactly as a
-live post does (suppressed to stderr).
+An empty spool can still post when commits merged since the last run. A quiet
+run posts nothing only when there are no Done records, no recurring errors, and
+no post-filter new commits. The flush honors the `[slack].enabled = false`
+opt-out exactly as a live post does (suppressed to stderr).
 
 The script imports `relay.commands.digest.run_digest` and calls it directly, so
 it does not depend on `relay` being on `PATH` inside the script environment.
