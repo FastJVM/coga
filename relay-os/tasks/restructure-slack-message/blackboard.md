@@ -67,3 +67,26 @@ I've read the ticket cold and verified its claims against the code, contexts, wo
 ### Bootstrap response to the review (2026-06-10)
 
 Applied to the ticket: packaged-copy bullet corrected (only `relay/sync` is packaged, at `bootstrap/contexts/relay/sync/`; do not create packaged copies of the rest), relay state-sync commit filter added, PR-less Done-line rendering specified, empty-spool early-return + fetch-semantics decision called out. Left open for nick: whether a sweep-pausing-a-stalled-run `paused` event deserves a Slack line (current ticket says all `paused` go silent).
+
+## Dev
+
+branch: digest-outcomes
+worktree: /home/n/Code/codex/relay-digest-outcomes
+
+Implementation note (2026-06-10): use the old relay-dev-update behavior of fetching `origin/main` during `relay digest` rather than relying on potentially stale local `main`; this adds a network failure mode to the script run, but keeps the digest tied to the shared branch humans care about.
+
+Implementation complete (2026-06-10):
+
+Commit: `a8523e7` (`Focus Slack digest on outcomes`)
+
+- Changed Slack digest output to outcome-focused Done / Also merged / Recurring errors sections, with done records grouped by owner and PR numbers extracted from done details.
+- Changed `relay digest` to scan `origin/<control_branch>` using a `last_commit` high-water mark in `relay-os/recurring/digest/blackboard.md`; first run falls back to the last 24 hours. Relay task-state sync commit subjects are filtered out of Also merged.
+- Stopped routine lifecycle events (`draft`, `active`, message-less `bump`, `paused`, `retire`, recurring scaffold success) from calling `notify()`. `done` and `recurring-error` still spool; `relay bump --message` now sends a live FYI.
+- Retired `relay-dev-update` by removing its recurring template and workflow, and updated the digest skill/workflow docs plus the live and packaged `relay/sync` context.
+
+Verification:
+
+- `PYTHONPYCACHEPREFIX=/tmp/relay-digest-pyc python -m compileall -q src/relay`
+- `git diff --check`
+- `PYTHONPATH=/home/n/Code/codex/relay-digest-outcomes/src PYTHONPYCACHEPREFIX=/tmp/relay-digest-pyc python -m pytest -q -p no:cacheprovider tests/test_digest.py tests/test_slack_messages.py tests/test_recurring.py tests/test_commands.py tests/test_launch.py` — 195 passed
+- `PYTHONPATH=/home/n/Code/codex/relay-digest-outcomes/src PYTHONPYCACHEPREFIX=/tmp/relay-digest-pyc python -m pytest -q -p no:cacheprovider` — 632 passed, 1 skipped
