@@ -25,6 +25,12 @@ only.
 
 ## Context
 
+- A nested `relay init` subdirectory for marketing was considered and
+  rejected (2026-06-11): a second relay-os would be invisible to the
+  main one — separate `relay status`, separate digest, no shared
+  contexts — while its task churn still commits into relay-cli's git
+  history, because the git layer resolves the enclosing repo via
+  `git rev-parse --show-toplevel` (`src/relay/git.py`).
 - Task discovery already supports one-level group directories
   (`src/relay/tasks.py:70`): a group is any child of `tasks/` without its
   own `ticket.md`. Non-directory files inside a group (the README) are
