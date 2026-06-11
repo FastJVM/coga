@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Run the skill-update Dream skill.
+"""Run the skill-update maintenance skill.
 
 Wraps `relay skill update --all --pr`: applies every clean imported-skill
 update into one reviewable PR and reports the skills that could not be updated
 cleanly (a local adaptation, a provenance conflict, a fetch failure) so they
-surface as follow-up work on the child task blackboard.
+surface as follow-up work on the task blackboard.
 """
 
 from __future__ import annotations
@@ -137,7 +137,7 @@ def render_blackboard_report(
     task_slug: str | None = None,
 ) -> str:
     lines = [
-        "## Dream Skill: skill-update",
+        "## Skill Update",
         "",
         f"Generated: {generated_at}",
         f"Command: `{shlex.join(command)}`",
@@ -213,7 +213,7 @@ def script_task_slug_from_env() -> str | None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run the skill-update Dream skill.")
+    parser = argparse.ArgumentParser(description="Run the skill-update maintenance skill.")
     parser.add_argument(
         "--cwd",
         type=Path,

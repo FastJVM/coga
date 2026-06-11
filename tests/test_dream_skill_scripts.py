@@ -63,15 +63,6 @@ def _install_dream_skill(relay_os: Path, name: str) -> None:
     shutil.copytree(TEMPLATES / name, dst)
 
 
-def _install_dream_skill_bootstrap(relay_os: Path, name: str) -> None:
-    # Install into the bundled bootstrap root rather than the project-local
-    # `skills/` tree. `relay skill update --all` scans `skills/`, so an empty
-    # `skills/` keeps the update a true no-op (no `gh`, no git) — the worker
-    # being tested must not look like an imported, gh-backed local skill.
-    dst = relay_os / "bootstrap" / "skills" / "bootstrap" / "dream" / "tasks" / name
-    shutil.copytree(TEMPLATES / name, dst)
-
-
 def _write_workflow(relay_os: Path, name: str, skill: str) -> None:
     _write(
         relay_os / "workflows" / f"{name}.md",
@@ -111,36 +102,6 @@ def test_validate_drift_runs_as_script_skill(repo: Path) -> None:
     blackboard = (ref.path / "blackboard.md").read_text()
     assert "## Dream Skill: validate-drift" in blackboard
     assert "Task: `validate-drift`" in blackboard
-
-
-def test_skill_update_runs_as_script_skill_and_reports_no_op(repo: Path) -> None:
-    # No imported skills under `skills/`: `relay skill update --all --pr` finds
-    # nothing clean to update, so it commits nothing and opens no PR (never
-    # touching git), and the worker reports a clean no-op on the child
-    # blackboard.
-    _install_dream_skill_bootstrap(repo, "skill-update")
-    _write_workflow(repo, "skill-update", "bootstrap/dream/tasks/skill-update")
-    cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg,
-        title="Skill Update",
-        workflow_name="skill-update",
-        contexts=[],
-        mode="script",
-        owner="marc",
-        assignee="claude",
-        watchers=[],
-        status="active",
-    )
-
-    result = CliRunner().invoke(app, ["launch", "skill-update"])
-
-    assert result.exit_code == 0, result.output
-    ref = list_tasks(cfg)[0]
-    blackboard = (ref.path / "blackboard.md").read_text()
-    assert "## Dream Skill: skill-update" in blackboard
-    assert "Task: `skill-update`" in blackboard
-    assert "PR: none opened" in blackboard
 
 
 def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path) -> None:

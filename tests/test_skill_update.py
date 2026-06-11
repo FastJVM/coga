@@ -1,8 +1,18 @@
 from __future__ import annotations
 
 import importlib.util
+import shutil
 import sys
 from pathlib import Path
+from textwrap import dedent
+
+import pytest
+from typer.testing import CliRunner
+
+from relay.cli import app
+from relay.config import load_config
+from relay.scaffold import scaffold_task
+from relay.tasks import list_tasks
 
 SKILL_UPDATE = (
     Path(__file__).resolve().parents[1]
@@ -14,8 +24,6 @@ SKILL_UPDATE = (
     / "bootstrap"
     / "skills"
     / "bootstrap"
-    / "dream"
-    / "tasks"
     / "skill-update"
 )
 
@@ -114,7 +122,7 @@ def test_render_buckets_conflict_separately_from_skipped_local_adaptation() -> N
         task_slug="skill-update",
     )
 
-    assert "## Dream Skill: skill-update" in report
+    assert "## Skill Update" in report
     assert "Task: `skill-update`" in report
     assert "Result: 4 skill(s): 1 updated, 2 need follow-up, 1 skipped." in report
     assert "PR: https://example.com/pr/1" in report
@@ -153,3 +161,115 @@ def test_render_handles_empty_results() -> None:
     )
     assert "Result: no installed skills to update." in report
     assert "PR: none opened" in report
+
+
+def test_skill_update_skill_declares_contract() -> None:
+    text = (SKILL_UPDATE / "SKILL.md").read_text()
+    norm = " ".join(text.split())
+
+    assert "name: bootstrap/skill-update" in text
+    assert "## Known Skill Contract" in text
+    assert "- Purpose: update clean imported skills" in text
+    assert "- Action: `pr-required`" in text
+    assert "relay skill update --all --pr" in text
+    assert "`relay/skill-update` branch" in norm
+    assert "never the caller's branch" in norm
+    assert "Bundled (package-backed) skills are not updated here" in norm
+    assert "- Output: append `## Skill Update`" in text
+    assert "RELAY_TASK_BLACKBOARD" in text
+    assert "--blackboard" not in text
+
+
+def test_skill_update_ships_as_a_recurring_template() -> None:
+    """The skill updater is a standalone recurring task, not a Dream phase.
+    The packaged template wires a weekly `mode: script` ticket to the
+    `skill-update/run` workflow, whose one step runs `bootstrap/skill-update`."""
+    relay_os = SKILL_UPDATE.parents[3]
+    ticket = (relay_os / "recurring" / "skill-update" / "ticket.md").read_text()
+    workflow = (relay_os / "workflows" / "skill-update" / "run.md").read_text()
+
+    assert ticket.startswith("---\n")
+    assert "schedule:" in ticket
+    assert 'title: "Skill update"' in ticket
+    assert "mode: script" in ticket
+    assert "workflow: skill-update/run" in ticket
+    assert "relay skill update --all --pr" in ticket
+
+    assert "name: skill-update/run" in workflow
+    assert "- bootstrap/skill-update" in workflow
+
+
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(dedent(text).lstrip())
+
+
+@pytest.fixture
+def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    relay_os = tmp_path / "relay-os"
+    _write(
+        relay_os / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+
+        [slack]
+        enabled = false
+
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+
+        """,
+    )
+    _write(relay_os / "relay.local.toml", 'user = "marc"\n')
+    (relay_os / "tasks").mkdir(parents=True)
+    monkeypatch.chdir(relay_os)
+    return relay_os
+
+
+def test_skill_update_runs_as_script_skill_and_reports_no_op(repo: Path) -> None:
+    # No imported skills under `skills/`: `relay skill update --all --pr` finds
+    # nothing clean to update, so it commits nothing and opens no PR (never
+    # touching git), and the skill reports a clean no-op on the task
+    # blackboard. Install into the bundled bootstrap root rather than the
+    # project-local `skills/` tree so the skill being tested does not look
+    # like an imported, gh-backed local skill.
+    shutil.copytree(
+        SKILL_UPDATE, repo / "bootstrap" / "skills" / "bootstrap" / "skill-update"
+    )
+    _write(
+        repo / "workflows" / "skill-update" / "run.md",
+        """
+        ---
+        name: skill-update/run
+        description: script worker.
+        steps:
+          - name: update
+            skills:
+              - bootstrap/skill-update
+        ---
+        """,
+    )
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg,
+        title="Skill Update",
+        workflow_name="skill-update/run",
+        contexts=[],
+        mode="script",
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+
+    result = CliRunner().invoke(app, ["launch", "skill-update"])
+
+    assert result.exit_code == 0, result.output
+    ref = list_tasks(cfg)[0]
+    blackboard = (ref.path / "blackboard.md").read_text()
+    assert "## Skill Update" in blackboard
+    assert "Task: `skill-update`" in blackboard
+    assert "PR: none opened" in blackboard
