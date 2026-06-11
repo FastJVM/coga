@@ -6,8 +6,15 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - Local CLI help checked on 2026-06-09:
   - `codex --help` exposes `--dangerously-bypass-approvals-and-sandbox` and `--ask-for-approval never`.
   - `claude --help` exposes `--dangerously-skip-permissions`, `--allow-dangerously-skip-permissions`, and `--permission-mode bypassPermissions`.
-- Proposed ticket shape: keep dangerous argv in local config, add a per-ticket frontmatter opt-in, and have `relay launch` append the configured argv only for opted-in interactive/auto agent launches.
+- Superseded initial ticket shape: keep dangerous argv in local config, add a per-ticket frontmatter opt-in, and have `relay launch` append the configured argv only for opted-in interactive/auto agent launches.
 - Narrow contexts to attach: `relay/architecture` for canonical frontmatter/config semantics and `relay/codebase` for source layout/tests.
+
+## Revision notes
+
+- Human clarified the product shape after the first draft: this should be a per-agent local policy for autonomous work, not a per-ticket frontmatter opt-in.
+- Current ticket text asks for `[agents.<name>] skip_permissions = "auto"` plus `skip_permissions_argv = "..."` in `relay.local.toml`.
+- The policy applies only to normal `mode: auto` task launches. Interactive tickets, bootstrap/discussion shims, and script tasks should keep today's behavior.
+- The evaluator review below is still useful for argv placement, agent rotation, local-only dangerous config, and template/docs coverage, but its recommendation to add canonical ticket field `skip_permissions: true` is superseded.
 
 ## Evaluator review
 
