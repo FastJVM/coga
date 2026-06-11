@@ -466,6 +466,28 @@ and no lock. The `relay-os/bootstrap/` tree is upstream-managed and refreshed
 wholesale by `relay init --update`, so don't add custom shims there — write
 your own launch wrappers elsewhere.
 
+For autonomous runs, an operator can opt an agent into skipping its CLI's
+per-command permission/approval prompts with a partial `[agents.<name>]`
+table in `relay.local.toml`:
+
+```toml
+[agents.claude]
+skip_permissions = "auto"
+skip_permissions_argv = "--dangerously-skip-permissions"
+```
+
+The policy is machine-local by design — committing either key to shared
+`relay.toml` fails config load, so a repo can never set a dangerous default
+for everyone. It applies only to normal task tickets in effective
+`mode: auto`: interactive launches, bootstrap/discussion shims (`relay chat`,
+`relay ticket`), and script tasks keep today's behavior. The argv is one
+string (`shlex`-split) inserted between the session-name argv and the auto
+argv/prompt — e.g. `codex --dangerously-bypass-approvals-and-sandbox exec
+<prompt>` — and supervised chains re-resolve it per step for whichever agent
+the step rotated to. `skip_permissions = "auto"` with no configured
+`skip_permissions_argv` fails the launch loud before any agent spawns.
+Verify the flags against your installed CLIs before enabling.
+
 ### `relay status`
 
 Show every task in the repo — `draft`, `active`, `in_progress`, `paused`, and `done`.

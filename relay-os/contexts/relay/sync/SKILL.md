@@ -135,6 +135,36 @@ write-only: it can't call `users.list` / `users.lookupByEmail` to resolve
 a name itself. Member IDs aren't secret, so the table lives in shared
 `relay.toml`, not `relay.local.toml`.
 
+## Message format conventions
+
+Every **per-ticket** Slack post (live or spooled) follows one uniform shape.
+When adding or editing a call site, match these rules instead of inventing a
+new string:
+
+- **Owner is the prefix, not the text.** `post()`/`notify()` already prepend
+  `[<project>] [<owner>]` and ping the owner as `<@ID>`. Never add an in-text
+  `(owner: …)` suffix — it duplicates the prefix ping.
+- **Title is always present.** `*{slug}* "{title}"`, so a single Slack line is
+  self-contained without opening the repo.
+- **`→` is a transition and shows the prior state.** Step/status moves render
+  `{prev-step} → {new-step}` or `{prev-step} → done`. A workflow-less ticket
+  has no prior step, so its done posts collapse the transition ("finished").
+- **`:` introduces the body** after `*{slug}* "{title}"`; **`(key: value)` is
+  an aside** (`(assignee: …)`, `(step N/total)`); **`—` is reserved for the
+  optional trailing FYI** (`bump --message`, pause reasons, retire
+  annotations).
+- **PR references are Slack links**: `<{url}|PR #{N}>`, never plain `PR #N`
+  (plain text doesn't link in incoming-webhook posts).
+- Message strings are built **at the call sites** (`commands/*.py`,
+  `automerge.py`) — `advance_step`/`mark_done` receive finished `slack_text`,
+  and `post()`/`notify()` never reformat. `tests/test_slack_messages.py`
+  snapshots the formats; extend it when a string changes.
+- **Keep the live text and the digest detail in step.** A call site that uses
+  `notify` posts the live string only as a fallback; the spooled record's
+  `detail` line must carry the same transition and PR link, or digest users
+  see a poorer message than live users (automerge regressed exactly this way
+  once).
+
 ## Slack implementation pointers
 
 - `src/relay/slack.py::post(cfg, message, *, task_path=None, owner=None,
@@ -226,8 +256,9 @@ mechanism:
 
 Slack tells the team what changed; git makes the markdown state durable and
 shareable. Relay-owned commands that mutate a task directory should commit
-the changed `relay-os/tasks/<slug>/` files and push them after the Slack post,
-so `origin/main` does not drift from the state humans saw in Slack.
+the resolved task directory path under `relay-os/tasks/` (top-level or grouped
+one level deep) and push it after the Slack post, so `origin/main` does not
+drift from the state humans saw in Slack.
 
 Current surface:
 

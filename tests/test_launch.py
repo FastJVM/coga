@@ -9,9 +9,12 @@ from typer.testing import CliRunner
 
 from relay.cli import app
 from relay.scaffold import scaffold_task
-from relay.commands.launch import build_agent_command
-from relay.config import AgentType, load_config
-from relay.tasks import list_tasks
+from relay.commands.launch import (
+    _skip_permissions_argv_for_launch,
+    build_agent_command,
+)
+from relay.config import AgentType, ConfigError, load_config
+from relay.tasks import BootstrapRef, TaskRef, list_tasks
 from relay.ticket import Ticket
 
 
@@ -40,7 +43,13 @@ def _prompt_arg(cmd: list[str]) -> str:
 # --- unit: command construction ------------------------------------------------
 
 
-def _agent(auto: str, name_flag: str = "", discussion: str = "") -> AgentType:
+def _agent(
+    auto: str,
+    name_flag: str = "",
+    discussion: str = "",
+    skip_permissions: str = "",
+    skip_permissions_argv: tuple[str, ...] = (),
+) -> AgentType:
     return AgentType(
         name="x",
         cli="my-cli",
@@ -49,6 +58,8 @@ def _agent(auto: str, name_flag: str = "", discussion: str = "") -> AgentType:
         mode="local",
         name_flag=name_flag,
         discussion=discussion,
+        skip_permissions=skip_permissions,
+        skip_permissions_argv=skip_permissions_argv,
     )
 
 
@@ -199,6 +210,111 @@ def test_build_command_discussion_ignored_in_auto_mode() -> None:
     assert cmd == ["my-cli", "-p", "orient body"]
 
 
+# --- unit: permission-skip argv -------------------------------------------------
+
+
+def _task_ref(slug: str = "fix-retry-logic") -> TaskRef:
+    return TaskRef(slug=slug, path=Path("/tmp") / slug)
+
+
+def test_build_command_skip_argv_after_name_flag_before_auto_flag() -> None:
+    cmd = build_agent_command(
+        _agent("-p", name_flag="-n"),
+        mode="auto",
+        prompt="full prompt text",
+        name="Fix retry backoff",
+        skip_permissions_argv=("--dangerously-skip-permissions",),
+    )
+    assert cmd == [
+        "my-cli",
+        "-n",
+        "Fix retry backoff",
+        "--dangerously-skip-permissions",
+        "-p",
+        "full prompt text",
+    ]
+
+
+def test_build_command_skip_argv_before_auto_subcommand() -> None:
+    cmd = build_agent_command(
+        _agent("exec"),
+        mode="auto",
+        prompt="full prompt text",
+        skip_permissions_argv=("--dangerously-bypass-approvals-and-sandbox",),
+    )
+    assert cmd == [
+        "my-cli",
+        "--dangerously-bypass-approvals-and-sandbox",
+        "exec",
+        "full prompt text",
+    ]
+
+
+def test_build_command_defaults_to_no_skip_argv() -> None:
+    cmd = build_agent_command(_agent("-p"), mode="auto", prompt="full prompt text")
+    assert cmd == ["my-cli", "-p", "full prompt text"]
+
+
+def test_skip_policy_applies_to_auto_task_launch() -> None:
+    agent = _agent(
+        "-p",
+        skip_permissions="auto",
+        skip_permissions_argv=("--dangerously-skip-permissions",),
+    )
+    argv = _skip_permissions_argv_for_launch(agent, "auto", _task_ref())
+    assert argv == ("--dangerously-skip-permissions",)
+
+
+def test_skip_policy_noop_in_interactive_mode() -> None:
+    agent = _agent(
+        "-p",
+        skip_permissions="auto",
+        skip_permissions_argv=("--dangerously-skip-permissions",),
+    )
+    assert _skip_permissions_argv_for_launch(agent, "interactive", _task_ref()) == ()
+
+
+def test_skip_policy_noop_without_agent_policy() -> None:
+    """An auto task whose effective agent has no local skip policy keeps
+    today's behavior — even with argv configured but the policy unset."""
+    assert _skip_permissions_argv_for_launch(_agent("-p"), "auto", _task_ref()) == ()
+    inert = _agent("-p", skip_permissions_argv=("--dangerously-skip-permissions",))
+    assert _skip_permissions_argv_for_launch(inert, "auto", _task_ref()) == ()
+
+
+def test_skip_policy_noop_for_bootstrap_shim() -> None:
+    """`relay chat` / `relay ticket` shims never skip permissions, regardless
+    of the selected agent's local policy."""
+    agent = _agent(
+        "-p",
+        skip_permissions="auto",
+        skip_permissions_argv=("--dangerously-skip-permissions",),
+    )
+    ref = BootstrapRef(name="orient", path=Path("/tmp/bootstrap/orient"))
+    assert _skip_permissions_argv_for_launch(agent, "auto", ref) == ()
+
+
+def test_skip_policy_per_step_agent_rotation() -> None:
+    """Supervised chains re-resolve the policy per step from that step's
+    agent — a rotation from a skip-configured claude to an unconfigured
+    codex (or back) flips the argv accordingly."""
+    claude = _agent(
+        "-p",
+        skip_permissions="auto",
+        skip_permissions_argv=("--dangerously-skip-permissions",),
+    )
+    codex = _agent("exec")
+    ref = _task_ref()
+    assert _skip_permissions_argv_for_launch(claude, "auto", ref) != ()
+    assert _skip_permissions_argv_for_launch(codex, "auto", ref) == ()
+
+
+def test_skip_policy_fails_loud_without_argv() -> None:
+    agent = _agent("-p", skip_permissions="auto")
+    with pytest.raises(ConfigError, match="skip_permissions_argv"):
+        _skip_permissions_argv_for_launch(agent, "auto", _task_ref())
+
+
 # --- integration: end-to-end via CliRunner with mocked subprocess --------------
 
 
@@ -345,6 +461,41 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     log = (ref.path / "log.md").read_text()
     assert "started (active → in_progress) via relay launch" in log
     assert "launched in interactive mode" in log
+
+
+def test_launch_interactive_ignores_local_skip_policy(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `mode: interactive` launch never applies the agent's local
+    permission-skip policy — the argv must not reach the spawned CLI."""
+    _write(
+        active_task / "relay.local.toml",
+        """
+        user = "marc"
+
+        [agents.claude]
+        skip_permissions = "auto"
+        skip_permissions_argv = "--dangerously-skip-permissions"
+        """,
+    )
+    calls: list[list[str]] = []
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    assert "--dangerously-skip-permissions" not in calls[0]
 
 
 def test_launch_bails_on_missing_context(

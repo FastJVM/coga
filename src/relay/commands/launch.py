@@ -260,6 +260,16 @@ def launch(
         _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
     typer.echo(f"Launch: found agent CLI at {agent_path}")
 
+    # Pre-flight the permission-skip policy for the first step's agent so a
+    # skip_permissions = "auto" agent with no configured argv fails loud here
+    # — before the in_progress flip and "started" broadcast, like the compose
+    # pre-flight below. The per-step loop re-resolves the policy for rotated
+    # agents.
+    try:
+        _skip_permissions_argv_for_launch(agent, mode, ref)
+    except ConfigError as exc:
+        _bail(str(exc))
+
     # Fail loud BEFORE flipping status: if a referenced context or skill is
     # missing, the composed prompt would drop a layer the human expected the
     # agent to have. Refuse to start — and don't flip the ticket to
@@ -388,12 +398,22 @@ def launch(
                 f"Launch: prompt written to {prompt_file} "
                 f"({len(prompt)} chars)"
             )
+            # Re-resolve the permission-skip policy for THIS step's agent and
+            # the ticket's current mode — supervised chains rotate agents
+            # (claude <-> codex), and each agent carries its own local policy.
+            try:
+                skip_permissions_argv = _skip_permissions_argv_for_launch(
+                    agent, mode_override or ticket.mode, ref
+                )
+            except ConfigError as exc:
+                _bail(str(exc))
             cmd = build_agent_command(
                 agent,
                 mode,
                 prompt,
                 name=ticket.title or "",
                 discussion=_is_discussion_bootstrap(ref),
+                skip_permissions_argv=skip_permissions_argv,
             )
             typer.echo(
                 f"Launch: command: "
@@ -522,7 +542,13 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
 
 
 def build_agent_command(
-    agent, mode: str, prompt: str, *, name: str = "", discussion: bool = False
+    agent,
+    mode: str,
+    prompt: str,
+    *,
+    name: str = "",
+    discussion: bool = False,
+    skip_permissions_argv: tuple[str, ...] = (),
 ) -> list[str]:
     """Build the argv for spawning the agent.
 
@@ -535,6 +561,12 @@ def build_agent_command(
     `<name_flag> <name>` is inserted right after the CLI so the spawned
     session carries the ticket title in its picker / window title. Skipped
     in `discussion` mode so the human's first ask names the session.
+
+    `skip_permissions_argv` (the agent's machine-local permission-skip argv,
+    threaded by `_skip_permissions_argv_for_launch` only when its policy
+    applies) is inserted after the name argv and before the mode-specific
+    argv/prompt payload — `claude -n <title> <skip-argv> -p <prompt>`,
+    `codex <skip-argv> exec <prompt>`.
 
     `discussion=True` (used for human discussion sessions like `relay chat`
     and `relay ticket`) routes the prompt through the agent's
@@ -555,8 +587,44 @@ def build_agent_command(
     if name and agent.name_flag:
         name_args = [*shlex.split(agent.name_flag), name]
     if mode == "interactive":
-        return [agent.cli, *name_args, prompt]
-    return [agent.cli, *name_args, *shlex.split(agent.auto), prompt]
+        return [agent.cli, *name_args, *skip_permissions_argv, prompt]
+    return [
+        agent.cli,
+        *name_args,
+        *skip_permissions_argv,
+        *shlex.split(agent.auto),
+        prompt,
+    ]
+
+
+def _skip_permissions_argv_for_launch(
+    agent, mode: str, ref: TaskRef | BootstrapRef
+) -> tuple[str, ...]:
+    """Resolve the permission-skip argv for one agent spawn, or `()`.
+
+    The policy is machine-local per-agent config (`relay.local.toml`
+    `[agents.<name>] skip_permissions = "auto"`) and applies only to normal
+    task tickets running in effective `mode: auto`. Bootstrap/discussion
+    shims and interactive/script launches always get `()` — today's
+    behavior. Called per step so supervised chains re-evaluate the policy
+    for whichever agent the current step rotated to.
+
+    Fails loud (ConfigError) when the policy applies but the agent has no
+    `skip_permissions_argv` configured — never silently fall back to the
+    normal permission mode the operator opted out of.
+    """
+    if mode != "auto" or not isinstance(ref, TaskRef):
+        return ()
+    if agent.skip_permissions != "auto":
+        return ()
+    if not agent.skip_permissions_argv:
+        raise ConfigError(
+            f"Agent {agent.name!r} has skip_permissions = \"auto\" but no "
+            "skip_permissions_argv in relay.local.toml. Set it (e.g. "
+            f"`[agents.{agent.name}] skip_permissions_argv = \"...\"`) or "
+            "remove the skip_permissions policy."
+        )
+    return agent.skip_permissions_argv
 
 
 def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:

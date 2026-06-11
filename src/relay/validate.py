@@ -48,6 +48,7 @@ from relay.paths import (
     skill_resolution_paths,
 )
 from relay.tasks import (
+    DuplicateTaskSlugError,
     TaskNotFoundError,
     TaskRef,
     list_tasks,
@@ -110,6 +111,22 @@ class Report:
 # --- engine -------------------------------------------------------------------
 
 
+def _duplicate_slug_issue(exc: DuplicateTaskSlugError) -> Issue:
+    """Render a discovery-breaking slug collision as a report issue.
+
+    Discovery raises on duplicate leaf names (every command needs unambiguous
+    bare-slug resolution); validate is the one consumer that catches the error
+    so it can report the colliding paths legibly instead of crashing.
+    """
+    paths = ", ".join(str(p) for p in exc.paths)
+    return Issue(
+        kind="duplicate-slug",
+        task=exc.slug,
+        message=f"duplicate task slug across {paths} — rename one directory",
+        severity="error",
+    )
+
+
 def run(
     cfg: Config,
     idle_hours: float = 72.0,
@@ -118,13 +135,18 @@ def run(
     fix: bool = False,
 ) -> Report:
     report = Report(generated_at=_now_iso())
+    try:
+        refs = list_tasks(cfg)
+    except DuplicateTaskSlugError as exc:
+        report.issues.append(_duplicate_slug_issue(exc))
+        return report
+
     if fix:
-        report.fixes.extend(apply_safe_fixes(cfg))
+        report.fixes.extend(apply_safe_fixes(cfg, only=refs))
 
     if check_slack:
         report.issues.extend(_slack_issues(cfg))
 
-    refs = list_tasks(cfg)
     valid_assignees = _valid_assignee_set(cfg)
     now = datetime.now(timezone.utc)
 
@@ -157,6 +179,9 @@ def validate_task(
     report = Report(generated_at=_now_iso())
     try:
         ref = resolve_task(cfg, slug)
+    except DuplicateTaskSlugError as exc:
+        report.issues.append(_duplicate_slug_issue(exc))
+        return report
     except TaskNotFoundError as exc:
         report.issues.append(Issue(
             kind="unknown-task",

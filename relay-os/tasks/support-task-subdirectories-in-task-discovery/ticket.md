@@ -1,11 +1,11 @@
 ---
 title: Support task subdirectories in task discovery
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: nick
 contexts:
 - relay/codebase
 skills: []
@@ -26,7 +26,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (peer-review)
 ---
 
 ## Description

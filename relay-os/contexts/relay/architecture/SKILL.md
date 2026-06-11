@@ -11,10 +11,14 @@ no in-memory state.
 
 ## Primitives
 
-- **Tickets** live in `relay-os/tasks/<slug>/` as a directory. Each has
-  `ticket.md` (frontmatter + body), `log.md` (append-only, written by
-  CLI commands only), and `blackboard.md` (free-form workspace shared
-  between human and agent).
+- **Tickets** live as directories under `relay-os/tasks/`: either direct
+  children (`tasks/<slug>/`) or one level deeper in an organizational group
+  (`tasks/<group>/<slug>/`). The leaf directory name is the slug used by CLI
+  commands and Slack; agents should use the composed prompt's exact task
+  directory instead of reconstructing `tasks/<slug>/`. Each task has
+  `ticket.md` (frontmatter + body), `log.md` (append-only, written by CLI
+  commands only), and `blackboard.md` (free-form workspace shared between
+  human and agent).
 - **Contexts** are domain knowledge — what's true about the world.
   Project-local contexts live in `relay-os/contexts/`; bundled Relay
   batteries live in `relay-os/bootstrap/contexts/`. Attached to tickets via
@@ -186,7 +190,17 @@ that touches both planes.
   agent-vs-human, not same-vs-changed assignee. Cross-ticket chaining is
   `relay recurring --interactive`.
 - **`auto`** — one-shot autonomous run. Same composed prompt, no
-  human input.
+  human input. An operator may opt an agent into skipping its CLI's
+  per-command permission/approval prompts for these runs with a partial
+  `[agents.<name>]` table in `relay.local.toml`: `skip_permissions = "auto"`
+  plus `skip_permissions_argv = "..."` (one string, `shlex`-split, inserted
+  after the session-name argv and before the auto argv/prompt). The policy
+  is machine-local only — either key in shared `relay.toml` fails config
+  load — and applies only to normal task tickets in effective `mode: auto`:
+  interactive launches, bootstrap/discussion shims, and script tasks keep
+  today's behavior. Supervised chains re-resolve it per step for whichever
+  agent the step rotated to, and `"auto"` with no configured argv fails the
+  launch loud before spawning.
 - **`script`** — no agent. `relay launch` runs the step's skill
   script directly with secrets injected as env vars.
 
@@ -274,6 +288,21 @@ skill — it gets a normal ticket, blackboard, and log. There is no separate
 "Dream worker" Python shape, no `worker.main()` import from `relay.commands`,
 and no in-process call path; the worker runs end-to-end through the same
 launch machinery as any other script step.
+
+Dream's decide-half subagent scans (the knowledge scan and the contract
+audit) are skills too, but **prompt-only**: they live under
+`bootstrap/skills/bootstrap/dream/scan/<name>/` (referenced as
+`bootstrap/dream/scan/<name>`), a sibling segment to the script workers'
+`tasks/`. A prompt-only scan skill carries just `name` + `description`
+frontmatter and the classification contract as its body — no `script:` entry
+point and no `## Known Skill Contract` block; that shape belongs to the
+script workers and is the wrong archetype to copy for a subagent scan. The
+Dream template body delegates each scan phase to a subagent running the
+skill and keeps only the delegation framing plus the `## Findings` write
+target inline. Known limitation: the contract audit's own corpus globs
+(`relay-os/contexts/**`, `relay-os/skills/**`) do not cover
+`relay-os/bootstrap/skills/**`, so the bundled Dream skills — the scan
+skills included — sit outside the surface that audit reads.
 
 A `mode: script` launch injects task and skill metadata as environment
 variables instead of CLI argument plumbing — a worker script reads these, not

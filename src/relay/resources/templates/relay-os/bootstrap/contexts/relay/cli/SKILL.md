@@ -302,9 +302,26 @@ substrate:
 - `gh skill` writes source metadata into a GitHub/local install. For an
   arbitrary-URL install that provenance would only remember the temporary
   download path, so Relay writes its own `.relay-source.json` next to the
-  installed skill — original URL, selector, timestamp, and content/tree
-  digests. URL-backed updates compare that digest and skip a skill that has
-  been locally adapted instead of overwriting it.
+  installed skill — original URL, selector, timestamp, content/tree digests,
+  and a `local_adaptation_notes` field. The notes field is hand-edited in the
+  JSON (no CLI flag, keeping the surface small) and a clean `relay skill
+  update` preserves it.
+- **Local adaptation is detected by digest**, comparing the skill's current
+  tree digest against the recorded `installed_tree_digest`. `relay skill
+  install-url` refuses to overwrite a locally-adapted skill unless `--force`
+  is passed (`install-url` is the only install path with a Relay digest to
+  compare, so it is the only one with the guard). `--force` is forwarded to
+  the underlying `gh skill install`, rewrites `installed_tree_digest` to the
+  freshly installed tree, and resets `local_adaptation_notes` to empty — the
+  forced overwrite discards the adaptation, so preserving the note would
+  mis-describe the new tree.
+- **`conflict` is its own status.** URL-backed update/status checks fetch
+  upstream before classifying: locally adapted with upstream unchanged stays
+  `skipped-local-adaptation`; locally adapted **and** upstream changed
+  reports `conflict` (carrying both refs/digests in details). `relay skill
+  update` and `relay skill status --check` use the same vocabulary for the
+  same on-disk state, and the skill-update PR body renders conflicts in a
+  dedicated section.
 - `gh skill update --dir` has a known bug that relocates or deletes skills in
   nested custom directories. Keep Relay-managed skills at a flat
   `relay-os/skills/<ns>/<name>/` layout so `--dir` updates stay safe.

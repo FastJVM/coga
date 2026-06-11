@@ -426,3 +426,49 @@ def test_stuck_in_progress_flagged(repo: Path) -> None:
     os.utime(ref.path / "log.md", (old, old))
     report = run(cfg, idle_hours=72.0)
     assert any(i.kind == "stuck-in-progress" for i in report.issues)
+
+
+def _write_full_task(repo: Path, rel: str, title: str = "X") -> Path:
+    """A complete, schema-clean task dir at `tasks/<rel>` (rel may be nested)."""
+    task_dir = repo / "tasks" / rel
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(dedent(f"""
+        ---
+        title: {title}
+        status: draft
+        mode: interactive
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: claude
+        contexts: []
+        skills: []
+        workflow: null
+        ---
+
+        ## Description
+    """).lstrip())
+    (task_dir / "blackboard.md").write_text("# Blackboard\n")
+    (task_dir / "log.md").write_text("")
+    return task_dir
+
+
+def test_nested_task_validates_clean(repo: Path) -> None:
+    cfg = load_config(repo)
+    _write_full_task(repo, "auto/digest-sweep", title="Digest sweep")
+    report = run(cfg)
+    assert [i for i in report.issues if i.severity == "error"] == []
+    assert report.ok_count == 1
+
+
+def test_duplicate_task_slug_reported_as_error_not_crash(repo: Path) -> None:
+    cfg = load_config(repo)
+    top = _write_full_task(repo, "dup-task")
+    nested = _write_full_task(repo, "auto/dup-task")
+    report = run(cfg)
+    assert [i.kind for i in report.issues] == ["duplicate-slug"]
+    issue = report.issues[0]
+    assert issue.severity == "error"
+    assert issue.task == "dup-task"
+    assert str(top) in issue.message
+    assert str(nested) in issue.message

@@ -13,18 +13,62 @@ workflow: null
 
 ## Description
 
-We're missing a very easy step for a user to start building context. There should be some very basic questions that relay asks the user when they run init. 
+Below is a 2 phase process meant to derive reusable knowledge. This knowledge becomes durable artifacts (contexts, rules, workflows, recurring, possibly skills) that Relay attaches to future tickets — so every agent starts already knowing the project instead of starting from zero.
 
-1. What kind of business are you? 
-2. What does your business do?--what's the product? Who's the customer?
-3. What domain knowledge does your business depend on that an outsider wouldn't know?
-4. Are there rules every agent should follow? 
-5. What's the main codebase? "Language, repo-layout"
-6. How do you run, test, and deploy?
-7. Are there any tasks that come up over and over? 
-8. Is there anything you check or do on a schedule?
+Init Interview
+(Runs only on the first `relay init` of a repository. It never triggers again — after that, `relay init --update` brings in changes.)
 
-(I may reduce it to just the first 3)
+1. What is this repo for — what project or operation does it coordinate, and what does success look like? (Repo/relay-os/contexts)
+
+2. What knowledge does this work depend on that an outsider couldn't get from reading the repo? 
+(Repo/relay-os/contexts)
+
+3. What rules should every agent always follow here? (e.g. "never push to main") (rules.md)
+
+4. What work comes up repeatedly — and is any of it on a schedule? (Repo/relay-os/workflows...Repo/relay-os/recurring)
+
+Once they answer all 4 questions, a setup ticket is auto-scaffolded for them, ready for `relay launch`.
+
+Setup Ticket
+1. Interview answers are added into the ticket (so the agent knows them)
+
+2. Agent reads the user's repo
+
+3. Agent creates workflows, contexts, recurring, (possibly skills) from the repo/ answers
+
+4. Agent shows you the files it generated and you can sign-off, edit, etc.
+
+Empty repo: the phase 1 questions are still asked, but since there's nothing to scan, artifacts are created from the answers alone. They are still shown to the human for review before landing.
+
+Phase 2 is Relay building Relay. It uses the answers that the user gave in phase 1 + the information gained from scanning the repo (if there is one) to create durable artifacts (contexts, workflows, recurring, rules, possibly skills). These artifacts can then be called on and possibly attached when the user creates follow-up tickets. 
 
 ## Context
 
+We found we were missing an easy opportunity for a new user to build reusable artifacts from installation — without it, relay-os starts empty and every future agent starts from zero. This fills that gap.
+
+Design points validated by a pre-implementation dry run (2026-06-11; full
+eval, scorecard, and Zach's recorded interview answers are on the
+blackboard; fixtures kept at `~/Desktop/admin-init-test` and
+`~/Desktop/admin-fresh` so the identical test can be replayed against the
+real implementation):
+
+- The interview captures intent; the scan captures the operation. Answers
+  alone preserved about a third of ground-truth facts at partial
+  fidelity; the scan recovered all of them, including scheduled work the
+  human forgot to mention. Treat the scan step as load-bearing.
+- The setup ticket should emit an **open-questions list** as a
+  first-class output alongside the artifacts. On the empty-repo path it
+  is the main deliverable — that path produces a starter relay-os, not a
+  complete one.
+- Conflict precedence: repo docs win on facts, interview answers win on
+  intent. This resolved all four answer/doc conflicts in the dry run
+  correctly.
+- Generation must stub-and-ask rather than fabricate. Both dry-run
+  agents did this unprompted (zero invented facts); make it an explicit
+  requirement, not luck.
+- Interview refinements worth adopting: probe enumerables ("a few
+  year-end processes" → "list them"); ask *where* referenced documents
+  live so the scan can ingest them; ask for anchor dates on cadences
+  cron can't express (bi-weekly payroll broke both legs' schedules).
+- The scan must degrade gracefully to answers-only: real ops repos can
+  be nearly empty outside relay-os.

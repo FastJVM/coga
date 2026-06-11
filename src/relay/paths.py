@@ -89,10 +89,6 @@ def tasks_dir(cfg: Config) -> Path:
     return cfg.repo_root / "tasks"
 
 
-def task_dir(cfg: Config, id_slug: str) -> Path:
-    return tasks_dir(cfg) / id_slug
-
-
 def bootstrap_dir(cfg: Config) -> Path:
     return cfg.repo_root / "bootstrap"
 
@@ -119,7 +115,6 @@ __all__ = [
     "recurring_dir",
     "repo_context_path",
     "tasks_dir",
-    "task_dir",
     "bootstrap_dir",
     "bootstrap_path",
 ]

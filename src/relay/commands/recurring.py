@@ -280,6 +280,9 @@ def _reap_debug_orphans(cfg: Config) -> None:
     if not tasks_root.is_dir():
         return
     reaped: list[str] = []
+    # Top-level scan only: debug runs are always scaffolded as direct
+    # children of `tasks/` (see `scaffold_debug_run`), never inside a
+    # task group directory.
     for entry in sorted(tasks_root.iterdir()):
         if entry.is_dir() and is_debug_slug(entry.name):
             status, panicked = _read_debug_outcome(entry)

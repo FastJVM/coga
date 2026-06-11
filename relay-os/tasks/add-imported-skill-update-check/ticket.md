@@ -1,11 +1,11 @@
 ---
 title: Add imported-skill update check
-status: draft
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - relay/codebase
 - relay/current-direction
@@ -29,7 +29,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -40,7 +40,7 @@ imported/adapted skills.
 Imported skills are useful only if humans can tell where they came from, when
 upstream changed, and whether local adaptations still make sense. Relay needs a
 human-readable provenance record for each imported skill, CLI surfaces to
-install/check/update them, and a Dream maintenance step that can update all
+install/check/update them, and a recurring maintenance task that updates all
 clean imports in a reviewable PR.
 
 ## Context
@@ -67,9 +67,13 @@ The desired operating model:
 - Local adaptations are never overwritten silently. If upstream changed and the
   local copy also changed, the updater skips that skill and emits a conflict
   report with the exact paths/refs involved.
-- Dream includes a known skill-update maintenance step that runs the all-skill
-  updater and creates one PR containing clean imported-skill updates. Conflicts
-  and skipped skills go into the Dream blackboard/PR body as follow-up work.
+- A standalone weekly recurring task (`recurring/skill-update/`, `mode:
+  script`) runs the all-skill updater and creates one PR containing clean
+  imported-skill updates. Conflicts and skipped skills go into the period
+  task's blackboard/PR body as follow-up work. (Redirected from the original
+  "Dream maintenance step" shape: many small recurring tasks are easier to
+  debug and fix than one fat Dream pass, so Dream's skill-update phase is
+  removed.)
 
 ## Acceptance criteria
 
@@ -85,9 +89,10 @@ The desired operating model:
       working-tree diff and produces a structured summary.
 - [ ] Missing provenance, fetch failures, digest mismatches, and other
       supply-chain concerns are reported explicitly instead of being ignored.
-- [ ] Dream's maintenance plan includes the imported-skill update step and uses
-      `relay skill update --all` to open one PR for clean updates.
-- [ ] Dream's PR body or blackboard summary lists updated skills, unchanged
+- [ ] A standalone recurring task runs `relay skill update --all --pr` on a
+      weekly schedule and opens one PR for clean updates; Dream no longer has
+      a skill-update phase.
+- [ ] The period task's blackboard report lists updated skills, unchanged
       skills, skipped/conflicting skills, and next actions.
 - [ ] Focused tests/fixtures cover at least one clean imported skill, one local
-      adaptation/conflict, `--all`, and the Dream summary/PR path.
+      adaptation/conflict, `--all`, and the recurring template/report path.

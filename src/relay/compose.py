@@ -146,7 +146,12 @@ def compose_prompt_report(
     layers: list[PromptLayer] = []
     mode = mode_override or ticket.mode
 
-    header = f"# Relay task — {task_ref.id_slug}\n\nTitle: {ticket.title}\nMode: {mode}"
+    header = (
+        f"# Relay task — {task_ref.id_slug}\n\n"
+        f"Title: {ticket.title}\n"
+        f"Task directory: {_task_path_for_prompt(cfg, task_ref)}\n"
+        f"Mode: {mode}"
+    )
     if ticket.status:
         header += f"\nStatus: {ticket.status}"
     layers.append(PromptLayer("header", "Header", header, raw=True))
@@ -276,6 +281,15 @@ def write_prompt_file(prompt: str, task_ref: TargetRef, dest_dir: Path | None = 
 
 def _resource(name: str) -> str:
     return files("relay.resources").joinpath(name).read_text()
+
+
+def _task_path_for_prompt(cfg: Config, task_ref: TargetRef) -> str:
+    path = task_ref.path.resolve(strict=False)
+    try:
+        rel = path.relative_to(cfg.repo_root.resolve(strict=False))
+    except ValueError:
+        return str(path)
+    return str(Path(cfg.repo_root.name) / rel)
 
 
 def _section(title: str, body: str) -> str:
