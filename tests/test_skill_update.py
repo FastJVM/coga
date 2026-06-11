@@ -47,6 +47,7 @@ classify_status = skill_update.classify_status
 parse_results = skill_update.parse_results
 render_blackboard_report = skill_update.render_blackboard_report
 build_update_command = skill_update.build_update_command
+has_followups = skill_update.has_followups
 GROUP_UPDATED = skill_update.GROUP_UPDATED
 GROUP_FOLLOWUP = skill_update.GROUP_FOLLOWUP
 GROUP_SKIPPED = skill_update.GROUP_SKIPPED
@@ -77,6 +78,19 @@ def test_classify_status_routes_conflict_and_unknown_to_followup() -> None:
     # follow-up, never be silently dropped under a benign heading.
     assert classify_status("conflict") == GROUP_FOLLOWUP
     assert classify_status("some-brand-new-status") == GROUP_FOLLOWUP
+
+
+def test_has_followups_detects_human_needed_statuses() -> None:
+    assert has_followups([_result("a/clean", "updated")]) is False
+    assert (
+        has_followups(
+            [
+                _result("a/clean", "updated"),
+                _result("b/adapted", "skipped-local-adaptation"),
+            ]
+        )
+        is True
+    )
 
 
 def test_build_update_command_toggles_pr() -> None:
@@ -273,3 +287,40 @@ def test_skill_update_runs_as_script_skill_and_reports_no_op(repo: Path) -> None
     assert "## Skill Update" in blackboard
     assert "Task: `skill-update`" in blackboard
     assert "PR: none opened" in blackboard
+
+
+def test_skill_update_followup_without_pr_exits_nonzero_and_keeps_report(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
+    blackboard.parent.mkdir(parents=True)
+    monkeypatch.setenv("RELAY_TASK_BLACKBOARD", str(blackboard))
+    monkeypatch.setenv("RELAY_TASK_SLUG", "skill-update")
+
+    def fake_run_update_json(*, cwd: Path | None, pr: bool, pr_title: str):
+        assert pr is True
+        return (
+            {
+                "results": [
+                    {
+                        "name": "b/adapted",
+                        "source_type": "url",
+                        "status": "skipped-local-adaptation",
+                        "message": "local changes detected",
+                        "changed": False,
+                    }
+                ],
+                "pr_url": "",
+            },
+            ["relay", "skill", "update", "--all", "--pr", "--json"],
+        )
+
+    monkeypatch.setattr(skill_update, "run_update_json", fake_run_update_json)
+
+    assert skill_update.main([]) == 1
+    text = blackboard.read_text()
+    assert "## Skill Update" in text
+    assert "Task: `skill-update`" in text
+    assert "### Needs follow-up" in text
+    assert "`b/adapted`: `skipped-local-adaptation`" in text
+    assert "PR: none opened" in text

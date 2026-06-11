@@ -39,7 +39,9 @@ PR.
   no upstream changes makes no commit and opens no PR.
 - Stop and ask: any skill reported with a follow-up status (a conflict, a
   skipped local adaptation, or a failure) needs a human — the skill reports it
-  and does not force the update.
+  and does not force the update. If those follow-ups are the only result and
+  no PR is opened, the script exits non-zero after writing the report so the
+  period task remains visible.
 - Output: append `## Skill Update` to the task blackboard, bucketing every
   skill by its update status and linking the PR when one was opened.
 
@@ -58,9 +60,9 @@ The task must be `mode: script` and its current workflow step must reference
 The skill runs `relay skill update --all --pr --json`, then groups the results
 by their raw update status so each status (e.g. `updated`,
 `skipped-local-adaptation`, a future `conflict`, `failed`) is reported in its
-own bucket. It exits `0` when the update ran, even when some skills need
-follow-up; it exits non-zero only when the `relay skill update` command itself
-failed.
+own bucket. It exits non-zero when the `relay skill update` command itself
+failed, or when a run needs human follow-up but opened no PR to carry that
+follow-up forward.
 
 ## Output
 

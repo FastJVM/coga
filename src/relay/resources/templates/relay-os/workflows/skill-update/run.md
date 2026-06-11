@@ -15,4 +15,6 @@ Script step. Runs `bootstrap/skill-update`, which calls
 in one draft PR on the dedicated `relay/skill-update` branch, and the result —
 updated, follow-up, and skipped skills bucketed by raw status — is appended to
 the task blackboard under `## Skill Update`. When no imported skill changed, no
-PR is opened.
+PR is opened. When a run has human-needed follow-up and no PR artifact to carry
+it, the script exits non-zero after writing the report so the period task is not
+silently marked done.

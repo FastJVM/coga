@@ -16,6 +16,8 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "relay/resources/templates/relay-os/bootstrap/skills/eval/"
     "ticket-diagnostic/SKILL.md",
     "relay/resources/templates/relay-os/bootstrap/contexts/relay/sync/SKILL.md",
+    "relay/resources/templates/relay-os/recurring/skill-update/ticket.md",
+    "relay/resources/templates/relay-os/workflows/skill-update/run.md",
     "relay/resources/templates/relay-os/skills/_template/SKILL.md",
 )
 

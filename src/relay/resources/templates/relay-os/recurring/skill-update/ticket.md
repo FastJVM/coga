@@ -33,4 +33,6 @@ skills are not touched here — they refresh with the relay package on
 `relay init --update`.
 
 A week with no upstream changes is a quiet no-op: nothing is committed and no
-PR is opened.
+PR is opened. A week with only follow-up statuses is intentionally loud: after
+writing the `## Skill Update` report, the script exits non-zero so this period
+task remains visible until a human resolves or parks it.

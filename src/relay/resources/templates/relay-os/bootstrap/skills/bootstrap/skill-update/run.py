@@ -190,6 +190,10 @@ def render_blackboard_report(
     return "\n".join(lines).rstrip() + "\n"
 
 
+def has_followups(results: list[SkillUpdate]) -> bool:
+    return any(classify_status(result.status) == GROUP_FOLLOWUP for result in results)
+
+
 def append_report(blackboard: Path, report: str) -> None:
     if not blackboard.parent.is_dir():
         raise RuntimeError(f"Blackboard parent does not exist: {blackboard.parent}")
@@ -238,12 +242,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         payload, command = run_update_json(cwd=args.cwd, pr=pr, pr_title=args.pr_title)
         results = parse_results(payload)
-        pr_url = payload.get("pr_url")
+        raw_pr_url = payload.get("pr_url")
+        pr_url = raw_pr_url if isinstance(raw_pr_url, str) and raw_pr_url else None
         report = render_blackboard_report(
             results,
             generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
             command=command,
-            pr_url=pr_url if isinstance(pr_url, str) and pr_url else None,
+            pr_url=pr_url,
             pr_requested=pr,
             task_slug=task_slug,
         )
@@ -251,6 +256,12 @@ def main(argv: list[str] | None = None) -> int:
             append_report(blackboard, report)
         else:
             sys.stdout.write(report)
+        if pr and pr_url is None and has_followups(results):
+            sys.stderr.write(
+                "Skill update needs human follow-up and no PR was opened; "
+                "see the task blackboard for the conflict report.\n"
+            )
+            return 1
     except RuntimeError as exc:
         sys.stderr.write(f"{exc}\n")
         return 2

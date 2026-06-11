@@ -33,7 +33,9 @@ EXPECTED_FILES = {
     "relay-os/workflows/_template.md",
     "relay-os/recurring/_template/ticket.md",
     "relay-os/recurring/dream/ticket.md",
+    "relay-os/recurring/skill-update/ticket.md",
     "relay-os/tasks/_template/ticket.md",
+    "relay-os/workflows/skill-update/run.md",
 }
 
 
@@ -97,6 +99,14 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     # Recurring tasks are ticket-format directories; only `ticket.md` is vendored.
     (templates / "recurring" / "dream").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "dream" / "ticket.md").write_text("dream template\n")
+    (templates / "recurring" / "skill-update").mkdir(parents=True, exist_ok=True)
+    (templates / "recurring" / "skill-update" / "ticket.md").write_text(
+        "skill update template\n"
+    )
+    (templates / "workflows" / "skill-update").mkdir(parents=True, exist_ok=True)
+    (templates / "workflows" / "skill-update" / "run.md").write_text(
+        "skill update workflow\n"
+    )
 
     cli_src = clone_dir / update_cmd.CLI_SRC_SUBPATH
     cli_src.mkdir(parents=True, exist_ok=True)
@@ -469,6 +479,14 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     # Recurring tasks are ticket-format directories; only `ticket.md` is vendored.
     (templates / "recurring" / "dream").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "dream" / "ticket.md").write_text("NEW dream template\n")
+    (templates / "recurring" / "skill-update").mkdir(parents=True, exist_ok=True)
+    (templates / "recurring" / "skill-update" / "ticket.md").write_text(
+        "NEW skill update template\n"
+    )
+    (templates / "workflows" / "skill-update").mkdir(parents=True, exist_ok=True)
+    (templates / "workflows" / "skill-update" / "run.md").write_text(
+        "NEW skill update workflow\n"
+    )
     (templates / "rules.md").write_text("NEW upstream rules — should NOT be copied (no _ prefix)\n")
     (templates / "bootstrap" / "create").mkdir(parents=True)
     (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap shim\n")
@@ -659,18 +677,27 @@ def test_init_update_refreshes_vendored_recurring_template(
     monkeypatch: pytest.MonkeyPatch,
     preexisting: str | None,
 ) -> None:
-    """`recurring/dream/ticket.md` is a relay-owned battery — no `_` prefix, not
-    under `bootstrap/`. `init --update` must restore it when missing (repos
-    predating the template) and overwrite it when stale, or `relay dream` has
-    nothing to scaffold.
+    """Relay-owned live batteries are no-prefix files outside `bootstrap/`.
+
+    `init --update` must restore them when missing (repos predating the
+    template) and overwrite them when stale, or their launch paths have nothing
+    to scaffold.
     """
     relay_os = _seed_local_relay_os(tmp_path)
     dream = relay_os / "recurring" / "dream" / "ticket.md"
+    skill_update = relay_os / "recurring" / "skill-update" / "ticket.md"
+    skill_update_workflow = relay_os / "workflows" / "skill-update" / "run.md"
     if preexisting is None:
         assert not dream.exists()
+        assert not skill_update.exists()
+        assert not skill_update_workflow.exists()
     else:
         dream.parent.mkdir(parents=True, exist_ok=True)
         dream.write_text(preexisting)
+        skill_update.parent.mkdir(parents=True, exist_ok=True)
+        skill_update.write_text("STALE skill update template\n")
+        skill_update_workflow.parent.mkdir(parents=True, exist_ok=True)
+        skill_update_workflow.write_text("STALE skill update workflow\n")
 
     package_clone = tmp_path / "package"
     _seed_fake_upstream_for_update(package_clone)
@@ -701,7 +728,11 @@ def test_init_update_refreshes_vendored_recurring_template(
     assert result.exit_code == 0, result.output
 
     assert dream.read_text() == "NEW dream template\n"
+    assert skill_update.read_text() == "NEW skill update template\n"
+    assert skill_update_workflow.read_text() == "NEW skill update workflow\n"
     assert "recurring/dream/ticket.md" in result.output
+    assert "recurring/skill-update/ticket.md" in result.output
+    assert "workflows/skill-update/run.md" in result.output
 
 
 def test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors(
@@ -722,6 +753,10 @@ def test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors(
     (relay_os / "skills" / "retro" / "done-ticket").mkdir(parents=True)
     (relay_os / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
         "SOURCE retro/done-ticket\n"
+    )
+    (relay_os / "workflows" / "skill-update").mkdir(parents=True)
+    (relay_os / "workflows" / "skill-update" / "run.md").write_text(
+        "SOURCE skill update workflow\n"
     )
     # An obsolete top-level path (prune-listed) must survive in a source
     # checkout, where pruning is skipped entirely.
@@ -789,6 +824,12 @@ def test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors(
     assert (
         relay_os / "recurring" / "dream" / "ticket.md"
     ).read_text() == "NEW dream template\n"
+    assert (
+        relay_os / "recurring" / "skill-update" / "ticket.md"
+    ).read_text() == "NEW skill update template\n"
+    assert (
+        relay_os / "workflows" / "skill-update" / "run.md"
+    ).read_text() == "SOURCE skill update workflow\n"
 
 
 def test_init_commits_relay_os_when_target_is_git_repo(
