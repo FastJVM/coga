@@ -3,7 +3,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: skill-update-recurring
 worktree: /home/n/Code/codex/relay-skill-update-recurring
-pr: (pending — opens in the code/open-pr step)
+pr: https://github.com/FastJVM/relay/pull/345
 
 ## Scope discovery (2026-06-10)
 
@@ -106,3 +106,47 @@ afterward. If you are a fresh agent launched on the `implement` step: do not
 redo any work. Verify the commit exists on `skill-update-recurring`
 (`git log skill-update-recurring -1`), then run
 `relay bump add-imported-skill-update-check` and exit.
+
+## Peer review result (2026-06-11)
+
+Codex review against fork point `4b946168aba10068c1f97ca0137507a0901d58e4`
+found two must-fix issues:
+
+- Existing repos running `relay init --update` would get the packaged
+  `bootstrap/skill-update` skill, but not the new `recurring/skill-update/`
+  template or `workflows/skill-update/run.md`, because the update path only
+  refreshed `_` scaffolds, `bootstrap/`, and the hard-coded Dream recurring
+  template.
+- Follow-up-only skill-update runs (local adaptation, provenance conflict,
+  fetch failure) opened no PR, exited 0, and would be marked `done`; after
+  Dream pruned the period ticket, the only human-needed report could disappear.
+
+Applied fixes in commit `435fb16` (`peer-review: apply skill update fixes`):
+
+- Added the skill-update recurring template to the vendored recurring refresh
+  list and added a narrow vendored workflow refresh list for
+  `workflows/skill-update/run.md`.
+- Made `bootstrap/skill-update` append its report and then exit non-zero when
+  a `--pr` run has follow-up statuses but no PR URL, keeping the period task
+  visible instead of silently marking it done.
+- Updated live + packaged recurring/workflow docs and added regression tests
+  for init/update materialization, wheel resources, and follow-up-only script
+  behavior.
+
+Verification:
+
+- `codex review --base 4b946168aba10068c1f97ca0137507a0901d58e4` (required
+  unsandboxed execution because the in-process app-server could not initialize
+  in the restricted filesystem).
+- `PYTHONPATH=src python -m pytest -q tests/test_skill_update.py
+  tests/test_init.py::test_init_into_empty_dir
+  tests/test_init.py::test_init_update_refreshes_vendored_recurring_template
+  tests/test_init.py::test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors
+  tests/test_packaging.py` — 17 passed, 1 skipped.
+- `PYTHONPATH=/home/n/Code/codex/relay-skill-update-recurring/src python -m
+  pytest -q -p no:cacheprovider` — 630 passed, 1 skipped.
+- `PYTHONPATH=/home/n/Code/codex/relay-skill-update-recurring/src python -m
+  relay.validate --json --task add-imported-skill-update-check` — ok.
+- Repo-wide `relay.validate --json` still reports the pre-existing task-corpus
+  warnings/errors (missing materialized bootstrap skills in this worktree and
+  old draft/workflow issues); not introduced by this branch.
