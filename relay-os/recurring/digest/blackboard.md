@@ -33,6 +33,30 @@ posted:
 
 
 {"ts":"2026-06-06T21:23","project":"relay","kind":"draft","detail":"created \"stop loading log in conetxt\" (draft)","ticket":"stop-loading-log-in-conetxt","owner":"nick"}
+{"ts":"2026-06-06T11:48","project":"relay-cli","kind":"done","detail":"zach finished → done ✅","ticket":"backlog-report","owner":"zach"}
+{"ts":"2026-06-06T11:48","project":"relay-cli","kind":"done","detail":"zach finished → done ✅","ticket":"cursor-report","owner":"zach"}
+{"ts":"2026-06-06T11:48","project":"relay-cli","kind":"done","detail":"zach finished → done ✅","ticket":"dust-report","owner":"zach"}
+{"ts":"2026-06-06T11:48","project":"relay-cli","kind":"done","detail":"zach finished → done ✅","ticket":"linear-agent-report","owner":"zach"}
+{"ts":"2026-06-06T11:48","project":"relay-cli","kind":"done","detail":"zach finished → done ✅","ticket":"superset-report","owner":"zach"}
+{"ts":"2026-06-06T14:38","project":"relay-cli","kind":"active","detail":"→ active — assignee claude","ticket":"bucket-comparison-document","owner":"zach"}
+{"ts":"2026-06-06T14:41","project":"relay-cli","kind":"bump","detail":"claude advanced → step 2 (draft)","ticket":"bucket-comparison-document","owner":"zach"}
+{"ts":"2026-06-06T14:57","project":"relay-cli","kind":"bump","detail":"claude advanced → step 3 (revise) — draft Doc (narrative version, human-edited & approved): https://docs.google.com/document/d/1IbQ4qh17rK2SZNFIGrMZVkvc_qSSHHiAFvANs7a60eU/edit","ticket":"bucket-comparison-document","owner":"zach"}
+{"ts":"2026-06-06T15:02","project":"relay-cli","kind":"done","detail":"claude finished → done ✅","ticket":"bucket-comparison-document","owner":"zach"}
+{"ts":"2026-06-08T15:10","project":"relay-cli","kind":"draft","detail":"created \"relay-cli-shipping\" (draft)","ticket":"relay-cli-shipping","owner":"zach"}
+{"ts":"2026-06-08T16:50","project":"relay-cli","kind":"draft","detail":"created \"init-questions\" (draft)","ticket":"init-questions","owner":"zach"}
+{"ts":"2026-06-08T16:51","project":"relay-cli","kind":"draft","detail":"created \"relay-uninstall\" (draft)","ticket":"relay-uninstall","owner":"zach"}
+{"ts":"2026-06-08T16:51","project":"relay-cli","kind":"draft","detail":"created \"issue-inbox-slack\" (draft)","ticket":"issue-inbox-slack","owner":"zach"}
+{"ts":"2026-06-08T16:52","project":"relay-cli","kind":"draft","detail":"created \"skip-permissions-option\" (draft)","ticket":"skip-permissions-option","owner":"zach"}
+{"ts":"2026-06-08T16:52","project":"relay-cli","kind":"draft","detail":"created \"vision-to-plan\" (draft)","ticket":"vision-to-plan","owner":"zach"}
+{"ts":"2026-06-08T16:53","project":"relay-cli","kind":"draft","detail":"created \"identify-blocking-issues\" (draft)","ticket":"identify-blocking-issues","owner":"zach"}
+{"ts":"2026-06-08T16:53","project":"relay-cli","kind":"draft","detail":"created \"acceptance-criteria\" (draft)","ticket":"acceptance-criteria","owner":"zach"}
+{"ts":"2026-06-08T16:54","project":"relay-cli","kind":"draft","detail":"created \"relay-forces-https\" (draft)","ticket":"relay-forces-https","owner":"zach"}
+{"ts":"2026-06-08T16:55","project":"relay-cli","kind":"draft","detail":"created \"remote-default-origin\" (draft)","ticket":"remote-default-origin","owner":"zach"}
+{"ts":"2026-06-09T15:14","project":"relay-cli","kind":"draft","detail":"created \"relay-discord\" (draft)","ticket":"relay-discord","owner":"zach"}
+{"ts":"2026-06-09T15:15","project":"relay-cli","kind":"draft","detail":"created \"relay-model-selection\" (draft)","ticket":"relay-model-selection","owner":"zach"}
+{"ts":"2026-06-09T15:15","project":"relay-cli","kind":"draft","detail":"created \"relay-crm\" (draft)","ticket":"relay-crm","owner":"zach"}
+{"ts":"2026-06-09T15:16","project":"relay-cli","kind":"draft","detail":"created \"clean-uncommitted-work\" (draft)","ticket":"clean-uncommitted-work","owner":"zach"}
+{"ts":"2026-06-09T15:17","project":"relay-cli","kind":"draft","detail":"created \"relay-project-command\" (draft)","ticket":"relay-project-command","owner":"zach"}
 {"ts":"2026-06-09T16:00","project":"relay","kind":"done","detail":"auto-bumped on merge of PR #322 ✅","ticket":"dream-sweeps-done-recurring-period-tickets","owner":"nick"}
 {"ts":"2026-06-09T16:00","project":"relay","kind":"done","detail":"auto-bumped on merge of PR #321 ✅","ticket":"rewrite-slack-messages","owner":"nick"}
 {"ts":"2026-06-09T16:23","project":"relay","kind":"draft","detail":"created \"Close imported-skill provenance, conflict, and Dream-update gaps\" (draft)","ticket":"close-imported-skill-provenance-conflict-and-dream","owner":"nick"}
@@ -89,3 +113,13 @@ posted:
 {"ts":"2026-06-09T16:45","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"recurring-sweep-runs-dream-cleanup-phase-last-and","owner":"nick"}
 {"ts":"2026-06-11T11:59","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"post-slack-notification-on-mode-script-failures","owner":"nick"}
 {"ts":"2026-06-11T11:59","project":"relay","kind":"done","detail":"claude finished → done ✅","ticket":"post-slack-notification-on-mode-script-failures","owner":"nick"}
+{"ts":"2026-06-10T13:50","project":"relay-cli","kind":"active","detail":"→ active (assignee: claude)","ticket":"maybe-remove-ticket-diagnostic","owner":"zach"}
+{"ts":"2026-06-10T14:20","project":"relay-cli","kind":"bump","detail":"claude advanced: implement → peer-review (step 2/4) → assigned to codex","ticket":"maybe-remove-ticket-diagnostic","owner":"zach"}
+{"ts":"2026-06-10T14:24","project":"relay-cli","kind":"bump","detail":"codex advanced: peer-review → open-pr (step 3/4) → assigned to claude","ticket":"maybe-remove-ticket-diagnostic","owner":"zach"}
+{"ts":"2026-06-10T14:40","project":"relay-cli","kind":"bump","detail":"claude advanced: open-pr → review (step 4/4) → assigned to zach — PR opened: https://github.com/FastJVM/relay/pull/332","ticket":"maybe-remove-ticket-diagnostic","owner":"zach"}
+{"ts":"2026-06-11T09:10","project":"relay-cli","kind":"done","detail":"zach finished: review → done ✅","ticket":"maybe-remove-ticket-diagnostic","owner":"zach"}
+{"ts":"2026-06-11T09:39","project":"relay-cli","kind":"draft","detail":"created \"establish-marketing-area\" (draft)","ticket":"establish-marketing-area","owner":"zach"}
+{"ts":"2026-06-11T12:44","project":"relay-cli","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/336|PR #336> merged ✅","ticket":"skip-permissions-option","owner":"zach"}
+{"ts":"2026-06-11T12:44","project":"relay-cli","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/335|PR #335> merged ✅","ticket":"support-task-subdirectories-in-task-discovery","owner":"nick"}
+{"ts":"2026-06-11T12:55","project":"relay-cli","kind":"active","detail":"→ active (assignee: claude)","ticket":"establish-marketing-area-inside-relay-os","owner":"zach"}
+{"ts":"2026-06-11T12:55","project":"relay-cli","kind":"done","detail":"claude finished: implement → done ✅","ticket":"establish-marketing-area-inside-relay-os","owner":"zach"}
