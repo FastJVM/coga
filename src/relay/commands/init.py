@@ -57,6 +57,20 @@ user = ""
 
 # [secrets]
 # stripe_key = "env:STRIPE_SECRET_KEY"
+
+# Per-agent permission-skip policy for autonomous runs — machine-local only
+# (these keys are rejected in shared relay.toml). With `skip_permissions =
+# "auto"`, normal `mode: auto` task launches append `skip_permissions_argv`
+# (one string, shlex-split) so the agent CLI doesn't stop on per-command
+# permission/approval prompts. Interactive launches, bootstrap shims
+# (`relay chat` / `relay ticket`), and script tasks are unaffected.
+# Verify the flags against your installed CLIs before enabling.
+# [agents.claude]
+# skip_permissions = "auto"
+# skip_permissions_argv = "--dangerously-skip-permissions"
+# [agents.codex]
+# skip_permissions = "auto"
+# skip_permissions_argv = "--dangerously-bypass-approvals-and-sandbox"
 """
 
 

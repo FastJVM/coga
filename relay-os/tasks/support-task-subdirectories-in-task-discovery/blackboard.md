@@ -4,6 +4,18 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: task-subdirs
 worktree: /home/n/Code/relay-task-subdirs
+pr: https://github.com/FastJVM/relay/pull/335
+
+## Open PR (2026-06-10)
+
+Pushed `task-subdirs` and opened PR #335 (implement commit 7ab0a31 +
+peer-review fix c48e771). `gh pr checks` reports no checks on the
+branch — this repo has no CI configured, so there is no green/red
+signal to wait on; reviewer should rely on the local verification
+recorded above (638 tests passed, validate clean). Reminder for the
+merger: see "Merge wrinkle for reviewer" above about the live
+uncommitted stream-agent blackboard/log edits at the old top-level
+path.
 
 ## Implement plan (2026-06-10)
 
@@ -74,6 +86,33 @@ edits to the stream-agent ticket's blackboard.md/log.md at the OLD
 top-level path. When this branch merges and main is checked out, git
 will see those as edits to a deleted path — commit or stash the live
 task state before merging to avoid a messy reconcile.
+
+## Peer review (2026-06-11)
+
+Native review command: `codex review --base main` from
+`/home/n/Code/relay-task-subdirs`. The sandboxed run hit the known read-only
+app-server setup failure, so the same command was rerun with escalation and
+completed.
+
+Must-fix found:
+- The implementation made nested tasks discoverable, but launch-time guidance
+  still taught agents to reconstruct `relay-os/tasks/<slug>/`. That would
+  send agents to the wrong blackboard for grouped tasks.
+
+Fix committed on branch `task-subdirs` as `c48e771`:
+- `compose_prompt_report()` now includes `Task directory:
+  relay-os/tasks/...` in the prompt header, using the resolved `TaskRef.path`.
+- Updated the base prompt, live Relay contexts, packaged bootstrap contexts,
+  Dream/Retro templates, and git-sync comments to describe top-level or
+  one-level-grouped task directories.
+- Added a compose regression test for nested task header paths.
+
+Verification:
+- `python -m pytest` from `/home/n/Code/relay-task-subdirs`: 638 passed,
+  1 skipped. One pytest cache warning came from the sandbox not being able to
+  write `.pytest_cache`; tests passed.
+- `PYTHONPATH=/home/n/Code/relay-task-subdirs/src python -m relay.validate
+  --json` from `example/relay-os`: ok_count 1, no issues.
 
 ## Bootstrap notes (2026-06-10)
 
