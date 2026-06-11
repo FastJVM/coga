@@ -83,7 +83,7 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "relay create" in text
     assert "no per-run ticket cap" in text
     assert "Extract durable knowledge from done tickets, then delete every one of them." in text
-    assert "its directory `relay-os/tasks/<slug>/` still exists" in text
+    assert "its resolved task directory under `relay-os/tasks/` still exists" in text
     assert "Retro never leaves a processed done ticket on" in text
     # Knowledge-less tickets are direct-deleted, not bundled into a prune PR.
     assert "is direct-deleted with" in text

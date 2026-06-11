@@ -205,8 +205,9 @@ is a **producer → blackboard → consumer** pipeline with no side mechanism:
 
 Slack tells the team what changed; git makes the markdown state durable and
 shareable. Relay-owned commands that mutate a task directory should commit
-the changed `relay-os/tasks/<slug>/` files and push them after the Slack post,
-so `origin/main` does not drift from the state humans saw in Slack.
+the resolved task directory path under `relay-os/tasks/` (top-level or grouped
+one level deep) and push it after the Slack post, so `origin/main` does not
+drift from the state humans saw in Slack.
 
 Current surface:
 

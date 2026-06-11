@@ -91,9 +91,9 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
     completes (the on-disk markdown is the source of truth; the push just
     didn't land). See the module docstring's failure model.
 
-    `task_path` is the task directory (`relay-os/tasks/<slug>/`); only files
-    under it are staged, never `git add -A`, so unrelated working-tree changes
-    are not swept in.
+    `task_path` is the resolved task directory under `relay-os/tasks/`; only
+    files under it are staged, never `git add -A`, so unrelated working-tree
+    changes are not swept in.
     """
     # A `relay recurring --all` debug run is disposable scratch: it must never
     # write committed git history — the same reason it never reaches Slack

@@ -15,6 +15,26 @@ class TaskNotFoundError(Exception):
     pass
 
 
+class DuplicateTaskSlugError(Exception):
+    """Two task directories share the same leaf name.
+
+    The leaf directory name is the slug, and the slug is the universal task
+    reference — a duplicate makes bare-slug resolution ambiguous, so
+    discovery fails loud. `relay validate` catches this and reports the
+    colliding paths instead of crashing.
+    """
+
+    def __init__(self, slug: str, paths: list[Path]) -> None:
+        self.slug = slug
+        self.paths = paths
+        listed = ", ".join(str(p) for p in paths)
+        super().__init__(
+            f"Duplicate task slug {slug!r}: {listed} — "
+            f"task directory names must be unique across `tasks/` and its "
+            f"group directories; rename one of them."
+        )
+
+
 _BOOTSTRAP_PREFIX = "bootstrap/"
 
 
@@ -50,24 +70,41 @@ TargetRef = Union[TaskRef, BootstrapRef]
 def list_tasks(cfg: Config) -> list[TaskRef]:
     """List all task directories under `relay-os/tasks/`.
 
-    A task is any direct child directory of `tasks/` that contains a
-    `ticket.md`. The directory name is the task's slug. Directories whose
-    names start with `_` are treated as templates and skipped (matching
-    the convention used elsewhere in the layout).
+    A task is any directory containing a `ticket.md`, either a direct child
+    of `tasks/` or one level deeper inside a *group* directory — a child of
+    `tasks/` without a `ticket.md` of its own (e.g. `tasks/auto/`). The leaf
+    directory name is the task's slug regardless of nesting, so tasks stay
+    referenced by bare slug. Directories whose names start with `_` are
+    treated as templates and skipped at both levels. A task directory is
+    never recursed into, and groups don't nest.
+
+    Raises `DuplicateTaskSlugError` when two task directories share a leaf
+    name — bare-slug resolution would be ambiguous.
     """
     tasks_root = tasks_dir(cfg)
     if not tasks_root.is_dir():
         return []
-    out: list[TaskRef] = []
+    found: dict[str, TaskRef] = {}
+
+    def add(entry: Path) -> None:
+        clash = found.get(entry.name)
+        if clash is not None:
+            raise DuplicateTaskSlugError(entry.name, [clash.path, entry])
+        found[entry.name] = TaskRef(slug=entry.name, path=entry)
+
     for entry in sorted(tasks_root.iterdir()):
-        if not entry.is_dir():
+        if not entry.is_dir() or entry.name.startswith("_"):
             continue
-        if entry.name.startswith("_"):
+        if (entry / "ticket.md").is_file():
+            add(entry)
             continue
-        if not (entry / "ticket.md").is_file():
-            continue
-        out.append(TaskRef(slug=entry.name, path=entry))
-    return out
+        # Group directory: its direct children may be tasks.
+        for sub in sorted(entry.iterdir()):
+            if not sub.is_dir() or sub.name.startswith("_"):
+                continue
+            if (sub / "ticket.md").is_file():
+                add(sub)
+    return sorted(found.values(), key=lambda t: t.slug)
 
 
 def resolve_task(cfg: Config, task_arg: str) -> TaskRef:
@@ -126,6 +163,7 @@ __all__ = [
     "BootstrapRef",
     "TargetRef",
     "TaskNotFoundError",
+    "DuplicateTaskSlugError",
     "list_tasks",
     "resolve_task",
     "resolve_bootstrap",

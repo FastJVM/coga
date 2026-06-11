@@ -127,9 +127,9 @@ runs and better at de-duplicating repeated facts.
 
 A done ticket is eligible when:
 
-- its directory `relay-os/tasks/<slug>/` still exists; and
-- no open PR is adding its `## Retro` marker or deleting
-  `relay-os/tasks/<slug>/`.
+- its resolved task directory under `relay-os/tasks/` still exists; and
+- no open PR is adding its `## Retro` marker or deleting that resolved task
+  directory.
 
 A ticket whose directory is already gone is not a candidate; git history holds
 its record. A processed `## Retro` marker on a still-present directory does not
@@ -181,15 +181,15 @@ candidates and gates deletion through `bootstrap/delete-task`. That delete
 skill ships, but until its cleanup PR-dispatch wiring is finished the worker
 reports `human-needed` and deletes nothing.
 
-For each candidate, cleanup must open a PR that deletes only
-`relay-os/tasks/<slug>/`. The deletion goes in the PR, not the working tree, so
-a human can review it before merge. Cleanup gate:
+For each candidate, cleanup must open a PR that deletes only the resolved task
+directory under `relay-os/tasks/`. The deletion goes in the PR, not the working
+tree, so a human can review it before merge. Cleanup gate:
 
-- the marker is present in `relay-os/tasks/<slug>/blackboard.md`;
+- the marker is present in the task directory's `blackboard.md`;
 - the marker does not have `result: no-new-durable-knowledge`;
 - no open PR is currently editing that task directory;
 - the exact task slug is known; do not use prefix matching for deletion;
-- the PR deletes only `relay-os/tasks/<slug>/`;
+- the PR deletes only that resolved task directory;
 - the PR body states that git history is the audit trail.
 
 Result line: `pr-opened` when the PR is opened. If any gate is unclear, write
