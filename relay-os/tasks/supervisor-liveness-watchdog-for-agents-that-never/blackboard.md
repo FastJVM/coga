@@ -3,8 +3,42 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: timeout-vs-done-classification
 worktree: ../relay-timeout-classification
-pr: (not yet — open-pr is a later step)
-commit: 952af1a
+pr: https://github.com/FastJVM/relay/pull/346
+commit: 32e627f
+
+## Open PR (2026-06-11) — open-pr step done
+
+Pushed `timeout-vs-done-classification` (HEAD `32e627f`, 2 commits ahead of
+main, worktree clean) and opened PR #346
+(https://github.com/FastJVM/relay/pull/346) against `main`. No CI checks are
+configured on this repo (`gh pr checks` reports none — same as prior merged
+PRs), so nothing to wait on. Bumping to the human review step.
+
+## Peer review (2026-06-11) — peer-review step done
+
+Native review: `codex review --base main` completed after an initial sandbox
+app-server read-only failure; reran with approval outside the sandbox. It found
+two P2 must-fixes, both fixed in commit `32e627f`:
+- **Explicit config disarm preserved.** `[launch].idle_timeout = 0` no longer
+  collapses to "unset" and falls back to the 900s recurring default. `Config`
+  now keeps `launch_idle_timeout_present`; recurring falls back only when the
+  key is absent. Regression tests cover parser state and a bare recurring sweep
+  with `idle_timeout = 0`.
+- **Direct launch timeout fails loud.** Public `relay launch --idle-timeout` /
+  `--max-session` now exits with the supervisor timeout code (`124`) on a
+  watchdog timeout. `relay recurring` uses an internal hidden `return_timeout`
+  path so it can still receive `"timeout"`, record the watchdog pause/log/Slack
+  state, and continue the sweep.
+
+Verification:
+- `PYTHONPATH=src python -m pytest -p no:cacheprovider tests/test_config.py
+  tests/test_launch.py tests/test_recurring.py tests/test_repl_supervisor.py`
+  → `192 passed`.
+- `PYTHONPATH=src python -m pytest -p no:cacheprovider` → `670 passed, 1 skipped`.
+- `git diff --check` clean.
+
+Note: the implement-step tradeoff that said standalone timeout exits 0 is now
+superseded by the peer-review fix above.
 
 ## Implemented (2026-06-11) — implement step done
 
