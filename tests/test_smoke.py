@@ -71,8 +71,14 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     for name in ("ticket.md", "blackboard.md", "log.md"):
         assert (task_path / name).is_file()
 
+    # Discovery sees both the scaffolded top-level task and the seeded
+    # fixture task nested one level inside the `tasks/auto/` group dir.
+    by_slug = {t.slug: t for t in list_tasks(cfg)}
+    assert "triage-inbound-email" in by_slug
+    assert by_slug["triage-inbound-email"].path.parent == seeded / "tasks" / "auto"
+
     # 2. Compose prompt includes every section.
-    task_ref = list_tasks(cfg)[0]
+    task_ref = by_slug[ref["slug"]]
     ticket = read_ticket(task_ref)
     prompt = compose_prompt(cfg, task_ref, ticket)
     assert "Never commit secrets" in prompt         # rules.md

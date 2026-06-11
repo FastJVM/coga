@@ -267,21 +267,18 @@ def _authored_task_refs(
     changed_paths: set[Path],
     before_tasks: set[str],
 ) -> list[TaskRef]:
-    tasks_root = (cfg.repo_root / "tasks").resolve(strict=False)
+    # Resolve changed paths against discovered task dirs rather than
+    # reconstructing `tasks/<first-part>` — tasks may live one level deeper
+    # inside a group directory (e.g. `tasks/auto/<slug>/`).
     refs: dict[str, TaskRef] = {}
-    for path in changed_paths:
-        try:
-            rel = path.resolve(strict=False).relative_to(tasks_root)
-        except ValueError:
-            continue
-        if not rel.parts:
-            continue
-        slug = rel.parts[0]
-        task_path = tasks_root / slug
-        if (task_path / "ticket.md").is_file():
-            refs[slug] = TaskRef(slug=slug, path=task_path)
+    tasks = list_tasks(cfg)
+    resolved = [path.resolve(strict=False) for path in changed_paths]
+    for task_ref in tasks:
+        task_root = task_ref.path.resolve(strict=False)
+        if any(task_root in path.parents for path in resolved):
+            refs[task_ref.slug] = task_ref
 
-    for task_ref in list_tasks(cfg):
+    for task_ref in tasks:
         if task_ref.slug not in before_tasks:
             refs.setdefault(task_ref.slug, task_ref)
     return [refs[slug] for slug in sorted(refs)]
