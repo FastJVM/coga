@@ -1,6 +1,6 @@
 ---
 title: Post Slack notification on mode-script failures
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
