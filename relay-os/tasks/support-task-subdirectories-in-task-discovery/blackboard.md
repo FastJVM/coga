@@ -1,5 +1,80 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+
+branch: task-subdirs
+worktree: /home/n/Code/relay-task-subdirs
+
+## Implement plan (2026-06-10)
+
+- `list_tasks()` (src/relay/tasks.py): one-level groups. A direct child
+  of `tasks/` with `ticket.md` is a task; a child dir without one is a
+  group whose direct children are scanned the same way (no deeper
+  recursion). `_`-prefix skipped at both levels. Duplicate leaf slug →
+  raise typed `DuplicateTaskSlugError` carrying the colliding paths.
+- `relay validate` catches `DuplicateTaskSlugError` and reports the
+  colliding paths as an error issue instead of crashing.
+- `_authored_task_refs` (commands/ticket.py): replace `rel.parts[0]`
+  slug reconstruction with containment against `list_tasks()` paths.
+- `task_dir()` (paths.py): REMOVE — uncalled in src/ and tests, exported
+  landmine; ticket allows "make nesting-aware or remove".
+- Recurring orphan sweep (commands/recurring.py): debug runs are always
+  scaffolded top-level, sweep stays top-level — confirm, no change.
+- Scaffold (scaffold.py): new tasks stay top-level; slug dedup now sees
+  nested slugs via list_tasks — intentional, no change.
+- git.py / compose.py carry `ref.path` — safe, no change.
+- `git mv` stream-agent ticket → tasks/auto/ on this branch (atomic with
+  code per ticket).
+- Fixture: example/relay-os has no tasks/ — add nested-task fixture.
+  Check test_smoke.py expectations first.
+- New tests in tests/test_tasks.py + validate duplicate-slug test in
+  test_validate.py.
+
+## Implemented (2026-06-10)
+
+Committed as 7ab0a31 on branch `task-subdirs` (worktree
+/home/n/Code/relay-task-subdirs). 638 tests pass; `relay validate
+--json` against example fixture is clean (ok_count 1, no issues).
+
+What changed:
+- `list_tasks()` (src/relay/tasks.py): one-level groups. Child of
+  `tasks/` with ticket.md = task; without = group whose direct children
+  are scanned; `_` skipped at both levels; task dirs never recursed
+  into; results sorted by slug. New typed `DuplicateTaskSlugError`
+  (carries slug + colliding paths) raised on duplicate leaf names.
+- `validate.run()` / `validate_task()` catch `DuplicateTaskSlugError`
+  and report a `duplicate-slug` error issue with both paths instead of
+  crashing. `run()` now discovers first, then passes `only=refs` to
+  `apply_safe_fixes` (same set, avoids a second raise site).
+- `_authored_task_refs` (commands/ticket.py): replaced `rel.parts[0]`
+  reconstruction with containment against `list_tasks()` paths — the
+  old code mis-attributed nested tasks to their group dir.
+- `task_dir()` REMOVED from paths.py (uncalled landmine; ticket allowed
+  remove). Nothing in src/ or tests imported it.
+- Debug-orphan sweep (commands/recurring.py): confirmed safe —
+  `scaffold_debug_run` → `_scaffold_at_slug` → `scaffold_task` always
+  creates top-level; added a comment documenting the assumption.
+- Scaffold: unchanged by design — new tasks always created top-level
+  (grouping = manual `git mv`); slug dedup via list_tasks now sees
+  nested slugs, so cross-group collisions are prevented at creation.
+- `git mv relay-os/tasks/stream-agent-… → tasks/auto/` in the same
+  commit (atomic per ticket).
+- Fixture: added example/relay-os/tasks/auto/triage-inbound-email/
+  (frozen code/with-review workflow so the example validates with zero
+  warnings); smoke test now asserts the nested fixture is discovered
+  and selects the scaffolded task by slug instead of `[0]`.
+- New tests/test_tasks.py (discovery, `_` skipping, no-recursion,
+  duplicate error, prefix resolution across groups) + two validate
+  tests (nested-clean, duplicate-slug report).
+- Templates under src/relay/resources/templates/relay-os/ untouched —
+  behavior change is code-side only; template tasks/ content unchanged.
+
+Merge wrinkle for reviewer: the primary checkout has live UNCOMMITTED
+edits to the stream-agent ticket's blackboard.md/log.md at the OLD
+top-level path. When this branch merges and main is checked out, git
+will see those as edits to a deleted path — commit or stash the live
+task state before merging to avoid a messy reconcile.
+
 ## Bootstrap notes (2026-06-10)
 
 Drafted during the bootstrap session for
