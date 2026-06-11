@@ -1,6 +1,6 @@
 ---
 title: skip-permissions-option
-status: in_progress
+status: done
 mode: interactive
 owner: zach
 human: zach
@@ -27,7 +27,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

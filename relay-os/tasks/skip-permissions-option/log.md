@@ -37,3 +37,4 @@ relay-os/recurring/digest/blackboard.md: needs merge
 2026-06-10 21:08 [git] sync failed: `git add -- relay-os/tasks/skip-permissions-option` failed (exit 128): fatal: Unable to create '/home/n/Code/relay/.git/index.lock': Read-only file system
 2026-06-10 21:08 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-10 21:10 [agent:claude] advanced to step 4 (review) → assigned to zach — PR opened: https://github.com/FastJVM/relay/pull/336
+2026-06-11 12:44 [human:zach] auto-bumped on merge of PR #336 → done
