@@ -79,3 +79,5 @@ section, so any stray non-JSON line is left untouched.
 {"ts":"2026-06-09T15:52","project":"relay","kind":"done","detail":"→ done (script)","ticket":"dream-dbg-cleanup-orphan-markers","owner":"nick"}
 {"ts":"2026-06-09T16:31","project":"relay","kind":"draft","detail":"created \"Recurring sweep runs Dream cleanup phase last and consolidates ticket deletion\" (draft)","ticket":"recurring-sweep-runs-dream-cleanup-phase-last-and","owner":"nick"}
 {"ts":"2026-06-09T16:45","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"recurring-sweep-runs-dream-cleanup-phase-last-and","owner":"nick"}
+{"ts":"2026-06-11T11:59","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"post-slack-notification-on-mode-script-failures","owner":"nick"}
+{"ts":"2026-06-11T11:59","project":"relay","kind":"done","detail":"claude finished → done ✅","ticket":"post-slack-notification-on-mode-script-failures","owner":"nick"}
