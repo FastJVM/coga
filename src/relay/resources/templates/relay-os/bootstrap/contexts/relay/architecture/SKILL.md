@@ -186,7 +186,17 @@ that touches both planes.
   agent-vs-human, not same-vs-changed assignee. Cross-ticket chaining is
   `relay recurring --interactive`.
 - **`auto`** — one-shot autonomous run. Same composed prompt, no
-  human input.
+  human input. An operator may opt an agent into skipping its CLI's
+  per-command permission/approval prompts for these runs with a partial
+  `[agents.<name>]` table in `relay.local.toml`: `skip_permissions = "auto"`
+  plus `skip_permissions_argv = "..."` (one string, `shlex`-split, inserted
+  after the session-name argv and before the auto argv/prompt). The policy
+  is machine-local only — either key in shared `relay.toml` fails config
+  load — and applies only to normal task tickets in effective `mode: auto`:
+  interactive launches, bootstrap/discussion shims, and script tasks keep
+  today's behavior. Supervised chains re-resolve it per step for whichever
+  agent the step rotated to, and `"auto"` with no configured argv fails the
+  launch loud before spawning.
 - **`script`** — no agent. `relay launch` runs the step's skill
   script directly with secrets injected as env vars.
 
