@@ -1,6 +1,6 @@
 ---
 title: track usage of LLM
-status: in_progress
+status: paused
 mode: interactive
 owner: nick
 human: nick
