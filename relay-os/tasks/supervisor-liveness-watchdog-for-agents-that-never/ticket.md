@@ -1,6 +1,6 @@
 ---
 title: Supervisor liveness watchdog for agents that never signal done
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
