@@ -6,9 +6,9 @@ description: For the agent running one firing of a recurring task. Persistent st
 # You are a period task
 
 You were scaffolded by `relay recurring` from a recurring task. Your
-ticket directory under `relay-os/tasks/<slug>/` exists for one period
-only — next period scaffolds a fresh one. Your own `blackboard.md` is
-gone with you when this run ends.
+ticket directory under `relay-os/tasks/` exists for one period only — next
+period scaffolds a fresh one. The composed prompt header gives your exact task
+directory. Your own `blackboard.md` is gone with you when this run ends.
 
 ## Your slug names your parent
 
@@ -45,7 +45,6 @@ context covers *where* the state lives.
 
 ## Do not write last-run state to your own blackboard
 
-Your own `relay-os/tasks/<slug>/blackboard.md` is fresh this period and
-gone next. Notes for yourself within this run are fine there;
-cross-run state is not — nothing in `relay-os/tasks/<slug>/` survives
-to the next firing.
+Your own task `blackboard.md` is fresh this period and gone next. Notes for
+yourself within this run are fine there; cross-run state is not — nothing in
+your task directory survives to the next firing.

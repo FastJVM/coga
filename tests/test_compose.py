@@ -88,6 +88,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
 
     # Header
     assert "Relay task — fix-retry-logic" in prompt
+    assert "Task directory: relay-os/tasks/fix-retry-logic" in prompt
     # Base prompt
     assert "You are an agent working on a ticket inside Relay" in prompt
     # Interactive prompt
@@ -103,6 +104,32 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     assert "Current step: implement" in prompt
     # Blackboard present
     assert "Blackboard" in prompt
+
+
+def test_compose_header_uses_resolved_nested_task_directory(repo: Path) -> None:
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg,
+        title="Fix retry logic",
+        workflow_name=None,
+        contexts=[],
+        mode="interactive",
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+    top = repo / "tasks" / "fix-retry-logic"
+    nested = repo / "tasks" / "auto" / "fix-retry-logic"
+    nested.parent.mkdir()
+    top.rename(nested)
+
+    ref = list_tasks(cfg)[0]
+    ticket = read_ticket(ref)
+    prompt = compose_prompt(cfg, ref, ticket)
+
+    assert "Relay task — fix-retry-logic" in prompt
+    assert "Task directory: relay-os/tasks/auto/fix-retry-logic" in prompt
 
 
 def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:

@@ -11,10 +11,14 @@ no in-memory state.
 
 ## Primitives
 
-- **Tickets** live in `relay-os/tasks/<slug>/` as a directory. Each has
-  `ticket.md` (frontmatter + body), `log.md` (append-only, written by
-  CLI commands only), and `blackboard.md` (free-form workspace shared
-  between human and agent).
+- **Tickets** live as directories under `relay-os/tasks/`: either direct
+  children (`tasks/<slug>/`) or one level deeper in an organizational group
+  (`tasks/<group>/<slug>/`). The leaf directory name is the slug used by CLI
+  commands and Slack; agents should use the composed prompt's exact task
+  directory instead of reconstructing `tasks/<slug>/`. Each task has
+  `ticket.md` (frontmatter + body), `log.md` (append-only, written by CLI
+  commands only), and `blackboard.md` (free-form workspace shared between
+  human and agent).
 - **Contexts** are domain knowledge — what's true about the world.
   Project-local contexts live in `relay-os/contexts/`; bundled Relay
   batteries live in `relay-os/bootstrap/contexts/`. Attached to tickets via
