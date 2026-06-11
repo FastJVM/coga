@@ -75,6 +75,33 @@ top-level path. When this branch merges and main is checked out, git
 will see those as edits to a deleted path — commit or stash the live
 task state before merging to avoid a messy reconcile.
 
+## Peer review (2026-06-11)
+
+Native review command: `codex review --base main` from
+`/home/n/Code/relay-task-subdirs`. The sandboxed run hit the known read-only
+app-server setup failure, so the same command was rerun with escalation and
+completed.
+
+Must-fix found:
+- The implementation made nested tasks discoverable, but launch-time guidance
+  still taught agents to reconstruct `relay-os/tasks/<slug>/`. That would
+  send agents to the wrong blackboard for grouped tasks.
+
+Fix committed on branch `task-subdirs` as `c48e771`:
+- `compose_prompt_report()` now includes `Task directory:
+  relay-os/tasks/...` in the prompt header, using the resolved `TaskRef.path`.
+- Updated the base prompt, live Relay contexts, packaged bootstrap contexts,
+  Dream/Retro templates, and git-sync comments to describe top-level or
+  one-level-grouped task directories.
+- Added a compose regression test for nested task header paths.
+
+Verification:
+- `python -m pytest` from `/home/n/Code/relay-task-subdirs`: 638 passed,
+  1 skipped. One pytest cache warning came from the sandbox not being able to
+  write `.pytest_cache`; tests passed.
+- `PYTHONPATH=/home/n/Code/relay-task-subdirs/src python -m relay.validate
+  --json` from `example/relay-os`: ok_count 1, no issues.
+
 ## Bootstrap notes (2026-06-10)
 
 Drafted during the bootstrap session for
