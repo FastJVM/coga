@@ -4,6 +4,18 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: task-subdirs
 worktree: /home/n/Code/relay-task-subdirs
+pr: https://github.com/FastJVM/relay/pull/335
+
+## Open PR (2026-06-10)
+
+Pushed `task-subdirs` and opened PR #335 (implement commit 7ab0a31 +
+peer-review fix c48e771). `gh pr checks` reports no checks on the
+branch — this repo has no CI configured, so there is no green/red
+signal to wait on; reviewer should rely on the local verification
+recorded above (638 tests passed, validate clean). Reminder for the
+merger: see "Merge wrinkle for reviewer" above about the live
+uncommitted stream-agent blackboard/log edits at the old top-level
+path.
 
 ## Implement plan (2026-06-10)
 
