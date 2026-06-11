@@ -9,5 +9,6 @@ the top level of `tasks/`, so create the ticket normally and then
 `git mv relay-os/tasks/<slug> relay-os/tasks/marketing/<slug>`. Slugs are
 leaf-name based, so the move doesn't change how the ticket is referenced.
 
-Existing tickets created before this group (e.g.
-`launch-relay-product-launch-comms`) stay where they are.
+The bar for membership: the work itself is marketing (comms, community,
+positioning, adoption tracking, launch assets) — not product work that
+merely helps the launch.
