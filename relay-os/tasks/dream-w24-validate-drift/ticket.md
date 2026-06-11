@@ -1,6 +1,6 @@
 ---
 title: Dream W24 validate-drift
-status: draft
+status: active
 mode: script
 owner: nick
 human: nick
