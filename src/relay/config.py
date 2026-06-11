@@ -85,12 +85,16 @@ class Config:
     git_remote: str = "origin"
     git_control_branch: str = "main"
     # Liveness limits for the interactive REPLs `relay recurring` spawns, from
-    # the shared `[launch]` table. None = unset (no limit from config). The env
-    # overrides (`RELAY_REPL_IDLE_TIMEOUT` / `RELAY_REPL_MAX_SESSION`) still win
-    # over these; see `relay.commands.recurring`. Attended `relay launch` does
-    # not read them — only the unattended sweep arms a limit, so a human's
-    # session is never killed by a committed default.
+    # the shared `[launch]` table. None = no limit from config. The idle timeout
+    # also keeps a presence flag because that limit has a built-in default:
+    # `[launch].idle_timeout = 0` must explicitly disarm it rather than collapse
+    # to "omitted" and re-enable the default. The env overrides
+    # (`RELAY_REPL_IDLE_TIMEOUT` / `RELAY_REPL_MAX_SESSION`) still win over these;
+    # see `relay.commands.recurring`. Attended `relay launch` does not read them
+    # — only the unattended sweep arms a limit, so a human's session is never
+    # killed by a committed default.
     launch_idle_timeout: float | None = None
+    launch_idle_timeout_present: bool = False
     launch_max_session: float | None = None
 
     # --- convenience accessors -------------------------------------------------
@@ -194,7 +198,9 @@ def load_config(repo_root: Path | None = None) -> Config:
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
     git_enabled = _resolve_git_enabled(shared.get("git"), local.get("git"))
     git_remote, git_control_branch = _parse_git(shared.get("git"))
-    launch_idle_timeout, launch_max_session = _parse_launch(shared.get("launch"))
+    launch_idle_timeout, launch_idle_timeout_present, launch_max_session = (
+        _parse_launch(shared.get("launch"))
+    )
 
     current_user = local.get("user")
     if not current_user:
@@ -224,6 +230,7 @@ def load_config(repo_root: Path | None = None) -> Config:
         git_remote=git_remote,
         git_control_branch=git_control_branch,
         launch_idle_timeout=launch_idle_timeout,
+        launch_idle_timeout_present=launch_idle_timeout_present,
         launch_max_session=launch_max_session,
     )
 
@@ -609,17 +616,18 @@ def _parse_git(shared: dict | None) -> tuple[str, str]:
     return remote, control_branch
 
 
-def _parse_launch(shared: dict | None) -> tuple[float | None, float | None]:
+def _parse_launch(shared: dict | None) -> tuple[float | None, bool, float | None]:
     """Parse `[launch]` for the recurring sweep's liveness limits.
 
     `idle_timeout` / `max_session` are seconds (int or float). A `<= 0` or
     non-finite value disarms that limit (returns None), matching the env-var
-    override's "off" contract in `relay.commands.recurring`. Omitted keys are
-    None. These are defaults for the *unattended* sweep only — attended
-    `relay launch` never reads them.
+    override's "off" contract in `relay.commands.recurring`. `idle_timeout`
+    returns a separate presence flag so an explicit disarm can beat the built-in
+    recurring default; omitted keys are None/False. These are defaults for the
+    *unattended* sweep only — attended `relay launch` never reads them.
     """
     if shared is None:
-        return None, None
+        return None, False, None
     if not isinstance(shared, dict):
         raise ConfigError(f"[launch] must be a table (got {type(shared).__name__})")
 
@@ -634,7 +642,7 @@ def _parse_launch(shared: dict | None) -> tuple[float | None, float | None]:
             return None
         return seconds
 
-    return _seconds("idle_timeout"), _seconds("max_session")
+    return _seconds("idle_timeout"), "idle_timeout" in shared, _seconds("max_session")
 
 
 def _resolve_secret_value(value: str) -> str:

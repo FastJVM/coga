@@ -267,6 +267,7 @@ def test_launch_limits_default_to_none(repo: Path) -> None:
     no default; the recurring sweep supplies its own idle default)."""
     cfg = load_config(repo)
     assert cfg.launch_idle_timeout is None
+    assert cfg.launch_idle_timeout_present is False
     assert cfg.launch_max_session is None
 
 
@@ -278,17 +279,24 @@ def test_launch_limits_parsed(repo: Path) -> None:
     )
     cfg = load_config(repo)
     assert cfg.launch_idle_timeout == 600.0
+    assert cfg.launch_idle_timeout_present is True
     assert cfg.launch_max_session == 3600.0
 
 
 def test_launch_limits_non_positive_disarm(repo: Path) -> None:
-    """A `<= 0` value disarms that limit (None), matching the env override."""
+    """A `<= 0` value disarms that limit (None), matching the env override.
+
+    Idle timeout has a built-in recurring default, so the presence bit is
+    load-bearing: `idle_timeout = 0` must mean "explicitly disabled", not
+    "omitted, fall back to 900s".
+    """
     (repo / "relay.toml").write_text(
         (repo / "relay.toml").read_text()
         + "\n[launch]\nidle_timeout = 0\nmax_session = -1\n"
     )
     cfg = load_config(repo)
     assert cfg.launch_idle_timeout is None
+    assert cfg.launch_idle_timeout_present is True
     assert cfg.launch_max_session is None
 
 
@@ -511,4 +519,3 @@ def test_ticket_fields_required_must_be_bool(repo: Path) -> None:
     )
     with pytest.raises(ConfigError, match="required must be a boolean"):
         load_config(repo)
-

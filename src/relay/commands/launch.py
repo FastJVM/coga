@@ -101,14 +101,21 @@ def launch(
         "timeout misses). Off by default. `relay recurring` sets it from "
         "`[launch].max_session` so a busy-but-wedged agent can't block the sweep.",
     ),
+    return_timeout: bool = typer.Option(
+        False,
+        "--return-timeout",
+        hidden=True,
+        help="Internal: return 'timeout' instead of exiting with the timeout code.",
+    ),
 ) -> str | None:
     """Compose context, start work on a task.
 
     Returns the termination *kind* of the last interactive REPL the supervisor
-    tore down — `"timeout"` when a liveness limit fired — or None for any other
-    ending (clean done, chain completion, non-interactive launch). `relay
-    recurring` reads this to record a timed-out sweep launch honestly instead of
-    mistaking it for a human pause; the CLI ignores the return value.
+    tore down when `return_timeout` is true — `"timeout"` when a liveness limit
+    fired — or None for any other ending (clean done, chain completion,
+    non-interactive launch). `relay recurring` uses this internal path to record
+    a timed-out sweep launch honestly instead of mistaking it for a human pause;
+    public CLI timeouts exit with the supervisor's non-zero timeout code.
     """
     try:
         cfg = load_config()
@@ -480,18 +487,19 @@ def launch(
             typer.echo(f"Launch: agent exited with code {exit_code}")
             if termination_kind == "timeout":
                 # A liveness limit (idle / max-session) tore the REPL down — the
-                # agent never signalled done. Don't chain to the next step, and
-                # don't `sys.exit`: surface the kind to the caller so `relay
-                # recurring` can record the timeout and continue its sweep rather
-                # than the SIGTERM aborting the whole sweep. Standalone callers
-                # see the message and a clean return.
+                # agent never signalled done. Don't chain to the next step.
+                # Recurring's in-process caller asks for the kind so it can
+                # record the timeout and continue its sweep; public CLI callers
+                # get the supervisor's non-zero timeout exit.
                 typer.secho(
                     f"Agent timed out (no progress past the liveness limit) — "
                     f"exit {exit_code}.",
                     fg=typer.colors.YELLOW,
                     err=True,
                 )
-                return "timeout"
+                if return_timeout:
+                    return "timeout"
+                sys.exit(exit_code)
             if exit_code != 0:
                 typer.secho(
                     f"Agent exited with code {exit_code}.",

@@ -1834,7 +1834,9 @@ def test_recurring_launch_invokes_launch(
         prompt_report: bool,
         no_verify: bool,
         mode_override: str | None = None,
+        return_timeout: bool = False,
     ) -> None:
+        assert return_timeout is False
         ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
         assert ticket.status == "active"
         calls.append(task)
@@ -2237,6 +2239,7 @@ def _capture_idle_timeout(
     _allow_interactive_recurring(monkeypatch)
 
     def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        assert kwargs.get("return_timeout") is True
         seen.append(kwargs.get("idle_timeout"))
         ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
         ticket.frontmatter["status"] = "done"
@@ -2254,6 +2257,16 @@ def test_bare_recurring_arms_idle_timeout(
     assert _capture_idle_timeout(dream_repo, monkeypatch, ["recurring"]) == [900.0]
 
 
+def test_bare_recurring_config_can_disarm_idle_timeout(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`[launch].idle_timeout = 0` explicitly disables the built-in default."""
+    relay_toml = dream_repo / "relay.toml"
+    relay_toml.write_text(relay_toml.read_text() + "\n[launch]\nidle_timeout = 0\n")
+
+    assert _capture_idle_timeout(dream_repo, monkeypatch, ["recurring"]) == [None]
+
+
 def test_bare_recurring_interactive_leaves_idle_timeout_off(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2264,11 +2277,18 @@ def test_bare_recurring_interactive_leaves_idle_timeout_off(
 
 
 def _timeout_cfg(
-    *, idle: float | None = None, max_session: float | None = None
+    *,
+    idle: float | None = None,
+    idle_present: bool = False,
+    max_session: float | None = None,
 ) -> SimpleNamespace:
     """Minimal stand-in for `Config` carrying only the launch-limit fields the
     timeout resolvers read — keeps these unit tests free of a full repo."""
-    return SimpleNamespace(launch_idle_timeout=idle, launch_max_session=max_session)
+    return SimpleNamespace(
+        launch_idle_timeout=idle,
+        launch_idle_timeout_present=idle_present,
+        launch_max_session=max_session,
+    )
 
 
 def test_recurring_idle_timeout_env_override(
@@ -2305,14 +2325,23 @@ def test_recurring_idle_timeout_config_precedence(
 
     monkeypatch.delenv("RELAY_REPL_IDLE_TIMEOUT", raising=False)
     # Config value used when no env override is set.
-    assert _recurring_idle_timeout(_timeout_cfg(idle=120.0)) == 120.0
+    assert (
+        _recurring_idle_timeout(_timeout_cfg(idle=120.0, idle_present=True))
+        == 120.0
+    )
+    assert _recurring_idle_timeout(_timeout_cfg(idle=None, idle_present=True)) is None
     # No config and no env → built-in default.
     assert _recurring_idle_timeout(_timeout_cfg()) == _RECURRING_IDLE_TIMEOUT_SECONDS
     # Env beats config, including the disarm case.
     monkeypatch.setenv("RELAY_REPL_IDLE_TIMEOUT", "45")
-    assert _recurring_idle_timeout(_timeout_cfg(idle=120.0)) == 45.0
+    assert (
+        _recurring_idle_timeout(_timeout_cfg(idle=120.0, idle_present=True))
+        == 45.0
+    )
     monkeypatch.setenv("RELAY_REPL_IDLE_TIMEOUT", "0")
-    assert _recurring_idle_timeout(_timeout_cfg(idle=120.0)) is None
+    assert (
+        _recurring_idle_timeout(_timeout_cfg(idle=120.0, idle_present=True)) is None
+    )
 
 
 def test_recurring_max_session_resolution(

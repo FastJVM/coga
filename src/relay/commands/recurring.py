@@ -142,6 +142,7 @@ def main(
             mode_override=mode_override,
             idle_timeout=idle_timeout,
             max_session=max_session,
+            return_timeout=True,
         )
         _stop_if_unfinished_after_launch(
             cfg, task.ref, interactive=interactive, timed_out=(kind == "timeout")
@@ -197,6 +198,7 @@ def _launch_all_debug(cfg) -> None:
             mode_override=mode_override,
             idle_timeout=idle_timeout,
             max_session=max_session,
+            return_timeout=True,
         )
         # A debug run has no persistent identity: record its outcome on the
         # template's own log.md (never composed into any prompt — see
@@ -416,6 +418,7 @@ def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> Non
         prompt_report=False,
         no_verify=False,
         mode_override=mode_override,
+        return_timeout=False,
     )
 
 
@@ -982,7 +985,7 @@ def _recurring_idle_timeout(cfg) -> float | None:
     present, value = _env_seconds("RELAY_REPL_IDLE_TIMEOUT")
     if present:
         return value
-    if cfg.launch_idle_timeout is not None:
+    if cfg.launch_idle_timeout_present:
         return cfg.launch_idle_timeout
     return _RECURRING_IDLE_TIMEOUT_SECONDS
 
