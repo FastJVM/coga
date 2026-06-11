@@ -72,6 +72,7 @@ Applied to the ticket: packaged-copy bullet corrected (only `relay/sync` is pack
 
 branch: digest-outcomes
 worktree: /home/n/Code/codex/relay-digest-outcomes
+pr: https://github.com/FastJVM/relay/pull/344
 
 Implementation note (2026-06-10): use the old relay-dev-update behavior of fetching `origin/main` during `relay digest` rather than relying on potentially stale local `main`; this adds a network failure mode to the script run, but keeps the digest tied to the shared branch humans care about.
 
@@ -90,3 +91,40 @@ Verification:
 - `git diff --check`
 - `PYTHONPATH=/home/n/Code/codex/relay-digest-outcomes/src PYTHONPYCACHEPREFIX=/tmp/relay-digest-pyc python -m pytest -q -p no:cacheprovider tests/test_digest.py tests/test_slack_messages.py tests/test_recurring.py tests/test_commands.py tests/test_launch.py` — 195 passed
 - `PYTHONPATH=/home/n/Code/codex/relay-digest-outcomes/src PYTHONPYCACHEPREFIX=/tmp/relay-digest-pyc python -m pytest -q -p no:cacheprovider` — 632 passed, 1 skipped
+
+## Peer review (2026-06-11)
+
+Native review command: `codex review --base main` from
+`/home/n/Code/codex/relay-digest-outcomes`. First sandboxed attempt failed with
+the known read-only app-server initialization error, then the escalated review
+completed.
+
+Must-fix finding:
+
+- `relay digest` unconditionally fetched `origin/main` even when
+  `[git].enabled = false`. That broke the documented no-remote/solo opt-out by
+  failing before otherwise valid Done/error digest records could post and drain.
+
+Fix committed on `digest-outcomes`:
+
+- `c01cd4c` (`peer-review: honor git opt-out in digest`) makes the digest commit
+  scan return "no commits" when git sync is explicitly disabled, matching the
+  existing non-git behavior.
+- Added a regression test covering a real git checkout with the remote removed
+  and `[git].enabled = false`, verifying a spooled Done record still posts,
+  drains, and does not write `last_commit` state.
+
+Peer-review verification:
+
+- `PYTHONPATH=src PYTHONPYCACHEPREFIX=/tmp/relay-digest-pyc python -m pytest -q -p no:cacheprovider tests/test_digest.py tests/test_slack_messages.py` — 28 passed
+- `PYTHONPATH=src PYTHONPYCACHEPREFIX=/tmp/relay-digest-pyc python -m pytest -q -p no:cacheprovider` — 633 passed, 1 skipped
+- `PYTHONPATH=src PYTHONPYCACHEPREFIX=/tmp/relay-digest-pyc python -m pytest -q -p no:cacheprovider tests/test_digest.py` — 17 passed after final formatting cleanup
+- `git diff --check`
+
+## Open PR (2026-06-11)
+
+- Pushed `digest-outcomes` (tip `c01cd4c`) and opened
+  https://github.com/FastJVM/relay/pull/344 (`gh pr create`, base `main`).
+- CI: no checks are configured on this repo (`gh pr checks` reports "no checks
+  reported"), so there is no green/red signal to wait on — noting per the
+  open-pr acceptance rule rather than treating it as a failure.
