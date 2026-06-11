@@ -110,3 +110,10 @@ https://github.com/FastJVM/relay/pull/332 (2026-06-10). No CI checks are
 configured on this repo (`gh pr checks` reports "no checks reported"), so
 there is no green/red CI state to wait on — nothing failing, nothing pending.
 Handed off to human review via `relay bump`.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: relay/current-direction: eval/ticket-diagnostic stays (removal reversed at review)
