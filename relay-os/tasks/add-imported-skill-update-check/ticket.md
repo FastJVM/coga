@@ -1,6 +1,6 @@
 ---
 title: Add imported-skill update check
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
