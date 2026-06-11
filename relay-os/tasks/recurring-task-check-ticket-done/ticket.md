@@ -1,7 +1,7 @@
 ---
 title: Add a daily recurring task that auto-closes merged tickets (port the automerge
   sweep)
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
