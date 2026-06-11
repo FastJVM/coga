@@ -6,3 +6,4 @@
 2026-06-07 20:30 [system] debug run relay-dev-update-dbg-20260607T203015: ended 'in_progress' without `relay mark done`
 2026-06-07 21:45 [system] debug run relay-dev-update-dbg-20260607T210907: ended 'in_progress' without `relay mark done`
 2026-06-08 12:34 [system] debug run relay-dev-update-dbg-20260608T120715: ended 'in_progress' without `relay mark done`
+2026-06-09 16:04 [system] debug run relay-dev-update-dbg-20260609T151909: completed → done

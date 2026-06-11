@@ -72,3 +72,10 @@ section, so any stray non-JSON line is left untouched.
 {"ts":"2026-06-10T15:32","project":"relay","kind":"done","detail":"nick finished → done ✅","ticket":"lift-dream-subagent-scan-contract-into-reusable-sk","owner":"nick"}
 {"ts":"2026-06-10T15:35","project":"relay","kind":"done","detail":"nick finished → done ✅","ticket":"install-init-skills-via-skill-downloader","owner":"nick"}
 {"ts":"2026-06-10T15:41","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"add-dev-testing-setup-skill","owner":"nick"}
+{"ts":"2026-06-09T15:51","project":"relay","kind":"draft","detail":"created \"Document untrusted-tool-output verify-through-ground-truth agent discipline\" (draft)","ticket":"document-untrusted-tool-output-verify-through-grou","owner":"nick"}
+{"ts":"2026-06-09T15:51","project":"relay","kind":"draft","detail":"created \"Exclude dev-tree agent-skill symlink views from the wheel build\" (draft)","ticket":"exclude-dev-tree-agent-skill-symlink-views-from-th","owner":"nick"}
+{"ts":"2026-06-09T15:52","project":"relay","kind":"draft","detail":"created \"Dream dbg cleanup-orphan-markers\" (draft)","ticket":"dream-dbg-cleanup-orphan-markers","owner":"nick"}
+{"ts":"2026-06-09T15:52","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"dream-dbg-cleanup-orphan-markers","owner":"nick"}
+{"ts":"2026-06-09T15:52","project":"relay","kind":"done","detail":"→ done (script)","ticket":"dream-dbg-cleanup-orphan-markers","owner":"nick"}
+{"ts":"2026-06-09T16:31","project":"relay","kind":"draft","detail":"created \"Recurring sweep runs Dream cleanup phase last and consolidates ticket deletion\" (draft)","ticket":"recurring-sweep-runs-dream-cleanup-phase-last-and","owner":"nick"}
+{"ts":"2026-06-09T16:45","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"recurring-sweep-runs-dream-cleanup-phase-last-and","owner":"nick"}
