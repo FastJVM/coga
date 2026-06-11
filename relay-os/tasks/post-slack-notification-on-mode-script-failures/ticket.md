@@ -1,6 +1,6 @@
 ---
 title: Post Slack notification on mode-script failures
-status: active
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -30,7 +30,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
