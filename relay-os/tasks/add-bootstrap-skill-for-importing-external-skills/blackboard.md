@@ -3,7 +3,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: bootstrap-import-skill
 worktree: /home/n/Code/codex/relay-bootstrap-import
-pr: (not opened yet — open-pr step)
+pr: none — ticket closed via `relay mark done` from `active` (session ran
+outside `relay launch`, so the workflow's peer-review/open-pr steps never
+ran). Branch is committed but UNMERGED; nick pushes/merges it by hand.
 
 ## Design decisions (with nick, interactive)
 
@@ -22,6 +24,14 @@ pr: (not opened yet — open-pr step)
   is Relay has no *search* command, so discovery = web/GitHub browsing of
   registries (`openclaw/agent-skills`, VoltAgent awesome-list, GitHub
   `path:SKILL.md`).
+- **No `relay skill search` command — considered and rejected (nick).** The
+  bottleneck in the import pass is the human judgment call (trust the source?
+  import vs adapt vs write?), which happens inside the interactive
+  `bootstrap/ticket` interview. Automating discovery only speeds the cheap
+  half while the human gate stays put, so a search command earns nothing.
+  Same logic that closed `detect-missing-skills`: judgment loop, not lookup
+  loop. Manual web/GitHub browsing (as documented in `bootstrap/import`) is
+  the intended discovery path; no follow-up ticket.
 - **Discovery hooks into the existing gap point ("how do I know").** Not
   speculative trawling. The trigger is the moment `bootstrap/ticket` step 4
   already detects a missing skill (a workflow step refs a non-existent `skill:`,
