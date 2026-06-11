@@ -131,3 +131,10 @@ Verification:
    emit `prev → new (step N/total)`. Same for launch_script advance + done.
 4. automerge.py: pass PR url through mark_done, emit `<url|PR #N>`.
 5. New tests/test_slack_messages.py snapshotting each format.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: relay/sync: document the uniform Slack message format conventions
