@@ -117,9 +117,10 @@ def main(
 
     mode_override = "interactive" if interactive else None
     # `--interactive` is a human stepping through by hand, so leave the spawned
-    # REPL unbounded; an automatic sweep arms the idle backstop so one stuck
+    # REPL unbounded; an automatic sweep arms the liveness backstops so one stuck
     # agent can't block the tasks behind it.
-    idle_timeout = None if interactive else _recurring_idle_timeout()
+    idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
+    max_session = None if interactive else _recurring_max_session(cfg)
     typer.echo(f"\nLaunching {len(due)} due task(s) sequentially...\n")
     from relay.commands.launch import launch as launch_cmd
 
@@ -130,16 +131,21 @@ def main(
         # Sequential by design: each launch blocks until the agent session
         # exits before the next begins. `scan_due` filters out templates that
         # cannot run in the current stdio context (interactive with no TTY), and
-        # the idle backstop releases any that launch but then stall.
-        launch_cmd(
+        # the liveness backstops release any that launch but then stall. `launch`
+        # returns "timeout" when a backstop fired so we record the wedge honestly
+        # below instead of pausing it as a human would.
+        kind = launch_cmd(
             task.ref.slug,
             agent_override=None,
             prompt_report=False,
             no_verify=False,
             mode_override=mode_override,
             idle_timeout=idle_timeout,
+            max_session=max_session,
         )
-        _stop_if_unfinished_after_launch(cfg, task.ref, interactive=interactive)
+        _stop_if_unfinished_after_launch(
+            cfg, task.ref, interactive=interactive, timed_out=(kind == "timeout")
+        )
 
 
 def _launch_all_debug(cfg) -> None:
@@ -170,9 +176,10 @@ def _launch_all_debug(cfg) -> None:
     typer.echo(f"\nLaunching {len(runs)} debug run(s) sequentially...\n")
     from relay.commands.launch import launch as launch_cmd
 
-    # Arm the supervisor idle-timeout so one stuck interactive REPL can't block
-    # the rest of the debug sweep.
-    idle_timeout = _recurring_idle_timeout()
+    # Arm the supervisor liveness backstops so one stuck interactive REPL can't
+    # block the rest of the debug sweep.
+    idle_timeout = _recurring_idle_timeout(cfg)
+    max_session = _recurring_max_session(cfg)
 
     for i, task in enumerate(runs, 1):
         typer.secho(
@@ -189,6 +196,7 @@ def _launch_all_debug(cfg) -> None:
             no_verify=False,
             mode_override=mode_override,
             idle_timeout=idle_timeout,
+            max_session=max_session,
         )
         # A debug run has no persistent identity: record its outcome on the
         # template's own log.md (never composed into any prompt — see
@@ -850,7 +858,7 @@ def _git_toplevel(start: Path) -> Path | None:
 
 
 def _stop_if_unfinished_after_launch(
-    cfg: Config, ref: TaskRef, *, interactive: bool
+    cfg: Config, ref: TaskRef, *, interactive: bool, timed_out: bool = False
 ) -> None:
     """Stop a bare recurring sweep if one launched task is still in flight.
 
@@ -861,12 +869,44 @@ def _stop_if_unfinished_after_launch(
     task, then continue instead of bailing the sweep; otherwise the next scan
     would treat the leftover `in_progress` state as a dead supervisor's orphan
     and relaunch it.
+
+    `timed_out` is set when `launch` reported a liveness teardown (idle /
+    max-session) — the agent wedged and never signalled done. That must NOT be
+    recorded as the human-pause above: it isn't a deliberate park, it's a stuck
+    run. We pause it (so the next scan doesn't relaunch the orphan) but log and
+    broadcast it as a watchdog *timeout*, with a system actor, then continue the
+    sweep so one wedge can't starve the tasks behind it.
     """
     if not (ref.path / "ticket.md").exists():
         return
 
     ticket = read_ticket(ref)
     if ticket.status in {"done", "paused"}:
+        return
+
+    if timed_out:
+        suffix = "liveness watchdog: REPL timed out before signalling done"
+        try:
+            mark_paused(
+                cfg,
+                ref,
+                ticket,
+                actor="system:watchdog",
+                log_message=f"paused ({ticket.status} → paused) — {suffix}",
+                slack_text=(
+                    f"⏱️ *{ref.id_slug}* \"{ticket.title}\" timed out — {suffix}"
+                ),
+                digest_detail=f"→ paused (timeout) — {suffix}",
+                echo=None,
+            )
+        except TaskValidationError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            sys.exit(2)
+        typer.secho(
+            f"{ref.id_slug}: timed out (status={ticket.status!r}); paused as a "
+            "watchdog timeout and continuing to next due task.",
+            fg=typer.colors.YELLOW,
+        )
         return
 
     if interactive or ticket.mode == "interactive":
@@ -908,25 +948,58 @@ def _stop_if_unfinished_after_launch(
 # --- scan reporting -----------------------------------------------------------
 
 
-def _recurring_idle_timeout() -> float | None:
+def _env_seconds(name: str) -> tuple[bool, float | None]:
+    """Read a seconds value from env var `name`.
+
+    Returns `(present, value)`: `present` is False when the var is unset (so
+    the caller falls back to config/default); when set, `value` is the parsed
+    seconds or None for a `<= 0`, non-finite, or unparseable value (an explicit
+    "disarm this backstop"). The env override always wins over config when set —
+    even to disarm — so a machine can turn a committed default off locally.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return False, None
+    try:
+        seconds = float(raw)
+    except ValueError:
+        return True, None
+    if not math.isfinite(seconds) or seconds <= 0:
+        return True, None
+    return True, seconds
+
+
+def _recurring_idle_timeout(cfg) -> float | None:
     """Idle-timeout (seconds) for interactive REPLs the sweep spawns.
 
-    Defaults to `_RECURRING_IDLE_TIMEOUT_SECONDS`; `RELAY_REPL_IDLE_TIMEOUT`
-    overrides the window. A `<= 0`, non-finite (`inf`/`nan`), or unparseable
+    Precedence: `RELAY_REPL_IDLE_TIMEOUT` env override > `[launch].idle_timeout`
+    in `relay.toml` (`cfg.launch_idle_timeout`) > the `_RECURRING_IDLE_TIMEOUT_
+    SECONDS` default. A `<= 0`, non-finite (`inf`/`nan`), or unparseable env
     value disarms the backstop (returns None). Read-only — the value is passed
     explicitly to `relay launch`, never written back to the environment, so it
     cannot leak into the process or a spawned child.
     """
-    raw = os.environ.get("RELAY_REPL_IDLE_TIMEOUT")
-    if raw is None:
-        return _RECURRING_IDLE_TIMEOUT_SECONDS
-    try:
-        seconds = float(raw)
-    except ValueError:
-        return None
-    if not math.isfinite(seconds) or seconds <= 0:
-        return None
-    return seconds
+    present, value = _env_seconds("RELAY_REPL_IDLE_TIMEOUT")
+    if present:
+        return value
+    if cfg.launch_idle_timeout is not None:
+        return cfg.launch_idle_timeout
+    return _RECURRING_IDLE_TIMEOUT_SECONDS
+
+
+def _recurring_max_session(cfg) -> float | None:
+    """Max-session wall-clock cap (seconds) for the REPLs the sweep spawns.
+
+    Precedence: `RELAY_REPL_MAX_SESSION` env override > `[launch].max_session`
+    (`cfg.launch_max_session`) > None (no cap). Unlike idle-timeout there is no
+    built-in default — a wall-clock cap is opt-in, since a legitimately long
+    interactive step shouldn't be killed unless the team asked for it. A `<= 0`,
+    non-finite, or unparseable env value disarms it.
+    """
+    present, value = _env_seconds("RELAY_REPL_MAX_SESSION")
+    if present:
+        return value
+    return cfg.launch_max_session
 
 
 def _broadcast_scan(cfg, scan: DueScan) -> None:

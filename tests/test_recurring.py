@@ -4,6 +4,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
@@ -2060,6 +2061,53 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
     assert "No recurring tasks due." in second.output
 
 
+def test_bare_recurring_records_liveness_timeout_not_human_pause(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A launch that ends in a liveness timeout is recorded as a watchdog
+    timeout — not the human-pause masquerade.
+
+    `launch` returns "timeout" when the supervisor tore a wedged REPL down. The
+    sweep must pause the task (so the next scan doesn't relaunch the orphan) but
+    log/broadcast it as a timeout with a system actor, and continue the sweep.
+    """
+    monkeypatch.chdir(repo)
+    calls: list[str] = []
+    _allow_interactive_recurring(monkeypatch)
+
+    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(task)
+        ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
+        ticket.frontmatter["status"] = "in_progress"
+        ticket.write(repo / "tasks" / task / "ticket.md")
+        return "timeout"
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    assert "timed out" in result.output
+    assert "paused as a watchdog timeout" in result.output
+
+    cfg = load_config(repo)
+    ref = list_tasks(cfg)[0]
+    assert Ticket.read(ref.path / "ticket.md").status == "paused"
+    # The durable trace names the watchdog on the pause line, not a human — the
+    # whole point of the fix is that this is distinguishable from a deliberate
+    # human pause (which would log `[human:<user>] paused ...`).
+    pause_lines = [
+        line
+        for line in (ref.path / "log.md").read_text().splitlines()
+        if "→ paused" in line
+    ]
+    assert pause_lines, "expected a pause entry in log.md"
+    assert all("[system:watchdog]" in line for line in pause_lines)
+    assert any("timed out before signalling done" in line for line in pause_lines)
+    assert all(f"[human:{cfg.current_user}]" not in line for line in pause_lines)
+
+
 def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -2215,6 +2263,14 @@ def test_bare_recurring_interactive_leaves_idle_timeout_off(
     ) == [None]
 
 
+def _timeout_cfg(
+    *, idle: float | None = None, max_session: float | None = None
+) -> SimpleNamespace:
+    """Minimal stand-in for `Config` carrying only the launch-limit fields the
+    timeout resolvers read — keeps these unit tests free of a full repo."""
+    return SimpleNamespace(launch_idle_timeout=idle, launch_max_session=max_session)
+
+
 def test_recurring_idle_timeout_env_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2225,15 +2281,56 @@ def test_recurring_idle_timeout_env_override(
         _recurring_idle_timeout,
     )
 
+    cfg = _timeout_cfg()
     monkeypatch.delenv("RELAY_REPL_IDLE_TIMEOUT", raising=False)
-    assert _recurring_idle_timeout() == _RECURRING_IDLE_TIMEOUT_SECONDS
+    assert _recurring_idle_timeout(cfg) == _RECURRING_IDLE_TIMEOUT_SECONDS
 
     monkeypatch.setenv("RELAY_REPL_IDLE_TIMEOUT", "30")
-    assert _recurring_idle_timeout() == 30.0
+    assert _recurring_idle_timeout(cfg) == 30.0
 
     for disarm in ("0", "-5", "inf", "nan", "later"):
         monkeypatch.setenv("RELAY_REPL_IDLE_TIMEOUT", disarm)
-        assert _recurring_idle_timeout() is None, disarm
+        assert _recurring_idle_timeout(cfg) is None, disarm
+
+
+def test_recurring_idle_timeout_config_precedence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Precedence is env > `[launch].idle_timeout` > the built-in default; an
+    env override wins even to disarm a committed config value."""
+    from relay.commands.recurring import (
+        _RECURRING_IDLE_TIMEOUT_SECONDS,
+        _recurring_idle_timeout,
+    )
+
+    monkeypatch.delenv("RELAY_REPL_IDLE_TIMEOUT", raising=False)
+    # Config value used when no env override is set.
+    assert _recurring_idle_timeout(_timeout_cfg(idle=120.0)) == 120.0
+    # No config and no env → built-in default.
+    assert _recurring_idle_timeout(_timeout_cfg()) == _RECURRING_IDLE_TIMEOUT_SECONDS
+    # Env beats config, including the disarm case.
+    monkeypatch.setenv("RELAY_REPL_IDLE_TIMEOUT", "45")
+    assert _recurring_idle_timeout(_timeout_cfg(idle=120.0)) == 45.0
+    monkeypatch.setenv("RELAY_REPL_IDLE_TIMEOUT", "0")
+    assert _recurring_idle_timeout(_timeout_cfg(idle=120.0)) is None
+
+
+def test_recurring_max_session_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Max-session has no built-in default — None unless config or env sets it.
+    Precedence mirrors idle-timeout: env > `[launch].max_session` > None."""
+    from relay.commands.recurring import _recurring_max_session
+
+    monkeypatch.delenv("RELAY_REPL_MAX_SESSION", raising=False)
+    assert _recurring_max_session(_timeout_cfg()) is None
+    assert _recurring_max_session(_timeout_cfg(max_session=600.0)) == 600.0
+
+    monkeypatch.setenv("RELAY_REPL_MAX_SESSION", "90")
+    assert _recurring_max_session(_timeout_cfg(max_session=600.0)) == 90.0
+    for disarm in ("0", "-5", "inf", "nan", "later"):
+        monkeypatch.setenv("RELAY_REPL_MAX_SESSION", disarm)
+        assert _recurring_max_session(_timeout_cfg(max_session=600.0)) is None, disarm
 
 
 def test_bare_recurring_nothing_due(

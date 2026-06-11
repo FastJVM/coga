@@ -93,8 +93,23 @@ def launch(
         "attended launch waits indefinitely. `relay recurring` sets it so one "
         "stuck agent can't block the sweep.",
     ),
-) -> None:
-    """Compose context, start work on a task."""
+    max_session: float | None = typer.Option(
+        None,
+        "--max-session",
+        help="Tear down an interactive REPL after this many seconds of wall-clock, "
+        "even while it is still producing output (the runaway-loop case idle "
+        "timeout misses). Off by default. `relay recurring` sets it from "
+        "`[launch].max_session` so a busy-but-wedged agent can't block the sweep.",
+    ),
+) -> str | None:
+    """Compose context, start work on a task.
+
+    Returns the termination *kind* of the last interactive REPL the supervisor
+    tore down — `"timeout"` when a liveness limit fired — or None for any other
+    ending (clean done, chain completion, non-interactive launch). `relay
+    recurring` reads this to record a timed-out sweep launch honestly instead of
+    mistaking it for a human pause; the CLI ignores the return value.
+    """
     try:
         cfg = load_config()
     except ConfigError as exc:
@@ -444,21 +459,39 @@ def launch(
                     # recurring --interactive` can move to the next task
                     # without the human typing `/exit`. The marker string
                     # is `relay.repl_supervisor.DONE_MARKER`.
-                    exit_code = run_with_done_marker(
+                    outcome = run_with_done_marker(
                         cmd,
                         env,
                         session_id=str(ref.path.resolve()),
                         idle_timeout=idle_timeout,
+                        max_session=max_session,
                     )
+                    exit_code = outcome.exit_code
+                    termination_kind = outcome.kind
                 else:
                     result = subprocess.run(cmd, env=env, check=False)
                     exit_code = result.returncode
+                    termination_kind = "natural"
             except FileNotFoundError:
                 _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
             finally:
                 _cleanup_prompt()
 
             typer.echo(f"Launch: agent exited with code {exit_code}")
+            if termination_kind == "timeout":
+                # A liveness limit (idle / max-session) tore the REPL down — the
+                # agent never signalled done. Don't chain to the next step, and
+                # don't `sys.exit`: surface the kind to the caller so `relay
+                # recurring` can record the timeout and continue its sweep rather
+                # than the SIGTERM aborting the whole sweep. Standalone callers
+                # see the message and a clean return.
+                typer.secho(
+                    f"Agent timed out (no progress past the liveness limit) — "
+                    f"exit {exit_code}.",
+                    fg=typer.colors.YELLOW,
+                    err=True,
+                )
+                return "timeout"
             if exit_code != 0:
                 typer.secho(
                     f"Agent exited with code {exit_code}.",
