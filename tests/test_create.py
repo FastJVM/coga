@@ -439,10 +439,10 @@ def repo_with_shim(repo: Path) -> Path:
     return repo
 
 
-def test_recurring_scaffolds_and_broadcasts(
+def test_recurring_scaffolds_silently(
     repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Bare `relay recurring` scans templates, scaffolds due tasks, broadcasts."""
+    """Bare `relay recurring` scans and scaffolds due tasks without lifecycle Slack."""
     _write(
         repo_with_shim / "recurring" / "weekly-check" / "ticket.md",
         """
@@ -488,13 +488,7 @@ def test_recurring_scaffolds_and_broadcasts(
     assert result.exit_code == 0, result.output
     assert "Created" in result.output
 
-    cfg = load_config(repo_with_shim)
-    assert any(
-        "recurring scaffolded" in m
-        and "assignee" in m
-        and cfg.project_name in m
-        for m in slack_msgs
-    )
+    assert slack_msgs == []
 
 
 def test_recurring_posts_error_summary(
@@ -526,10 +520,10 @@ def test_recurring_posts_error_summary(
 # --- `relay draft` / legacy `relay create` CLI --------------------------------
 
 
-def test_cli_draft_scaffolds_draft_and_posts(
+def test_cli_draft_scaffolds_draft_silently(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay draft "<title>"` scaffolds a raw draft ticket and posts ✨."""
+    """`relay draft "<title>"` scaffolds a raw draft ticket without Slack noise."""
     monkeypatch.chdir(repo)
     posts: list[str] = []
 
@@ -548,7 +542,6 @@ def test_cli_draft_scaffolds_draft_and_posts(
     )
     assert result.exit_code == 0, result.output
 
-    cfg = load_config(repo)
     task_dir = repo / "tasks" / "investigate-retries"
     assert task_dir.is_dir()
     t = Ticket.read(task_dir / "ticket.md")
@@ -556,18 +549,13 @@ def test_cli_draft_scaffolds_draft_and_posts(
     assert t.status == "draft"
     assert t.mode == "interactive"
 
-    assert any(
-        f"✨ {cfg.current_user} created *investigate-retries*" in m
-        and "Investigate retries" in m
-        and cfg.project_name in m
-        for m in posts
-    )
+    assert posts == []
 
 
-def test_cli_create_scaffolds_draft_and_posts(
+def test_cli_create_scaffolds_draft_silently(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay create "<title>"` scaffolds a draft ticket and posts ✨."""
+    """`relay create "<title>"` scaffolds a draft ticket without Slack noise."""
     monkeypatch.chdir(repo)
     posts: list[str] = []
 
@@ -586,7 +574,6 @@ def test_cli_create_scaffolds_draft_and_posts(
     )
     assert result.exit_code == 0, result.output
 
-    cfg = load_config(repo)
     task_dir = repo / "tasks" / "investigate-retries"
     assert task_dir.is_dir()
     t = Ticket.read(task_dir / "ticket.md")
@@ -594,12 +581,7 @@ def test_cli_create_scaffolds_draft_and_posts(
     assert t.status == "draft"
     assert t.mode == "interactive"
 
-    assert any(
-        f"✨ {cfg.current_user} created *investigate-retries*" in m
-        and "Investigate retries" in m
-        and cfg.project_name in m
-        for m in posts
-    )
+    assert posts == []
 
 
 def test_cli_create_does_not_spawn_agent(

@@ -179,6 +179,7 @@ def bump(
                 f"(step {next_step}/{total}){handoff}{suffix}"
             ),
             new_assignee=new_assignee,
+            notify_slack=message is not None,
             echo=f"{ref.id_slug}: step {next_step} ({new_step_name}){handoff}",
         )
     except TaskValidationError as exc:

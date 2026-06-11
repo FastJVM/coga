@@ -54,18 +54,12 @@ def active(
     suffix = f" — {message}" if message else ""
     actor = f"human:{cfg.current_user}"
     log_message = f"activated ({ticket.status} → active){suffix}"
-    slack_text = (
-        f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
-        f"\"{ticket.title}\" (assignee: {ticket.assignee or 'unassigned'}){suffix}"
-    )
 
     try:
         _mark_active(
             cfg, ref, ticket,
             actor=actor,
             log_message=log_message,
-            slack_text=slack_text,
-            digest_detail=f"→ active (assignee: {ticket.assignee or 'unassigned'}){suffix}",
             echo=f"{ref.id_slug}: active",
         )
     except WorkflowMissing:
@@ -108,18 +102,12 @@ def paused(
     suffix = f" — {message}" if message else ""
     actor = f"human:{cfg.current_user}"
     log_message = f"paused ({ticket.status} → paused){suffix}"
-    slack_text = (
-        f"⏸️ {cfg.current_user} paused *{ref.id_slug}* "
-        f"\"{ticket.title}\"{suffix}"
-    )
 
     try:
         _mark_paused(
             cfg, ref, ticket,
             actor=actor,
             log_message=log_message,
-            slack_text=slack_text,
-            digest_detail=f"→ paused{suffix}",
             echo=f"{ref.id_slug}: paused",
         )
     except TaskValidationError as exc:
