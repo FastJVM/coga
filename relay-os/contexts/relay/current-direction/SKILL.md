@@ -113,6 +113,16 @@ Last updated: 2026-06-10.
   `relay validate` is enough. Decision closed the `detect-missing-skills`
   ticket (deleted without a build).
 
+## Recent decisions (eval/ticket-diagnostic stays)
+
+- **The bundled `eval/ticket-diagnostic` skill is kept.** Its removal was
+  fully implemented and PR'd on disuse grounds (PR #332, 2026-06-10), then
+  reversed at the human review step — the owner wants the skill retained.
+  The PR was closed unmerged and the branch deleted; the packaged copy at
+  `src/relay/resources/templates/relay-os/bootstrap/skills/eval/ticket-diagnostic/`
+  stays on main (no live `relay-os/skills/eval/` override exists). Do not
+  re-propose deleting it on "unused" grounds without a fresh human decision.
+
 ## Recent decisions (Dream — recurring template plus an alias)
 
 - **Dream is a recurring task template plus an alias.** The standalone
