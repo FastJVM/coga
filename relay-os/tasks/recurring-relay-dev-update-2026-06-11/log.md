@@ -13,3 +13,6 @@ CONFLICT (content): Merge conflict in relay-os/tasks/support-task-subdirectories
 Auto-merging relay-os/tasks/support-task-subdirectories-in-task-discovery/ticket.md
 CONFLICT (content): Merge conflict in relay-os/tasks/support-task-subdirectories-in-task-discovery/ticket.md
 2026-06-11 11:55 [human:nick] started (active → in_progress) via relay launch
+2026-06-11 11:55 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-11 11:55 [agent:claude] slack: Dev update (last 24h on main): 4 PRs merged — #336 skip-permissions launch option, #335 task subdirectories in task discovery, #334 init skills installed via the skill downloader, #333 Dream subagent-scan contracts lifted into reusable skills. Also landed: a bootstrap skill for importing external skills, and Dream's W24 run finished its validate-drift and orphan-marker cleanup tasks. Several speculative tickets were pruned (browser-automation, relay-competition, relay-additions-spec).
+2026-06-11 11:56 [human:nick] task done

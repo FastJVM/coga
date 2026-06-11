@@ -1,6 +1,6 @@
 ---
 title: Relay dev update
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -15,7 +15,6 @@ workflow:
   - name: digest
     skills: []
     assignee: agent
-step: 1 (digest)
 ---
 
 ## Description
