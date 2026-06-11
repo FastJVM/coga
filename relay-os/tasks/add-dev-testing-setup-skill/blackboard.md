@@ -1,5 +1,28 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+branch: dev-testing-contract
+worktree: /home/n/Code/codex/relay-dev-testing-contract
+
+## Implement plan (2026-06-10, confirmed by nick)
+
+1. New skill `relay-os/skills/dev/testing-setup/SKILL.md` — establishment
+   procedure only: discover conventions (CI config, manifests, Makefile,
+   docs), never invent commands, write the contract as a project-local
+   context `dev/testing` with five declared sections (unit-test command,
+   validation commands, fixture/external-service rules, known-failure
+   policy with must-surface wording, CI parity) plus consumption rules.
+2. Dogfood: write Relay's own contract at
+   `relay-os/contexts/dev/testing/SKILL.md` (nick: yes).
+3. Update consumers `code/implement`, `code/implement-and-pr`,
+   `code/self-qa` to read the contract instead of hard-coded
+   `python -m pytest`, with exact-results reporting (nick: yes).
+
+Discovery findings for Relay's contract: pytest (ini `pythonpath=["src"]`),
+`relay validate --json`, packaging test skips without hatchling (dev/test
+extra), seeded `example/` fixture, **no CI exists** — local commands are the
+only gate. Python 3.11+ required (tomllib).
+
 
 ## Rescope + merge (2026-06-10)
 
