@@ -13,3 +13,4 @@ CONFLICT (content): Merge conflict in relay-os/tasks/support-task-subdirectories
 Auto-merging relay-os/tasks/support-task-subdirectories-in-task-discovery/ticket.md
 CONFLICT (content): Merge conflict in relay-os/tasks/support-task-subdirectories-in-task-discovery/ticket.md
 2026-06-11 11:22 [human:nick] activated (draft → active) (auto on launch)
+2026-06-11 11:22 [system] started (active → in_progress) via relay launch
