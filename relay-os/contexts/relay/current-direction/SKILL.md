@@ -5,7 +5,7 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 # Relay — current direction
 
-Last updated: 2026-06-08.
+Last updated: 2026-06-10.
 
 ## Open redesign (recurring lifecycle: generate → done → Dream-deletes)
 
@@ -95,6 +95,23 @@ Last updated: 2026-06-08.
   `code/with-review` when the spec is already clear. The design step
   writes no code — its only output is the fleshed-out ticket plus open
   questions on the blackboard.
+
+## Recent decisions (missing-skill detection)
+
+- **Capability-gap detection stays judgment-based — no validate lint.**
+  "Referenced-but-absent" skills are already fully covered: `relay validate`
+  emits `broken-skill` for any ticket- or step-level `skill:` ref with no
+  file, and `compose.py` hard-fails at launch instead of silently dropping
+  the layer. The other sense — a skill that *should* exist but isn't
+  referenced anywhere — is not statically detectable; a "step with no skill"
+  lint would be a false-positive machine (most steps legitimately have no
+  skill). The two honest detectors are the `bootstrap/ticket` step-4
+  interview gap point at authoring time (which now routes through
+  `bootstrap/import` before hand-writing) and Dream/retro's cross-ticket
+  view (recurring hand-rolled process in done tickets → propose a skill or
+  import). No programmatic handoff to the import pass — a human reading
+  `relay validate` is enough. Decision closed the `detect-missing-skills`
+  ticket (deleted without a build).
 
 ## Recent decisions (Dream — recurring template plus an alias)
 
