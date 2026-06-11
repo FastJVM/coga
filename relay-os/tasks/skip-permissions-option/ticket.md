@@ -1,6 +1,6 @@
 ---
 title: skip-permissions-option
-status: draft
+status: active
 mode: interactive
 owner: zach
 human: zach
@@ -10,7 +10,24 @@ contexts:
 - relay/architecture
 - relay/codebase
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
+step: 1 (implement)
 ---
 
 ## Description
