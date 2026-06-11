@@ -1,6 +1,6 @@
 ---
 title: Establish marketing area inside relay-os
-status: active
+status: done
 mode: interactive
 owner: zach
 human: zach
@@ -26,7 +26,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
