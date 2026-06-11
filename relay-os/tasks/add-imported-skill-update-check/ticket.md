@@ -1,11 +1,11 @@
 ---
 title: Add imported-skill update check
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - relay/codebase
 - relay/current-direction
@@ -29,7 +29,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
