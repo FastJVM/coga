@@ -98,3 +98,10 @@ accordingly (gaps 1-3 are pure src+tests, no fixture impact).
   (630 passed, 1 skipped); `relay validate --task
   close-imported-skill-provenance-conflict-and-dream --json` passed (1 ok, no
   issues).
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: relay/cli: document imported-skill adaptation guard, --force, and conflict status
