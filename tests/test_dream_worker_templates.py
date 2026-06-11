@@ -18,6 +18,7 @@ TEMPLATES = (
 )
 
 DREAM = TEMPLATES.parent
+SCAN_TEMPLATES = DREAM / "scan"
 RESOURCES = Path(__file__).resolve().parents[1] / "src" / "relay" / "resources"
 RECURRING_TEMPLATES = (
     RESOURCES / "templates" / "relay-os" / "recurring"
@@ -74,13 +75,15 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "dev/stale-branches" not in text
     assert "### Skill: dev/stale-branches" not in text
     assert "knowledge scan" in text
+    assert "`bootstrap/dream/scan/knowledge-scan`" in text
+    assert "`bootstrap/dream/scan/contract-audit`" in text
     assert "`extract`" in text
     assert "`stale`" in text
     assert "`gap`" in text
     assert "relay create" in text
     assert "no per-run ticket cap" in text
     assert "Extract durable knowledge from done tickets, then delete every one of them." in text
-    assert "its directory `relay-os/tasks/<slug>/` still exists" in text
+    assert "its resolved task directory under `relay-os/tasks/` still exists" in text
     assert "Retro never leaves a processed done ticket on" in text
     # Knowledge-less tickets are direct-deleted, not bundled into a prune PR.
     assert "is direct-deleted with" in text
@@ -130,24 +133,52 @@ def test_dream_is_the_single_deleter_of_done_recurring_tickets() -> None:
     assert "self-deleted" not in blackboard
 
 
+def test_dream_documents_the_knowledge_scan_skill() -> None:
+    """Phase 2 delegates the reusable taxonomy/corpus/output contract to a
+    prompt-only Dream scan skill."""
+    text = DREAM_PROMPT.read_text()
+    skill_text = (SCAN_TEMPLATES / "knowledge-scan" / "SKILL.md").read_text()
+    skill_norm = " ".join(skill_text.split())
+
+    assert "### Phase 2 — knowledge scan" in text
+    assert "`bootstrap/dream/scan/knowledge-scan`" in text
+    assert "Classify each finding as exactly one of:" not in text
+    assert "single full-corpus read of the run" in skill_norm
+    assert "every ticket body and blackboard" in skill_norm
+    assert "every context, skill, and workflow file" in skill_norm
+    assert "`extract`" in skill_text
+    assert "`stale`" in skill_text
+    assert "`gap`" in skill_text
+    assert "raw ticket and blackboard contents stay inside the subagent" in skill_norm
+    assert "Group the `extract` findings" in skill_norm
+    assert "script:" not in skill_text
+    assert "## Known Skill Contract" not in skill_text
+
+
 def test_dream_documents_the_contract_audit_phase() -> None:
     """Phase 3 is a dedicated consistency audit: a subagent checks the living
     contract surface (contexts, skills, recurring templates, shipped docs)
     against code reality, missing artifacts, and live/packaged copy drift,
     and classifies each finding as `drift` for Phase 7 to route."""
     text = DREAM_PROMPT.read_text()
+    skill_text = (SCAN_TEMPLATES / "contract-audit" / "SKILL.md").read_text()
+    skill_norm = " ".join(skill_text.split())
 
     assert "### Phase 3 — contract audit" in text
     assert "contract audit" in text
-    assert "decide-half complement to Phase 1" in text
-    assert "living contract surface" in text
-    assert "`drift`" in text
+    assert "`bootstrap/dream/scan/contract-audit`" in text
+    assert "decide-half audit complements" in text
+    assert "decide-half complement to Phase 1" in skill_norm
+    assert "living contract surface" in skill_norm
+    assert "`drift`" in skill_text
     # The three sources of truth the audit checks claims against.
-    assert "code reality" in text
-    assert "referenced artifacts" in text
-    assert "copy divergence" in text
+    assert "code reality" in skill_text
+    assert "referenced artifacts" in skill_text
+    assert "copy divergence" in skill_text
     # Frozen task artifacts are not contracts.
-    assert "Frozen task artifacts under `relay-os/tasks/` are historical" in text
+    assert "Frozen task artifacts under `relay-os/tasks/` are historical" in skill_text
+    assert "script:" not in skill_text
+    assert "## Known Skill Contract" not in skill_text
     # Phase 7 disposition routes `drift` findings to a proposal PR.
     assert "Every Phase 2 and Phase 3 finding gets a durable home" in text
     assert "- `drift` — open a proposal PR" in text

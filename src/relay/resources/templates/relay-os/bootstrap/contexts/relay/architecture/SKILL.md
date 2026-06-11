@@ -11,10 +11,14 @@ no in-memory state.
 
 ## Primitives
 
-- **Tickets** live in `relay-os/tasks/<slug>/` as a directory. Each has
-  `ticket.md` (frontmatter + body), `log.md` (append-only, written by
-  CLI commands only), and `blackboard.md` (free-form workspace shared
-  between human and agent).
+- **Tickets** live as directories under `relay-os/tasks/`: either direct
+  children (`tasks/<slug>/`) or one level deeper in an organizational group
+  (`tasks/<group>/<slug>/`). The leaf directory name is the slug used by CLI
+  commands and Slack; agents should use the composed prompt's exact task
+  directory instead of reconstructing `tasks/<slug>/`. Each task has
+  `ticket.md` (frontmatter + body), `log.md` (append-only, written by CLI
+  commands only), and `blackboard.md` (free-form workspace shared between
+  human and agent).
 - **Contexts** are domain knowledge — what's true about the world.
   Project-local contexts live in `relay-os/contexts/`; bundled Relay
   batteries live in `relay-os/bootstrap/contexts/`. Attached to tickets via
@@ -46,12 +50,16 @@ no in-memory state.
   ticket-less re-entry points like `relay launch bootstrap/orient`
   (the `chat` alias). They are never factories — `relay launch` no
   longer scaffolds new tickets from shims; use `relay create` for that.
-- **Bundled batteries** are package-backed skills, contexts, hooks, and launch
-  shims materialized under `relay-os/bootstrap/` by `relay init` and
+- **Bundled batteries** are package-backed core skills, contexts, hooks, and
+  launch shims materialized under `relay-os/bootstrap/` by `relay init` and
   `relay init --update`. `pip install relay-os` puts them in the wheel; init
   materializes them into each repo. They are inspectable local files, but
-  edits under `bootstrap/` are overwritten on update. Copy a skill or context
-  to the matching `relay-os/skills/` or `relay-os/contexts/` ref to override it.
+  edits under `bootstrap/` are overwritten on update. Optional domain skills
+  declared in Relay's managed-skill manifest install into `relay-os/skills/`
+  through the public skill installer instead of being copied from templates;
+  install failures for optional skills warn without breaking offline init.
+  Copy a skill or context to the matching `relay-os/skills/` or
+  `relay-os/contexts/` ref to override it.
 - **Dream** is Relay's generic ticket cleanup pass. It is a recurring task
   template (`relay-os/recurring/dream/`) plus a `dream` alias — not a
   built-in command. `relay recurring` scaffolds and launches it when its
@@ -182,7 +190,17 @@ that touches both planes.
   agent-vs-human, not same-vs-changed assignee. Cross-ticket chaining is
   `relay recurring --interactive`.
 - **`auto`** — one-shot autonomous run. Same composed prompt, no
-  human input.
+  human input. An operator may opt an agent into skipping its CLI's
+  per-command permission/approval prompts for these runs with a partial
+  `[agents.<name>]` table in `relay.local.toml`: `skip_permissions = "auto"`
+  plus `skip_permissions_argv = "..."` (one string, `shlex`-split, inserted
+  after the session-name argv and before the auto argv/prompt). The policy
+  is machine-local only — either key in shared `relay.toml` fails config
+  load — and applies only to normal task tickets in effective `mode: auto`:
+  interactive launches, bootstrap/discussion shims, and script tasks keep
+  today's behavior. Supervised chains re-resolve it per step for whichever
+  agent the step rotated to, and `"auto"` with no configured argv fails the
+  launch loud before spawning.
 - **`script`** — no agent. `relay launch` runs the step's skill
   script directly with secrets injected as env vars.
 

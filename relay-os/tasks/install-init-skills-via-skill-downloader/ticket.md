@@ -1,10 +1,10 @@
 ---
 title: Install init skills via skill downloader
-status: active
+status: done
 mode: interactive
 owner: nick
 human: nick
-agent: nick
+agent: codex
 assignee: nick
 contexts:
 - relay/architecture
@@ -31,7 +31,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description

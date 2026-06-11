@@ -1,6 +1,6 @@
 ---
 title: Add dev testing setup skill
-status: draft
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
@@ -8,7 +8,6 @@ agent: claude
 assignee: claude
 contexts:
 - relay/codebase
-- relay/current-direction
 - relay/project-stage
 - dev/code
 skills: []
@@ -34,25 +33,60 @@ step: 1 (implement)
 
 ## Description
 
-Add a generic dev testing setup skill for project start or repo onboarding.
+Add a minimal `dev/testing-setup` skill whose only output is a project-local
+**testing contract**: a small declared document recording how this repo runs
+and judges its tests. The contract declares:
 
-The setup skill should establish how a dev repo declares and documents its test
-harness: unit-test command, broader validation commands, fixture/data rules,
-known-failure policy, and CI parity. It should be generic across languages and
-frameworks.
+- the unit-test command (and narrower affected-test commands, if any)
+- broader validation commands (lint, typecheck, repo validators)
+- fixture/data setup rules and external-service boundaries
+- known-failure/baseline policy, worded so new failures must be surfaced,
+  never silently baselined
+- CI parity: how the local commands map to what CI runs
+
+The skill discovers existing conventions first (CI config, manifests,
+Makefile, README/docs) and records them; it does not invent commands or
+impose a framework. The contract is the durable artifact — the skill is just
+the establishment procedure, not generic "how to test" prose.
+
+There is no standalone `dev/test-run` runner skill. That draft is merged
+into this ticket; its durable requirements survive as consumption rules: any
+dev step that runs tests reads the contract instead of guessing commands,
+and reports exact results (command, exit code, pass/fail/skip counts when
+available, failing test names).
 
 ## Context
 
-This is the "set up the test harness at project start" part of the testing
-skill family. It should be informed by imported testing skills where useful,
-but not hard-code Relay's own Python test command.
+Merged from `add-dev-test-run-skill` (draft, deleted 2026-06-10) — its prior
+art pointers for result reporting were `sanity-labs/test` and
+`ingpoc/SKILLS/testing`, useful as reference but optional.
+
+Decision trail: sibling `add-dev-unit-test-writing-skill` (done, PR #331)
+concluded that generic test-process skills are boilerplate a strong agent
+already follows, and folded the one non-obvious piece (suite conformance)
+into `code/implement`'s Test step. The residue that survives that logic is
+repo-specific *declared state* — the contract — not process prose. Keep this
+ticket that lean.
+
+Shape hint: the contract is domain knowledge (facts about this repo), so per
+the skill/context split it likely lands as a context (e.g.
+`dev/testing`) or a documented top-level file, with its location and shape
+documented well enough that other skills/steps can find it. Don't hard-code
+Relay's own Python test command into the generic skill.
 
 ## Acceptance criteria
 
-- [ ] A generic `dev/testing-setup` or equivalent skill exists.
-- [ ] It discovers existing project test conventions before proposing new ones.
-- [ ] It documents where the repo's unit-test and validation commands live.
-- [ ] It defines known-failure/baseline policy without encouraging agents to
-      hide new failures.
-- [ ] It covers fixture/data setup and external-service boundaries.
-- [ ] It produces a project-local testing contract that `dev/test-run` can read.
+- [ ] A `dev/testing-setup` skill exists; its output is the testing
+      contract, not generic how-to-test process prose.
+- [ ] It discovers existing project conventions (CI config, manifests, docs)
+      before proposing anything, and never hard-codes a language or
+      framework.
+- [ ] The contract shape covers: unit-test command, validation commands,
+      fixture/data rules and external-service boundaries, known-failure
+      policy, CI parity.
+- [ ] Known-failure policy is worded so new failures must be surfaced, never
+      silently baselined.
+- [ ] The contract's location and shape are documented so other skills and
+      workflow steps read it instead of inventing commands.
+- [ ] Test-running consumers report exact results: command, exit code,
+      pass/fail/skip counts when available, failing test names.

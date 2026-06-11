@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import random
+import shlex
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,6 +33,17 @@ class AgentType:
     # token `{prompt}` is replaced with the composed prompt. Empty string lets
     # launch use its built-in defaults for known CLIs, then positional fallback.
     discussion: str = ""
+    # Machine-local permission-skip policy — settable ONLY from a partial
+    # `[agents.<name>]` table in `relay.local.toml` (shared `relay.toml`
+    # carrying either key fails config load, so a dangerous default can never
+    # be committed). `skip_permissions = "auto"` opts this agent into
+    # appending `skip_permissions_argv` for normal `mode: auto` task launches;
+    # unset / `false` keeps today's behavior. The argv is authored as one
+    # string and parsed with `shlex.split` (e.g.
+    # `"--dangerously-skip-permissions"` for claude,
+    # `"--dangerously-bypass-approvals-and-sandbox"` for codex).
+    skip_permissions: str = ""           # "" (off) | "auto"
+    skip_permissions_argv: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -152,7 +164,7 @@ def load_config(repo_root: Path | None = None) -> Config:
         raise ConfigError(f"Unsupported relay.toml version: {version!r} (expected 1)")
 
     default_status = shared.get("default_status", "draft")
-    agents = _parse_agents(shared.get("agents", {}))
+    agents = _parse_agents(shared.get("agents", {}), local.get("agents", {}))
     if "assignees" in shared:
         raise ConfigError(
             "[assignees] is no longer supported in relay.toml. Remove the "
@@ -214,18 +226,38 @@ def _read_toml(path: Path) -> dict:
         return tomllib.load(f)
 
 
-def _parse_agents(raw: dict) -> dict[str, AgentType]:
+_LOCAL_AGENT_OVERRIDE_KEYS: frozenset[str] = frozenset({
+    # The only `[agents.<name>]` keys honored from `relay.local.toml`.
+    # Anything else in a local agent table fails loud rather than silently
+    # diverging from the shared agent definition.
+    "skip_permissions",
+    "skip_permissions_argv",
+})
+
+
+def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentType]:
     out: dict[str, AgentType] = {}
     for name, data in raw.items():
         for required in ("cli", "auto", "file"):
             if required not in data:
                 raise ConfigError(f"agents.{name}.{required} is required")
+        for local_only in sorted(_LOCAL_AGENT_OVERRIDE_KEYS):
+            if local_only in data:
+                raise ConfigError(
+                    f"agents.{name}.{local_only} is machine-local policy and "
+                    "must not be committed to shared relay.toml. Move it to a "
+                    f"partial [agents.{name}] table in relay.local.toml."
+                )
         discussion = data.get("discussion", "")
         if not isinstance(discussion, str):
             raise ConfigError(
                 f"agents.{name}.discussion must be a string "
                 f"(got {type(discussion).__name__})"
             )
+        local_data = (local_raw or {}).get(name, {})
+        skip_permissions, skip_permissions_argv = _parse_local_skip_policy(
+            name, local_data
+        )
         out[name] = AgentType(
             name=name,
             cli=data["cli"],
@@ -234,8 +266,67 @@ def _parse_agents(raw: dict) -> dict[str, AgentType]:
             mode=data.get("mode", "local"),
             name_flag=data.get("name_flag", ""),
             discussion=discussion,
+            skip_permissions=skip_permissions,
+            skip_permissions_argv=skip_permissions_argv,
+        )
+    unknown_local = sorted(set(local_raw or {}) - set(raw))
+    if unknown_local:
+        raise ConfigError(
+            f"relay.local.toml overrides unknown agent(s) {unknown_local}. "
+            f"Known agents (from relay.toml): {sorted(raw)}."
         )
     return out
+
+
+def _parse_local_skip_policy(
+    name: str, local_data: object
+) -> tuple[str, tuple[str, ...]]:
+    """Parse a partial local `[agents.<name>]` table's permission-skip policy.
+
+    `skip_permissions` accepts only unset / `false` (off) or the string
+    `"auto"`; anything else fails config load. `skip_permissions_argv` must be
+    a string and is parsed with `shlex.split`. The "auto without argv" case is
+    deliberately legal here — `relay launch` fails loud when the policy would
+    actually apply, so a half-written local table doesn't brick every other
+    relay command on the machine.
+    """
+    if not isinstance(local_data, dict):
+        raise ConfigError(
+            f"[agents.{name}] in relay.local.toml must be a table "
+            f"(got {type(local_data).__name__})"
+        )
+    bad_keys = sorted(set(local_data) - _LOCAL_AGENT_OVERRIDE_KEYS)
+    if bad_keys:
+        raise ConfigError(
+            f"[agents.{name}] in relay.local.toml has unsupported keys "
+            f"{bad_keys}. Only {sorted(_LOCAL_AGENT_OVERRIDE_KEYS)} may be "
+            "overridden locally; everything else belongs in shared relay.toml."
+        )
+
+    skip_permissions = ""
+    if "skip_permissions" in local_data:
+        value = local_data["skip_permissions"]
+        if value is False:
+            skip_permissions = ""
+        elif value == "auto":
+            skip_permissions = "auto"
+        else:
+            raise ConfigError(
+                f"[agents.{name}].skip_permissions in relay.local.toml must "
+                f"be false or \"auto\" (got {value!r})"
+            )
+
+    skip_permissions_argv: tuple[str, ...] = ()
+    if "skip_permissions_argv" in local_data:
+        value = local_data["skip_permissions_argv"]
+        if not isinstance(value, str):
+            raise ConfigError(
+                f"[agents.{name}].skip_permissions_argv in relay.local.toml "
+                f"must be a string (got {type(value).__name__})"
+            )
+        skip_permissions_argv = tuple(shlex.split(value))
+
+    return skip_permissions, skip_permissions_argv
 
 
 _RESERVED_TICKET_FIELD_NAMES: frozenset[str] = frozenset({

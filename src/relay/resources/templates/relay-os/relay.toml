@@ -6,6 +6,10 @@ default_status = "draft"
 
 # --- Agents ---
 # Agent types. Each defines the CLI binary and how to invoke it.
+# Permission-skip policy for `mode: auto` launches (`skip_permissions`,
+# `skip_permissions_argv`) is machine-local and belongs in a partial
+# `[agents.<name>]` table in relay.local.toml — committing those keys
+# here fails config load.
 
 [agents.claude]
 cli = "claude"
@@ -73,8 +77,8 @@ webhook = "env:SLACK_WEBHOOK_URL"
 
 # --- Git sync ---
 # The git analogue of Slack: every command that mutates ticket state commits
-# the changed `relay-os/tasks/<slug>/` files and pushes them to the control
-# branch, so the git-backed repo never drifts from the team's live state.
+# the resolved task directory under `relay-os/tasks/` and pushes it to the
+# control branch, so the git-backed repo never drifts from the team's live state.
 # Always-on — these defaults apply even with no `[git]` table.
 #
 # When HEAD is the control branch the task files are committed and pushed; on

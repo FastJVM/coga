@@ -5,7 +5,7 @@ mode: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts: []
 skills: []
 workflow:
@@ -25,7 +25,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 4 (review)
 ---
 
 ## Description

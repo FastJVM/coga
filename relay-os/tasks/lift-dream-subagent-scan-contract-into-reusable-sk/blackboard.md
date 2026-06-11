@@ -111,3 +111,27 @@ This is the weakest acceptance criterion. Problems:
 - **"preserve the per-phase delegation framing and the `## Findings` handling downstream"** is good guidance, but it leaves a judgment call about how much of the ~60 lines stays inline vs. moves into the skill. Reviewer and implementer could disagree on where the line is; a one-sentence rule ("the body keeps only the delegate-to-subagent sentence + Findings write target; everything classificatory moves to the skill") would remove that ambiguity.
 
 **Bottom line:** Paths and convention are correct and the scope is right-sized; safe to launch after tightening three things — (a) point the implementer at a *prompt* SKILL.md as the shape reference, not the script-skill validate-drift; (b) replace the "identical Dream rerun" acceptance with a content-equivalence diff check; (c) add the two new skill files to the packaged-mirror sync requirement.
+
+## Peer review + open PR (claude, 2026-06-10)
+
+Peer-reviewed the implemented diff (step 2). **Verdict: clean pass.**
+- Two prompt-only skills (`knowledge-scan`, `contract-audit`) with correct
+  `name:`/`description:` frontmatter, no `script:`, no `## Known Skill
+  Contract` — the right shape per eval point (a).
+- Phase 2/3 prose lifted content-equivalent into the skills; both recurring
+  ticket copies (live + packaged) trimmed to "delegate to
+  `bootstrap/dream/scan/<name>`" + `## Findings` handoff. Packaged mirror
+  includes the two new skill files (eval point c satisfied).
+- Known limitation (contract-audit globs don't cover `bootstrap/skills/**`,
+  so the audit can't see the skills that define it) is documented and
+  intentionally out of scope.
+
+Branch was forked from day-old main; rebuilt cleanly on current main with ONLY
+the 5 substantive files (skills + both dream templates + tests) so the PR can't
+revert main's bump history. Force-pushed (user-authorized) `dream-scan-skills`.
+
+Verification on the rebuilt branch:
+- `python -m pytest` → 636 passed.
+- `tests/test_dream_worker_templates.py` → 9 passed.
+
+PR: https://github.com/FastJVM/relay/pull/333

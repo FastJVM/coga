@@ -5,3 +5,9 @@ user = "marc"
 
 [secrets]
 # Populated from env vars at launch time using env:VAR_NAME refs.
+
+# Per-agent permission-skip policy for `mode: auto` task launches —
+# machine-local only; either key in shared relay.toml fails config load.
+# [agents.claude]
+# skip_permissions = "auto"
+# skip_permissions_argv = "--dangerously-skip-permissions"

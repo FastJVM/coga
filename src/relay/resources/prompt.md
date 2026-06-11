@@ -9,7 +9,11 @@ Read this once. Follow it throughout the session.
 
 ## Files in the task directory
 
-Each task lives in `relay-os/tasks/<slug>/` and contains:
+Task directories live under `relay-os/tasks/` either as direct children
+(`relay-os/tasks/<slug>/`) or one level deeper inside an organizational group
+(`relay-os/tasks/<group>/<slug>/`). The composed prompt header gives the exact
+task directory for this launch; use that path instead of reconstructing it from
+the slug. Each task directory contains:
 
 - `ticket.md` — source of truth for task state. YAML frontmatter + markdown
   body. You **may** edit frontmatter when the spec says so (e.g. update

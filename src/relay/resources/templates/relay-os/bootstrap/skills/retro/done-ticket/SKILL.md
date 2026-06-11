@@ -36,9 +36,9 @@ PR, no `## Retro` marker, and no `## Pruned` bookkeeping. Recovery is via
   `relay-os/bootstrap/skills/`, loaded once per run before ticket-by-ticket
   extraction.
 - May change: warranted context files, warranted skill files, and the exact
-  source task directories `relay-os/tasks/<slug>/` for every processed source
-  task — a knowledge-bearing ticket deleted in its theme's knowledge PR, a
-  no-durable-knowledge ticket deleted directly via `relay delete`.
+  resolved source task directories under `relay-os/tasks/` for every processed
+  source task — a knowledge-bearing ticket deleted in its theme's knowledge PR,
+  a no-durable-knowledge ticket deleted directly via `relay delete`.
 - Action: `pr-required` for knowledge edits and the source-task deletions
   bundled with them; `direct-delete` for no-durable-knowledge source tasks.
   Every knowledge edit lands in a reviewable PR; nothing in the knowledge base
@@ -126,15 +126,16 @@ the rest of the run. Otherwise it is not covered. That is the only test.
 ## Inputs
 
 This skill is invoked with one or more parameters: exact done ticket slugs. Work
-from the repo root. `relay retire <slug>` passes one slug. Dream passes every
-eligible done ticket in one run; the skill partitions them into coherent PR
-batches itself.
+from the repo root. Resolve each slug to its actual task directory; tasks may
+live either at `relay-os/tasks/<slug>/` or one level deeper in a group directory.
+`relay retire <slug>` passes one slug. Dream passes every eligible done ticket
+in one run; the skill partitions them into coherent PR batches itself.
 
 Required files:
 
-- `relay-os/tasks/<slug>/ticket.md` for each selected slug
-- `relay-os/tasks/<slug>/blackboard.md` for each selected slug
-- `relay-os/tasks/<slug>/log.md` for each selected slug
+- `<task-dir>/ticket.md` for each selected slug
+- `<task-dir>/blackboard.md` for each selected slug
+- `<task-dir>/log.md` for each selected slug
 - `relay-os/contexts/**/SKILL.md`
 - `relay-os/bootstrap/contexts/**/SKILL.md`
 - `relay-os/skills/**/SKILL.md`
@@ -282,7 +283,7 @@ Knowledge PR — use this shape:
 - Updated/created/deleted: <short file list, including deleted source tasks>.
 
 ## Source
-- Tickets: deleted `relay-os/tasks/<slug>/`, ...
+- Tickets: deleted `<task-dir>`, ...
 - Markers: PR history for each deleted `blackboard.md` records `## Retro`
   with `status: processed`.
 

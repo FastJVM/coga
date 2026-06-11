@@ -81,67 +81,22 @@ workflows, or change lifecycle/assignee state.
 
 ### Phase 2 — knowledge scan
 
-Delegate this phase to a subagent. It is the single full-corpus read of the
-run: the subagent reads every ticket body and blackboard, and every context,
-skill, and workflow file, and compares them. Running it now — in the decide
-half, before Phase 5 deletes any done ticket — means no evidence is lost.
+Delegate this phase to a subagent using the
+`bootstrap/dream/scan/knowledge-scan` skill. This decide-half scan happens
+before Phase 5 so done-ticket evidence is still available.
 
-The subagent returns only a classified findings list; raw ticket and blackboard
-contents stay inside the subagent. Classify each finding as exactly one of:
-
-- `extract` — a done ticket holds durable knowledge that belongs in a context
-  or skill. Record the ticket slug and the context/skill area it touches.
-- `stale` — an existing context or skill contradicts current repo reality.
-  Name the file and state the contradiction.
-- `gap` — a repeated pattern (recurring task knowledge, repeated process
-  struggle, or an ad-hoc workflow sequence) with no context, skill, or
-  workflow to carry it.
-
-Write the findings to this task's blackboard under `## Findings`: short title,
-class, target file or ticket, one paragraph describing the change, and draft
-content when a new file is proposed. Group the `extract` findings by the
-context/skill area they touch — Phase 5 uses that grouping to batch coherent
-PRs.
+Write the returned findings to this task's blackboard under `## Findings`;
+Phase 5 reads that section when batching knowledge PRs.
 
 ### Phase 3 — contract audit
 
-Delegate this phase to a subagent. Where the knowledge scan asks what the repo
-knows that no context captures, the contract audit asks the opposite: what the
-contexts, skills, recurring templates, and shipped docs *claim* that the repo
-no longer backs up. It is a consistency pass over Relay's explanation of
-itself, and it is the decide-half complement to Phase 1: validate-drift checks
-deterministic repo hygiene, the contract audit checks whether the prose still
-matches the code.
+Delegate this phase to a subagent using the
+`bootstrap/dream/scan/contract-audit` skill. This decide-half audit complements
+Phase 1's deterministic repo-hygiene check.
 
-The subagent reads the living contract surface — every
-`relay-os/contexts/**/SKILL.md` and `relay-os/skills/**/SKILL.md`, the
-`relay-os/recurring/<name>/ticket.md` templates (recurring tasks are
-ticket-format directories), `README.md`, `docs/*.md`, and the agent
-instruction files `CLAUDE.md` and `AGENTS.md` — and checks each concrete claim
-against three sources of truth:
-
-- **code reality** — a flag, default, command, status value, or path that
-  `src/relay/` no longer implements as described.
-- **referenced artifacts** — a file, skill, context, or workflow a contract
-  names that does not exist on disk.
-- **copy divergence** — a shipped template under `relay-os/` whose packaged
-  counterpart under `src/relay/resources/templates/relay-os/` has drifted,
-  where the difference is not documented as intentional.
-
-Frozen task artifacts under `relay-os/tasks/` are historical records, not
-contracts — a stale reference inside a retired ticket is not a finding. Audit
-only the living contract surface.
-
-The subagent returns only a classified findings list. Classify each finding as:
-
-- `drift` — a contract claim contradicts code reality, names a missing
-  artifact, or a live/packaged copy pair has diverged. Name the file and line,
-  state the contradiction, and name the source of truth.
-
-Write these findings to this task's blackboard under `## Findings`, alongside
-the Phase 2 findings and in the same shape: short title, class, target file,
-one paragraph. The audit never repairs anything itself — Phase 7 routes each
-`drift` finding to a proposal PR.
+Write the returned findings to this task's blackboard under `## Findings`,
+alongside the Phase 2 findings; Phase 7 reads that section when routing
+proposal PRs.
 
 ### Phase 4 — skill-update
 
@@ -172,9 +127,9 @@ runs and better at de-duplicating repeated facts.
 
 A done ticket is eligible when:
 
-- its directory `relay-os/tasks/<slug>/` still exists; and
-- no open PR is adding its `## Retro` marker or deleting
-  `relay-os/tasks/<slug>/`.
+- its resolved task directory under `relay-os/tasks/` still exists; and
+- no open PR is adding its `## Retro` marker or deleting that resolved task
+  directory.
 
 A ticket whose directory is already gone is not a candidate; git history holds
 its record. A processed `## Retro` marker on a still-present directory does not
@@ -226,15 +181,15 @@ candidates and gates deletion through `bootstrap/delete-task`. That delete
 skill ships, but until its cleanup PR-dispatch wiring is finished the worker
 reports `human-needed` and deletes nothing.
 
-For each candidate, cleanup must open a PR that deletes only
-`relay-os/tasks/<slug>/`. The deletion goes in the PR, not the working tree, so
-a human can review it before merge. Cleanup gate:
+For each candidate, cleanup must open a PR that deletes only the resolved task
+directory under `relay-os/tasks/`. The deletion goes in the PR, not the working
+tree, so a human can review it before merge. Cleanup gate:
 
-- the marker is present in `relay-os/tasks/<slug>/blackboard.md`;
+- the marker is present in the task directory's `blackboard.md`;
 - the marker does not have `result: no-new-durable-knowledge`;
 - no open PR is currently editing that task directory;
 - the exact task slug is known; do not use prefix matching for deletion;
-- the PR deletes only `relay-os/tasks/<slug>/`;
+- the PR deletes only that resolved task directory;
 - the PR body states that git history is the audit trail.
 
 Result line: `pr-opened` when the PR is opened. If any gate is unclear, write

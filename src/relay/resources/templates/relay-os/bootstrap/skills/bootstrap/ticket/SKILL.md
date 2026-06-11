@@ -161,6 +161,12 @@ create the file inline rather than leaving it as a TODO. Bias toward small,
 focused files — under a page each. Use the `_template/` directories as the
 shape:
 
+**Before hand-writing a skill, check whether one can be imported.** When the
+gap is a *skill* (process knowledge), follow `bootstrap/import` first: search
+the external registries for a candidate and decide import / adapt / write. Only
+write a local skill from scratch when nothing external fits. Contexts (domain
+knowledge) are repo-specific — write those locally as below.
+
 - New context: `relay-os/contexts/<namespace>/<name>/SKILL.md` with
   frontmatter `name: <namespace>/<name>` and a one-sentence `description:`.
   Body is domain knowledge — facts, edge cases, what's out of scope. No
