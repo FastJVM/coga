@@ -135,3 +135,10 @@ Verification on the rebuilt branch:
 - `tests/test_dream_worker_templates.py` → 9 passed.
 
 PR: https://github.com/FastJVM/relay/pull/333
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: relay/architecture: document Dream's prompt-only scan skills
