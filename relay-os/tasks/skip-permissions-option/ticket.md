@@ -5,7 +5,7 @@ mode: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: codex
+assignee: zach
 contexts:
 - relay/architecture
 - relay/codebase
@@ -27,7 +27,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (peer-review)
+step: 4 (review)
 ---
 
 ## Description

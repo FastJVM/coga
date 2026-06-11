@@ -93,6 +93,7 @@ Human decisions (interactive, 2026-06-10):
 
 branch: skip-permissions
 worktree: /home/n/Code/relay-skip-permissions
+pr: https://github.com/FastJVM/relay/pull/336
 
 ## Implement step — done (2026-06-10)
 
@@ -145,3 +146,29 @@ Notes for self-qa:
 - `--mode interactive` on an auto ticket correctly disables the policy
   (effective mode is what's checked); `--mode auto` is still refused by the
   temporary auto bail.
+
+## Peer review (Codex, 2026-06-10 21:08 PDT)
+
+- Branch/worktree reviewed: `skip-permissions` at
+  `/home/n/Code/relay-skip-permissions` (clean worktree).
+- Native review command: `codex review --base main`. First sandboxed attempt
+  failed before findings with the known read-only app-server initialization
+  error; reran escalated and got one P2 finding.
+- Finding: auto launches still bail before the new skip-permissions policy is
+  reachable through live `relay launch`.
+- Disposition: not treated as a must-fix for this step because the implement
+  plan records the explicit human decision to proceed while `mode: auto` is
+  temporarily disabled and to cover the behavior at helper/command-construction
+  level until streaming re-enables auto launches.
+- No peer-review code changes; no new commit.
+- Verification: `PYTHONPATH=/home/n/Code/relay-skip-permissions/src python -m pytest`
+  from the feature worktree: 648 passed, 1 skipped.
+
+## Open-PR step (2026-06-10)
+
+- Pushed `skip-permissions` to origin from the feature worktree (clean tree,
+  head b686e96) and opened https://github.com/FastJVM/relay/pull/336.
+- `gh pr checks 336`: "no checks reported" — the repo has no CI configured on
+  this branch, so there is no green/red signal to wait on.
+- PR body notes the dormant auto-launch path and the recorded human decision,
+  links the ticket, and carries the test plan.
