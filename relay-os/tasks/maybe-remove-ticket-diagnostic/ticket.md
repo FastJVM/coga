@@ -1,6 +1,6 @@
 ---
 title: maybe-remove-ticket-diagnostic
-status: in_progress
+status: done
 mode: interactive
 owner: zach
 human: zach
@@ -25,7 +25,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
