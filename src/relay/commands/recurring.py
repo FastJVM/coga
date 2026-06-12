@@ -11,6 +11,8 @@ from datetime import datetime
 from pathlib import Path
 
 import typer
+from rich.console import Console
+from rich.table import Table
 
 from relay import git
 from relay.commands.launch import _interactive_stdio_has_tty
@@ -19,7 +21,10 @@ from relay.logfile import append_log
 from relay.recurring import (
     DueScan,
     RecurringError,
+    TemplateStatus,
     is_debug_slug,
+    is_recurring_slug,
+    list_templates,
     recurring_dir,
     scaffold_named,
     scan_debug,
@@ -28,7 +33,8 @@ from relay.recurring import (
 from relay.mark import mark_paused
 from relay.paths import tasks_dir
 from relay.slack import notify
-from relay.tasks import TaskRef, read_ticket
+from relay.tasks import TaskRef, list_tasks, read_ticket
+from relay.ticket import TicketError
 from relay.validate import TaskValidationError
 
 # Default idle-timeout backstop (seconds) the sweep arms on the interactive
@@ -357,6 +363,96 @@ def launch(
         typer.echo(f"{ref.id_slug} already scaffolded for this period")
 
     _launch_scaffolded(ref, mode_override="interactive" if interactive else None)
+
+
+@app.command("list")
+def list_recurring() -> None:
+    """List recurring templates with their schedules, plus instantiated tasks.
+
+    Read-only — the inspectable counterpart of a bare `relay recurring`, which
+    get-or-creates each due period's task and launches it. This scaffolds
+    nothing and launches nothing (principle 6: a view never mutates). Two
+    tables: every template with its schedule and the current period's state,
+    then the picked tasks — the recurring period tasks already on disk.
+    """
+    try:
+        cfg = load_config()
+    except ConfigError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        sys.exit(2)
+
+    statuses = list_templates(cfg)
+    picked = [ref for ref in list_tasks(cfg) if is_recurring_slug(ref.slug)]
+
+    if not statuses and not picked:
+        typer.echo("(no recurring templates)")
+        return
+
+    console = Console()
+    now = datetime.now()
+    _print_templates_table(console, statuses, now)
+    _print_picked_table(console, picked)
+
+
+def _print_templates_table(
+    console: Console, statuses: list[TemplateStatus], now: datetime
+) -> None:
+    if not statuses:
+        return
+    table = Table(title="Recurring templates", title_justify="left", show_edge=False)
+    for col in ("template", "schedule", "last fire", "next fire", "current period"):
+        table.add_column(col, no_wrap=True)
+    for s in sorted(statuses, key=lambda x: x.name):
+        if s.error:
+            table.add_row(s.name, f"[red]error: {s.error}[/red]", "-", "-", "-")
+            continue
+        if s.instance is not None:
+            period = f"{s.instance_status} · {s.instance.id_slug}"
+        elif s.due:
+            period = "[green]due — not scaffolded[/green]"
+        else:
+            period = "none"
+        table.add_row(
+            s.name,
+            s.schedule or "-",
+            _firing_stamp(s.last_fire),
+            _firing_stamp(s.next_fire),
+            period,
+        )
+    console.print(table)
+
+
+def _print_picked_table(console: Console, picked: list[TaskRef]) -> None:
+    if not picked:
+        console.print("No instantiated recurring tasks.", style="dim")
+        return
+    table = Table(
+        title="Picked tasks (instantiated)",
+        title_justify="left",
+        show_edge=False,
+    )
+    for col in ("slug", "status", "step", "mode"):
+        table.add_column(col, no_wrap=True)
+    for ref in picked:
+        try:
+            ticket = read_ticket(ref)
+        except TicketError:
+            table.add_row(ref.id_slug, "(unreadable)", "-", "-")
+            continue
+        table.add_row(
+            ref.id_slug,
+            ticket.status or "-",
+            ticket.step or "-",
+            ticket.mode or "-",
+        )
+    console.print(table)
+
+
+def _firing_stamp(when: datetime | None) -> str:
+    """Compact firing label for the templates table (`Mon 06-15 09:00`)."""
+    if when is None:
+        return "-"
+    return when.strftime("%a %m-%d %H:%M")
 
 
 def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> None:

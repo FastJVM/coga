@@ -9,7 +9,6 @@ import pytest
 
 from relay.config import load_config
 from relay.tasks import (
-    DuplicateTaskSlugError,
     TaskNotFoundError,
     list_tasks,
     resolve_task,
@@ -66,23 +65,25 @@ def _task(company: Path, rel: str) -> Path:
 
 def test_list_tasks_finds_tasks_one_level_inside_group_dirs(repo: Path) -> None:
     top = _task(repo, "fix-retry-logic")
-    nested = _task(repo, "auto/digest-sweep")
+    nested = _task(repo, "marketing/digest-sweep")
 
     refs = list_tasks(load_config(repo))
 
-    assert [(r.slug, r.path) for r in refs] == [
-        ("digest-sweep", nested),
+    # Sorted by id_slug: "fix-retry-logic" < "marketing/digest-sweep".
+    assert [(r.id_slug, r.path) for r in refs] == [
         ("fix-retry-logic", top),
+        ("marketing/digest-sweep", nested),
     ]
 
 
-def test_nested_task_keeps_bare_leaf_slug(repo: Path) -> None:
-    _task(repo, "auto/digest-sweep")
+def test_nested_task_gets_group_qualified_id_slug(repo: Path) -> None:
+    _task(repo, "marketing/digest-sweep")
 
     ref = list_tasks(load_config(repo))[0]
 
     assert ref.slug == "digest-sweep"
-    assert ref.id_slug == "digest-sweep"
+    assert ref.group == "marketing"
+    assert ref.id_slug == "marketing/digest-sweep"
 
 
 def test_underscore_dirs_skipped_at_both_levels(repo: Path) -> None:
@@ -117,30 +118,49 @@ def test_group_dir_without_tickets_is_ignored(repo: Path) -> None:
     assert [r.slug for r in refs] == ["real-task"]
 
 
-def test_duplicate_leaf_slug_raises_typed_error(repo: Path) -> None:
-    top = _task(repo, "dup-task")
-    nested = _task(repo, "auto/dup-task")
+def test_same_leaf_name_in_different_groups_coexists(repo: Path) -> None:
+    marketing = _task(repo, "marketing/digest")
+    eng = _task(repo, "eng/digest")
 
-    with pytest.raises(DuplicateTaskSlugError) as exc_info:
-        list_tasks(load_config(repo))
+    refs = list_tasks(load_config(repo))
 
-    assert exc_info.value.slug == "dup-task"
-    assert set(exc_info.value.paths) == {top, nested}
+    assert [(r.id_slug, r.path) for r in refs] == [
+        ("eng/digest", eng),
+        ("marketing/digest", marketing),
+    ]
 
 
-def test_resolve_task_finds_nested_task_by_slug_and_prefix(repo: Path) -> None:
-    nested = _task(repo, "auto/digest-sweep")
+def test_top_level_and_grouped_leaf_can_share_a_name(repo: Path) -> None:
+    top = _task(repo, "digest")
+    nested = _task(repo, "marketing/digest")
+
+    refs = {r.id_slug: r.path for r in list_tasks(load_config(repo))}
+
+    assert refs == {"digest": top, "marketing/digest": nested}
+
+
+def test_resolve_task_finds_nested_task_by_qualified_slug_and_prefix(repo: Path) -> None:
+    nested = _task(repo, "marketing/digest-sweep")
     _task(repo, "fix-retry-logic")
     cfg = load_config(repo)
 
-    assert resolve_task(cfg, "digest-sweep").path == nested
-    assert resolve_task(cfg, "dig").path == nested
+    assert resolve_task(cfg, "marketing/digest-sweep").path == nested
+    assert resolve_task(cfg, "marketing/dig").path == nested
 
 
-def test_resolve_task_prefix_ambiguity_spans_groups(repo: Path) -> None:
-    _task(repo, "auto/fix-digest")
-    _task(repo, "fix-retry-logic")
+def test_resolve_task_rejects_bare_leaf_of_grouped_task(repo: Path) -> None:
+    _task(repo, "marketing/digest-sweep")
+    cfg = load_config(repo)
+
+    with pytest.raises(TaskNotFoundError, match="No task matches"):
+        resolve_task(cfg, "digest-sweep")
+
+
+def test_resolve_task_prefix_ambiguity_spans_top_level_and_group(repo: Path) -> None:
+    # Both id_slugs start with "auto": a top-level task and a group dir.
+    _task(repo, "auto-pilot")
+    _task(repo, "auto/sweep")
     cfg = load_config(repo)
 
     with pytest.raises(TaskNotFoundError, match="Ambiguous"):
-        resolve_task(cfg, "fix")
+        resolve_task(cfg, "auto")

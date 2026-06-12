@@ -917,6 +917,30 @@ def test_status_narrow_terminal_keeps_each_task_on_one_line(
     assert len(body[:-1]) <= 3, result.output
 
 
+def test_status_splits_recurring_into_own_table(repo: Path) -> None:
+    cfg = load_config(repo)
+    scaffold_task(
+        cfg=cfg, title="Normal", workflow_name=None, contexts=[],
+        mode="interactive", owner="marc", assignee="claude",
+        watchers=[], status="active", slug_override="normal-task",
+    )
+    scaffold_task(
+        cfg=cfg, title="Recurring", workflow_name=None, contexts=[],
+        mode="interactive", owner="marc", assignee="claude",
+        watchers=[], status="active", slug_override="recurring-foo-2026-W24",
+    )
+    result = CliRunner().invoke(app, ["status"])
+    assert result.exit_code == 0, result.output
+    out = result.output
+    # The hand-authored task sits in the main table; the recurring period
+    # task lands under the "Recurring" header that follows it.
+    assert (
+        out.index("normal-task")
+        < out.index("Recurring")
+        < out.index("recurring-foo-2026-W24")
+    )
+
+
 def test_status_does_not_show_title_column(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(

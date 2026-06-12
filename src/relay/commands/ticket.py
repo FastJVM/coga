@@ -161,7 +161,7 @@ def _run_authoring_session(
         "Ticket: command: "
         f"{_format_agent_command_for_console(cmd, prompt)}"
     )
-    before_tasks = {task_ref.slug for task_ref in list_tasks(cfg)}
+    before_tasks = {task_ref.id_slug for task_ref in list_tasks(cfg)}
     before_authoring = _snapshot_authoring_files(cfg)
     append_log(
         ref.path,
@@ -276,11 +276,11 @@ def _authored_task_refs(
     for task_ref in tasks:
         task_root = task_ref.path.resolve(strict=False)
         if any(task_root in path.parents for path in resolved):
-            refs[task_ref.slug] = task_ref
+            refs[task_ref.id_slug] = task_ref
 
     for task_ref in tasks:
-        if task_ref.slug not in before_tasks:
-            refs.setdefault(task_ref.slug, task_ref)
+        if task_ref.id_slug not in before_tasks:
+            refs.setdefault(task_ref.id_slug, task_ref)
     return [refs[slug] for slug in sorted(refs)]
 
 

@@ -110,7 +110,9 @@ def scaffold_task(
         assignee = assignee or owner
 
     base_slug = slug_override or slugify(title)
-    existing_slugs = {t.slug for t in list_tasks(cfg)}
+    # Scaffolds land at the top level (`tasks/<slug>/`), so uniqueness only
+    # needs to clear other top-level slugs — a grouped task may reuse the leaf.
+    existing_slugs = {t.slug for t in list_tasks(cfg) if t.group is None}
     slug = base_slug
     n = 2
     while slug in existing_slugs:

@@ -44,8 +44,8 @@ relay-os/
   bootstrap/<name>/      ← stateless launch shims
   bootstrap/skills/      ← package-backed core skills (overwritten on update)
   bootstrap/contexts/    ← package-backed bundled contexts (overwritten on update)
-  tasks/<slug>/          ← live tickets (bare slug is the leaf directory name)
-  tasks/<group>/<slug>/  ← grouped live tickets, one level deep
+  tasks/<slug>/          ← live tickets (top-level: bare leaf slug)
+  tasks/<group>/<slug>/  ← grouped live tickets (ref'd as <group>/<slug>)
   skills/<ns>/<name>/    ← project-local process knowledge / overrides
   contexts/<ns>/<name>/  ← project-local domain knowledge / overrides
   workflows/<ns>/<name>.md ← step definitions

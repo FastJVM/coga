@@ -13,9 +13,13 @@ no in-memory state.
 
 - **Tickets** live as directories under `relay-os/tasks/`: either direct
   children (`tasks/<slug>/`) or one level deeper in an organizational group
-  (`tasks/<group>/<slug>/`). The leaf directory name is the slug used by CLI
-  commands and Slack; agents should use the composed prompt's exact task
-  directory instead of reconstructing `tasks/<slug>/`. Each task has
+  (`tasks/<group>/<slug>/`). A top-level task is referenced by its bare leaf
+  slug; a grouped task is referenced by its **group-qualified slug**
+  (`<group>/<leaf>`, e.g. `marketing/relay-crm`) across CLI commands, `relay
+  status`, and Slack. Two groups may therefore reuse a leaf name, and a
+  grouped task's bare leaf does not resolve on its own. Agents should use the
+  composed prompt's exact task directory instead of reconstructing it from
+  the slug. Each task has
   `ticket.md` (frontmatter + body), `log.md` (append-only, written by CLI
   commands only), and `blackboard.md` (free-form workspace shared between
   human and agent).

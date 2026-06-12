@@ -357,6 +357,16 @@ def is_debug_slug(slug: str) -> bool:
     return bool(_DEBUG_SLUG_RE.search(slug))
 
 
+def is_recurring_slug(slug: str) -> bool:
+    """True if `slug` is a generated recurring period task (`recurring-<name>-…`).
+
+    Excludes `--all` debug runs, whose disposable scratch slugs never carry the
+    `recurring-` prefix. Lets `relay status` peel recurring period tasks into
+    their own table without re-deriving the convention.
+    """
+    return slug.startswith(_RECURRING_PREFIX) and not is_debug_slug(slug)
+
+
 def scaffold_debug_run(
     cfg: Config,
     template: Template,
@@ -428,6 +438,102 @@ def scan_debug(
             )
         )
     return DueScan(tasks=tasks, errors=errors)
+
+
+@dataclass
+class TemplateStatus:
+    """Read-only view of one recurring template and its current-period task.
+
+    Produced by `list_templates`. Unlike `scan_due`/`scan_debug` it scaffolds
+    nothing and never touches git, so it is safe behind a pure `relay
+    recurring list`. `instance` is the live (`active`/`in_progress`) task for
+    this template if one exists — current period or a resumable prior-period
+    orphan — else this period's task if it is already on disk, else `None`
+    (due, not yet scaffolded). `error` is set for a template that failed to
+    load (e.g. missing `schedule`), with the other fields left `None`.
+    """
+
+    name: str
+    schedule: str | None
+    last_fire: datetime | None
+    next_fire: datetime | None
+    period_key: str | None
+    target_slug: str | None
+    instance: TaskRef | None
+    instance_status: str | None
+    error: str | None = None
+
+    @property
+    def due(self) -> bool:
+        """No live/current instance covers the latest firing — a bare
+        `relay recurring` would scaffold and launch this template now."""
+        return self.error is None and self.instance is None
+
+
+def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateStatus]:
+    """Read-only scan of every recurring template. Scaffolds nothing.
+
+    For each `recurring/<name>/` template (skipping `_`-prefixed entries) this
+    resolves the schedule's last/next firing and the current period's task
+    slug, then looks up whether a task for it already exists — without the
+    get-or-create side effect `scan_due` carries. Powers `relay recurring
+    list`, which must be inspectable like `relay status` (principle 6: a
+    read-only view never mutates).
+    """
+    now = now or datetime.now()
+    root = recurring_dir(cfg)
+    out: list[TemplateStatus] = []
+    if not root.is_dir():
+        return out
+
+    for path in sorted(root.iterdir()):
+        if path.name.startswith("_") or not path.is_dir():
+            continue
+        try:
+            template = Template.load(path)
+        except RecurringError as exc:
+            out.append(
+                TemplateStatus(
+                    name=path.name,
+                    schedule=None,
+                    last_fire=None,
+                    next_fire=None,
+                    period_key=None,
+                    target_slug=None,
+                    instance=None,
+                    instance_status=None,
+                    error=str(exc),
+                )
+            )
+            continue
+
+        last_fire = _last_firing(template.schedule, now)
+        next_fire = _next_firing(template.schedule, now)
+        period_key = _period_key(template.schedule, last_fire)
+        target_slug = _recurring_slug(template.name, period_key)
+        instance = _live_task_for_template(cfg, template.name) or _task_with_slug(
+            cfg, target_slug
+        )
+        instance_status: str | None = None
+        if instance is not None:
+            try:
+                instance_status = read_ticket(instance).status
+            except Exception:  # half-written / unreadable ticket — report unknown
+                instance_status = "unknown"
+        out.append(
+            TemplateStatus(
+                name=template.name,
+                schedule=template.schedule,
+                last_fire=last_fire,
+                next_fire=next_fire,
+                period_key=period_key,
+                target_slug=target_slug,
+                instance=instance,
+                instance_status=instance_status,
+                error=None,
+            )
+        )
+    return out
 
 
 def _effective_mode(template: Template, *, allow_interactive: bool = True) -> str:
@@ -540,6 +646,11 @@ def _record_run(template: Template, outcome: ScaffoldOutcome, now: datetime) -> 
 def _last_firing(cron: str, now: datetime) -> datetime:
     it = croniter(cron, now)
     return it.get_prev(datetime)
+
+
+def _next_firing(cron: str, now: datetime) -> datetime:
+    it = croniter(cron, now)
+    return it.get_next(datetime)
 
 
 def _period_key(cron: str, fire_time: datetime) -> str:

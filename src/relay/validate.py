@@ -754,9 +754,9 @@ def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix
     for ref in targets:
         blackboard_path = ref.path / "blackboard.md"
         if not blackboard_path.is_file():
-            title = ref.slug
+            title = ref.id_slug
             try:
-                title = Ticket.read(ref.path / "ticket.md").title or ref.slug
+                title = Ticket.read(ref.path / "ticket.md").title or ref.id_slug
             except (TicketError, FileNotFoundError):
                 pass
             blackboard_path.write_text(render_blackboard(title))
