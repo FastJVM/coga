@@ -5,7 +5,7 @@ mode: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: zach
+assignee: claude
 contexts:
 - docs/gdrive-mcp
 skills: []
@@ -21,7 +21,7 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 2 (human-executes)
+step: 3 (verify-read-only)
 ---
 
 ## Description
@@ -47,7 +47,8 @@ Sheet structure (settled in the 2026-06-11 interview):
   `Date | Person | Channel | What we learned`. "Last confirmed use" on
   Tab 1 is a manual rollup of the latest relevant touchpoint.
 - The sheet is named "Relay CRM"; Drive location is Zach's choice (no
-  required folder).
+  required folder). Built 2026-06-11:
+  https://docs.google.com/spreadsheets/d/1gnqt6twV5l22k4tLPFtI-2g-foohofOhidE-f6_YANY
 - Zach has an existing list of people and fills the rows in by hand
   after the sheet exists; the agent does not seed data.
 - Why human-built: per the attached `docs/gdrive-mcp` context, the
