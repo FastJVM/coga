@@ -13,44 +13,58 @@ workflow: null
 
 ## Description
 
-Below is a 2 phase process meant to derive reusable knowledge. This knowledge becomes durable artifacts (contexts, rules, workflows, recurring, possibly skills) that Relay attaches to future tickets — so every agent starts already knowing the project instead of starting from zero.
-
-Init Interview
-(Runs only on the first `relay init` of a repository. It never triggers again — after that, `relay init --update` brings in changes.)
-
-1. What is this repo for — what project or operation does it coordinate, and what does success look like? (Repo/relay-os/contexts)
-
-2. What knowledge does this work depend on that an outsider couldn't get from reading the repo? 
-(Repo/relay-os/contexts)
-
-3. What rules should every agent always follow here? (e.g. "never push to main") (rules.md)
-
-4. What work comes up repeatedly — and is any of it on a schedule? (Repo/relay-os/workflows...Repo/relay-os/recurring)
-
-Once they answer all 4 questions, a setup ticket is auto-scaffolded for them, ready for `relay launch`.
-
-Setup Ticket
-1. Interview answers are added into the ticket (so the agent knows them)
-
-2. Agent reads the user's repo
-
-3. Agent creates workflows, contexts, recurring, (possibly skills) from the repo/ answers
-
-4. Agent shows you the files it generated and you can sign-off, edit, etc.
-
-Empty repo: the phase 1 questions are still asked, but since there's nothing to scan, artifacts are created from the answers alone. They are still shown to the human for review before landing.
-
-Phase 2 is Relay building Relay. It uses the answers that the user gave in phase 1 + the information gained from scanning the repo (if there is one) to create durable artifacts (contexts, workflows, recurring, rules, possibly skills). These artifacts can then be called on and possibly attached when the user creates follow-up tickets. 
+Give a new user a guided start: `relay init` stays fully non-interactive
+and scaffolds one launch-ready ticket, `relay-setup`, carrying the four
+interview questions unanswered. The user's single onboarding step is
+`relay launch relay-setup` (optionally shimmed as `relay setup`); the
+launched agent conducts the interview conversationally — probing
+follow-ups, recording answers verbatim into the ticket — then scans the
+repo and generates the durable artifacts (contexts, rules, workflows,
+recurring, possibly skills) **and a first batch of draft tickets** derived
+from the answers. Everything lands for the owner's review: edit or accept
+the artifacts, activate or delete the drafted tickets.
 
 ## Context
 
-We found we were missing an easy opportunity for a new user to build reusable artifacts from installation — without it, relay-os starts empty and every future agent starts from zero. This fills that gap.
+The four interview questions (artifact each answer feeds):
 
-Design points validated by a pre-implementation dry run (2026-06-11; full
-eval, scorecard, and Zach's recorded interview answers are on the
+1. What is this repo for — what project or operation does it coordinate,
+   and what does success look like? (contexts)
+2. What knowledge does this work depend on that an outsider couldn't get
+   from reading the repo? (contexts)
+3. What rules should every agent always follow here? (rules.md)
+4. What work comes up repeatedly — and is any of it on a schedule?
+   (workflows, recurring)
+
+Design revision 2026-06-12 — interview moved out of `relay init`:
+
+- Nico's constraint: init is an automated command and must never prompt.
+  The original phase-1 design ran the questions inside init (TTY-gated);
+  that gate keeps scripts safe but was rejected as direction.
+- Moving the interview into the launched setup ticket also fixes the
+  static-question weakness seen live: printed text can't probe ("we will
+  be regularly curating LinkedIn posts" went unchallenged — no cadence),
+  a session agent can ask the follow-up. The questions become workflow
+  text — a durable, editable artifact — instead of CLI string constants.
+- Starter draft tickets are a third deliverable alongside the artifacts
+  and the open-questions list: recurring answers map to `recurring/`,
+  one-off work hiding in the answers ("decide the HN cadence") maps to
+  drafts the user activates or deletes. Mirrors the "vision to task list"
+  item in the Relay Additions wishlist doc.
+
+Reference implementation: relay-cli branch `feat/init-interview` has a
+working interview-at-init. The typer-prompt half is superseded by this
+revision, but reusable as-is: `scaffold_setup_ticket` in
+`src/relay/init_interview.py` (answers → active `relay-setup` ticket),
+the `init/setup` workflow (packaged + live copies, carries the
+generation ground rules), the question text with dry-run probes baked
+in, and the init tests.
+
+Design points validated by the pre-implementation dry run (2026-06-11;
+full eval, scorecard, and Zach's recorded interview answers are on the
 blackboard; fixtures kept at `~/Desktop/admin-init-test` and
-`~/Desktop/admin-fresh` so the identical test can be replayed against the
-real implementation):
+`~/Desktop/admin-fresh`). Live empty-repo test runs (2026-06-12,
+marketing and newsletter dirs) are scored on the blackboard as well:
 
 - The interview captures intent; the scan captures the operation. Answers
   alone preserved about a third of ground-truth facts at partial
