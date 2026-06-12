@@ -1,6 +1,6 @@
 ---
 title: relay-crm
-status: in_progress
+status: done
 mode: interactive
 owner: zach
 human: zach
@@ -21,7 +21,6 @@ workflow:
   - name: verify-read-only
     skills: []
     assignee: agent
-step: 3 (verify-read-only)
 ---
 
 ## Description
