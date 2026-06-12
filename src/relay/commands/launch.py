@@ -510,7 +510,6 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     """
     prior = ticket.status
     suffix = " — auto on launch"
-    assignee_label = ticket.assignee or "unassigned"
     try:
         mark_active(
             cfg,
@@ -518,11 +517,6 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
             ticket,
             actor=f"human:{cfg.current_user}",
             log_message=f"activated ({prior} → active){suffix}",
-            slack_text=(
-                f"🚀 {cfg.current_user} activated *{ref.id_slug}* "
-                f"\"{ticket.title}\" (assignee: {assignee_label}){suffix}"
-            ),
-            digest_detail=f"→ active (assignee: {assignee_label}){suffix}",
             echo=f"{ref.id_slug}: active{suffix}",
         )
     except WorkflowMissing:

@@ -1,5 +1,5 @@
 """Tests for the daily-digest pipeline: spool primitive, notify routing,
-render grouping, and the `relay digest` flush."""
+outcome rendering, git high-water scanning, and the `relay digest` flush."""
 
 from __future__ import annotations
 
@@ -147,10 +147,10 @@ def test_notify_falls_back_to_live_post_without_digest(
 ) -> None:
     cfg = load_config()
     slack.notify(
-        cfg, "✨ live text", kind="draft", detail="created", ticket="t-1", owner="nick"
+        cfg, "🎉 live text", kind="done", detail="→ done ✅", ticket="t-1", owner="nick"
     )
     assert len(captured_posts) == 1
-    assert "✨ live text" in captured_posts[0]["text"]
+    assert "🎉 live text" in captured_posts[0]["text"]
 
 
 def test_notify_spools_when_digest_installed(
@@ -160,9 +160,9 @@ def test_notify_spools_when_digest_installed(
     cfg = load_config()
     slack.notify(
         cfg,
-        "👉 live text",
-        kind="bump",
-        detail="advanced → step 2 (pr)",
+        "🎉 live text",
+        kind="done",
+        detail="auto-bumped: merge → done — <https://example/pr|PR #4> merged ✅",
         ticket="t-1",
         owner="nick",
         watchers=["bob"],
@@ -171,10 +171,25 @@ def test_notify_spools_when_digest_installed(
     assert captured_posts == []
     records = spool.read_records(bb)
     assert len(records) == 1
-    assert records[0]["kind"] == "bump"
+    assert records[0]["kind"] == "done"
     assert records[0]["owner"] == "nick"
     assert records[0]["watchers"] == ["bob"]
-    assert records[0]["detail"] == "advanced → step 2 (pr)"
+    assert records[0]["detail"] == (
+        "auto-bumped: merge → done — <https://example/pr|PR #4> merged ✅"
+    )
+
+
+def test_notify_rejects_lifecycle_kinds(repo: Path) -> None:
+    cfg = load_config()
+    with pytest.raises(ValueError, match="outcome kinds"):
+        slack.notify(
+            cfg,
+            "👉 live text",
+            kind="bump",
+            detail="advanced → step 2",
+            ticket="t-1",
+            owner="nick",
+        )
 
 
 def test_notify_skips_debug_task_neither_spools_nor_posts(
@@ -193,7 +208,7 @@ def test_notify_skips_debug_task_neither_spools_nor_posts(
         "🎉 debug done",
         kind="done",
         detail="claude finished → done ✅",
-        ticket="relay-dev-update-dbg-20260606T204523",
+        ticket="weekly-summary-dbg-20260606T204523",
         owner="nick",
     )
     assert captured_posts == []
@@ -204,13 +219,13 @@ def test_notify_skips_debug_task_even_without_digest(
     repo: Path, captured_posts: list[dict]
 ) -> None:
     """The debug skip also suppresses the live-post fallback when no digest is
-    installed — otherwise a debug run would post straight to Slack."""
+    installed — otherwise a debug outcome would post straight to Slack."""
     cfg = load_config()
     slack.notify(
         cfg,
-        "✨ debug created",
-        kind="draft",
-        detail="created",
+        "🎉 debug done",
+        kind="done",
+        detail="→ done",
         ticket="dream-cleanup-orphan-markers-child-of-dream-dbg-20",
         owner="nick",
     )
@@ -235,26 +250,34 @@ def test_render_digest_groups_and_mentions(repo: Path) -> None:
     cfg = load_config()
     records = [
         {"project": cfg.project_name, "owner": "nick", "ticket": "alpha",
-         "kind": "active", "detail": "→ active", "watchers": ["bob"]},
+         "kind": "done", "detail": "auto-bumped: merge → done — <https://example/pr|PR #4> merged ✅",
+         "watchers": ["bob"]},
         {"project": cfg.project_name, "owner": "nick", "ticket": "alpha",
-         "kind": "bump", "detail": "advanced → step 2"},
+         "kind": "done", "detail": "nick finished → done ✅"},
         {"project": cfg.project_name, "owner": "alice", "ticket": "beta",
          "kind": "done", "detail": "→ done ✅"},
         {"project": cfg.project_name, "kind": "recurring-error",
          "detail": "⚠️ recurring scan skipped 1 template"},
     ]
-    out = slack.render_digest(cfg, records, date_label="2026-06-03")
+    out = slack.render_digest(
+        cfg,
+        records,
+        date_label="2026-06-03",
+        also_merged=[{"sha": "abcdef012345", "subject": "Fix typo"}],
+    )
 
-    assert out.splitlines()[0] == "📋 Daily digest · 2026-06-03"
+    assert out.splitlines()[0] == f"📋 Daily digest · 2026-06-03 · {cfg.project_name}"
+    assert "Done:" in out
     assert "<@Unick>" in out                 # nick is mapped → pinged
     assert "alice" in out and "<@" not in out.split("alice")[1].split("\n")[0]
-    assert " • alpha (cc <@Ubob>)" in out    # watcher cc on the ticket line
-    assert "     → active" in out
-    assert "     advanced → step 2" in out
-    assert "(no owner)" in out               # ownerless recurring-error bucket
+    assert " • alpha (cc <@Ubob>) — <https://example/pr|PR #4> merged ✅" in out
+    assert " • alpha — nick finished → done ✅" in out
+    assert "Also merged (no ticket):" in out
+    assert " • abcdef0 Fix typo" in out
+    assert "Recurring errors:" in out
     assert "recurring scan skipped 1 template" in out
-    # nick's section comes before the ownerless bucket.
-    assert out.index("<@Unick>") < out.index("(no owner)")
+    assert out.index("Done:") < out.index("Also merged")
+    assert out.index("Also merged") < out.index("Recurring errors")
 
 
 # --- flush --------------------------------------------------------------------
@@ -265,7 +288,11 @@ def test_run_digest_flushes_then_empties(
 ) -> None:
     bb = _install_digest(repo)
     cfg = load_config()
-    slack.notify(cfg, "x", kind="active", detail="→ active", ticket="alpha", owner="nick")
+    spool.append_record(
+        bb,
+        {"project": cfg.project_name, "kind": "active", "detail": "→ active",
+         "ticket": "alpha", "owner": "nick"},
+    )
     slack.notify(cfg, "y", kind="done", detail="→ done ✅", ticket="alpha", owner="nick")
 
     posted = run_digest(cfg)
@@ -273,12 +300,167 @@ def test_run_digest_flushes_then_empties(
     assert len(captured_posts) == 1
     text = captured_posts[0]["text"]
     assert text.startswith(f"[{cfg.project_name}] 📋 Daily digest")
-    assert "→ active" in text and "→ done ✅" in text
+    assert "Done:" in text
+    assert "done ✅" in text
+    assert "→ active" not in text
 
-    # Spool emptied; a same-day re-run is a silent no-op.
+    # Spool emptied, including legacy lifecycle records; a same-day re-run is
+    # a silent no-op in this non-git test repo.
     assert spool.read_records(bb) == []
     assert run_digest(cfg) is False
     assert len(captured_posts) == 1
+
+
+def _commit_and_push(git_repo, relpath: str, text: str, subject: str) -> str:
+    path = git_repo.root / relpath
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    git_repo.git("add", "--", relpath)
+    git_repo.git("commit", "-m", subject)
+    sha = git_repo.git("rev-parse", "HEAD").strip()
+    git_repo.git("push", "origin", "main")
+    return sha
+
+
+def _install_digest_with_state(relay_os: Path, last_commit: str) -> Path:
+    bb = _install_digest(relay_os)
+    text = bb.read_text()
+    bb.write_text(
+        text.replace(
+            "## Spool (pending)\n",
+            (
+                "### Digest State\n\n"
+                f"last_commit: {last_commit}\n"
+                "range:\n"
+                "posted:\n\n"
+                "## Spool (pending)\n"
+            ),
+        )
+    )
+    return bb
+
+
+def test_run_digest_posts_also_merged_from_git_high_water(
+    git_repo, captured_posts: list[dict]
+) -> None:
+    start = git_repo.git("rev-parse", "HEAD").strip()
+    bb = _install_digest_with_state(git_repo.relay_os, start)
+    cfg = load_config(git_repo.relay_os)
+
+    _commit_and_push(
+        git_repo,
+        "relay-os/docs/state-sync.md",
+        "sync\n",
+        "Ticket: sync-task-state — done",
+    )
+    _commit_and_push(
+        git_repo,
+        "relay-os/docs/pr-42.md",
+        "done\n",
+        "Improve digest rendering (#42)",
+    )
+    reported_sha = _commit_and_push(
+        git_repo,
+        "relay-os/docs/no-ticket.md",
+        "merged\n",
+        "Fix typo in compose docstring",
+    )
+    _commit_and_push(
+        git_repo,
+        "relay-os/docs/sync-helper.md",
+        "sync\n",
+        "Sync task state: add-relay-skill-search-with-candidate-eval",
+    )
+    slack.notify(
+        cfg,
+        "done",
+        kind="done",
+        detail="auto-bumped: review → done — <https://example/pr|PR #42> merged ✅",
+        ticket="digest-ticket",
+        owner="nick",
+    )
+
+    assert run_digest(cfg) is True
+
+    text = captured_posts[0]["text"]
+    assert "Done:" in text
+    assert " • digest-ticket — <https://example/pr|PR #42> merged ✅" in text
+    assert "Also merged (no ticket):" in text
+    assert f" • {reported_sha[:7]} Fix typo in compose docstring" in text
+    assert "Improve digest rendering (#42)" not in text
+    assert "Ticket: sync-task-state" not in text
+    assert "Sync task state:" not in text
+    assert spool.read_records(bb) == []
+    assert f"last_commit: {git_repo.git('rev-parse', 'origin/main').strip()}" in bb.read_text()
+
+
+def test_run_digest_posts_git_commits_even_with_empty_spool(
+    git_repo, captured_posts: list[dict]
+) -> None:
+    start = git_repo.git("rev-parse", "HEAD").strip()
+    bb = _install_digest_with_state(git_repo.relay_os, start)
+    cfg = load_config(git_repo.relay_os)
+    sha = _commit_and_push(
+        git_repo,
+        "relay-os/docs/commit-only.md",
+        "merged\n",
+        "Add digest high-water scan",
+    )
+
+    assert run_digest(cfg) is True
+
+    text = captured_posts[0]["text"]
+    assert "Done:" not in text
+    assert "Also merged (no ticket):" in text
+    assert f" • {sha[:7]} Add digest high-water scan" in text
+    assert "last_commit:" in bb.read_text()
+
+
+def test_run_digest_flushes_done_when_git_disabled(
+    git_repo, captured_posts: list[dict]
+) -> None:
+    bb = _install_digest(git_repo.relay_os)
+    _write(
+        git_repo.relay_os / "relay.local.toml",
+        'user = "nick"\n[git]\nenabled = false\n',
+    )
+    cfg = load_config(git_repo.relay_os)
+    git_repo.git("remote", "remove", "origin")
+    slack.notify(
+        cfg,
+        "done",
+        kind="done",
+        detail="nick finished → done ✅",
+        ticket="manual-done",
+        owner="nick",
+    )
+
+    assert run_digest(cfg) is True
+
+    text = captured_posts[0]["text"]
+    assert "Done:" in text
+    assert "manual-done" in text
+    assert "Also merged" not in text
+    assert spool.read_records(bb) == []
+    assert "last_commit:" not in bb.read_text()
+
+
+def test_run_digest_skips_filtered_commits_but_advances_high_water(
+    git_repo, captured_posts: list[dict]
+) -> None:
+    start = git_repo.git("rev-parse", "HEAD").strip()
+    bb = _install_digest_with_state(git_repo.relay_os, start)
+    cfg = load_config(git_repo.relay_os)
+    _commit_and_push(
+        git_repo,
+        "relay-os/docs/filtered.md",
+        "sync\n",
+        "Ticket: filtered — active",
+    )
+
+    assert run_digest(cfg) is False
+    assert captured_posts == []
+    assert f"last_commit: {git_repo.git('rev-parse', 'origin/main').strip()}" in bb.read_text()
 
 
 def test_run_digest_noop_without_digest_ticket(

@@ -357,7 +357,7 @@ def test_mark_unknown_task_errors(repo: Path) -> None:
 # --- slack text ---------------------------------------------------------------
 
 
-def test_mark_active_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mark_active_is_silent(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     slug, _ = _make_task(repo, status="draft")
     posts: list[str] = []
 
@@ -373,10 +373,10 @@ def test_mark_active_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
     assert result.exit_code == 0, result.output
-    assert any(f"🚀 marc activated *{slug}*" in m for m in posts)
+    assert posts == []
 
 
-def test_mark_paused_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_mark_paused_is_silent(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     slug, _ = _make_task(repo, status="active")
     posts: list[str] = []
 
@@ -392,7 +392,7 @@ def test_mark_paused_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "paused", slug])
     assert result.exit_code == 0, result.output
-    assert any(f"⏸️ marc paused *{slug}*" in m for m in posts)
+    assert posts == []
 
 
 def test_mark_done_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -352,20 +352,7 @@ def launch(
             )
             return
         if created_on_control:
-            ticket = read_ticket(ref)
             typer.echo(f"Created {ref.id_slug}")
-            notify(
-                cfg,
-                f"🔁 recurring scaffolded *{ref.id_slug}* "
-                f"\"{ticket.title}\" in {cfg.project_name} "
-                f"(assignee: {ticket.assignee or 'unassigned'})",
-                kind="recurring",
-                detail=f"recurring scaffolded \"{ticket.title}\" "
-                f"(assignee: {ticket.assignee or 'unassigned'})",
-                ticket=ref.id_slug,
-                owner=ticket.owner,
-                task_path=ref.path,
-            )
     else:
         typer.echo(f"{ref.id_slug} already scaffolded for this period")
 
@@ -878,11 +865,6 @@ def _stop_if_unfinished_after_launch(
                 ticket,
                 actor=f"human:{cfg.current_user}",
                 log_message=f"paused ({ticket.status} → paused) — {suffix}",
-                slack_text=(
-                    f"⏸️ {cfg.current_user} paused *{ref.id_slug}* "
-                    f"\"{ticket.title}\" — {suffix}"
-                ),
-                digest_detail=f"→ paused — {suffix}",
                 echo=None,
             )
         except TaskValidationError as exc:
@@ -947,18 +929,6 @@ def _broadcast_scan(cfg, scan: DueScan) -> None:
         task.status = ticket.status
         if created_on_control:
             typer.echo(f"Created {task.ref.id_slug}")
-            notify(
-                cfg,
-                f"🔁 recurring scaffolded *{task.ref.id_slug}* "
-                f"\"{ticket.title}\" in {cfg.project_name} "
-                f"(assignee: {ticket.assignee or 'unassigned'})",
-                kind="recurring",
-                detail=f"recurring scaffolded \"{ticket.title}\" "
-                f"(assignee: {ticket.assignee or 'unassigned'})",
-                ticket=task.ref.id_slug,
-                owner=ticket.owner,
-                task_path=task.ref.path,
-            )
 
     if scan.errors:
         n = len(scan.errors)

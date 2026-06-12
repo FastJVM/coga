@@ -6,9 +6,10 @@ working directory is the host repo, and `relay` is importable. We call
 `run_digest` directly rather than shelling out to `relay digest`, so the flush
 does not depend on `relay` being on `PATH` inside the script environment.
 
-`relay digest` is idempotent — an empty spool posts nothing — so this exits 0
-on a quiet day. A genuine Slack failure crashes loud (per `slack.post`), which
-the script-mode launcher reports as a non-zero exit and posts live.
+`relay digest` is idempotent — when there are no Done records, recurring
+errors, or post-filter new commits, it posts nothing — so this exits 0 on a
+quiet day. A genuine Slack failure crashes loud (per `slack.post`), which the
+script-mode launcher reports as a non-zero exit and posts live.
 """
 
 from __future__ import annotations

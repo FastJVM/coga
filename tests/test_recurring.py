@@ -322,11 +322,11 @@ def test_due_orders_dream_last(repo: Path) -> None:
     due template, so Dream's retro pass reaps this sweep's freshly-`done`
     period tickets instead of trailing them by a full sweep.
 
-    Alphabetically `dream` sorts between `digest` and `relay-dev-update`; the
+    Alphabetically `dream` sorts between `digest` and `weekly-summary`; the
     layered `due` key (`is_cleanup` leading) overrides that so it lands last.
     """
     # Three due weekly templates whose names bracket `dream` alphabetically.
-    for name in ("digest", "dream", "relay-dev-update"):
+    for name in ("digest", "dream", "weekly-summary"):
         _write_recurring(
             repo,
             name,
@@ -350,7 +350,7 @@ def test_due_orders_dream_last(repo: Path) -> None:
 
     order = [t.template for t in scan.due]
     assert order[-1] == "dream"
-    assert set(order) == {"digest", "dream", "relay-dev-update", "weekly-check"}
+    assert set(order) == {"digest", "dream", "weekly-summary", "weekly-check"}
 
 
 def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
@@ -394,12 +394,12 @@ def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
 def test_is_debug_slug() -> None:
     """Debug runs (and their children) match; ordinary names don't."""
     # `recurring --all` throwaway run and a child task embedding its slug.
-    assert is_debug_slug("relay-dev-update-dbg-20260606T204523")
+    assert is_debug_slug("weekly-summary-dbg-20260606T204523")
     assert is_debug_slug("dream-cleanup-orphan-markers-child-of-dream-dbg-20")
     # A digit must follow `-dbg-`, so an ordinary hyphenated name is spared.
     assert not is_debug_slug("fix-dbg-output")
     assert not is_debug_slug("add-retry-to-webhook")
-    assert not is_debug_slug("relay-dev-update-2026-W17")
+    assert not is_debug_slug("weekly-summary-2026-W17")
 
 
 def test_reap_debug_orphans_removes_only_debug_dirs(repo: Path) -> None:
@@ -418,7 +418,7 @@ def test_reap_debug_orphans_removes_only_debug_dirs(repo: Path) -> None:
         return d
 
     orphan = _mk("digest-dbg-20260607T084314")
-    other_orphan = _mk("relay-dev-update-dbg-20260606T222205")
+    other_orphan = _mk("weekly-summary-dbg-20260606T222205")
     child_orphan = _mk("dream-cleanup-child-of-dream-dbg-20260607T084314")
     real = _mk("add-retry-to-webhook")
     template = _mk("_template")

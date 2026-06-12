@@ -2,9 +2,10 @@
 
 Every per-ticket post is built at its call site (not in `slack.py`), so these
 tests drive each command/scanner end-to-end and capture the text handed to
-`requests.post`. They lock the rewritten conventions: a `"title"` after every
-`*slug*`, `prev → new` (and `prev → done`) transitions, `(assignee: …)` /
-`(step N/total)` asides, and the `<url|PR #N>` automerge link.
+`requests.post`. They lock the remaining live conventions: Done messages still
+include a `"title"` after every `*slug*`, `prev → done` transitions, and the
+`<url|PR #N>` automerge link. Routine lifecycle transitions are intentionally
+silent unless the operator supplies an explicit FYI such as `bump --message`.
 
 The `[project] [owner]` prefix that `post()`/`notify()` prepend is covered by
 `test_slack.py`; here we assert the message *body* with `endswith`, so the
@@ -126,16 +127,14 @@ def _body(posts: list[str], emoji: str) -> str:
 # --- mark active / done -------------------------------------------------------
 
 
-def test_mark_active_renders_title_and_assignee_aside(
+def test_mark_active_is_silent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, _ = _make_task(repo, status="draft")
     posts = _capture(monkeypatch)
     result = CliRunner().invoke(app, ["mark", "active", slug])
     assert result.exit_code == 0, result.output
-    assert _body(posts, "🚀") == (
-        f"🚀 marc activated *{slug}* \"Work\" (assignee: claude)"
-    )
+    assert posts == []
 
 
 # Note: the `(assignee: unassigned)` fallback is unreachable on a valid ticket
@@ -171,15 +170,28 @@ def test_mark_done_workflowless_collapses_transition(
 # --- bump ---------------------------------------------------------------------
 
 
-def test_bump_shows_prev_new_transition_with_title_and_step_count(
+def test_bump_without_message_is_silent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, _ = _make_task(repo, status="in_progress")
     posts = _capture(monkeypatch)
     result = CliRunner().invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
+    assert posts == []
+
+
+def test_bump_message_posts_live_fyi(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    slug, _ = _make_task(repo, status="in_progress")
+    posts = _capture(monkeypatch)
+    result = CliRunner().invoke(
+        app, ["bump", slug, "--message", "PR opened: https://example/pr"]
+    )
+    assert result.exit_code == 0, result.output
     assert _body(posts, "👉") == (
-        f"👉 claude advanced *{slug}* \"Work\": implement → pr (step 2/3)"
+        f"👉 claude advanced *{slug}* \"Work\": implement → pr "
+        "(step 2/3) — PR opened: https://example/pr"
     )
 
 
@@ -273,7 +285,7 @@ def test_automerge_digest_preserves_transition_and_pr_link(
 # --- recurring scaffold -------------------------------------------------------
 
 
-def test_recurring_scaffold_uses_assignee_aside(
+def test_recurring_scaffold_is_silent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from relay.commands.recurring import _broadcast_scan
@@ -297,7 +309,4 @@ def test_recurring_scaffold_uses_assignee_aside(
         errors=[],
     )
     _broadcast_scan(cfg, scan)
-    assert _body(posts, "🔁").startswith(
-        f"🔁 recurring scaffolded *{slug}* \"Work\" in "
-    )
-    assert _body(posts, "🔁").endswith("(assignee: claude)")
+    assert posts == []

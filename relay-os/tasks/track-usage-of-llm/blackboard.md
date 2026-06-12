@@ -1,5 +1,96 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Open Questions — RESOLVED (2026-06-11, nick)
+
+All six open questions answered. Spec updated to match.
+
+1. **Price table** → **DROPPED entirely** (2026-06-11, nick: "ticket's big
+   enough"). No price table, no `cost_usd` field, no cost math. Pricing is now
+   in Out of Scope as a follow-up ticket. The ledger records tokens only; on a
+   subscription, dollars aren't the metric.
+
+   **BUT — the refresh-sweep mechanism stays, in this same ticket** (nick,
+   2026-06-11). Instead of a dedicated per-concern recurring task, this ticket
+   ships one **collated** recurring task `refresh-hardcoded-data/` whose
+   `blackboard.md` carries a `## Refresh` addendum (checklist of hardcoded-data
+   chores). It fires twice a year and surfaces the list. Seeded with the
+   format + a commented example, **no pricing entry** (pricing's out of scope).
+   When pricing eventually lands, that follow-up appends one line to the
+   addendum rather than spawning its own recurring task. Mirrors the digest
+   task's `## Spool`-as-data-surface pattern.
+
+   Open: **mode/workflow for the sweep** — recommend `mode: auto` + a one-step
+   `maintenance/refresh` workflow+skill that reads `## Refresh` and posts a
+   `relay slack` FYI (no new `relay` subcommand). Alternative is a `mode:
+   script` command. Decide at review-design / implement.
+2. **summary regen** → every capture (default). Unchanged.
+3. **Auto-commit** → no; leave write in working tree. Moved from open question
+   to a settled decision in Out of Scope.
+4. **Mint `claude --session-id`** → yes (internal mechanism, nick deferred to
+   default).
+5. **Codex stub** → fine, usage-unknown for now (default).
+6. **Contexts** → added `relay/architecture` to `contexts:`.
+
+## No dedicated ledger — store in task blackboards (2026-06-11, nick)
+
+nick: "no need for a ledger, it can be parsed in the blackboard by the process
+with a script (if we know title etc)." Dropped the whole `relay-os/usage/`
+directory (ledger.jsonl + summary.md). New store:
+
+- Capture appends one JSONL usage line to the **launched task's own**
+  `blackboard.md` under a `## Usage` heading (digest-spool pattern). The launch
+  process already knows title/slug/step/agent, so the line is self-describing.
+- `relay usage` globs `tasks/**/blackboard.md` + `recurring/**/blackboard.md`,
+  parses only valid JSON lines in each `## Usage` section, aggregates by
+  title/slug/model/agent/step. It's the single read surface; no summary.md.
+- `usage.py` surface changed: `append_record(blackboard, record)` (section
+  append, atomic, touches only `## Usage`); `load_records(relay_os)` (scan
+  blackboards); `rollup(...)`. Dropped `write_summary`.
+
+**Accepted tradeoffs (chosen by nick over a central spool):**
+1. Usage history is task-scoped — retiring/deleting a task dir drops its usage
+   lines. Usage lives beside the work, not in a durable central ledger.
+2. Stateless bootstrap shims (no persistent blackboard) aren't recorded —
+   capture no-ops when there's no blackboard path. If it matters later, a
+   central spool is the follow-up.
+
+Append is race-free: capture runs in the `finally` after the session subprocess
+has already exited, so the agent isn't concurrently writing that blackboard.
+
+**Bonus:** this gives `refresh-hardcoded-data` a real first `## Refresh` entry —
+the parsers hardcode transcript paths/field names that drift when the CLIs
+update, so "verify usage.py parsers still match live formats" is the seeded
+chore.
+
+## Both providers parsed (2026-06-11, nick)
+
+Codex is **not** stubbed — it's a first-class parser alongside Claude (nick:
+"it's not claude only, it's for codex also"). Investigated the live
+`~/.codex/sessions/` tree and confirmed it's fully parseable:
+
+- Rollout file: `~/.codex/sessions/<YYYY>/<MM>/<DD>/rollout-<ISO>-<uuid>.jsonl`.
+- `session_meta` (line 1): `payload.id`, `payload.cwd`, `payload.model_provider`.
+- `turn_context`: `payload.model` (e.g. `gpt-5.4`).
+- `event_msg`→`token_count`: `info.total_token_usage` is **cumulative**
+  (`input_tokens`, `cached_input_tokens`, `output_tokens`,
+  `reasoning_output_tokens`, `total_tokens`) → take the LAST event, don't sum.
+- Matching: `codex exec` has **no `--session-id`** (checked `codex exec --help`;
+  it has `resume`, `--ephemeral`, `--json`, `-o`, but no id pin). So capture
+  snapshots existing rollout files before spawn and the parser claims the NEW
+  file with matching `session_meta.cwd`. Robust, no double-count (cumulative).
+- Category mapping → shared 4-field record: cached_input→cache_read, reasoning
+  folded into output, cache_create→null (codex exposes no create/read split).
+
+Claude keeps the minted `--session-id` strategy. Both have deterministic,
+non-mtime matching now.
+
+**Key reframe from nick:** the team is on a **Claude subscription**, not
+per-token API billing. So the headline metric is **tokens per task**, not
+dollars. Spec now leads `relay usage` and `summary.md` with tokens-by-task
+(`--by` defaults to `task`); `cost_usd` is a secondary informational column
+that degrades to `—`/`null` for unpriced models without harming token
+reporting. Added a "Primary metric" paragraph to the Description.
+
 ## Bootstrap decisions (2026-06-09, interactive with nick)
 
 - **Scope:** ledger primitive only. Capture + store + `relay usage` read command.

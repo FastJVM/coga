@@ -289,6 +289,21 @@ skill — it gets a normal ticket, blackboard, and log. There is no separate
 and no in-process call path; the worker runs end-to-end through the same
 launch machinery as any other script step.
 
+Dream's decide-half subagent scans (the knowledge scan and the contract
+audit) are skills too, but **prompt-only**: they live under
+`bootstrap/skills/bootstrap/dream/scan/<name>/` (referenced as
+`bootstrap/dream/scan/<name>`), a sibling segment to the script workers'
+`tasks/`. A prompt-only scan skill carries just `name` + `description`
+frontmatter and the classification contract as its body — no `script:` entry
+point and no `## Known Skill Contract` block; that shape belongs to the
+script workers and is the wrong archetype to copy for a subagent scan. The
+Dream template body delegates each scan phase to a subagent running the
+skill and keeps only the delegation framing plus the `## Findings` write
+target inline. Known limitation: the contract audit's own corpus globs
+(`relay-os/contexts/**`, `relay-os/skills/**`) do not cover
+`relay-os/bootstrap/skills/**`, so the bundled Dream skills — the scan
+skills included — sit outside the surface that audit reads.
+
 A `mode: script` launch injects task and skill metadata as environment
 variables instead of CLI argument plumbing — a worker script reads these, not
 a `--blackboard` flag. The full set: `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`,

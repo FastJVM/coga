@@ -10,7 +10,6 @@ import typer
 from relay import git
 from relay.config import Config, ConfigError, load_config
 from relay.scaffold import scaffold_task
-from relay.slack import notify
 from relay.slugify import slugify
 from relay.tasks import (
     TaskRef,
@@ -111,20 +110,6 @@ def retire(
     created = TaskRef(slug=slug, path=result["path"])
     typer.echo(f"Retire: created task {slug} at {result['path']} (active)")
     typer.echo(f"Created {slug}")
-    # The retire task is workflow-less, so it is scaffolded straight to
-    # `active` — `relay mark active` would refuse it. Broadcast the start
-    # ourselves since no `mark active` runs.
-    created_ticket = read_ticket(created)
-    notify(
-        cfg,
-        f"🚀 {cfg.current_user} created *{created.id_slug}* "
-        f"\"{created_ticket.title}\" in {cfg.project_name} — relay retire (active)",
-        kind="retire",
-        detail=f"created \"{created_ticket.title}\" — relay retire (active)",
-        ticket=created.id_slug,
-        owner=cfg.current_user,
-        task_path=created.path,
-    )
     git.sync_task_state(
         cfg, created.path, message=f"Ticket: {created.id_slug} — created (retire)"
     )

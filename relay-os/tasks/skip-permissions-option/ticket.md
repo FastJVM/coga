@@ -1,11 +1,11 @@
 ---
 title: skip-permissions-option
-status: in_progress
+status: done
 mode: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts:
 - relay/architecture
 - relay/codebase
@@ -27,7 +27,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description

@@ -54,18 +54,27 @@ OBSOLETE_PATHS: tuple[str, ...] = (
 
 # Recurring-template files Relay vendors and keeps fresh on every `--update`.
 # Unlike `_*` sample scaffolds and user-authored repo-specific loops (REM),
-# these are live Relay batteries: `relay dream` scaffolds `recurring/dream/`
-# directly and its known-skill list is upstream-managed, not per-repo. They
-# carry no `_` prefix (used as-is, not copied-and-renamed) and don't live under
+# these are live Relay batteries such as `recurring/dream/` and
+# `recurring/skill-update/`; their bodies are upstream-managed, not per-repo.
+# They carry no `_` prefix (used as-is, not copied-and-renamed) and don't live under
 # `bootstrap/`, so neither `_copy_templates` nor `_copy_vendored_bootstrap`
 # would otherwise refresh them — leaving repos that predate a template, or lost
-# it, permanently broken (`relay dream` has nothing to scaffold).
+# them, permanently broken (`relay dream` or the skill updater has nothing to
+# scaffold).
 #
 # A recurring task is a ticket-format directory; only the upstream-managed
 # `ticket.md` is refreshed. The sibling `blackboard.md` (last-run state) and
 # `log.md` (run history) are per-repo and deliberately left untouched.
 VENDORED_RECURRING_TEMPLATES: tuple[str, ...] = (
     "recurring/dream/ticket.md",
+    "recurring/skill-update/ticket.md",
+)
+
+# Narrow set of upstream-owned workflows that must be present in existing repos
+# because a vendored recurring template references them. Do not broad-copy
+# workflows: most named workflows are repo-owned playbooks.
+VENDORED_WORKFLOW_TEMPLATES: tuple[str, ...] = (
+    "workflows/skill-update/run.md",
 )
 
 _LEGACY_RELAY_GITIGNORE_ENTRIES: set[str] = {
@@ -182,7 +191,7 @@ def refresh_templates(
 ) -> tuple[list[str], list[str]]:
     """Refresh relay-owned scaffolds under `relay_os` from package resources.
 
-    Four things are treated as upstream-owned (always overwritten on update):
+    Five things are treated as upstream-owned (always overwritten on update):
       - `_*` template scaffolds (`_template/` etc.)
       - `bootstrap/` — the relay-vendored umbrella. Holds launch shims plus
         package-backed core skills and contexts
@@ -192,9 +201,11 @@ def refresh_templates(
         the package-backed bootstrap tree as one unit. Runtime resolvers read
         local user roots first and this bundled root second.
       - `VENDORED_RECURRING_TEMPLATES` — named relay-owned recurring batteries
-        (`recurring/dream/ticket.md`) that sit outside `bootstrap/` and carry
+        (for example `recurring/dream/ticket.md`) that sit outside `bootstrap/` and carry
         no `_` prefix, refreshed by `_copy_vendored_recurring`. The sibling
         `blackboard.md`/`log.md` files are per-repo and left untouched.
+      - `VENDORED_WORKFLOW_TEMPLATES` — named relay-owned workflows referenced
+        by those batteries, refreshed by `_copy_vendored_workflows`.
       - `.gitignore` — must track upstream so new ignore entries land in
         existing repos without manual edits.
 
@@ -204,6 +215,7 @@ def refresh_templates(
     src_root = src_root or packaged_template_root()
     copied = _copy_templates(src_root, relay_os)
     copied.extend(refresh_gitignored_mirrors(relay_os, src_root))
+    copied.extend(_copy_vendored_workflows(src_root, relay_os))
     copied.extend(_copy_upstream_files(src_root, relay_os))
     pruned = _prune_removed_templates(src_root, relay_os)
     return copied, pruned
@@ -737,7 +749,7 @@ def _copy_vendored_recurring(src_root: Traversable, dst_root: Path) -> list[str]
     """Refresh the named relay-owned recurring templates listed in
     `VENDORED_RECURRING_TEMPLATES`.
 
-    These (currently just `recurring/dream/ticket.md`) are live Relay
+    These are live Relay
     batteries, not `_*` samples and not under `bootstrap/`, so the other
     refresh passes skip them. Overwrite wholesale: the file is upstream-managed
     (e.g. Dream's known-skill list), not per-repo customizable — REM is the
@@ -750,6 +762,24 @@ def _copy_vendored_recurring(src_root: Traversable, dst_root: Path) -> list[str]
     """
     copied: list[str] = []
     for rel in VENDORED_RECURRING_TEMPLATES:
+        src = _resource_join(src_root, Path(rel))
+        if not src.is_file():
+            continue
+        _copy_resource_file(src, dst_root / rel)
+        copied.append(rel)
+    return copied
+
+
+def _copy_vendored_workflows(src_root: Traversable, dst_root: Path) -> list[str]:
+    """Refresh the named relay-owned workflows listed in
+    `VENDORED_WORKFLOW_TEMPLATES`.
+
+    These are workflow files that a vendored recurring template needs in order
+    to launch. Missing srcs are skipped so older package resources remain
+    tolerable during development.
+    """
+    copied: list[str] = []
+    for rel in VENDORED_WORKFLOW_TEMPLATES:
         src = _resource_join(src_root, Path(rel))
         if not src.is_file():
             continue
