@@ -66,6 +66,7 @@ OBSOLETE_PATHS: tuple[str, ...] = (
 # `ticket.md` is refreshed. The sibling `blackboard.md` (last-run state) and
 # `log.md` (run history) are per-repo and deliberately left untouched.
 VENDORED_RECURRING_TEMPLATES: tuple[str, ...] = (
+    "recurring/autoclose-merged/ticket.md",
     "recurring/dream/ticket.md",
     "recurring/skill-update/ticket.md",
 )
@@ -74,6 +75,7 @@ VENDORED_RECURRING_TEMPLATES: tuple[str, ...] = (
 # because a vendored recurring template references them. Do not broad-copy
 # workflows: most named workflows are repo-owned playbooks.
 VENDORED_WORKFLOW_TEMPLATES: tuple[str, ...] = (
+    "workflows/autoclose-merged/sweep.md",
     "workflows/skill-update/run.md",
 )
 
