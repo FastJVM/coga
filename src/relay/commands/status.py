@@ -11,6 +11,7 @@ from rich.table import Table
 
 from relay.config import ConfigError, load_config
 from relay.logfile import last_activity
+from relay.recurring import is_recurring_slug
 from relay.tasks import list_tasks, read_ticket
 from relay.ticket import TicketError
 
@@ -82,7 +83,7 @@ def status(
         except TicketError:
             continue
         rows.append({
-            "slug": ref.slug,
+            "slug": ref.id_slug,
             "status": ticket.status or "-",
             "owner": ticket.owner or "-",
             "assignee": ticket.assignee or "-",
@@ -105,6 +106,31 @@ def status(
     else:
         rows.sort(key=lambda r: r[order_by], reverse=descending)
 
+    if not rows:
+        typer.echo("(no tasks)")
+        return
+
+    now = datetime.now()
+
+    # Recurring period tasks are machine-authored jobs scaffolded ahead of
+    # execution; peel them into their own table so the main list stays the
+    # hand-authored backlog. `relay recurring list` is the schedule-aware view.
+    main_rows = [r for r in rows if not is_recurring_slug(r["slug"])]
+    recurring_rows = [r for r in rows if is_recurring_slug(r["slug"])]
+
+    if main_rows:
+        console.print(_build_table(main_rows, narrow, now))
+        console.print(_summary_line(main_rows), style="dim")
+    if recurring_rows:
+        if main_rows:
+            console.print()
+        console.print("Recurring", style="bold")
+        console.print(_build_table(recurring_rows, narrow, now))
+        console.print(_summary_line(recurring_rows), style="dim")
+
+
+def _build_table(rows: list[dict], narrow: bool, now: datetime) -> Table:
+    """Build one status table from already-sorted rows."""
     table = Table(show_lines=False, show_edge=False, pad_edge=False)
     if narrow:
         # Slug is the primary identifier; pin its column to the longest slug
@@ -118,7 +144,6 @@ def status(
         for col in ("status", "owner", "assignee", "step", "mode", "updated"):
             table.add_column(col)
 
-    now = datetime.now()
     for r in rows:
         ts = r["updated_ts"]
         updated = _format_relative(ts, now) if ts is not None else "-"
@@ -126,14 +151,11 @@ def status(
             r["slug"], r["status"], r["owner"], r["assignee"],
             r["step"], r["mode"], updated,
         )
+    return table
 
-    if not rows:
-        typer.echo("(no tasks)")
-        return
 
-    console.print(table)
-
-    # Summary line so the totals are visible without eyeballing the table.
+def _summary_line(rows: list[dict]) -> str:
+    """Totals line for a table — canonical statuses first, then any others."""
     # Canonical statuses first in fixed order, then any other values seen
     # (e.g. "-" for tickets missing a status field) sorted for stability.
     counts: dict[str, int] = {}
@@ -150,4 +172,4 @@ def status(
     summary = f"{len(rows)} {label}"
     if parts:
         summary += "  ·  " + " · ".join(parts)
-    console.print(summary, style="dim")
+    return summary

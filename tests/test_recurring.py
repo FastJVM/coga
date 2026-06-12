@@ -103,6 +103,36 @@ def repo(tmp_path: Path):
     return company
 
 
+# --- relay recurring list: the read-only schedule view ------------------------
+
+
+def test_recurring_list_is_read_only_and_shows_schedule(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    monkeypatch.setenv("COLUMNS", "200")  # avoid Rich truncating the cells
+    result = CliRunner().invoke(app, ["recurring", "list"])
+    assert result.exit_code == 0, result.output
+    assert "weekly-check" in result.output
+    assert "0 9 * * 1" in result.output  # the schedule cron
+    # Listing scaffolds nothing — a view never mutates (principle 6).
+    assert list_tasks(load_config(repo)) == []
+
+
+def test_recurring_list_shows_picked_tasks(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(repo)
+    fixed_now = datetime(2026, 4, 22, 10, 0, 0)  # a Wednesday after Monday 9am
+    scan_due(cfg, now=fixed_now)  # instantiate this period's task
+    monkeypatch.chdir(repo)
+    monkeypatch.setenv("COLUMNS", "200")
+    result = CliRunner().invoke(app, ["recurring", "list"])
+    assert result.exit_code == 0, result.output
+    assert "Picked tasks" in result.output
+    assert "recurring-weekly-check-" in result.output
+
+
 # --- scan_due: the bare `relay recurring` library layer -----------------------
 
 
