@@ -35,6 +35,9 @@ EXPECTED_FILES = {
     "relay-os/recurring/dream/ticket.md",
     "relay-os/recurring/skill-update/ticket.md",
     "relay-os/tasks/_template/ticket.md",
+    "relay-os/tasks/relay-setup/ticket.md",
+    "relay-os/tasks/relay-setup/blackboard.md",
+    "relay-os/tasks/relay-setup/log.md",
     "relay-os/workflows/skill-update/run.md",
     "relay-os/workflows/init/setup.md",
 }
@@ -130,6 +133,37 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         "\n"
         "Ask the four setup questions.\n"
     )
+    (templates / "tasks" / "relay-setup").mkdir(parents=True, exist_ok=True)
+    (templates / "tasks" / "relay-setup" / "ticket.md").write_text(
+        "---\n"
+        "title: relay-setup\n"
+        "status: active\n"
+        "mode: interactive\n"
+        "owner: new-user\n"
+        "human: new-user\n"
+        "agent: claude\n"
+        "assignee: claude\n"
+        "contexts: []\n"
+        "skills: []\n"
+        "workflow:\n"
+        "  name: init/setup\n"
+        "  steps:\n"
+        "  - name: interview\n"
+        "    skills: []\n"
+        "    assignee: agent\n"
+        "step: 1 (interview)\n"
+        "---\n"
+        "\n"
+        "## Description\n"
+        "\n"
+        "Setup task.\n"
+        "\n"
+        "## Context\n"
+        "\n"
+        "Empty until the `interview` step runs at first launch.\n"
+    )
+    (templates / "tasks" / "relay-setup" / "blackboard.md").write_text("notepad\n")
+    (templates / "tasks" / "relay-setup" / "log.md").write_text("created\n")
 
     cli_src = clone_dir / update_cmd.CLI_SRC_SUBPATH
     cli_src.mkdir(parents=True, exist_ok=True)
@@ -427,79 +461,26 @@ def test_init_creates_missing_dir(tmp_path: Path, fake_clone, fake_venv) -> None
 # --- init setup ticket ----------------------------------------------------------
 
 
-def _seed_agents_in_packaged_toml(tmp_path: Path) -> None:
-    """The fake template relay.toml has no [agents]; the setup-ticket scaffold
-    needs one to pick the ticket's `agent:` field."""
-    pkg_toml = tmp_path / "package" / update_cmd.TEMPLATE_SUBPATH / "relay.toml"
-    pkg_toml.write_text('version = 1\n\n[agents.claude]\ncli = "claude"\n')
-
-
-def test_init_scaffolds_setup_ticket(
-    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _seed_agents_in_packaged_toml(tmp_path)
-    monkeypatch.setattr(init_cmd, "prompt_eligible", lambda: True)
-    monkeypatch.setattr(init_cmd, "prompt_user_name", lambda: "zach")
-
-    target = tmp_path / "company"
-    target.mkdir()
-    result = CliRunner().invoke(app, ["init", str(target)])
-    assert result.exit_code == 0, result.output
-    assert "Couldn't scaffold the setup ticket" not in result.output
-
-    ticket = target / "relay-os" / "tasks" / "relay-setup" / "ticket.md"
-    assert ticket.is_file()
-    text = ticket.read_text()
-    assert "status: active" in text
-    assert "name: init/setup" in text
-    # The interview happens at launch, as the workflow's first step — the
-    # ticket ships pointed at it, with a Context the step fills in.
-    assert "step: 1 (interview)" in text
-    assert "Empty until the `interview` step runs at first launch" in text
-    assert 'user = "zach"' in (target / "relay-os" / "relay.local.toml").read_text()
-    assert "relay launch relay-setup" in result.output
-    assert "Set `user` in" not in result.output
-
-
-def test_init_skips_setup_ticket_when_not_a_tty(
+def test_init_ships_setup_ticket_template(
     tmp_path: Path, fake_clone, fake_venv
 ) -> None:
+    """The relay-setup task is a static packaged template: fresh init copies
+    it verbatim — no prompts, no scaffolding code — and the interview happens
+    at first launch as the workflow's first step."""
     target = tmp_path / "company"
     target.mkdir()
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0, result.output
-    assert not (target / "relay-os" / "tasks" / "relay-setup").exists()
-    assert "Setup ticket skipped" in result.output
-    assert "Set `user` in" in result.output
 
-
-def test_init_no_setup_flag_skips_even_on_a_tty(
-    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(init_cmd, "prompt_eligible", lambda: True)
-    monkeypatch.setattr(
-        init_cmd, "prompt_user_name", lambda: pytest.fail("prompt should not run")
-    )
-
-    target = tmp_path / "company"
-    target.mkdir()
-    result = CliRunner().invoke(app, ["init", str(target), "--no-setup"])
-    assert result.exit_code == 0, result.output
-    assert not (target / "relay-os" / "tasks" / "relay-setup").exists()
-
-
-def test_init_name_prompt_bail_starts_empty(
-    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(init_cmd, "prompt_eligible", lambda: True)
-    monkeypatch.setattr(init_cmd, "prompt_user_name", lambda: None)
-
-    target = tmp_path / "company"
-    target.mkdir()
-    result = CliRunner().invoke(app, ["init", str(target)])
-    assert result.exit_code == 0, result.output
-    assert not (target / "relay-os" / "tasks" / "relay-setup").exists()
-    assert 'user = ""' in (target / "relay-os" / "relay.local.toml").read_text()
+    task_dir = target / "relay-os" / "tasks" / "relay-setup"
+    text = (task_dir / "ticket.md").read_text()
+    assert "status: active" in text
+    assert "name: init/setup" in text
+    assert "step: 1 (interview)" in text
+    assert "Empty until the `interview` step runs at first launch" in text
+    assert (task_dir / "blackboard.md").is_file()
+    assert (task_dir / "log.md").is_file()
+    assert "relay launch relay-setup" in result.output
 
 
 # --- --update mode ------------------------------------------------------------

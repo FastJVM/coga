@@ -31,13 +31,16 @@ not here.
 We found we were missing an easy opportunity for a new user to build reusable artifacts from installation — without it, relay-os starts empty and every future agent starts from zero. This fills that gap.
 
 Design change (2026-06-12): an earlier cut asked the four questions
-directly inside `relay init`. That's out — an interactive interview can't
-run at init — so init only scaffolds the ticket (plus a one-line name
-prompt for `user` in relay.local.toml) and the interview became the first
-workflow step at launch. A second change from the full-process prototype
-(see blackboard): a `resolve-open-questions` agent step between generation
-and human review, because the open-questions list otherwise rots on the
-blackboard waiting for the human to notice it.
+directly inside `relay init`. That's out — init must stay free of
+additions: no prompts, no interview. The relay-setup task now ships as a
+static packaged template (same mechanism as `tasks/browser-automation/`),
+so init's only change is more files in the template copy, and the
+interview became the first workflow step at launch (which also fixes the
+template's placeholder `owner`/`human` from relay.local.toml). A second
+change from the full-process prototype (see blackboard): a
+`resolve-open-questions` agent step between generation and human review,
+because the open-questions list otherwise rots on the blackboard waiting
+for the human to notice it.
 
 Design points validated by a pre-implementation dry run (2026-06-11; full
 eval, scorecard, and Zach's recorded interview answers are on the

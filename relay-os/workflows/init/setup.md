@@ -17,9 +17,10 @@ steps:
 ## interview
 
 `relay init` only scaffolds this ticket — it arrives with an empty
-Context. Open by interviewing the owner, one question at a time, and
-record each answer verbatim under the ticket's `## Context` heading
-before asking the next:
+Context and placeholder `owner`/`human` fields. Start by setting both
+fields to the `user` value in `relay.local.toml`. Then interview the
+owner, one question at a time, and record each answer verbatim under the
+ticket's `## Context` heading before asking the next:
 
 1. What is this repo for? What project or operation does it coordinate,
    and what does success look like?
