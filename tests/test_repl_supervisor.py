@@ -12,9 +12,11 @@ import pytest
 from relay.repl_supervisor import (
     DONE_MARKER,
     SENTINEL_ENV,
+    _TIMEOUT_EXIT_CODE,
     _TTY_SANITIZE,
     _classify_exit,
     _sentinel_signals_done,
+    ReplOutcome,
     emit_done_marker,
     run_with_done_marker,
 )
@@ -32,39 +34,59 @@ def _exited(code: int) -> int:
 
 def test_classify_exit_passthrough_when_not_signalled() -> None:
     """No watcher stop → the child's own status passes straight through."""
-    assert _classify_exit(_exited(0), sent_term=False) == (0, [])
-    assert _classify_exit(_exited(7), sent_term=False) == (7, [])
-    assert _classify_exit(_signaled(signal.SIGSEGV), sent_term=False) == (
+    assert _classify_exit(_exited(0), term_kind=None) == (0, "natural", [])
+    assert _classify_exit(_exited(7), term_kind=None) == (7, "natural", [])
+    assert _classify_exit(_signaled(signal.SIGSEGV), term_kind=None) == (
         128 + signal.SIGSEGV,
+        "crash",
         [],
     )
 
 
 def test_classify_exit_our_signal_is_clean_done() -> None:
-    """Death from our own SIGTERM/SIGKILL after a stop reports a clean 0."""
-    code, notes = _classify_exit(_signaled(signal.SIGTERM), sent_term=True)
-    assert code == 0
+    """Death from our own SIGTERM/SIGKILL after a done stop reports a clean 0."""
+    code, kind, notes = _classify_exit(_signaled(signal.SIGTERM), term_kind="done")
+    assert (code, kind) == (0, "done")
     assert any("exit 0" in n for n in notes)
 
-    code, _ = _classify_exit(_signaled(signal.SIGKILL), sent_term=True)
-    assert code == 0
+    code, kind, _ = _classify_exit(_signaled(signal.SIGKILL), term_kind="done")
+    assert (code, kind) == (0, "done")
+
+
+def test_classify_exit_timeout_teardown_is_non_zero() -> None:
+    """Death from our own signal after a *timeout* stop reports the timeout exit
+    code and kind — a wedge must not masquerade as a clean done."""
+    code, kind, notes = _classify_exit(
+        _signaled(signal.SIGTERM), term_kind="timeout"
+    )
+    assert (code, kind) == (_TIMEOUT_EXIT_CODE, "timeout")
+    assert any("timeout" in n for n in notes)
+
+    # A child that self-exits after we sent the timeout SIGTERM is still a
+    # timeout teardown, not a clean done.
+    code, kind, _ = _classify_exit(_exited(0), term_kind="timeout")
+    assert (code, kind) == (_TIMEOUT_EXIT_CODE, "timeout")
 
 
 def test_classify_exit_surfaces_real_crash_after_stop() -> None:
-    """A crash by a non-our signal during teardown is surfaced, not masked."""
-    code, notes = _classify_exit(_signaled(signal.SIGSEGV), sent_term=True)
-    assert code == 128 + signal.SIGSEGV
+    """A crash by a non-our signal during teardown is surfaced as a crash, not
+    masked — regardless of whether we were tearing down for done or timeout."""
+    code, kind, notes = _classify_exit(_signaled(signal.SIGSEGV), term_kind="done")
+    assert (code, kind) == (128 + signal.SIGSEGV, "crash")
     assert any("real crash" in n for n in notes)
+
+    code, kind, _ = _classify_exit(_signaled(signal.SIGSEGV), term_kind="timeout")
+    assert (code, kind) == (128 + signal.SIGSEGV, "crash")
 
 
 def test_no_tty_falls_back_to_subprocess(monkeypatch: pytest.MonkeyPatch) -> None:
     """No-TTY callers (pytest, CI) skip the PTY path and just shell out."""
     monkeypatch.setattr("sys.stdout.isatty", lambda: False)
-    code = run_with_done_marker(["true"], env={})
-    assert code == 0
+    outcome = run_with_done_marker(["true"], env={})
+    assert (outcome.exit_code, outcome.kind) == (0, "natural")
 
-    code = run_with_done_marker(["false"], env={})
-    assert code != 0
+    outcome = run_with_done_marker(["false"], env={})
+    assert outcome.exit_code != 0
 
 
 def _run_through_pty(
@@ -72,7 +94,7 @@ def _run_through_pty(
     cmd: list[str],
     *,
     session_id: str | None = None,
-) -> int:
+) -> ReplOutcome:
     """Force the PTY path with /dev/null fds for output and input."""
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
     devnull_out = os.open(os.devnull, os.O_WRONLY)
@@ -93,33 +115,34 @@ def _run_through_pty(
 def test_marker_in_child_output_terminates_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Child writes the marker → supervisor SIGTERMs it and reports 0.
+    """Child writes the marker → supervisor SIGTERMs it and reports a clean done.
 
     Without the watcher, the trailing `sleep 30` would block the test for
     half a minute; we assert it returns quickly with a clean exit code.
     """
     marker = DONE_MARKER.decode()
-    code = _run_through_pty(
+    outcome = _run_through_pty(
         monkeypatch, ["bash", "-c", f"echo '{marker}'; sleep 30"]
     )
-    assert code == 0
+    assert (outcome.exit_code, outcome.kind) == (0, "done")
 
 
 def test_natural_exit_passes_through_exit_code(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Child that exits on its own without the marker → exit code is forwarded."""
-    code = _run_through_pty(monkeypatch, ["bash", "-c", "exit 7"])
-    assert code == 7
+    outcome = _run_through_pty(monkeypatch, ["bash", "-c", "exit 7"])
+    assert (outcome.exit_code, outcome.kind) == (7, "natural")
 
 
 def _run_through_pty_idle(
     monkeypatch: pytest.MonkeyPatch,
     cmd: list[str],
     *,
-    idle_timeout: float,
-) -> int:
-    """Force the PTY path with an idle-timeout backstop and /dev/null fds."""
+    idle_timeout: float | None = None,
+    max_session: float | None = None,
+) -> ReplOutcome:
+    """Force the PTY path with a liveness backstop and /dev/null fds."""
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
     devnull_out = os.open(os.devnull, os.O_WRONLY)
     devnull_in = os.open(os.devnull, os.O_RDONLY)
@@ -128,6 +151,7 @@ def _run_through_pty_idle(
             cmd,
             env={"PATH": os.environ.get("PATH", "")},
             idle_timeout=idle_timeout,
+            max_session=max_session,
             output_fd=devnull_out,
             input_fd=devnull_in,
         )
@@ -140,19 +164,22 @@ def test_idle_timeout_terminates_silent_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A REPL that never signals done and goes silent is torn down by the
-    idle-timeout backstop and reports a clean 0.
+    idle-timeout backstop and reported as a *timeout* — non-zero exit, kind
+    `timeout` — NOT a clean done.
 
     This is the stuck-agent case — an agent that stalls or crashes before
     reaching `relay bump` / `mark done` / `panic` — that would otherwise block
     a `relay recurring` sweep forever. Without the timeout the `sleep 30` here
-    would hang the test; we assert it returns promptly instead.
+    would hang the test; we assert it returns promptly instead. The non-zero
+    classification is what lets the sweep record the wedge instead of pausing it
+    as a deliberate human park.
     """
     start = time.monotonic()
-    code = _run_through_pty_idle(
+    outcome = _run_through_pty_idle(
         monkeypatch, ["bash", "-c", "sleep 30"], idle_timeout=0.5
     )
     elapsed = time.monotonic() - start
-    assert code == 0
+    assert (outcome.exit_code, outcome.kind) == (_TIMEOUT_EXIT_CODE, "timeout")
     assert elapsed < 10  # torn down on idle, not after the full sleep
 
 
@@ -161,11 +188,32 @@ def test_idle_timeout_does_not_fire_on_self_exit(
 ) -> None:
     """A child that exits within the idle window is left alone — the backstop
     must not pre-empt a REPL that finishes on its own, so its real exit code
-    still passes through."""
-    code = _run_through_pty_idle(
+    still passes through as a natural exit."""
+    outcome = _run_through_pty_idle(
         monkeypatch, ["bash", "-c", "exit 7"], idle_timeout=30
     )
-    assert code == 7
+    assert (outcome.exit_code, outcome.kind) == (7, "natural")
+
+
+def test_max_session_terminates_output_producing_child(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A REPL stuck in an *output-producing* loop never goes idle, so only the
+    wall-clock max-session cap can catch it. With idle-timeout off and a short
+    max-session, a child that streams forever is torn down as a timeout.
+
+    This is the gap idle-timeout misses: the busy loop keeps the PTY active, so
+    `last_activity` keeps refreshing and the idle backstop never fires."""
+    start = time.monotonic()
+    outcome = _run_through_pty_idle(
+        monkeypatch,
+        ["bash", "-c", "while true; do echo busy; sleep 0.05; done"],
+        idle_timeout=None,
+        max_session=0.5,
+    )
+    elapsed = time.monotonic() - start
+    assert (outcome.exit_code, outcome.kind) == (_TIMEOUT_EXIT_CODE, "timeout")
+    assert elapsed < 10  # torn down on the wall-clock cap, not left to spin
 
 
 def test_sentinel_file_terminates_child(
@@ -178,23 +226,23 @@ def test_sentinel_file_terminates_child(
     to the PTY — the marker bytes never reach the watcher in that case, but
     the file does.
     """
-    code = _run_through_pty(
+    outcome = _run_through_pty(
         monkeypatch,
         ["bash", "-c", f'printf done > "${SENTINEL_ENV}"; sleep 30'],
     )
-    assert code == 0
+    assert (outcome.exit_code, outcome.kind) == (0, "done")
 
 
 def test_session_id_match_terminates_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Sentinel content naming *this* session → supervisor SIGTERMs it."""
-    code = _run_through_pty(
+    outcome = _run_through_pty(
         monkeypatch,
         ["bash", "-c", f'printf "/repo/tasks/mine" > "${SENTINEL_ENV}"; sleep 30'],
         session_id="/repo/tasks/mine",
     )
-    assert code == 0
+    assert (outcome.exit_code, outcome.kind) == (0, "done")
 
 
 def test_session_id_mismatch_is_ignored(
@@ -207,12 +255,12 @@ def test_session_id_mismatch_is_ignored(
     wrote it. With session scoping the supervisor ignores the stray write and
     the child runs to its own exit — here exit 5, proving we did NOT SIGTERM.
     """
-    code = _run_through_pty(
+    outcome = _run_through_pty(
         monkeypatch,
         ["bash", "-c", f'printf "/tmp/fixture/other" > "${SENTINEL_ENV}"; exit 5'],
         session_id="/repo/tasks/mine",
     )
-    assert code == 5
+    assert (outcome.exit_code, outcome.kind) == (5, "natural")
 
 
 def _run_through_pty_capture(
@@ -220,14 +268,14 @@ def _run_through_pty_capture(
     cmd: list[str],
     *,
     session_id: str | None = None,
-) -> tuple[int, bytes]:
+) -> tuple[ReplOutcome, bytes]:
     """Force the PTY path with a pipe for output so we can inspect what the
-    watcher wrote to the terminal. Returns (exit_code, captured_output)."""
+    watcher wrote to the terminal. Returns (outcome, captured_output)."""
     monkeypatch.setattr("sys.stdout.isatty", lambda: True)
     read_fd, write_fd = os.pipe()
     devnull_in = os.open(os.devnull, os.O_RDONLY)
     try:
-        code = run_with_done_marker(
+        outcome = run_with_done_marker(
             cmd,
             env={"PATH": os.environ.get("PATH", "")},
             session_id=session_id,
@@ -239,7 +287,7 @@ def _run_through_pty_capture(
         captured = os.read(read_fd, 1 << 16)
         os.close(read_fd)
         os.close(devnull_in)
-    return code, captured
+    return outcome, captured
 
 
 def test_tty_sanitize_emitted_after_signal_teardown(
@@ -249,12 +297,12 @@ def test_tty_sanitize_emitted_after_signal_teardown(
     watcher must emit the sanitizing reset itself — otherwise the keyboard is
     left "dead" (alt-screen / mouse / bracketed-paste still on) and the session
     reads as hung even though the bump already succeeded."""
-    code, out = _run_through_pty_capture(
+    outcome, out = _run_through_pty_capture(
         monkeypatch,
         ["bash", "-c", f'printf "/repo/tasks/mine" > "${SENTINEL_ENV}"; sleep 30'],
         session_id="/repo/tasks/mine",
     )
-    assert code == 0
+    assert outcome.exit_code == 0
     assert _TTY_SANITIZE in out
 
 
@@ -274,8 +322,8 @@ def test_tty_sanitize_skipped_on_self_exit(
     """A child that exits on its own runs its own terminal cleanup, so the
     watcher must NOT inject the reset — doing so would clobber the modes a
     still-running parent UI legitimately set."""
-    code, out = _run_through_pty_capture(monkeypatch, ["bash", "-c", "exit 0"])
-    assert code == 0
+    outcome, out = _run_through_pty_capture(monkeypatch, ["bash", "-c", "exit 0"])
+    assert outcome.exit_code == 0
     assert _TTY_SANITIZE not in out
 
 
