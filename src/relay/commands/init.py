@@ -41,9 +41,9 @@ from relay.commands.update import (
     write_pin,
 )
 from relay.config import ConfigError, find_repo_root, load_config
-from relay.init_interview import (
-    interview_eligible,
-    run_interview,
+from relay.init_setup import (
+    prompt_eligible,
+    prompt_user_name,
     scaffold_setup_ticket,
 )
 from relay.managed_skills import (
@@ -152,10 +152,10 @@ def init(
         "--all",
         help="With --update: refresh every relay repo found under PATH, not just the current one.",
     ),
-    no_interview: bool = typer.Option(
+    no_setup: bool = typer.Option(
         False,
-        "--no-interview",
-        help="Fresh init only: skip the setup interview and start relay-os empty.",
+        "--no-setup",
+        help="Fresh init only: skip the name prompt and the relay-setup ticket; start relay-os empty.",
     ),
 ) -> None:
     """Scaffold `relay-os/` from package templates, or refresh it with --update."""
@@ -181,10 +181,10 @@ def init(
     elif update:
         _do_update()
     else:
-        _do_init(path or Path("."), no_interview=no_interview)
+        _do_init(path or Path("."), no_setup=no_setup)
 
 
-def _do_init(path: Path, no_interview: bool = False) -> None:
+def _do_init(path: Path, no_setup: bool = False) -> None:
     target = path.resolve()
     relay_os = target / "relay-os"
 
@@ -198,19 +198,26 @@ def _do_init(path: Path, no_interview: bool = False) -> None:
 
     target.mkdir(parents=True, exist_ok=True)
 
-    # Interview before the clone/venv machinery: it's the only part that
-    # needs the human, and its answers seed the setup ticket scaffolded
-    # below. Skipping (flag, non-TTY, or Ctrl-C) just means an empty start.
-    interview = None
-    if not no_interview:
-        if interview_eligible():
-            interview = run_interview()
+    # Name prompt before the clone/venv machinery: it's the only part that
+    # needs the human. The name becomes `user` in relay.local.toml, which the
+    # setup-ticket scaffold below requires. The setup questions themselves are
+    # NOT asked here — the agent asks them at first launch (the `interview`
+    # step of the init/setup workflow). Skipping (flag, non-TTY, or Ctrl-C)
+    # just means an empty start.
+    user_name = None
+    if not no_setup:
+        if prompt_eligible():
+            user_name = prompt_user_name()
+            if user_name is None:
+                typer.secho(
+                    "No name given — skipping the setup ticket.",
+                    fg=typer.colors.YELLOW,
+                )
         else:
             typer.secho(
-                "Setup interview skipped (stdin/stdout is not a terminal). "
-                "Run `relay init` from an interactive terminal to be asked the "
-                "four setup questions, or scaffold the setup ticket later with "
-                "`relay ticket`.",
+                "Setup ticket skipped (stdin/stdout is not a terminal). "
+                "Set `user` in relay.local.toml, then create the setup task "
+                "with `relay ticket` (workflow init/setup).",
                 fg=typer.colors.YELLOW,
             )
 
@@ -232,20 +239,19 @@ def _do_init(path: Path, no_interview: bool = False) -> None:
 
     local_toml = relay_os / "relay.local.toml"
     local_content = LOCAL_TOML_TEMPLATE
-    if interview is not None:
-        quoted = interview.user.replace("\\", "\\\\").replace('"', '\\"')
+    if user_name is not None:
+        quoted = user_name.replace("\\", "\\\\").replace('"', '\\"')
         local_content = local_content.replace('user = ""', f'user = "{quoted}"', 1)
     local_toml.write_text(local_content)
 
     setup_slug: str | None = None
-    if interview is not None:
+    if user_name is not None:
         try:
-            setup_slug = scaffold_setup_ticket(relay_os, interview)["slug"]
+            setup_slug = scaffold_setup_ticket(relay_os, user_name)["slug"]
         except (ValueError, ConfigError) as exc:
             typer.secho(
-                f"Couldn't scaffold the setup ticket from your answers: {exc}\n"
-                "The answers only exist in your scrollback — recreate the "
-                "ticket with `relay ticket` before closing this terminal.",
+                f"Couldn't scaffold the setup ticket: {exc}\n"
+                "Recreate it with `relay ticket` (workflow init/setup).",
                 fg=typer.colors.RED,
                 err=True,
             )
@@ -263,13 +269,14 @@ def _do_init(path: Path, no_interview: bool = False) -> None:
     typer.echo("")
     typer.echo(f"Initialized relay repo at {relay_os}")
     _print_managed_skill_summary(managed_skills)
-    if interview is not None:
-        typer.echo(f'Wrote {local_toml} (user = "{interview.user}").')
+    if user_name is not None:
+        typer.echo(f'Wrote {local_toml} (user = "{user_name}").')
     else:
         typer.echo(f"Wrote {local_toml} (set `user` to your assignee name).")
     if setup_slug is not None:
         typer.echo(
-            f"Scaffolded setup ticket `{setup_slug}` from your interview answers."
+            f"Scaffolded setup ticket `{setup_slug}` — run `relay launch "
+            f"{setup_slug}` to start the setup interview."
         )
     if sha is not None:
         typer.echo(f"Pinned to upstream {sha[:12]}.")
@@ -308,13 +315,13 @@ def _do_init(path: Path, no_interview: bool = False) -> None:
             f"       export PATH=\"{bin_dir}:$PATH\""
         )
     steps.append(f"Edit {relay_os}/relay.toml — set your agents, Slack, and aliases.")
-    if interview is None:
+    if user_name is None:
         steps.append(f"Set `user` in {local_toml} to your name.")
     if setup_slug is not None:
         steps.append(
-            f"Run `relay launch {setup_slug}` — the setup agent turns your answers "
-            "plus a repo scan into starter contexts, rules, workflows, and "
-            "recurring tasks."
+            f"Run `relay launch {setup_slug}` — the agent interviews you about "
+            "the repo, then turns your answers plus a repo scan into starter "
+            "contexts, rules, workflows, and recurring tasks."
         )
     steps.append("Run `relay --help` to see what's available.")
 

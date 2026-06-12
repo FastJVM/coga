@@ -128,3 +128,41 @@ details live only in a ticket body.
 (committed baseline + generated relay-os) and `~/Desktop/admin-fresh`.
 Replay Zach's recorded answers above against the built feature and diff
 against these dry-run outputs.
+
+## Full-process prototype (2026-06-12, `~/Desktop/relay-marketing-test`)
+
+Second validation, downstream of the dry run: the entire setup flow was
+run end to end on a real fresh repo (Relay's marketing repo), from
+interview answers through generated artifacts, an owner Q&A pass, and
+apply-review to done. The repo is kept as a fixture — its
+`relay-os/workflows/init/setup.md` is the exact file now shipped in this
+branch, and its `tasks/relay-setup/` shows a completed run.
+
+What the prototype changed in the spec:
+
+1. **Interview moved from init-time to launch-time** (Nico: questions at
+   `relay init` aren't doable). Init scaffolds the ticket with an empty
+   Context; the `interview` workflow step fills it at first launch. Side
+   effect: the four questions now live in the workflow file only — no
+   second copy in CLI code to drift.
+2. **`resolve-open-questions` is a real step, not a hope.** In the
+   prototype, scan-and-generate produced 7 open questions that just sat
+   on the blackboard; the human review step had no reason to engage with
+   them. An agent-driven Q&A step between generation and review got all 7
+   answered in minutes, and the review then covered artifacts that
+   already reflected the answers.
+3. **Ask with options, not open prompts.** Presenting each open question
+   as 3–4 plausible choices (drawn from the scan) plus a free-form escape
+   got faster, more decisive answers than open-ended asking — and wrong
+   options got corrected cheaply ("weekly from Zach's account" → "both
+   Zach's and the company account").
+4. **Chase document pointers to exact links.** Owners answer "it's in
+   Drive somewhere"; the agent searching connected tools and putting a
+   candidate link in front of them ("is it this Relay CRM sheet?") turned
+   vague pointers into followable references. One guess was wrong
+   (evaluation notes were in "Relay Competition Tests", not the folder
+   the agent guessed) — which is why candidates are confirmed, not
+   silently recorded.
+5. **Record-don't-interrogate at the interview step.** Probing every
+   vague answer up front is wasted motion — after the scan, the agent has
+   concrete options to probe with. The interview records; step 3 chases.
