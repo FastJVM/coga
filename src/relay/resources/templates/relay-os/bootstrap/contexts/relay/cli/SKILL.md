@@ -36,6 +36,17 @@ resources. It does not modify a repo. `relay init` and `relay init --update`
 materialize those package resources into `relay-os/bootstrap/`, where Relay
 resolves them after project-local `relay-os/skills` and `relay-os/contexts`.
 
+## relay setup [PATH]
+
+One-command onboarding for a new repo — the entry point to tell new users
+about. Runs the bootstrap stages in order, skipping any that are already
+satisfied: scaffold via `relay init` if there is no relay repo at `PATH`
+(default `.`), prompt for your name and write it to `user` in
+`relay.local.toml` if unset, then launch the `relay-setup` interview
+ticket (no-op with a message if that ticket is already done or absent).
+Idempotent — if a stage fails (e.g. Slack webhook not configured yet),
+fix the issue and re-run; it resumes where it stopped.
+
 ## relay draft "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
 
 Scaffold a new raw `draft` ticket and post `✨` to Slack. Does not launch

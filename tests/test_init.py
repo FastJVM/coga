@@ -480,7 +480,9 @@ def test_init_ships_setup_ticket_template(
     assert "Empty until the `interview` step runs at first launch" in text
     assert (task_dir / "blackboard.md").is_file()
     assert (task_dir / "log.md").is_file()
-    assert "relay launch relay-setup" in result.output
+    # Bare init points at `relay setup` (which records the user name, then
+    # launches this ticket) rather than at a manual launch.
+    assert "Run `relay setup`" in result.output
 
 
 # --- --update mode ------------------------------------------------------------
