@@ -72,3 +72,7 @@ section, so any stray non-JSON line is left untouched.
 {"ts":"2026-06-10T15:32","project":"relay","kind":"done","detail":"nick finished → done ✅","ticket":"lift-dream-subagent-scan-contract-into-reusable-sk","owner":"nick"}
 {"ts":"2026-06-10T15:35","project":"relay","kind":"done","detail":"nick finished → done ✅","ticket":"install-init-skills-via-skill-downloader","owner":"nick"}
 {"ts":"2026-06-10T15:41","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"add-dev-testing-setup-skill","owner":"nick"}
+{"ts":"2026-06-10T17:26","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"restructure-slack-message","owner":"nick"}
+{"ts":"2026-06-10T20:51","project":"relay","kind":"bump","detail":"claude advanced → step 2 (peer-review) → assigned to codex","ticket":"restructure-slack-message","owner":"nick"}
+{"ts":"2026-06-10T21:23","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"add-imported-skill-update-check","owner":"nick"}
+{"ts":"2026-06-10T21:25","project":"relay","kind":"bump","detail":"claude advanced → step 2 (peer-review) → assigned to codex — implement done: skill-update is now a standalone weekly recurring task; Dream drops its Phase 4. Branch skill-update-recurring, 629 tests pass.","ticket":"add-imported-skill-update-check","owner":"nick"}

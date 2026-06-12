@@ -97,12 +97,12 @@ similarity; amended with `git add -f`.
 For the next steps: CLI behavior (`skill_manager.py`) was deliberately
 untouched — it predates this ticket (PRs #327/#329) and is already tested.
 
-## Handoff note (for the next implement-step session)
+## Handoff to peer-review
 
-The implement step's work is COMPLETE — committed and verified (see
-"Implementation result" above). This session ran against the ticket while it
-was still `draft`, so `relay bump` refused; the ticket was marked `active`
-afterward. If you are a fresh agent launched on the `implement` step: do not
-redo any work. Verify the commit exists on `skill-update-recurring`
-(`git log skill-update-recurring -1`), then run
-`relay bump add-imported-skill-update-check` and exit.
+Implement step complete and bumped (2026-06-10). Note for the reviewer: this
+session started against the ticket while it was still `draft`, so the
+`active`/`in_progress` transitions happened out of band (human-directed) at
+the end rather than via a normal `relay launch`. Review the code on branch
+`skill-update-recurring` in worktree
+`/home/n/Code/codex/relay-skill-update-recurring` (single commit; see
+"Implementation result" above for scope and verification).
