@@ -19,9 +19,9 @@ loads `marketing/positioning` (the marketing-mode context) so any agent
 working it stays on-message: independence/ownership spine, narrow-tribe
 audience, opinion-led voice, honest limits.
 
-First decision to settle with the human before writing anything: **which
-fork** the launch is — Fork A (internal OSS / honest field report) or
-Fork B (Relay-as-category brand bet). The tone diverges hard between them.
+Fork decision settled 2026-06-12: **Fork B** (Relay-as-category brand
+bet), chosen by Zach. The concrete launch plan and action list live in
+this task's `blackboard.md`.
 
 Likely sub-tasks once the fork is set (split into sibling tickets as they
 firm up):

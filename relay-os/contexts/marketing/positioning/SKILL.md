@@ -107,18 +107,19 @@ Comms must stay credible. State plainly where Relay is outclassed:
   company"), but skills-only, no loop. Owning markdown isn't the
   differentiator — the maintained, human-gated loop is.
 
-## Open strategic question for the launch
+## The launch fork — decided
 
-The fork is **not yet decided** — flag it, don't assume:
+**Fork B** (Relay-as-category, taste as brand) was chosen by Zach on
+2026-06-12. The launch follows the Linear playbook — opinionated craft,
+a name, evangelism — while keeping the narrow-tribe ceiling explicit.
+For reference, the rejected alternative was Fork A: internal OSS
+infrastructure / honest field report (taste as craft, lower-key launch).
 
-- **Fork A** — internal OSS infrastructure / honest field report (taste
-  as craft). Lower-key launch: recruiting, alignment, the small tribe.
-- **Fork B** — Relay-as-category (taste as brand): the Linear playbook
-  (opinionated craft, a name, evangelism), narrow-tribe ceiling.
-
-Default is **A with B kept optionable.** Pin the fork with the human
-before committing to a launch tone — a fork-B launch is a brand bet, a
-fork-A launch is a field report. They read very differently.
+A fork-B launch is a brand bet: copy must carry the worldview, the
+honest-limits section is non-negotiable, and the felt proof points (the
+correction loop, the calm Slack feed) carry more weight than under A.
+The concrete launch plan lives in
+`tasks/marketing/launch-relay-product-launch-comms/blackboard.md`.
 
 ## What this context does NOT cover
 
