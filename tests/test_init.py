@@ -15,6 +15,7 @@ from typer.testing import CliRunner
 from relay.cli import app
 from relay.commands import init as init_cmd
 from relay.commands import update as update_cmd
+from relay.init_interview import InterviewResult
 from relay.managed_skills import ManagedSkillError, ManagedSkillSummary
 from relay.skill_manager import SkillResult
 
@@ -36,6 +37,7 @@ EXPECTED_FILES = {
     "relay-os/recurring/skill-update/ticket.md",
     "relay-os/tasks/_template/ticket.md",
     "relay-os/workflows/skill-update/run.md",
+    "relay-os/workflows/init/setup.md",
 }
 
 
@@ -106,6 +108,24 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     (templates / "workflows" / "skill-update").mkdir(parents=True, exist_ok=True)
     (templates / "workflows" / "skill-update" / "run.md").write_text(
         "skill update workflow\n"
+    )
+    (templates / "workflows" / "init").mkdir(parents=True, exist_ok=True)
+    (templates / "workflows" / "init" / "setup.md").write_text(
+        "---\n"
+        "name: init/setup\n"
+        "description: Setup workflow.\n"
+        "steps:\n"
+        "  - name: scan-and-generate\n"
+        "    assignee: agent\n"
+        "  - name: review-and-sign-off\n"
+        "    assignee: human\n"
+        "  - name: apply-review\n"
+        "    assignee: agent\n"
+        "---\n"
+        "\n"
+        "## scan-and-generate\n"
+        "\n"
+        "Generate artifacts.\n"
     )
 
     cli_src = clone_dir / update_cmd.CLI_SRC_SUBPATH
@@ -399,6 +419,96 @@ def test_init_creates_missing_dir(tmp_path: Path, fake_clone, fake_venv) -> None
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0, result.output
     assert (target / "relay-os" / "relay.toml").is_file()
+
+
+# --- init interview -------------------------------------------------------------
+
+
+def _canned_interview() -> InterviewResult:
+    return InterviewResult(
+        user="zach",
+        answers=[
+            ("What is this repo for?", "Marketing repo for the relay launch."),
+            ("What knowledge does this depend on?", "Launch brief lives in Drive."),
+            ("What rules?", "Never email anyone external."),
+            ("What recurring work?", "Weekly newsletter, Mondays."),
+        ],
+    )
+
+
+def _seed_agents_in_packaged_toml(tmp_path: Path) -> None:
+    """The fake template relay.toml has no [agents]; the setup-ticket scaffold
+    needs one to pick the ticket's `agent:` field."""
+    pkg_toml = tmp_path / "package" / update_cmd.TEMPLATE_SUBPATH / "relay.toml"
+    pkg_toml.write_text('version = 1\n\n[agents.claude]\ncli = "claude"\n')
+
+
+def test_init_interview_scaffolds_setup_ticket(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_agents_in_packaged_toml(tmp_path)
+    monkeypatch.setattr(init_cmd, "interview_eligible", lambda: True)
+    monkeypatch.setattr(init_cmd, "run_interview", _canned_interview)
+
+    target = tmp_path / "company"
+    target.mkdir()
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+    assert "Couldn't scaffold the setup ticket" not in result.output
+
+    ticket = target / "relay-os" / "tasks" / "relay-setup" / "ticket.md"
+    assert ticket.is_file()
+    text = ticket.read_text()
+    assert "status: active" in text
+    assert "name: init/setup" in text
+    assert "step: 1 (scan-and-generate)" in text
+    assert "Marketing repo for the relay launch." in text
+    assert "Never email anyone external." in text
+    assert 'user = "zach"' in (target / "relay-os" / "relay.local.toml").read_text()
+    assert "relay launch relay-setup" in result.output
+    # The setup ticket rides the same init commit as the rest of relay-os.
+    assert "Set `user` in" not in result.output
+
+
+def test_init_skips_interview_when_not_a_tty(
+    tmp_path: Path, fake_clone, fake_venv
+) -> None:
+    target = tmp_path / "company"
+    target.mkdir()
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+    assert not (target / "relay-os" / "tasks" / "relay-setup").exists()
+    assert "Setup interview skipped" in result.output
+    assert "Set `user` in" in result.output
+
+
+def test_init_no_interview_flag_skips_even_on_a_tty(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(init_cmd, "interview_eligible", lambda: True)
+    monkeypatch.setattr(
+        init_cmd, "run_interview", lambda: pytest.fail("interview should not run")
+    )
+
+    target = tmp_path / "company"
+    target.mkdir()
+    result = CliRunner().invoke(app, ["init", str(target), "--no-interview"])
+    assert result.exit_code == 0, result.output
+    assert not (target / "relay-os" / "tasks" / "relay-setup").exists()
+
+
+def test_init_interview_bail_starts_empty(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(init_cmd, "interview_eligible", lambda: True)
+    monkeypatch.setattr(init_cmd, "run_interview", lambda: None)
+
+    target = tmp_path / "company"
+    target.mkdir()
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+    assert not (target / "relay-os" / "tasks" / "relay-setup").exists()
+    assert 'user = ""' in (target / "relay-os" / "relay.local.toml").read_text()
 
 
 # --- --update mode ------------------------------------------------------------
