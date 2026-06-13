@@ -1,6 +1,6 @@
 ---
 title: relay-discord
-status: draft
+status: active
 mode: interactive
 owner: zach
 human: zach
@@ -8,7 +8,19 @@ agent: claude
 assignee: nick
 contexts: []
 skills: []
-workflow: null
+workflow:
+  name: autonomy/human-only
+  steps:
+  - name: brief-and-hand-off
+    skills: []
+    assignee: agent
+  - name: human-executes
+    skills: []
+    assignee: human
+  - name: verify-read-only
+    skills: []
+    assignee: agent
+step: 1 (brief-and-hand-off)
 ---
 
 ## Description
