@@ -20,7 +20,7 @@ workflow:
   - name: revise
     skills: []
     assignee: agent
-step: 1 (preflight)
+step: 2 (draft)
 ---
 
 ## Description
