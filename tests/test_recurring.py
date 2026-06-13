@@ -18,16 +18,18 @@ from relay.tasks import list_tasks
 from relay.ticket import Ticket
 
 
-SHIPPED_DREAM_DIR = (
+_TEMPLATES_RELAY_OS = (
     Path(__file__).resolve().parents[1]
     / "src"
     / "relay"
     / "resources"
     / "templates"
     / "relay-os"
-    / "recurring"
-    / "dream"
 )
+
+SHIPPED_DREAM_DIR = _TEMPLATES_RELAY_OS / "recurring" / "dream"
+SHIPPED_DIRECT_BODY_SKILL_DIR = _TEMPLATES_RELAY_OS / "skills" / "direct" / "body"
+SHIPPED_DIRECT_BODY_WORKFLOW = _TEMPLATES_RELAY_OS / "workflows" / "direct" / "body.md"
 
 
 def _write(path: Path, text: str) -> None:
@@ -40,8 +42,28 @@ def _write_recurring(company: Path, name: str, text: str) -> None:
     _write(company / "recurring" / name / "ticket.md", text)
 
 
+def _seed_direct_body_workflow(company: Path) -> None:
+    """Seed the `direct/body` workflow + skill the scaffolder freezes onto
+    workflow-less recurring templates (e.g. Dream).
+
+    Recurring tasks scaffold straight to `active`, and every task past `draft`
+    carries a workflow, so a template that declares none now runs through
+    `direct/body`. Real repos get the file from `relay init`; the minimal test
+    repos must copy it from the shipped templates or `scaffold_task` fails to
+    load the workflow.
+    """
+    skill_dst = company / "skills" / "direct" / "body"
+    skill_dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(SHIPPED_DIRECT_BODY_SKILL_DIR, skill_dst, dirs_exist_ok=True)
+    wf_dst = company / "workflows" / "direct" / "body.md"
+    wf_dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(SHIPPED_DIRECT_BODY_WORKFLOW, wf_dst)
+
+
 def _seed_period_task_context(company: Path) -> None:
-    """Seed the auto-attached `relay/period-task` context.
+    """Seed the prerequisites the scaffolder needs for a period task:
+    the auto-attached `relay/period-task` context and the `direct/body`
+    workflow (frozen onto workflow-less templates).
 
     The scaffolder appends `relay/period-task` to every period task's
     `contexts:`, so the test repo needs a resolvable context file or
@@ -58,6 +80,7 @@ def _seed_period_task_context(company: Path) -> None:
         # Period task
         """,
     )
+    _seed_direct_body_workflow(company)
 
 
 def _allow_interactive_recurring(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -752,7 +775,11 @@ def test_recurring_launch_creates_dream_task(
     ticket = Ticket.read(refs[0].path / "ticket.md")
     assert ticket.title == "Dream"
     assert ticket.mode == "interactive"
-    assert ticket.workflow is None
+    # Dream's template declares no workflow, so it scaffolds with the
+    # `direct/body` workflow: it runs its body's ordered phases directly,
+    # but is still a workflow-carrying, bumpable, valid active task.
+    assert isinstance(ticket.workflow, dict)
+    assert ticket.workflow["name"] == "direct/body"
     # The recurring template's `## Description` body composes into the ticket.
     assert "Run the Dream cleanup pass for this Relay repo." in ticket.body
     # Slug carries the `recurring-` identity prefix and the schedule-derived
@@ -1709,16 +1736,17 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
 def test_recurring_launch_defaults_assignee_to_default_agent(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A workflow-less recurring task (Dream) with no template `assignee:`
-    defaults to the repo's default agent, not the human owner — otherwise
-    `relay launch` cannot resolve the assignee to an agent type."""
+    """A recurring task (Dream) with no template `assignee:` defaults to the
+    repo's default agent, not the human owner — otherwise `relay launch` cannot
+    resolve the assignee to an agent type. (The `direct/body` step's
+    `assignee: agent` resolves to that same default agent.)"""
     monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
     CliRunner().invoke(app, ["recurring", "launch", "dream"])
 
     cfg = load_config(dream_repo)
     refs = list_tasks(cfg)
     ticket = Ticket.read(refs[0].path / "ticket.md")
-    assert ticket.workflow is None
+    assert ticket.workflow["name"] == "direct/body"
     assert ticket.assignee == "claude"
 
 

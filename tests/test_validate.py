@@ -384,9 +384,10 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
     assert report.issues == []
 
 
-def test_workflow_less_draft_warns(repo: Path) -> None:
-    """A `draft` with `workflow: null` is a non-fatal warning — it can't be
-    activated until a workflow is added, but it's a valid in-progress draft."""
+def test_workflow_less_draft_is_clean(repo: Path) -> None:
+    """A `draft` with `workflow: null` is valid (concept-capture: stash the
+    idea before its shape settles). It is NOT flagged — `draft` is the one
+    status where a workflow is optional."""
     cfg = load_config(repo)
     scaffold_task(
         cfg=cfg, title="X", workflow_name=None,
@@ -394,28 +395,59 @@ def test_workflow_less_draft_warns(repo: Path) -> None:
         watchers=[], status="draft",
     )
     report = run(cfg)
-    missing = [i for i in report.issues if i.kind == "missing-workflow"]
-    assert missing, [i.kind for i in report.issues]
-    assert all(i.severity == "warn" for i in missing)
+    kinds = [i.kind for i in report.issues]
+    assert "missing-workflow" not in kinds
+    assert "active-no-workflow" not in kinds
 
 
-def test_workflow_less_active_task_is_not_flagged(repo: Path) -> None:
-    """A workflow-less `active` task (a recurring/retire task) is not a
-    `missing-workflow` issue — the warn is scoped to drafts."""
+def _write_workflow_less_task(repo: Path, slug: str, status: str) -> Path:
+    """Write a workflow-less task directly to disk. `scaffold_task` refuses to
+    create a workflow-less non-draft task now, so on-disk construction is the
+    only way to exercise the validator against that (invalid) shape."""
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(dedent(f"""
+        ---
+        title: X
+        status: {status}
+        mode: interactive
+        owner: marc
+        assignee: claude
+        workflow: null
+        ---
+
+        ## Description
+    """).lstrip())
+    (task_dir / "blackboard.md").write_text("# Blackboard\n")
+    (task_dir / "log.md").write_text("")
+    return task_dir
+
+
+@pytest.mark.parametrize("status", ["active", "in_progress", "paused"])
+def test_workflow_less_non_draft_is_error(repo: Path, status: str) -> None:
+    """A workflow-less `active`/`in_progress`/`paused` ticket can never be
+    bumped — it is structurally stuck. The validator flags it as an error."""
     cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
-        watchers=[], status="active",
-    )
+    _write_workflow_less_task(repo, "stuck-x", status)
     report = run(cfg)
-    assert not [i for i in report.issues if i.kind == "missing-workflow"]
+    stuck = [i for i in report.issues if i.kind == "active-no-workflow"]
+    assert stuck, [i.kind for i in report.issues]
+    assert all(i.severity == "error" for i in stuck)
+
+
+def test_workflow_less_done_is_not_flagged(repo: Path) -> None:
+    """A `done` workflow-less task is finished and immutable — flagging it
+    would only nag history. It is left alone."""
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, "finished-x", "done")
+    report = run(cfg)
+    assert "active-no-workflow" not in [i.kind for i in report.issues]
 
 
 def test_stuck_in_progress_flagged(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, title="X", workflow_name=None,
+        cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="in_progress",
     )

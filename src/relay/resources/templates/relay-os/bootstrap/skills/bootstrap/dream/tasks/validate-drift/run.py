@@ -241,14 +241,16 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             ),
         )
 
-    if kind == "missing-workflow":
+    if kind == "active-no-workflow":
         return ClassifiedIssue(
             issue=issue,
             action=ACTION_HUMAN_NEEDED,
             remediation=(
-                "A draft without a workflow is a design state, not drift. The "
-                "owner picks a workflow via `relay ticket <slug>` or by editing "
-                "frontmatter; Dream does not pick workflows for humans."
+                "An activated ticket with no workflow can never be bumped — it "
+                "is structurally stuck. This is a lifecycle decision, not "
+                "mechanical drift: ask the owner to give it a workflow (e.g. "
+                "`direct/body` to run the body directly) or rewind it to "
+                "`draft`. Dream does not pick workflows for humans."
             ),
         )
 

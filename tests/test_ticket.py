@@ -6,6 +6,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from conftest import seed_direct_body_workflow
 from relay.cli import app
 from relay.config import load_config
 from relay.scaffold import scaffold_task
@@ -73,6 +74,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         Interview and fill the ticket.
         """,
     )
+    seed_direct_body_workflow(relay_os)
     monkeypatch.chdir(relay_os)
     return relay_os
 
@@ -203,7 +205,7 @@ def test_ticket_existing_active_task_is_editable_without_status_change(
     ref = scaffold_task(
         cfg=cfg,
         title="Queued work",
-        workflow_name=None,
+        workflow_name="direct/body",
         contexts=[],
         mode="interactive",
         owner="marc",
@@ -232,7 +234,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
     ref = scaffold_task(
         cfg=cfg,
         title="Broken context",
-        workflow_name=None,
+        workflow_name="direct/body",
         contexts=[],
         mode="interactive",
         owner="marc",
@@ -272,7 +274,7 @@ def test_ticket_refuses_in_progress_task(
     scaffold_task(
         cfg=cfg,
         title="Running work",
-        workflow_name=None,
+        workflow_name="direct/body",
         contexts=[],
         mode="interactive",
         owner="marc",

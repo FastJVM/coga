@@ -92,7 +92,11 @@ def retire(
         result = scaffold_task(
             cfg=cfg,
             title=title,
-            workflow_name=None,
+            # Retire scaffolds straight to `active`; every task past `draft`
+            # carries a workflow, so it runs its body through the one-step
+            # `direct/body` workflow rather than being a workflow-less active
+            # task the validator (rightly) rejects as un-bumpable.
+            workflow_name="direct/body",
             contexts=[],
             mode=mode,
             owner=cfg.current_user,

@@ -6,6 +6,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from conftest import seed_direct_body_workflow
 from relay.cli import app
 from relay.scaffold import scaffold_task
 from relay.config import load_config
@@ -33,6 +34,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
+    seed_direct_body_workflow(company)
     monkeypatch.chdir(company)
     return company
 
@@ -49,7 +51,7 @@ def test_launch_auto_mode_is_blocked(
     """
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, title="Auto run", workflow_name=None,
+        cfg=cfg, title="Auto run", workflow_name="direct/body",
         contexts=[], mode="auto", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
@@ -83,7 +85,7 @@ def test_launch_mode_override_auto_is_blocked(
     """`--mode auto` is rejected just like a `mode: auto` ticket."""
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, title="Interactive run", workflow_name=None,
+        cfg=cfg, title="Interactive run", workflow_name="direct/body",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
@@ -102,7 +104,7 @@ def test_launch_mode_override_runs_auto_ticket_interactively(
     interactive session — and leaves the ticket file's `mode:` untouched."""
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, title="Auto run", workflow_name=None,
+        cfg=cfg, title="Auto run", workflow_name="direct/body",
         contexts=[], mode="auto", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
@@ -146,7 +148,7 @@ def test_launch_mode_override_rejects_bad_value(
     """`--mode` only accepts interactive / auto."""
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, title="Auto run", workflow_name=None,
+        cfg=cfg, title="Auto run", workflow_name="direct/body",
         contexts=[], mode="auto", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
@@ -162,7 +164,7 @@ def test_launch_mode_override_rejects_script_ticket(
     """A `mode: script` ticket has no agent prompt — `--mode` can't override it."""
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, title="Script run", workflow_name=None,
+        cfg=cfg, title="Script run", workflow_name="direct/body",
         contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )

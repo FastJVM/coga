@@ -7,6 +7,7 @@ import pytest
 
 from typer.testing import CliRunner
 
+from conftest import seed_direct_body_workflow
 from relay.cli import app
 from relay.scaffold import scaffold_task
 from relay.config import load_config
@@ -436,6 +437,9 @@ def repo_with_shim(repo: Path) -> Path:
         Interview, fill in the ticket. Stop.
         """,
     )
+    # Recurring period tasks now scaffold with the `direct/body` workflow, so a
+    # repo that materializes them needs the shipped workflow + skill present.
+    seed_direct_body_workflow(repo)
     return repo
 
 

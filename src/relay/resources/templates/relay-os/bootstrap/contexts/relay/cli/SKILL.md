@@ -44,11 +44,14 @@ workflow / contexts as needed → `relay mark active <slug>` →
 `relay launch <slug>`. `relay create` is a compatibility spelling for
 `relay draft` — identical behavior, no guided interview.
 
-`--workflow <name>` (path under `relay-os/workflows/`) is optional. A
-workflow-less draft is a valid authoring state; the workflow can be added
-to the ticket any time before activation. The bumpability gate lives at
-activation, not here: `relay mark active` refuses a workflow-less ticket
-with an error pointing at `--workflow` or `relay ticket`. For guided
+`--workflow <name>` (path under `relay-os/workflows/`) is optional *in
+draft only*. A workflow-less draft is a valid authoring state; the workflow
+can be added to the ticket any time before activation. The bumpability gate
+lives at activation, not here: `relay mark active` refuses a workflow-less
+ticket with an error pointing at `--workflow` or `relay ticket`, and
+`relay validate` reports a workflow-less `active`/`in_progress`/`paused`
+ticket as an `active-no-workflow` **error** (a stuck task no `relay bump` can
+advance). Once a ticket leaves `draft`, a workflow is mandatory. For guided
 authoring that fills the workflow in for you, use `relay ticket`.
 
 The deliberate separation keeps the moment of authorship distinct from

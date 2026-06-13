@@ -14,6 +14,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from conftest import seed_direct_body_workflow
 from relay.cli import app
 from relay.config import load_config
 from relay.period_state import (
@@ -146,6 +147,7 @@ def repo(tmp_path: Path) -> Path:
         last_commit: AAA
         """,
     )
+    seed_direct_body_workflow(company)
     return company
 
 
@@ -237,6 +239,7 @@ def test_scaffold_without_state_keys_writes_no_snapshot(tmp_path: Path) -> None:
         No state.
         """,
     )
+    seed_direct_body_workflow(company)
     cfg = load_config(company)
     scan = scan_due(cfg, now=datetime(2026, 6, 7, 10, 0, 0))
     assert read_snapshot(scan.tasks[0].ref.path) is None

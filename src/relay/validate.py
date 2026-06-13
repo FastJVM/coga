@@ -655,16 +655,28 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
                 message="`step:` set but `workflow:` is null",
                 severity="error",
             ))
-        if ticket.status == "draft":
+        # The governing rule: a workflow is mandatory everywhere EXCEPT while a
+        # ticket is a `draft`. `draft` is the authoring grace period — a
+        # workflow-less draft (concept-capture: stash an idea before its shape
+        # settles) is valid and intentional, so it is NOT flagged. Once a
+        # ticket is `active`/`in_progress`/`paused`, a missing workflow means it
+        # can never be bumped — structurally stuck — so that is an error. (`done`
+        # is left alone: a finished workflow-less task is harmless and flagging
+        # it would only nag immutable history.) Machine-authored tasks that
+        # used to be workflow-less here — recurring/Dream and retire — now
+        # scaffold with the `direct/body` workflow, so no whitelist is needed.
+        if ticket.status in {"active", "in_progress", "paused"}:
             out.append(Issue(
-                kind="missing-workflow",
+                kind="active-no-workflow",
                 task=task_label,
                 message=(
-                    "draft has no `workflow:` — it can't be activated "
-                    "(`relay mark active` refuses a workflow-less ticket). "
-                    "Set `workflow: <name>` or run `relay ticket <slug>`."
+                    f"{ticket.status} ticket has no `workflow:` — it can never "
+                    "be advanced (`relay bump` has no step to move). A workflow "
+                    "is required once a ticket leaves `draft`. Set "
+                    "`workflow: <name>` (e.g. `direct/body` to run the body "
+                    "directly) or rewind it to `draft`."
                 ),
-                severity="warn",
+                severity="error",
             ))
         return out
 

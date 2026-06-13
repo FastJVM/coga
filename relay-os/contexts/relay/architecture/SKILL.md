@@ -140,12 +140,24 @@ moment work is approved rather than the moment it is drafted, so a
 half-formed draft is never blocked on a workflow decision it isn't ready to
 make.
 
+The rule is symmetric, and `relay validate` enforces the other half: a
+workflow is mandatory everywhere *except* `draft`. A workflow-less
+`active`/`in_progress`/`paused` ticket is a structurally stuck task that no
+`relay bump` can advance, so the validator reports it as an **error**
+(`active-no-workflow`) — the activation gate and the validator now agree
+instead of the validator nagging the one state (`draft`) where workflow-less
+is allowed. A workflow-less `done` ticket is finished and immutable, so it is
+left alone.
+
 `relay ticket` (guided authoring) fills the workflow in through its
 interview skill. `relay recurring` scaffolding (a bare scan-and-launch run
 and the on-demand `recurring launch <name>`, including the `relay dream`
-alias) and `relay retire` scaffold their own one-shots by calling
-`scaffold_task` directly — they are intentional internal exceptions, not
-user-authored drafts.
+alias) and `relay retire` scaffold their own one-shots straight to `active`
+by calling `scaffold_task` directly — but they are **not** workflow-less
+exceptions: a template that declares no workflow (and every retire task)
+scaffolds with the one-step `direct/body` workflow, which runs the ticket
+body's ordered phases directly. There is no sanctioned workflow-less active
+task; the invariant holds for machine-authored tasks too.
 
 ## Two state machines per ticket
 

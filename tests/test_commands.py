@@ -87,6 +87,35 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "in_p
     return ref["slug"], ref["path"]
 
 
+def _write_workflow_less_task(
+    repo: Path, slug: str = "work", status: str = "in_progress"
+) -> tuple[str, Path]:
+    """Write a workflow-less task directly to disk. `scaffold_task` refuses to
+    create a workflow-less non-draft task now, so on-disk construction is the
+    only way to exercise the workflow-less (structurally stuck) shape."""
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(dedent(f"""
+        ---
+        title: Work
+        status: {status}
+        mode: interactive
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: claude
+        contexts: []
+        skills: []
+        workflow: null
+        ---
+
+        ## Description
+    """).lstrip())
+    (task_dir / "blackboard.md").write_text("# Blackboard\n")
+    (task_dir / "log.md").write_text("")
+    return slug, task_dir
+
+
 # --- bump ---------------------------------------------------------------------
 
 
@@ -294,7 +323,7 @@ def test_bump_rejects_non_in_progress(repo: Path) -> None:
 
 
 def test_bump_no_workflow_errors_with_mark_done_hint(repo: Path) -> None:
-    slug, task_path = _make_task(repo, workflow=None)
+    slug, task_path = _write_workflow_less_task(repo)
     runner = CliRunner()
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 2, result.output
@@ -512,7 +541,7 @@ def test_bump_message_appended_to_log(repo: Path) -> None:
 
 
 def test_mark_done_message_on_no_workflow(repo: Path) -> None:
-    slug, task_path = _make_task(repo, workflow=None)
+    slug, task_path = _write_workflow_less_task(repo)
     runner = CliRunner()
     result = runner.invoke(
         app, ["mark", "done", slug, "--message", "talked to marc, scope ok"]
@@ -902,7 +931,7 @@ def test_status_narrow_terminal_keeps_each_task_on_one_line(
 ) -> None:
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, title="anything", workflow_name=None,
+        cfg=cfg, title="anything", workflow_name="code",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="t1",
     )
@@ -920,12 +949,12 @@ def test_status_narrow_terminal_keeps_each_task_on_one_line(
 def test_status_splits_recurring_into_own_table(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, title="Normal", workflow_name=None, contexts=[],
+        cfg=cfg, title="Normal", workflow_name="code", contexts=[],
         mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="normal-task",
     )
     scaffold_task(
-        cfg=cfg, title="Recurring", workflow_name=None, contexts=[],
+        cfg=cfg, title="Recurring", workflow_name="code", contexts=[],
         mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="recurring-foo-2026-W24",
     )
@@ -944,7 +973,7 @@ def test_status_splits_recurring_into_own_table(repo: Path) -> None:
 def test_status_does_not_show_title_column(repo: Path) -> None:
     cfg = load_config(repo)
     scaffold_task(
-        cfg=cfg, title="A distinctive ticket title", workflow_name=None,
+        cfg=cfg, title="A distinctive ticket title", workflow_name="code",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="t1",
     )
@@ -959,7 +988,7 @@ def test_status_does_not_show_title_column(repo: Path) -> None:
 
 
 def test_validate_clean_repo_succeeds(repo: Path) -> None:
-    _make_task(repo, workflow=None)
+    _make_task(repo)
     runner = CliRunner()
     result = runner.invoke(app, ["validate"])
     assert result.exit_code == 0, result.output
@@ -967,7 +996,7 @@ def test_validate_clean_repo_succeeds(repo: Path) -> None:
 
 
 def test_validate_json_emits_payload(repo: Path) -> None:
-    _make_task(repo, workflow=None)
+    _make_task(repo)
     runner = CliRunner()
     result = runner.invoke(app, ["validate", "--json"])
     assert result.exit_code == 0, result.output
@@ -979,7 +1008,7 @@ def test_validate_json_emits_payload(repo: Path) -> None:
 
 
 def test_validate_fix_json_repairs_missing_workspace_file(repo: Path) -> None:
-    _, task_path = _make_task(repo, workflow=None)
+    _, task_path = _make_task(repo)
     (task_path / "blackboard.md").unlink()
 
     runner = CliRunner()
@@ -994,7 +1023,7 @@ def test_validate_fix_json_repairs_missing_workspace_file(repo: Path) -> None:
 
 
 def test_validate_warns_for_large_blackboard(repo: Path) -> None:
-    _, task_path = _make_task(repo, workflow=None)
+    _, task_path = _make_task(repo)
     (task_path / "blackboard.md").write_text("x" * 2048)
 
     runner = CliRunner()
@@ -1005,7 +1034,7 @@ def test_validate_warns_for_large_blackboard(repo: Path) -> None:
 
 
 def test_status_shows_done_tasks(repo: Path) -> None:
-    slug, task_path = _make_task(repo, workflow=None)
+    slug, task_path = _make_task(repo)
     # Mark done directly
     t = Ticket.read(task_path / "ticket.md")
     t.frontmatter["status"] = "done"
@@ -1025,7 +1054,7 @@ def _set_log_timestamp(task_path: Path, when: str) -> None:
 
 
 def test_status_includes_updated_column(repo: Path) -> None:
-    _make_task(repo, workflow=None)
+    _make_task(repo)
     runner = CliRunner()
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0, result.output
@@ -1035,12 +1064,12 @@ def test_status_includes_updated_column(repo: Path) -> None:
 def test_status_default_orders_by_updated_desc(repo: Path) -> None:
     cfg = load_config(repo)
     older = scaffold_task(
-        cfg=cfg, title="older", workflow_name=None,
+        cfg=cfg, title="older", workflow_name="code",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="aaa-old",
     )
     newer = scaffold_task(
-        cfg=cfg, title="newer", workflow_name=None,
+        cfg=cfg, title="newer", workflow_name="code",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="zzz-new",
     )
@@ -1059,7 +1088,7 @@ def test_status_order_by_slug_is_alphabetical(repo: Path) -> None:
     cfg = load_config(repo)
     for slug in ("zeta", "alpha", "mu"):
         scaffold_task(
-            cfg=cfg, title=slug, workflow_name=None,
+            cfg=cfg, title=slug, workflow_name="code",
             contexts=[], mode="interactive", owner="marc", assignee="claude",
             watchers=[], status="active", slug_override=slug,
         )
@@ -1076,7 +1105,7 @@ def test_status_reverse_flips_order(repo: Path) -> None:
     cfg = load_config(repo)
     for slug in ("alpha", "zeta"):
         scaffold_task(
-            cfg=cfg, title=slug, workflow_name=None,
+            cfg=cfg, title=slug, workflow_name="code",
             contexts=[], mode="interactive", owner="marc", assignee="claude",
             watchers=[], status="active", slug_override=slug,
         )
@@ -1087,7 +1116,7 @@ def test_status_reverse_flips_order(repo: Path) -> None:
 
 
 def test_status_rejects_unknown_order_by(repo: Path) -> None:
-    _make_task(repo, workflow=None)
+    _make_task(repo)
     runner = CliRunner()
     result = runner.invoke(app, ["status", "--order-by", "bogus"])
     assert result.exit_code == 2
@@ -1096,12 +1125,12 @@ def test_status_rejects_unknown_order_by(repo: Path) -> None:
 def test_status_tasks_without_log_sort_to_end(repo: Path) -> None:
     cfg = load_config(repo)
     has_log = scaffold_task(
-        cfg=cfg, title="logged", workflow_name=None,
+        cfg=cfg, title="logged", workflow_name="code",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="zzz-logged",
     )
     no_log = scaffold_task(
-        cfg=cfg, title="no log", workflow_name=None,
+        cfg=cfg, title="no log", workflow_name="code",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="aaa-nolog",
     )

@@ -33,11 +33,14 @@ def test_bootstrap_ticket_context_selection_is_prompt_payload() -> None:
 
 
 def test_bootstrap_ticket_skill_mandates_a_workflow() -> None:
-    """Guided authoring must always land the ticket on a workflow — a
-    workflow-less ticket can't be activated."""
+    """Guided authoring defaults to landing the ticket on a workflow — a
+    workflow-less ticket can't be activated. The one exception is a deliberate
+    concept-capture draft, which stays a draft until a workflow is added."""
     text = BOOTSTRAP_TICKET_SKILL.read_text()
 
-    assert "Every ticket carries a workflow" in text
-    assert "A ticket with no workflow can't be activated" in text
-    assert "you do not hand\nback a ticket without one" in text
+    assert "A ticket carries a workflow" in text
+    assert "A ticket with no workflow can't be\nactivated" in text
+    assert "your default is to hand back a ticket\nwith one" in text
+    # The concept-capture exemption is stated, not erased.
+    assert "concept-capture" in text
     assert "This is required — a ticket with no workflow can't be activated." in text
