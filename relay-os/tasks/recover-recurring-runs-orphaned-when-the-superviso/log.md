@@ -9,3 +9,5 @@
 2026-06-05 12:40 [git] sync failed: `git add -- relay-os/tasks/recover-recurring-runs-orphaned-when-the-superviso` failed (exit 128): fatal: Unable to create '/home/n/Code/relay/.git/index.lock': Read-only file system
 2026-06-05 12:40 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-05 12:42 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/287
+2026-06-12 21:14 [human:nick] launched in interactive mode (assignee=nick, launch_assignee=codex, agent=codex)
+2026-06-12 21:17 [human:nick] auto-bumped on merge of PR #287 → done

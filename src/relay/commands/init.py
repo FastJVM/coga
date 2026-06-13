@@ -174,7 +174,7 @@ def init(
         _do_init(path or Path("."))
 
 
-def _do_init(path: Path) -> None:
+def _do_init(path: Path, *, via_setup: bool = False) -> None:
     target = path.resolve()
     relay_os = target / "relay-os"
 
@@ -220,7 +220,7 @@ def _do_init(path: Path) -> None:
     typer.echo("")
     typer.echo(f"Initialized relay repo at {relay_os}")
     _print_managed_skill_summary(managed_skills)
-    typer.echo(f"Wrote {local_toml} (set `user` to your assignee name).")
+    typer.echo(f"Wrote {local_toml} (machine-local config — gitignored).")
     if sha is not None:
         typer.echo(f"Pinned to upstream {sha[:12]}.")
     if wired_agents:
@@ -258,7 +258,13 @@ def _do_init(path: Path) -> None:
             f"       export PATH=\"{bin_dir}:$PATH\""
         )
     steps.append(f"Edit {relay_os}/relay.toml — set your agents, Slack, and aliases.")
-    steps.append(f"Set `user` in {local_toml} to your name.")
+    if not via_setup:
+        steps.append(
+            "Run `relay setup` — it records your name in relay.local.toml, then "
+            "launches the relay-setup interview: the agent asks about the repo "
+            "and turns your answers plus a repo scan into starter contexts, "
+            "rules, workflows, and recurring tasks."
+        )
     steps.append("Run `relay --help` to see what's available.")
 
     typer.echo("")

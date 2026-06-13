@@ -1,11 +1,11 @@
 ---
 title: Rename slack to a notification system with pluggable channels
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -26,7 +26,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
