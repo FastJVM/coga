@@ -18,6 +18,7 @@ from relay.commands import mark as mark_cmd
 from relay.commands import panic as panic_cmd
 from relay.commands import recurring as recurring_cmd
 from relay.commands import retire as retire_cmd
+from relay.commands import setup as setup_cmd
 from relay.commands import show as show_cmd
 from relay.commands import slack as slack_cmd
 from relay.commands import status as status_cmd
@@ -69,6 +70,7 @@ def _root(
 
 
 app.command("init")(init_cmd.init)
+app.command("setup")(setup_cmd.setup)
 app.command("create")(create_cmd.create)
 app.command("draft")(create_cmd.draft)
 app.command("ticket")(ticket_cmd.ticket)
@@ -93,9 +95,9 @@ app.add_typer(recurring_cmd.app, name="recurring")
 # real commands.
 _BUILTIN_COMMANDS = frozenset(
     {
-        "init", "create", "launch", "status", "show", "bump", "automerge",
-        "delete", "draft", "retire", "panic", "slack", "digest", "skill",
-        "mark", "recurring", "ticket", "validate",
+        "init", "setup", "create", "launch", "status", "show", "bump",
+        "automerge", "delete", "draft", "retire", "panic", "slack", "digest",
+        "skill", "mark", "recurring", "ticket", "validate",
     }
 )
 
