@@ -219,8 +219,7 @@ def _render_done_people(cfg: Config, records: list[dict]) -> list[str]:
         if owner not in by_owner:
             by_owner[owner] = []
             owners.append(owner)
-    for rec in records:
-        by_owner[rec.get("owner")].append(rec)
+        by_owner[owner].append(rec)
     # Stable sort: keep first-seen (chronological) order, just push the
     # ownerless bucket (None) last.
     owners.sort(key=lambda o: o is None)
