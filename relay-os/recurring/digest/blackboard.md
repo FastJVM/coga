@@ -2,7 +2,7 @@ This blackboard is the **spool and git high-water state** for the daily Slack
 digest.
 
 Done outcomes and recurring scan errors append one JSONL record to the
-`## Spool (pending)` section below as they happen (see `relay.slack.notify`).
+`## Spool (pending)` section below as they happen (see `relay.notification.notify`).
 The daily `relay digest` run combines those records with a git scan of
 `origin/main`, posts one outcome-focused message to Slack, empties the spool
 back to just the heading, and updates `### Digest State`. Everything here is

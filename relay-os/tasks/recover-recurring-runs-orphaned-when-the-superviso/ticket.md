@@ -1,6 +1,6 @@
 ---
 title: Recover recurring runs orphaned when the supervisor dies (e.g. laptop sleep)
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -27,7 +27,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

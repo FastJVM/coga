@@ -42,7 +42,7 @@ leave things in a safe, known state, and carry the failure into the report.
 
 ## report-to-relay
 
-Post the outcome to the shared relay Slack channel — success or failure — after
+Post the outcome to the shared relay notification channel — success or failure — after
 verifying it actually landed. A call returning 200 is not proof the goal was
 met. Include the result inline if it's compact; if it's large, post a path to
 the artifact instead.

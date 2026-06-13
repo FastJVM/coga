@@ -16,7 +16,7 @@ no in-memory state.
   (`tasks/<group>/<slug>/`). A top-level task is referenced by its bare leaf
   slug; a grouped task is referenced by its **group-qualified slug**
   (`<group>/<leaf>`, e.g. `marketing/relay-crm`) across CLI commands, `relay
-  status`, and Slack. Two groups may therefore reuse a leaf name, and a
+  status`, and notifications. Two groups may therefore reuse a leaf name, and a
   grouped task's bare leaf does not resolve on its own. Agents should use the
   composed prompt's exact task directory instead of reconstructing it from
   the slug. Each task has
@@ -47,10 +47,10 @@ no in-memory state.
   one leave the assignee unchanged.
 - **Recurring templates** live in `relay-os/recurring/`. `relay recurring`
   scans them, scaffolds the current run at the stable grouped task ref
-  `tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/Slack), records
-  the serviced period as `last_serviced_period` in the template blackboard, and
-  launches the due ones. The created tasks then use the same ticket, workflow,
-  launch, bump, and blackboard machinery as any other task.
+  `tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/notifications),
+  records the serviced period as `last_serviced_period` in the template
+  blackboard, and launches the due ones. The created tasks then use the same
+  ticket, workflow, launch, bump, and blackboard machinery as any other task.
 - **Bootstrap shims** in `relay-os/bootstrap/<name>/ticket.md` are
   stateless launch targets for skills. No status, no workflow. Used for
   ticket-less re-entry points like `relay launch bootstrap/orient`

@@ -297,7 +297,7 @@ def launch(
     # agent to have. Refuse to start — and don't flip the ticket to
     # in_progress or post a "started" broadcast for a task that never runs.
     # The per-step loop below re-composes; this is a cheap pre-flight (file
-    # reads only) so the flip and Slack post are never reached on a bad ref.
+    # reads only) so the flip and notification post are never reached on a bad ref.
     try:
         compose_prompt(cfg, ref, ticket, mode_override=mode_override)
     except ComposeError as exc:

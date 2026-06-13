@@ -46,3 +46,65 @@
 - `relay/period-task` context currently points cross-run state at the parent
   recurring blackboard already — so the rewrite is mostly s/parse-your-slug/
   read-the-high-water-line/, not a conceptual change.
+
+## Dev
+
+- branch: codex/recurring-group-slugs
+- worktree: /tmp/relay-recurring-group-slugs
+- implementation note: clean-cut runtime change, no legacy
+  `recurring-<name>-<period>` dual-shape support; update tracked context
+  overrides and packaged bootstrap context sources together.
+- migration decision: apply the tracked repo migration directly in this PR
+  (delete old `tasks/recurring-<name>-<period>` dirs and seed template
+  `last_serviced_period` lines) instead of adding a permanent scan-path guard
+  or a new one-off scripts directory. This keeps the runtime clean-cut and
+  avoids dead migration code after the current tracked state is fixed.
+- implementation summary: recurring runtime now uses stable grouped task refs
+  (`recurring/<name>`), group-based status/list filtering, and
+  `last_serviced_period` in the template blackboard for dedup/control-branch
+  sync. Debug runs remain top-level `*-dbg-*` scratch.
+- commit: 1d3ef36 (`Collapse recurring runs to grouped task dirs`)
+- pr: https://github.com/FastJVM/relay/pull/357 (no CI configured on repo;
+  mergeable, no checks reported)
+- tracked migration applied in worktree: removed old digest/dream period task
+  dirs; seeded `relay-os/recurring/digest/blackboard.md` to `2026-06-11` and
+  `relay-os/recurring/dream/blackboard.md` to `2026-W24`.
+- verification:
+  - `PYTHONPATH=/tmp/relay-recurring-group-slugs/src python -m pytest -q` →
+    717 passed, 1 skipped.
+  - `PYTHONPATH=/tmp/relay-recurring-group-slugs/src python -m relay.cli validate --task collapse-recurring-period-tasks-to-one-dir-per-tem --json` →
+    ok_count 1, no issues.
+  - repo-wide `relay validate --json` was attempted with an ignored local
+    config copy and failed on pre-existing unrelated task/bootstrap issues
+    (broken `bootstrap/ticket` refs, draft missing-workflow warnings, etc.),
+    not on this task.
+
+## Peer review (codex, step 2)
+
+- `codex review --base main` found three must-fix P2s:
+  - resuming an existing `active`/`in_progress` recurring task must not advance
+    `last_serviced_period`; the stale run defers the new period until it is
+    completed/deleted, otherwise the deferred period can be skipped.
+  - stale-checkout handled-period races must preserve the control branch
+    blackboard as the merge base and merge only the local high-water value.
+  - packaged `relay/patterns` context had stale log-ledger wording and needed
+    the same high-water wording as the live context.
+- Applied fixes in `/tmp/relay-recurring-group-slugs`:
+  - `src/relay/recurring.py`: live task return no longer calls
+    `_advance_serviced_period`.
+  - `src/relay/commands/recurring.py`: control blackboard text is now the
+    merge base for `_control_blackboard_with_local_period`.
+  - `src/relay/resources/templates/relay-os/bootstrap/contexts/relay/patterns/SKILL.md`
+    synced to the live context.
+  - `tests/test_recurring.py` covers deferred-period high-water behavior and
+    remote blackboard-state preservation in handled-period races.
+- Verification after fixes:
+  - `PYTHONPATH=/tmp/relay-recurring-group-slugs/src python -m pytest tests/test_recurring.py -q`
+    → 68 passed.
+  - `PYTHONPATH=/tmp/relay-recurring-group-slugs/src python -m pytest -q` →
+    717 passed, 1 skipped.
+  - Feature-worktree task validation could not run directly because
+    `/tmp/relay-recurring-group-slugs/relay-os/relay.local.toml` has no `user`;
+    I did not edit `relay.local.toml`.
+  - `PYTHONPATH=/tmp/relay-recurring-group-slugs/src python -m relay.cli validate --task collapse-recurring-period-tasks-to-one-dir-per-tem --json`
+    from the primary checkout → ok_count 1, no issues.

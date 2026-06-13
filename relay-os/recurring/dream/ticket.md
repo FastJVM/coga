@@ -134,14 +134,14 @@ A done `recurring/<name>` ticket is an eligible done ticket like any other —
 this is how recurring period tickets get cleaned up. The recurring command does
 not delete real done period tasks; a finished period task sits on disk as
 `status: done` until a Dream run sweeps it here. Period tickets carry nothing
-durable (their output is the Slack post or PR they already produced), so Retro
-finds no new knowledge in them and **direct-deletes** them via
-`relay delete recurring/<name>` — no PR, no marker — leaving the recurring
-template's `last_serviced_period` line in
-`relay-os/recurring/<name>/blackboard.md` untouched so the period is not
-re-scaffolded. This includes the **previous Dream run's own** `recurring/dream`
-ticket: Dream does not delete itself mid-run, so the last finished Dream period
-ticket is one of the done tickets this pass deletes.
+durable (their output is the notification post or PR they already produced),
+so Retro finds no new knowledge in them and **direct-deletes** them via `relay
+delete recurring/<name>` — no PR, no marker — leaving the recurring template's
+`last_serviced_period` line in `relay-os/recurring/<name>/blackboard.md`
+untouched so the period is not re-scaffolded. This includes the **previous
+Dream run's own** `recurring/dream` ticket: Dream does not delete itself
+mid-run, so the last finished Dream period ticket is one of the done tickets
+this pass deletes.
 
 Summarize each knowledge PR — and the directly-deleted no-knowledge tickets —
 in this run's blackboard.

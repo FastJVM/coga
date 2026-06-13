@@ -2,9 +2,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
-- branch: `resume-orphaned-recurring`
-- worktree: `../relay-resume-orphaned-recurring`
-- pr: https://github.com/FastJVM/relay/pull/287
+branch: `resume-orphaned-recurring`
+worktree: `../relay-resume-orphaned-recurring`
+pr: https://github.com/FastJVM/relay/pull/287
 
 ### open-pr step (2026-06-05)
 Pushed `resume-orphaned-recurring` to origin and opened PR #287. Worktree was

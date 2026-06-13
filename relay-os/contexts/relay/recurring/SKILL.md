@@ -120,10 +120,10 @@ disk as an ordinary `status: done` ticket at `tasks/recurring/<name>/`. The
 single deleter of done recurring period tickets is **Dream**: its Phase 4 retro
 pass (`retro/done-ticket`) processes every eligible done ticket, and a done
 `recurring/<name>` task is eligible like any other. Period tasks carry nothing
-durable — their output is the Slack post or PR they already produced — so Retro
-extracts no new knowledge and **direct-deletes** them via `relay delete
-recurring/<name>` (working-tree `git rm` plus a `Ticket: recurring/<name> —
-deleted` commit), with no PR and no marker. The template's
+durable — their output is the notification post or PR they already produced —
+so Retro extracts no new knowledge and **direct-deletes** them via `relay
+delete recurring/<name>` (working-tree `git rm` plus a `Ticket:
+recurring/<name> — deleted` commit), with no PR and no marker. The template's
 `last_serviced_period` line is left untouched, so a completed period is not
 re-scaffolded; deletion is idempotent (a ticket whose directory is already gone
 is never a candidate).
@@ -149,5 +149,5 @@ recurring command until the sibling redesign removes that debug path.
 ## What this context does NOT cover
 
 The cron wiring in `scripts/cron.sh`, how to write a run's skill or body
-logic, and Slack posting mechanics (see `relay/sync`). Implementation lives
+logic, and notification posting mechanics (see `relay/sync`). Implementation lives
 in `src/relay/recurring.py`.

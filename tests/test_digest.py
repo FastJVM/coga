@@ -8,7 +8,7 @@ from textwrap import dedent
 
 import pytest
 
-from relay import slack, spool
+from relay import notification, spool
 from relay.commands.digest import run_digest
 from relay.config import load_config
 
@@ -30,10 +30,13 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         version = 1
         default_status = "draft"
 
-        [slack]
+        [notification]
+        channels = ["slack"]
+
+        [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
 
-        [slack.users]
+        [notification.slack.users]
         nick = "Unick"
         bob = "Ubob"
 
@@ -70,7 +73,7 @@ def captured_posts(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
     return posts
 
 
@@ -144,7 +147,7 @@ def test_notify_falls_back_to_live_post_without_digest(
     repo: Path, captured_posts: list[dict]
 ) -> None:
     cfg = load_config()
-    slack.notify(
+    notification.notify(
         cfg, "🎉 live text", kind="done", detail="→ done ✅", ticket="t-1", owner="nick"
     )
     assert len(captured_posts) == 1
@@ -156,7 +159,7 @@ def test_notify_spools_when_digest_installed(
 ) -> None:
     bb = _install_digest(repo)
     cfg = load_config()
-    slack.notify(
+    notification.notify(
         cfg,
         "🎉 live text",
         kind="done",
@@ -180,7 +183,7 @@ def test_notify_spools_when_digest_installed(
 def test_notify_rejects_lifecycle_kinds(repo: Path) -> None:
     cfg = load_config()
     with pytest.raises(ValueError, match="outcome kinds"):
-        slack.notify(
+        notification.notify(
             cfg,
             "👉 live text",
             kind="bump",
@@ -201,7 +204,7 @@ def test_notify_skips_debug_task_neither_spools_nor_posts(
     """
     bb = _install_digest(repo)
     cfg = load_config()
-    slack.notify(
+    notification.notify(
         cfg,
         "🎉 debug done",
         kind="done",
@@ -219,7 +222,7 @@ def test_notify_skips_debug_task_even_without_digest(
     """The debug skip also suppresses the live-post fallback when no digest is
     installed — otherwise a debug outcome would post straight to Slack."""
     cfg = load_config()
-    slack.notify(
+    notification.notify(
         cfg,
         "🎉 debug done",
         kind="done",
@@ -236,7 +239,7 @@ def test_post_always_posts_even_with_digest_installed(
     # Urgent events use `post` directly, which must bypass the spool.
     _install_digest(repo)
     cfg = load_config()
-    slack.post(cfg, "🚨 panic!", owner="nick")
+    notification.post(cfg, "🚨 panic!", owner="nick")
     assert len(captured_posts) == 1
     assert "🚨 panic!" in captured_posts[0]["text"]
 
@@ -257,7 +260,7 @@ def test_render_digest_groups_and_mentions(repo: Path) -> None:
         {"project": cfg.project_name, "kind": "recurring-error",
          "detail": "⚠️ recurring scan skipped 1 template"},
     ]
-    out = slack.render_digest(
+    out = notification.render_digest(
         cfg,
         records,
         date_label="2026-06-03",
@@ -291,7 +294,7 @@ def test_run_digest_flushes_then_empties(
         {"project": cfg.project_name, "kind": "active", "detail": "→ active",
          "ticket": "alpha", "owner": "nick"},
     )
-    slack.notify(cfg, "y", kind="done", detail="→ done ✅", ticket="alpha", owner="nick")
+    notification.notify(cfg, "y", kind="done", detail="→ done ✅", ticket="alpha", owner="nick")
 
     posted = run_digest(cfg)
     assert posted is True
@@ -369,7 +372,7 @@ def test_run_digest_posts_also_merged_from_git_high_water(
         "sync\n",
         "Sync task state: add-relay-skill-search-with-candidate-eval",
     )
-    slack.notify(
+    notification.notify(
         cfg,
         "done",
         kind="done",
@@ -424,7 +427,7 @@ def test_run_digest_flushes_done_when_git_disabled(
     )
     cfg = load_config(git_repo.relay_os)
     git_repo.git("remote", "remove", "origin")
-    slack.notify(
+    notification.notify(
         cfg,
         "done",
         kind="done",
