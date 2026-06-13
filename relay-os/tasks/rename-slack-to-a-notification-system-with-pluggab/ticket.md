@@ -1,6 +1,6 @@
 ---
 title: Rename slack to a notification system with pluggable channels
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
