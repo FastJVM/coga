@@ -12,7 +12,7 @@ import typer
 from relay import git
 from relay.config import Config
 from relay.logfile import append_log
-from relay.slack import post
+from relay.notification import post
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
 from relay.validate import assert_task_valid

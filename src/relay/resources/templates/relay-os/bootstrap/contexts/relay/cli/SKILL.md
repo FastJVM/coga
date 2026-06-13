@@ -36,6 +36,17 @@ resources. It does not modify a repo. `relay init` and `relay init --update`
 materialize those package resources into `relay-os/bootstrap/`, where Relay
 resolves them after project-local `relay-os/skills` and `relay-os/contexts`.
 
+## relay setup [PATH]
+
+One-command onboarding for a new repo — the entry point to tell new users
+about. Runs the bootstrap stages in order, skipping any that are already
+satisfied: scaffold via `relay init` if there is no relay repo at `PATH`
+(default `.`), prompt for your name and write it to `user` in
+`relay.local.toml` if unset, then launch the `relay-setup` interview
+ticket (no-op with a message if that ticket is already done or absent).
+Idempotent — if a stage fails (e.g. Slack webhook not configured yet),
+fix the issue and re-run; it resumes where it stopped.
+
 ## relay draft "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
 
 Scaffold a new raw `draft` ticket and post `✨` to Slack. Does not launch
@@ -80,6 +91,28 @@ composed authoring prompt as system/developer context instead of as the first
 user message. That lets the first real human exchange set the agent session
 title for later resume. Set `[agents.<type>].discussion` to override the argv
 template for another agent.
+
+## relay project [\<seed\>] [--agent <type>]
+
+Plan a whole project into an ordered set of `draft` tickets. Runs the
+`bootstrap/project` skill in an interactive session: it interviews the human
+(outcome → prior art → constraints → dependencies & sign-off, one question at
+a time), proposes the ordered ticket list for the human to prune/reorder, then
+scaffolds the surviving set with `relay draft` — one launchable step per
+ticket. Where `relay ticket` authors one ticket, `relay project` decomposes a
+project into many.
+
+- `relay project` — start from the first interview question.
+- `relay project "<seed>"` — seed the interview with a one-line description or
+  a path/link to a vision doc; the agent reads it and confirms/fills gaps
+  rather than starting cold. Covers the vision-to-plan case.
+- `relay project --agent <type>` — run the interview with a specific agent.
+
+The interview questions and decomposition rules live in the skill, not in CLI
+code, so they can't drift. The command creates only `draft`s and never
+activates or launches them — the human owns what happens next. Like
+`relay ticket`, it requires a TTY (interactive). After the session it lists the
+created drafts and fails loud if any has a schema error.
 
 ## relay mark \<state\> \<slug\> [--message "..."]
 

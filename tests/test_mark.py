@@ -368,7 +368,7 @@ def test_mark_active_is_silent(repo: Path, monkeypatch: pytest.MonkeyPatch) -> N
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
@@ -387,7 +387,7 @@ def test_mark_paused_is_silent(repo: Path, monkeypatch: pytest.MonkeyPatch) -> N
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "paused", slug])
@@ -406,7 +406,7 @@ def test_mark_done_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "done", slug])

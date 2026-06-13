@@ -16,7 +16,7 @@ no in-memory state.
   (`tasks/<group>/<slug>/`). A top-level task is referenced by its bare leaf
   slug; a grouped task is referenced by its **group-qualified slug**
   (`<group>/<leaf>`, e.g. `marketing/relay-crm`) across CLI commands, `relay
-  status`, and Slack. Two groups may therefore reuse a leaf name, and a
+  status`, and notifications. Two groups may therefore reuse a leaf name, and a
   grouped task's bare leaf does not resolve on its own. Agents should use the
   composed prompt's exact task directory instead of reconstructing it from
   the slug. Each task has

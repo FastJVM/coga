@@ -474,7 +474,7 @@ def test_recurring_scaffolds_silently(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
     monkeypatch.setattr(
         "relay.commands.recurring._interactive_stdio_has_tty", lambda: True
     )
@@ -511,7 +511,7 @@ def test_recurring_posts_error_summary(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["recurring"])
@@ -538,7 +538,7 @@ def test_cli_draft_scaffolds_draft_silently(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -570,7 +570,7 @@ def test_cli_create_scaffolds_draft_silently(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -639,7 +639,7 @@ def test_cli_create_workflow_flag_attaches_workflow(
     """`relay create --workflow <name>` attaches the workflow to the draft."""
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "relay.slack.requests.post",
+        "relay.notification.slack.requests.post",
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
     runner = CliRunner()
@@ -690,7 +690,7 @@ def test_scaffold_draft_without_workflow(
 
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "relay.slack.requests.post",
+        "relay.notification.slack.requests.post",
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
     result = scaffold_draft(title="Interview start", mode="interactive")
