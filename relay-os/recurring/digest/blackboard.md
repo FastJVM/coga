@@ -144,3 +144,7 @@ posted:
 {"ts":"2026-06-11T16:13","project":"relay","kind":"draft","detail":"created \"Dev-loop git hygiene: lift sync-with-main into code/open-pr + add recurring merged-branch cleanup\" (draft)","ticket":"dev-loop-git-hygiene-lift-sync-with-main-into-code","owner":"nick"}
 {"ts":"2026-06-11T16:16","project":"relay","kind":"draft","detail":"created \"Audit rules.md usage across relay and decide whether to keep, gut, or remove it\" (draft)","ticket":"audit-rules-md-usage-across-relay-and-decide-wheth","owner":"nick"}
 {"ts":"2026-06-11T16:30","project":"relay","kind":"draft","detail":"created \"simplify command lines\" (draft)","ticket":"simplify-command-lines","owner":"nick"}
+{"ts":"2026-06-12T17:51","project":"relay","kind":"done","detail":"codex finished: peer-review → done ✅","ticket":"detect-recurring-runs-that-mark-done-without-advan","owner":"nick"}
+{"ts":"2026-06-12T17:21","project":"relay-cli","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/347|PR #347> merged ✅","ticket":"recurring-task-check-ticket-done","owner":"nick"}
+{"ts":"2026-06-12T17:21","project":"relay-cli","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/346|PR #346> merged ✅","ticket":"supervisor-liveness-watchdog-for-agents-that-never","owner":"nick"}
+{"ts":"2026-06-11T17:25","project":"relay-cli","kind":"done","detail":"claude finished: verify-read-only → done ✅","ticket":"relay-crm","owner":"zach"}
