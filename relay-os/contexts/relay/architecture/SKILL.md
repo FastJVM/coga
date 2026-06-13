@@ -46,9 +46,11 @@ no in-memory state.
   flips (e.g. `code/with-review`) and agent-rotation relaunches. Steps without
   one leave the assignee unchanged.
 - **Recurring templates** live in `relay-os/recurring/`. `relay recurring`
-  scans them, scaffolds the current period's task for each, and launches the
-  due ones; the created tasks then use the same ticket, workflow, launch,
-  bump, and blackboard machinery as any other task.
+  scans them, scaffolds the current run at the stable grouped task ref
+  `tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/notifications),
+  records the serviced period as `last_serviced_period` in the template
+  blackboard, and launches the due ones. The created tasks then use the same
+  ticket, workflow, launch, bump, and blackboard machinery as any other task.
 - **Bootstrap shims** in `relay-os/bootstrap/<name>/ticket.md` are
   stateless launch targets for skills. No status, no workflow. Used for
   ticket-less re-entry points like `relay launch bootstrap/orient`

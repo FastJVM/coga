@@ -236,10 +236,11 @@ List every task in the repo — `draft`, `active`, `in_progress`, `paused`,
 and `done`. Bootstrap shims have no status and don't appear here. No
 filtering flags yet; pipe through `grep` if you want to slice the output.
 
-Generated recurring period tasks (slug `recurring-<name>-<period>`) are
-machine-authored jobs scaffolded ahead of execution, so they render in a
-**second `Recurring` table** below the hand-authored backlog rather than
-mixed in with it. `relay recurring list` is the schedule-aware view of those.
+Generated recurring period tasks are machine-authored jobs scaffolded ahead of
+execution under the `recurring/` task group (`recurring/<name>`), so they
+render in a **second `Recurring` table** below the hand-authored backlog rather
+than mixed in with it. `relay recurring list` is the schedule-aware view of
+those.
 
 ## relay show \<slug\>
 
@@ -393,24 +394,23 @@ Run Relay's generic cleanup pass now. `dream` is not a built-in command — it
 is a default alias for `recurring launch dream`. It scaffolds the
 `relay-os/recurring/dream/` recurring task and launches it interactively.
 
-The task slug is `recurring-<name>-<period>` (`recurring-dream-2026-W21`):
-the `recurring-` prefix marks it as generated and the period disambiguates.
-Running `relay dream` mid-week reuses that week's task instead of creating a
-second one — and if a prior week's Dream run is still `in_progress` (a dead
-sweep's orphan), it resumes *that* rather than starting a new one (one live
-task per template). Dream scans current task state, runs the known Relay
-housekeeping pass, writes results to that run's blackboard, and finishes with
-`relay mark done`.
+The instantiated task ref is `recurring/dream`: the `recurring/` group marks it
+as generated, and the current period is recorded in
+`relay-os/recurring/dream/blackboard.md` as `last_serviced_period`. Running
+`relay dream` mid-week reuses that task instead of creating a second one. Dream
+scans current task state, runs the known Relay housekeeping pass, writes
+results to that run's blackboard, and finishes with `relay mark done`.
 
 ## relay recurring
 
 Scan `relay-os/recurring/`, then scaffold and launch every task that is due.
 
 For each template (skipping `_`-prefixed files) `relay recurring` enforces
-**one live task per template**: if a generated task (slug prefix
-`recurring-<name>-`) is already `active` or orphaned `in_progress`, that one
-is launched/resumed and no new period is scaffolded; only when none is live
-does it get-or-create the **current period's** task. It launches the due ones
+**one live task per template**: if the generated grouped task
+`recurring/<name>` is already `active` or orphaned `in_progress`, that one is
+launched/resumed and no duplicate is scaffolded; only when none is live does it
+get-or-create the current run at `relay-os/tasks/recurring/<name>/` and advance
+the template blackboard's `last_serviced_period` line. It launches the due ones
 **sequentially** — orphaned `in_progress` resumes first, then fresh launches,
 each group most-overdue first, one finishing before the next starts. It prints
 a scan table (`→ resume` / `→ launch` / `ready` vs `overdue Nd`) before
@@ -422,6 +422,9 @@ recurring` once a month for a weekly template produces one run (this
 period's), not a backlog. It does not install or manage system cron —
 nothing runs unless you invoke it. `relay-os/scripts/cron.sh` is the
 optional entry point if you later wire it into a scheduler yourself.
+Dedup after Dream deletes a completed run comes from
+`last_serviced_period >= current period_key`; the template `log.md` is
+append-only human history, not the dedup source.
 
 `relay recurring --interactive` launches every due task in interactive mode
 for that run from an attended TTY, even ones whose template says `mode: auto`
@@ -430,11 +433,11 @@ for that run from an attended TTY, even ones whose template says `mode: auto`
 
 `relay recurring --all` is the heavier debug escape hatch: it bypasses both
 the schedule and the status filter. For every template it scaffolds a *fresh,
-isolated* throwaway run under a `<template>-dbg-<timestamp>` slug and launches
-them all sequentially — regardless of whether this period's real task already
-exists or has run. The real period tasks are left untouched (the debug runs
-have their own slugs and are not recorded in the period ledger), and the runs
-launch interactively (script templates run as scripts) so there is a live
+isolated* throwaway run under a top-level `<template>-dbg-<timestamp>` slug and
+launches them all sequentially — regardless of whether this period's real task
+already exists or has run. The real period tasks and their
+`last_serviced_period` high-water marks are left untouched, and the runs launch
+interactively (script templates run as scripts) so there is a live
 console to watch. Debug runs are disposable scratch tasks: the `-dbg-<digit>`
 slug keeps them out of both Slack and git history (`sync_task_state` suppresses
 it, so a debug run never commits task state), each run's scratch dir is removed
@@ -469,10 +472,9 @@ Dream, REM, and other recurring maintenance loops all use this surface.
 
 Scaffold one named recurring template now and launch it, ignoring its
 schedule. `name` is the directory name under `relay-os/recurring/`. The task
-slug is `recurring-<name>-<period>`, so a manual `launch` and a bare `relay
-recurring` converge on one task directory per period (idempotent — a second
-`launch` in the same period reuses the existing task). An orphaned
-`in_progress` run — even from a prior period — is resumed rather than
+ref is `recurring/<name>`, so a manual `launch` and a bare `relay recurring`
+converge on one stable task directory (idempotent — a second `launch` reuses
+the existing task). An orphaned `in_progress` run is resumed rather than
 duplicated; a `done` or `paused` run is left alone. This is exactly what the
 `relay dream` alias expands to.
 `--interactive` runs it in interactive mode even if the template says

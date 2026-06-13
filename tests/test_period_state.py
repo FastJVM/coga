@@ -25,6 +25,7 @@ from relay.period_state import (
     write_snapshot,
 )
 from relay.recurring import RecurringError, Template, scan_due
+from relay.tasks import list_tasks
 
 
 def _write(path: Path, text: str) -> None:
@@ -283,7 +284,7 @@ def test_template_rejects_malformed_state_keys(
 def _scaffold_period(repo: Path) -> str:
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 6, 7, 10, 0, 0))
-    return scan.tasks[0].ref.slug
+    return scan.tasks[0].ref.id_slug
 
 
 def test_mark_done_warns_on_unchanged_cursor(repo: Path, monkeypatch) -> None:
@@ -344,9 +345,9 @@ def test_mark_done_plain_task_unaffected(repo: Path, monkeypatch) -> None:
     slug = _scaffold_period(repo)
     # Drop the snapshot to simulate an ordinary (non-recurring) task.
     snap_path = next(
-        p / SNAPSHOT_FILE
-        for p in (repo / "tasks").iterdir()
-        if (p / SNAPSHOT_FILE).is_file()
+        ref.path / SNAPSHOT_FILE
+        for ref in list_tasks(load_config(repo))
+        if (ref.path / SNAPSHOT_FILE).is_file()
     )
     snap_path.unlink()
     result = CliRunner().invoke(app, ["mark", "done", slug])

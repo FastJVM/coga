@@ -80,10 +80,10 @@ def captured_posts(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 # --- spool primitive ----------------------------------------------------------
 
 
-def test_spool_roundtrip_and_preserves_ledger(tmp_path: Path) -> None:
+def test_spool_roundtrip_and_preserves_non_spool_state(tmp_path: Path) -> None:
     bb = tmp_path / "blackboard.md"
     bb.write_text(
-        "Seed text.\n\n## Spool (pending)\n\n## Ledger\n\n[2026-06-03] scaffolded x\n"
+        "Seed text.\n\n## Spool (pending)\n\n## State\n\nlast_serviced_period: 2026-06-03\n"
     )
 
     spool.append_record(bb, {"kind": "bump", "detail": "→ step 2"})
@@ -98,10 +98,10 @@ def test_spool_roundtrip_and_preserves_ledger(tmp_path: Path) -> None:
     assert [r["kind"] for r in drained] == ["bump", "done"]
 
     text = bb.read_text()
-    # Ledger + seed survive; spool section is emptied.
-    assert "scaffolded x" in text
+    # State + seed survive; spool section is emptied.
+    assert "last_serviced_period: 2026-06-03" in text
     assert "Seed text." in text
-    assert "## Ledger" in text
+    assert "## State" in text
     assert spool.read_records(bb) == []
 
 
@@ -113,21 +113,19 @@ def test_spool_creates_section_when_absent(tmp_path: Path) -> None:
     assert "## Spool (pending)" in bb.read_text()
 
 
-def test_drain_returns_records_and_preserves_ledger_lines(tmp_path: Path) -> None:
+def test_drain_returns_records_and_preserves_non_record_lines(tmp_path: Path) -> None:
     bb = tmp_path / "blackboard.md"
     bb.write_text(
         "## Spool (pending)\n\n"
         '{"kind":"bump","detail":"a"}\n'
-        "[2026-06-03 09:00] scaffolded digest-2026-06-03\n"  # stray ledger line
+        "last_serviced_period: 2026-06-03\n"  # stray high-water line
         '{"kind":"done","detail":"b"}\n'
     )
     drained = spool.drain(bb)
     assert [r["kind"] for r in drained] == ["bump", "done"]
-    # JSON records are cleared; the non-record ledger line is preserved (this is
-    # the case where `recurring._record_run` appends into the spool section
-    # because it is the last section in the file).
+    # JSON records are cleared; the non-record high-water line is preserved.
     text = bb.read_text()
-    assert "scaffolded digest-2026-06-03" in text
+    assert "last_serviced_period: 2026-06-03" in text
     assert spool.read_records(bb) == []
 
 

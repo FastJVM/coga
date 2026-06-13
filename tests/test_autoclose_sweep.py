@@ -151,7 +151,12 @@ def test_autoclose_recurring_template_scaffolds_idempotently(tmp_path: Path) -> 
     assert first.created is True
     assert second.created is False
     refs = list_tasks(cfg)
-    assert [ref.slug for ref in refs] == ["recurring-autoclose-merged-2026-06-11"]
+    assert [(ref.group, ref.slug, ref.id_slug) for ref in refs] == [
+        ("recurring", "autoclose-merged", "recurring/autoclose-merged")
+    ]
+    assert (
+        relay_os / "recurring" / "autoclose-merged" / "blackboard.md"
+    ).read_text().endswith("last_serviced_period: 2026-06-11\n")
 
     ticket = Ticket.read(refs[0].path / "ticket.md")
     assert ticket.mode == "script"

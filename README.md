@@ -291,26 +291,26 @@ broadcast — one post instead of two.
 ### `relay recurring`
 
 Scan `relay-os/recurring/` and launch the templates that are due. Relay keeps
-**one live task per template**: a generated task is identified by its slug
-prefix `recurring-<name>-`, and if one is already `active` or orphaned
-`in_progress` — even from a *prior* period — that one is launched/resumed and
-no new period is scaffolded. Only when none is live does `relay recurring`
-get-or-create the **current period's** task. It prints a scan table, then
-launches the due ones sequentially: orphaned `in_progress` resumes first
-(a dead sweep's frozen run, picked back up from its step), then fresh
-launches, each group most-overdue first. `done` and `paused` tasks are left
-alone. A stuck `in_progress` run therefore **defers** the next period until it
-reaches `done`/`paused` — finish the in-flight run before piling another on,
-and it stays visible in `relay status` meanwhile. During a bare recurring
-sweep, if a launched task returns still `active`, `in_progress`, or otherwise
-unfinished, the sweep stops before launching the next due task.
+**one live task per template**: a generated task is identified by the stable
+group-qualified ref `recurring/<name>` (`relay-os/tasks/recurring/<name>/`),
+and if it is already `active` or orphaned `in_progress`, that one is
+launched/resumed and no duplicate is scaffolded. Only when none is live does
+`relay recurring` get-or-create the current run at that stable path and update
+the template blackboard's `last_serviced_period` high-water mark. It prints a
+scan table, then launches the due ones sequentially: orphaned `in_progress`
+resumes first (a dead sweep's frozen run, picked back up from its step), then
+fresh launches, each group most-overdue first. `done` and `paused` tasks are
+left alone. A stuck `in_progress` run therefore **defers** the next period
+until it reaches `done`/`paused` — finish the in-flight run before piling
+another on, and it stays visible in `relay status` meanwhile. During a bare
+recurring sweep, if a launched task returns still `active`, `in_progress`, or
+otherwise unfinished, the sweep stops before launching the next due task.
 
 Only the current period is considered; `relay recurring` never chases missed
 periods, so a template runs at most once per period no matter how long since
-the last invocation. The task slug is `recurring-<name>-<period>`
-(`recurring-dream-2026-W21`) — the `recurring-` prefix is the identity marker
-and the schedule-derived period disambiguates, which makes the get-or-create
-idempotent.
+the last invocation. Dedup after a completed run is deleted comes from
+`last_serviced_period >= current period_key` in the template blackboard. The
+template `log.md` stays append-only human history; it is not parsed for dedup.
 
 Recurring scaffolding goes through `scaffold_task()` in `relay.scaffold`
 directly with the template's full frontmatter. Recurring tasks are
@@ -329,22 +329,20 @@ through a recurring run in an attended terminal. It threads `relay launch
 ### `relay recurring launch <name>`
 
 Scaffold one named recurring template now, ignoring its schedule, and launch
-it. The task slug is `recurring-<name>-<period>`, so a manual `launch` and a
-bare `relay recurring` run converge on one task directory per period; an
-orphaned `in_progress` run (even a prior period's) is resumed rather than
-duplicated. This is the on-demand entry point behind aliases like
-`relay dream`. `--interactive` runs it in interactive mode even if the
-template says `mode: auto` — handy for debugging one template by hand.
+it. The task ref is `recurring/<name>`, so a manual `launch` and a bare
+`relay recurring` run converge on one stable task directory; an orphaned
+`in_progress` run is resumed rather than duplicated. This is the on-demand
+entry point behind aliases like `relay dream`. `--interactive` runs it in
+interactive mode even if the template says `mode: auto` — handy for debugging
+one template by hand.
 
 ### `relay dream`
 
 Run Relay's generic cleanup pass now. `dream` is an alias for
 `relay recurring launch dream`: it scaffolds the `recurring/dream/`
-recurring task and launches it. The slug is `recurring-<name>-<period>`
-(`recurring-dream-2026-W21`), shared with the scheduled run — running
-`relay dream` mid-week reuses that week's task rather than creating a second
-one (and resumes a still-running prior week's Dream instead of starting a
-new one).
+recurring task and launches it. The instantiated task ref is
+`recurring/dream`, shared with the scheduled run — running `relay dream`
+mid-week reuses that task rather than creating a second one.
 
 ### Dream and REM
 

@@ -47,10 +47,10 @@ and optionally `ticket`, `owner`, `watchers`).
 
 The section lives in a real blackboard, so it can share the file with other
 content. The drain rewrites **only** the spool section and ignores any
-non-JSON line it finds there — that line is preserved, not drained. (The
-recurring period ledger that `recurring._record_run` writes lives in the
-template's `log.md`, never the blackboard, so it no longer shares this file;
-the JSON-only drain is still defensive against any stray non-record line.)
+non-JSON line it finds there — that line is preserved, not drained. The
+recurring scaffolder also owns a single `last_serviced_period` high-water line
+in the template blackboard; spool drains must preserve it. The JSON-only drain
+is still defensive against any stray non-record line.
 
 ## The primitive — `relay.spool`
 
