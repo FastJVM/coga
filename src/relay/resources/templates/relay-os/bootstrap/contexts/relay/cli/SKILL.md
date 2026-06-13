@@ -296,6 +296,23 @@ resolver and the same deletion is reachable as a `mode: script` step.
 Bootstrap shims aren't user-deletable — they're managed by
 `relay init --update`.
 
+## relay mv \<slug\> (--group \<name\> | --ungroup)
+
+Relocate an existing task between top-level and a one-level group
+directory — the after-the-fact companion to `relay draft --group`.
+`--group <name>` moves it into `tasks/<group>/<slug>/`; `--ungroup`
+moves it back out to top-level. The move is a directory relocation only
+(a task's slug is its leaf directory name; nothing in the ticket stores
+its path), and it lands through the normal git sync layer as a rename.
+
+After moving into a group the task is referenced by its group-qualified
+slug, `<group>/<slug>` (matching `relay status`); the bare leaf no
+longer resolves. Refuses an `in_progress` task — pause it first so no
+running session loses its directory — and refuses a destination where
+the leaf already exists. Group names follow the `--group` rules from
+`relay draft` (single segment, slug shape, no clash with a top-level
+task name).
+
 ## relay retire \<slug\> [--mode interactive] [--agent <type>] [--no-launch]
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body

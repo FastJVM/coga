@@ -15,6 +15,7 @@ from relay.commands import digest as digest_cmd
 from relay.commands import init as init_cmd
 from relay.commands import launch as launch_cmd
 from relay.commands import mark as mark_cmd
+from relay.commands import mv as mv_cmd
 from relay.commands import panic as panic_cmd
 from relay.commands import project as project_cmd
 from relay.commands import recurring as recurring_cmd
@@ -82,6 +83,7 @@ app.command("show")(show_cmd.show)
 app.command("bump")(bump_cmd.bump)
 app.command("automerge")(automerge_cmd.automerge)
 app.command("delete")(delete_cmd.delete)
+app.command("mv")(mv_cmd.mv)
 app.command("retire")(retire_cmd.retire)
 app.command("panic")(panic_cmd.panic)
 app.command("slack")(slack_cmd.slack)
@@ -98,8 +100,8 @@ app.add_typer(recurring_cmd.app, name="recurring")
 _BUILTIN_COMMANDS = frozenset(
     {
         "init", "setup", "create", "launch", "status", "show", "bump",
-        "automerge", "delete", "draft", "retire", "panic", "slack", "digest",
-        "skill", "mark", "recurring", "ticket", "project", "validate",
+        "automerge", "delete", "mv", "draft", "retire", "panic", "slack",
+        "digest", "skill", "mark", "recurring", "ticket", "project", "validate",
     }
 )
 
