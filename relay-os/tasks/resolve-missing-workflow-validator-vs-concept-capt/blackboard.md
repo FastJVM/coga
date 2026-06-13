@@ -92,6 +92,9 @@ No live active/in_progress workflow-less tasks on disk → nothing newly errors.
 ## Dev
 - branch: direct-body-workflow
 - worktree: ../relay-direct-body-workflow
+- pr: https://github.com/FastJVM/relay/pull/358
+- ci: no checks configured on this repo (`gh pr checks` → "no checks reported").
+  Local suite green: 719 passed, 1 skipped.
 
 ## Status
 - Plan approved by nick. Building in worktree.
@@ -145,3 +148,27 @@ them up then.
 
 STATUS: implement step complete — committing on branch `direct-body-workflow`,
 then `relay bump`. (open-pr + self-qa are later steps.)
+
+## Peer Review (2026-06-12, codex)
+
+Ran `codex review --base main` from feature worktree
+`../relay-direct-body-workflow`.
+
+Finding:
+- P1: `direct/body` is now required by recurring/retire, but existing repos
+  updated via `relay init --update` would not receive
+  `workflows/direct/body.md` or `skills/direct/body/SKILL.md`. Dream/recurring
+  and retire would fail after upgrade until those files were manually copied.
+
+Fix applied:
+- Added `workflows/direct/body.md` to `VENDORED_WORKFLOW_TEMPLATES`.
+- Added a narrow `VENDORED_SKILL_TEMPLATES` path for
+  `skills/direct/body/SKILL.md` and refresh it during `init --update`.
+- Extended init and packaging tests so fresh/update/package paths cover the
+  new required workflow and skill.
+
+Verification:
+- `python -m pytest tests/test_init.py::test_init_update_refreshes_vendored_recurring_template tests/test_init.py::test_init_update_refreshes_cli_and_underscore_templates tests/test_packaging.py -q` →
+  `4 passed, 1 skipped`.
+- `python -m pytest -q` → `719 passed, 1 skipped`.
+- `git diff --check` clean.
