@@ -14,13 +14,13 @@ runs `relay digest`, which:
 2. fetches `origin/main` and scans commits since `### Digest State`
    `last_commit`,
 3. renders Done tickets plus an "Also merged (no ticket)" section,
-4. posts one sectioned message to the shared Slack channel,
+4. posts one sectioned message to the shared notification channel,
 5. empties the spool section back to its seed, and
 6. records the new high-water commit in `### Digest State`.
 
 An empty spool can still post when commits merged since the last run. A quiet
 run posts nothing only when there are no Done records, no recurring errors, and
-no post-filter new commits. The flush honors the `[slack].enabled = false`
+no post-filter new commits. The flush honors the `[notification.slack].enabled = false`
 opt-out exactly as a live post does (suppressed to stderr).
 
 The script imports `relay.commands.digest.run_digest` and calls it directly, so

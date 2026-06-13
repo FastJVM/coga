@@ -22,7 +22,7 @@ you write to stdout. Treat this as a batch job with escalation.
 - **Be conservative about scope.** With no human to correct you, drift is the
   biggest risk. Stay inside the ticket's description. If you notice adjacent
   issues, note them on the blackboard — don't fix them.
-- **Broadcasts are for the team, not for you.** One Slack post per
+- **Broadcasts are for the team, not for you.** One notification per
   meaningful milestone (PR opened, deploy done, key finding). Prefer
   `bump --message` when the milestone coincides with a step
   transition; reach for `relay slack` when it doesn't. Don't broadcast

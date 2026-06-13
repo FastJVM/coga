@@ -32,7 +32,7 @@ def _stub_slack(monkeypatch):
     """Default-on Slack so commands don't crash on `$SLACK_WEBHOOK_URL` unset.
 
     Sets a fake webhook and stubs `requests.post` to a no-op. Tests that want
-    real slack behavior (test_slack.py, test_validate.py probe tests)
+    real slack behavior (test_notification.py, test_validate.py probe tests)
     re-monkeypatch these — autouse runs first, test-local setattr wins.
     """
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/test-stub")
@@ -44,7 +44,7 @@ def _stub_slack(monkeypatch):
 
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _noop_post, raising=False)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _noop_post, raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -205,7 +205,9 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             cli = "claude"
             auto = "-p"
             file = "CLAUDE.md"
-            [slack]
+            [notification]
+            channels = ["slack"]
+            [notification.slack]
             webhook = "env:SLACK_WEBHOOK_URL"
             """
         ).lstrip()

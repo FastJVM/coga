@@ -23,15 +23,18 @@ file = "AGENTS.md"
 mode = "local"
 discussion = "-c developer_instructions={prompt}"
 
-# --- Slack ---
+# --- Notification channels ---
 
-# The webhook is read from `[slack].webhook`. Use `env:` indirection so the
-# URL (a bearer token) stays out of the committed file — export
+# Slack is Relay's first notification channel. Use `env:` indirection so
+# the URL (a bearer token) stays out of the committed file — export
 # SLACK_WEBHOOK_URL locally and relay resolves it. Local `relay.local.toml`
 # may override this with a machine-specific webhook. To run without real
-# posts (messages go to stderr), opt out with `[slack].enabled = false` in
-# relay.local.toml.
-[slack]
+# posts (messages go to stderr), opt out with
+# `[notification.slack].enabled = false` in relay.local.toml.
+[notification]
+channels = ["slack"]
+
+[notification.slack]
 webhook = "env:SLACK_WEBHOOK_URL"
 
 # --- Aliases ---

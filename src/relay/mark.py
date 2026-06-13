@@ -18,7 +18,7 @@ from relay.config import Config
 from relay.logfile import append_log
 from relay.paths import recurring_dir, workflow_path
 from relay.period_state import StateSnapshot, read_snapshot, stale_keys
-from relay.slack import notify, post
+from relay.notification import notify, post
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
 from relay.validate import assert_task_valid
@@ -40,7 +40,7 @@ def mark_done(
     """Flip a ticket to `done`: write frontmatter, log, notify.
 
     `done` is the routine outcome Slack still needs, so it routes through
-    `slack.notify`: spooled into the daily digest when that ticket is
+    `notification.notify`: spooled into the daily digest when that ticket is
     installed, else posted live as `slack_text` (image and all).
     `digest_detail` is the one-liner shown under this ticket in the digest.
 
@@ -299,7 +299,7 @@ def mark_paused(
     and nothing is broadcast. The one broadcasting caller is the recurring
     liveness watchdog, which pauses a wedged run and needs the team to see it —
     a recurring run that timed out is a `recurring-error`, so when `slack_text`
-    is given the pause routes through `slack.notify` (digest-spooled when the
+    is given the pause routes through `notification.notify` (digest-spooled when the
     ticket is installed, else posted live); `digest_detail` is its one-liner.
     """
     owner = ticket.owner or cfg.current_user

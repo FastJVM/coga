@@ -32,7 +32,7 @@ from relay.recurring import (
 )
 from relay.mark import mark_paused
 from relay.paths import tasks_dir
-from relay.slack import notify
+from relay.notification import notify
 from relay.tasks import TaskRef, list_tasks, read_ticket
 from relay.ticket import TicketError
 from relay.validate import TaskValidationError

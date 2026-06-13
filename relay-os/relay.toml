@@ -31,25 +31,29 @@ file = "AGENTS.md"
 mode = "local"
 discussion = "-c developer_instructions={prompt}"
 
-# --- Slack ---
-# Slack is the team sync point — every state change (ticket created,
-# draft → active, active → in_progress, paused/done, bump, panic, slack,
-# script-mode failure, recurring scaffolds) posts to the channel pointed at by
-# `[slack].webhook`. Relaunching an already-in-progress ticket does not post.
+# --- Notification channels ---
+# Relay's notification system is the team sync point. Slack is the first
+# channel: urgent/manual events post through the Slack webhook, while outcome
+# events may spool into the daily digest before that digest posts to Slack.
+# Relaunching an already-in-progress ticket does not post.
 #
-# The webhook is the single way to configure Slack. Use `env:` indirection so
+# Use `env:` indirection so
 # the URL (a bearer token) stays out of this committed file — each user exports
 # SLACK_WEBHOOK_URL locally and relay resolves it. A bare exported
-# SLACK_WEBHOOK_URL with no `webhook` key does NOT count as configured.
-# A machine-specific webhook may override this in relay.local.toml (local wins).
-# To opt out (solo / dev / CI), set `[slack].enabled = false` in
+# SLACK_WEBHOOK_URL with no `webhook` key is only a deprecated compatibility
+# fallback. A machine-specific webhook may override this in relay.local.toml
+# (local wins). To opt out (solo / dev / CI), set
+# `[notification.slack].enabled = false` in
 # relay.local.toml.
-[slack]
+[notification]
+channels = ["slack"]
+
+[notification.slack]
 webhook = "env:SLACK_WEBHOOK_URL"
 #
 # Optional GIFs on milestone events. One URL is picked at random per
 # post. Skip a kind to keep it text-only.
-[slack.gifs]
+[notification.slack.gifs]
 done = [
   # Picard "make it so" supercut
   "https://media.tenor.com/l2f9i9ugp18AAAAC/star-trek-the-next-generation-captain-picard-make-it-so-supercut-star-trek-the-next-generation.gif",
@@ -109,7 +113,7 @@ panic = [
 # cc'd. Without one they're still named, just in plain text (no ping).
 # An incoming webhook can't look an ID up itself, so it has to be listed
 # here. Grab an ID from Slack: profile → ⋮ (More) → Copy member ID.
-[slack.users]
+[notification.slack.users]
 nick = "U0AG1BASFJ7"
 zach = "U0AG5LKCK8E"
 
@@ -130,7 +134,7 @@ zach = "U0AG5LKCK8E"
 # Defaults: enabled = true, remote = "origin", control_branch = "main".
 # To opt out (a repo with no remote: dev/test, CI, solo branches), set
 # `enabled = false` here or in relay.local.toml (local overrides shared,
-# like [slack]).
+# like [notification.slack]).
 #   [git]
 #   enabled = true
 #   remote = "origin"

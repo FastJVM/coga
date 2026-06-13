@@ -113,7 +113,7 @@ disk as an ordinary `status: done` ticket. The single deleter of done recurring
 period tickets is **Dream**: its Phase 4 retro pass (`retro/done-ticket`)
 processes every eligible done ticket, and a `recurring-<name>-<period>` ticket
 is eligible like any other. Period tickets carry nothing durable — their output
-is the Slack post or PR they already produced — so Retro extracts no new
+is the notification post or PR they already produced — so Retro extracts no new
 knowledge and **direct-deletes** them via `relay delete <slug>` (working-tree
 `git rm` plus a `Ticket: <slug> — deleted` commit), with no PR and no marker.
 The template's `log.md` period-ledger line is left untouched, so a completed
@@ -140,5 +140,5 @@ recurring command until the sibling redesign removes that debug path.
 ## What this context does NOT cover
 
 The cron wiring in `scripts/cron.sh`, how to write a run's skill or body
-logic, and Slack posting mechanics (see `relay/sync`). Implementation lives
+logic, and notification posting mechanics (see `relay/sync`). Implementation lives
 in `src/relay/recurring.py`.

@@ -20,9 +20,10 @@ review bars.
 - `src/relay/commands/` — Typer entrypoints, one file per `relay
   <command>`. **Keep these thin.** No business logic.
 - `src/relay/` (other modules) — testable logic. `compose.py`
-  builds the prompt. `slack.py` posts. `config.py` loads config.
+  builds the prompt. `notification/` dispatches notifications with Slack as
+  the first backend. `config.py` loads config.
   `commands/launch.py` / `commands/launch_script.py` run agents.
-  `slack.py` (in `commands/`) posts an explicit FYI.
+  `commands/slack.py` keeps the explicit FYI command spelling.
   `commands/panic.py` surfaces agent distress. `bump.py`
   advances workflow steps. `validate.py` checks repo consistency.
 - `tests/` — pytest. Run with `python -m pytest`.

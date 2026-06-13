@@ -196,12 +196,11 @@ Last updated: 2026-06-10.
   single `post(cfg, message)` and `post_mention` / `_mention_tag` were
   dropped.
 - **Per-user @mentions since re-introduced.** The prediction above
-  held: `slack.py` now exposes
-  `post(cfg, message, *, owner=..., watchers=...)` and a `_mention`
-  helper that renders any name mapped in `[slack.users]` as a real
-  `<@U…>` ping — owner inline, watchers cc'd in a trailer. Posts ping
-  the ticket owner and watchers again; see `relay/sync` for the
-  current behavior.
+  held: `notification.post(cfg, message, *, owner=..., watchers=...)`
+  dispatches through the Slack backend, whose mention helper renders any name
+  mapped in `[notification.slack.users]` as a real `<@U…>` ping — owner
+  inline, watchers cc'd in a trailer. Posts ping the ticket owner and watchers
+  again; see `relay/sync` for the current behavior.
 
 ## Recent decisions (alias mechanism)
 

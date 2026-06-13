@@ -8,7 +8,7 @@ include a `"title"` after every `*slug*`, `prev → done` transitions, and the
 silent unless the operator supplies an explicit FYI such as `bump --message`.
 
 The `[project] [owner]` prefix that `post()`/`notify()` prepend is covered by
-`test_slack.py`; here we assert the message *body* with `endswith`, so the
+`test_notification.py`; here we assert the message *body* with `endswith`, so the
 prefix (whose project name is the tmp dir) is intentionally out of scope.
 """
 
@@ -42,7 +42,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         version = 1
         default_status = "draft"
-        [slack]
+        [notification]
+        channels = ["slack"]
+        [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
@@ -99,7 +101,7 @@ def _make_task(
 
 
 def _capture(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Capture the text of every live Slack post made during the test."""
+    """Capture the text of every live Slack notification made during the test."""
     posts: list[str] = []
 
     def fake(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
@@ -111,7 +113,7 @@ def _capture(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", fake)
+    monkeypatch.setattr("relay.notification.slack.requests.post", fake)
     return posts
 
 

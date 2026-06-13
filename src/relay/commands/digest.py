@@ -3,7 +3,7 @@
 This is the **consumer** half of the daily-digest pipeline. Done events and
 recurring scan errors spool structured JSONL records onto the
 `recurring/digest/` ticket's blackboard as they happen (see
-`relay.slack.notify`). Once a day the digest recurring ticket fires as a
+`relay.notification.notify`). Once a day the digest recurring ticket fires as a
 `mode: script` task, and its script step runs this command:
 
   read the spool → fetch origin/main → render Done + Also merged → post via
@@ -29,7 +29,7 @@ import typer
 from relay import spool
 from relay.atomicio import atomic_write_text
 from relay.config import ConfigError, load_config
-from relay.slack import digest_spool_path, done_pr_numbers, post, render_digest
+from relay.notification import digest_spool_path, done_pr_numbers, post, render_digest
 
 
 _STATE_HEADING = "Digest State"

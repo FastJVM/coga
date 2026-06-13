@@ -355,7 +355,7 @@ def _allow_slack(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://slack.example.test")
     slack_msgs: list[str] = []
     monkeypatch.setattr(
-        "relay.slack.requests.post",
+        "relay.notification.slack.requests.post",
         lambda url, json=None, timeout=None: _capture_slack(slack_msgs, json),
     )
     return slack_msgs
@@ -1239,7 +1239,7 @@ def test_launch_bare_bootstrap_does_not_post_to_slack(
     class _Result:
         returncode = 0
 
-    monkeypatch.setattr("relay.slack.requests.post", fake_post)
+    monkeypatch.setattr("relay.notification.slack.requests.post", fake_post)
     monkeypatch.setattr(
         "relay.commands.launch.subprocess.run",
         lambda cmd, env=None, check=False: _Result(),

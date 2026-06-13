@@ -62,6 +62,6 @@ The human clicks the irreversible control. The agent never does.
 
 After the human commits, confirm the irreversible action actually landed; verify
 rather than assume (e.g., the message is in Sent, the file shows as shared).
-Then post the outcome to the shared relay Slack channel, whether it completed or
+Then post the outcome to the shared relay notification channel, whether it completed or
 was aborted. Include the result inline if it's compact; if it's large, post a
 path to the artifact instead.
