@@ -1,1 +1,74 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## 2026-06-12 — Step 1 (design): interview design + rationale
+
+The settled four-question interview lives in `ticket.md` under
+"Interview design". This section records *why* it has that shape — the
+evaluation that produced it (independent agent review of an earlier draft
+Zach worked up) — and the open questions implementation must still
+settle.
+
+### Why this shape (three decisions that moved the design)
+
+1. **Outcome (Q1) before the doc-seed (Q2), always.** An earlier draft
+   opened with the doc question ("read the doc, classify, ask only about
+   gaps"). That has a cold-start bug: you can't know what a *gap* is
+   until you know the target outcome, and vision docs are routinely vague
+   on the concrete "what exists when done." If the agent gap-fills off
+   the doc alone it silently skips outcome-probing and decomposes against
+   a fuzzy finish line. Fix: Q1 is mandatory regardless of the doc; the
+   doc only lets the agent skip *constraint/dependency* gaps (Q3/Q4),
+   which docs do usually specify.
+
+2. **The cut "out of scope" question is safe only because the review
+   step is built.** This interview is harder than `init/setup`'s: its
+   output is an *ordered dependency graph of tickets*, not independent
+   artifacts, so vagueness doesn't degrade gracefully — it produces wrong
+   tickets and wrong edges. The single most likely decomposition failure
+   is **granularity** (agent slices into 3 mega-tickets or 15 trivial
+   ones), which no question constrains well — it's fixed by the human
+   *reacting* to a proposed list, not predicting up front. The
+   review-before-scaffold step is therefore load-bearing: it covers the
+   cut scope question (over- and under-scoping), the granularity failure,
+   and per-ticket acceptance criteria in one move. If implementation
+   can't deliver that step, reinstate a scope question.
+
+3. **Q3/Q4 reseamed along real seams.** An earlier Q2 bolted "what's
+   fixed" (constraints) onto "who signs off" (assignee routing) — two
+   unrelated frames; people answer one and stall on the other. Sign-off
+   moved into the dependency beat (Q4), because "who has to approve"
+   is itself a sequencing dependency. Q4 bundles external blockers +
+   hidden order + sign-off, which all read as "what must happen before
+   what" — one coherent frame, so the bundle holds.
+
+### Acceptance criteria — captured once, drafted per-ticket
+
+Q1's "how would you demo it" yields the *project-level* done bar (the
+final ticket's review bar). Intermediate tickets (1…N-1) get
+agent-drafted acceptance criteria that the human corrects in the review
+step — deliberately not an interview question. (Once the
+`acceptance-criteria` ticket lands a real AC field, generated tickets
+should populate it.)
+
+### Open implementation questions (for the design write-up / next step)
+
+- **Is "review before scaffold" a workflow step or interview protocol?**
+  Leaning: a real step in this command's flow, modeled on `init/setup`'s
+  `scan-and-generate` → `review-and-sign-off`. Needs deciding before
+  implement.
+- **Dependency representation in the generated tickets.** Q4 produces a
+  dependency graph; how is it recorded on each draft? This is exactly the
+  `identify-blocking-issues` ticket's proposed `dependencies:` field —
+  coordinate so `relay project` emits whatever format that ticket settles
+  on, rather than inventing a parallel one.
+- **Doc-seed input mechanism.** How does the human point at the doc — a
+  path arg (`relay project --from vision.md`), a Drive link the agent
+  fetches, a paste? Affects Q2's wording and the command signature.
+- **Bulk draft creation.** `relay draft`/`relay ticket` scaffold one
+  top-level ticket at a time; `relay project` needs to emit an ordered
+  set. Does it call the existing scaffold path in a loop, or is there a
+  new batch path? Ordering must survive (slugs are leaf-name based).
+- **Command vs. ticket-driven.** Is `relay project` a CLI command (like
+  `relay ticket`) that runs the interview directly, or a bootstrap
+  ticket/workflow the user launches? `relay ticket` is the closest prior
+  art for an interview-driving command.
