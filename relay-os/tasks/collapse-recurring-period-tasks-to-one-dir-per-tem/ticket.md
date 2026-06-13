@@ -1,7 +1,7 @@
 ---
 title: Collapse recurring period tasks to one dir per template under tasks/recurring/,
   period in blackboard
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
