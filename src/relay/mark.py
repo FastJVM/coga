@@ -211,15 +211,38 @@ def mark_paused(
     *,
     actor: str,
     log_message: str,
+    slack_text: str | None = None,
+    digest_detail: str | None = None,
     echo: str | None = None,
 ) -> None:
-    """Flip a ticket to `paused`: write frontmatter and log."""
+    """Flip a ticket to `paused`: write frontmatter and log.
+
+    Most pauses are silent on Slack (a human `mark paused`, the interactive
+    recurring-cleanup path): they pass neither `slack_text` nor `digest_detail`
+    and nothing is broadcast. The one broadcasting caller is the recurring
+    liveness watchdog, which pauses a wedged run and needs the team to see it —
+    a recurring run that timed out is a `recurring-error`, so when `slack_text`
+    is given the pause routes through `slack.notify` (digest-spooled when the
+    ticket is installed, else posted live); `digest_detail` is its one-liner.
+    """
+    owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "paused"
     ticket.write(ref.path / "ticket.md")
     assert_task_valid(cfg, ref, action="mark paused")
     append_log(ref.path, actor, log_message)
     if echo is not None:
         typer.echo(echo)
+    if slack_text is not None:
+        notify(
+            cfg,
+            slack_text,
+            kind="recurring-error",
+            detail=digest_detail or slack_text,
+            ticket=ref.id_slug,
+            owner=owner,
+            watchers=ticket.watchers,
+            task_path=ref.path,
+        )
     git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — paused")
 
 
