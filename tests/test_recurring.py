@@ -2020,7 +2020,7 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
         return R()
 
     monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
-    monkeypatch.setattr("relay.slack.requests.post", capture_slack)
+    monkeypatch.setattr("relay.notification.slack.requests.post", capture_slack)
 
     result = CliRunner().invoke(app, ["recurring"])
 

@@ -146,7 +146,7 @@ def run(
         report.fixes.extend(apply_safe_fixes(cfg, only=refs))
 
     if check_slack:
-        report.issues.extend(_slack_issues(cfg))
+        report.issues.extend(_notification_issues(cfg))
 
     valid_assignees = _valid_assignee_set(cfg)
     now = datetime.now(timezone.utc)
@@ -732,32 +732,56 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _slack_issues(cfg: Config) -> list[Issue]:
+def _notification_issues(cfg: Config) -> list[Issue]:
+    issues = [
+        Issue(
+            kind="notification-deprecated-config",
+            task="(notification)",
+            message=note,
+            severity="warn",
+        )
+        for note in cfg.notification_deprecation_notes
+    ]
+    if "slack" not in cfg.notification_channels:
+        return issues
     if not cfg.slack_enabled:
-        return []
+        return issues
     if not cfg.slack_webhook:
-        return [Issue(
-            kind="slack-misconfigured",
-            task="(slack)",
-            message="no Slack webhook configured — set [slack].webhook (relay requires it unless [slack].enabled = false)",
-            severity="error",
-        )]
+        issues.append(
+            Issue(
+                kind="slack-misconfigured",
+                task="(slack)",
+                message=(
+                    "no Slack webhook configured — set "
+                    "[notification.slack].webhook (Relay requires it unless "
+                    "[notification.slack].enabled = false)"
+                ),
+                severity="error",
+            )
+        )
+        return issues
     status, detail = probe_slack(cfg.slack_webhook)
     if status == "live":
-        return []
+        return issues
     if status == "revoked":
-        return [Issue(
-            kind="slack-revoked",
+        issues.append(
+            Issue(
+                kind="slack-revoked",
+                task="(slack)",
+                message=f"webhook URL not recognized by Slack: {detail}",
+                severity="error",
+            )
+        )
+        return issues
+    issues.append(
+        Issue(
+            kind="slack-unreachable",
             task="(slack)",
-            message=f"webhook URL not recognized by Slack: {detail}",
+            message=f"could not reach Slack: {detail}",
             severity="error",
-        )]
-    return [Issue(
-        kind="slack-unreachable",
-        task="(slack)",
-        message=f"could not reach Slack: {detail}",
-        severity="error",
-    )]
+        )
+    )
+    return issues
 
 
 def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix]:

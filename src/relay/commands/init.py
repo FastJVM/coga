@@ -257,7 +257,10 @@ def _do_init(path: Path, *, via_setup: bool = False) -> None:
             "Add the bin dir to your PATH so `relay` runs:\n"
             f"       export PATH=\"{bin_dir}:$PATH\""
         )
-    steps.append(f"Edit {relay_os}/relay.toml — set your agents, Slack, and aliases.")
+    steps.append(
+        f"Edit {relay_os}/relay.toml — set your agents, notification channels, "
+        "and aliases."
+    )
     if not via_setup:
         steps.append(
             "Run `relay setup` — it records your name in relay.local.toml, then "
@@ -272,27 +275,28 @@ def _do_init(path: Path, *, via_setup: bool = False) -> None:
     for i, step in enumerate(steps, 1):
         typer.echo(f"  {i}. {step}")
 
-    _print_slack_state(local_toml)
+    _print_notification_state(local_toml)
 
 
-def _print_slack_state(local_toml: Path) -> None:
-    """End-of-init line on Slack — set ✓, unset ⚠. Doesn't gate the init."""
+def _print_notification_state(local_toml: Path) -> None:
+    """End-of-init line on notifications — set ✓, unset ⚠. Doesn't gate init."""
     typer.echo("")
     if os.environ.get("SLACK_WEBHOOK_URL"):
         typer.secho(
-            "✓ Slack: $SLACK_WEBHOOK_URL is set — relay will post once "
-            '[slack].webhook = "env:SLACK_WEBHOOK_URL" is in relay.toml (the default).',
+            "✓ Notifications: $SLACK_WEBHOOK_URL is set — Relay will post "
+            "through Slack once [notification.slack].webhook points at it "
+            "(the default).",
             fg=typer.colors.GREEN,
         )
         return
     typer.secho(
-        "⚠ Slack: $SLACK_WEBHOOK_URL is not set. Relay requires a webhook for the team\n"
-        "  sync point — bump/slack/panic/launch will refuse to run until you point\n"
-        '  [slack].webhook at it (relay.toml ships webhook = "env:SLACK_WEBHOOK_URL")\n'
-        "  and export the env var.\n"
+        "⚠ Notifications: $SLACK_WEBHOOK_URL is not set. Relay requires a live\n"
+        "  notification channel for the team sync point — bump/slack/panic/launch\n"
+        "  will refuse to run until you point [notification.slack].webhook at it\n"
+        '  (relay.toml ships webhook = "env:SLACK_WEBHOOK_URL") and export the env var.\n'
         "  To opt out (solo runs, dev/test), add to "
         f"{local_toml}:\n"
-        "      [slack]\n"
+        "      [notification.slack]\n"
         "      enabled = false",
         fg=typer.colors.YELLOW,
     )

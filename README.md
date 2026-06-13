@@ -110,8 +110,8 @@ relay ticket "First task"
 
 Multi-surface companies (e.g. an admin repo + a code repo) run multiple
 relay-os/ side by side — coordinate them by giving each repo a
-`[slack].webhook = "env:SLACK_WEBHOOK_URL"` entry whose env var resolves to
-the same channel webhook.
+`[notification.slack].webhook = "env:SLACK_WEBHOOK_URL"` entry whose env var
+resolves to the same channel webhook.
 
 ## Layout
 
@@ -595,8 +595,8 @@ headless `claude -p` session whose output is buffered to the task log.
 
 ### `relay panic --task <slug> --reason "..."`
 
-The agent gives up. Writes a blocker entry to the ticket and posts to the
-Slack channel naming the owner so a human (or another agent) can pick it up.
+The agent gives up. Writes a blocker entry to the ticket and posts a
+notification naming the owner so a human (or another agent) can pick it up.
 Relay has no task lock to release — the ticket's `status` is the only signal.
 Intended for the agent to call when it's truly stuck — not for routine
 handoffs.
@@ -607,26 +607,25 @@ relay panic --task add-retry --reason "Auth flow needs prod creds I don't have"
 
 ### `relay slack --task <slug> --message "..."`
 
-Manual broadcast escape hatch. Posts a short FYI to the team Slack
-channel without changing task state — for events that don't coincide
-with a `bump`/`panic`/launch transition (e.g. a human announcing they
-hand-edited a ticket, or "tests still flaky" mid-step). For FYIs that
-*do* fire alongside a state change, prefer `bump --message`.
+Manual broadcast escape hatch. Posts a short FYI through the configured
+notification channel without changing task state — for events that don't
+coincide with a `bump`/`panic`/launch transition (e.g. a human announcing they
+hand-edited a ticket, or "tests still flaky" mid-step). For FYIs that *do*
+fire alongside a state change, prefer `bump --message`.
 
 ```sh
 relay slack --task add-retry --message "Reassigned to pierre"
 ```
 
-### Slack — the team sync point
+### Notifications — the team sync point
 
-Slack is required by default. Every state change posts to the channel
-configured by `[slack].webhook`: ticket created, draft → active, active →
-in_progress, `bump`, `panic`, `slack`, script-mode failure, and each
-recurring scaffold. Relaunching an already-`in_progress` ticket does *not*
-post — that isn't a new state change. Failures are loud: if Slack is
-unreachable or the webhook isn't set, the command exits non-zero
-rather than silently dropping the message — a missed FYI becomes a
-stale mental model on the human side, and that's worse than a noisy
+Notifications are required by default. Slack is the first backend. Urgent and
+manual events post to the channel configured by `[notification.slack].webhook`;
+outcome events may spool into the daily digest before posting. Relaunching an
+already-`in_progress` ticket does *not* post — that isn't a new state change.
+Failures are loud: if Slack is unreachable or the webhook isn't set, the
+command exits non-zero rather than silently dropping the message — a missed FYI
+becomes a stale mental model on the human side, and that's worse than a noisy
 retry.
 
 **Setup (solo or team).** Create a Slack incoming webhook for the
@@ -635,7 +634,10 @@ locally. Fresh `relay.toml` files include this entry; older or minimal repos
 should add it:
 
 ```toml
-[slack]
+[notification]
+channels = ["slack"]
+
+[notification.slack]
 webhook = "env:SLACK_WEBHOOK_URL"
 ```
 
@@ -645,14 +647,14 @@ Then set the env var in your shell rc:
 export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/..."
 ```
 
-Relay reads the webhook from `[slack].webhook`, not directly from the bare
-process environment. `SLACK_WEBHOOK_URL` only counts when referenced with
-`env:` as above. The URL is a bearer token — anyone holding it can post to
-that channel as the app. Don't commit a literal URL; don't paste it in tickets
-or logs. Rotate via the Slack app's webhook page if it ever leaks. For
+Relay reads the canonical webhook from `[notification.slack].webhook`. Legacy
+`[slack].webhook` and a bare `SLACK_WEBHOOK_URL` remain deprecated
+compatibility fallbacks. The URL is a bearer token — anyone holding it can post
+to that channel as the app. Don't commit a literal URL; don't paste it in
+tickets or logs. Rotate via the Slack app's webhook page if it ever leaks. For
 multi-user setups, commit the safe `env:` reference and have each member export
-the same URL locally; `relay.local.toml` may override `[slack].webhook` for a
-machine-specific channel.
+the same URL locally; `relay.local.toml` may override
+`[notification.slack].webhook` for a machine-specific channel.
 
 Run `relay validate --check-slack` to probe the webhook (POSTs an
 empty-text payload that Slack rejects without posting to the channel)
@@ -663,11 +665,11 @@ daemon / cron / launched-script runs leave a recoverable trace.
 **Opt out (solo dev / CI / dry runs).** Set in `relay.local.toml`:
 
 ```toml
-[slack]
+[notification.slack]
 enabled = false
 ```
 
-With `enabled = false`, every Slack call is suppressed to stderr and
+With `enabled = false`, every Slack-channel call is suppressed to stderr and
 nothing crashes. Treat this as an exit from the sync loop, not a
 default — once you're working with another person, turn it back on.
 
