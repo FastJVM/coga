@@ -3,6 +3,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: codex/notification-channels
 worktree: /tmp/relay-notification-channels
+pr: https://github.com/FastJVM/relay/pull/359
+
+(No CI configured on this repo — `gh pr checks 359` reports no checks. Verification was local; see Self-QA + Implement result below.)
 
 ## Implementation notes
 
