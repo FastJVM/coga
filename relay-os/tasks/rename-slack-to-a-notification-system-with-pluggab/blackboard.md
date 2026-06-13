@@ -67,3 +67,32 @@ flagged by 3 agents. Commit `992ad68`.
 - `PYTHONPATH=src python3.12 -m pytest -q -p no:cacheprovider` — 721 passed,
   1 skipped. (Default `python` here is conda 3.9, no `tomllib`; use 3.11+.)
 - example fixture `validate --json` — clean (0 issues).
+
+---
+
+## Review
+
+Reviewed PR #359 as the human-gate step. No code-review findings requiring
+changes.
+
+Mergeability fix:
+
+- GitHub reported the PR as `DIRTY` after `main` advanced.
+- Rebasing `codex/notification-channels` onto `origin/main` produced one
+  conflict in `src/relay/commands/init.py`.
+- Resolved by preserving `main`'s `relay setup` next-step flow and applying the
+  PR's notification-channel wording.
+- Force-pushed with lease. New commits:
+  - `55f6227` (`Introduce notification channel layer`)
+  - `b8b2a14` (`self-qa: apply /simplify finding (single-pass owner grouping)`)
+
+Verification after rebase:
+
+- `PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 python3.12 -m pytest -q -p no:cacheprovider`
+  — 734 passed, 1 skipped.
+- `PYTHONPATH=/tmp/relay-notification-channels/src PYTHONDONTWRITEBYTECODE=1 python3.12 -m relay.cli validate --task rename-slack-to-a-notification-system-with-pluggab --json`
+  from primary checkout — clean.
+- `PYTHONPATH=/tmp/relay-notification-channels/src PYTHONDONTWRITEBYTECODE=1 python3.12 -m relay.cli validate --json`
+  from `example/relay-os` — clean.
+- `git diff --check origin/main...HEAD` — clean.
+- `gh pr checks 359` — no checks reported.
