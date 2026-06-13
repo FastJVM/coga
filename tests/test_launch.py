@@ -7,6 +7,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from conftest import seed_direct_body_workflow
 from relay.cli import app
 from relay.scaffold import scaffold_task
 from relay.commands.launch import (
@@ -341,11 +342,12 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
 
+    seed_direct_body_workflow(company)
     monkeypatch.chdir(company)
     cfg = load_config(company)
     scaffold_task(
         cfg=cfg, title="Fix retry logic",
-        workflow_name=None, contexts=[], mode="interactive",
+        workflow_name="direct/body", contexts=[], mode="interactive",
         owner="marc", assignee="claude", watchers=[], status="active",
     )
     return company
@@ -1045,9 +1047,12 @@ def test_launch_auto_activate_bails_without_workflow(
     from relay.ticket import Ticket
 
     cfg = load_config(active_task)
-    ref = list_tasks(cfg)[0]  # the default fixture task has no workflow
+    ref = list_tasks(cfg)[0]
+    # Strip the workflow and drop to draft so launch's auto-activate hits the
+    # workflow-less path (a workflow-less non-draft can't be scaffolded now).
     t = Ticket.read(ref.path / "ticket.md")
     t.frontmatter["status"] = "draft"
+    t.frontmatter["workflow"] = None
     t.write(ref.path / "ticket.md")
 
     calls = _launch_single_spawn(monkeypatch)

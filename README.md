@@ -278,9 +278,12 @@ relay mark done   add-retry         # active / in_progress → done. Clears step
 
 `relay mark active` refuses a ticket with no workflow — a workflow-less
 ticket has no steps and can't be moved by `relay bump`. A bare-string
-`workflow:` ref is frozen into its snapshot on activation. (Recurring and
-retire tasks are intentionally workflow-less and are scaffolded straight to
-`active`, bypassing this gate.)
+`workflow:` ref is frozen into its snapshot on activation. `relay validate`
+backs the same rule, erroring on a workflow-less `active`/`in_progress`/`paused`
+ticket: a workflow is mandatory everywhere except `draft`. (Recurring and
+retire tasks scaffold straight to `active`, but they are *not* workflow-less:
+a template that declares no workflow, and every retire task, scaffolds with
+the one-step `direct/body` workflow that runs the ticket body directly.)
 
 `relay launch` owns the `active` → `in_progress` start transition. `relay
 bump` no longer marks final-step tickets done.
@@ -313,9 +316,12 @@ the last invocation. Dedup after a completed run is deleted comes from
 template `log.md` stays append-only human history; it is not parsed for dedup.
 
 Recurring scaffolding goes through `scaffold_task()` in `relay.scaffold`
-directly with the template's full frontmatter. Recurring tasks are
-workflow-less, so they are scaffolded straight to `active` — they can't go
-through the `relay mark active` gate.
+directly with the template's full frontmatter. Recurring tasks are scaffolded
+straight to `active` — they can't go through the `relay mark active` gate — so
+they must carry a workflow to be valid and bumpable: a template that declares
+its own keeps it, and a workflow-less one (e.g. Dream) scaffolds with the
+one-step `direct/body` workflow, which runs the template body's ordered phases
+directly.
 
 `scripts/cron.sh` calls `relay recurring` directly. Naming a command
 `recurring` does not install or schedule anything — `relay recurring` only
@@ -571,9 +577,9 @@ always deletes the processed source task in a reviewable PR. When it extracts
 new durable knowledge, that PR records the `## Retro` marker, edits the
 knowledge base, and deletes the source task directory together. When no new
 durable knowledge exists, Retro records `result: no-new-durable-knowledge` and
-deletes the ticket in a delete-only prune PR. The retire task is workflow-less,
-so it is scaffolded straight to `active` and launched unless `--no-launch` is
-passed.
+deletes the ticket in a delete-only prune PR. The retire task scaffolds
+straight to `active` carrying the one-step `direct/body` workflow (which runs
+its body directly) and is launched unless `--no-launch` is passed.
 
 Refuses if the target task is not `status: done`. Use `relay delete`
 for an abandoned ticket where retro has nothing to extract. Branch

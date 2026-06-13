@@ -9,12 +9,39 @@ the real env can override these with `monkeypatch.setenv` themselves.
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from textwrap import dedent
 
 import pytest
+
+
+_TEMPLATES_RELAY_OS = (
+    Path(__file__).resolve().parents[1]
+    / "src" / "relay" / "resources" / "templates" / "relay-os"
+)
+
+
+def seed_direct_body_workflow(relay_os: Path) -> None:
+    """Copy the shipped `direct/body` workflow + skill into a test repo.
+
+    The scaffolder freezes `direct/body` onto workflow-less recurring/retire
+    tasks (real repos get it from `relay init`), so any fixture that scaffolds
+    one needs the file present. Copying the shipped bytes keeps it identical to
+    the test-side re-seed, so a committed copy stays diff-clean.
+    """
+    skill_dst = relay_os / "skills" / "direct" / "body"
+    skill_dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(
+        _TEMPLATES_RELAY_OS / "skills" / "direct" / "body",
+        skill_dst,
+        dirs_exist_ok=True,
+    )
+    wf_dst = relay_os / "workflows" / "direct" / "body.md"
+    wf_dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(_TEMPLATES_RELAY_OS / "workflows" / "direct" / "body.md", wf_dst)
 
 
 @pytest.fixture(autouse=True)
@@ -231,6 +258,7 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             """
         ).lstrip()
     )
+    seed_direct_body_workflow(relay_os)
     (relay_os / "tasks").mkdir()
 
     _g("remote", "add", "origin", str(origin))

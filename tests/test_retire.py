@@ -10,6 +10,8 @@ from typer.testing import CliRunner
 from relay.cli import app
 from relay.ticket import Ticket
 
+from conftest import seed_direct_body_workflow
+
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -42,6 +44,10 @@ def repo(tmp_path: Path) -> Path:
         enabled = false
         """,
     )
+    # Retire scaffolds its task with the `direct/body` workflow; the minimal
+    # test repo needs that shipped workflow + skill present (real repos get it
+    # from `relay init`) or `scaffold_task` fails to load the workflow.
+    seed_direct_body_workflow(relay_os)
     return relay_os
 
 
@@ -89,12 +95,13 @@ def test_retire_no_launch_scaffolds_task_with_target_slug(
     assert new_task.is_dir()
     ticket = Ticket.read(new_task / "ticket.md")
     assert ticket.title == "Retire fix-retry-logic"
-    # Workflow-less retire tasks scaffold straight to `active` — `relay mark
-    # active` would refuse them.
+    # Retire tasks scaffold straight to `active`, carrying the `direct/body`
+    # workflow so they run their body directly while still being a
+    # workflow-carrying, bumpable, valid active task.
     assert ticket.status == "active"
     assert ticket.mode == "interactive"
     assert ticket.assignee == "claude"
-    assert ticket.workflow is None
+    assert ticket.workflow["name"] == "direct/body"
     assert "Retire the done ticket `fix-retry-logic`" in ticket.body
     assert "retro/done-ticket" in ticket.body
     # Source task untouched until the agent runs the retro skill.

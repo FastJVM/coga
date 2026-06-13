@@ -6,6 +6,7 @@ from textwrap import dedent
 import pytest
 
 from relay.scaffold import scaffold_task
+from relay.slugify import slugify
 from relay.compose import (
     ComposeError,
     compose_prompt,
@@ -21,6 +22,39 @@ from relay.ticket import Ticket
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
+
+
+def _write_workflow_less_task(
+    repo: Path, *, title: str, mode: str = "interactive", status: str = "active"
+) -> str:
+    """Write a workflow-less task directly to disk. `scaffold_task` refuses to
+    create a workflow-less non-draft task now, but compose handles a
+    workflow-less ticket fine, so on-disk construction keeps these
+    compose-only tests focused on a minimal (no workflow-step layer) prompt."""
+    slug = slugify(title)
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(dedent(f"""
+        ---
+        title: {title}
+        status: {status}
+        mode: {mode}
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: claude
+        contexts: []
+        skills: []
+        workflow: null
+        ---
+
+        ## Description
+
+        ## Context
+    """).lstrip())
+    (task_dir / "blackboard.md").write_text("# Blackboard\n")
+    (task_dir / "log.md").write_text("")
+    return slug
 
 
 @pytest.fixture
@@ -108,17 +142,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
 
 def test_compose_header_uses_resolved_nested_task_directory(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg,
-        title="Fix retry logic",
-        workflow_name=None,
-        contexts=[],
-        mode="interactive",
-        owner="marc",
-        assignee="claude",
-        watchers=[],
-        status="active",
-    )
+    _write_workflow_less_task(repo, title="Fix retry logic")
     top = repo / "tasks" / "fix-retry-logic"
     nested = repo / "tasks" / "auto" / "fix-retry-logic"
     nested.parent.mkdir()
@@ -193,17 +217,7 @@ def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
 
 def test_compose_auto_mode_uses_auto_block(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg,
-        title="Auto task",
-        workflow_name=None,
-        contexts=[],
-        mode="auto",
-        owner=None,
-        assignee=None,
-        watchers=[],
-        status="active",
-    )
+    _write_workflow_less_task(repo, title="Auto task", mode="auto")
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
@@ -241,11 +255,7 @@ def test_compose_defuses_done_marker_in_ticket_body(repo: Path) -> None:
     the composed prompt — the supervisor would otherwise SIGTERM the
     agent's REPL before any work begins."""
     cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg, title="Quote the marker", workflow_name=None,
-        contexts=[], mode="interactive", owner=None, assignee=None,
-        watchers=[], status="active",
-    )
+    _write_workflow_less_task(repo, title="Quote the marker")
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     # Rewrite the body so `## Description` carries the literal marker. The
@@ -268,11 +278,7 @@ def test_compose_defuses_done_marker_in_ticket_body(repo: Path) -> None:
 def test_compose_defuses_done_marker_in_blackboard(repo: Path) -> None:
     """Same defusal must cover the blackboard layer."""
     cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg, title="bb marker", workflow_name=None,
-        contexts=[], mode="interactive", owner=None, assignee=None,
-        watchers=[], status="active",
-    )
+    _write_workflow_less_task(repo, title="bb marker")
     ref = list_tasks(cfg)[0]
     marker = DONE_MARKER.decode("ascii")
     (ref.path / "blackboard.md").write_text(
@@ -286,11 +292,7 @@ def test_compose_defuses_done_marker_in_blackboard(repo: Path) -> None:
 def test_compose_raises_on_missing_context(repo: Path) -> None:
     """A referenced context with no file fails loud instead of silently dropping."""
     cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg, title="Ghost ctx", workflow_name=None,
-        contexts=[], mode="interactive", owner=None, assignee=None,
-        watchers=[], status="active",
-    )
+    _write_workflow_less_task(repo, title="Ghost ctx")
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     # Simulate a context ref whose file was deleted after the ticket was authored.
@@ -307,11 +309,7 @@ def test_compose_raises_on_missing_context(repo: Path) -> None:
 
 def test_compose_raises_on_missing_ticket_level_skill(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg, title="Ghost skill", workflow_name=None,
-        contexts=[], mode="interactive", owner=None, assignee=None,
-        watchers=[], status="active",
-    )
+    _write_workflow_less_task(repo, title="Ghost skill")
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     ticket.frontmatter["skills"] = ["infra/ghost"]
@@ -326,11 +324,7 @@ def test_compose_raises_on_missing_ticket_level_skill(repo: Path) -> None:
 
 def test_compose_raises_on_missing_step_skill(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg, title="Ghost step skill", workflow_name=None,
-        contexts=[], mode="interactive", owner=None, assignee=None,
-        watchers=[], status="active",
-    )
+    _write_workflow_less_task(repo, title="Ghost step skill")
     ref = list_tasks(cfg)[0]
     # Hand-build a ticket whose frozen workflow step points at a missing skill.
     ticket = Ticket(
@@ -356,11 +350,7 @@ def test_compose_raises_on_missing_step_skill(repo: Path) -> None:
 
 def test_write_prompt_file(repo: Path, tmp_path: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner=None, assignee=None,
-        watchers=[], status="active",
-    )
+    _write_workflow_less_task(repo, title="X")
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)

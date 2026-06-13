@@ -109,7 +109,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # 4. Create a second task so we can exercise panic + slack without revival of the first.
     ref2 = scaffold_task(
         cfg=cfg, title="Investigate slow DNS",
-        workflow_name=None, contexts=[], mode="interactive",
+        workflow_name="code/with-review", contexts=[], mode="interactive",
         owner="marc", assignee="claude", watchers=[], status="in_progress",
     )
     r = runner.invoke(app, [

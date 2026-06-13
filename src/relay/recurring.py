@@ -590,16 +590,17 @@ def _scaffold_at_slug(
     ref = scaffold_task(
         cfg=cfg,
         title=title,
-        workflow_name=template.frontmatter.get("workflow"),
+        # Recurring tasks scaffold straight to `active`, and every task past
+        # `draft` carries a workflow. A template that declares its own (e.g.
+        # digest) keeps it; a workflow-less one (e.g. Dream, whose process is
+        # its body's ordered phases) runs through the one-step `direct/body`
+        # workflow so it is activatable, bumpable, and valid like any task.
+        workflow_name=template.frontmatter.get("workflow") or "direct/body",
         contexts=contexts,
         mode=effective_mode,
         owner=template.frontmatter.get("owner"),
         assignee=assignee,
         watchers=list(template.frontmatter.get("watchers") or []),
-        # Recurring tasks scaffold straight to `active`: they are
-        # machine-authored ready jobs, and a workflow-less one (e.g. Dream)
-        # could not otherwise be activated — `relay mark active` refuses
-        # workflow-less tickets.
         status="active",
         slug_override=target_slug,
         # Carry the template body verbatim so sections beyond `## Description`

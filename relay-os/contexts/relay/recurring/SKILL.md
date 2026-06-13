@@ -60,8 +60,10 @@ scanner skips it. That is how the starter templates ship without firing.
   in the run's Slack summary.
 - `mode` — `script`, `auto`, or `interactive`. Defaults to `auto`.
 - `title` — the scaffolded period task's title (else the humanized name).
-- `workflow` — optional. A workflow-less recurring task runs its body
-  directly as the prompt; Dream is the canonical example.
+- `workflow` — optional. A template that names none scaffolds with the
+  one-step `direct/body` workflow, which runs the ticket body's ordered
+  phases directly as the prompt; Dream is the canonical example. (The task is
+  still workflow-carrying and bumpable — `direct/body` is the workflow.)
 - `owner`, `assignee`, `watchers`, `contexts` — passed through to the
   scaffolded period task.
 
@@ -103,8 +105,9 @@ task, which carries that rule.
   parsing the log. Logs are never composed into prompts, so history can grow
   without bloating the next run.
 - Period tasks scaffold **straight to `status: active`** — ready jobs, not
-  drafts to triage. (A workflow-less one could not otherwise be activated:
-  `relay mark active` refuses workflow-less tickets.)
+  drafts to triage. Because every active task must carry a workflow, a
+  template that declares none scaffolds with `direct/body` (it would otherwise
+  be un-activatable and `relay validate` would flag it as a stuck task).
 - `assignee` defaults to the repo's configured **default agent** when the
   recurring task omits it — never the human `owner`, which `relay launch`
   cannot resolve to an agent type.

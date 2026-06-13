@@ -23,8 +23,10 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "relay/resources/templates/relay-os/recurring/autoclose-merged/ticket.md",
     "relay/resources/templates/relay-os/recurring/skill-update/ticket.md",
     "relay/resources/templates/relay-os/workflows/autoclose-merged/sweep.md",
+    "relay/resources/templates/relay-os/workflows/direct/body.md",
     "relay/resources/templates/relay-os/workflows/skill-update/run.md",
     "relay/resources/templates/relay-os/skills/_template/SKILL.md",
+    "relay/resources/templates/relay-os/skills/direct/body/SKILL.md",
 )
 
 

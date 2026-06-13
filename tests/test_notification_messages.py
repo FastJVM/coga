@@ -34,6 +34,39 @@ def _write(path: Path, text: str) -> None:
     path.write_text(dedent(text).lstrip())
 
 
+def _write_workflow_less_task(
+    repo: Path,
+    *,
+    slug: str = "work",
+    status: str = "active",
+    assignee: str | None = "claude",
+) -> tuple[str, Path]:
+    """Write a workflow-less task directly to disk. `scaffold_task` refuses to
+    create a workflow-less non-draft task now, so on-disk construction is the
+    only way to exercise the workflow-less collapse messages."""
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(dedent(f"""
+        ---
+        title: Work
+        status: {status}
+        mode: interactive
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: {assignee}
+        contexts: []
+        skills: []
+        workflow: null
+        ---
+
+        ## Description
+    """).lstrip())
+    (task_dir / "blackboard.md").write_text("# Blackboard\n")
+    (task_dir / "log.md").write_text("")
+    return slug, task_dir
+
+
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     company = tmp_path / "relay-os"
@@ -80,11 +113,19 @@ def _make_task(
     pr_url: str | None = None,
 ) -> tuple[str, Path]:
     cfg = load_config(repo)
-    ref = scaffold_task(
-        cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], mode="interactive", owner="marc", assignee=assignee,
-        watchers=[], status=status,
-    )
+    if workflow is None and status != "draft":
+        # `scaffold_task` refuses to create a workflow-less non-draft task now,
+        # so the workflow-less collapse tests construct that shape on disk.
+        slug, path = _write_workflow_less_task(
+            repo, status=status, assignee=assignee
+        )
+        ref = {"slug": slug, "path": path}
+    else:
+        ref = scaffold_task(
+            cfg=cfg, title="Work", workflow_name=workflow,
+            contexts=[], mode="interactive", owner="marc", assignee=assignee,
+            watchers=[], status=status,
+        )
     path = ref["path"]
     if workflow and on_final:
         t = Ticket.read(path / "ticket.md")

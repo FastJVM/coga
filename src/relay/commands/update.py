@@ -76,7 +76,15 @@ VENDORED_RECURRING_TEMPLATES: tuple[str, ...] = (
 # workflows: most named workflows are repo-owned playbooks.
 VENDORED_WORKFLOW_TEMPLATES: tuple[str, ...] = (
     "workflows/autoclose-merged/sweep.md",
+    "workflows/direct/body.md",
     "workflows/skill-update/run.md",
+)
+
+# Narrow set of upstream-owned skills that vendored workflows require. Most
+# skills remain user-owned or managed through `managed-skills.toml`; these files
+# are copied because core Relay batteries call them unconditionally.
+VENDORED_SKILL_TEMPLATES: tuple[str, ...] = (
+    "skills/direct/body/SKILL.md",
 )
 
 _LEGACY_RELAY_GITIGNORE_ENTRIES: set[str] = {
@@ -208,6 +216,8 @@ def refresh_templates(
         `blackboard.md`/`log.md` files are per-repo and left untouched.
       - `VENDORED_WORKFLOW_TEMPLATES` — named relay-owned workflows referenced
         by those batteries, refreshed by `_copy_vendored_workflows`.
+      - `VENDORED_SKILL_TEMPLATES` — named relay-owned skills required by
+        those workflows, refreshed by `_copy_vendored_skills`.
       - `.gitignore` — must track upstream so new ignore entries land in
         existing repos without manual edits.
 
@@ -218,6 +228,7 @@ def refresh_templates(
     copied = _copy_templates(src_root, relay_os)
     copied.extend(refresh_gitignored_mirrors(relay_os, src_root))
     copied.extend(_copy_vendored_workflows(src_root, relay_os))
+    copied.extend(_copy_vendored_skills(src_root, relay_os))
     copied.extend(_copy_upstream_files(src_root, relay_os))
     pruned = _prune_removed_templates(src_root, relay_os)
     return copied, pruned
@@ -782,6 +793,24 @@ def _copy_vendored_workflows(src_root: Traversable, dst_root: Path) -> list[str]
     """
     copied: list[str] = []
     for rel in VENDORED_WORKFLOW_TEMPLATES:
+        src = _resource_join(src_root, Path(rel))
+        if not src.is_file():
+            continue
+        _copy_resource_file(src, dst_root / rel)
+        copied.append(rel)
+    return copied
+
+
+def _copy_vendored_skills(src_root: Traversable, dst_root: Path) -> list[str]:
+    """Refresh the named relay-owned skills listed in
+    `VENDORED_SKILL_TEMPLATES`.
+
+    These are skill files that vendored workflows need in order to launch.
+    Missing srcs are skipped so older package resources remain tolerable during
+    development.
+    """
+    copied: list[str] = []
+    for rel in VENDORED_SKILL_TEMPLATES:
         src = _resource_join(src_root, Path(rel))
         if not src.is_file():
             continue
