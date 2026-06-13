@@ -16,7 +16,7 @@ from a bare cron environment (`LANG=C`) would otherwise crash encoding `→`/`�
 Concurrency: Relay runs one CLI process at a time, so appends and drains are
 serialized by that. Writes still go through `atomic_write_text` so a crash
 mid-write can't truncate the blackboard. `drain` defensively ignores any
-non-JSON line in the section (e.g. a stray ledger line appended at EOF), and
+non-JSON line in the section (e.g. a stray high-water line appended at EOF), and
 rewrites only the spool section — never the rest of the file.
 """
 
@@ -66,7 +66,7 @@ def read_records(path: Path) -> list[dict]:
     """Return the pending JSONL records without modifying the file.
 
     Only lines that parse as JSON objects are returned; any other line in the
-    section (blank lines, a stray ledger line) is ignored.
+    section (blank lines, a stray high-water line) is ignored.
     """
     if not path.is_file():
         return []
@@ -82,9 +82,9 @@ def drain(path: Path) -> list[dict]:
     Returns the records in append order. An absent file or empty spool yields
     `[]` and leaves the file untouched (idempotent no-op). Only the JSON record
     lines are removed: any non-record line that happened to land in the section
-    body — notably a `scaffolded …` period-ledger line that
-    `recurring._record_run` appends at EOF when the spool is the last section —
-    is preserved, and everything outside the section is untouched verbatim.
+    body — notably a `last_serviced_period` line if another writer appended at
+    EOF when the spool is the last section — is preserved, and everything
+    outside the section is untouched verbatim.
     """
     if not path.is_file():
         return []
@@ -100,7 +100,7 @@ def drain(path: Path) -> list[dict]:
             continue
         rec = _as_record(raw)
         if rec is None:
-            kept.append(raw)  # not a record (e.g. a ledger line) — preserve it
+            kept.append(raw)  # not a record (e.g. a high-water line) — preserve it
         else:
             records.append(rec)
     if not records:
@@ -121,9 +121,8 @@ def _parse_records(body: str) -> list[dict]:
 def _as_record(line: str) -> dict | None:
     """Parse one line as a JSONL record, or None if it isn't one.
 
-    A non-record line (a blank line, or a `scaffolded …` ledger line that
-    `recurring._record_run` appended at EOF) returns None so callers can skip
-    or preserve it.
+    A non-record line (a blank line, or a `last_serviced_period` line) returns
+    None so callers can skip or preserve it.
     """
     stripped = line.strip()
     if not stripped:

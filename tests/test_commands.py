@@ -927,7 +927,7 @@ def test_status_splits_recurring_into_own_table(repo: Path) -> None:
     scaffold_task(
         cfg=cfg, title="Recurring", workflow_name=None, contexts=[],
         mode="interactive", owner="marc", assignee="claude",
-        watchers=[], status="active", slug_override="recurring-foo-2026-W24",
+        watchers=[], status="active", slug_override="recurring/foo",
     )
     result = CliRunner().invoke(app, ["status"])
     assert result.exit_code == 0, result.output
@@ -937,7 +937,7 @@ def test_status_splits_recurring_into_own_table(repo: Path) -> None:
     assert (
         out.index("normal-task")
         < out.index("Recurring")
-        < out.index("recurring-foo-2026-W24")
+        < out.index("recurring/foo")
     )
 
 

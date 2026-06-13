@@ -1,4 +1,4 @@
-"""Recurring task templates under `relay-os/recurring/*.md`."""
+"""Recurring task templates under `relay-os/recurring/<name>/`."""
 
 from __future__ import annotations
 
@@ -31,8 +31,8 @@ class Template:
     """A recurring task — a ticket-format directory under `recurring/<name>/`.
 
     `ticket.md` carries the schedule and run body; `blackboard.md` persists
-    across runs for forward state. `log.md` is the period ledger: `_record_run`
-    appends a scaffolding line every time a new period task is created.
+    across runs for forward state, including the `last_serviced_period`
+    high-water mark. `log.md` is append-only human history.
     """
 
     path: Path  # the recurring task directory
@@ -71,19 +71,18 @@ class Template:
     def blackboard_path(self) -> Path:
         """Persistent working state, composed into each run's prompt (layer 7).
 
-        Kept small on purpose: the period ledger and run records live in
-        `log_path` (never composed), so the blackboard carries only the
-        forward state the next run actually reads.
+        Kept small on purpose: the blackboard carries only forward state the
+        next run actually reads, while append-only history lives in `log_path`
+        (never composed).
         """
         return self.path / "blackboard.md"
 
     @property
     def log_path(self) -> Path:
-        """Append-only period ledger + run history (see `_record_run`).
+        """Append-only period history (see `_record_run`).
 
         Never a prompt-composition layer, so it can grow without bloating any
-        run's context. `scan_due` reads it to decide whether a period has
-        already been handled even after the period task dir is gone.
+        run's context.
         """
         return self.path / "log.md"
 
@@ -92,9 +91,9 @@ class Template:
 class ScaffoldOutcome:
     """Result of scaffolding one recurring template for a given firing.
 
-    `created` is False when a task already exists for the period — the
-    scaffold is idempotent, so two `relay recurring` runs in the same period
-    converge on one task directory.
+    `created` is False when a task already exists for the template — the
+    scaffold is idempotent, so two `relay recurring` runs converge on the
+    stable `tasks/recurring/<name>/` directory.
     """
 
     ref: TaskRef
@@ -121,11 +120,9 @@ class DueTask:
     see `launchable`). `last_fire` is the scheduled firing this task covers —
     used to report "ready" vs "overdue" and to order launches.
 
-    `ref` is `None` when the period was already scaffolded earlier this cycle
-    and the task directory has since been removed (a later Dream run deletes
-    done recurring period tickets via its retro pass; a human `relay delete` is
-    the other case). The template's `log.md` is the period ledger — see
-    `_period_already_scaffolded`.
+    `ref` is `None` when the period was already serviced earlier and the task
+    directory has since been removed. The template's `blackboard.md` carries
+    the `last_serviced_period` high-water mark used for that decision.
     """
 
     template: str
@@ -146,9 +143,10 @@ class DueTask:
         # current `step:` (it only flips status on an `active` launch). Worst
         # case a false relaunch redoes a step the human then catches — cheaper
         # than a liveness mechanism. The orphan need not be the *current*
-        # period's — identity is the `recurring-<name>-` slug prefix, so a
-        # stuck prior-period run is found and resumed too (and defers the next
-        # period until it reaches done/paused: one live task per template).
+        # period's — identity is the `recurring` task group plus the template
+        # leaf slug, so a stale leftover is found and resumed too (and defers
+        # the next period until it reaches done/paused: one live task per
+        # template).
         # `done` → finished work, never re-run. `paused` → a human parked it.
         return self.status in {"active", "in_progress"}
 
@@ -243,22 +241,21 @@ def scan_due(
 
         last_fire = _last_firing(template.schedule, now)
         period_key = _period_key(template.schedule, last_fire)
-        target_slug = _recurring_slug(template.name, period_key)
+        target_slug = _recurring_slug(template.name)
 
         # One live task per template. A live (active/in_progress) recurring
         # task for this template — even from a *prior* period — is resumed by
         # `scaffold_template` below rather than superseded by a fresh period;
         # so the "already ran" skip only applies when nothing is live.
         #
-        # The template's persistent `log.md` is the period ledger. If it
-        # records a scaffolding for this period and the task directory is gone
-        # (a later Dream run deletes done recurring period tickets via its retro
-        # pass; `relay delete` is the other case), the period was handled — do
-        # not re-scaffold what already ran.
+        # The template's persistent blackboard carries the serviced-period
+        # high-water mark. If it has already advanced through this period and
+        # the task directory is gone, the period was handled — do not
+        # re-scaffold what already ran.
         if (
             _live_task_for_template(cfg, template.name) is None
             and _task_with_slug(cfg, target_slug) is None
-            and _period_already_scaffolded(template, target_slug)
+            and _period_already_serviced(template, period_key)
         ):
             tasks.append(
                 DueTask(
@@ -301,10 +298,10 @@ def scaffold_named(
 ) -> ScaffoldOutcome:
     """Scaffold the named recurring task now, ignoring its schedule.
 
-    `name` is the directory name under `relay-os/recurring/`. The task slug
-    still uses the schedule-derived period key, so a manual `relay recurring
-    launch <name>` and a bare `relay recurring` produce the same task
-    directory for a given period.
+    `name` is the directory name under `relay-os/recurring/`. The task slug is
+    the stable group-qualified `recurring/<name>`, so a manual `relay
+    recurring launch <name>` and a bare `relay recurring` converge on one
+    instantiated task directory.
     """
     now = now or datetime.now()
     path = recurring_dir(cfg) / name
@@ -326,7 +323,7 @@ def scaffold_template(
 
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
-    target_slug = _recurring_slug(template.name, period_key)
+    target_slug = _recurring_slug(template.name)
 
     # One live task per template: an `active`/`in_progress` instance — current
     # period or a dead sweep's prior-period orphan — is *the* live run. Return
@@ -335,7 +332,9 @@ def scaffold_template(
     # is deliberate — finish the in-flight run before piling another on.
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
-        return ScaffoldOutcome(ref=live, created=False)
+        outcome = ScaffoldOutcome(ref=live, created=False)
+        _advance_serviced_period(template, period_key, outcome, now)
+        return outcome
 
     existing = _task_with_slug(cfg, target_slug)
     if existing is not None:
@@ -348,7 +347,7 @@ def scaffold_template(
         effective_mode=effective_mode,
         title=_extract_title(template),
     )
-    _record_run(template, outcome, now)
+    _advance_serviced_period(template, period_key, outcome, now)
     return outcome
 
 
@@ -366,16 +365,6 @@ def is_debug_slug(slug: str) -> bool:
     return bool(_DEBUG_SLUG_RE.search(slug))
 
 
-def is_recurring_slug(slug: str) -> bool:
-    """True if `slug` is a generated recurring period task (`recurring-<name>-…`).
-
-    Excludes `--all` debug runs, whose disposable scratch slugs never carry the
-    `recurring-` prefix. Lets `relay status` peel recurring period tasks into
-    their own table without re-deriving the convention.
-    """
-    return slug.startswith(_RECURRING_PREFIX) and not is_debug_slug(slug)
-
-
 def scaffold_debug_run(
     cfg: Config,
     template: Template,
@@ -385,12 +374,12 @@ def scaffold_debug_run(
 ) -> ScaffoldOutcome:
     """Scaffold a throwaway debug run of one template — `relay recurring --all`.
 
-    Unlike `scaffold_template`, this ignores both the schedule-derived period
-    slug and the period ledger: it always creates a *fresh* task under a unique
-    `<template>-dbg-<timestamp>` slug, so it never collides with — or mutates —
-    the real current-period task (which may already be `done`/`in_progress`/
-    `paused`). The run is meant to be observed once and then deleted; it is not
-    recorded in the template's period ledger.
+    Unlike `scaffold_template`, this ignores both the stable recurring task
+    slug and the serviced-period high-water mark: it always creates a *fresh*
+    task under a unique `<template>-dbg-<timestamp>` slug, so it never collides
+    with — or mutates — the real run (which may already be `done`/
+    `in_progress`/`paused`). The run is meant to be observed once and then
+    deleted; it does not advance `last_serviced_period`.
     """
     effective_mode = _effective_mode(template, allow_interactive=allow_interactive)
     stamp = now.strftime("%Y%m%dT%H%M%S")
@@ -519,7 +508,7 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
         last_fire = _last_firing(template.schedule, now)
         next_fire = _next_firing(template.schedule, now)
         period_key = _period_key(template.schedule, last_fire)
-        target_slug = _recurring_slug(template.name, period_key)
+        target_slug = _recurring_slug(template.name)
         instance = _live_task_for_template(cfg, template.name) or _task_with_slug(
             cfg, target_slug
         )
@@ -621,7 +610,9 @@ def _scaffold_at_slug(
         body=template.body,
         created_by="system",
     )
-    out_ref = TaskRef(slug=ref["slug"], path=ref["path"])
+    out_ref = _task_with_slug(cfg, ref["slug"])
+    if out_ref is None:
+        raise RecurringError(f"scaffolded task disappeared: {ref['slug']}")
 
     # If the template declares the blackboard keys it owns, snapshot their
     # current values into the period task. `relay mark done` later diffs this
@@ -639,27 +630,35 @@ def _scaffold_at_slug(
 # --- helpers ------------------------------------------------------------------
 
 
-def _record_run(template: Template, outcome: ScaffoldOutcome, now: datetime) -> None:
-    """Append a scaffolding line to the template's persistent `log.md`.
-
-    The log is the period ledger: `scan_due` reads it to decide whether this
-    period has already been handled, even after the period task has been
-    deleted (a later Dream run's retro pass, or a human `relay delete`). The
-    ledger lives in `log.md`, not `blackboard.md`, precisely because the log is
-    never composed into a run's prompt — so the ledger can grow indefinitely
-    without bloating context, and the blackboard stays small. Only a freshly
-    created period task is recorded — re-scanning within the same period must
-    not re-log.
-    """
-    if not outcome.created:
+def _advance_serviced_period(
+    template: Template, period_key: str, outcome: ScaffoldOutcome, now: datetime
+) -> None:
+    current = read_last_serviced_period(template.blackboard_path)
+    if current is not None and current >= period_key:
         return
+    write_last_serviced_period(template.blackboard_path, period_key)
+    _record_run(template, outcome, period_key, now)
+
+
+def _record_run(
+    template: Template, outcome: ScaffoldOutcome, period_key: str, now: datetime
+) -> None:
+    """Append a period-history line to the template's persistent `log.md`.
+
+    The load-bearing high-water mark lives in the template blackboard. The log
+    remains append-only human history and is deliberately never composed into a
+    run prompt.
+    """
     log = template.log_path
     existing = log.read_text() if log.is_file() else ""
     # Make sure the appended line lands on its own line, even when the
     # existing log does not end with a newline.
     sep = "" if not existing or existing.endswith("\n") else "\n"
     stamp = now.strftime("%Y-%m-%d %H:%M")
-    log.write_text(f"{existing}{sep}{stamp} [system] scaffolded {outcome.ref.slug}\n")
+    log.write_text(
+        f"{existing}{sep}{stamp} [system] scaffolded "
+        f"{outcome.ref.id_slug} for {period_key}\n"
+    )
 
 
 def _last_firing(cron: str, now: datetime) -> datetime:
@@ -695,23 +694,18 @@ def _period_key(cron: str, fire_time: datetime) -> str:
     return fire_time.strftime("%Y%m%dT%H%M")
 
 
-# Every generated recurring task's slug carries this prefix. It is the
-# identity marker: `_live_task_for_template` matches on `recurring-<name>-`,
-# so a recurring task is recognizable (and a prior-period orphan resumable)
-# regardless of which period suffix it ended up with. Debug runs
-# (`scaffold_debug_run`) intentionally do NOT carry it — they are excluded
-# from resume/dedup by `is_debug_slug`, and leaving them unprefixed keeps the
-# `-dbg-` reaper's template extraction simple.
-_RECURRING_PREFIX = "recurring-"
+_LAST_SERVICED_PERIOD_RE = re.compile(
+    r"^last_serviced_period:\s*(?P<period>\S+)\s*$", re.MULTILINE
+)
 
 
-def _recurring_slug(template_name: str, period_key: str) -> str:
-    return f"{_RECURRING_PREFIX}{template_name}-{period_key}"
+def _recurring_slug(template_name: str) -> str:
+    return f"recurring/{template_name}"
 
 
 def _task_with_slug(cfg: Config, target_slug: str) -> TaskRef | None:
     for ref in list_tasks(cfg):
-        if ref.slug == target_slug:
+        if ref.id_slug == target_slug:
             return ref
     return None
 
@@ -719,21 +713,15 @@ def _task_with_slug(cfg: Config, target_slug: str) -> TaskRef | None:
 def _live_task_for_template(cfg: Config, template_name: str) -> TaskRef | None:
     """The template's single live (`active`/`in_progress`) recurring task.
 
-    Identity is the slug prefix `recurring-<name>-`: any non-debug task under
-    it is this template's instance, whatever period suffix it carries. That is
-    what lets a *prior*-period orphan be found and resumed — the period-exact
-    lookup it complements only ever sees the current period.
+    Identity is the group-qualified slug `recurring/<name>`. That is what lets
+    a stale leftover be found and resumed.
 
     Prefers an `in_progress` orphan (a dead sweep's frozen run, resumed from
-    its step) over a never-launched `active`. Assumes a flat recurring
-    namespace — no template name is a `-`-delimited prefix of another (e.g.
-    `digest` vs `digest-weekly`); the shipped templates honor that, and
-    `_reap_debug_orphans` makes the same assumption.
+    its step) over a never-launched `active`.
     """
-    prefix = f"{_RECURRING_PREFIX}{template_name}-"
     live: TaskRef | None = None
     for ref in list_tasks(cfg):
-        if not ref.slug.startswith(prefix) or is_debug_slug(ref.slug):
+        if ref.group != "recurring" or ref.slug != template_name:
             continue
         status = read_ticket(ref).status
         if status == "in_progress":
@@ -743,28 +731,57 @@ def _live_task_for_template(cfg: Config, template_name: str) -> TaskRef | None:
     return live
 
 
-def _period_already_scaffolded(template: Template, target_slug: str) -> bool:
-    """Has this period's task ever been scaffolded?
+def _period_already_serviced(template: Template, period_key: str) -> bool:
+    last_serviced = read_last_serviced_period(template.blackboard_path)
+    return last_serviced is not None and last_serviced >= period_key
 
-    Reads the template's persistent `log.md`, which `_record_run` appends to
-    each time a new period task is created. The log is the period ledger —
-    consulted when the task directory itself is missing (a later Dream run's
-    retro pass deletes done recurring period tickets; a human `relay delete`).
 
-    For backward compatibility it also consults the legacy ledger location,
-    `blackboard.md`: pre-migration templates recorded `scaffolded …` lines
-    there, so a period handled before this change is still recognized.
-    """
-    needle = f"scaffolded {target_slug}"
+def read_last_serviced_period(blackboard_path: Path) -> str | None:
+    if not blackboard_path.is_file():
+        return None
+    return _read_last_serviced_period_text(blackboard_path.read_text())
 
-    def _has_needle(path: Path) -> bool:
-        if not path.is_file():
-            return False
-        return any(
-            line.rstrip().endswith(needle) for line in path.read_text().splitlines()
-        )
 
-    return _has_needle(template.log_path) or _has_needle(template.blackboard_path)
+def write_last_serviced_period(blackboard_path: Path, period_key: str) -> None:
+    existing = blackboard_path.read_text() if blackboard_path.is_file() else ""
+    blackboard_path.parent.mkdir(parents=True, exist_ok=True)
+    blackboard_path.write_text(set_last_serviced_period_text(existing, period_key))
+
+
+def merge_last_serviced_period_text(base_text: str, incoming_text: str) -> str:
+    """Merge only the high-water line from `incoming_text` into `base_text`."""
+    base_period = _read_last_serviced_period_text(base_text)
+    incoming_period = _read_last_serviced_period_text(incoming_text)
+    periods = [p for p in (base_period, incoming_period) if p is not None]
+    if not periods:
+        return base_text or incoming_text
+    return set_last_serviced_period_text(base_text or incoming_text, max(periods))
+
+
+def set_last_serviced_period_text(text: str, period_key: str) -> str:
+    line = f"last_serviced_period: {period_key}"
+    lines = text.splitlines()
+    out: list[str] = []
+    replaced = False
+    for existing in lines:
+        if _LAST_SERVICED_PERIOD_RE.match(existing):
+            if not replaced:
+                out.append(line)
+                replaced = True
+            continue
+        out.append(existing)
+    if not replaced:
+        if out and out[-1].strip():
+            out.append("")
+        out.append(line)
+    return "\n".join(out).rstrip("\n") + "\n"
+
+
+def _read_last_serviced_period_text(text: str) -> str | None:
+    match = _LAST_SERVICED_PERIOD_RE.search(text)
+    if match is None:
+        return None
+    return match.group("period")
 
 
 def _extract_title(template: Template) -> str:
@@ -785,5 +802,9 @@ __all__ = [
     "scaffold_template",
     "scaffold_debug_run",
     "is_debug_slug",
+    "read_last_serviced_period",
+    "write_last_serviced_period",
+    "merge_last_serviced_period_text",
+    "set_last_serviced_period_text",
     "RecurringError",
 ]

@@ -6,22 +6,24 @@ description: For the agent running one firing of a recurring task. Persistent st
 # You are a period task
 
 You were scaffolded by `relay recurring` from a recurring task. Your
-ticket directory under `relay-os/tasks/` exists for one period only — next
-period scaffolds a fresh one. The composed prompt header gives your exact task
-directory. Your own `blackboard.md` is gone with you when this run ends.
+task directory under `relay-os/tasks/recurring/<name>/` is the scratch space
+for this run. The path is stable for the template, but the directory is deleted
+after a completed run and recreated for a later period. The composed prompt
+header gives your exact task directory. Your own `blackboard.md` is gone with
+you when this run ends.
 
-## Your slug names your parent
+## Your task ref names your parent
 
-Your slug is `recurring-<parent-name>-<period_key>`, where the leading
-`recurring-` is a fixed identity prefix and `period_key` is the firing's
-bucket: `YYYY-MM-DD-HH` (hourly), `YYYY-MM-DD` (daily), `YYYY-Www`
-(weekly), or `YYYY-MM` (monthly). Strip the leading `recurring-` prefix
-**and** the trailing period suffix from your own slug to get the parent
-name.
+Your task ref is `recurring/<parent-name>`. The `recurring/` group is the
+identity marker; the period is **not** encoded in the slug.
 
 Your parent recurring task lives at
 `relay-os/recurring/<parent-name>/`. Its `blackboard.md` persists across
-every run — that is where last-run state belongs.
+every run. The scaffolder records the period currently being serviced there as
+`last_serviced_period: <period_key>`, where the bucket is `YYYY-MM-DD-HH`
+(hourly), `YYYY-MM-DD` (daily), `YYYY-Www` (weekly), or `YYYY-MM` (monthly).
+Read that line when this run needs to know which period it is servicing; do
+not parse the period from your slug.
 
 ## Persistent state lives in the parent's blackboard
 
@@ -33,7 +35,8 @@ skipped" flag — read and write
 Every period-task run that carries state follows the same shape:
 
 1. At the start, read `relay-os/recurring/<parent-name>/blackboard.md`
-   to find where the previous run stopped.
+   to find the current `last_serviced_period` and where the previous run
+   stopped.
 2. Do this period's work.
 3. Before finishing, update that same file with whatever the next run
    needs. Then `relay mark done` (or `relay bump` to the next non-final

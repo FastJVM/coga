@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 from relay.cli import app
 from relay.scaffold import scaffold_task
 from relay.config import load_config
+from relay.tasks import list_tasks
 from relay.ticket import Ticket
 
 
@@ -387,6 +388,30 @@ def test_create_collision_auto_suffixes(repo: Path) -> None:
     assert a["slug"] == "same-title"
     assert b["slug"] == "same-title-2"
     assert c["slug"] == "same-title-3"
+
+
+def test_scaffold_grouped_slug_can_reuse_top_level_leaf(repo: Path) -> None:
+    cfg = load_config(repo)
+    kwargs = dict(
+        cfg=cfg,
+        workflow_name=None,
+        contexts=[],
+        mode="interactive",
+        owner=None,
+        assignee=None,
+        watchers=[],
+        status=None,
+    )
+    top = scaffold_task(title="Digest", slug_override="digest", **kwargs)
+    grouped = scaffold_task(
+        title="Recurring digest", slug_override="recurring/digest", **kwargs
+    )
+
+    assert top["slug"] == "digest"
+    assert grouped["slug"] == "recurring/digest"
+    refs = {ref.id_slug: ref for ref in list_tasks(cfg)}
+    assert refs["digest"].group is None
+    assert refs["recurring/digest"].group == "recurring"
 
 
 def test_create_log_entry_written(repo: Path) -> None:

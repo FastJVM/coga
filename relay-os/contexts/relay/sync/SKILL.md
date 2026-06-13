@@ -233,9 +233,9 @@ mechanism:
   `Sync task state: …` and `Ticket: <slug> — <status>`.
 - **The spool is a real blackboard.** It is git-tracked, human-readable, never
   a hidden dotfile — consistent with relay's no-hidden-state rule. It shares
-  the file with `recurring._record_run`'s `scaffolded …` ledger lines; the
+  the file with recurring template state such as `last_serviced_period`; the
   flush parses only valid-JSON lines and rewrites only the spool section, so
-  the ledger is untouched.
+  other state is untouched.
 - **Consumer.** The `recurring/digest/` ticket (`mode: script`, daily
   `schedule:`) fires through the normal `relay recurring` scan. Its one
   workflow step runs the `relay/digest/flush` skill, whose `script:` calls

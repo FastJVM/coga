@@ -11,7 +11,6 @@ from rich.table import Table
 
 from relay.config import ConfigError, load_config
 from relay.logfile import last_activity
-from relay.recurring import is_recurring_slug
 from relay.tasks import list_tasks, read_ticket
 from relay.ticket import TicketError
 
@@ -84,6 +83,7 @@ def status(
             continue
         rows.append({
             "slug": ref.id_slug,
+            "group": ref.group,
             "status": ticket.status or "-",
             "owner": ticket.owner or "-",
             "assignee": ticket.assignee or "-",
@@ -115,8 +115,8 @@ def status(
     # Recurring period tasks are machine-authored jobs scaffolded ahead of
     # execution; peel them into their own table so the main list stays the
     # hand-authored backlog. `relay recurring list` is the schedule-aware view.
-    main_rows = [r for r in rows if not is_recurring_slug(r["slug"])]
-    recurring_rows = [r for r in rows if is_recurring_slug(r["slug"])]
+    main_rows = [r for r in rows if r["group"] != "recurring"]
+    recurring_rows = [r for r in rows if r["group"] == "recurring"]
 
     if main_rows:
         console.print(_build_table(main_rows, narrow, now))

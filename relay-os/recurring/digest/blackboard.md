@@ -9,10 +9,12 @@ back to just the heading, and updates `### Digest State`. Everything here is
 plain text in a git-tracked file on purpose — the pending queue and high-water
 mark stay legible, never hidden state.
 
-`relay recurring`'s period ledger lives in this template's `log.md` (never
-composed into a run, so it can grow unbounded) — not here in the spool. The
-digest flush still parses only valid JSON records and rewrites only the spool
-section, so any stray non-JSON line is left untouched.
+`relay recurring` keeps the serviced-period high-water mark here and append-only
+human history in this template's `log.md` (never composed into a run, so it can
+grow unbounded). The digest flush still parses only valid JSON records and
+rewrites only the spool section, so any stray non-JSON line is left untouched.
+
+last_serviced_period: 2026-06-11
 
 ### Digest State
 

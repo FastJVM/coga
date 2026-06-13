@@ -75,19 +75,20 @@ Mechanism: naming convention on created tasks, not `last_run` in the template.
    - Weekly → `YYYY-WW` (ISO week)
    - Monthly → `YYYY-MM`
    - Fallback / other → the raw datetime `YYYYMMDDTHHMM`
-4. Expected task slug: `recurring-<template-name>-<period-key>` in the
-   template's `project`. The `recurring-` prefix is the identity marker; the
-   period-key disambiguates instances.
-5. **One live task per template.** Look for any generated task under the
-   `recurring-<template-name>-` prefix that is `active` or `in_progress`
-   (excluding `-dbg-` debug runs). If one exists — even from an *older*
-   period — it is *the* live run: launch/resume it (an `in_progress` orphan
-   is resumed from its current step) and do **not** scaffold a new period.
-6. Only when none is live, consider the current period: if its task already
-   ran (still on disk as `done`/`paused`, or recorded in the template `log.md`
-   ledger after self-deleting), it's handled — skip. Otherwise create it using
-   the template's frontmatter (mode, workflow, assignee, owner, contexts,
-   description).
+4. Expected task ref: `recurring/<template-name>`, backed by
+   `tasks/recurring/<template-name>/`. The `recurring/` group is the identity
+   marker; the period key lives in the template blackboard.
+5. **One live task per template.** Look for the generated grouped task
+   `recurring/<template-name>` if it is `active` or `in_progress` (excluding
+   top-level `-dbg-` debug runs). If it exists, it is *the* live run:
+   launch/resume it (an `in_progress` orphan is resumed from its current step)
+   and do **not** scaffold a duplicate.
+6. Only when none is live, consider the current period: if
+   `last_serviced_period >= current period_key` in
+   `relay-os/recurring/<name>/blackboard.md` and the task dir is gone, it's
+   handled — skip. Otherwise create it using the template's frontmatter (mode,
+   workflow, assignee, owner, contexts, description), write the high-water
+   mark, and append human-readable history to `log.md`.
 
 This is idempotent — running `relay recurring` twice inside the same period is a no-op.
 Across periods, a template does not start a new run while an older period run

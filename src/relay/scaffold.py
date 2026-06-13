@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any
 
 from relay.blackboard import render_blackboard
@@ -171,14 +172,23 @@ def scaffold_task(
     actor = f"{created_by}:{cfg.current_user}" if created_by == "human" else created_by
     append_log(task_dir, actor, f"created (mode={mode}, status={status})")
 
-    issues = validate_task_dir(cfg, TaskRef(slug=slug, path=task_dir))
+    created_ref = _task_ref_for_created_dir(slug, task_dir)
+    issues = validate_task_dir(cfg, created_ref)
     errors = [i for i in issues if i.severity == "error"]
     if errors:
         raise ValueError(
             "Scaffolded task failed validation:\n" + format_task_issues(errors)
         )
 
-    return {"slug": slug, "path": task_dir}
+    return {"slug": created_ref.id_slug, "path": task_dir}
+
+
+def _task_ref_for_created_dir(slug: str, task_dir: Path) -> TaskRef:
+    """Build the same TaskRef that discovery will report for a new task dir."""
+    parts = slug.split("/")
+    if len(parts) == 2 and all(parts):
+        return TaskRef(slug=parts[1], path=task_dir, group=parts[0])
+    return TaskRef(slug=slug, path=task_dir)
 
 
 def _default_agent_for(cfg: Config, assignee: str | None) -> str | None:

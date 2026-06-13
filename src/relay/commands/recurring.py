@@ -23,8 +23,9 @@ from relay.recurring import (
     RecurringError,
     TemplateStatus,
     is_debug_slug,
-    is_recurring_slug,
     list_templates,
+    merge_last_serviced_period_text,
+    read_last_serviced_period,
     recurring_dir,
     scaffold_named,
     scan_debug,
@@ -141,7 +142,7 @@ def main(
         # returns "timeout" when a backstop fired so we record the wedge honestly
         # below instead of pausing it as a human would.
         kind = launch_cmd(
-            task.ref.slug,
+            task.ref.id_slug,
             agent_override=None,
             prompt_report=False,
             no_verify=False,
@@ -338,10 +339,9 @@ def launch(
     """Scaffold a named recurring template now and launch it.
 
     Ignores the template's schedule — the on-demand entry point behind
-    aliases like `relay dream`. The task slug still uses the schedule-derived
-    period key, so this and a bare `relay recurring` converge on one task
-    directory per period: a second `launch` in the same period reuses the
-    existing task instead of creating a duplicate.
+    aliases like `relay dream`. The task slug is the stable group-qualified
+    `recurring/<name>`, so this and a bare `relay recurring` converge on one
+    instantiated task directory.
     """
     try:
         cfg = load_config()
@@ -392,7 +392,7 @@ def list_recurring() -> None:
         sys.exit(2)
 
     statuses = list_templates(cfg)
-    picked = [ref for ref in list_tasks(cfg) if is_recurring_slug(ref.slug)]
+    picked = [ref for ref in list_tasks(cfg) if ref.group == "recurring"]
 
     if not statuses and not picked:
         typer.echo("(no recurring templates)")
@@ -496,7 +496,7 @@ def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> Non
     from relay.commands.launch import launch as launch_cmd
 
     launch_cmd(
-        ref.slug,
+        ref.id_slug,
         agent_override=None,
         prompt_report=False,
         no_verify=False,
@@ -512,35 +512,51 @@ def _sync_recurring_scaffold(
     *,
     respect_handled_period: bool = True,
 ) -> bool:
-    """Sync the period task and the ledger line that makes deletion idempotent."""
-    template_log = recurring_dir(cfg) / template_name / "log.md"
-    if not template_log.is_file():
+    """Sync the period task and high-water line that make deletion idempotent."""
+    template_dir = recurring_dir(cfg) / template_name
+    message = f"Ticket: {ref.id_slug} — recurring scaffold"
+    if not template_dir.is_dir():
         git.sync_paths(
             cfg,
             ref.path,
             [ref.path],
-            message=f"Ticket: {ref.id_slug} — recurring scaffold",
+            message=message,
         )
         return True
-
-    original_log = template_log.read_text()
+    template_log = template_dir / "log.md"
+    template_blackboard = template_dir / "blackboard.md"
+    original_log = template_log.read_text() if template_log.is_file() else ""
     local_log = _without_debug_log_entries(original_log)
-    message = f"Ticket: {ref.id_slug} — recurring scaffold"
+    original_blackboard = (
+        template_blackboard.read_text() if template_blackboard.is_file() else ""
+    )
+    local_blackboard = original_blackboard
+    period_key = read_last_serviced_period(template_blackboard)
     restore_log = original_log
+    restore_blackboard = original_blackboard
     created_on_control = True
     try:
-        restore_log, created_on_control = _sync_recurring_scaffold_paths(
+        (
+            restore_log,
+            restore_blackboard,
+            created_on_control,
+        ) = _sync_recurring_scaffold_paths(
             cfg,
             anchor_path=ref.path,
-            paths=[ref.path, template_log],
+            paths=[ref.path, template_log, template_blackboard],
             template_log=template_log,
+            template_blackboard=template_blackboard,
             original_log=original_log,
             local_log=local_log,
+            original_blackboard=original_blackboard,
+            local_blackboard=local_blackboard,
+            period_key=period_key,
             message=message,
             respect_handled_period=respect_handled_period,
         )
     finally:
         template_log.write_text(restore_log)
+        template_blackboard.write_text(restore_blackboard)
     return created_on_control
 
 
@@ -550,24 +566,29 @@ def _sync_recurring_scaffold_paths(
     anchor_path: Path,
     paths: list[Path],
     template_log: Path,
+    template_blackboard: Path,
     original_log: str,
     local_log: str,
+    original_blackboard: str,
+    local_blackboard: str,
+    period_key: str | None,
     message: str,
     respect_handled_period: bool,
-) -> tuple[str, bool]:
-    """Sync scaffold paths while merging the append-only recurring ledger."""
+) -> tuple[str, str, bool]:
+    """Sync scaffold paths while merging recurring log/history state."""
     if not cfg.git_enabled:
         sys.stderr.write(f"[git] disabled (sync suppressed): {message}\n")
-        return original_log, True
+        return original_log, original_blackboard, True
 
     root = _git_toplevel(anchor_path)
     if root is None:
         sys.stderr.write(f"[git] not a git repo (sync skipped): {message}\n")
-        return original_log, True
+        return original_log, original_blackboard, True
 
     try:
         rels = [_relative_to_root(root, path) for path in paths]
         log_rel = _relative_to_root(root, template_log)
+        blackboard_rel = _relative_to_root(root, template_blackboard)
         template_ticket_rel = _relative_to_root(root, template_log.parent / "ticket.md")
         branch = _current_branch(root)
 
@@ -575,15 +596,17 @@ def _sync_recurring_scaffold_paths(
             _fetch_control_branch(cfg, root)
         except git.GitError:
             template_log.write_text(local_log)
+            template_blackboard.write_text(local_blackboard)
             git.sync_paths(cfg, anchor_path, paths, message=message)
-            return original_log, True
+            return original_log, original_blackboard, True
         base = _rev_parse(root, "FETCH_HEAD")
         task_rel = _relative_to_root(root, anchor_path)
         if _control_already_has_period(
             root,
             base,
-            log_rel,
+            blackboard_rel,
             task_rel,
+            period_key=period_key,
             include_ledger=respect_handled_period,
         ):
             if branch == cfg.git_control_branch:
@@ -591,6 +614,9 @@ def _sync_recurring_scaffold_paths(
                 _rebase_checked_out_branch_onto(root, base)
                 return (
                     _control_log_with_local_debug(root, "HEAD", log_rel, original_log),
+                    _control_blackboard_with_local_period(
+                        root, "HEAD", blackboard_rel, original_blackboard
+                    ),
                     False,
                 )
             _restore_selected_paths_from_ref(root, base, rels)
@@ -598,13 +624,22 @@ def _sync_recurring_scaffold_paths(
                 git._commit_paths(root, rels, message)
                 return (
                     _control_log_with_local_debug(root, "HEAD", log_rel, original_log),
+                    _control_blackboard_with_local_period(
+                        root, "HEAD", blackboard_rel, original_blackboard
+                    ),
                     False,
                 )
             return (
                 _control_log_with_local_debug(root, base, log_rel, original_log),
+                _control_blackboard_with_local_period(
+                    root, base, blackboard_rel, original_blackboard
+                ),
                 False,
             )
         _write_merged_log_for_ref(root, template_log, log_rel, base, local_log)
+        _write_merged_blackboard_for_ref(
+            root, template_blackboard, blackboard_rel, base, local_blackboard
+        )
 
         if branch == cfg.git_control_branch:
             return _sync_recurring_scaffold_on_checked_out_control_branch(
@@ -612,15 +647,21 @@ def _sync_recurring_scaffold_paths(
                 root,
                 rels,
                 template_log=template_log,
+                template_blackboard=template_blackboard,
                 log_rel=log_rel,
+                blackboard_rel=blackboard_rel,
                 template_ticket_rel=template_ticket_rel,
                 original_log=original_log,
                 local_log=local_log,
+                original_blackboard=original_blackboard,
+                local_blackboard=local_blackboard,
+                period_key=period_key,
                 message=message,
                 respect_handled_period=respect_handled_period,
             )
 
         committed_log = template_log.read_text()
+        committed_blackboard = template_blackboard.read_text()
         if branch == "HEAD":
             sys.stderr.write(
                 f"[git] detached HEAD — task state landed on "
@@ -629,15 +670,20 @@ def _sync_recurring_scaffold_paths(
         else:
             git._commit_paths(root, rels, message)
             committed_log = _show_path(root, "HEAD", log_rel)
+            committed_blackboard = _show_path(root, "HEAD", blackboard_rel)
         landed, already_handled = _land_recurring_scaffold_on_control_branch(
             cfg,
             root,
             rels,
             template_log=template_log,
+            template_blackboard=template_blackboard,
             log_rel=log_rel,
+            blackboard_rel=blackboard_rel,
             template_ticket_rel=template_ticket_rel,
             task_rel=task_rel,
             local_log=local_log,
+            local_blackboard=local_blackboard,
+            period_key=period_key,
             message=message,
             respect_handled_period=respect_handled_period,
         )
@@ -647,17 +693,27 @@ def _sync_recurring_scaffold_paths(
                 git._commit_paths(root, rels, message)
                 return (
                     _control_log_with_local_debug(root, "HEAD", log_rel, original_log),
+                    _control_blackboard_with_local_period(
+                        root, "HEAD", blackboard_rel, original_blackboard
+                    ),
                     False,
                 )
             return (
                 _control_log_with_local_debug(root, landed, log_rel, original_log),
+                _control_blackboard_with_local_period(
+                    root, landed, blackboard_rel, original_blackboard
+                ),
                 False,
             )
-        return _merge_log_entries(committed_log, original_log), True
+        return (
+            _merge_log_entries(committed_log, original_log),
+            merge_last_serviced_period_text(committed_blackboard, original_blackboard),
+            True,
+        )
     except git.GitError as exc:
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
         _append_sync_failure(anchor_path, exc)
-        return original_log, True
+        return original_log, original_blackboard, True
 
 
 def _without_debug_log_entries(text: str) -> str:
@@ -679,6 +735,14 @@ def _control_log_with_local_debug(
 ) -> str:
     return _merge_log_entries(
         _show_path(root, ref, log_rel), _debug_log_entries(original_log)
+    )
+
+
+def _control_blackboard_with_local_period(
+    root: Path, ref: str, blackboard_rel: str, original_blackboard: str
+) -> str:
+    return merge_last_serviced_period_text(
+        original_blackboard, _show_path(root, ref, blackboard_rel)
     )
 
 
@@ -711,10 +775,14 @@ def _land_recurring_scaffold_on_control_branch(
     rels: list[str],
     *,
     template_log: Path,
+    template_blackboard: Path,
     log_rel: str,
+    blackboard_rel: str,
     template_ticket_rel: str,
     task_rel: str,
     local_log: str,
+    local_blackboard: str,
+    period_key: str | None,
     message: str,
     respect_handled_period: bool,
 ) -> tuple[str, bool]:
@@ -727,12 +795,16 @@ def _land_recurring_scaffold_on_control_branch(
         if _control_already_has_period(
             root,
             base,
-            log_rel,
+            blackboard_rel,
             task_rel,
+            period_key=period_key,
             include_ledger=respect_handled_period,
         ):
             return base, True
         _write_merged_log_for_ref(root, template_log, log_rel, base, local_log)
+        _write_merged_blackboard_for_ref(
+            root, template_blackboard, blackboard_rel, base, local_blackboard
+        )
         control_rels = _control_scaffold_rels(root, base, rels, template_ticket_rel)
 
         tree = git._build_overlay_tree(root, base, control_rels)
@@ -761,22 +833,31 @@ def _sync_recurring_scaffold_on_checked_out_control_branch(
     rels: list[str],
     *,
     template_log: Path,
+    template_blackboard: Path,
     log_rel: str,
+    blackboard_rel: str,
     template_ticket_rel: str,
     original_log: str,
     local_log: str,
+    original_blackboard: str,
+    local_blackboard: str,
+    period_key: str | None,
     message: str,
     respect_handled_period: bool,
-) -> tuple[str, bool]:
+) -> tuple[str, str, bool]:
     landed, already_handled = _land_recurring_scaffold_on_control_branch(
         cfg,
         root,
         rels,
         template_log=template_log,
+        template_blackboard=template_blackboard,
         log_rel=log_rel,
+        blackboard_rel=blackboard_rel,
         template_ticket_rel=template_ticket_rel,
         task_rel=rels[0],
         local_log=local_log,
+        local_blackboard=local_blackboard,
+        period_key=period_key,
         message=message,
         respect_handled_period=respect_handled_period,
     )
@@ -784,12 +865,24 @@ def _sync_recurring_scaffold_on_checked_out_control_branch(
         _restore_selected_paths_from_ref(root, "HEAD", rels)
         _rebase_checked_out_branch_onto(root, landed)
         git._push_control_branch(cfg, root)
-        return _control_log_with_local_debug(root, "HEAD", log_rel, original_log), False
+        return (
+            _control_log_with_local_debug(root, "HEAD", log_rel, original_log),
+            _control_blackboard_with_local_period(
+                root, "HEAD", blackboard_rel, original_blackboard
+            ),
+            False,
+        )
 
     _restore_selected_paths_from_ref(root, "HEAD", rels)
     _rebase_checked_out_branch_onto(root, landed)
     git._push_control_branch(cfg, root)
-    return _merge_log_entries(_show_path(root, "HEAD", log_rel), original_log), True
+    return (
+        _merge_log_entries(_show_path(root, "HEAD", log_rel), original_log),
+        merge_last_serviced_period_text(
+            _show_path(root, "HEAD", blackboard_rel), original_blackboard
+        ),
+        True,
+    )
 
 
 def _control_scaffold_rels(
@@ -803,21 +896,18 @@ def _control_scaffold_rels(
 def _control_already_has_period(
     root: Path,
     ref: str,
-    log_rel: str,
+    blackboard_rel: str,
     task_rel: str,
     *,
+    period_key: str | None,
     include_ledger: bool = True,
 ) -> bool:
     if _ref_has_path(root, ref, task_rel):
         return True
-    if not include_ledger:
+    if not include_ledger or period_key is None:
         return False
-    slug = Path(task_rel).name
-    needle = f"scaffolded {slug}"
-    return any(
-        line.rstrip().endswith(needle)
-        for line in _show_path(root, ref, log_rel).splitlines()
-    )
+    serviced = _read_control_last_serviced_period(root, ref, blackboard_rel)
+    return serviced is not None and serviced >= period_key
 
 
 def _restore_selected_paths_from_ref(root: Path, ref: str, rels: list[str]) -> None:
@@ -877,6 +967,33 @@ def _write_merged_log_for_ref(
     template_log.write_text(
         _merge_log_entries(_without_debug_log_entries(control_log), local_log)
     )
+
+
+def _write_merged_blackboard_for_ref(
+    root: Path,
+    template_blackboard: Path,
+    blackboard_rel: str,
+    ref: str,
+    local_blackboard: str,
+) -> None:
+    control_blackboard = _show_path(root, ref, blackboard_rel)
+    template_blackboard.write_text(
+        merge_last_serviced_period_text(control_blackboard, local_blackboard)
+    )
+
+
+def _read_control_last_serviced_period(
+    root: Path, ref: str, blackboard_rel: str
+) -> str | None:
+    text = _show_path(root, ref, blackboard_rel)
+    if not text:
+        return None
+    tmp = merge_last_serviced_period_text("", text)
+    marker = "last_serviced_period: "
+    for line in tmp.splitlines():
+        if line.startswith(marker):
+            return line[len(marker):].strip() or None
+    return None
 
 
 def _show_path(root: Path, ref: str, rel: str) -> str:
