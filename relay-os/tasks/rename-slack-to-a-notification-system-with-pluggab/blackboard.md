@@ -24,3 +24,43 @@ Verification:
 - `PYTHONPATH=/tmp/relay-notification-channels/src PYTHONDONTWRITEBYTECODE=1 python -m relay.cli validate --json` from `example/relay-os` — clean.
 - `PYTHONPATH=/tmp/relay-notification-channels/src PYTHONDONTWRITEBYTECODE=1 python -m relay.cli validate --task rename-slack-to-a-notification-system-with-pluggab --json` from primary checkout — clean.
 - Repo-wide validation in the feature worktree still reports unrelated pre-existing draft/broken-ref issues; task-scoped validation is clean.
+
+---
+
+## Self-QA
+
+Ran `/code-review` (high effort, 7 finder angles + verify) and `/simplify`
+(4 cleanup angles) against `main...HEAD` in the worktree.
+
+**Correctness:** clean. The one borderline candidate — `post()` writing to
+stderr instead of crashing when `notification_channels` is empty — is an
+intentional disable path; the crash-loud semantics are preserved via
+`slack_enabled` + missing-webhook → `typer.Exit(1)` in
+`notification/slack.py:67-75`. All migrated semantics (crash-loud/no-retry,
+enabled-by-default, `[project] [owner]` prefix, watcher cc, milestone GIFs,
+mention rendering) verified intact. Compat shim re-exports `requests`
+deliberately (preserves `relay.slack.requests` monkeypatch surface).
+
+**Applied:** merged the two-pass loop in `_render_done_people`
+(`notification/__init__.py`) into a single pass — behavior-identical,
+flagged by 3 agents. Commit `992ad68`.
+
+**Skipped (noted for human reviewer / follow-up):**
+- config.py back-compat resolvers share loop *structure* but differ in value
+  type, error messages, legacy-note handling, and the webhook's extra env
+  fallback. A generic helper would thread all that through and end up more
+  convoluted — agents agreed it's over-engineered for N callers. Left as-is.
+- cc-trailer rendering duplicated between `SlackChannel.render_text` and
+  `_cc_trailer` — different shapes (watchers list vs union-over-records) and
+  different layers (channel backend vs digest renderer). Unifying now couples
+  the digest renderer to the channel.
+- `_channels()` returns `list[SlackChannel]`; a `Channel` protocol/ABC would
+  generalize the type, but that's speculative until a second backend exists
+  (explicit non-goal). The digest still emitting Slack-flavored mention
+  syntax is likewise intended scope for this rename — follow-up when email
+  lands.
+
+**Verification:**
+- `PYTHONPATH=src python3.12 -m pytest -q -p no:cacheprovider` — 721 passed,
+  1 skipped. (Default `python` here is conda 3.9, no `tomllib`; use 3.11+.)
+- example fixture `validate --json` — clean (0 issues).
