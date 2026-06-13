@@ -72,3 +72,34 @@ should populate it.)
   `relay ticket`) that runs the interview directly, or a bootstrap
   ticket/workflow the user launches? `relay ticket` is the closest prior
   art for an interview-driving command.
+
+## 2026-06-12 — Design dry-run (wizard-of-oz validation)
+
+Ran the four-question interview by hand against a real project ("killer
+demo video for Relay's launch") before writing code, the same way
+`init/setup` was validated before it was wired in. The interview produced
+an ordered 7-ticket set; the human pruned it to 5 in one reaction. The
+design held. Three findings:
+
+1. **Q4 (dependencies) was the highest-value answer — keep it.** The
+   human's "I need to build a proper Gmail flow first" surfaced the entire
+   prerequisite chain (test account → build the flow → *then* record it).
+   The outcome alone (Q1) would have led to "record a comparison video"
+   and missed that the demo's *subject* must be built before it can be
+   filmed. Ordering correctness came from Q4, not Q1.
+
+2. **The cut-scope tradeoff is validated.** With no standalone "what's out
+   of scope?" question, the review-before-scaffold step still bounded
+   scope correctly: it caught two over-generated tickets (a redundant
+   "polish the workflow" and a standalone "boss approval" that was really
+   a review step) plus one granularity question, all fixed by the human
+   *reacting* to the concrete list. Evidence that the short interview +
+   review gate beats a longer interview.
+
+3. **Q2 wording fix applied.** As originally worded ("Is there a *doc*?")
+   Q2 got "no" — then the human immediately named an existing **workflow
+   file** (`browser/build-automation`) that shaped the whole "with
+   workflow" arm of the demo. The narrow "doc" wording nearly lost
+   load-bearing prior art. Broadened in `ticket.md` to "a doc … or
+   existing work like a workflow, script, or code." Implementation should
+   carry the broadened wording into whatever runs the interview.

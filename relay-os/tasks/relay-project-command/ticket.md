@@ -51,11 +51,14 @@ decomposition, the human supplies only what the agent can't infer).
    done; the final ticket's review bar. Asked even when a doc exists,
    because confirming the concrete done-state is cheap and getting it
    wrong breaks the whole decomposition.
-2. **Prior art (gap-filler, not a branch):** "Is there a doc — vision,
-   spec, notes — with the details? Point me to it." The agent reads it
-   and uses it to skip later *gaps* it genuinely fills (tech, deadlines,
+2. **Prior art (gap-filler, not a branch):** "Is there anything I should
+   build on — a doc (vision, spec, notes), or existing work like a
+   workflow, script, or code? Point me to it." The agent reads it and
+   uses it to skip later *gaps* it genuinely fills (tech, deadlines,
    sequence). It does not let the agent skip Q1. Covers the deleted
-   vision-to-plan path.
+   vision-to-plan path. (Wording broadened from "a doc" after a design
+   dry-run — see blackboard; the load-bearing prior art was a workflow
+   file, not a doc, and the narrower wording nearly missed it.)
 3. **Constraints:** "What's already fixed — deadlines, tech you've
    committed to, anything that mustn't change?" → ticket Context.
 4. **Dependencies & sign-off:** "What has to happen before what? Include
