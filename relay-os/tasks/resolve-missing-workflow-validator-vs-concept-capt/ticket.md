@@ -1,6 +1,6 @@
 ---
 title: Resolve missing-workflow validator vs concept-capture drafts
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
