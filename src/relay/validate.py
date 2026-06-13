@@ -41,6 +41,7 @@ import requests
 
 from relay.blackboard import BLACKBOARD_WARN_BYTES, blackboard_size_warning, render_blackboard
 from relay.config import Config, ConfigError, load_config
+from relay.period_state import read_snapshot, stale_keys
 from relay.paths import (
     context_resolution_paths,
     resolve_context_path,
@@ -344,6 +345,26 @@ def _check_one_task(
                     kind="stuck-in-progress",
                     task=task_label,
                     message=f"in_progress but idle for {idle.total_seconds() / 3600:.1f}h",
+                    severity="warn",
+                ))
+
+    # A `done` period task whose declared state keys still match their
+    # scaffold-time snapshot finished without advancing its cursor — the next
+    # firing will redo the same range. Surface it here so a stuck cursor is
+    # visible without waiting for that duplicate run. Only `done` tasks qualify:
+    # an unfinished run legitimately hasn't recorded state yet.
+    if ticket.status == "done":
+        snapshot = read_snapshot(ref.path)
+        if snapshot is not None:
+            stale = stale_keys(cfg, snapshot)
+            if stale:
+                out.append(Issue(
+                    kind="recurring-state-stuck",
+                    task=task_label,
+                    message=(
+                        f"finished without advancing declared state key(s) "
+                        f"{', '.join(stale)} in {snapshot.parent}'s blackboard"
+                    ),
                     severity="warn",
                 ))
 

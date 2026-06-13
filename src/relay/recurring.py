@@ -15,6 +15,7 @@ from croniter import croniter
 from relay.scaffold import scaffold_task
 from relay.config import Config
 from relay.paths import recurring_dir
+from relay.period_state import write_snapshot
 from relay.tasks import TaskRef, list_tasks, read_ticket
 
 
@@ -52,6 +53,14 @@ class Template:
             raise RecurringError("frontmatter must be a mapping")
         if "schedule" not in fm:
             raise RecurringError("`schedule` is required")
+        if "state_keys" in fm:
+            state_keys = fm["state_keys"]
+            if not isinstance(state_keys, list) or not all(
+                isinstance(key, str) and key.strip() for key in state_keys
+            ):
+                raise RecurringError(
+                    "`state_keys` must be a list of non-empty strings"
+                )
         return cls(path=path, name=path.name, frontmatter=fm, body=match.group(2))
 
     @property
@@ -612,9 +621,19 @@ def _scaffold_at_slug(
         body=template.body,
         created_by="system",
     )
-    return ScaffoldOutcome(
-        ref=TaskRef(slug=ref["slug"], path=ref["path"]), created=True
-    )
+    out_ref = TaskRef(slug=ref["slug"], path=ref["path"])
+
+    # If the template declares the blackboard keys it owns, snapshot their
+    # current values into the period task. `relay mark done` later diffs this
+    # baseline against the live parent blackboard to catch a run that finished
+    # without advancing a declared key (a stale cursor → duplicate next firing).
+    state_keys = template.frontmatter.get("state_keys") or []
+    if state_keys:
+        write_snapshot(
+            out_ref.path, template.name, template.blackboard_path, list(state_keys)
+        )
+
+    return ScaffoldOutcome(ref=out_ref, created=True)
 
 
 # --- helpers ------------------------------------------------------------------

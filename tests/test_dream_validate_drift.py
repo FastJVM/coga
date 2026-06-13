@@ -40,6 +40,7 @@ def _load_validate_drift_module():
 validate_drift = _load_validate_drift_module()
 
 ACTION_DIRECT_FIX = validate_drift.ACTION_DIRECT_FIX
+ACTION_HUMAN_NEEDED = validate_drift.ACTION_HUMAN_NEEDED
 ACTION_PR_PROPOSAL = validate_drift.ACTION_PR_PROPOSAL
 ValidationFix = validate_drift.ValidationFix
 ValidationIssue = validate_drift.ValidationIssue
@@ -130,6 +131,20 @@ def test_classifies_broken_refs_as_pr_proposal() -> None:
 
     assert classified.action == ACTION_PR_PROPOSAL
     assert "Open a small PR" in classified.remediation
+
+
+def test_classifies_recurring_state_stuck_as_human_needed() -> None:
+    classified = classify_issue(
+        ValidationIssue(
+            kind="recurring-state-stuck",
+            task="dev-update-2026-06-07",
+            message="finished without advancing declared state key(s) last_commit",
+            severity="warn",
+        )
+    )
+
+    assert classified.action == ACTION_HUMAN_NEEDED
+    assert "parent recurring blackboard" in classified.remediation
 
 
 def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:

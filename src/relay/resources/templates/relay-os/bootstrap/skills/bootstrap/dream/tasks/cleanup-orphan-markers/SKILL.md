@@ -50,5 +50,5 @@ A task is a cleanup candidate only when all of these are true:
 - the public delete surface `bootstrap/delete-task` is available.
 
 `bootstrap/delete-task` now ships, but until cleanup's PR-dispatch wiring
-follows that skill's launch contract, this skill reports eligible candidates as
-`human-needed` and does not delete anything.
+follows that skill's launch contract, this skill
+reports eligible candidates as `human-needed` and does not delete anything.
