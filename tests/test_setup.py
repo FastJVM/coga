@@ -121,7 +121,42 @@ def test_setup_noop_when_ticket_done(
     result = CliRunner().invoke(app, ["setup", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert "already done" in result.output
+    # Re-running setup after it's finished still nudges toward the first move.
+    assert "relay project" in result.output
     assert launch_calls == []
+
+
+def test_setup_nudges_to_project_when_workflow_finishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    relay_os = _seed_repo(tmp_path, user="zach")
+    ticket = relay_os / "tasks" / "relay-setup" / "ticket.md"
+
+    def fake_launch(task: str, **kwargs) -> None:
+        # Simulate the setup workflow running through its final mark-done step.
+        ticket.write_text(ticket.read_text().replace("status: active", "status: done"))
+
+    monkeypatch.setattr(launch_cmd, "launch", fake_launch)
+
+    result = CliRunner().invoke(app, ["setup", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "Setup complete" in result.output
+    assert "relay project" in result.output
+    assert 'relay draft "<title>"' in result.output
+
+
+def test_setup_tells_resume_when_workflow_unfinished(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, launch_calls: list[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _seed_repo(tmp_path, user="zach")  # stays `active`; fake_launch is a no-op
+
+    result = CliRunner().invoke(app, ["setup", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "re-run `relay setup` to resume" in result.output
+    # No completion nudge when setup didn't finish.
+    assert "Setup complete" not in result.output
 
 
 def test_setup_explains_missing_ticket(

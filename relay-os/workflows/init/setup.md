@@ -98,3 +98,9 @@ wrong. Bump when the set reflects how you actually work.
 Fold the review back in: apply the blackboard answers, regenerate anything
 the human flagged, and confirm `relay validate` passes. Summarize what
 landed, then finish with `relay mark done`.
+
+As your closing message, point the human at their first real move now that
+the repo knows the project: run `relay project` to plan a piece of work as
+an ordered set of tickets (a short interview → draft tickets), or
+`relay draft "<title>"` for a single one-off ticket. Keep it to a line or
+two — they just finished a long setup.

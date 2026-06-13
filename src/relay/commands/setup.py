@@ -49,6 +49,7 @@ def setup(
         return
     if _ticket_status(ticket_path) == "done":
         typer.echo("relay-setup is already done — this repo is set up.")
+        _print_next_steps()
         return
 
     # `relay launch` resolves the repo and config from the cwd.
@@ -61,6 +62,21 @@ def setup(
         mode_override=None,
         idle_timeout=None,
     )
+
+    # The launch session has exited. If the setup workflow ran to completion
+    # (its final step calls `relay mark done`) point the new user at their
+    # first real move; if they stopped partway, tell them how to resume. We
+    # re-read status from disk because the agent just edited it; a missing
+    # ticket means it was finished and cleaned up, so treat that as done too.
+    finished = (not ticket_path.is_file()) or _ticket_status(ticket_path) == "done"
+    if finished:
+        _print_next_steps()
+    else:
+        typer.echo("")
+        typer.echo(
+            "Setup isn't finished yet — re-run `relay setup` to resume the "
+            "interview where you left off."
+        )
 
 
 def _ensure_user(local_toml: Path) -> None:
@@ -97,6 +113,26 @@ def _ensure_user(local_toml: Path) -> None:
         sys.exit(2)
     local_toml.write_text(new_text)
     typer.echo(f'Set user = "{name}" in {local_toml}.')
+
+
+def _print_next_steps() -> None:
+    """Point a freshly set-up user at their first real move.
+
+    Leads with `relay project` — the interview that turns a goal into an
+    ordered set of tickets — and offers `relay draft` for a single ticket.
+    The workflow's final step echoes the same nudge in the agent session
+    (belt and suspenders); this is the durable terminal line.
+    """
+    typer.echo("")
+    typer.secho("✓ Setup complete — your relay-os is seeded.", fg=typer.colors.GREEN)
+    typer.echo("")
+    typer.echo("Next steps:")
+    typer.echo(
+        "  1. Plan your first project — `relay project` runs a short interview "
+        "and turns a goal into an ordered set of draft tickets."
+    )
+    typer.echo('  2. Or create a single ticket — `relay draft "<title>"`.')
+    typer.echo("  3. See everything anytime — `relay status`.")
 
 
 def _ticket_status(ticket_path: Path) -> str:
