@@ -26,3 +26,4 @@ relay-os/recurring/relay-dev-update/log.md: needs merge
 2026-06-11 16:07 [agent:codex] advanced to step 3 (open-pr) → assigned to claude
 2026-06-11 16:07 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-11 16:08 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/347
+2026-06-12 17:21 [human:zach] auto-bumped on merge of PR #347 → done
