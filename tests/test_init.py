@@ -32,6 +32,7 @@ EXPECTED_FILES = {
     "relay-os/bootstrap/skills/relay/autoclose/sweep/run.py",
     "relay-os/contexts/_template/SKILL.md",
     "relay-os/skills/_template/SKILL.md",
+    "relay-os/skills/direct/body/SKILL.md",
     "relay-os/workflows/_template.md",
     "relay-os/recurring/_template/ticket.md",
     "relay-os/recurring/autoclose-merged/ticket.md",
@@ -39,6 +40,7 @@ EXPECTED_FILES = {
     "relay-os/recurring/skill-update/ticket.md",
     "relay-os/tasks/_template/ticket.md",
     "relay-os/workflows/autoclose-merged/sweep.md",
+    "relay-os/workflows/direct/body.md",
     "relay-os/workflows/skill-update/run.md",
 }
 
@@ -131,6 +133,14 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     (templates / "recurring" / "skill-update").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "skill-update" / "ticket.md").write_text(
         "skill update template\n"
+    )
+    (templates / "skills" / "direct" / "body").mkdir(parents=True, exist_ok=True)
+    (templates / "skills" / "direct" / "body" / "SKILL.md").write_text(
+        "direct body skill\n"
+    )
+    (templates / "workflows" / "direct").mkdir(parents=True, exist_ok=True)
+    (templates / "workflows" / "direct" / "body.md").write_text(
+        "direct body workflow\n"
     )
     (templates / "workflows" / "skill-update").mkdir(parents=True, exist_ok=True)
     (templates / "workflows" / "skill-update" / "run.md").write_text(
@@ -535,6 +545,14 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "recurring" / "skill-update" / "ticket.md").write_text(
         "NEW skill update template\n"
     )
+    (templates / "skills" / "direct" / "body").mkdir(parents=True, exist_ok=True)
+    (templates / "skills" / "direct" / "body" / "SKILL.md").write_text(
+        "NEW direct body skill\n"
+    )
+    (templates / "workflows" / "direct").mkdir(parents=True, exist_ok=True)
+    (templates / "workflows" / "direct" / "body.md").write_text(
+        "NEW direct body workflow\n"
+    )
     (templates / "workflows" / "autoclose-merged").mkdir(
         parents=True, exist_ok=True
     )
@@ -770,13 +788,17 @@ def test_init_update_refreshes_vendored_recurring_template(
     dream = relay_os / "recurring" / "dream" / "ticket.md"
     skill_update = relay_os / "recurring" / "skill-update" / "ticket.md"
     autoclose_workflow = relay_os / "workflows" / "autoclose-merged" / "sweep.md"
+    direct_workflow = relay_os / "workflows" / "direct" / "body.md"
     skill_update_workflow = relay_os / "workflows" / "skill-update" / "run.md"
+    direct_skill = relay_os / "skills" / "direct" / "body" / "SKILL.md"
     if preexisting is None:
         assert not autoclose.exists()
         assert not dream.exists()
         assert not skill_update.exists()
         assert not autoclose_workflow.exists()
+        assert not direct_workflow.exists()
         assert not skill_update_workflow.exists()
+        assert not direct_skill.exists()
     else:
         autoclose.parent.mkdir(parents=True, exist_ok=True)
         autoclose.write_text("STALE autoclose merged template\n")
@@ -786,8 +808,12 @@ def test_init_update_refreshes_vendored_recurring_template(
         skill_update.write_text("STALE skill update template\n")
         autoclose_workflow.parent.mkdir(parents=True, exist_ok=True)
         autoclose_workflow.write_text("STALE autoclose merged workflow\n")
+        direct_workflow.parent.mkdir(parents=True, exist_ok=True)
+        direct_workflow.write_text("STALE direct body workflow\n")
         skill_update_workflow.parent.mkdir(parents=True, exist_ok=True)
         skill_update_workflow.write_text("STALE skill update workflow\n")
+        direct_skill.parent.mkdir(parents=True, exist_ok=True)
+        direct_skill.write_text("STALE direct body skill\n")
 
     package_clone = tmp_path / "package"
     _seed_fake_upstream_for_update(package_clone)
@@ -821,12 +847,16 @@ def test_init_update_refreshes_vendored_recurring_template(
     assert dream.read_text() == "NEW dream template\n"
     assert skill_update.read_text() == "NEW skill update template\n"
     assert autoclose_workflow.read_text() == "NEW autoclose merged workflow\n"
+    assert direct_workflow.read_text() == "NEW direct body workflow\n"
     assert skill_update_workflow.read_text() == "NEW skill update workflow\n"
+    assert direct_skill.read_text() == "NEW direct body skill\n"
     assert "recurring/autoclose-merged/ticket.md" in result.output
     assert "recurring/dream/ticket.md" in result.output
     assert "recurring/skill-update/ticket.md" in result.output
     assert "workflows/autoclose-merged/sweep.md" in result.output
+    assert "workflows/direct/body.md" in result.output
     assert "workflows/skill-update/run.md" in result.output
+    assert "skills/direct/body/SKILL.md" in result.output
 
 
 def test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors(
