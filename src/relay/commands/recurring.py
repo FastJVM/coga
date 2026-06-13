@@ -742,7 +742,7 @@ def _control_blackboard_with_local_period(
     root: Path, ref: str, blackboard_rel: str, original_blackboard: str
 ) -> str:
     return merge_last_serviced_period_text(
-        original_blackboard, _show_path(root, ref, blackboard_rel)
+        _show_path(root, ref, blackboard_rel), original_blackboard
     )
 
 

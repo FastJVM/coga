@@ -315,11 +315,22 @@ def test_scan_due_resumes_stuck_prior_run_instead_of_new_period(
     assert resumed.resuming is True
     assert resumed.ref.id_slug == ref.id_slug
     assert resumed.ref.id_slug == "recurring/weekly-check"
+    # The resumed prior-period run still owns week 17. Week 18 is not marked
+    # serviced until the stale run is gone and a new run is scaffolded.
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "blackboard.md"
+    ) == "2026-W17"
+    # Only the stuck run exists — no duplicate scaffold.
+    assert {r.id_slug for r in list_tasks(cfg)} == {"recurring/weekly-check"}
+
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+    shutil.rmtree(ref.path)
+    next_scan = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0))
+    assert next_scan.tasks[0].created is True
     assert read_last_serviced_period(
         repo / "recurring" / "weekly-check" / "blackboard.md"
     ) == "2026-W18"
-    # Only the stuck run exists — no duplicate scaffold.
-    assert {r.id_slug for r in list_tasks(cfg)} == {"recurring/weekly-check"}
 
 
 def test_scan_due_does_not_rescaffold_after_period_task_deleted(
@@ -1571,7 +1582,9 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
 
     cfg = load_config(relay_os)
     outcome = scaffold_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
-    handled_blackboard = "state\n\nlast_serviced_period: 2026-W24\n"
+    handled_blackboard = (
+        "state\n\nremote_cursor: kept\n\nlast_serviced_period: 2026-W24\n"
+    )
     real_commit_paths = recurring_cmd.git._commit_paths
     raced = False
 
@@ -1593,6 +1606,9 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
     blackboard_rel = "relay-os/recurring/weekly-check/blackboard.md"
     control_bb = git_repo.git("show", f"main:{blackboard_rel}", cwd=git_repo.origin)
     assert control_bb == handled_blackboard
+    assert (
+        relay_os / "recurring" / "weekly-check" / "blackboard.md"
+    ).read_text() == handled_blackboard
     assert not git_repo.origin_tracks(f"relay-os/tasks/{outcome.ref.id_slug}/ticket.md")
     assert not outcome.ref.path.exists()
     ledger_rel = "relay-os/recurring/weekly-check/log.md"

@@ -332,9 +332,7 @@ def scaffold_template(
     # is deliberate — finish the in-flight run before piling another on.
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
-        outcome = ScaffoldOutcome(ref=live, created=False)
-        _advance_serviced_period(template, period_key, outcome, now)
-        return outcome
+        return ScaffoldOutcome(ref=live, created=False)
 
     existing = _task_with_slug(cfg, target_slug)
     if existing is not None:
