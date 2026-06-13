@@ -14,6 +14,7 @@ from relay.commands.launch import (
     build_agent_command,
 )
 from relay.config import AgentType, ConfigError, load_config
+from relay.repl_supervisor import _TIMEOUT_EXIT_CODE, ReplOutcome
 from relay.tasks import BootstrapRef, TaskRef, list_tasks
 from relay.ticket import Ticket
 
@@ -461,6 +462,35 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     log = (ref.path / "log.md").read_text()
     assert "started (active → in_progress) via relay launch" in log
     assert "launched in interactive mode" in log
+
+
+def test_direct_launch_timeout_exits_non_zero(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A public `relay launch --idle-timeout` timeout must fail loud.
+
+    Recurring gets an internal return-value path so it can record the watchdog
+    timeout and continue its sweep, but the visible CLI should still propagate
+    the supervisor's non-zero timeout code to scripts and shells.
+    """
+    _allow_interactive_tty(monkeypatch)
+
+    def fake_supervisor(*args, **kwargs):  # type: ignore[no-untyped-def]
+        return ReplOutcome(_TIMEOUT_EXIT_CODE, "timeout")
+
+    monkeypatch.setattr(
+        "relay.commands.launch.run_with_done_marker", fake_supervisor
+    )
+    monkeypatch.setattr(
+        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(
+        app, ["launch", "fix-retry-logic", "--idle-timeout", "1"]
+    )
+
+    assert result.exit_code == _TIMEOUT_EXIT_CODE, result.output
+    assert "Agent timed out" in result.output
 
 
 def test_launch_interactive_ignores_local_skip_policy(

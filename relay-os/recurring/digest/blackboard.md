@@ -104,6 +104,10 @@ posted:
 {"ts":"2026-06-10T15:32","project":"relay","kind":"done","detail":"nick finished → done ✅","ticket":"lift-dream-subagent-scan-contract-into-reusable-sk","owner":"nick"}
 {"ts":"2026-06-10T15:35","project":"relay","kind":"done","detail":"nick finished → done ✅","ticket":"install-init-skills-via-skill-downloader","owner":"nick"}
 {"ts":"2026-06-10T15:41","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"add-dev-testing-setup-skill","owner":"nick"}
+{"ts":"2026-06-10T17:26","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"restructure-slack-message","owner":"nick"}
+{"ts":"2026-06-10T20:51","project":"relay","kind":"bump","detail":"claude advanced → step 2 (peer-review) → assigned to codex","ticket":"restructure-slack-message","owner":"nick"}
+{"ts":"2026-06-10T21:23","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"add-imported-skill-update-check","owner":"nick"}
+{"ts":"2026-06-10T21:25","project":"relay","kind":"bump","detail":"claude advanced → step 2 (peer-review) → assigned to codex — implement done: skill-update is now a standalone weekly recurring task; Dream drops its Phase 4. Branch skill-update-recurring, 629 tests pass.","ticket":"add-imported-skill-update-check","owner":"nick"}
 {"ts":"2026-06-09T15:51","project":"relay","kind":"draft","detail":"created \"Document untrusted-tool-output verify-through-ground-truth agent discipline\" (draft)","ticket":"document-untrusted-tool-output-verify-through-grou","owner":"nick"}
 {"ts":"2026-06-09T15:51","project":"relay","kind":"draft","detail":"created \"Exclude dev-tree agent-skill symlink views from the wheel build\" (draft)","ticket":"exclude-dev-tree-agent-skill-symlink-views-from-th","owner":"nick"}
 {"ts":"2026-06-09T15:52","project":"relay","kind":"draft","detail":"created \"Dream dbg cleanup-orphan-markers\" (draft)","ticket":"dream-dbg-cleanup-orphan-markers","owner":"nick"}
@@ -140,3 +144,7 @@ posted:
 {"ts":"2026-06-11T16:13","project":"relay","kind":"draft","detail":"created \"Dev-loop git hygiene: lift sync-with-main into code/open-pr + add recurring merged-branch cleanup\" (draft)","ticket":"dev-loop-git-hygiene-lift-sync-with-main-into-code","owner":"nick"}
 {"ts":"2026-06-11T16:16","project":"relay","kind":"draft","detail":"created \"Audit rules.md usage across relay and decide whether to keep, gut, or remove it\" (draft)","ticket":"audit-rules-md-usage-across-relay-and-decide-wheth","owner":"nick"}
 {"ts":"2026-06-11T16:30","project":"relay","kind":"draft","detail":"created \"simplify command lines\" (draft)","ticket":"simplify-command-lines","owner":"nick"}
+{"ts":"2026-06-12T17:51","project":"relay","kind":"done","detail":"codex finished: peer-review → done ✅","ticket":"detect-recurring-runs-that-mark-done-without-advan","owner":"nick"}
+{"ts":"2026-06-12T17:21","project":"relay-cli","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/347|PR #347> merged ✅","ticket":"recurring-task-check-ticket-done","owner":"nick"}
+{"ts":"2026-06-12T17:21","project":"relay-cli","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/346|PR #346> merged ✅","ticket":"supervisor-liveness-watchdog-for-agents-that-never","owner":"nick"}
+{"ts":"2026-06-11T17:25","project":"relay-cli","kind":"done","detail":"claude finished: verify-read-only → done ✅","ticket":"relay-crm","owner":"zach"}

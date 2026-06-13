@@ -81,4 +81,3 @@ touch `rules.md`; keep the concerns separate.
 - `src/relay/resources/templates/relay-os/rules.md` — packaged default.
 - `relay/principles` context — the filter for whether each rule earns its
   place.
-

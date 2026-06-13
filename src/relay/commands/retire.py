@@ -85,8 +85,8 @@ def retire(
         f"(agent type {agent_type.name}, mode {mode})"
     )
 
-    title = f"Retire {ref.slug}"
-    slug_override = f"retire-{slugify(ref.slug)}"
+    title = f"Retire {ref.id_slug}"
+    slug_override = f"retire-{slugify(ref.id_slug)}"
     try:
         typer.echo(f"Retire: scaffolding task {title!r}")
         result = scaffold_task(
@@ -100,7 +100,7 @@ def retire(
             watchers=[],
             status="active",
             slug_override=slug_override,
-            description=_retire_body(ref.slug),
+            description=_retire_body(ref.id_slug),
             created_by="retire",
         )
     except (ConfigError, ValueError) as exc:

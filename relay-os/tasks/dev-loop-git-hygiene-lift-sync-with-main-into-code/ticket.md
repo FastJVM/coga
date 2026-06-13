@@ -101,4 +101,3 @@ context. Key files:
   references for the new cleanup template.
 - `relay.toml` `[git]` table — `control_branch` (default `main`) is the
   base to test "merged into" against; don't hardcode `main`.
-

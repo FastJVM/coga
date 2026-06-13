@@ -134,6 +134,9 @@ directly. Script launches inject task metadata env vars including
 `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
+  A top-level task is its bare leaf slug; a grouped task is referenced by
+  its group-qualified slug (`marketing/relay-crm`), matching what `relay
+  status` prints — the bare leaf alone won't resolve.
 - `relay launch <slug> --agent <type>` — one-off agent-type override
   (e.g. `--agent claude`); does not rewrite the ticket's `assignee:`.
 - `relay launch <slug> --prompt-report` — print composed prompt layers,
@@ -210,6 +213,11 @@ guardrail and task-to-task comparison, not exact provider billing.
 List every task in the repo — `draft`, `active`, `in_progress`, `paused`,
 and `done`. Bootstrap shims have no status and don't appear here. No
 filtering flags yet; pipe through `grep` if you want to slice the output.
+
+Generated recurring period tasks (slug `recurring-<name>-<period>`) are
+machine-authored jobs scaffolded ahead of execution, so they render in a
+**second `Recurring` table** below the hand-authored backlog rather than
+mixed in with it. `relay recurring list` is the schedule-aware view of those.
 
 ## relay show \<slug\>
 
@@ -448,6 +456,17 @@ duplicated; a `done` or `paused` run is left alone. This is exactly what the
 `--interactive` runs it in interactive mode even if the template says
 `mode: auto`, for debugging one template by hand.
 
+## relay recurring list
+
+Read-only view of the recurring system — scaffolds nothing and launches
+nothing (the inspectable counterpart of a bare `relay recurring`, which
+get-or-creates each due period's task and runs it). Prints two tables: every
+template with its schedule, last/next firing, and current-period state
+(`due — not scaffolded`, or the live instance's status); then the **picked
+tasks** — the recurring period tasks already on disk, with their status and
+step. A template that fails to load (e.g. missing `schedule`) shows as an
+error row instead of crashing the view.
+
 ## relay --version
 
 Package version + the upstream commit SHA `.relay/` was vendored from.
@@ -486,6 +505,8 @@ only; they don't accept their own flags.
   `launch bootstrap/orient`).
 - Running Relay cleanup now → `relay dream`.
 - Launching every due recurring task → `relay recurring`.
+- Inspecting recurring templates + schedules + instantiated tasks (read-only)
+  → `relay recurring list`.
 - Debug-launching every template now, isolated from real state →
   `relay recurring --all`.
 - Launching one named recurring task now → `relay recurring launch <name>`.

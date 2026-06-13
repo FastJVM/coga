@@ -128,7 +128,8 @@ def test_compose_header_uses_resolved_nested_task_directory(repo: Path) -> None:
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
 
-    assert "Relay task — fix-retry-logic" in prompt
+    # A nested task is identified by its group-qualified slug.
+    assert "Relay task — auto/fix-retry-logic" in prompt
     assert "Task directory: relay-os/tasks/auto/fix-retry-logic" in prompt
 
 

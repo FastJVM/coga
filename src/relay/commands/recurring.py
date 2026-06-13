@@ -11,6 +11,8 @@ from datetime import datetime
 from pathlib import Path
 
 import typer
+from rich.console import Console
+from rich.table import Table
 
 from relay import git
 from relay.commands.launch import _interactive_stdio_has_tty
@@ -19,7 +21,10 @@ from relay.logfile import append_log
 from relay.recurring import (
     DueScan,
     RecurringError,
+    TemplateStatus,
     is_debug_slug,
+    is_recurring_slug,
+    list_templates,
     recurring_dir,
     scaffold_named,
     scan_debug,
@@ -28,7 +33,8 @@ from relay.recurring import (
 from relay.mark import mark_paused
 from relay.paths import tasks_dir
 from relay.slack import notify
-from relay.tasks import TaskRef, read_ticket
+from relay.tasks import TaskRef, list_tasks, read_ticket
+from relay.ticket import TicketError
 from relay.validate import TaskValidationError
 
 # Default idle-timeout backstop (seconds) the sweep arms on the interactive
@@ -117,9 +123,10 @@ def main(
 
     mode_override = "interactive" if interactive else None
     # `--interactive` is a human stepping through by hand, so leave the spawned
-    # REPL unbounded; an automatic sweep arms the idle backstop so one stuck
+    # REPL unbounded; an automatic sweep arms the liveness backstops so one stuck
     # agent can't block the tasks behind it.
-    idle_timeout = None if interactive else _recurring_idle_timeout()
+    idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
+    max_session = None if interactive else _recurring_max_session(cfg)
     typer.echo(f"\nLaunching {len(due)} due task(s) sequentially...\n")
     from relay.commands.launch import launch as launch_cmd
 
@@ -130,16 +137,22 @@ def main(
         # Sequential by design: each launch blocks until the agent session
         # exits before the next begins. `scan_due` filters out templates that
         # cannot run in the current stdio context (interactive with no TTY), and
-        # the idle backstop releases any that launch but then stall.
-        launch_cmd(
+        # the liveness backstops release any that launch but then stall. `launch`
+        # returns "timeout" when a backstop fired so we record the wedge honestly
+        # below instead of pausing it as a human would.
+        kind = launch_cmd(
             task.ref.slug,
             agent_override=None,
             prompt_report=False,
             no_verify=False,
             mode_override=mode_override,
             idle_timeout=idle_timeout,
+            max_session=max_session,
+            return_timeout=True,
         )
-        _stop_if_unfinished_after_launch(cfg, task.ref, interactive=interactive)
+        _stop_if_unfinished_after_launch(
+            cfg, task.ref, interactive=interactive, timed_out=(kind == "timeout")
+        )
 
 
 def _launch_all_debug(cfg) -> None:
@@ -170,9 +183,10 @@ def _launch_all_debug(cfg) -> None:
     typer.echo(f"\nLaunching {len(runs)} debug run(s) sequentially...\n")
     from relay.commands.launch import launch as launch_cmd
 
-    # Arm the supervisor idle-timeout so one stuck interactive REPL can't block
-    # the rest of the debug sweep.
-    idle_timeout = _recurring_idle_timeout()
+    # Arm the supervisor liveness backstops so one stuck interactive REPL can't
+    # block the rest of the debug sweep.
+    idle_timeout = _recurring_idle_timeout(cfg)
+    max_session = _recurring_max_session(cfg)
 
     for i, task in enumerate(runs, 1):
         typer.secho(
@@ -189,6 +203,8 @@ def _launch_all_debug(cfg) -> None:
             no_verify=False,
             mode_override=mode_override,
             idle_timeout=idle_timeout,
+            max_session=max_session,
+            return_timeout=True,
         )
         # A debug run has no persistent identity: record its outcome on the
         # template's own log.md (never composed into any prompt — see
@@ -359,6 +375,96 @@ def launch(
     _launch_scaffolded(ref, mode_override="interactive" if interactive else None)
 
 
+@app.command("list")
+def list_recurring() -> None:
+    """List recurring templates with their schedules, plus instantiated tasks.
+
+    Read-only — the inspectable counterpart of a bare `relay recurring`, which
+    get-or-creates each due period's task and launches it. This scaffolds
+    nothing and launches nothing (principle 6: a view never mutates). Two
+    tables: every template with its schedule and the current period's state,
+    then the picked tasks — the recurring period tasks already on disk.
+    """
+    try:
+        cfg = load_config()
+    except ConfigError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        sys.exit(2)
+
+    statuses = list_templates(cfg)
+    picked = [ref for ref in list_tasks(cfg) if is_recurring_slug(ref.slug)]
+
+    if not statuses and not picked:
+        typer.echo("(no recurring templates)")
+        return
+
+    console = Console()
+    now = datetime.now()
+    _print_templates_table(console, statuses, now)
+    _print_picked_table(console, picked)
+
+
+def _print_templates_table(
+    console: Console, statuses: list[TemplateStatus], now: datetime
+) -> None:
+    if not statuses:
+        return
+    table = Table(title="Recurring templates", title_justify="left", show_edge=False)
+    for col in ("template", "schedule", "last fire", "next fire", "current period"):
+        table.add_column(col, no_wrap=True)
+    for s in sorted(statuses, key=lambda x: x.name):
+        if s.error:
+            table.add_row(s.name, f"[red]error: {s.error}[/red]", "-", "-", "-")
+            continue
+        if s.instance is not None:
+            period = f"{s.instance_status} · {s.instance.id_slug}"
+        elif s.due:
+            period = "[green]due — not scaffolded[/green]"
+        else:
+            period = "none"
+        table.add_row(
+            s.name,
+            s.schedule or "-",
+            _firing_stamp(s.last_fire),
+            _firing_stamp(s.next_fire),
+            period,
+        )
+    console.print(table)
+
+
+def _print_picked_table(console: Console, picked: list[TaskRef]) -> None:
+    if not picked:
+        console.print("No instantiated recurring tasks.", style="dim")
+        return
+    table = Table(
+        title="Picked tasks (instantiated)",
+        title_justify="left",
+        show_edge=False,
+    )
+    for col in ("slug", "status", "step", "mode"):
+        table.add_column(col, no_wrap=True)
+    for ref in picked:
+        try:
+            ticket = read_ticket(ref)
+        except TicketError:
+            table.add_row(ref.id_slug, "(unreadable)", "-", "-")
+            continue
+        table.add_row(
+            ref.id_slug,
+            ticket.status or "-",
+            ticket.step or "-",
+            ticket.mode or "-",
+        )
+    console.print(table)
+
+
+def _firing_stamp(when: datetime | None) -> str:
+    """Compact firing label for the templates table (`Mon 06-15 09:00`)."""
+    if when is None:
+        return "-"
+    return when.strftime("%a %m-%d %H:%M")
+
+
 def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> None:
     """Launch (or resume) a scaffolded recurring task.
 
@@ -395,6 +501,7 @@ def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> Non
         prompt_report=False,
         no_verify=False,
         mode_override=mode_override,
+        return_timeout=False,
     )
 
 
@@ -837,7 +944,7 @@ def _git_toplevel(start: Path) -> Path | None:
 
 
 def _stop_if_unfinished_after_launch(
-    cfg: Config, ref: TaskRef, *, interactive: bool
+    cfg: Config, ref: TaskRef, *, interactive: bool, timed_out: bool = False
 ) -> None:
     """Stop a bare recurring sweep if one launched task is still in flight.
 
@@ -848,12 +955,44 @@ def _stop_if_unfinished_after_launch(
     task, then continue instead of bailing the sweep; otherwise the next scan
     would treat the leftover `in_progress` state as a dead supervisor's orphan
     and relaunch it.
+
+    `timed_out` is set when `launch` reported a liveness teardown (idle /
+    max-session) — the agent wedged and never signalled done. That must NOT be
+    recorded as the human-pause above: it isn't a deliberate park, it's a stuck
+    run. We pause it (so the next scan doesn't relaunch the orphan) but log and
+    broadcast it as a watchdog *timeout*, with a system actor, then continue the
+    sweep so one wedge can't starve the tasks behind it.
     """
     if not (ref.path / "ticket.md").exists():
         return
 
     ticket = read_ticket(ref)
     if ticket.status in {"done", "paused"}:
+        return
+
+    if timed_out:
+        suffix = "liveness watchdog: REPL timed out before signalling done"
+        try:
+            mark_paused(
+                cfg,
+                ref,
+                ticket,
+                actor="system:watchdog",
+                log_message=f"paused ({ticket.status} → paused) — {suffix}",
+                slack_text=(
+                    f"⏱️ *{ref.id_slug}* \"{ticket.title}\" timed out — {suffix}"
+                ),
+                digest_detail=f"→ paused (timeout) — {suffix}",
+                echo=None,
+            )
+        except TaskValidationError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            sys.exit(2)
+        typer.secho(
+            f"{ref.id_slug}: timed out (status={ticket.status!r}); paused as a "
+            "watchdog timeout and continuing to next due task.",
+            fg=typer.colors.YELLOW,
+        )
         return
 
     if interactive or ticket.mode == "interactive":
@@ -890,25 +1029,58 @@ def _stop_if_unfinished_after_launch(
 # --- scan reporting -----------------------------------------------------------
 
 
-def _recurring_idle_timeout() -> float | None:
+def _env_seconds(name: str) -> tuple[bool, float | None]:
+    """Read a seconds value from env var `name`.
+
+    Returns `(present, value)`: `present` is False when the var is unset (so
+    the caller falls back to config/default); when set, `value` is the parsed
+    seconds or None for a `<= 0`, non-finite, or unparseable value (an explicit
+    "disarm this backstop"). The env override always wins over config when set —
+    even to disarm — so a machine can turn a committed default off locally.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return False, None
+    try:
+        seconds = float(raw)
+    except ValueError:
+        return True, None
+    if not math.isfinite(seconds) or seconds <= 0:
+        return True, None
+    return True, seconds
+
+
+def _recurring_idle_timeout(cfg) -> float | None:
     """Idle-timeout (seconds) for interactive REPLs the sweep spawns.
 
-    Defaults to `_RECURRING_IDLE_TIMEOUT_SECONDS`; `RELAY_REPL_IDLE_TIMEOUT`
-    overrides the window. A `<= 0`, non-finite (`inf`/`nan`), or unparseable
+    Precedence: `RELAY_REPL_IDLE_TIMEOUT` env override > `[launch].idle_timeout`
+    in `relay.toml` (`cfg.launch_idle_timeout`) > the `_RECURRING_IDLE_TIMEOUT_
+    SECONDS` default. A `<= 0`, non-finite (`inf`/`nan`), or unparseable env
     value disarms the backstop (returns None). Read-only — the value is passed
     explicitly to `relay launch`, never written back to the environment, so it
     cannot leak into the process or a spawned child.
     """
-    raw = os.environ.get("RELAY_REPL_IDLE_TIMEOUT")
-    if raw is None:
-        return _RECURRING_IDLE_TIMEOUT_SECONDS
-    try:
-        seconds = float(raw)
-    except ValueError:
-        return None
-    if not math.isfinite(seconds) or seconds <= 0:
-        return None
-    return seconds
+    present, value = _env_seconds("RELAY_REPL_IDLE_TIMEOUT")
+    if present:
+        return value
+    if cfg.launch_idle_timeout_present:
+        return cfg.launch_idle_timeout
+    return _RECURRING_IDLE_TIMEOUT_SECONDS
+
+
+def _recurring_max_session(cfg) -> float | None:
+    """Max-session wall-clock cap (seconds) for the REPLs the sweep spawns.
+
+    Precedence: `RELAY_REPL_MAX_SESSION` env override > `[launch].max_session`
+    (`cfg.launch_max_session`) > None (no cap). Unlike idle-timeout there is no
+    built-in default — a wall-clock cap is opt-in, since a legitimately long
+    interactive step shouldn't be killed unless the team asked for it. A `<= 0`,
+    non-finite, or unparseable env value disarms it.
+    """
+    present, value = _env_seconds("RELAY_REPL_MAX_SESSION")
+    if present:
+        return value
+    return cfg.launch_max_session
 
 
 def _broadcast_scan(cfg, scan: DueScan) -> None:

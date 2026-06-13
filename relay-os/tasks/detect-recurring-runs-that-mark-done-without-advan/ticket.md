@@ -1,6 +1,6 @@
 ---
 title: Detect recurring runs that mark done without advancing declared state
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -25,7 +25,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (peer-review)
 ---
 
 ## Description

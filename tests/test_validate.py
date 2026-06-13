@@ -461,14 +461,11 @@ def test_nested_task_validates_clean(repo: Path) -> None:
     assert report.ok_count == 1
 
 
-def test_duplicate_task_slug_reported_as_error_not_crash(repo: Path) -> None:
+def test_same_leaf_name_in_different_groups_validates_clean(repo: Path) -> None:
+    # A leaf name reused across two groups is no longer a collision — the
+    # group-qualified slug disambiguates, so validate reports no duplicate.
     cfg = load_config(repo)
-    top = _write_full_task(repo, "dup-task")
-    nested = _write_full_task(repo, "auto/dup-task")
+    _write_full_task(repo, "marketing/dup-task")
+    _write_full_task(repo, "eng/dup-task")
     report = run(cfg)
-    assert [i.kind for i in report.issues] == ["duplicate-slug"]
-    issue = report.issues[0]
-    assert issue.severity == "error"
-    assert issue.task == "dup-task"
-    assert str(top) in issue.message
-    assert str(nested) in issue.message
+    assert "duplicate-slug" not in [i.kind for i in report.issues]

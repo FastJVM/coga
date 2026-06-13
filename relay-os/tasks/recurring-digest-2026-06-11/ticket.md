@@ -44,4 +44,3 @@ re-run posts nothing. The spool is a real, git-tracked, human-readable
 blackboard — never hidden state — so the pending queue is always legible.
 
 ## Context
-
