@@ -78,6 +78,28 @@ user message. That lets the first real human exchange set the agent session
 title for later resume. Set `[agents.<type>].discussion` to override the argv
 template for another agent.
 
+## relay project [\<seed\>] [--agent <type>]
+
+Plan a whole project into an ordered set of `draft` tickets. Runs the
+`bootstrap/project` skill in an interactive session: it interviews the human
+(outcome → prior art → constraints → dependencies & sign-off, one question at
+a time), proposes the ordered ticket list for the human to prune/reorder, then
+scaffolds the surviving set with `relay draft` — one launchable step per
+ticket. Where `relay ticket` authors one ticket, `relay project` decomposes a
+project into many.
+
+- `relay project` — start from the first interview question.
+- `relay project "<seed>"` — seed the interview with a one-line description or
+  a path/link to a vision doc; the agent reads it and confirms/fills gaps
+  rather than starting cold. Covers the vision-to-plan case.
+- `relay project --agent <type>` — run the interview with a specific agent.
+
+The interview questions and decomposition rules live in the skill, not in CLI
+code, so they can't drift. The command creates only `draft`s and never
+activates or launches them — the human owns what happens next. Like
+`relay ticket`, it requires a TTY (interactive). After the session it lists the
+created drafts and fails loud if any has a schema error.
+
 ## relay mark \<state\> \<slug\> [--message "..."]
 
 Change a ticket's `status`. Three subcommands: `mark active`,
