@@ -20,7 +20,7 @@ workflow:
   - name: revise
     skills: []
     assignee: agent
-step: 2 (draft)
+step: 3 (revise)
 ---
 
 ## Description
