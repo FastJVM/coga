@@ -1,6 +1,6 @@
 ---
 title: relay-onboarding
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach
