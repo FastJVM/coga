@@ -1,6 +1,6 @@
 ---
 name: bootstrap/project
-description: Interview the human about a project (outcome, prior art, constraints, dependencies), propose an ordered set of tickets for them to prune, then scaffold the surviving set as draft tickets — one launchable step each. You plan the project; you do not start the work.
+description: Interview the human about a project (outcome, prior art, constraints, dependencies), propose an ordered set of tickets for them to prune, then create the surviving set as draft tickets — one launchable step each. You plan the project; you do not start the work.
 ---
 
 # Plan a project into tickets
@@ -17,7 +17,7 @@ your job, not theirs. The human supplies only what you genuinely can't infer.
 ## Ticket format — read this first
 
 The canonical ticket shape is `relay-os/tasks/_template/ticket.md`. **Read it
-once before you scaffold anything** — Description is the *what + why* (2–4
+once before you create anything** — Description is the *what + why* (2–4
 sentences), Context is task-specific knowledge. Every generated ticket matches
 that shape. Don't invent frontmatter fields the template doesn't define.
 
@@ -72,7 +72,7 @@ single trivial command.
 - The final ticket's acceptance bar is Q1's demo answer. Intermediate tickets
   get acceptance criteria you draft; the human corrects them in Step 3.
 
-## Step 3 — Review before scaffold (do not skip)
+## Step 3 — Review before creating (do not skip)
 
 Present the proposed list to the human as **titles + one-liners + the
 dependency edges**, before creating anything on disk. Ask plainly:
@@ -87,29 +87,41 @@ they cut, split ones they flag as too big, add ones they name, reorder as
 directed. Loop until they're satisfied. **Create nothing until they approve the
 list.**
 
-## Step 4 — Scaffold the ordered drafts
+Also settle the **project directory** here. The tickets live together in one
+directory under `relay-os/tasks/` (`relay-os/tasks/<project>/`) so the project
+reads as a unit in `relay status`. Derive a short kebab-case name from the
+outcome and confirm it in the same breath:
 
-For each surviving ticket, in order, run:
+> "I'll put these under `relay-os/tasks/<project>/` — good, or pick another name?"
+
+Keep it to a single name (no `/`); project directories don't nest.
+
+## Step 4 — Create the ordered drafts
+
+Make the project directory once, then create each surviving ticket in order and
+move it in:
 
 ```
-relay draft "<title>"
+mkdir -p relay-os/tasks/<project>
+relay create "<title>"          # echoes the new slug, e.g. "tokenize-cards: created (draft)"
+mv relay-os/tasks/<slug> relay-os/tasks/<project>/
 ```
 
-Then edit the new draft's `ticket.md` directly:
+`relay create` makes a top-level draft and echoes its slug; move that directory
+into the project directory so the ticket is referenced by its directory-qualified
+slug, `<project>/<slug>` (matching what `relay status` prints). Then edit the
+new draft's `ticket.md` directly:
 
 - **Description** — the what + why (2–4 sentences), drawn from the interview.
-- **Context** — task-specific facts from the answers and prior art. Record
-  cross-ticket ordering here in prose, e.g. `Depends on: <predecessor-slug>`
-  (there is no dependency frontmatter field yet — keep it in the body so it
-  survives until one exists). Note any open questions you couldn't resolve.
+- **Context** — task-specific facts from the answers and prior art. Note any
+  open questions you couldn't resolve.
 - Leave `workflow: null` unless the human chose a workflow for that step — a
   workflow-less draft is a valid authoring state; the human activates and wires
   each ticket when they're ready. Don't run `relay mark active` or
   `relay launch` on anything.
 
-Slugs are leaf-name based, so the human can reference each ticket regardless of
-order. After scaffolding, list the created slugs in dependency order and stop —
-the human owns what happens next.
+After creating them, list the created `<project>/<slug>` tickets in order and
+stop — the human owns what happens next.
 
 ## What you must not do
 
