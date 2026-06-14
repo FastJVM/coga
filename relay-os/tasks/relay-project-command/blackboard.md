@@ -61,17 +61,21 @@ should populate it.)
   `identify-blocking-issues` ticket's proposed `dependencies:` field —
   coordinate so `relay project` emits whatever format that ticket settles
   on, rather than inventing a parallel one.
-- **Doc-seed input mechanism.** How does the human point at the doc — a
-  path arg (`relay project --from vision.md`), a Drive link the agent
-  fetches, a paste? Affects Q2's wording and the command signature.
+- **Doc-seed input mechanism — narrowed 2026-06-13 (see below).** Folds
+  onto `relay setup`'s seed arg (e.g. `relay setup "<idea, or path/link to
+  a vision doc>"`), matching the seed `relay project` already accepts.
+  Exact fetch-vs-path handling still open.
 - **Bulk draft creation.** `relay draft`/`relay ticket` scaffold one
-  top-level ticket at a time; `relay project` needs to emit an ordered
+  top-level ticket at a time; project planning needs to emit an ordered
   set. Does it call the existing scaffold path in a loop, or is there a
-  new batch path? Ordering must survive (slugs are leaf-name based).
-- **Command vs. ticket-driven.** Is `relay project` a CLI command (like
-  `relay ticket`) that runs the interview directly, or a bootstrap
-  ticket/workflow the user launches? `relay ticket` is the closest prior
-  art for an interview-driving command.
+  new batch path? Ordering must survive (slugs are leaf-name based). (The
+  built `bootstrap/project` skill already loops `relay draft` per ticket
+  during the session — see the decision note below.)
+- **Command vs. ticket-driven — RESOLVED 2026-06-13 (see below).** Neither
+  a standalone `relay project` command nor its own bootstrap ticket: it
+  ships as `relay setup`'s already-onboarded path. The existing
+  `bootstrap/project` skill (the interview + scaffold protocol) is reused
+  as-is; only the entry point changes.
 
 ## 2026-06-12 — Design dry-run (wizard-of-oz validation)
 
@@ -103,3 +107,50 @@ design held. Three findings:
    load-bearing prior art. Broadened in `ticket.md` to "a doc … or
    existing work like a workflow, script, or code." Implementation should
    carry the broadened wording into whatever runs the interview.
+
+## 2026-06-13 — Decision: fold project planning into `relay setup`, drop the standalone command
+
+Zach's call after reviewing the commands already built on branch
+`relay-cli-commands`: do not release `relay project` as its own command;
+make project planning the already-onboarded path of `relay setup`. Setup
+and project are the same operation — interview about intent → draft
+tickets — at two altitudes (repo on first run, project after), so one
+command is fewer to learn, and there's nothing to deprecate since `relay
+project` isn't shipped. This also resolves the "command vs. ticket-driven"
+open question above: it's neither — it's a branch of `relay setup`.
+
+**What this changes in the code already on this branch:**
+
+- `relay setup` (`src/relay/commands/setup.py`) currently ends its
+  resumable flow this way: if the `relay-setup` ticket is `done`, print
+  "already set up — nothing to do." That terminal branch becomes the
+  project-planning entry — confirm, then run the project flow.
+- The project flow is already built: `relay project`
+  (`src/relay/commands/project.py`) is a thin launcher over the
+  `bootstrap/project` skill, which holds the four-beat interview and the
+  review-before-scaffold protocol (and loops `relay draft` per ticket).
+  Reuse it wholesale — `setup` calls the same path. Implementation is
+  "rewire + delete a registration," not build-from-scratch.
+- Remove the `app.command("project")(...)` registration in
+  `src/relay/cli.py` and drop `"project"` from the alias/command list
+  there (~line 102). The skill and launcher logic stay; only the
+  user-facing command word goes away.
+
+**Two refinements settled with the decision:**
+
+1. **Pre-load round-one intent.** Feed the repo-level intent `relay setup`
+   captured (the `relay-setup` ticket's recorded answers, plus the
+   generated contexts/rules) into the project interview as context. The
+   agent decomposes against known repo background and never re-asks "what
+   is this repo for"; the four project beats stay, project-level only.
+2. **Confirm before planning.** A bare `relay setup` on an onboarded repo
+   no longer silently no-ops — it asks "This repo's set up — plan a new
+   project? [y/N]" before starting an interactive session, so the same
+   command run twice doesn't surprise a returning user. A seed arg is
+   read as explicit intent and skips the confirm, dropping straight into
+   planning.
+
+**Supersedes:** the relay-cli `feat/init-interview` branch
+(interview-at-`init`). That approach is replaced by
+interview-in-a-launched-ticket, which PR #348 already shipped — nothing
+to merge from it.

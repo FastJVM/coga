@@ -34,17 +34,29 @@ step: 1 (design)
 
 ## Description
 
-Build a project command in Relay. "Relay project" interviews a human about a project--goal, scope, constraints, acceptance criteria--through a short series of questions. 
-
-From the answers, it creates an ordered set of draft tickets, one per each step. 
-
-It can also seed the interview from an existing vision doc instead of starting from scratch (covers the deleted vision-to-plan ticket).
+Project planning interviews a human about a project — outcome, prior art,
+constraints, dependencies — and scaffolds an ordered set of draft tickets
+from the answers, seedable from an existing vision doc. **Decision
+(2026-06-13): it ships as the already-onboarded path of `relay setup`, not
+a standalone `relay project` command** — one door for "turn intent into
+tickets," repo altitude on a fresh repo and project altitude after, with
+nothing to deprecate since `relay project` isn't released. Two
+refinements: the interview is pre-seeded with the repo intent `relay
+setup` already captured (so it never re-asks "what is this repo for"), and
+on an already-set-up repo `relay setup` confirms before starting a session
+instead of no-opping. The four-beat interview and review-before-scaffold
+gate below are unchanged — the merge changes the entry point and seeding,
+not the decomposition.
 
 ## Interview design (settled at design step)
 
 Four beats, asked one at a time, recorded verbatim — borrowing the
 `init/setup` interview discipline (short, the agent does the
-decomposition, the human supplies only what the agent can't infer).
+decomposition, the human supplies only what the agent can't infer). The
+repo intent captured at onboarding (purpose, rules, existing
+workflows/contexts) is loaded as context, so the agent decomposes against
+what it already knows and asks only these project-specific beats — it
+never re-asks repo-level background.
 
 1. **Outcome (always first, never skipped):** "When this is done, what
    exists that doesn't today? How would you demo it?" → definition of
@@ -82,6 +94,7 @@ step is dropped, reinstate a scope question.
 
 ## Context
 
-Design rationale, the evaluation that produced this shape, and the open
+Design rationale, the evaluation that produced this shape, the
+command-surface decision (fold into `relay setup`), and the open
 implementation questions live on the blackboard.
 
