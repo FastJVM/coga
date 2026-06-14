@@ -134,8 +134,8 @@ def test_setup_done_repo_offers_planning_then_declines(
     result = CliRunner().invoke(app, ["setup", str(tmp_path)], input="n\n")
     assert result.exit_code == 0, result.output
     assert "already set up" in result.output
-    assert "Plan a new project now?" in result.output
-    # Nudge points at running setup again, never the removed `relay project`.
+    assert "Plan a project now?" in result.output
+    # Decline nudge mentions relay setup, never the removed `relay project`.
     assert "Plan a project" in result.output
     assert "relay project" not in result.output
     assert plan_calls == []
@@ -157,7 +157,7 @@ def test_setup_done_repo_plans_when_confirmed(
     assert launch_calls == []
 
 
-def test_setup_nudges_to_planning_when_workflow_finishes(
+def test_setup_offers_planning_when_workflow_finishes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
@@ -170,12 +170,13 @@ def test_setup_nudges_to_planning_when_workflow_finishes(
 
     monkeypatch.setattr(launch_cmd, "launch", fake_launch)
 
-    result = CliRunner().invoke(app, ["setup", str(tmp_path)])
+    # The finished run flows straight into the project offer (declined here).
+    result = CliRunner().invoke(app, ["setup", str(tmp_path)], input="n\n")
     assert result.exit_code == 0, result.output
     assert "Setup complete" in result.output
-    assert "Plan a project" in result.output
+    assert "Plan a project now?" in result.output
     assert "relay project" not in result.output
-    assert 'relay draft "<title>"' in result.output
+    assert 'relay create "<title>"' in result.output
 
 
 def test_setup_tells_resume_when_workflow_unfinished(
@@ -202,5 +203,5 @@ def test_setup_missing_ticket_offers_planning(
     result = CliRunner().invoke(app, ["setup", str(tmp_path)], input="n\n")
     assert result.exit_code == 0, result.output
     assert "already set up" in result.output
-    assert "Plan a new project now?" in result.output
+    assert "Plan a project now?" in result.output
     assert launch_calls == []

@@ -99,8 +99,7 @@ Fold the review back in: apply the blackboard answers, regenerate anything
 the human flagged, and confirm `relay validate` passes. Summarize what
 landed, then finish with `relay mark done`.
 
-As your closing message, point the human at their first real move now that
-the repo knows the project: run `relay setup` again to plan a piece of work
-as an ordered set of tickets (a short interview → draft tickets), or
-`relay draft "<title>"` for a single one-off ticket. Keep it to a line or
-two — they just finished a long setup.
+As your closing message, tell the human in a line or two that setup is
+complete and the repo now knows the project — they're about to be asked
+whether to plan their first project as an ordered set of tickets. (A single
+one-off ticket is always `relay create "<title>"`.)
