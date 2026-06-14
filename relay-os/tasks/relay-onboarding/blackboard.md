@@ -13,3 +13,25 @@ Google MCP connection verified live and `create_file` capability confirmed.
 - Drive root parentId observed on recent files: `0AI38XlSataDrUk9PVA`.
 
 Bumping past preflight into content work.
+
+## Draft step (2026-06-14)
+
+Human confirmed the content/tone before generation: warm-but-terse, one screen, "value in 30 seconds", nothing added beyond the ticket's three-step spec. Content follows the task-specific context exactly:
+
+1. Install the CLI — `git clone https://github.com/FastJVM/relay && cd relay && pip install -e .` (note: clone alone isn't enough; `pip install -e .` puts `relay` on PATH).
+2. Set up your repo — `relay setup` in a separate work folder; one run creates Relay OS, interviews, offers to plan first project into draft tickets; safe to re-run.
+3. Start the work — `relay launch "<ticket>"`; auto-activates a draft.
+
+Left out per ticket: no `relay project`, no `relay create`/`relay ticket`, no PyPI/`pip install relay-os`.
+
+### HTML upload — DONE
+- HTML draft uploaded as raw `text/html` (disableConversionToGoogleType=true), placed as sibling of the superseded doc in parent `0AI38XlSataDrUk9PVA`.
+- HTML file id: `11C_rIJlWknKYoZ9zqS9UT7cLTALg4-Ih`
+- HTML view link: https://drive.google.com/file/d/11C_rIJlWknKYoZ9zqS9UT7cLTALg4-Ih/view?usp=drivesdk
+- Next: human does "Open with → Google Docs" to mint the converted Doc, then pastes the Doc link here. Once I have the Doc link, write it below and bump with `--message "draft Doc: <link>"`.
+
+### Converted Doc link — DONE
+- Converted Google Doc verified: mimeType `application/vnd.google-apps.document`, title "Relay Onboarding", parent `0AI38XlSataDrUk9PVA` (sibling of superseded doc).
+- Doc id: `1eAdnxopeVC7jLGUfdo05R-h_a4jM-OwhracyUgYLtq0`
+- Doc link: https://docs.google.com/document/d/1eAdnxopeVC7jLGUfdo05R-h_a4jM-OwhracyUgYLtq0/edit
+- Bumping draft step with this Doc link.
