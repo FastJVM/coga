@@ -35,3 +35,18 @@ Left out per ticket: no `relay project`, no `relay create`/`relay ticket`, no Py
 - Doc id: `1eAdnxopeVC7jLGUfdo05R-h_a4jM-OwhracyUgYLtq0`
 - Doc link: https://docs.google.com/document/d/1eAdnxopeVC7jLGUfdo05R-h_a4jM-OwhracyUgYLtq0/edit
 - Bumping draft step with this Doc link.
+
+## Revise step (2026-06-14) — APPROVED, no changes
+
+Handed the human the real Google Doc (not the pre-import HTML). Human reviewed and approved it as-is on the first pass — no revisions requested, so no new file/Doc was minted.
+
+### Agreed-final Doc
+- Title: "Relay Onboarding"
+- Doc id: `1eAdnxopeVC7jLGUfdo05R-h_a4jM-OwhracyUgYLtq0`
+- Doc link: https://docs.google.com/document/d/1eAdnxopeVC7jLGUfdo05R-h_a4jM-OwhracyUgYLtq0/edit
+
+### Cleanup for the human (trash these)
+- Superseded prior doc: "Getting Started with Relay — Your First Five Commands", id `1bZyF0D2_FJsf-NCCWm6rlewSkyOmVl6Q9QOLwtamnf0`.
+- Pre-import HTML source file (no longer needed now the Doc exists): id `11C_rIJlWknKYoZ9zqS9UT7cLTALg4-Ih`.
+
+Marking task done.
