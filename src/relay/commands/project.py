@@ -36,20 +36,15 @@ from relay.tasks import (
 from relay.validate import format_task_issues, validate_task_dir
 
 
-def plan_project(
-    cfg: Config,
-    *,
-    seed: str | None = None,
-    agent_override: str | None = None,
-) -> None:
+def plan_project(cfg: Config) -> None:
     """Interview about a project, then scaffold an ordered set of draft tickets.
 
     The reusable core of project planning, reached via `relay setup` on an
     already-onboarded repo — there is no standalone `relay project` command.
     Runs the `bootstrap/project` skill in an interactive agent session; the
     four-beat interview and the review-before-scaffold protocol live in the
-    skill, not here. `seed` is an optional one-line goal or a path/link to a
-    vision doc. Raises typer.Exit on a setup gap, SystemExit on agent failure.
+    skill (which also gathers the goal and any vision doc), not here. Raises
+    typer.Exit on a setup gap, SystemExit on agent failure.
     """
     try:
         ref = resolve_bootstrap(cfg, "project")
@@ -60,9 +55,12 @@ def plan_project(
         )
     shim_ticket = read_ticket(ref)
 
-    launch_assignee = agent_override or shim_ticket.assignee
+    launch_assignee = shim_ticket.assignee
     if not launch_assignee:
-        _bail("No planning agent configured; pass --agent <nickname>.")
+        _bail(
+            "No planning agent configured on the bootstrap/project shim — set "
+            "its `assignee` to an agent type declared in relay.toml."
+        )
 
     if not _interactive_stdio_has_tty():
         _bail(
@@ -83,8 +81,6 @@ def plan_project(
         prompt = compose_prompt(cfg, ref, shim_ticket)
     except ComposeError as exc:
         _bail(str(exc))
-    if seed:
-        prompt = f"{prompt}\n\n## Project seed\n\n{seed}\n"
     prompt_file = write_prompt_file(prompt, ref)
     cmd = build_agent_command(agent, "interactive", prompt, discussion=True)
     typer.echo(

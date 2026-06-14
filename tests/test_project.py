@@ -3,8 +3,7 @@
 There is no standalone `relay project` command; this is the reusable core that
 `relay setup` calls on an already-onboarded repo. The agent session is mocked;
 tests cover the helper's contract: it composes the bootstrap/project skill,
-threads an optional seed, requires a TTY, and reports/validates whatever drafts
-the session created.
+requires a TTY, and reports/validates whatever drafts the session created.
 """
 
 from __future__ import annotations
@@ -163,18 +162,6 @@ def test_plan_project_reports_created_drafts_in_order(
     assert "2 draft ticket(s) created" in out
     assert "set-up-test-account" in out
     assert "build-the-flow" in out
-
-
-def test_plan_project_threads_seed_into_prompt(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    prompts: list[str] = []
-    _allow_launch(monkeypatch, prompts)
-
-    plan_project(load_config(), seed="ship the killer demo video")
-
-    assert "## Project seed" in prompts[0]
-    assert "ship the killer demo video" in prompts[0]
 
 
 def test_plan_project_requires_tty(
