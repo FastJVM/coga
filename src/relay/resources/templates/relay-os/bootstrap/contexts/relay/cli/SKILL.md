@@ -38,14 +38,20 @@ resolves them after project-local `relay-os/skills` and `relay-os/contexts`.
 
 ## relay setup [PATH]
 
-One-command onboarding for a new repo — the entry point to tell new users
-about. Runs the bootstrap stages in order, skipping any that are already
-satisfied: scaffold via `relay init` if there is no relay repo at `PATH`
-(default `.`), prompt for your name and write it to `user` in
-`relay.local.toml` if unset, then launch the `relay-setup` interview
-ticket (no-op with a message if that ticket is already done or absent).
-Idempotent — if a stage fails (e.g. Slack webhook not configured yet),
+One-command onboarding for a new repo, then your first project — the entry
+point to tell new users about. Runs the bootstrap stages in order, skipping
+any that are already satisfied: create `relay-os/` via `relay init` if there
+is no relay repo at `PATH` (default `.`), prompt for your name and write it to
+`user` in `relay.local.toml` if unset, then run the `relay-setup` interview
+ticket. Idempotent — if a stage fails (e.g. Slack webhook not configured yet),
 fix the issue and re-run; it resumes where it stopped.
+
+Once onboarding finishes, `relay setup` immediately offers to plan a project:
+a short interview decomposes the work into an ordered set of `draft` tickets
+(via the `bootstrap/project` skill), created with `relay create` and grouped
+together in their own `relay-os/tasks/<project>/` directory. This is the only
+entry to project planning — there is no separate `relay project` command — so
+running `relay setup` on an already-set-up repo skips straight to that offer.
 
 ## relay draft "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
 
