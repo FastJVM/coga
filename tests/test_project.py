@@ -1,8 +1,10 @@
-"""`relay project` — interview about a project, then scaffold ordered drafts.
+"""Project planning — `plan_project` runs the bootstrap/project skill.
 
-The agent session is mocked; tests cover the launcher's contract: it composes
-the bootstrap/project skill, threads an optional seed, requires a TTY, and
-reports/validates whatever drafts the session created.
+There is no standalone `relay project` command; this is the reusable core that
+`relay setup` calls on an already-onboarded repo. The agent session is mocked;
+tests cover the helper's contract: it composes the bootstrap/project skill,
+threads an optional seed, requires a TTY, and reports/validates whatever drafts
+the session created.
 """
 
 from __future__ import annotations
@@ -11,9 +13,9 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
-from typer.testing import CliRunner
+import typer
 
-from relay.cli import app
+from relay.commands.project import plan_project
 from relay.config import load_config
 from relay.scaffold import scaffold_task
 from relay.ticket import Ticket
@@ -127,14 +129,14 @@ def _scaffold_drafts(*titles: str):  # type: ignore[no-untyped-def]
     return _run
 
 
-def test_project_composes_skill_and_logs_launch(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+def test_plan_project_composes_skill_and_logs_launch(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     prompts: list[str] = []
     _allow_launch(monkeypatch, prompts)
 
-    result = CliRunner().invoke(app, ["project"])
-    assert result.exit_code == 0, result.output
+    plan_project(load_config())
+    out = capsys.readouterr().out
 
     assert len(prompts) == 1
     assert "Skill: bootstrap/project" in prompts[0]
@@ -142,11 +144,11 @@ def test_project_composes_skill_and_logs_launch(
         repo / "bootstrap" / "project" / "log.md"
     ).read_text()
     # No drafts created → says so plainly rather than implying success.
-    assert "no draft tickets were created" in result.output
+    assert "no draft tickets were created" in out
 
 
-def test_project_reports_created_drafts_in_order(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+def test_plan_project_reports_created_drafts_in_order(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     prompts: list[str] = []
     _allow_launch(
@@ -155,40 +157,40 @@ def test_project_reports_created_drafts_in_order(
         on_run=_scaffold_drafts("Set up test account", "Build the flow"),
     )
 
-    result = CliRunner().invoke(app, ["project"])
-    assert result.exit_code == 0, result.output
+    plan_project(load_config())
+    out = capsys.readouterr().out
 
-    assert "2 draft ticket(s) created" in result.output
-    assert "set-up-test-account" in result.output
-    assert "build-the-flow" in result.output
+    assert "2 draft ticket(s) created" in out
+    assert "set-up-test-account" in out
+    assert "build-the-flow" in out
 
 
-def test_project_threads_seed_into_prompt(
+def test_plan_project_threads_seed_into_prompt(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     prompts: list[str] = []
     _allow_launch(monkeypatch, prompts)
 
-    result = CliRunner().invoke(app, ["project", "ship the killer demo video"])
-    assert result.exit_code == 0, result.output
+    plan_project(load_config(), seed="ship the killer demo video")
 
     assert "## Project seed" in prompts[0]
     assert "ship the killer demo video" in prompts[0]
 
 
-def test_project_requires_tty(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+def test_plan_project_requires_tty(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(
         "relay.commands.project._interactive_stdio_has_tty", lambda: False
     )
-    result = CliRunner().invoke(app, ["project"])
-    assert result.exit_code == 2
-    assert "requires a TTY" in result.output
+    with pytest.raises(typer.Exit) as exc:
+        plan_project(load_config())
+    assert exc.value.exit_code == 2
+    assert "requires a TTY" in capsys.readouterr().err
 
 
-def test_project_fails_loud_on_broken_draft(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+def test_plan_project_fails_loud_on_broken_draft(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     def make_broken() -> None:
         cfg = load_config()
@@ -204,7 +206,7 @@ def test_project_fails_loud_on_broken_draft(
             status="draft",
         )
         # An invalid mode is a hard validation error — the session left a
-        # malformed ticket and the command must surface it, not pass silently.
+        # malformed ticket and the helper must surface it, not pass silently.
         path = result["path"] / "ticket.md"
         t = Ticket.read(path)
         t.frontmatter["mode"] = "bogus"
@@ -213,17 +215,19 @@ def test_project_fails_loud_on_broken_draft(
     prompts: list[str] = []
     _allow_launch(monkeypatch, prompts, on_run=make_broken)
 
-    result = CliRunner().invoke(app, ["project"])
-    assert result.exit_code == 2
-    assert "Validation failed for" in result.output
+    with pytest.raises(SystemExit) as exc:
+        plan_project(load_config())
+    assert exc.value.code == 2
+    assert "Validation failed for" in capsys.readouterr().err
 
 
-def test_project_propagates_agent_failure(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+def test_plan_project_propagates_agent_failure(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     prompts: list[str] = []
     _allow_launch(monkeypatch, prompts, returncode=3)
 
-    result = CliRunner().invoke(app, ["project"])
-    assert result.exit_code == 3
-    assert "Agent exited with code 3" in result.output
+    with pytest.raises(SystemExit) as exc:
+        plan_project(load_config())
+    assert exc.value.code == 3
+    assert "Agent exited with code 3" in capsys.readouterr().err

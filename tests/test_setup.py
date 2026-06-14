@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from relay.cli import app
 from relay.commands import init as init_cmd
 from relay.commands import launch as launch_cmd
+from relay.commands import setup as setup_cmd
 
 
 def _seed_repo(
@@ -112,21 +113,88 @@ def test_setup_recreates_missing_local_toml(
     assert launch_calls == ["relay-setup"]
 
 
-def test_setup_noop_when_ticket_done(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, launch_calls: list[str]
+@pytest.fixture
+def plan_calls(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
+    """Capture calls to the project-planning helper without launching an agent."""
+    calls: list[dict] = []
+    monkeypatch.setattr(setup_cmd, "plan_project", lambda cfg, **kw: calls.append(kw))
+    return calls
+
+
+def test_setup_done_repo_offers_planning_then_declines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    launch_calls: list[str],
+    plan_calls: list[dict],
 ) -> None:
     monkeypatch.chdir(tmp_path)
     _seed_repo(tmp_path, user="zach", ticket_status="done")
 
-    result = CliRunner().invoke(app, ["setup", str(tmp_path)])
+    # Decline the confirm: setup falls back to the next-steps nudge.
+    result = CliRunner().invoke(app, ["setup", str(tmp_path)], input="n\n")
     assert result.exit_code == 0, result.output
-    assert "already done" in result.output
-    # Re-running setup after it's finished still nudges toward the first move.
-    assert "relay project" in result.output
+    assert "already set up" in result.output
+    assert "Plan a new project now?" in result.output
+    # Nudge points at setup-based planning, never the removed `relay project`.
+    assert "relay setup --project" in result.output
+    assert "relay project" not in result.output
+    assert plan_calls == []
     assert launch_calls == []
 
 
-def test_setup_nudges_to_project_when_workflow_finishes(
+def test_setup_done_repo_plans_when_confirmed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    launch_calls: list[str],
+    plan_calls: list[dict],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _seed_repo(tmp_path, user="zach", ticket_status="done")
+
+    result = CliRunner().invoke(app, ["setup", str(tmp_path)], input="y\n")
+    assert result.exit_code == 0, result.output
+    assert plan_calls == [{"seed": None}]
+    assert launch_calls == []
+
+
+def test_setup_project_seed_plans_directly_without_confirm(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    launch_calls: list[str],
+    plan_calls: list[dict],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _seed_repo(tmp_path, user="zach", ticket_status="done")
+
+    result = CliRunner().invoke(
+        app, ["setup", str(tmp_path), "--project", "ship the demo"]
+    )
+    assert result.exit_code == 0, result.output
+    assert plan_calls == [{"seed": "ship the demo"}]
+    # A seed is explicit intent — no confirm prompt.
+    assert "Plan a new project now?" not in result.output
+    assert launch_calls == []
+
+
+def test_setup_project_seed_rejected_before_onboarded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    launch_calls: list[str],
+    plan_calls: list[dict],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _seed_repo(tmp_path, user="zach")  # ticket stays `active` — not onboarded yet
+
+    result = CliRunner().invoke(
+        app, ["setup", str(tmp_path), "--project", "ship the demo"]
+    )
+    assert result.exit_code == 2
+    assert "Setup isn't finished yet" in result.output
+    assert plan_calls == []
+    assert launch_calls == []
+
+
+def test_setup_nudges_to_planning_when_workflow_finishes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
@@ -142,7 +210,8 @@ def test_setup_nudges_to_project_when_workflow_finishes(
     result = CliRunner().invoke(app, ["setup", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert "Setup complete" in result.output
-    assert "relay project" in result.output
+    assert "relay setup --project" in result.output
+    assert "relay project" not in result.output
     assert 'relay draft "<title>"' in result.output
 
 
@@ -167,5 +236,7 @@ def test_setup_explains_missing_ticket(
 
     result = CliRunner().invoke(app, ["setup", str(tmp_path)])
     assert result.exit_code == 0, result.output
-    assert "No relay-setup ticket" in result.output
+    assert "No relay-setup interview ticket" in result.output
+    # With nothing to resume, point at planning rather than dropping into it.
+    assert "relay setup --project" in result.output
     assert launch_calls == []

@@ -1,12 +1,13 @@
-"""`relay project [seed]` — interview the human about a project, then scaffold
-an ordered set of draft tickets from the answers.
+"""Project planning — interview the human about a project, then scaffold an
+ordered set of draft tickets from the answers.
 
-Thin launcher, mirroring `relay ticket`: it runs the `bootstrap/project` skill
-in an interactive agent session. The four-question interview and the
-review-before-scaffold protocol live in the skill, not here, so they can't
-drift from code. The agent creates the ordered drafts during the session via
-`relay draft` (each of which syncs itself); this command validates whatever
-drafts the session produced and reports them before handing back.
+`plan_project` is the reusable core, reached via `relay setup` on an
+already-onboarded repo: there is no standalone `relay project` command. It runs
+the `bootstrap/project` skill in an interactive agent session; the four-beat
+interview and the review-before-scaffold protocol live in the skill, not here,
+so they can't drift from code. The agent creates the ordered drafts during the
+session via `relay draft` (each of which syncs itself); this then validates
+whatever drafts the session produced and reports them before handing back.
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from relay.commands.launch import (
     build_agent_command,
 )
 from relay.compose import ComposeError, compose_prompt, write_prompt_file
-from relay.config import ConfigError, load_config
+from relay.config import Config, ConfigError
 from relay.logfile import append_log
 from relay.tasks import (
     TaskNotFoundError,
@@ -35,26 +36,21 @@ from relay.tasks import (
 from relay.validate import format_task_issues, validate_task_dir
 
 
-def project(
-    seed: str | None = typer.Argument(
-        None,
-        help=(
-            "Optional one-line project description, or a path/link to a vision "
-            "doc to seed the interview. Omit to start from the first question."
-        ),
-    ),
-    agent_override: str | None = typer.Option(
-        None,
-        "--agent",
-        help="Agent nickname to run the planning interview.",
-    ),
+def plan_project(
+    cfg: Config,
+    *,
+    seed: str | None = None,
+    agent_override: str | None = None,
 ) -> None:
-    """Interview about a project, then scaffold an ordered set of draft tickets."""
-    try:
-        cfg = load_config()
-    except ConfigError as exc:
-        _bail(str(exc))
+    """Interview about a project, then scaffold an ordered set of draft tickets.
 
+    The reusable core of project planning, reached via `relay setup` on an
+    already-onboarded repo — there is no standalone `relay project` command.
+    Runs the `bootstrap/project` skill in an interactive agent session; the
+    four-beat interview and the review-before-scaffold protocol live in the
+    skill, not here. `seed` is an optional one-line goal or a path/link to a
+    vision doc. Raises typer.Exit on a setup gap, SystemExit on agent failure.
+    """
     try:
         ref = resolve_bootstrap(cfg, "project")
     except TaskNotFoundError as exc:
