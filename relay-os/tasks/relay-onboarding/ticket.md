@@ -1,6 +1,6 @@
 ---
 title: relay-onboarding
-status: draft
+status: active
 mode: interactive
 owner: zach
 human: zach
@@ -20,7 +20,7 @@ workflow:
   - name: revise
     skills: []
     assignee: agent
-step: "1 (preflight)"
+step: 1 (preflight)
 ---
 
 ## Description
