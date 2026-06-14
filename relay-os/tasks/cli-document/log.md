@@ -6,3 +6,5 @@
 2026-06-13 14:36 [agent:claude] advanced to step 2 (draft)
 2026-06-13 14:36 [human:zach] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-14 07:05 [agent:claude] advanced to step 3 (revise) — draft Doc: https://docs.google.com/document/d/1bZyF0D2_FJsf-NCCWm6rlewSkyOmVl6Q9QOLwtamnf0/edit
+2026-06-14 07:05 [human:zach] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-14 07:06 [human:zach] task done — Getting Started doc approved & final: https://docs.google.com/document/d/1bZyF0D2_FJsf-NCCWm6rlewSkyOmVl6Q9QOLwtamnf0/edit

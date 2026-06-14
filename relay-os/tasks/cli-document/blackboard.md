@@ -90,3 +90,22 @@ User-facing delta applied (kept minimal — "only add what a new user needs"):
 https://docs.google.com/document/d/1bZyF0D2_FJsf-NCCWm6rlewSkyOmVl6Q9QOLwtamnf0/edit
 
 Bumping draft → revise.
+
+## Revise loop (2026-06-14)
+
+Entered revise step. Current Doc under review (the converted draft above):
+https://docs.google.com/document/d/1bZyF0D2_FJsf-NCCWm6rlewSkyOmVl6Q9QOLwtamnf0/edit
+
+Round 1: handed the Doc link to Zach. **Zach approved — "Looks good."** No
+change requests. Loop ends here.
+
+### Approved final (2026-06-14)
+
+Agreed-final Google Doc (the deliverable):
+https://docs.google.com/document/d/1bZyF0D2_FJsf-NCCWm6rlewSkyOmVl6Q9QOLwtamnf0/edit
+
+HTML files to trash (superseded drafts):
+1wrMTTH_RVtW1j1LppUtc2_TOnmjrtlIS, 1BgJwR7V1zp5THQAqOi19U80TthuKq9eS,
+1th60EgE1UMGWUSsfvDcojRx0PwAShRjR (the converted Doc above is current).
+
+Marking task done.
