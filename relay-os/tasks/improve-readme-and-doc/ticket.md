@@ -7,7 +7,7 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-  - relay/principles
+- relay/principles
 skills: []
 workflow: code/with-review
 ---

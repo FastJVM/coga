@@ -7,15 +7,15 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-  - relay/sync
-  - relay/recurring
+- relay/sync
+- relay/recurring
 skills: []
 workflow: code/with-review
 ---
 
 ## Description
 
-**Depends on `recurring-task-check-ticket-done` landing first** (that ticket
+**Depends on `autoclose-merged-recurring-task` landing first** (that ticket
 adds the daily recurring sweep). Once the scheduled sweep exists and is
 proven, this ticket makes it the **sole** trigger for auto-closing merged
 tickets by retiring the other surfaces.
