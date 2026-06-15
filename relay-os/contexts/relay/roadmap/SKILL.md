@@ -101,6 +101,9 @@ overnight token budget to run flagged-ready tickets unattended.
 
 The dedup half moved up into Wave 0. What remains is genuine polish:
 
+- `validate-tickets-on-hand-edit-gap-outside-relay-co` — close the gap where
+  direct hand-edits to `ticket.md` aren't validated (relay commands already are).
+  Design-first: command-time gate vs opt-in pre-commit hook.
 - Security / PII / per-skill secrets (`manage-security-and-pii`,
   `pass-secrets-to-skills-with-per-skill-scope`,
   `fail-loud-when-an-env-indirected-secret-is-missing`).
