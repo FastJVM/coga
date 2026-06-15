@@ -150,3 +150,5 @@ posted:
 {"ts":"2026-06-12T17:21","project":"relay-cli","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/347|PR #347> merged ✅","ticket":"recurring-task-check-ticket-done","owner":"nick"}
 {"ts":"2026-06-12T17:21","project":"relay-cli","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/346|PR #346> merged ✅","ticket":"supervisor-liveness-watchdog-for-agents-that-never","owner":"nick"}
 {"ts":"2026-06-11T17:25","project":"relay-cli","kind":"done","detail":"claude finished: verify-read-only → done ✅","ticket":"relay-crm","owner":"zach"}
+{"ts":"2026-06-12T21:17","project":"relay","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/287|PR #287> merged ✅","ticket":"recover-recurring-runs-orphaned-when-the-superviso","owner":"nick"}
+{"ts":"2026-06-12T22:41","project":"relay","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/359|PR #359> merged ✅","ticket":"rename-slack-to-a-notification-system-with-pluggab","owner":"nick"}
