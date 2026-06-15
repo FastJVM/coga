@@ -63,3 +63,18 @@ that change; the `design` step proposes options before anything ships.
   before redesigning — it bounds how far the interview can be cut without losing
   the facts the scan recovers.
 
+## Candidate questions
+
+Seeds for the `design` step to weigh — not decisions.
+
+- **"What doesn't exist today that you want the repo to make possible?"** A
+  strong *opening* question: it captures direction (a `current-direction`-style
+  context block) and its answers map cleanly onto starter tickets, so a newcomer
+  finishes setup with real work queued and a sense of where the repo is headed.
+  Caveat: it captures intent, not operation. Per `marketing/init-questions` the
+  interview captures intent while the scan captures operation (answers-only
+  ≈ 7/20 facts), so this won't yield the *operational* context blocks on its
+  own — pair it with one present-tense beat (or the scan) so the starter repo
+  isn't fact-thin. For a true newcomer, anchor it with a one-line example so it
+  doesn't read as abstract.
+
