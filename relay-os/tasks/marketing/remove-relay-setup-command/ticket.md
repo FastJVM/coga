@@ -34,7 +34,7 @@ step: 1 (design)
 
 ## Description
 
-Remove the `relay setup` command, but keep `relay init` auto-scaffolding the
+Remove the `relay setup` command, but keep `relay init` auto-creating the
 active `relay-setup` ticket. The first-run flow becomes: `relay init` → the
 user sees `relay-setup` as their first task → launches it → the existing
 interview gathers their contexts, skills, and workflows. Fewer commands to

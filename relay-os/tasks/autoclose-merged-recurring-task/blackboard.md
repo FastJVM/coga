@@ -69,7 +69,7 @@ pr: https://github.com/FastJVM/relay/pull/347
 **Headline: one of the three named removal sites is already removed. The ticket is built on a stale premise and must be reconciled with its own drift draft before launch.**
 
 ### 1. Can a cold agent start from this alone?
-Mostly yes for the *constructive* half. The ticket is unusually well-scaffolded: it names the source function (`auto_bump_merged`), the mirror trio (`digest/ticket.md` + `digest/flush` skill + `digest/post` workflow — all three confirmed to exist), the schedule rationale (8am before 9am digest so closures land in the same digest), and the PR-link convention. A new agent could build the recurring task.
+Mostly yes for the *constructive* half. The ticket is unusually well-created: it names the source function (`auto_bump_merged`), the mirror trio (`digest/ticket.md` + `digest/flush` skill + `digest/post` workflow — all three confirmed to exist), the schedule rationale (8am before 9am digest so closures land in the same digest), and the PR-link convention. A new agent could build the recurring task.
 
 Gaps/ambiguities:
 - **"Add the matching one-step workflow (mirror `digest/post`)"** — but `digest/ticket.md` reuses `workflow: digest/post`. The ticket doesn't say whether to create a new `autoclose-merged/post.md` or reuse `digest/post`. Minor, but unspecified.

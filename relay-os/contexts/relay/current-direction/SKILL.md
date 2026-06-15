@@ -17,7 +17,7 @@ Last updated: 2026-06-13.
   `log.md` remains append-only human history, not the dedup source.
 
 - **The lifecycle stays ordinary and Dream owns cleanup.** `relay recurring`
-  scaffolds a normal `active` task, `relay launch` moves it through the usual
+  creates a normal `active` task, `relay launch` moves it through the usual
   ticket lifecycle, and a completed run sits as `status: done` until Dream's
   retro pass direct-deletes it. Since the instantiated task is deleted after a
   completed run, a leftover `tasks/recurring/<name>/` directory is the orphan
@@ -92,15 +92,15 @@ Last updated: 2026-06-13.
 - **Dream is a recurring task template plus an alias.** The standalone
   `relay dream` Typer command is gone. Dream now ships as
   `relay-os/recurring/dream/` — an ordinary recurring template. `relay
-  recurring` scaffolds and launches it when its weekly schedule is due;
+  recurring` creates and launches it when its weekly schedule is due;
   `relay dream` is a default alias for `recurring launch dream`, which
-  scaffolds and launches it on demand through the same path. The task ref is
+  creates and launches it on demand through the same path. The task ref is
   now `recurring/dream`, so the scheduled and on-demand paths converge on one
   task. This reverses the earlier "ad-hoc command" decision: there was
   nothing left in a dedicated command worth keeping once the workers became
   skills.
 - **`relay recurring launch <name>` is the on-demand recurring entry point.**
-  It scaffolds one named template now, ignoring its schedule, with the same
+  It creates one named template now, ignoring its schedule, with the same
   stable grouped task ref a bare `relay recurring` produces, then launches the
   task.
 
@@ -174,8 +174,8 @@ Last updated: 2026-06-13.
   `chat = "launch bootstrap/orient"`. Validated at config load:
   alias names can't collide with built-ins; first token of expansion
   must be a known built-in.
-- **`relay draft` and `relay ticket` split raw scaffolding from guided
-  authoring.** `relay draft` scaffolds a raw draft and posts `✨`;
+- **`relay draft` and `relay ticket` split raw creating from guided
+  authoring.** `relay draft` creates a raw draft and posts `✨`;
   `relay create` remains a compatibility spelling. `relay ticket`
   runs the `bootstrap/ticket` interview against a new or existing
   draft/active/paused ticket. Aliases stay positional-pass-through only.
@@ -205,10 +205,10 @@ ones that affect implementation:
   not finish tickets — bumping past the last step (or on a no-workflow
   ticket) errors and points at `relay mark done`.
 - **`relay recurring` is the canonical entry point** for the recurring
-  scaffolder. It scans templates, scaffolds the current period's task for
+  creator. It scans templates, creates the current period's task for
   each, and launches the due ones sequentially — current period only, no
   backlog of missed periods. `scripts/cron.sh` calls it directly rather than
-  going through `relay draft` / `scaffold_task()`.
+  going through `relay draft` / `create_task()`.
 - **Control plane and data plane are fully split.** `draft` is unapproved,
   `active` is approved/queued, and `in_progress` is launched work. `relay
   launch` owns the `active` → `in_progress` start transition; `relay bump`

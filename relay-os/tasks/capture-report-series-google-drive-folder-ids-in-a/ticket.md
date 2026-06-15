@@ -30,7 +30,7 @@ step: 1 (implement)
 
 ## Description
 
-Scaffolded by a Dream run (gap finding F2). Needs human design judgment —
+Created by a Dream run (gap finding F2). Needs human design judgment —
 **do not assume the answer is "add a context."**
 
 The report doc series re-resolves the same Google Drive folder IDs in every

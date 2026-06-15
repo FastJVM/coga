@@ -1,7 +1,7 @@
 """Tests for stale-cursor detection on recurring period tasks.
 
 A recurring task declares the blackboard keys it owns via `state_keys:`. The
-scaffolder snapshots their values into each period task; `relay mark done` and
+creator snapshots their values into each period task; `relay mark done` and
 `relay validate` flag a run that finished without advancing one.
 """
 
@@ -187,7 +187,7 @@ def test_stale_keys_ignores_removed_parent(repo: Path) -> None:
     assert stale_keys(cfg, snap) == []
 
 
-# --- scaffold writes the snapshot ---------------------------------------------
+# --- create writes the snapshot ---------------------------------------------
 
 
 def _allow_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -196,7 +196,7 @@ def _allow_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_scaffold_snapshots_declared_keys(repo: Path) -> None:
+def test_create_snapshots_declared_keys(repo: Path) -> None:
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 6, 7, 10, 0, 0))
     period = scan.tasks[0].ref
@@ -206,7 +206,7 @@ def test_scaffold_snapshots_declared_keys(repo: Path) -> None:
     assert snap.keys == {"last_commit": "AAA"}
 
 
-def test_scaffold_without_state_keys_writes_no_snapshot(tmp_path: Path) -> None:
+def test_create_without_state_keys_writes_no_snapshot(tmp_path: Path) -> None:
     company = tmp_path / "relay-os"
     _write(
         company / "relay.toml",
@@ -284,7 +284,7 @@ def test_template_rejects_malformed_state_keys(
 # --- mark done warns ----------------------------------------------------------
 
 
-def _scaffold_period(repo: Path) -> str:
+def _create_period(repo: Path) -> str:
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 6, 7, 10, 0, 0))
     return scan.tasks[0].ref.id_slug
@@ -292,7 +292,7 @@ def _scaffold_period(repo: Path) -> str:
 
 def test_mark_done_warns_on_unchanged_cursor(repo: Path, monkeypatch) -> None:
     monkeypatch.chdir(repo)
-    slug = _scaffold_period(repo)
+    slug = _create_period(repo)
     # Parent blackboard untouched — the run "forgot" to advance last_commit.
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
@@ -302,7 +302,7 @@ def test_mark_done_warns_on_unchanged_cursor(repo: Path, monkeypatch) -> None:
 
 def test_mark_done_quiet_when_cursor_advanced(repo: Path, monkeypatch) -> None:
     monkeypatch.chdir(repo)
-    slug = _scaffold_period(repo)
+    slug = _create_period(repo)
     # The run recorded a new high-water mark before finishing.
     (repo / "recurring" / "dev-update" / "blackboard.md").write_text(
         "### Dev Update State\n\nlast_commit: BBB\n"
@@ -316,7 +316,7 @@ def test_mark_done_syncs_parent_blackboard_when_cursor_advanced(
     repo: Path, monkeypatch
 ) -> None:
     monkeypatch.chdir(repo)
-    slug = _scaffold_period(repo)
+    slug = _create_period(repo)
     (repo / "recurring" / "dev-update" / "blackboard.md").write_text(
         "### Dev Update State\n\nlast_commit: BBB\n"
     )
@@ -345,7 +345,7 @@ def test_mark_done_syncs_parent_blackboard_when_cursor_advanced(
 def test_mark_done_plain_task_unaffected(repo: Path, monkeypatch) -> None:
     """A task with no snapshot (every non-recurring task) is never flagged."""
     monkeypatch.chdir(repo)
-    slug = _scaffold_period(repo)
+    slug = _create_period(repo)
     # Drop the snapshot to simulate an ordinary (non-recurring) task.
     snap_path = next(
         ref.path / SNAPSHOT_FILE
@@ -363,7 +363,7 @@ def test_mark_done_plain_task_unaffected(repo: Path, monkeypatch) -> None:
 
 def test_validate_flags_done_stuck_cursor(repo: Path, monkeypatch) -> None:
     monkeypatch.chdir(repo)
-    slug = _scaffold_period(repo)
+    slug = _create_period(repo)
     CliRunner().invoke(app, ["mark", "done", slug])  # cursor never advanced
 
     from relay import validate as validate_mod
@@ -378,7 +378,7 @@ def test_validate_flags_done_stuck_cursor(repo: Path, monkeypatch) -> None:
 
 def test_validate_quiet_when_cursor_advanced(repo: Path, monkeypatch) -> None:
     monkeypatch.chdir(repo)
-    slug = _scaffold_period(repo)
+    slug = _create_period(repo)
     (repo / "recurring" / "dev-update" / "blackboard.md").write_text(
         "### Dev Update State\n\nlast_commit: BBB\n"
     )

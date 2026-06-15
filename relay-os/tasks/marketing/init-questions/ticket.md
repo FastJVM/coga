@@ -13,7 +13,7 @@ workflow: null
 
 ## Description
 
-On a fresh `relay init`, scaffold a launch-ready `relay-setup` ticket (and
+On a fresh `relay init`, create a launch-ready `relay-setup` ticket (and
 ship the `init/setup` workflow it runs). When the new user launches it, the
 agent interviews them about the repo, then turns the answers plus a repo
 scan into durable relay-os artifacts — contexts, rules, workflows,

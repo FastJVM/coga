@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 
 from relay.cli import app
 from relay.config import load_config
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.tasks import list_tasks
 
 SKILL_UPDATE = (
@@ -267,7 +267,7 @@ def test_skill_update_runs_as_script_skill_and_reports_no_op(repo: Path) -> None
         """,
     )
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg,
         title="Skill Update",
         workflow_name="skill-update/run",

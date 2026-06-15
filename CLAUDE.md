@@ -27,7 +27,7 @@ When changing shipped Relay OS contexts or templates, check both the live repo c
 Target Python 3.11+, use 4-space indentation, `from __future__ import annotations`, and explicit type hints. Follow the current naming pattern: `snake_case` for modules/functions, `PascalCase` for dataclasses and exceptions. Prefer standard-library solutions, keep command handlers small, and preserve the spec’s distinctions between projects, skills, contexts, workflows, and tasks.
 
 ## Testing Guidelines
-Tests use `pytest` and follow `tests/test_*.py`. Name tests after the command or module they cover, for example `tests/test_launch.py`. When you change prompt composition, workflow freezing, config loading, or task scaffolding, update the seeded `example/` repo or related fixtures so the smoke path remains representative.
+Tests use `pytest` and follow `tests/test_*.py`. Name tests after the command or module they cover, for example `tests/test_launch.py`. When you change prompt composition, workflow freezing, config loading, or task creation, update the seeded `example/` repo or related fixtures so the smoke path remains representative.
 
 ## Commit & Pull Request Guidelines
 Recent commits use short, factual subjects, for example `Add dream/ child-task workflows for Dream's script steps` or `Drop redundant \`dream\` alias from relay.toml`. Use a ticket prefix only when one exists for the work. PRs should explain the behavior change, mention any fixture or spec touchpoints, and list the exact commands run for verification.

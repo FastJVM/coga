@@ -112,7 +112,7 @@ _BUILTIN_COMMANDS = frozenset(
 #
 # `dream` is a default alias rather than a built-in command: a Dream run is an
 # ordinary recurring task (`relay-os/recurring/dream/`), and `relay dream`
-# just scaffolds and launches it on demand — the same path `relay recurring
+# just creates and launches it on demand — the same path `relay recurring
 # launch dream` takes. Shipping it as a default keeps `relay dream` working in
 # repos init'd before the recurring template landed.
 _DEFAULT_ALIASES: dict[str, str] = {
@@ -184,7 +184,7 @@ def _register_alias_placeholder(name: str, expansion: str) -> None:
 
 def main() -> None:
     """Console-script entry point. Loads config, registers aliases, dispatches."""
-    # `relay init` (fresh or `--update`) is the scaffold/recovery command — it
+    # `relay init` (fresh or `--update`) is the create/recovery command — it
     # must run even when the current config is missing, legacy, or broken,
     # since repairing exactly that is often why it's invoked. A stale CLI plus
     # a migrated `relay.toml` would otherwise deadlock: the update that fixes

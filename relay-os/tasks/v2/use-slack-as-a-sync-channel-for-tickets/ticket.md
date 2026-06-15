@@ -36,7 +36,7 @@ pick one — not to ship a specific design.
    poor-person's CRDT over a chat channel.
 
 2. **Slack-triggered ticket ingestion.** A bot user listens for
-   `@relay create "<title>"` mentions and scaffolds tickets in some
+   `@relay create "<title>"` mentions and creates tickets in some
    target repo. Lighter — just inbound creation, not full state sync.
 
 3. **Slack as a notification + handoff layer.** No state sync. Slack

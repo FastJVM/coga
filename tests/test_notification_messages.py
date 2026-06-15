@@ -25,7 +25,7 @@ from relay import automerge as am
 from relay import spool
 from relay.cli import app
 from relay.config import load_config
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.ticket import Ticket
 
 
@@ -41,7 +41,7 @@ def _write_workflow_less_task(
     status: str = "active",
     assignee: str | None = "claude",
 ) -> tuple[str, Path]:
-    """Write a workflow-less task directly to disk. `scaffold_task` refuses to
+    """Write a workflow-less task directly to disk. `create_task` refuses to
     create a workflow-less non-draft task now, so on-disk construction is the
     only way to exercise the workflow-less collapse messages."""
     task_dir = repo / "tasks" / slug
@@ -114,14 +114,14 @@ def _make_task(
 ) -> tuple[str, Path]:
     cfg = load_config(repo)
     if workflow is None and status != "draft":
-        # `scaffold_task` refuses to create a workflow-less non-draft task now,
+        # `create_task` refuses to create a workflow-less non-draft task now,
         # so the workflow-less collapse tests construct that shape on disk.
         slug, path = _write_workflow_less_task(
             repo, status=status, assignee=assignee
         )
         ref = {"slug": slug, "path": path}
     else:
-        ref = scaffold_task(
+        ref = create_task(
             cfg=cfg, title="Work", workflow_name=workflow,
             contexts=[], mode="interactive", owner="marc", assignee=assignee,
             watchers=[], status=status,
@@ -325,10 +325,10 @@ def test_automerge_digest_preserves_transition_and_pr_link(
     )
 
 
-# --- recurring scaffold -------------------------------------------------------
+# --- recurring create -------------------------------------------------------
 
 
-def test_recurring_scaffold_is_silent(
+def test_recurring_create_is_silent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from relay.commands.recurring import _broadcast_scan

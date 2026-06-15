@@ -103,7 +103,7 @@ def _warn_if_state_not_advanced(
     """Flag a period task that completed without advancing its declared state.
 
     A recurring task can declare the blackboard keys it owns (`state_keys:`);
-    the scaffolder snapshots their values into the period task. If a declared
+    the creator snapshots their values into the period task. If a declared
     key still equals that snapshot when the run finishes, the run did the work
     but never recorded its high-water mark — the next firing will redo the same
     range. Warn locally and broadcast an FYI (suppressed for throwaway `-dbg-`

@@ -49,7 +49,7 @@ process for that ticket.
 it on an existing draft slug already re-enters authoring. The new work is
 (a) the yes/no gate so creation-without-interview is first-class, and
 (b) removing `relay draft` and `relay create` — thin wrappers over
-`scaffold_task` (`src/relay/commands/create.py`, `src/relay/scaffold.py`) — so
+`create_task` (`src/relay/commands/create.py`, `src/relay/create.py`) — so
 `relay ticket` is the sole creation path. Prior direction kept `relay create`
 as the survivor; nick owns these primitives, so the design step should settle
 removal-vs-deprecation and the exact defer/re-run UX. No y/n confirm helper

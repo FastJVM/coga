@@ -8,7 +8,7 @@ import pytest
 
 import requests
 
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.config import load_config
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
@@ -54,7 +54,7 @@ def repo(tmp_path: Path):
 
 def test_clean_repo_has_no_issues(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=["email/payment-flow"], mode="interactive",
         owner="marc", assignee="claude", watchers=[], status="draft",
@@ -98,7 +98,7 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
     to crash the validator at `wf.get("steps", [])`. Regression: surface
     them as a warning instead."""
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -114,7 +114,7 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
 
 def test_invalid_status(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -129,7 +129,7 @@ def test_invalid_status(repo: Path) -> None:
 
 def test_missing_file(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -142,7 +142,7 @@ def test_missing_file(repo: Path) -> None:
 
 def test_apply_safe_fixes_creates_missing_workspace_files(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -164,7 +164,7 @@ def test_apply_safe_fixes_creates_missing_workspace_files(repo: Path) -> None:
 
 def test_run_fix_repairs_before_reporting(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -181,7 +181,7 @@ def test_run_fix_repairs_before_reporting(repo: Path) -> None:
 
 def test_large_blackboard_warns(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -282,7 +282,7 @@ def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
         + '\n[ticket.fields.docket]\ndescription = "d"\n'
     )
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -293,7 +293,7 @@ def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
 
 def test_validate_flags_missing_declared_extension(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -317,7 +317,7 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
         + '\n[ticket.fields.docket]\ndescription = "d"\n'
     )
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -346,7 +346,7 @@ def test_validate_flags_enum_violation(repo: Path) -> None:
         )
     )
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -375,7 +375,7 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
         )
     )
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -389,7 +389,7 @@ def test_workflow_less_draft_is_clean(repo: Path) -> None:
     idea before its shape settles). It is NOT flagged — `draft` is the one
     status where a workflow is optional."""
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -401,7 +401,7 @@ def test_workflow_less_draft_is_clean(repo: Path) -> None:
 
 
 def _write_workflow_less_task(repo: Path, slug: str, status: str) -> Path:
-    """Write a workflow-less task directly to disk. `scaffold_task` refuses to
+    """Write a workflow-less task directly to disk. `create_task` refuses to
     create a workflow-less non-draft task now, so on-disk construction is the
     only way to exercise the validator against that (invalid) shape."""
     task_dir = repo / "tasks" / slug
@@ -446,7 +446,7 @@ def test_workflow_less_done_is_not_flagged(repo: Path) -> None:
 
 def test_stuck_in_progress_flagged(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="in_progress",

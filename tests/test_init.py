@@ -1,4 +1,4 @@
-"""`relay init` — scaffolds relay-os/ from package templates, or refreshes one."""
+"""`relay init` — creates relay-os/ from package templates, or refreshes one."""
 
 from __future__ import annotations
 
@@ -521,7 +521,7 @@ def test_init_ships_setup_ticket_template(
     tmp_path: Path, fake_clone, fake_venv
 ) -> None:
     """The relay-setup task is a static packaged template: fresh init copies
-    it verbatim — no prompts, no scaffolding code — and the interview happens
+    it verbatim — no prompts, no creating code — and the interview happens
     at first launch as the workflow's first step."""
     target = tmp_path / "company"
     target.mkdir()
@@ -588,7 +588,7 @@ def _seed_local_relay_os(root: Path) -> Path:
     (relay_os / "contexts" / "dev" / "code" / "SKILL.md").write_text(
         "OLD dev/code context\n"
     )
-    # Stale `_*` scaffold upstream no longer ships (rename or removal).
+    # Stale `_*` create upstream no longer ships (rename or removal).
     (relay_os / "recurring").mkdir(exist_ok=True)
     (relay_os / "recurring" / "_template_old.md").write_text("STALE recurring template\n")
 
@@ -810,7 +810,7 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     legacy_bootstrap_skill = relay_os / "skills" / "bootstrap"
     assert legacy_bootstrap_skill.is_dir() and not legacy_bootstrap_skill.is_symlink()
     assert (legacy_bootstrap_skill / "create").exists() is False
-    # `_*` scaffolds upstream no longer ships are also pruned.
+    # `_*` creates upstream no longer ships are also pruned.
     assert not (relay_os / "recurring" / "_template_old.md").exists()
     # Per-update prune count includes only narrow known Relay-owned paths plus
     # the underscore-template prune. Local namespace roots are preserved.
@@ -865,7 +865,7 @@ def test_init_update_refreshes_vendored_recurring_template(
 
     `init --update` must restore them when missing (repos predating the
     template) and overwrite them when stale, or their launch paths have nothing
-    to scaffold.
+    to create.
     """
     relay_os = _seed_local_relay_os(tmp_path)
     autoclose = relay_os / "recurring" / "autoclose-merged" / "ticket.md"
@@ -1065,7 +1065,7 @@ def test_init_commits_relay_os_when_target_is_git_repo(
         ["git", "-C", str(target), "log", "--oneline"],
         capture_output=True, text=True, check=True,
     )
-    assert "Scaffold relay-os via `relay init`" in log.stdout
+    assert "Create relay-os via `relay init`" in log.stdout
 
     # Upstream-managed paths and machine-local files are gitignored — none should be tracked.
     tracked = subprocess.run(
@@ -1261,7 +1261,7 @@ def test_init_preserves_existing_agent_guides(
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0, result.output
 
-    # Pre-existing CLAUDE.md untouched; AGENTS.md still scaffolded.
+    # Pre-existing CLAUDE.md untouched; AGENTS.md still created.
     assert (target / "CLAUDE.md").read_text() == "# my hand-written guide\n"
     assert (target / "AGENTS.md").read_text() == init_cmd.AGENT_GUIDE_TEMPLATE
     assert "Wrote AGENTS.md" in result.output
@@ -1274,7 +1274,7 @@ def test_init_update_tops_up_missing_agent_guides(
     relay_os = _seed_local_relay_os(tmp_path)
     monkeypatch.chdir(relay_os)
     # Simulate a repo init'd before agent guides shipped: CLAUDE.md absent,
-    # AGENTS.md user-written. Update should scaffold the missing one and
+    # AGENTS.md user-written. Update should create the missing one and
     # leave the existing one alone.
     (tmp_path / "AGENTS.md").write_text("# pre-existing AGENTS\n")
 
@@ -2012,7 +2012,7 @@ def _make_update_fake_run(real_run):
 
 
 def test_all_flag_requires_update(tmp_path: Path) -> None:
-    """`--all` without `--update` is a loud error — there is no bulk scaffold."""
+    """`--all` without `--update` is a loud error — there is no bulk create."""
     result = CliRunner().invoke(app, ["init", "--all", str(tmp_path)])
     assert result.exit_code == 2
     assert "--all only applies with --update" in result.output

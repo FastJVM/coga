@@ -141,7 +141,7 @@ branch, and its `tasks/relay-setup/` shows a completed run.
 What the prototype changed in the spec:
 
 1. **Interview moved from init-time to launch-time** (Nico: questions at
-   `relay init` aren't doable). Init scaffolds the ticket with an empty
+   `relay init` aren't doable). Init creates the ticket with an empty
    Context; the `interview` workflow step fills it at first launch. Side
    effect: the four questions now live in the workflow file only — no
    second copy in CLI code to drift.

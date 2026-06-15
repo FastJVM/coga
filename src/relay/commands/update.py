@@ -26,7 +26,7 @@ TEMPLATE_RESOURCE_PACKAGE = "relay.resources"
 TEMPLATE_RESOURCE_PATH = ("templates", "relay-os")
 
 # Paths (relative to relay-os/) that earlier upstreams shipped but no longer do.
-# `init --update` prunes these from existing repos so removed scaffolding doesn't
+# `init --update` prunes these from existing repos so removed creating doesn't
 # linger after a migration. Keep entries narrow — only files we know we shipped
 # and now want gone, never user-owned paths.
 #
@@ -53,14 +53,14 @@ OBSOLETE_PATHS: tuple[str, ...] = (
 )
 
 # Recurring-template files Relay vendors and keeps fresh on every `--update`.
-# Unlike `_*` sample scaffolds and user-authored repo-specific loops (REM),
+# Unlike `_*` sample creates and user-authored repo-specific loops (REM),
 # these are live Relay batteries such as `recurring/dream/` and
 # `recurring/skill-update/`; their bodies are upstream-managed, not per-repo.
 # They carry no `_` prefix (used as-is, not copied-and-renamed) and don't live under
 # `bootstrap/`, so neither `_copy_templates` nor `_copy_vendored_bootstrap`
 # would otherwise refresh them — leaving repos that predate a template, or lost
 # them, permanently broken (`relay dream` or the skill updater has nothing to
-# scaffold).
+# create).
 #
 # A recurring task is a ticket-format directory; only the upstream-managed
 # `ticket.md` is refreshed. The sibling `blackboard.md` (last-run state) and
@@ -199,10 +199,10 @@ def copy_fresh_templates(src_root: Traversable, relay_os: Path) -> None:
 def refresh_templates(
     relay_os: Path, src_root: Traversable | None = None
 ) -> tuple[list[str], list[str]]:
-    """Refresh relay-owned scaffolds under `relay_os` from package resources.
+    """Refresh relay-owned creates under `relay_os` from package resources.
 
     Five things are treated as upstream-owned (always overwritten on update):
-      - `_*` template scaffolds (`_template/` etc.)
+      - `_*` template creates (`_template/` etc.)
       - `bootstrap/` — the relay-vendored umbrella. Holds launch shims plus
         package-backed core skills and contexts
         (`bootstrap/skills/`, `bootstrap/contexts/*`). Optional domain skills
@@ -221,7 +221,7 @@ def refresh_templates(
       - `.gitignore` — must track upstream so new ignore entries land in
         existing repos without manual edits.
 
-    Returns `(copied, pruned)`: `pruned` lists `_*` scaffolds removed because
+    Returns `(copied, pruned)`: `pruned` lists `_*` creates removed because
     upstream no longer ships them (renames, deletions).
     """
     src_root = src_root or packaged_template_root()
@@ -586,10 +586,10 @@ def _venv_python_version(venv_dir: Path) -> tuple[int, int] | None:
 
 
 def _copy_templates(src_root: Traversable, dst_root: Path) -> list[str]:
-    """Copy every `_*` scaffold under `src_root` into `dst_root`.
+    """Copy every `_*` create under `src_root` into `dst_root`.
 
     Always overwrites; matches nested under another `_*` ancestor are skipped
-    so each scaffold is processed once.
+    so each create is processed once.
     """
     copied: list[str] = []
     for rel, src in _walk_resources(src_root):
@@ -611,12 +611,12 @@ def _copy_templates(src_root: Traversable, dst_root: Path) -> list[str]:
 
 
 def _prune_removed_templates(src_root: Traversable, dst_root: Path) -> list[str]:
-    """Remove top-level `_*` scaffolds in `dst_root` that upstream no longer ships.
+    """Remove top-level `_*` creates in `dst_root` that upstream no longer ships.
 
     Catches renames and deletions: a `_template/` removed from package resources
     stays in user repos forever otherwise, since `_copy_templates` is purely
     additive. Only inspects top-level `_*` matches (same convention as
-    `_copy_templates`) so nested entries inside a scaffold are owned by their
+    `_copy_templates`) so nested entries inside a create are owned by their
     parent. Skips trees that are managed by a different mechanism — `.relay/` is
     vendored wholesale by `refresh_cli` and ships its own template fixtures, and
     `bootstrap/` is mirrored as a unit by `_copy_bootstrap`.

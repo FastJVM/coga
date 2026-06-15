@@ -38,7 +38,7 @@ later `code/open-pr` step does that, after self-review and fixes.
    - Reuse the project's existing harness and helpers. Do not introduce
      a new test framework, assertion library, or mocking dependency the
      repo doesn't already use.
-   - Keep coverage deterministic and low-scaffolding: no real time,
+   - Keep coverage deterministic and low-creating: no real time,
      network, or filesystem nondeterminism; no sprawling mocks where a
      fixture or a plain call would do.
 5. **Update the example fixture** when behavior affects task layout,

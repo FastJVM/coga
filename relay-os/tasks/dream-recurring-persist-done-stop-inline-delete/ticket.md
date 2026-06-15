@@ -40,7 +40,7 @@ Make a finished recurring run's terminal on-disk state a **persistent `done`
 ticket**, and make `relay recurring` delete *nothing*. Today three deleters
 contradict that — debug `_finalize_debug_run`, `_reap_debug_orphans`, and
 Dream's self-`relay delete` — and they break the period ledger (it records
-`scaffolded` at creation, so a non-`done` dir deleted out from under it makes a
+`created` at creation, so a non-`done` dir deleted out from under it makes a
 crashed period look "already ran" and get skipped forever). Removing inline
 deletion is what lets the ledger's "slug recorded + dir gone" reliably mean
 "this period completed" (stage-3 deletion moves to Dream in the sibling ticket
@@ -80,15 +80,15 @@ leaves finished runs sitting as `done`.
 - Dream's run no longer ends with `relay delete <self>` (both
   `relay-os/recurring/dream/ticket.md` and the packaged copy under
   `src/relay/resources/templates/...`).
-- The period ledger (`_record_run` / `_period_already_scaffolded`) is **kept**
+- The period ledger (`_record_run` / `_period_already_created`) is **kept**
   and becomes the *only* creation guard for the bare sweep: it suppresses a
   same-period re-create and skips a period whose `done` ticket Dream later
   deletes. `--all` ignores it.
 - A `paused` recurring run is neither deleted, re-run, nor blocking: it is left
   on disk for a human, is not launchable, and does not stop the next period
-  from scaffolding or launching.
+  from creating or launching.
 - The debug throwaway machinery is removed and its tests updated, not just
-  skipped: `scaffold_debug_run`, `scan_debug`, `is_debug_slug`/`_DEBUG_SLUG_RE`,
+  skipped: `create_debug_run`, `scan_debug`, `is_debug_slug`/`_DEBUG_SLUG_RE`,
   `_finalize_debug_run`, `_reap_debug_orphans`, `_read_debug_outcome`, and the
   `-dbg-` suppression branches in `git.py`, `slack.py`, `spool.py`.
 - `relay/recurring` context updated to the new lifecycle: drop the debug-reap /
@@ -104,10 +104,10 @@ leaves finished runs sitting as `done`.
 ## Proposed Shape
 
 - `src/relay/recurring.py` —
-  - Delete `scaffold_debug_run`, `scan_debug`, `is_debug_slug`,
-    `_DEBUG_SLUG_RE`. Keep `_record_run` / `_period_already_scaffolded`.
+  - Delete `create_debug_run`, `scan_debug`, `is_debug_slug`,
+    `_DEBUG_SLUG_RE`. Keep `_record_run` / `_period_already_created`.
   - Split `scan_due` into two decoupled passes:
-    - **Create pass:** for every template, if `_period_already_scaffolded`
+    - **Create pass:** for every template, if `_period_already_created`
       (ledger) is False for the current period, create it and `_record_run`.
       No `_task_with_slug` dedup, no `_live_task_for_template` short-circuit —
       the ledger is the sole creation guard.
@@ -117,7 +117,7 @@ leaves finished runs sitting as `done`.
   - Delete `_live_task_for_template` (its superseding role is gone) and the
     `_task_with_slug` create-time dedup. Add a small helper to parse a firing
     date back out of a `recurring-<name>-<period_key>` slug for ordering.
-  - `scaffold_template` always creates the current period; it never returns an
+  - `create_template` always creates the current period; it never returns an
     existing live task. Decide slug-collision behavior for the `--all` /
     ledger-bypass path (suffix `…-<period>-N`) so "never dedupe" can't crash on
     an existing dir.
@@ -153,4 +153,4 @@ leaves finished runs sitting as `done`.
 
 See `relay/current-direction` → "Open redesign (recurring lifecycle)" for the
 full rationale and the never-runs bug this closes. `relay/recurring` documents
-the current (to-be-replaced) scaffold/ledger/debug behavior.
+the current (to-be-replaced) create/ledger/debug behavior.

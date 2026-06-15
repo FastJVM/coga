@@ -48,7 +48,7 @@ Draft outline:
 - Open a new `relay-os/skills/code/split-ticket/SKILL.md` (or extend
   `code/design` with a "Splitting a ticket" section).
 - Bullets covering: when to split (PR too big, two concerns coupling); how
-  (scaffold sibling drafts, point at each other under `## Sequencing` /
+  (create sibling drafts, point at each other under `## Sequencing` /
   `## Split`); the cross-link convention.
 
 ## Context

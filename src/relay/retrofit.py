@@ -158,7 +158,7 @@ def _reorder_role_fields(fm: dict) -> None:
     `sort_keys=False`), so the simplest way to insert fields at a specific
     position is to rebuild the dict in the desired order.
     """
-    # Canonical order matches scaffold.py.
+    # Canonical order matches create.py.
     preferred = [
         "title",
         "status",

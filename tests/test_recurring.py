@@ -16,7 +16,7 @@ from relay.paths import tasks_dir
 from relay.recurring import (
     is_debug_slug,
     read_last_serviced_period,
-    scaffold_named,
+    create_named,
     scan_debug,
     scan_due,
 )
@@ -49,13 +49,13 @@ def _write_recurring(company: Path, name: str, text: str) -> None:
 
 
 def _seed_direct_body_workflow(company: Path) -> None:
-    """Seed the `direct/body` workflow + skill the scaffolder freezes onto
+    """Seed the `direct/body` workflow + skill the creator freezes onto
     workflow-less recurring templates (e.g. Dream).
 
-    Recurring tasks scaffold straight to `active`, and every task past `draft`
+    Recurring tasks create straight to `active`, and every task past `draft`
     carries a workflow, so a template that declares none now runs through
     `direct/body`. Real repos get the file from `relay init`; the minimal test
-    repos must copy it from the shipped templates or `scaffold_task` fails to
+    repos must copy it from the shipped templates or `create_task` fails to
     load the workflow.
     """
     skill_dst = company / "skills" / "direct" / "body"
@@ -67,13 +67,13 @@ def _seed_direct_body_workflow(company: Path) -> None:
 
 
 def _seed_period_task_context(company: Path) -> None:
-    """Seed the prerequisites the scaffolder needs for a period task:
+    """Seed the prerequisites the creator needs for a period task:
     the auto-attached `relay/period-task` context and the `direct/body`
     workflow (frozen onto workflow-less templates).
 
-    The scaffolder appends `relay/period-task` to every period task's
+    The creator appends `relay/period-task` to every period task's
     `contexts:`, so the test repo needs a resolvable context file or
-    `scaffold_task` rejects the unknown ref.
+    `create_task` rejects the unknown ref.
     """
     _write(
         company / "contexts" / "relay" / "period-task" / "SKILL.md",
@@ -145,7 +145,7 @@ def test_recurring_list_is_read_only_and_shows_schedule(
     assert result.exit_code == 0, result.output
     assert "weekly-check" in result.output
     assert "0 9 * * 1" in result.output  # the schedule cron
-    # Listing scaffolds nothing — a view never mutates (principle 6).
+    # Listing creates nothing — a view never mutates (principle 6).
     assert list_tasks(load_config(repo)) == []
 
 
@@ -174,7 +174,7 @@ def test_scan_due_creates_task(repo: Path) -> None:
     assert len(scan.tasks) == 1
     task = scan.tasks[0]
     assert task.created is True
-    assert task.launchable is True  # scaffolds straight to `active`
+    assert task.launchable is True  # creates straight to `active`
     assert task in scan.due
 
     ticket = Ticket.read(task.ref.path / "ticket.md")
@@ -192,10 +192,10 @@ def test_scan_due_creates_task(repo: Path) -> None:
     assert "Run the full deliverability diagnostic suite" in body
 
 
-def test_scaffold_auto_attaches_period_task_context(repo: Path) -> None:
+def test_create_auto_attaches_period_task_context(repo: Path) -> None:
     """Every period task gets `relay/period-task` appended to its contexts.
 
-    The recurring template above declares no contexts; after scaffolding, the
+    The recurring template above declares no contexts; after creating, the
     period task should carry exactly `["relay/period-task"]`. This is what
     teaches the launched run that persistent state lives in the parent
     recurring task's blackboard, not the per-period one.
@@ -206,7 +206,7 @@ def test_scaffold_auto_attaches_period_task_context(repo: Path) -> None:
     assert ticket.contexts == ["relay/period-task"]
 
 
-def test_scaffold_does_not_duplicate_explicit_period_task_context(
+def test_create_does_not_duplicate_explicit_period_task_context(
     repo: Path,
 ) -> None:
     """A recurring task that already lists `relay/period-task` doesn't get
@@ -237,10 +237,10 @@ def test_scaffold_does_not_duplicate_explicit_period_task_context(
     assert ticket.contexts == ["relay/period-task"]
 
 
-def test_scaffold_preserves_non_description_template_sections(repo: Path) -> None:
+def test_create_preserves_non_description_template_sections(repo: Path) -> None:
     """Template sections beyond `## Description` survive into the period task.
 
-    Regression: the scaffolder used to keep only the `## Description` slice, so
+    Regression: the creator used to keep only the `## Description` slice, so
     a template's `## Script config` (which sets a script step's mode/sync) was
     dropped and scheduled runs silently fell back to the default mode. The full
     template body must be carried verbatim, with a `## Context` appended.
@@ -318,7 +318,7 @@ def test_scan_due_resumes_stuck_prior_run_instead_of_new_period(
 
     One live task per template: identity is the `recurring` group plus the
     template leaf slug, so a stale orphan is found and resumed (`created=False`)
-    rather than a fresh current-period task scaffolded alongside it.
+    rather than a fresh current-period task created alongside it.
     """
     cfg = load_config(repo)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))  # week 17
@@ -339,11 +339,11 @@ def test_scan_due_resumes_stuck_prior_run_instead_of_new_period(
     assert resumed.ref.id_slug == ref.id_slug
     assert resumed.ref.id_slug == "recurring/weekly-check"
     # The resumed prior-period run still owns week 17. Week 18 is not marked
-    # serviced until the stale run is gone and a new run is scaffolded.
+    # serviced until the stale run is gone and a new run is created.
     assert read_last_serviced_period(
         repo / "recurring" / "weekly-check" / "blackboard.md"
     ) == "2026-W17"
-    # Only the stuck run exists — no duplicate scaffold.
+    # Only the stuck run exists — no duplicate create.
     assert {r.id_slug for r in list_tasks(cfg)} == {"recurring/weekly-check"}
 
     ticket.frontmatter["status"] = "done"
@@ -356,7 +356,7 @@ def test_scan_due_resumes_stuck_prior_run_instead_of_new_period(
     ) == "2026-W18"
 
 
-def test_scan_due_does_not_rescaffold_after_period_task_deleted(
+def test_scan_due_does_not_recreate_after_period_task_deleted(
     repo: Path,
 ) -> None:
     """A completed-this-period task that has been deleted stays completed.
@@ -377,7 +377,7 @@ def test_scan_due_does_not_rescaffold_after_period_task_deleted(
     # blackboard, while log.md keeps append-only human history.
     log = (repo / "recurring" / "weekly-check" / "log.md").read_text()
     bb_path = repo / "recurring" / "weekly-check" / "blackboard.md"
-    assert "scaffolded recurring/weekly-check for 2026-W17" in log
+    assert "created recurring/weekly-check for 2026-W17" in log
     assert read_last_serviced_period(bb_path) == "2026-W17"
 
     # Simulate the run completing and later being deleted by Dream or a human.
@@ -391,7 +391,7 @@ def test_scan_due_does_not_rescaffold_after_period_task_deleted(
     assert completed.launchable is False
     assert completed.ref is None
     assert second.due == []
-    # The directory stays gone — no re-scaffold.
+    # The directory stays gone — no re-create.
     assert list_tasks(cfg) == []
 
 
@@ -522,7 +522,7 @@ def test_scan_due_recognizes_blackboard_high_water(repo: Path) -> None:
     assert len(scan.tasks) == 1
     assert scan.tasks[0].created is False  # recognized as already handled
     assert scan.due == []
-    assert list_tasks(cfg) == []  # not re-scaffolded
+    assert list_tasks(cfg) == []  # not re-created
 
 
 def test_scan_due_skips_bad_template(repo: Path, capsys) -> None:
@@ -543,7 +543,7 @@ def test_scan_due_flags_legacy_md_file(repo: Path, capsys) -> None:
     )
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
-    assert len(scan.tasks) == 1  # the real directory still scaffolds
+    assert len(scan.tasks) == 1  # the real directory still creates
     assert scan.errors[0][0] == "legacy.md"
     assert "legacy single-file" in scan.errors[0][1]
     assert "skipping legacy.md" in capsys.readouterr().err
@@ -553,7 +553,7 @@ def test_scan_due_skips_auto_mode_template(repo: Path, capsys) -> None:
     """`mode: auto` templates are temporarily skipped with a Slack-visible error.
 
     Auto runs buffer stdout until completion, so a scheduled run produces no
-    live console signal. Until streaming lands, `scan_due` refuses to scaffold
+    live console signal. Until streaming lands, `scan_due` refuses to create
     these — the error lands in `DueScan.errors` and `relay recurring` fires
     its existing Slack scan-error summary.
     """
@@ -576,7 +576,7 @@ def test_scan_due_skips_auto_mode_template(repo: Path, capsys) -> None:
     )
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
-    # The good interactive template still scaffolds.
+    # The good interactive template still creates.
     assert len(scan.tasks) == 1
     assert scan.tasks[0].template == "weekly-check"
     # The auto template is skipped via scan.errors.
@@ -589,7 +589,7 @@ def test_scan_due_skips_auto_mode_template(repo: Path, capsys) -> None:
 def test_scan_due_skips_interactive_template_without_tty(
     repo: Path, capsys
 ) -> None:
-    """Unattended scans skip interactive templates before scaffolding.
+    """Unattended scans skip interactive templates before creating.
 
     This mirrors the `mode: auto` skip path: the error lands in
     `DueScan.errors`, so `relay recurring` can post its scan-error summary and
@@ -655,7 +655,7 @@ def test_scan_due_template_without_explicit_mode_is_skipped(
 
 
 def test_scan_due_skips_underscore_template(repo: Path, capsys) -> None:
-    # `_template/` is a scaffold, not a live recurring task — must be ignored
+    # `_template/` is a create, not a live recurring task — must be ignored
     # silently (no stderr complaint) even though its placeholder fields wouldn't
     # validate.
     _write_recurring(
@@ -747,7 +747,7 @@ def dream_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A repo carrying the real shipped `recurring/dream/` recurring task.
 
     `relay recurring launch` and a bare `relay recurring` are the two entry
-    points into the same scaffold path; these tests prove they converge.
+    points into the same create path; these tests prove they converge.
     """
     company = tmp_path / "relay-os"
     _write(
@@ -792,7 +792,7 @@ def test_recurring_launch_creates_dream_task(
     ticket = Ticket.read(refs[0].path / "ticket.md")
     assert ticket.title == "Dream"
     assert ticket.mode == "interactive"
-    # Dream's template declares no workflow, so it scaffolds with the
+    # Dream's template declares no workflow, so it creates with the
     # `direct/body` workflow: it runs its body's ordered phases directly,
     # but is still a workflow-carrying, bumpable, valid active task.
     assert isinstance(ticket.workflow, dict)
@@ -856,13 +856,13 @@ def test_recurring_launch_syncs_period_task_and_high_water(
     blackboard = git_repo.git("show", f"main:{blackboard_rel}", cwd=git_repo.origin)
     assert "last_serviced_period: 2026-W24" in blackboard
     ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
-    assert f"scaffolded {ref.id_slug}" in ledger
+    assert f"created {ref.id_slug}" in ledger
 
 
 def test_recurring_launch_syncs_ledger_without_debug_log_entries(
     git_repo, monkeypatch
 ) -> None:
-    """`--all` debug audit lines stay local when the next real scaffold syncs."""
+    """`--all` debug audit lines stay local when the next real create syncs."""
     relay_os = git_repo.relay_os
     _seed_period_task_context(relay_os)
     _write_recurring(
@@ -903,7 +903,7 @@ def test_recurring_launch_syncs_ledger_without_debug_log_entries(
     ref = list_tasks(cfg)[0]
     ledger_rel = "relay-os/recurring/weekly-check/log.md"
     ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
-    assert f"scaffolded {ref.id_slug}" in ledger
+    assert f"created {ref.id_slug}" in ledger
     assert "-dbg-" not in ledger
     assert debug_line in log.read_text()
 
@@ -911,7 +911,7 @@ def test_recurring_launch_syncs_ledger_without_debug_log_entries(
 def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
     git_repo, monkeypatch
 ) -> None:
-    """A stale checkout appends its scaffold line without replacing main's log."""
+    """A stale checkout appends its create line without replacing main's log."""
     relay_os = git_repo.relay_os
     _seed_period_task_context(relay_os)
     _write_recurring(
@@ -935,7 +935,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
     log = relay_os / "recurring" / "weekly-check" / "log.md"
     _write(
         log,
-        "2026-06-01 09:00 [system] scaffolded "
+        "2026-06-01 09:00 [system] created "
         "recurring-weekly-check-2026-W23\n",
     )
     git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
@@ -944,7 +944,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
 
     git_repo.checkout_branch("feature/stale")
     remote_line = (
-        "2026-06-08 09:00 [system] scaffolded "
+        "2026-06-08 09:00 [system] created "
         "recurring-weekly-check-2026-W22\n"
     )
     git_repo.push_competing_commit(
@@ -961,7 +961,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
     ledger_rel = "relay-os/recurring/weekly-check/log.md"
     ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
     assert remote_line in ledger
-    assert f"scaffolded {ref.id_slug}" in ledger
+    assert f"created {ref.id_slug}" in ledger
     assert git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
 
 
@@ -1008,7 +1008,7 @@ def test_recurring_launch_does_not_publish_feature_only_template_log(
     assert not git_repo.origin_tracks("relay-os/recurring/new-weekly/log.md")
     assert not git_repo.origin_tracks("relay-os/recurring/new-weekly/ticket.md")
     local_ledger = git_repo.git("show", "HEAD:relay-os/recurring/new-weekly/log.md")
-    assert f"scaffolded {ref.id_slug}" in local_ledger
+    assert f"created {ref.id_slug}" in local_ledger
     assert git_repo.git("status", "--porcelain") == ""
 
 
@@ -1039,7 +1039,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
     log = relay_os / "recurring" / "weekly-check" / "log.md"
     _write(
         log,
-        "2026-06-01 09:00 [system] scaffolded "
+        "2026-06-01 09:00 [system] created "
         "recurring-weekly-check-2026-W23\n",
     )
     git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
@@ -1047,7 +1047,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
     git_repo.git("push", "origin", "main")
 
     remote_line = (
-        "2026-06-08 09:00 [system] scaffolded "
+        "2026-06-08 09:00 [system] created "
         "recurring-weekly-check-2026-W22\n"
     )
     git_repo.push_competing_commit(
@@ -1064,7 +1064,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
     ledger_rel = "relay-os/recurring/weekly-check/log.md"
     ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
     assert remote_line in ledger
-    assert f"scaffolded {ref.id_slug}" in ledger
+    assert f"created {ref.id_slug}" in ledger
     assert git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
     assert git_repo.git("status", "--porcelain") == ""
 
@@ -1134,7 +1134,7 @@ def test_recurring_launch_does_not_resurrect_remote_deleted_period_from_stale_ma
         "main:relay-os/recurring/weekly-check/log.md",
         cwd=git_repo.origin,
     )
-    assert f"scaffolded {ref.id_slug}" in ledger
+    assert f"created {ref.id_slug}" in ledger
     assert git_repo.git("status", "--porcelain") == ""
 
 
@@ -1195,7 +1195,7 @@ def test_recurring_launch_explicit_rerun_bypasses_handled_period_ledger(
     assert git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
 
 
-def test_recurring_scaffold_sync_restores_control_ledger_for_handled_period(
+def test_recurring_create_sync_restores_control_ledger_for_handled_period(
     git_repo,
 ) -> None:
     """A stale control checkout discards its attempted duplicate period state."""
@@ -1227,8 +1227,8 @@ def test_recurring_scaffold_sync_restores_control_ledger_for_handled_period(
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
 
     cfg = load_config(relay_os)
-    remote = scaffold_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
-    recurring_cmd._sync_recurring_scaffold(cfg, "weekly-check", remote.ref)
+    remote = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
@@ -1240,19 +1240,19 @@ def test_recurring_scaffold_sync_restores_control_ledger_for_handled_period(
     git_repo.git("reset", "--hard", stale_head)
 
     cfg = load_config(relay_os)
-    stale = scaffold_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
-    recurring_cmd._sync_recurring_scaffold(cfg, "weekly-check", stale.ref)
+    stale = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", stale.ref)
 
     ledger_rel = "relay-os/recurring/weekly-check/log.md"
     control_log = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
     assert log.read_text() == control_log
     assert "10:05" not in log.read_text()
-    assert f"scaffolded {stale.ref.id_slug}" in log.read_text()
+    assert f"created {stale.ref.id_slug}" in log.read_text()
     assert not stale.ref.path.exists()
     assert git_repo.git("status", "--porcelain") == ""
 
 
-def test_recurring_scaffold_sync_failure_after_removing_stale_task_is_soft(
+def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
     git_repo, monkeypatch, capsys
 ) -> None:
     """A handled-period restore can remove the task before a later git error."""
@@ -1283,8 +1283,8 @@ def test_recurring_scaffold_sync_failure_after_removing_stale_task_is_soft(
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
 
     cfg = load_config(relay_os)
-    remote = scaffold_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
-    recurring_cmd._sync_recurring_scaffold(cfg, "weekly-check", remote.ref)
+    remote = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
@@ -1297,20 +1297,20 @@ def test_recurring_scaffold_sync_failure_after_removing_stale_task_is_soft(
     git_repo.git("reset", "--hard", stale_head)
 
     cfg = load_config(relay_os)
-    stale = scaffold_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
+    stale = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
 
     def fail_commit(*args, **kwargs):
         raise recurring_cmd.git.GitError("simulated index lock")
 
     monkeypatch.setattr("relay.commands.recurring.git._commit_paths", fail_commit)
 
-    recurring_cmd._sync_recurring_scaffold(cfg, "weekly-check", stale.ref)
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", stale.ref)
 
     assert "sync failed: simulated index lock" in capsys.readouterr().err
     assert not stale.ref.path.exists()
 
 
-def test_recurring_sweep_skips_task_removed_by_scaffold_sync(
+def test_recurring_sweep_skips_task_removed_by_create_sync(
     git_repo, monkeypatch
 ) -> None:
     """The bare sweep does not launch a stale task removed during broadcast sync."""
@@ -1341,8 +1341,8 @@ def test_recurring_sweep_skips_task_removed_by_scaffold_sync(
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
 
     cfg = load_config(relay_os)
-    remote = scaffold_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
-    recurring_cmd._sync_recurring_scaffold(cfg, "weekly-check", remote.ref)
+    remote = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
@@ -1467,7 +1467,7 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
     log = relay_os / "recurring" / "weekly-check" / "log.md"
     _write(
         log,
-        "2026-06-01 09:00 [system] scaffolded "
+        "2026-06-01 09:00 [system] created "
         "recurring-weekly-check-2026-W23\n",
     )
     git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
@@ -1480,7 +1480,7 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
     git_repo.git("commit", "-m", "local unpushed")
     git_repo.push_competing_commit("UNRELATED.txt", "remote\n")
     remote_line = (
-        "2026-06-08 09:00 [system] scaffolded "
+        "2026-06-08 09:00 [system] created "
         "recurring-weekly-check-2026-W22\n"
     )
     git_repo.push_competing_commit(
@@ -1505,7 +1505,7 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
         cwd=git_repo.origin,
     )
     assert remote_line in ledger
-    assert f"scaffolded {ref.id_slug}" in ledger
+    assert f"created {ref.id_slug}" in ledger
     assert git_repo.git("status", "--porcelain") == ""
 
 
@@ -1536,7 +1536,7 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
     log = relay_os / "recurring" / "weekly-check" / "log.md"
     _write(
         log,
-        "2026-06-01 09:00 [system] scaffolded "
+        "2026-06-01 09:00 [system] created "
         "recurring-weekly-check-2026-W23\n",
     )
     git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
@@ -1546,7 +1546,7 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
     git_repo.checkout_branch("feature/race")
     base_log = log.read_text()
     race_line = (
-        "2026-06-08 09:00 [system] scaffolded "
+        "2026-06-08 09:00 [system] created "
         "recurring-weekly-check-2026-W22\n"
     )
     real_commit_paths = recurring_cmd.git._commit_paths
@@ -1569,18 +1569,18 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
     ledger_rel = "relay-os/recurring/weekly-check/log.md"
     ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
     assert race_line in ledger
-    assert f"scaffolded {ref.id_slug}" in ledger
+    assert f"created {ref.id_slug}" in ledger
     assert git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
     local_ledger = git_repo.git("show", f"HEAD:{ledger_rel}")
     assert race_line not in local_ledger
-    assert f"scaffolded {ref.id_slug}" in local_ledger
+    assert f"created {ref.id_slug}" in local_ledger
     assert git_repo.git("status", "--porcelain") == ""
 
 
 def test_recurring_launch_does_not_resurrect_midflight_handled_period(
     git_repo, monkeypatch
 ) -> None:
-    """A same-slug handled-period race wins over the local active scaffold."""
+    """A same-slug handled-period race wins over the local active create."""
     relay_os = git_repo.relay_os
     _seed_period_task_context(relay_os)
     _write_recurring(
@@ -1608,7 +1608,7 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
     git_repo.checkout_branch("feature/handled-race")
 
     cfg = load_config(relay_os)
-    outcome = scaffold_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
+    outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
     handled_blackboard = (
         "state\n\nremote_cursor: kept\n\nlast_serviced_period: 2026-W24\n"
     )
@@ -1628,7 +1628,7 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
 
     monkeypatch.setattr("relay.commands.recurring.git._commit_paths", racing_commit)
 
-    recurring_cmd._sync_recurring_scaffold(cfg, "weekly-check", outcome.ref)
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
 
     blackboard_rel = "relay-os/recurring/weekly-check/blackboard.md"
     control_bb = git_repo.git("show", f"main:{blackboard_rel}", cwd=git_repo.origin)
@@ -1673,7 +1673,7 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
     git_repo.git("push", "origin", "main")
 
     cfg = load_config(relay_os)
-    outcome = scaffold_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
+    outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
     handled_blackboard = "state\n\nlast_serviced_period: 2026-W24\n"
     real_fetch = recurring_cmd._fetch_control_branch
     fetch_calls = 0
@@ -1690,7 +1690,7 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
 
     monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", racing_fetch)
 
-    recurring_cmd._sync_recurring_scaffold(cfg, "weekly-check", outcome.ref)
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
 
     assert "sync failed" not in capsys.readouterr().err
     assert not outcome.ref.path.exists()
@@ -1706,17 +1706,17 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
     assert git_repo.git("status", "--porcelain") == ""
 
 
-def test_recurring_scaffold_sync_missing_git_is_soft(
+def test_recurring_create_sync_missing_git_is_soft(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
     cfg = load_config(dream_repo)
-    outcome = scaffold_named(cfg, "dream", now=datetime(2026, 5, 20, 10, 0, 0))
+    outcome = create_named(cfg, "dream", now=datetime(2026, 5, 20, 10, 0, 0))
 
     def missing_git(*args, **kwargs):
         raise FileNotFoundError("git")
 
     monkeypatch.setattr(recurring_cmd.subprocess, "run", missing_git)
-    recurring_cmd._sync_recurring_scaffold(cfg, "dream", outcome.ref)
+    recurring_cmd._sync_recurring_create(cfg, "dream", outcome.ref)
 
     assert "sync skipped" in capsys.readouterr().err
 
@@ -1724,7 +1724,7 @@ def test_recurring_scaffold_sync_missing_git_is_soft(
 def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
     git_repo, monkeypatch
 ) -> None:
-    """An unreachable control branch still leaves the scaffold committed locally."""
+    """An unreachable control branch still leaves the create committed locally."""
     relay_os = git_repo.relay_os
     _seed_period_task_context(relay_os)
     _write_recurring(
@@ -1765,9 +1765,9 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
     ledger_rel = "relay-os/recurring/weekly-check/log.md"
     ticket_rel = f"relay-os/tasks/{ref.id_slug}/ticket.md"
     assert git_repo.git("log", "--format=%s", "-1").strip() == (
-        f"Ticket: {ref.id_slug} — recurring scaffold"
+        f"Ticket: {ref.id_slug} — recurring create"
     )
-    assert f"scaffolded {ref.id_slug}" in git_repo.git("show", f"HEAD:{ledger_rel}")
+    assert f"created {ref.id_slug}" in git_repo.git("show", f"HEAD:{ledger_rel}")
     assert "title: Weekly check" in git_repo.git("show", f"HEAD:{ticket_rel}")
 
 
@@ -1799,7 +1799,7 @@ def test_recurring_launch_is_idempotent(
     assert first.exit_code == 0, first.output
     assert second.exit_code == 0, second.output
     assert "Created recurring/dream" in first.output
-    assert "already scaffolded for this period" in second.output
+    assert "already created for this period" in second.output
     # Idempotent: one task directory, not two.
     assert len(list_tasks(load_config(dream_repo))) == 1
 
@@ -1809,7 +1809,7 @@ def test_recurring_launch_and_scan_converge(dream_repo: Path) -> None:
     cfg = load_config(dream_repo)
     now = datetime(2026, 5, 20, 10, 0, 0)  # a Wednesday
 
-    manual = scaffold_named(cfg, "dream", now=now)
+    manual = create_named(cfg, "dream", now=now)
     assert manual.created is True
 
     # The bare-recurring scan, same period, sees the task already exists.
@@ -1822,8 +1822,8 @@ def test_recurring_launch_and_scan_converge(dream_repo: Path) -> None:
 # --- relay recurring --all (debug) --------------------------------------------
 
 
-def test_scan_debug_scaffolds_fresh_isolated_run(repo: Path) -> None:
-    """`--all` scaffolds a throwaway run per template, even when the real
+def test_scan_debug_creates_fresh_isolated_run(repo: Path) -> None:
+    """`--all` creates a throwaway run per template, even when the real
     current-period task already exists and is past `active`."""
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)
@@ -1845,7 +1845,7 @@ def test_scan_debug_scaffolds_fresh_isolated_run(repo: Path) -> None:
     # Fresh, isolated slug — never the real period slug.
     assert run.ref.id_slug != period_slug
     assert "-dbg-" in run.ref.id_slug
-    assert run.launchable is True  # scaffolds straight to `active`
+    assert run.launchable is True  # creates straight to `active`
     assert Ticket.read(run.ref.path / "ticket.md").title.startswith("[debug]")
 
     # Real period task untouched, two task dirs now on disk.
@@ -1920,7 +1920,7 @@ def test_recurring_launch_unknown_template_fails(dream_repo: Path) -> None:
 def test_recurring_launch_invokes_launch(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay recurring launch` hands the scaffolded `active` task to launch."""
+    """`relay recurring launch` hands the created `active` task to launch."""
     calls: list[str] = []
 
     def fake_launch(
@@ -1959,7 +1959,7 @@ def test_recurring_launch_resumes_in_progress_orphan(
         "relay.commands.launch.launch", lambda task, **k: calls.append(task)
     )
 
-    # First call scaffolds the period task (`active`); freeze it `in_progress`
+    # First call creates the period task (`active`); freeze it `in_progress`
     # to mimic a sweep that died mid-run.
     CliRunner().invoke(app, ["recurring", "launch", "dream"])
     cfg = load_config(dream_repo)
@@ -2021,7 +2021,7 @@ def test_recurring_launch_interactive_overrides_mode(
 def test_bare_recurring_scans_and_launches_due(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Bare `relay recurring` scaffolds the due task and launches it."""
+    """Bare `relay recurring` creates the due task and launches it."""
     calls: list[str] = []
     _allow_interactive_recurring(monkeypatch)
 
@@ -2467,9 +2467,9 @@ def test_bare_recurring_nothing_due(
     monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
     _allow_interactive_recurring(monkeypatch)
     runner = CliRunner()
-    runner.invoke(app, ["recurring"])  # scaffolds + "launches" (no-op stub)
+    runner.invoke(app, ["recurring"])  # creates + "launches" (no-op stub)
 
-    # Mark the scaffolded task done so it is no longer launchable.
+    # Mark the created task done so it is no longer launchable.
     cfg = load_config(dream_repo)
     ref = list_tasks(cfg)[0]
     ticket = Ticket.read(ref.path / "ticket.md")

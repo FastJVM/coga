@@ -61,7 +61,7 @@ Scope:
    don't read-then-discard).
 3. **Writers** — every command that writes ticket/blackboard/log today
    (`draft`, `bump`, `mark`, `launch`-time transitions, `panic`, `slack`,
-   recurring/retire scaffolding) moves to section-scoped writes/appends in the
+   recurring/retire creating) moves to section-scoped writes/appends in the
    one file.
 4. **Reads / surfaces** — `relay show`, `validate`, and task discovery read the
    new format.

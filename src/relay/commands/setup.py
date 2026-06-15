@@ -1,6 +1,6 @@
 """`relay setup` — one-command onboarding: init, name, interview.
 
-Drives the bootstrap end to end, in order: scaffold the repo (`relay init`)
+Drives the bootstrap end to end, in order: create the repo (`relay init`)
 when there is no relay repo yet, collect the operator's name for the `user`
 field in `relay.local.toml`, then launch the `relay-setup` interview ticket.
 Each stage is skipped when already satisfied, so re-running `relay setup`

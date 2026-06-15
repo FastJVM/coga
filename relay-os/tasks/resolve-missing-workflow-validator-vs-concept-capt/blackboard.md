@@ -8,7 +8,7 @@ Re-scoped from "pick option 1 or 2" to a coherence fix around one governing rule
 - `draft` = authoring grace period; workflow-less is valid there (concept-capture).
 - `active`/`in_progress`/`done` require a workflow.
 - Sole exception: machine-authored recurring (dream/cron) + retire tasks, which
-  scaffold straight to `active` workflow-less and run their body as the prompt.
+  create straight to `active` workflow-less and run their body as the prompt.
 
 ### The bug: validator is backwards
 - Workflow-less `draft` → emits `missing-workflow` *warn* (validate.py:658-668).
@@ -83,9 +83,9 @@ sidesteps it entirely.
 - **Docs/contexts** — state both halves of the rule; sync packaged copies.
 - **Tests** — match existing suite.
 
-Both validator+scaffold changes MUST ship together: scaffold runs the validator
-(scaffold.py:174) and raises on errors, so erroring on workflow-less-active
-would break recurring/retire scaffolding unless they already carry direct/body.
+Both validator+create changes MUST ship together: create runs the validator
+(create.py:174) and raises on errors, so erroring on workflow-less-active
+would break recurring/retire creating unless they already carry direct/body.
 
 No live active/in_progress workflow-less tasks on disk → nothing newly errors.
 
@@ -116,7 +116,7 @@ DONE (production code):
 DONE (tests, green): test_validate, test_recurring, test_retire. Added conftest
 `seed_direct_body_workflow()` helper + seeded git_repo fixture's initial commit.
 
-KEY CONSEQUENCE: `scaffold_task` self-validates and now RAISES on workflow-less
+KEY CONSEQUENCE: `create_task` self-validates and now RAISES on workflow-less
 active/in_progress/paused. ~80 tests across 11 files created that (now-invalid)
 shape as a shortcut → being updated to either carry a workflow (faithful: that's
 what recurring/retire produce now) or construct on-disk when the test
@@ -130,7 +130,7 @@ longer workflow-less exceptions, across:
   vs concept-capture contradiction: default to a workflow, but a deliberate
   workflow-less *draft* is valid and stays a draft until one is added)
 - relay-os/contexts/relay/recurring/SKILL.md (direct/body for workflow-less templates)
-- README.md (3 spots: mark-active gate, recurring scaffolding, retire)
+- README.md (3 spots: mark-active gate, recurring creating, retire)
 Updated test_bootstrap_ticket_skill_template.py assertions to the reconciled prose.
 
 SIBLING TICKET document-workflow-less-concept-capture-drafts-as-s: now COVERED

@@ -1,4 +1,4 @@
-"""Task directory scaffolding — write a fresh ticket directory to disk."""
+"""Task directory creating — write a fresh ticket directory to disk."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from relay.ticket import Ticket
 from relay.workflow import Workflow
 
 
-def scaffold_task(
+def create_task(
     *,
     cfg: Config,
     title: str,
@@ -45,7 +45,7 @@ def scaffold_task(
 
     Pass `description` for the common case — the body is built as the canonical
     `## Description` / `## Context` skeleton. Pass `body` instead to write a
-    full ticket body verbatim (recurring scaffolding does this so template
+    full ticket body verbatim (recurring creating does this so template
     sections like `## Script config` survive); a `## Context` section is
     appended when the verbatim body lacks one. `body` takes precedence over
     `description`.
@@ -111,7 +111,7 @@ def scaffold_task(
         assignee = assignee or owner
 
     base_slug = slug_override or slugify(title)
-    # Scaffolds land at the top level (`tasks/<slug>/`), so uniqueness only
+    # Creates land at the top level (`tasks/<slug>/`), so uniqueness only
     # needs to clear other top-level slugs — a grouped task may reuse the leaf.
     existing_slugs = {t.slug for t in list_tasks(cfg) if t.group is None}
     slug = base_slug
@@ -153,7 +153,7 @@ def scaffold_task(
         fm[field_name] = spec.default
 
     if body is not None:
-        # Recurring scaffolding passes the template body verbatim so sections
+        # Recurring creating passes the template body verbatim so sections
         # beyond `## Description` survive into the period task — notably
         # `## Script config`, which drives a script step's mode/sync. Ensure
         # the canonical `## Context` section exists so the body shape stays
@@ -177,7 +177,7 @@ def scaffold_task(
     errors = [i for i in issues if i.severity == "error"]
     if errors:
         raise ValueError(
-            "Scaffolded task failed validation:\n" + format_task_issues(errors)
+            "Created task failed validation:\n" + format_task_issues(errors)
         )
 
     return {"slug": created_ref.id_slug, "path": task_dir}
@@ -218,4 +218,4 @@ def _dedupe(items: list[str]) -> list[str]:
     return out
 
 
-__all__ = ["scaffold_task"]
+__all__ = ["create_task"]

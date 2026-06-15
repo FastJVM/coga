@@ -38,7 +38,7 @@ step: 1 (design)
 
 `relay validate` is enforced at the edge of every **relay-owned** mutation —
 `draft`, ticket-authoring exit, `mark`, `bump`, launch-time transitions, and
-recurring/retire scaffolding all run a task-scoped validate after the write and
+recurring/retire creating all run a task-scoped validate after the write and
 before reporting success. But a **direct hand-edit to `ticket.md`** (a human or
 agent editing the file with an editor / file-edit tool) is **not** validated
 automatically. Today the only safeguard is remembering to run

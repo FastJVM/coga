@@ -52,7 +52,7 @@ class TicketField:
     """A repo-declared extension to the canonical ticket frontmatter schema.
 
     Declared in `relay.toml` under `[ticket.fields.<name>]`. The field is
-    written into every freshly scaffolded ticket below the
+    written into every freshly created ticket below the
     `# --- extensions ---` marker, and `relay validate` / `relay mark active`
     enforce the declared constraints.
     """
@@ -125,7 +125,7 @@ class Config:
         return self.agents[name]
 
     def default_agent(self) -> AgentType | None:
-        """First-declared agent type, used as the scaffold-time default.
+        """First-declared agent type, used as the create-time default.
 
         TOML preserves declaration order, so the team puts their default
         first in `relay.toml`.
@@ -390,7 +390,7 @@ _ALLOWED_TICKET_FIELD_KEYS: frozenset[str] = frozenset({
 def _parse_ticket_fields(raw: dict | None) -> dict[str, TicketField]:
     """Parse `[ticket.fields.<name>]` tables into `TicketField` records.
 
-    Order in TOML is preserved (insertion order on dict), so scaffold writes
+    Order in TOML is preserved (insertion order on dict), so create writes
     extension fields in declaration order.
     """
     if raw is None:

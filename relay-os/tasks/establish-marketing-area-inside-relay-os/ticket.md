@@ -55,11 +55,11 @@ a real first skill to put in it. `contexts/marketing/` already exists.
   ignored, tasks keep their bare leaf-name slugs regardless of nesting,
   and groups don't nest. Duplicate leaf names across levels raise, so
   moving a task into the group never changes how it's referenced.
-- `relay draft` / `relay ticket` always scaffold at the top level
-  (`src/relay/scaffold.py:119`) — there is no way to scaffold directly
-  into a group. New marketing tickets get scaffolded top-level and then
+- `relay draft` / `relay ticket` always create at the top level
+  (`src/relay/create.py:119`) — there is no way to create directly
+  into a group. New marketing tickets get created top-level and then
   `git mv`'d into `tasks/marketing/`; the README should state this so the
-  convention survives. Teaching scaffold to target a group is out of
+  convention survives. Teaching create to target a group is out of
   scope (separate ticket if wanted).
 - Git doesn't track empty directories, so the README is what makes the
   group exist until its first ticket moves in.

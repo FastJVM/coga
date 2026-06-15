@@ -68,7 +68,7 @@ normal flow is to **`relay init` each operational repo** — one `relay-os/`
 per repo, since the repo *is* the project:
 
 ```sh
-relay init ~/work/admin                # scaffolds ~/work/admin/relay-os/
+relay init ~/work/admin                # creates ~/work/admin/relay-os/
 relay init ~/work/code                 # ditto for the code repo
 ```
 
@@ -175,13 +175,13 @@ authoring interview.
 
 ### `relay init [PATH] [--update] [--all]`
 
-Scaffold `relay-os/` inside `PATH` (default: `.`). Copies templates from the
+Create `relay-os/` inside `PATH` (default: `.`). Copies templates from the
 installed Relay package, vendors the CLI into `.relay/`, creates a
 self-contained venv, writes a starter `relay.local.toml`, and — if `PATH` is a
-git repo — auto-stages and commits the new scaffold (push is left to you).
+git repo — auto-stages and commits the new create (push is left to you).
 
 ```sh
-relay init mycompany           # fresh scaffold; refuses if relay-os/ exists
+relay init mycompany           # fresh create; refuses if relay-os/ exists
 relay init --update            # refresh .relay/ + package templates in current repo
                                # (never touches your relay.toml, rules.md, custom skills, etc.)
 relay init --update --all ~/work   # sweep: refresh every relay repo under ~/work
@@ -219,7 +219,7 @@ setup), it skips that agent and prints what to clear.
 
 ### `relay draft "<title>"`
 
-Scaffold a new raw `draft` ticket under `relay-os/tasks/<slug>/` (slug
+Create a new raw `draft` ticket under `relay-os/tasks/<slug>/` (slug
 derived from the title) and post `✨` to Slack. Does **not** spawn an agent
 and does **not** run the guided authoring interview. The new ticket is empty
 — title, owner, mode, and timestamp set; workflow, contexts, assignee, and
@@ -258,13 +258,13 @@ the argv template for another agent.
 
 The usual boot sequence is:
 
-1. `relay ticket "<title>"` — scaffold and fill the draft.
+1. `relay ticket "<title>"` — create and fill the draft.
 2. Review or edit the ticket.
 3. `relay mark active <slug>` — approve it into the queue.
 4. `relay launch <slug>` — mark it `in_progress` and spawn the agent.
 
-Programmatic callers (e.g. `relay recurring`) call `scaffold_task()` in
-`relay.scaffold` directly with the full keyword surface.
+Programmatic callers (e.g. `relay recurring`) call `create_task()` in
+`relay.create` directly with the full keyword surface.
 
 ### `relay mark <state> <slug> [--message "..."]`
 
@@ -281,8 +281,8 @@ ticket has no steps and can't be moved by `relay bump`. A bare-string
 `workflow:` ref is frozen into its snapshot on activation. `relay validate`
 backs the same rule, erroring on a workflow-less `active`/`in_progress`/`paused`
 ticket: a workflow is mandatory everywhere except `draft`. (Recurring and
-retire tasks scaffold straight to `active`, but they are *not* workflow-less:
-a template that declares no workflow, and every retire task, scaffolds with
+retire tasks create straight to `active`, but they are *not* workflow-less:
+a template that declares no workflow, and every retire task, creates with
 the one-step `direct/body` workflow that runs the ticket body directly.)
 
 `relay launch` owns the `active` → `in_progress` start transition. `relay
@@ -297,7 +297,7 @@ Scan `relay-os/recurring/` and launch the templates that are due. Relay keeps
 **one live task per template**: a generated task is identified by the stable
 group-qualified ref `recurring/<name>` (`relay-os/tasks/recurring/<name>/`),
 and if it is already `active` or orphaned `in_progress`, that one is
-launched/resumed and no duplicate is scaffolded. Only when none is live does
+launched/resumed and no duplicate is created. Only when none is live does
 `relay recurring` get-or-create the current run at that stable path and update
 the template blackboard's `last_serviced_period` high-water mark. It prints a
 scan table, then launches the due ones sequentially: orphaned `in_progress`
@@ -315,11 +315,11 @@ the last invocation. Dedup after a completed run is deleted comes from
 `last_serviced_period >= current period_key` in the template blackboard. The
 template `log.md` stays append-only human history; it is not parsed for dedup.
 
-Recurring scaffolding goes through `scaffold_task()` in `relay.scaffold`
-directly with the template's full frontmatter. Recurring tasks are scaffolded
+Recurring creating goes through `create_task()` in `relay.create`
+directly with the template's full frontmatter. Recurring tasks are created
 straight to `active` — they can't go through the `relay mark active` gate — so
 they must carry a workflow to be valid and bumpable: a template that declares
-its own keeps it, and a workflow-less one (e.g. Dream) scaffolds with the
+its own keeps it, and a workflow-less one (e.g. Dream) creates with the
 one-step `direct/body` workflow, which runs the template body's ordered phases
 directly.
 
@@ -334,7 +334,7 @@ through a recurring run in an attended terminal. It threads `relay launch
 
 ### `relay recurring launch <name>`
 
-Scaffold one named recurring template now, ignoring its schedule, and launch
+Create one named recurring template now, ignoring its schedule, and launch
 it. The task ref is `recurring/<name>`, so a manual `launch` and a bare
 `relay recurring` run converge on one stable task directory; an orphaned
 `in_progress` run is resumed rather than duplicated. This is the on-demand
@@ -345,7 +345,7 @@ one template by hand.
 ### `relay dream`
 
 Run Relay's generic cleanup pass now. `dream` is an alias for
-`relay recurring launch dream`: it scaffolds the `recurring/dream/`
+`relay recurring launch dream`: it creates the `recurring/dream/`
 recurring task and launches it. The instantiated task ref is
 `recurring/dream`, shared with the scheduled run — running `relay dream`
 mid-week reuses that task rather than creating a second one.
@@ -354,8 +354,8 @@ mid-week reuses that task rather than creating a second one.
 
 Dream is Relay's generic ticket cleanup pass for one `relay-os/`. It ships as a
 recurring task template, `relay-os/recurring/dream/`: a weekly `relay
-recurring` run scaffolds and launches it when its schedule is due, and the
-`relay dream` alias scaffolds and launches it on demand. A Dream task scans all tickets, runs fixed Relay
+recurring` run creates and launches it when its schedule is due, and the
+`relay dream` alias creates and launches it on demand. A Dream task scans all tickets, runs fixed Relay
 housekeeping skills such as `validate-drift` and `retro/done-ticket`, proposes
 cleanup, writes results to that run's blackboard, and leaves a human-reviewable
 trail. Retro work is batched for done tickets: Dream loads the context/skill
@@ -570,14 +570,14 @@ relay delete add-retry
 
 ### `relay retire <slug>`
 
-Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose
+Wrap up a `done` ticket: create a one-shot `retire-<slug>` task whose
 body invokes the `retro/done-ticket` skill against the named ticket. `retire`
 keeps the single-ticket path; Dream owns batched Retro runs. The retro skill
 always deletes the processed source task in a reviewable PR. When it extracts
 new durable knowledge, that PR records the `## Retro` marker, edits the
 knowledge base, and deletes the source task directory together. When no new
 durable knowledge exists, Retro records `result: no-new-durable-knowledge` and
-deletes the ticket in a delete-only prune PR. The retire task scaffolds
+deletes the ticket in a delete-only prune PR. The retire task creates
 straight to `active` carrying the one-step `direct/body` workflow (which runs
 its body directly) and is launched unless `--no-launch` is passed.
 
@@ -589,7 +589,7 @@ belongs in a Dream worker, not here.
 ```sh
 relay retire add-retry                       # interactive mode (the default)
 relay retire add-retry --mode auto           # one-shot autonomous Retro run
-relay retire add-retry --no-launch           # scaffold without launching
+relay retire add-retry --no-launch           # create without launching
 ```
 
 `retire` runs interactively by default so the Retro pass writes live

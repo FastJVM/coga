@@ -8,7 +8,7 @@ from pathlib import Path
 from textwrap import dedent
 
 from relay.config import load_config
-from relay.recurring import scaffold_named
+from relay.recurring import create_named
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
 
@@ -102,7 +102,7 @@ def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
         assert live.read_text() == packaged.read_text()
 
 
-def test_autoclose_recurring_template_scaffolds_idempotently(tmp_path: Path) -> None:
+def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> None:
     relay_os = tmp_path / "relay-os"
     _write(
         relay_os / "relay.toml",
@@ -145,8 +145,8 @@ def test_autoclose_recurring_template_scaffolds_idempotently(tmp_path: Path) -> 
 
     cfg = load_config(relay_os)
     now = datetime(2026, 6, 11, 8, 30, 0)
-    first = scaffold_named(cfg, "autoclose-merged", now=now)
-    second = scaffold_named(cfg, "autoclose-merged", now=now)
+    first = create_named(cfg, "autoclose-merged", now=now)
+    second = create_named(cfg, "autoclose-merged", now=now)
 
     assert first.created is True
     assert second.created is False

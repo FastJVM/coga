@@ -53,7 +53,7 @@ Two orthogonal axes the model needs to express:
   later `event` / `webhook` / `queue-depth`. Multiple triggers OR
   together by default.
 - **Cardinality** — `one-shot` (fires once → `done`) or `recurring`
-  (each fire scaffolds a fresh task instance — today's recurring
+  (each fire creates a fresh task instance — today's recurring
   template flow).
 
 **Key insight — "fire" is always the same transition.** The status
@@ -87,9 +87,9 @@ to perform:
 | autotrigger does the job of… | human gesture it replaces        | cardinality |
 | ---------------------------- | -------------------------------- | ----------- |
 | **launch**                   | `relay launch` (fire, in place)  | one-shot    |
-| **recurring**                | the recurring scaffold (re-stock)| recurring   |
+| **recurring**                | the recurring create (re-stock)| recurring   |
 
-`relay-os/recurring/` was always "auto-scaffold"; the `idle-eligible`
+`relay-os/recurring/` was always "auto-create"; the `idle-eligible`
 proposal was always "auto-launch." Both are the same concept — *who
 fires the `active → in_progress` transition* = the system — which is
 exactly the unification this ticket exists to name.
@@ -101,7 +101,7 @@ session has them on hand:
 
 - File shape for recurring autotriggers — a recurring source can't
   itself be the running task; needs to be template-shaped or have a
-  scaffolding rule.
+  creating rule.
 - Is `triggers:` presence the standing consent that bypasses
   human-launch approval, or do we want an explicit `autotrigger:
   true` flag for legibility?

@@ -82,7 +82,7 @@ Commit: `a8523e7` (`Focus Slack digest on outcomes`)
 
 - Changed Slack digest output to outcome-focused Done / Also merged / Recurring errors sections, with done records grouped by owner and PR numbers extracted from done details.
 - Changed `relay digest` to scan `origin/<control_branch>` using a `last_commit` high-water mark in `relay-os/recurring/digest/blackboard.md`; first run falls back to the last 24 hours. Relay task-state sync commit subjects are filtered out of Also merged.
-- Stopped routine lifecycle events (`draft`, `active`, message-less `bump`, `paused`, `retire`, recurring scaffold success) from calling `notify()`. `done` and `recurring-error` still spool; `relay bump --message` now sends a live FYI.
+- Stopped routine lifecycle events (`draft`, `active`, message-less `bump`, `paused`, `retire`, recurring create success) from calling `notify()`. `done` and `recurring-error` still spool; `relay bump --message` now sends a live FYI.
 - Retired `relay-dev-update` by removing its recurring template and workflow, and updated the digest skill/workflow docs plus the live and packaged `relay/sync` context.
 
 Verification:

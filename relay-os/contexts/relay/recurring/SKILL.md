@@ -1,11 +1,11 @@
 ---
 name: relay/recurring
-description: How Relay's recurring task system works — recurring tasks as ticket-format directories under relay-os/recurring/, the scaffold contract, period-task naming, and where last-run state persists. Attach to any ticket that adds or changes a recurring task.
+description: How Relay's recurring task system works — recurring tasks as ticket-format directories under relay-os/recurring/, the creation contract, period-task naming, and where last-run state persists. Attach to any ticket that adds or changes a recurring task.
 ---
 
 # Recurring tasks
 
-Recurring tasks are machine-authored jobs that re-scaffold on a schedule.
+Recurring tasks are machine-authored jobs that re-create on a schedule.
 Each one re-runs every period; `relay recurring` turns due ones into real
 per-period tasks.
 
@@ -19,7 +19,7 @@ shape as any task directory:
 - `blackboard.md` — **persists across every run.** This is where a recurring
   task stores last-run state.
 - `log.md` — append-only run history; `relay recurring` adds a line each time
-  it scaffolds a period task.
+  it creates a period task.
 
 A directory whose name starts with `_` (`_template/`, `_rem/`) is inert — the
 scanner skips it. That is how the starter templates ship without firing.
@@ -46,11 +46,11 @@ scanner skips it. That is how the starter templates ship without firing.
   period work for that template; there is only one instantiated path per
   template. If a non-interactive launched task
   returns still unfinished, the sweep stops before the next due task. Before
-  scaffolding anything, the sweep also reaps leftover `*-dbg-*` debug scratch
+  creating anything, the sweep also reaps leftover `*-dbg-*` debug scratch
   from a crashed `relay recurring --all` run — debug runs never commit task
   state, so this is a plain delete; it is the disposable-run analogue of the
   orphan-resume above.
-- `relay recurring launch <name>` — scaffolds one named recurring task now,
+- `relay recurring launch <name>` — creates one named recurring task now,
   ignoring its schedule. `<name>` is the directory name.
 
 `ticket.md` frontmatter fields:
@@ -59,13 +59,13 @@ scanner skips it. That is how the starter templates ship without firing.
   it (or without `ticket.md`) is skipped with a stderr warning and an entry
   in the run's Slack summary.
 - `mode` — `script`, `auto`, or `interactive`. Defaults to `auto`.
-- `title` — the scaffolded period task's title (else the humanized name).
-- `workflow` — optional. A template that names none scaffolds with the
+- `title` — the created period task's title (else the humanized name).
+- `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered
   phases directly as the prompt; Dream is the canonical example. (The task is
   still workflow-carrying and bumpable — `direct/body` is the workflow.)
 - `owner`, `assignee`, `watchers`, `contexts` — passed through to the
-  scaffolded period task.
+  created period task.
 
 ## Last-run state lives in the recurring task's blackboard
 
@@ -76,17 +76,17 @@ blackboard does **not** carry over.
 
 So a recurring task that needs continuity between runs (a last-processed
 commit SHA, a cursor, a posted/skipped flag) keeps that state in **its own**
-blackboard: `relay-os/recurring/<name>/blackboard.md`. The scaffolder also
+blackboard: `relay-os/recurring/<name>/blackboard.md`. The creator also
 keeps the schedule high-water mark there as `last_serviced_period:
 <period_key>`, overwriting the single line as periods advance.
 
 When designing a recurring task that carries cross-run state, name in the
 body *which* keys it persists (e.g. `last_commit`, a cursor section). You
 do **not** need to re-teach the launched run *where* state lives — the
-scaffolder auto-attaches the `relay/period-task` context to every period
+creator auto-attaches the `relay/period-task` context to every period
 task, which carries that rule.
 
-## The scaffold contract
+## The creation contract
 
 - **Instantiated task ref** is `recurring/<name>`, backed by
   `relay-os/tasks/recurring/<name>/`. The `recurring/` task group is the
@@ -95,18 +95,18 @@ task, which carries that rule.
   high-water mark.** The period key buckets the firing: hourly →
   `YYYY-MM-DD-HH`, daily → `YYYY-MM-DD`, weekly → `YYYY-Www`, monthly →
   `YYYY-MM`. Bare `relay recurring` reads
-  `relay-os/recurring/<name>/blackboard.md` before scaffolding: if
+  `relay-os/recurring/<name>/blackboard.md` before creating: if
   `last_serviced_period >= current period_key` and no instantiated task dir
-  remains, that period has been handled — it is not re-scaffolded and not
+  remains, that period has been handled — it is not re-created and not
   re-launched. The on-demand `relay recurring launch <name>` (and aliases like
   `relay dream`) bypass this skip: it's the explicit override.
-- **The recurring template's `log.md` is append-only history.** The scaffolder
+- **The recurring template's `log.md` is append-only history.** The creator
   still appends a human-readable period line, but dedup does not depend on
   parsing the log. Logs are never composed into prompts, so history can grow
   without bloating the next run.
-- Period tasks scaffold **straight to `status: active`** — ready jobs, not
+- Period tasks create **straight to `status: active`** — ready jobs, not
   drafts to triage. Because every active task must carry a workflow, a
-  template that declares none scaffolds with `direct/body` (it would otherwise
+  template that declares none creates with `direct/body` (it would otherwise
   be un-activatable and `relay validate` would flag it as a stuck task).
 - `assignee` defaults to the repo's configured **default agent** when the
   recurring task omits it — never the human `owner`, which `relay launch`
@@ -128,7 +128,7 @@ so Retro extracts no new knowledge and **direct-deletes** them via `relay
 delete recurring/<name>` (working-tree `git rm` plus a `Ticket:
 recurring/<name> — deleted` commit), with no PR and no marker. The template's
 `last_serviced_period` line is left untouched, so a completed period is not
-re-scaffolded; deletion is idempotent (a ticket whose directory is already gone
+re-created; deletion is idempotent (a ticket whose directory is already gone
 is never a candidate).
 
 Each Dream run is itself the `recurring/dream` task. Dream does **not** delete

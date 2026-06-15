@@ -349,7 +349,7 @@ def _check_one_task(
                 ))
 
     # A `done` period task whose declared state keys still match their
-    # scaffold-time snapshot finished without advancing its cursor — the next
+    # create-time snapshot finished without advancing its cursor — the next
     # firing will redo the same range. Surface it here so a stuck cursor is
     # visible without waiting for that duplicate run. Only `done` tasks qualify:
     # an unfinished run legitimately hasn't recorded state yet.
@@ -664,7 +664,7 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
         # is left alone: a finished workflow-less task is harmless and flagging
         # it would only nag immutable history.) Machine-authored tasks that
         # used to be workflow-less here — recurring/Dream and retire — now
-        # scaffold with the `direct/body` workflow, so no whitelist is needed.
+        # create with the `direct/body` workflow, so no whitelist is needed.
         if ticket.status in {"active", "in_progress", "paused"}:
             out.append(Issue(
                 kind="active-no-workflow",
