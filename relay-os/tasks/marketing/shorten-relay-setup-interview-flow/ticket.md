@@ -56,4 +56,10 @@ that change; the `design` step proposes options before anything ships.
 - Focus: get a newcomer to a few useful starter context blocks with far fewer
   touchpoints — shorten, don't delete. Companion to
   `marketing/remove-relay-setup-command`.
+- Background: `relay show marketing/init-questions` holds the design +
+  validation history for this interview — the two-phase dry-run eval, the
+  7/20-vs-20/20 recall finding ("the interview captures intent; the scan is
+  load-bearing"), Zach's verbatim interview answers, and kept fixtures. Read it
+  before redesigning — it bounds how far the interview can be cut without losing
+  the facts the scan recovers.
 
