@@ -153,3 +153,4 @@ posted:
 {"ts":"2026-06-12T21:17","project":"relay","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/287|PR #287> merged ✅","ticket":"recover-recurring-runs-orphaned-when-the-superviso","owner":"nick"}
 {"ts":"2026-06-12T22:41","project":"relay","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/359|PR #359> merged ✅","ticket":"rename-slack-to-a-notification-system-with-pluggab","owner":"nick"}
 {"ts":"2026-06-14T13:23","project":"relay-cli","kind":"done","detail":"claude finished: revise → done ✅ — Relay Onboarding doc approved & final: https://docs.google.com/document/d/1eAdnxopeVC7jLGUfdo05R-h_a4jM-OwhracyUgYLtq0/edit","ticket":"relay-onboarding","owner":"zach"}
+{"ts":"2026-06-16T12:50","project":"relay-cli","kind":"done","detail":"claude finished: synthesize → done ✅","ticket":"marketing/validate-relay-build-onboarding","owner":"zach"}
