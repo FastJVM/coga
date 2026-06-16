@@ -128,6 +128,19 @@ def list_tasks(cfg: Config) -> list[TaskRef]:
 ROOT_DIR = "root"
 
 
+def is_under(directory: str | None, target: str) -> bool:
+    """True if a task's `directory` is `target` itself or nested below it.
+
+    The subtree test shared by `filter_tasks_under` (the `relay status <dir>`
+    filter) and the `tasks/recurring/` split in `relay status` — `target` and
+    everything under `target/`. A top-level task (`directory is None`) is under
+    nothing.
+    """
+    if directory is None:
+        return False
+    return directory == target or directory.startswith(target + "/")
+
+
 class UnknownDirectoryError(Exception):
     """A filter named a directory with no matching `tasks/<dir>/` on disk.
 
@@ -189,13 +202,10 @@ def filter_tasks_under(
     if directory == ROOT_DIR:
         return [r for r in refs if r.directory is None]
     target = directory.strip("/")
-    if target not in list_task_dirs(cfg):
-        raise UnknownDirectoryError(target, list_task_dirs(cfg))
-    prefix = target + "/"
-    return [
-        r for r in refs
-        if r.directory == target or (r.directory or "").startswith(prefix)
-    ]
+    available = list_task_dirs(cfg)
+    if target not in available:
+        raise UnknownDirectoryError(target, available)
+    return [r for r in refs if is_under(r.directory, target)]
 
 
 def resolve_task(cfg: Config, task_arg: str) -> TaskRef:
@@ -260,6 +270,7 @@ __all__ = [
     "DuplicateTaskSlugError",
     "ROOT_DIR",
     "UnknownDirectoryError",
+    "is_under",
     "list_tasks",
     "list_task_dirs",
     "filter_tasks_under",

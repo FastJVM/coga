@@ -14,6 +14,7 @@ from relay.logfile import last_activity
 from relay.tasks import (
     UnknownDirectoryError,
     filter_tasks_under,
+    is_under,
     list_tasks,
     read_ticket,
 )
@@ -141,12 +142,8 @@ def status(
     # execution; peel them into their own table so the main list stays the
     # hand-authored backlog. `relay recurring list` is the schedule-aware view.
     # They live under `tasks/recurring/` (possibly in a deeper sub-directory).
-    def _under_recurring(r: dict) -> bool:
-        d = r["directory"] or ""
-        return d == "recurring" or d.startswith("recurring/")
-
-    main_rows = [r for r in rows if not _under_recurring(r)]
-    recurring_rows = [r for r in rows if _under_recurring(r)]
+    recurring_rows = [r for r in rows if is_under(r["directory"], "recurring")]
+    main_rows = [r for r in rows if not is_under(r["directory"], "recurring")]
 
     if main_rows:
         console.print(_build_table(main_rows, narrow, now))
