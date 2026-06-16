@@ -28,7 +28,7 @@ Last updated: 2026-06-13.
 - **Debug `--all` runs remain top-level scratch for now.** They keep the
   `<name>-dbg-<timestamp>` shape, are outside the `recurring/` directory, and stay
   excluded from recurring dedup/resume. The earlier plan to remove the debug
-  machinery is not part of the grouped-slug cut; do not conflate real recurring
+  machinery is not part of the task-directory cut; do not conflate real recurring
   task identity with debug scratch cleanup.
 
 ## Open rename (workflow → playbook)
