@@ -20,7 +20,7 @@ workflow:
   - name: synthesize
     skills: []
     assignee: agent
-step: 2 (dry-run-and-score)
+step: 3 (synthesize)
 ---
 
 ## Description
