@@ -48,7 +48,7 @@ def _format_relative(then: datetime, now: datetime) -> str:
 
 
 def status(
-    directory: str = typer.Argument(
+    directory: str | None = typer.Argument(
         None,
         metavar="[DIR]",
         help=(
