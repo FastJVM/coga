@@ -107,3 +107,16 @@ through fine.
 **Commit:** `453a435` on branch `wire-autonomy-triage-authoring`
 (worktree `../relay-autonomy-triage-authoring`). No push / no PR — that's the
 `code/open-pr` step next.
+
+## Review step — Codex 2026-06-16
+
+- PR #328 is already merged: https://github.com/FastJVM/relay/pull/328
+  (`453a435` merged via `44d1080` on 2026-06-10).
+- Reviewed the PR diff: one packaged `bootstrap/ticket` skill text change, no
+  code/workflow/template-skeleton/browser-triage changes. The diff matches the
+  final Acceptance Criteria and the implement-step scope correction.
+- Verified `origin/main` contains the autonomy-triage authoring text in the
+  packaged skill. No review findings.
+- Task-scoped validation: `relay validate --task
+  wire-autonomy-triage-into-impl-ready-workflows --json` -> `ok_count: 1`, no
+  issues.
