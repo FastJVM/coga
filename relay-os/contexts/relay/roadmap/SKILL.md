@@ -22,12 +22,50 @@ in `relay/principles`.
 1. Finish the in-flight work (Wave 0) so the board is legible — nearly cleared;
    only `wire-autonomy-triage-into-impl-ready-workflows` and the dedup pass
    remain.
-2. Ship installability (Wave 1) — a stranger still can't `pipx install` Relay;
-   that gates the launch.
+2. Ship the **RC release gate** (below) — a stranger can `pipx install` Relay
+   and run their first task. This is the launch.
 3. `auto/stream-agent-progress` is the **single highest-leverage unlock** — it
    re-enables `mode: auto` and thereby the entire nightly-drain vision (Wave 2).
 4. The single-file format rewrite (Wave 3) is high-blast-radius — do it when the
    board is calm, after Wave 0's file-model work settles.
+
+## Release candidate — the gate to v0.2.0 launch
+
+The hard list of what must be true before we tag and announce. This is a
+**subset and re-ordering of Wave 1** focused on "a stranger installs it and runs
+their first task." Tier chosen: **blockers + CI + telemetry** (domain,
+uninstall, and changelog are fast-follows, not gate items). Assumption: the RC
+ships **interactive + script only** — `mode: auto` stays disabled (its blocker
+is `auto/stream-agent-progress`, Wave 2).
+
+**Blockers — cannot tag without these:**
+
+1. `relay-cli-shipping` [active] — `relay init` must ship `skills/code` + the
+   `code`/`docs`/`dev` workflows. **Confirmed missing today** (templates ship
+   only `direct`), so a fresh install can't run the core loop. Top priority.
+2. `one-line-install` [active] — `pipx install relay-os` works end-to-end and is
+   published to PyPI (package is `relay-os`, currently v0.2.0).
+3. `relay-forces-https` [active] + `remote-default-origin` [active] — don't
+   crash on SSH / non-`origin` git setups; real users' configs vary.
+4. **Make the repo public** — prerequisite for an OSS launch (the gate noted
+   under `marketing/relay-discord`).
+5. `improve-readme-and-doc` [draft] — a README that takes a stranger from
+   install → first task.
+6. `first-run-works-without-slack-configured` [draft] — Slack must be optional
+   out of the box; today a missing webhook walls a brand-new user.
+
+**Also in the gate (chosen tier):**
+
+7. `minimal-ci-run-pytest-on-prs-and-tags` [draft] — a `pytest` GitHub Action so
+   the release tag is trustworthy (no CI exists today).
+8. `anonymous-install-telemetry-opt-out-no-pii` [draft] — live at launch so we
+   can measure adoption from day one.
+
+**Fast-follows (not gate items):** `register-a-real-domain-for-relay` (README
+can point at GitHub if it slips), `marketing/relay-uninstall` (`pipx uninstall`
+works natively), and a version tag + short changelog.
+
+**Post-gate:** `marketing/relay-discord` → `marketing/launch-relay-product-launch-comms`.
 
 ## Wave 0 — Finish in-flight + clear the board
 
@@ -55,7 +93,9 @@ Still open:
 ## Wave 1 — Make Relay installable by outsiders (the launch gate)
 
 Everything here blocks "a stranger can install and run it." Repo-public is the
-keystone for the marketing/install half.
+keystone for the marketing/install half. The **RC release gate** above is the
+prioritized must-ship subset of this wave plus `first-run-works-without-slack-configured`
+and `minimal-ci-run-pytest-on-prs-and-tags`; the items below are the full list.
 
 1. `relay-forces-https` [active] + `remote-default-origin` [active] — respect
    SSH users and non-`origin` remotes; real users have varied git setups.

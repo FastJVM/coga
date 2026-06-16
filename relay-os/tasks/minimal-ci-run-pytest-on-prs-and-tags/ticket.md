@@ -34,7 +34,23 @@ step: 1 (design)
 
 ## Description
 
+There is no CI today (`.github/workflows/` does not exist). Before tagging a
+release we need a minimal GitHub Action so the release tag is trustworthy and
+contributor PRs are gated.
 
+Scope (keep it minimal):
+
+- A workflow that runs `python -m pytest` on push to `main` and on PRs.
+- Matrix on supported Python (>=3.11; at least 3.11 + one newer).
+- Install the package (`pip install -e .` plus test deps) and run the suite.
+- Fast and green on `main` as the acceptance bar; no flaky/networked tests in
+  the required job (Slack/`gh`-dependent paths should be skipped or mocked).
+- Optional follow-up (note, don't necessarily build now): a release job that
+  builds the wheel / publishes to PyPI on a version tag — coordinate with
+  `one-line-install`.
 
 ## Context
 
+RC release-gate item (see `relay/roadmap`). Gives the release tag a green-checks
+guarantee and protects every later Wave PR. Pairs with `one-line-install` (the
+publish path) and the testing expectations in `relay/codebase`.
