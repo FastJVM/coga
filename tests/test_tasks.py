@@ -63,7 +63,7 @@ def _task(company: Path, rel: str) -> Path:
     return task_dir
 
 
-def test_list_tasks_finds_tasks_one_level_inside_group_dirs(repo: Path) -> None:
+def test_list_tasks_finds_tasks_one_level_inside_sub_dirs(repo: Path) -> None:
     top = _task(repo, "fix-retry-logic")
     nested = _task(repo, "marketing/digest-sweep")
 
@@ -114,7 +114,7 @@ def test_list_tasks_does_not_recurse_into_a_task_dir(repo: Path) -> None:
 def test_underscore_dirs_skipped_at_both_levels(repo: Path) -> None:
     _task(repo, "_template")
     _task(repo, "auto/_draft")
-    _task(repo, "_group/hidden")
+    _task(repo, "_hidden/hidden")
     _task(repo, "auto/visible")
 
     refs = list_tasks(load_config(repo))
@@ -133,7 +133,7 @@ def test_task_dirs_are_not_recursed_into(repo: Path) -> None:
     assert [r.slug for r in refs] == ["parent-task"]
 
 
-def test_group_dir_without_tickets_is_ignored(repo: Path) -> None:
+def test_plain_dir_without_tickets_is_ignored(repo: Path) -> None:
     (repo / "tasks" / "notes").mkdir(parents=True)
     _write(repo / "tasks" / "notes" / "scratch.md", "not a ticket\n")
     _task(repo, "real-task")
@@ -143,7 +143,7 @@ def test_group_dir_without_tickets_is_ignored(repo: Path) -> None:
     assert [r.slug for r in refs] == ["real-task"]
 
 
-def test_same_leaf_name_in_different_groups_coexists(repo: Path) -> None:
+def test_same_leaf_name_in_different_directories_coexists(repo: Path) -> None:
     marketing = _task(repo, "marketing/digest")
     eng = _task(repo, "eng/digest")
 
@@ -155,7 +155,7 @@ def test_same_leaf_name_in_different_groups_coexists(repo: Path) -> None:
     ]
 
 
-def test_top_level_and_grouped_leaf_can_share_a_name(repo: Path) -> None:
+def test_top_level_and_nested_leaf_can_share_a_name(repo: Path) -> None:
     top = _task(repo, "digest")
     nested = _task(repo, "marketing/digest")
 

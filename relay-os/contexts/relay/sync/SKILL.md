@@ -266,9 +266,9 @@ mechanism:
 
 Notifications tell the team what changed; git makes the markdown state durable
 and shareable. Relay-owned commands that mutate a task directory should commit
-the resolved task directory path under `relay-os/tasks/` (top-level or grouped
-one level deep) and push it after the live notification post, so `origin/main`
-does not drift from the state humans saw in the channel.
+the resolved task directory path under `relay-os/tasks/` (top-level or nested
+in a sub-directory) and push it after the live notification post, so
+`origin/main` does not drift from the state humans saw in the channel.
 
 Current surface:
 

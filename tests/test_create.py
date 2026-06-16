@@ -391,7 +391,7 @@ def test_create_collision_auto_suffixes(repo: Path) -> None:
     assert c["slug"] == "same-title-3"
 
 
-def test_create_grouped_slug_can_reuse_top_level_leaf(repo: Path) -> None:
+def test_create_nested_slug_can_reuse_top_level_leaf(repo: Path) -> None:
     cfg = load_config(repo)
     kwargs = dict(
         cfg=cfg,
@@ -404,12 +404,12 @@ def test_create_grouped_slug_can_reuse_top_level_leaf(repo: Path) -> None:
         status=None,
     )
     top = create_task(title="Digest", slug_override="digest", **kwargs)
-    grouped = create_task(
+    nested = create_task(
         title="Recurring digest", slug_override="recurring/digest", **kwargs
     )
 
     assert top["slug"] == "digest"
-    assert grouped["slug"] == "recurring/digest"
+    assert nested["slug"] == "recurring/digest"
     refs = {ref.id_slug: ref for ref in list_tasks(cfg)}
     assert refs["digest"].directory is None
     assert refs["recurring/digest"].directory == "recurring"
