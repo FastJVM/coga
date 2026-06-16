@@ -1,6 +1,6 @@
 ---
 title: Filter relay status by directory/group
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
@@ -29,7 +29,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 3 (pr)
 ---
 
 ## Description
