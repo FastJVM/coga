@@ -49,6 +49,8 @@
 
 ## Dev
 
+pr: https://github.com/FastJVM/relay/pull/357
+
 - branch: codex/recurring-group-slugs
 - worktree: /tmp/relay-recurring-group-slugs
 - implementation note: clean-cut runtime change, no legacy
@@ -108,3 +110,15 @@
     I did not edit `relay.local.toml`.
   - `PYTHONPATH=/tmp/relay-recurring-group-slugs/src python -m relay.cli validate --task collapse-recurring-period-tasks-to-one-dir-per-tem --json`
     from the primary checkout → ok_count 1, no issues.
+
+## Review closeout (codex, step 4)
+
+- 2026-06-15: PR #357 was already merged on GitHub before this review resume
+  (`mergeCommit` 57c01faeeb91f9ce5dbca7c81b58e0167930c831, merged at
+  2026-06-13T21:54:45Z).
+- Fetched and fast-forwarded primary `main` to `origin/main`; verified the
+  merge commit is an ancestor of current `origin/main`.
+- First `PYTHONPATH=src python -m relay.cli automerge` found no eligible
+  ticket because the PR URL was recorded as a bullet (`- pr:`), while
+  `relay.automerge` expects a plain `pr:` line under `## Dev`. Added the plain
+  parser-visible line above and reran automerge.
