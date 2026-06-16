@@ -1,5 +1,5 @@
 ---
-title: Remove relay setup command
+title: Replace relay setup with relay build
 status: in_progress
 mode: interactive
 owner: nick
@@ -34,22 +34,27 @@ step: 1 (design)
 
 ## Description
 
-Remove the `relay setup` command, but keep `relay init` auto-creating the
-active `relay-setup` ticket. The first-run flow becomes: `relay init` → the
-user sees `relay-setup` as their first task → launches it → the existing
-interview gathers their contexts, skills, and workflows. Fewer commands to
-learn, so new users reach value faster.
+Replace the `relay setup` command with `relay build`. The user-facing change is
+just the name and what it launches: after `relay init`, the user runs `relay
+build` instead of `relay setup`. Mechanically it is a rename — `relay setup`
+already does init-if-needed + capture-name + launch-the-onboarding-ticket, and
+all of that carries over. What changes is the target: `relay build` launches the
+new `relay-build` onboarding ticket (single question → agent-led chat → scan →
+spec → ticket batch) instead of the old `relay-setup` interview. "relay setup"
+should disappear from the command, the source file, and the next-steps text.
 
 ## Context
 
-- `relay setup` lives in `src/relay/commands/setup.py`, registered at
-  `src/relay/cli.py:74`. It was added together with the `relay-setup` ticket
-  template and the `init/setup` workflow in PR #348 (`ba6ca2a3`) — only the
-  **command** is being removed; the ticket and workflow stay.
-- `relay init`'s next-steps output (`init.py:264–270`) points users at
-  `relay setup`; redirect it to launching the relay-setup ticket. Note
-  `relay setup` also captures the user's name (→ `user` in `relay.local.toml`),
-  which the interview step expects already set — the design step should decide
-  where that capture moves.
-- Out of scope: shortening the interview itself (separate ticket).
-
+- Files: `src/relay/commands/setup.py` → `build.py`; the command registration +
+  `_BUILTIN_COMMANDS` entry in `src/relay/cli.py`; `relay init`'s next-steps
+  text (`init.py:264–270`) repointed at `relay build`. The packaged
+  `relay-setup` ticket template → `relay-build`, and the `init/setup` workflow →
+  `build` (keep the live and packaged copies in sync).
+- Name capture stays in the command. The launch gate at
+  `src/relay/config.py:216` fails loud if `user` is unset, so capture must run
+  before launch — which is exactly why `relay init` does NOT need a prompt.
+- The onboarding flow this command launches is designed in
+  `marketing/relay-build-onboarding-flow`; this ticket is just the command +
+  rename. Sequence it after that design lands so the target names are fixed.
+- This ticket's own slug is still `remove-relay-setup-command` — rename to
+  `relay-build-command` when convenient (deferred: it is mid-launch).
