@@ -25,6 +25,25 @@ Per human decision (interactive), rebased `status-group-filter` onto current
 - No CI checks configured on the repo (`gh pr checks 368`: none) — nothing to wait on.
 - Pre-rebase backup ref: `status-group-filter-prerebase-backup` @ 0e43ee0.
 
+## Review closeout (2026-06-16)
+Reviewed the merged PR state from Codex on the owner review step.
+- #368 merged as `f3d0c81` with the main status-directory implementation.
+- Review found a few stale task-directory "group" phrases/test names after the
+  merge; fixed those in follow-up #370, merged as `970f81e`.
+- Concurrent PR #369 landed after #370 and reintroduced one stale
+  `grouped-slug` phrase in `relay/current-direction`; fixed in #371, merged as
+  `b29c153`.
+- Verification on the review cleanup branches:
+  - targeted status/tasks/create tests passed (24 passed for #370; 23 passed
+    for #371's final context sweep after #369 landed).
+  - full suite on #370: 749 passed, 1 skipped, same 2 pre-existing
+    `tests/test_recurring.py` failures (`...period_task_and_high_water`,
+    `...skips_task_removed_by_create_sync`).
+  - CLI smoke from primary checkout with PR code: `relay status marketing`,
+    `relay status root`, and unknown-dir exit 2 path all behaved as expected.
+- Final terminology scan on current `main` only returns unrelated digest
+  grouping usage, not task-directory vocabulary.
+
 ## SCOPE CHANGE (human, mid-task) — directory-native, no "group" vocab
 
 Human pushed back on two things after the first pass:

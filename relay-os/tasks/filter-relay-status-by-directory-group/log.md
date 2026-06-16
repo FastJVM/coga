@@ -10,3 +10,5 @@
 2026-06-16 11:09 [agent:claude] advanced to step 3 (pr) — self-qa clean (2 fixes applied, tests green); ⚠️ branch predates #366 scaffold→create rename — PR will conflict, rebase recommended (see blackboard)
 2026-06-16 11:09 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-16 11:25 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/368 (rebased onto main to clear #366 scaffold→create conflicts)
+2026-06-16 11:25 [human:nick] launched in interactive mode (assignee=nick, launch_assignee=codex, agent=codex)
+2026-06-16 11:43 [human:nick] auto-bumped on merge of PR #368 → done
