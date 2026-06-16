@@ -5,37 +5,44 @@ mode: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: zach
+assignee: claude
 contexts: []
 skills: []
-workflow: null
+workflow:
+  name: build/dry-run
+  steps:
+  - name: prepare-fixtures
+    skills: []
+    assignee: agent
+  - name: dry-run-and-score
+    skills: []
+    assignee: agent
+  - name: synthesize
+    skills: []
+    assignee: agent
+step: 1 (prepare-fixtures)
 ---
 
 ## Description
 
-Test the `relay build` onboarding flow end to end — the single scripted
-question ("what do you want to build?") → agent-led chat → scan → spec → first
-batch of draft tickets — across the repo states it has to handle. The win
-condition is the same each time: the user finishes with a batch of tickets they
-can immediately `relay launch`, and the batch is not fact-thin. Human-driven
-(workflow-less): run it only once the flow ships (`marketing/relay-build-onboarding-flow`
-+ `marketing/remove-relay-setup-command`).
+Dry-run the `relay build` onboarding flow *before* it is built, to validate the
+one-question premise and de-risk the design — mirroring the pre-implementation
+dry run that validated the old interview (`marketing/init-questions`). The agent
+role-plays `relay build` across three throwaway fixture repos (empty / filled /
+filled-with-CLAUDE.md), actually creates the starter tickets in each so they can
+be launched for real, and the human scores each run. Findings feed the
+`marketing/relay-build-onboarding-flow` design — so this runs **first**.
 
 ## Context
 
-- Scenarios (reuse the `init-questions` fixtures where possible —
-  `~/Desktop/admin-init-test` and `~/Desktop/admin-fresh`):
-  1. **Empty repo** — no code, no CLAUDE.md. Exercises the intent-only path
-     (scan finds nothing); check the starter batch isn't fact-thin.
-  2. **Filled repo, no CLAUDE.md** — real code/README/config. Check the scan
-     recovers operation the single question can't (per init-questions:
-     answers-only ≈ 7/20 facts, scan ≈ 20/20).
-  3. **Filled repo, with CLAUDE.md** — check the scan ingests the existing
-     agent guide and the generated tickets/spec don't duplicate or ignore it.
-  - (A 4th — empty repo whose only file is a CLAUDE.md — is folded into #1
-     unless it proves worth isolating.)
-- Compare against the recorded ground truth from the `init-questions` dry-run
-  eval (scorecard + Zach's verbatim answers are on that ticket's blackboard) so
-  the recall numbers are measured, not eyeballed.
-- This validates behavior, not code structure — it has no workflow on purpose;
-  `relay mark done` it when the runs pass.
+- How it runs: the `build/dry-run` workflow drives it
+  (`relay-os/workflows/build/dry-run.md`) — prepare-fixtures → dry-run-and-score
+  → synthesize. Activate and launch it (`relay mark active` then `relay launch`)
+  and the agent walks you through fixture setup, the three dry runs, and scoring.
+- High fidelity: tickets are created for real inside each fixture repo (each
+  gets `relay init`'d), so you can `relay launch` one or two and feel the flow.
+  The fixtures are throwaway — delete them after.
+- The rubric is grounded in the `init-questions` scorecard (the 7/20-vs-20/20
+  recall measure) so the numbers are comparable to the prior eval.
+- Sequence: this dry run → `relay-build-onboarding-flow` design → the `relay
+  build` command (`remove-relay-setup-command`).
