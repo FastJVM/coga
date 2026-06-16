@@ -9,3 +9,5 @@
 2026-06-12 22:21 [git] sync failed: `git add -- relay-os/tasks/resolve-missing-workflow-validator-vs-concept-capt` failed (exit 128): fatal: Unable to create '/home/n/Code/relay/.git/index.lock': Read-only file system
 2026-06-12 22:21 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-12 22:23 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/358
+2026-06-15 21:33 [human:nick] launched in interactive mode (assignee=nick, launch_assignee=codex, agent=codex)
+2026-06-15 21:38 [human:nick] auto-bumped on merge of PR #358 → done
