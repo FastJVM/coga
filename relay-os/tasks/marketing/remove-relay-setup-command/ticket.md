@@ -53,6 +53,15 @@ should disappear from the command, the source file, and the next-steps text.
 - Name capture stays in the command. The launch gate at
   `src/relay/config.py:216` fails loud if `user` is unset, so capture must run
   before launch — which is exactly why `relay init` does NOT need a prompt.
+- Carry a fix for a latent bug: `setup.py`'s call to `launch_cmd.launch(...)`
+  is stale — it passes only 6 of `launch()`'s 8 params, omitting `max_session`
+  and `return_timeout` (both added to `launch` after `setup.py` was written).
+  Because `launch` is a Typer command, the unpassed params keep their
+  `typer.Option(...)` defaults (`OptionInfo` objects), so `relay setup` crashes
+  at launch today (`repl_supervisor.py:307`: `'>=' not supported between
+  instances of 'float' and 'OptionInfo'`). The renamed `build` command must pass
+  all of `launch()`'s params, or — better — call a non-Typer helper so new
+  options can't silently become sentinels. Found 2026-06-16 prototyping `build`.
 - The onboarding flow this command launches is designed in
   `marketing/relay-build-onboarding-flow`; this ticket is just the command +
   rename. Sequence it after that design lands so the target names are fixed.
