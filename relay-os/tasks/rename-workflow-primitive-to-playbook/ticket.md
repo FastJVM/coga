@@ -66,7 +66,7 @@ This touches a *reserved frontmatter key*, so it is not a simple find/replace:
   set and enforced by `validate.py`.
 - **Source** (~20 modules reference `workflow`): `workflow.py` (likely renamed),
   `compose.py`, `bump.py`, `mark.py`, `launch.py`, `launch_script.py`,
-  `ticket.py`, `validate.py`, `config.py`, `scaffold.py`, `paths.py`,
+  `ticket.py`, `validate.py`, `config.py`, `create.py`, `paths.py`,
   `recurring.py`, `automerge.py`, `retrofit.py`, `retire.py`, and the
   `commands/` thin wrappers.
 - **CLI surface**: the `--workflow` flag on `relay draft` / `relay create`;

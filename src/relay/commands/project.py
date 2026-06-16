@@ -1,9 +1,9 @@
-"""`relay project [seed]` — interview the human about a project, then scaffold
+"""`relay project [seed]` — interview the human about a project, then create
 an ordered set of draft tickets from the answers.
 
 Thin launcher, mirroring `relay ticket`: it runs the `bootstrap/project` skill
 in an interactive agent session. The four-question interview and the
-review-before-scaffold protocol live in the skill, not here, so they can't
+review-before-create protocol live in the skill, not here, so they can't
 drift from code. The agent creates the ordered drafts during the session via
 `relay draft` (each of which syncs itself); this command validates whatever
 drafts the session produced and reports them before handing back.
@@ -49,7 +49,7 @@ def project(
         help="Agent nickname to run the planning interview.",
     ),
 ) -> None:
-    """Interview about a project, then scaffold an ordered set of draft tickets."""
+    """Interview about a project, then create an ordered set of draft tickets."""
     try:
         cfg = load_config()
     except ConfigError as exc:

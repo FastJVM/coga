@@ -72,11 +72,11 @@ carries the period*, not a merge:
 
 ## Acceptance Criteria
 
-- [ ] A recurring firing scaffolds the instantiated task at
+- [ ] A recurring firing creates the instantiated task at
       `tasks/recurring/<name>/` with bare group-qualified slug
       `recurring/<name>` — no `recurring-` prefix, no period suffix. The dir
       reports `group="recurring"`, `id_slug="recurring/<name>"`.
-- [ ] The current period is written by the scaffolder into
+- [ ] The current period is written by the creator into
       `recurring/<name>/blackboard.md` as a single overwritten high-water
       value (not a growing list), and `relay/period-task` instructs the run
       to read its period from there rather than parsing its slug.
@@ -91,7 +91,7 @@ carries the period*, not a merge:
 - [ ] `relay status` still peels recurring runs into their own table —
       derived from **group membership** (`group == "recurring"`), not the
       `recurring-` prefix.
-- [ ] Debug `--all` runs stay distinct: they scaffold **top-level**
+- [ ] Debug `--all` runs stay distinct: they create **top-level**
       (`tasks/<name>-dbg-<ts>`, outside the `recurring/` group) and remain
       excluded from resume/dedup. The real-vs-debug distinction no longer
       depends on the `recurring-` prefix.
@@ -128,21 +128,21 @@ All slug/identity logic is in `src/relay/recurring.py` unless noted.
 
 1. **Slug (`_recurring_slug` ~:689, `_RECURRING_PREFIX` :686).** Replace the
    `recurring-<name>-<period>` builder with a constant group-qualified slug
-   `recurring/<name>`. Drop `_RECURRING_PREFIX`. `scaffold_task`
-   (`scaffold.py:121`) already does `tasks_dir(cfg) / slug` + `mkdir(parents=
+   `recurring/<name>`. Drop `_RECURRING_PREFIX`. `create_task`
+   (`create.py:121`) already does `tasks_dir(cfg) / slug` + `mkdir(parents=
    True)`, so a slashed `slug_override` lands the dir under the group; verify
-   the uniqueness/collision check (`scaffold.py:115`, top-level leaves only)
+   the uniqueness/collision check (`create.py:115`, top-level leaves only)
    does the right thing for a grouped slug and that `list_tasks` reports
    `group="recurring"`.
 2. **Period high-water mark.** Add helpers to read/write a single
    `last_serviced_period` value in `recurring/<name>/blackboard.md`
-   (a labeled line the scaffolder overwrites each period). The scaffolder
+   (a labeled line the creator overwrites each period). The creator
    writes the current `period_key` here when it creates/advances a run.
-3. **Dedup (`_period_already_scaffolded` ~:727 → rewrite).** Replace the
-   `scaffolded <slug>` log-scan with `last_serviced >= period_key` against the
+3. **Dedup (`_period_already_created` ~:727 → rewrite).** Replace the
+   `created <slug>` log-scan with `last_serviced >= period_key` against the
    high-water mark. Keep appending human history to `log.md` via `_record_run`
    (`:623`) — it stops being load-bearing for dedup but stays as the audit
-   ledger. Drop the legacy `blackboard.md` `scaffolded …` back-compat scan.
+   ledger. Drop the legacy `blackboard.md` `created …` back-compat scan.
 4. **Live-task / orphan lookup (`_live_task_for_template` ~:700,
    `_task_with_slug` :693).** Match on the fixed `id_slug == "recurring/
    <name>"` instead of `slug.startswith(prefix)`. Orphan-resume = the dir
@@ -156,7 +156,7 @@ All slug/identity logic is in `src/relay/recurring.py` unless noted.
    / `_reap_debug_orphans` names do not exist in the tree — the real symbols
    are `is_recurring_slug` and the `_DEBUG_SLUG_RE` reaper logic; see
    blackboard Open Questions.)
-6. **Debug runs (`scaffold_debug_run` :370, `is_debug_slug` :353).** Already
+6. **Debug runs (`create_debug_run` :370, `is_debug_slug` :353).** Already
    top-level and prefix-free; confirm they stay outside the `recurring/` group
    and that group-based identity (step 5) keeps excluding them.
 7. **`relay/period-task` context.** Rewrite the "your slug names your parent"
@@ -166,7 +166,7 @@ All slug/identity logic is in `src/relay/recurring.py` unless noted.
    the parent blackboard (unchanged intent).
 8. **Migration (one-shot).** Delete existing `tasks/recurring-<name>-<period>/`
    dirs; for each template seed `last_serviced_period` from the newest
-   `scaffolded …` line in its `log.md`. Decide whether this is a throwaway
+   `created …` line in its `log.md`. Decide whether this is a throwaway
    script or a guarded step in `scan_due` — record in blackboard.
 9. **Context sync.** Update `relay/architecture` and `relay/cli` for the new
    slug/group shape in both the live and packaged trees; sync the
@@ -178,7 +178,7 @@ All slug/identity logic is in `src/relay/recurring.py` unless noted.
   directory — explicitly two dirs (template = control/state, task = run).
 - Changing the `_period_key` bucketing heuristic or the cron schedule model.
 - Streaming / the `mode: auto` ban (`_effective_mode`) — untouched.
-- Any change to non-recurring task scaffolding or the `#350` group machinery
+- Any change to non-recurring task creating or the `#350` group machinery
   itself (consumed as-is).
 - Reworking how `relay delete` / Dream's retro pass deletes done runs — relied
   on as-is.

@@ -44,9 +44,9 @@ def repo(tmp_path: Path) -> Path:
         enabled = false
         """,
     )
-    # Retire scaffolds its task with the `direct/body` workflow; the minimal
+    # Retire creates its task with the `direct/body` workflow; the minimal
     # test repo needs that shipped workflow + skill present (real repos get it
-    # from `relay init`) or `scaffold_task` fails to load the workflow.
+    # from `relay init`) or `create_task` fails to load the workflow.
     seed_direct_body_workflow(relay_os)
     return relay_os
 
@@ -75,7 +75,7 @@ def _seed_done_task(repo: Path, slug: str = "fix-retry-logic") -> Path:
     return task_dir
 
 
-def test_retire_no_launch_scaffolds_task_with_target_slug(
+def test_retire_no_launch_creates_task_with_target_slug(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(repo)
@@ -86,7 +86,7 @@ def test_retire_no_launch_scaffolds_task_with_target_slug(
     assert result.exit_code == 0, result.output
     assert "Retire: target task fix-retry-logic" in result.output
     assert "Retire: using assignee claude (agent type claude, mode interactive)" in result.output
-    assert "Retire: scaffolding task 'Retire fix-retry-logic'" in result.output
+    assert "Retire: creating task 'Retire fix-retry-logic'" in result.output
     assert "Retire: created task retire-fix-retry-logic" in result.output
     assert "Retire: launch skipped (--no-launch)" in result.output
     assert "relay launch retire-fix-retry-logic" in result.output
@@ -95,7 +95,7 @@ def test_retire_no_launch_scaffolds_task_with_target_slug(
     assert new_task.is_dir()
     ticket = Ticket.read(new_task / "ticket.md")
     assert ticket.title == "Retire fix-retry-logic"
-    # Retire tasks scaffold straight to `active`, carrying the `direct/body`
+    # Retire tasks create straight to `active`, carrying the `direct/body`
     # workflow so they run their body directly while still being a
     # workflow-carrying, bumpable, valid active task.
     assert ticket.status == "active"
@@ -138,7 +138,7 @@ def test_retire_refuses_non_done_target(
     assert result.exit_code == 2
     assert "Retire only operates on done tickets" in result.output
     assert "is 'active'" in result.output
-    # Refused — no retire scaffold task created.
+    # Refused — no retire create task created.
     assert not (repo / "tasks" / "retire-in-flight").exists()
 
 
@@ -170,7 +170,7 @@ def test_retire_refuses_auto_mode(
     assert not (repo / "tasks" / "retire-fix-retry-logic").exists()
 
 
-def test_retire_launches_after_scaffold(
+def test_retire_launches_after_create(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(repo)

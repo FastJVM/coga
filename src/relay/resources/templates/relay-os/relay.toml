@@ -106,7 +106,7 @@ webhook = "env:SLACK_WEBHOOK_URL"
 
 [aliases]
 chat = "launch bootstrap/orient"
-# `dream` scaffolds the `recurring/dream/` cleanup task and launches it now —
+# `dream` creates the `recurring/dream/` cleanup task and launches it now —
 # the same path `relay recurring launch dream` takes.
 dream = "recurring launch dream"
 # Uncomment to add per-agent shortcuts. The --agent value must match an

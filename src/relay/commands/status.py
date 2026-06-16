@@ -112,7 +112,7 @@ def status(
 
     now = datetime.now()
 
-    # Recurring period tasks are machine-authored jobs scaffolded ahead of
+    # Recurring period tasks are machine-authored jobs created ahead of
     # execution; peel them into their own table so the main list stays the
     # hand-authored backlog. `relay recurring list` is the schedule-aware view.
     main_rows = [r for r in rows if r["group"] != "recurring"]

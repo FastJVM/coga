@@ -1,4 +1,4 @@
-"""`relay project` — interview about a project, then scaffold ordered drafts.
+"""`relay project` — interview about a project, then create ordered drafts.
 
 The agent session is mocked; tests cover the launcher's contract: it composes
 the bootstrap/project skill, threads an optional seed, requires a TTY, and
@@ -15,7 +15,7 @@ from typer.testing import CliRunner
 
 from relay.cli import app
 from relay.config import load_config
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.ticket import Ticket
 
 
@@ -76,7 +76,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         description: Plan a project into an ordered set of draft tickets.
         ---
 
-        Interview, propose, scaffold ordered drafts.
+        Interview, propose, create ordered drafts.
         """,
     )
     monkeypatch.chdir(relay_os)
@@ -106,13 +106,13 @@ def _allow_launch(
     monkeypatch.setattr("relay.commands.project.subprocess.run", fake_run)
 
 
-def _scaffold_drafts(*titles: str):  # type: ignore[no-untyped-def]
+def _create_drafts(*titles: str):  # type: ignore[no-untyped-def]
     """Stand in for the agent calling `relay draft` per step during the session."""
 
     def _run() -> None:
         cfg = load_config()
         for title in titles:
-            scaffold_task(
+            create_task(
                 cfg=cfg,
                 title=title,
                 workflow_name=None,
@@ -152,7 +152,7 @@ def test_project_reports_created_drafts_in_order(
     _allow_launch(
         monkeypatch,
         prompts,
-        on_run=_scaffold_drafts("Set up test account", "Build the flow"),
+        on_run=_create_drafts("Set up test account", "Build the flow"),
     )
 
     result = CliRunner().invoke(app, ["project"])
@@ -192,7 +192,7 @@ def test_project_fails_loud_on_broken_draft(
 ) -> None:
     def make_broken() -> None:
         cfg = load_config()
-        result = scaffold_task(
+        result = create_task(
             cfg=cfg,
             title="Broken step",
             workflow_name=None,

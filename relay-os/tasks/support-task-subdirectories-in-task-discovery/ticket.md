@@ -34,7 +34,7 @@ Allow tasks to live in subdirectories of `relay-os/tasks/` (e.g.
 `tasks/auto/<slug>/`) so related tickets can be grouped by area. Task
 discovery currently only sees direct children, so a nested ticket is
 invisible to every CLI command. Extend discovery (and anything that
-depends on it — slug resolution, validate, scaffolding paths) to find
+depends on it — slug resolution, validate, creating paths) to find
 tickets one level deeper, keeping the bare slug as the universal
 reference. As the first real use, move the existing
 `stream-agent-progress-in-auto-mode-and-recurring-l` ticket into
@@ -54,10 +54,10 @@ reference. As the first real use, move the existing
 - A subdir that itself contains a `ticket.md` is a task, not a group —
   don't recurse into task dirs. `_`-prefix skipping applies at both
   levels.
-- `relay draft` / `relay ticket` scaffolding writes to
+- `relay draft` / `relay ticket` creating writes to
   `tasks/<slug>/`; decide whether they accept a `group/slug` form or
   whether grouping stays a manual `git mv`. Manual move is acceptable
-  for now if scaffold support balloons the scope.
+  for now if create support balloons the scope.
 - Known slug→path reconstruction sites to fix or confirm safe:
   `_authored_task_refs` in `src/relay/commands/ticket.py` (~line 270)
   takes `rel.parts[0]` as the slug — wrong for nested tasks;
@@ -65,8 +65,8 @@ reference. As the first real use, move the existing
   directly (appears uncalled, but is exported API — make nesting-aware
   or remove); the debug-run orphan sweep in
   `src/relay/commands/recurring.py` (~line 280) does its own
-  `iterdir()` — confirm debug runs are always top-level; scaffold dedup
-  in `src/relay/scaffold.py` (~line 113) — new tasks are always created
+  `iterdir()` — confirm debug runs are always top-level; create dedup
+  in `src/relay/create.py` (~line 113) — new tasks are always created
   top-level, confirm that's intentional.
 - Do the `git mv` of the stream-agent ticket in the same PR as the code
   change so they merge atomically — if the move merges before the code,

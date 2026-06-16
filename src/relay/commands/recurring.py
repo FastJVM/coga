@@ -27,7 +27,7 @@ from relay.recurring import (
     merge_last_serviced_period_text,
     read_last_serviced_period,
     recurring_dir,
-    scaffold_named,
+    create_named,
     scan_debug,
     scan_due,
 )
@@ -67,7 +67,7 @@ def main(
     all_: bool = typer.Option(
         False,
         "--all",
-        help="Debug: ignore the schedule and status filter — scaffold a fresh "
+        help="Debug: ignore the schedule and status filter — create a fresh "
         "throwaway run of EVERY template and launch them all, regardless of "
         "whether this period already ran. Real period tasks are left "
         "untouched; each throwaway run's outcome is appended to its template's "
@@ -89,7 +89,7 @@ def main(
     template produces one run, not a backlog. It does not install or manage
     system cron; nothing runs unless you invoke it.
 
-    `--all` is the debug escape hatch: it scaffolds a fresh, isolated
+    `--all` is the debug escape hatch: it creates a fresh, isolated
     throwaway run of every template and launches them all, bypassing both the
     schedule and the "already ran this period" skip. Use it to exercise the
     launch path without waiting for a schedule or disturbing real period state.
@@ -157,7 +157,7 @@ def main(
 
 
 def _launch_all_debug(cfg) -> None:
-    """Scaffold and launch a fresh throwaway run of every template (`--all`).
+    """Create and launch a fresh throwaway run of every template (`--all`).
 
     Debug-only. The runs are disposable scratch, not real recurring work: they
     never broadcast to Slack or commit task state (`git.sync_task_state`
@@ -274,7 +274,7 @@ def _reap_debug_orphans(cfg: Config) -> None:
     """Remove `*-dbg-*` scratch dirs a crashed prior `--all` sweep left behind.
 
     A `relay recurring --all` debug run is disposable scratch (see
-    `scaffold_debug_run`); `_finalize_debug_run` rmtrees it when the run
+    `create_debug_run`); `_finalize_debug_run` rmtrees it when the run
     completes. If the sweep dies mid-run (laptop sleep, SSH drop) that cleanup
     never fires and the scratch dir is orphaned. Because debug runs never commit
     task state (`git.sync_task_state` suppresses the `-dbg-<digit>` slug), the
@@ -297,8 +297,8 @@ def _reap_debug_orphans(cfg: Config) -> None:
     if not tasks_root.is_dir():
         return
     reaped: list[str] = []
-    # Top-level scan only: debug runs are always scaffolded as direct
-    # children of `tasks/` (see `scaffold_debug_run`), never inside a
+    # Top-level scan only: debug runs are always created as direct
+    # children of `tasks/` (see `create_debug_run`), never inside a
     # task group directory.
     for entry in sorted(tasks_root.iterdir()):
         if entry.is_dir() and is_debug_slug(entry.name):
@@ -336,7 +336,7 @@ def launch(
         "`mode: auto`. For debugging; the ticket file is not modified.",
     ),
 ) -> None:
-    """Scaffold a named recurring template now and launch it.
+    """Create a named recurring template now and launch it.
 
     Ignores the template's schedule — the on-demand entry point behind
     aliases like `relay dream`. The task slug is the stable group-qualified
@@ -350,14 +350,14 @@ def launch(
         sys.exit(2)
 
     try:
-        outcome = scaffold_named(cfg, name)
+        outcome = create_named(cfg, name)
     except RecurringError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
 
     ref = outcome.ref
     if outcome.created:
-        created_on_control = _sync_recurring_scaffold(
+        created_on_control = _sync_recurring_create(
             cfg, name, ref, respect_handled_period=False
         )
         if not (ref.path / "ticket.md").is_file():
@@ -370,9 +370,9 @@ def launch(
         if created_on_control:
             typer.echo(f"Created {ref.id_slug}")
     else:
-        typer.echo(f"{ref.id_slug} already scaffolded for this period")
+        typer.echo(f"{ref.id_slug} already created for this period")
 
-    _launch_scaffolded(ref, mode_override="interactive" if interactive else None)
+    _launch_created(ref, mode_override="interactive" if interactive else None)
 
 
 @app.command("list")
@@ -380,7 +380,7 @@ def list_recurring() -> None:
     """List recurring templates with their schedules, plus instantiated tasks.
 
     Read-only — the inspectable counterpart of a bare `relay recurring`, which
-    get-or-creates each due period's task and launches it. This scaffolds
+    get-or-creates each due period's task and launches it. This creates
     nothing and launches nothing (principle 6: a view never mutates). Two
     tables: every template with its schedule and the current period's state,
     then the picked tasks — the recurring period tasks already on disk.
@@ -419,7 +419,7 @@ def _print_templates_table(
         if s.instance is not None:
             period = f"{s.instance_status} · {s.instance.id_slug}"
         elif s.due:
-            period = "[green]due — not scaffolded[/green]"
+            period = "[green]due — not created[/green]"
         else:
             period = "none"
         table.add_row(
@@ -465,10 +465,10 @@ def _firing_stamp(when: datetime | None) -> str:
     return when.strftime("%a %m-%d %H:%M")
 
 
-def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> None:
-    """Launch (or resume) a scaffolded recurring task.
+def _launch_created(ref: TaskRef, *, mode_override: str | None = None) -> None:
+    """Launch (or resume) a created recurring task.
 
-    Recurring tasks scaffold straight to `active` — machine-authored ready
+    Recurring tasks create straight to `active` — machine-authored ready
     jobs, no separate activation step. An `in_progress` task is a *resume*: a
     past sweep died mid-run and left it frozen (`relay recurring` is a
     foreground command with no concurrent sweep, so it can only be an orphan),
@@ -505,7 +505,7 @@ def _launch_scaffolded(ref: TaskRef, *, mode_override: str | None = None) -> Non
     )
 
 
-def _sync_recurring_scaffold(
+def _sync_recurring_create(
     cfg: Config,
     template_name: str,
     ref: TaskRef,
@@ -514,7 +514,7 @@ def _sync_recurring_scaffold(
 ) -> bool:
     """Sync the period task and high-water line that make deletion idempotent."""
     template_dir = recurring_dir(cfg) / template_name
-    message = f"Ticket: {ref.id_slug} — recurring scaffold"
+    message = f"Ticket: {ref.id_slug} — recurring create"
     if not template_dir.is_dir():
         git.sync_paths(
             cfg,
@@ -540,7 +540,7 @@ def _sync_recurring_scaffold(
             restore_log,
             restore_blackboard,
             created_on_control,
-        ) = _sync_recurring_scaffold_paths(
+        ) = _sync_recurring_create_paths(
             cfg,
             anchor_path=ref.path,
             paths=[ref.path, template_log, template_blackboard],
@@ -560,7 +560,7 @@ def _sync_recurring_scaffold(
     return created_on_control
 
 
-def _sync_recurring_scaffold_paths(
+def _sync_recurring_create_paths(
     cfg: Config,
     *,
     anchor_path: Path,
@@ -575,7 +575,7 @@ def _sync_recurring_scaffold_paths(
     message: str,
     respect_handled_period: bool,
 ) -> tuple[str, str, bool]:
-    """Sync scaffold paths while merging recurring log/history state."""
+    """Sync create paths while merging recurring log/history state."""
     if not cfg.git_enabled:
         sys.stderr.write(f"[git] disabled (sync suppressed): {message}\n")
         return original_log, original_blackboard, True
@@ -642,7 +642,7 @@ def _sync_recurring_scaffold_paths(
         )
 
         if branch == cfg.git_control_branch:
-            return _sync_recurring_scaffold_on_checked_out_control_branch(
+            return _sync_recurring_create_on_checked_out_control_branch(
                 cfg,
                 root,
                 rels,
@@ -671,7 +671,7 @@ def _sync_recurring_scaffold_paths(
             git._commit_paths(root, rels, message)
             committed_log = _show_path(root, "HEAD", log_rel)
             committed_blackboard = _show_path(root, "HEAD", blackboard_rel)
-        landed, already_handled = _land_recurring_scaffold_on_control_branch(
+        landed, already_handled = _land_recurring_create_on_control_branch(
             cfg,
             root,
             rels,
@@ -769,7 +769,7 @@ def _append_sync_failure(anchor_path: Path, exc: Exception) -> None:
         return
 
 
-def _land_recurring_scaffold_on_control_branch(
+def _land_recurring_create_on_control_branch(
     cfg: Config,
     root: Path,
     rels: list[str],
@@ -805,7 +805,7 @@ def _land_recurring_scaffold_on_control_branch(
         _write_merged_blackboard_for_ref(
             root, template_blackboard, blackboard_rel, base, local_blackboard
         )
-        control_rels = _control_scaffold_rels(root, base, rels, template_ticket_rel)
+        control_rels = _control_create_rels(root, base, rels, template_ticket_rel)
 
         tree = git._build_overlay_tree(root, base, control_rels)
         if tree == _rev_parse(root, f"{base}^{{tree}}"):
@@ -827,7 +827,7 @@ def _land_recurring_scaffold_on_control_branch(
     )
 
 
-def _sync_recurring_scaffold_on_checked_out_control_branch(
+def _sync_recurring_create_on_checked_out_control_branch(
     cfg: Config,
     root: Path,
     rels: list[str],
@@ -845,7 +845,7 @@ def _sync_recurring_scaffold_on_checked_out_control_branch(
     message: str,
     respect_handled_period: bool,
 ) -> tuple[str, str, bool]:
-    landed, already_handled = _land_recurring_scaffold_on_control_branch(
+    landed, already_handled = _land_recurring_create_on_control_branch(
         cfg,
         root,
         rels,
@@ -885,7 +885,7 @@ def _sync_recurring_scaffold_on_checked_out_control_branch(
     )
 
 
-def _control_scaffold_rels(
+def _control_create_rels(
     root: Path, ref: str, rels: list[str], template_ticket_rel: str
 ) -> list[str]:
     if _ref_has_path(root, ref, template_ticket_rel):
@@ -1201,11 +1201,11 @@ def _recurring_max_session(cfg) -> float | None:
 
 
 def _broadcast_scan(cfg, scan: DueScan) -> None:
-    """Post Slack lines for newly scaffolded tasks and skipped templates."""
+    """Post Slack lines for newly created tasks and skipped templates."""
     for task in list(scan.tasks):
         if not task.created:
             continue
-        created_on_control = _sync_recurring_scaffold(cfg, task.template, task.ref)
+        created_on_control = _sync_recurring_create(cfg, task.template, task.ref)
         if not (task.ref.path / "ticket.md").is_file():
             scan.tasks.remove(task)
             typer.secho(
@@ -1242,7 +1242,7 @@ def _print_table(scan: DueScan) -> None:
     for task in scan.tasks:
         when = _firing_label(task.last_fire, now)
         if task.ref is None:
-            # The period was scaffolded earlier this cycle and the task
+            # The period was created earlier this cycle and the task
             # was removed afterwards (a later Dream retro pass or `relay delete`).
             action = typer.style(
                 "skip (ran this period)", fg=typer.colors.BRIGHT_BLACK

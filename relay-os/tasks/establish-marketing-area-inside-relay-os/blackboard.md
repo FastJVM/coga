@@ -16,7 +16,7 @@ bootstrap session ran the investigation.
   deleted anything.
 - Because the files weren't on disk, Zach's `relay ticket
   establish-marketing-area` (a valid slug prefix) matched nothing and
-  scaffolded a duplicate draft, since deleted; files restored here via
+  created a duplicate draft, since deleted; files restored here via
   `git restore --source=HEAD --staged --worktree`.
 - ~~Open question: where the 09:35 creating process ran such that it saw
   HEAD ≠ main.~~ **Answered (2026-06-11, second bootstrap session):** the
@@ -40,7 +40,7 @@ bootstrap session ran the investigation.
 PR #338 (the boss-review gate for the filled ticket) was closed unmerged;
 Zach chose to drop the gate and narrow scope to just the `tasks/marketing/`
 group directory. Created directly on main as `340f2de6` with a README
-carrying the scaffold-then-`git mv` convention. Dropped from scope:
+carrying the create-then-`git mv` convention. Dropped from scope:
 `skills/marketing/` (create it with its first real skill) and the
 `relay-os/context.md` routing write-up. `relay validate` clean for the new
 group (empty-group shape works). Ticket marked done without running its

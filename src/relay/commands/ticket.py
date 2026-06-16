@@ -13,7 +13,7 @@ from typing import cast
 import typer
 
 from relay import git
-from relay.commands.create import scaffold_draft
+from relay.commands.create import create_draft
 from relay.commands.launch import (
     _format_agent_command_for_console,
     _interactive_stdio_has_tty,
@@ -100,7 +100,7 @@ def _resolve_or_create_target(cfg: Config, target: str) -> tuple[TaskRef, Ticket
         msg = str(exc)
         if msg.startswith("Ambiguous task ref"):
             _bail(msg)
-        result = scaffold_draft(title=target, mode="interactive")
+        result = create_draft(title=target, mode="interactive")
         ref = TaskRef(slug=str(result["slug"]), path=cast(Path, result["path"]))
         typer.echo(f"{ref.id_slug}: launching guided ticket authoring")
         return ref, read_ticket(ref)

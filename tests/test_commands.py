@@ -8,7 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from relay.cli import app
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.config import load_config
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
@@ -79,7 +79,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "in_progress") -> tuple[str, Path]:
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status=status,
@@ -90,7 +90,7 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "in_p
 def _write_workflow_less_task(
     repo: Path, slug: str = "work", status: str = "in_progress"
 ) -> tuple[str, Path]:
-    """Write a workflow-less task directly to disk. `scaffold_task` refuses to
+    """Write a workflow-less task directly to disk. `create_task` refuses to
     create a workflow-less non-draft task now, so on-disk construction is the
     only way to exercise the workflow-less (structurally stuck) shape."""
     task_dir = repo / "tasks" / slug
@@ -263,7 +263,7 @@ def test_bump_supervised_prints_chain_hint_on_agent_rotation(repo: Path) -> None
     _add_codex_agent(repo)
     _write_peer_review_workflow(repo)
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
         contexts=[], mode="interactive",
         owner="marc", assignee="claude",
@@ -407,7 +407,7 @@ def test_delete_skill_runs_as_script_step(repo: Path) -> None:
         """,
     )
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="Throwaway", workflow_name="delete-self",
         contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
@@ -461,7 +461,7 @@ def test_script_mode_marks_done_after_final_step(repo: Path) -> None:
         """,
     )
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="Daily flush", workflow_name="flush-once",
         contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
@@ -499,7 +499,7 @@ def test_script_mode_advances_to_next_step(repo: Path) -> None:
         """,
     )
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="Two stage", workflow_name="flush-twice",
         contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
@@ -597,7 +597,7 @@ def _write_assignee_workflow(repo: Path) -> None:
 def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
     _write_assignee_workflow(repo)
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="W", workflow_name="review",
         contexts=[], mode="interactive",
         owner="marc", assignee="claude",
@@ -607,7 +607,7 @@ def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
     slug = ref["slug"]
     task_path = ref["path"]
 
-    # Step 1 declared `assignee: agent` → resolved at scaffold time.
+    # Step 1 declared `assignee: agent` → resolved at create time.
     t = Ticket.read(task_path / "ticket.md")
     assert t.assignee == "claude"
 
@@ -646,7 +646,7 @@ def test_bump_no_assignee_declared_leaves_assignee_unchanged(repo: Path) -> None
 def test_bump_role_token_with_missing_field_fails_loud(repo: Path) -> None:
     _write_assignee_workflow(repo)
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="W", workflow_name="review",
         contexts=[], mode="interactive",
         owner="marc", assignee="claude",
@@ -705,7 +705,7 @@ def test_other_agent_resolves_to_the_peer_on_bump(repo: Path) -> None:
     _add_codex_agent(repo)
     _write_peer_review_workflow(repo)
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
         contexts=[], mode="interactive",
         owner="marc", assignee="claude",
@@ -733,7 +733,7 @@ def test_bump_rewind_resolves_target_step_assignee(repo: Path) -> None:
     _add_codex_agent(repo)
     _write_peer_review_workflow(repo)
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
         contexts=[], mode="interactive",
         owner="marc", assignee="claude",
@@ -764,7 +764,7 @@ def test_other_agent_flips_with_the_coder(repo: Path) -> None:
     _add_codex_agent(repo)
     _write_peer_review_workflow(repo)
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
         contexts=[], mode="interactive",
         owner="marc", assignee="codex",
@@ -778,7 +778,7 @@ def test_other_agent_flips_with_the_coder(repo: Path) -> None:
     assert t.assignee == "claude"
 
 
-def test_other_agent_step_one_resolves_at_scaffold_time(repo: Path) -> None:
+def test_other_agent_step_one_resolves_at_create_time(repo: Path) -> None:
     _add_codex_agent(repo)
     _write(
         repo / "workflows" / "peer-first.md",
@@ -793,7 +793,7 @@ def test_other_agent_step_one_resolves_at_scaffold_time(repo: Path) -> None:
         """,
     )
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="W", workflow_name="peer-first",
         contexts=[], mode="interactive",
         owner="marc", assignee="claude",
@@ -808,7 +808,7 @@ def test_other_agent_fails_loud_without_exactly_two_agents(repo: Path) -> None:
     # The base fixture configures only `claude`, so there is no peer to pick.
     _write_peer_review_workflow(repo)
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
         contexts=[], mode="interactive",
         owner="marc", assignee="claude",
@@ -860,7 +860,7 @@ def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
 def test_bump_handoff_appears_in_slack_text(repo: Path) -> None:
     _write_assignee_workflow(repo)
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="W", workflow_name="review",
         contexts=[], mode="interactive",
         owner="marc", assignee="claude",
@@ -930,7 +930,7 @@ def test_status_narrow_terminal_keeps_each_task_on_one_line(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="anything", workflow_name="code",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="t1",
@@ -948,12 +948,12 @@ def test_status_narrow_terminal_keeps_each_task_on_one_line(
 
 def test_status_splits_recurring_into_own_table(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="Normal", workflow_name="code", contexts=[],
         mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="normal-task",
     )
-    scaffold_task(
+    create_task(
         cfg=cfg, title="Recurring", workflow_name="code", contexts=[],
         mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="recurring/foo",
@@ -972,7 +972,7 @@ def test_status_splits_recurring_into_own_table(repo: Path) -> None:
 
 def test_status_does_not_show_title_column(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="A distinctive ticket title", workflow_name="code",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="t1",
@@ -1063,12 +1063,12 @@ def test_status_includes_updated_column(repo: Path) -> None:
 
 def test_status_default_orders_by_updated_desc(repo: Path) -> None:
     cfg = load_config(repo)
-    older = scaffold_task(
+    older = create_task(
         cfg=cfg, title="older", workflow_name="code",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="aaa-old",
     )
-    newer = scaffold_task(
+    newer = create_task(
         cfg=cfg, title="newer", workflow_name="code",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="zzz-new",
@@ -1087,7 +1087,7 @@ def test_status_default_orders_by_updated_desc(repo: Path) -> None:
 def test_status_order_by_slug_is_alphabetical(repo: Path) -> None:
     cfg = load_config(repo)
     for slug in ("zeta", "alpha", "mu"):
-        scaffold_task(
+        create_task(
             cfg=cfg, title=slug, workflow_name="code",
             contexts=[], mode="interactive", owner="marc", assignee="claude",
             watchers=[], status="active", slug_override=slug,
@@ -1104,7 +1104,7 @@ def test_status_order_by_slug_is_alphabetical(repo: Path) -> None:
 def test_status_reverse_flips_order(repo: Path) -> None:
     cfg = load_config(repo)
     for slug in ("alpha", "zeta"):
-        scaffold_task(
+        create_task(
             cfg=cfg, title=slug, workflow_name="code",
             contexts=[], mode="interactive", owner="marc", assignee="claude",
             watchers=[], status="active", slug_override=slug,
@@ -1124,12 +1124,12 @@ def test_status_rejects_unknown_order_by(repo: Path) -> None:
 
 def test_status_tasks_without_log_sort_to_end(repo: Path) -> None:
     cfg = load_config(repo)
-    has_log = scaffold_task(
+    has_log = create_task(
         cfg=cfg, title="logged", workflow_name="code",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="zzz-logged",
     )
-    no_log = scaffold_task(
+    no_log = create_task(
         cfg=cfg, title="no log", workflow_name="code",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="aaa-nolog",

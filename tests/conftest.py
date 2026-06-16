@@ -27,8 +27,8 @@ _TEMPLATES_RELAY_OS = (
 def seed_direct_body_workflow(relay_os: Path) -> None:
     """Copy the shipped `direct/body` workflow + skill into a test repo.
 
-    The scaffolder freezes `direct/body` onto workflow-less recurring/retire
-    tasks (real repos get it from `relay init`), so any fixture that scaffolds
+    The creator freezes `direct/body` onto workflow-less recurring/retire
+    tasks (real repos get it from `relay init`), so any fixture that creates
     one needs the file present. Copying the shipped bytes keeps it identical to
     the test-side re-seed, so a committed copy stays diff-clean.
     """

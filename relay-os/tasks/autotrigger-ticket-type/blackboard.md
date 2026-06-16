@@ -49,7 +49,7 @@ formulation than session 1:
   fresh ready ticket is re-stocked after `done`. one-shot = no re-stock;
   recurring = re-stock.
 - **"auto" = system does a human gesture:** launch (one-shot) replaces
-  `relay launch`; recurring replaces the recurring scaffold.
+  `relay launch`; recurring replaces the recurring create.
 
 Wrote all of this into ticket `## Context` (definition + lifecycle +
 re-stock table). Set `workflow: autonomy/assist-only` (design/vocabulary

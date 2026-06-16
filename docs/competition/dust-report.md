@@ -25,7 +25,7 @@ The weaknesses clustered around control and efficiency — specifically, how muc
 
 * **No direct task editing.** I couldn't find a way to click into a task and edit it directly. All of that work seemed to have to go through the agent, which removed a fast, obvious path for small corrections.  
 * **Painful iteration on complex work.** For something like finding the correct Playwright selectors to drive the project, the process was exhausting. I was stuck working on a trial-and-error basis — deleting and adding code repeatedly — rather than converging cleanly on a solution.  
-* **Absence of workflows.** This is the root of the previous problem. Without workflows to structure repeated steps, the iterative work had no scaffolding, and the whole process became inefficient.  
+* **Absence of workflows.** This is the root of the previous problem. Without workflows to structure repeated steps, the iterative work had no creating, and the whole process became inefficient.  
 * **More complexity than the task needed.** The trial-and-error process — which I think is a byproduct of having to build my own directory — made the project take far longer than it should have. Backlog and the Linear agent both finished the same deliverability project in two hours, while this approach ran to three.  
 * **Imprecise capture of what was learned.** When I wanted to add things the agent had learned during the process, I had to be very specific. Otherwise it tended to batch-grab a lot of material that didn't matter, diluting what I actually wanted to keep.
 

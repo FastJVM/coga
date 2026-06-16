@@ -18,7 +18,7 @@ Post a single Slack digest focused on outcomes: Done tickets from the spool
 plus other commits merged to `origin/main` since the last digest run.
 
 Routine lifecycle chatter (`relay draft`/`create`, message-less `bump`, `mark
-active/paused`, `retire`, successful recurring scaffolds) does not enter Slack.
+active/paused`, `retire`, successful recurring creates) does not enter Slack.
 Done tickets and recurring scan errors append one JSONL record to this recurring
 task's own `blackboard.md` (the `## Spool (pending)` section) — see
 `relay.notification.notify`. Once a day this ticket fires on its schedule and its

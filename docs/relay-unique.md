@@ -113,7 +113,7 @@ It is a process contract for a specific step of work.
 
 Relay recurring tasks are not just cron jobs.
 
-A recurring template scaffolds a period-keyed task. That task has the same
+A recurring template creates a period-keyed task. That task has the same
 ticket, blackboard, log, contexts, skills, launch path, and review gates as any
 other Relay task.
 

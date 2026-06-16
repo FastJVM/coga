@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
 from relay.cli import app
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.commands.launch import (
     _skip_permissions_argv_for_launch,
     build_agent_command,
@@ -345,7 +345,7 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     seed_direct_body_workflow(company)
     monkeypatch.chdir(company)
     cfg = load_config(company)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="Fix retry logic",
         workflow_name="direct/body", contexts=[], mode="interactive",
         owner="marc", assignee="claude", watchers=[], status="active",
@@ -391,7 +391,7 @@ def _write_skill(repo: Path, ref: str, body: str) -> None:
     )
 
 
-def _scaffold_chain_task(active_task: Path, *, mode: str = "interactive") -> dict[str, object]:
+def _create_chain_task(active_task: Path, *, mode: str = "interactive") -> dict[str, object]:
     _write(
         active_task / "workflows" / "chain.md",
         """
@@ -416,7 +416,7 @@ def _scaffold_chain_task(active_task: Path, *, mode: str = "interactive") -> dic
     _write_skill(active_task, "code/self-review", "Review your own change.")
 
     cfg = load_config(active_task)
-    return scaffold_task(
+    return create_task(
         cfg=cfg,
         title="Chain work",
         workflow_name="chain",
@@ -774,7 +774,7 @@ def test_launch_no_verify_skips_freshness_check(
 def test_launch_freshness_check_no_op_without_pr_link(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Default-scaffold blackboard has no `## Dev` section → no gh call."""
+    """Default-create blackboard has no `## Dev` section → no gh call."""
     from relay import automerge as am
     pr_state_calls: list[str] = []
     monkeypatch.setattr(am, "pr_state", lambda u: pr_state_calls.append(u) or "OPEN")
@@ -833,7 +833,7 @@ def test_launch_interactive_chains_consecutive_agent_steps(
     the launch loop re-composes the prompt and spawns a fresh REPL. The
     chain stops at the first human-assigned step (step 3 here).
     """
-    ref = _scaffold_chain_task(active_task, mode="interactive")
+    ref = _create_chain_task(active_task, mode="interactive")
     slug = str(ref["slug"])
     calls: list[list[str]] = []
     _allow_slack(monkeypatch)
@@ -890,7 +890,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
     _write_skill(active_task, "code/implement", "Implement the change.")
     _write_skill(active_task, "code/human-check", "Human checks the change.")
     cfg = load_config(active_task)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="Handoff work",
         workflow_name="handoff",
@@ -937,7 +937,7 @@ def test_launch_harness_stops_on_agent_panic(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    ref = _scaffold_chain_task(active_task)
+    ref = _create_chain_task(active_task)
     slug = str(ref["slug"])
     calls: list[list[str]] = []
     _allow_slack(monkeypatch)
@@ -993,7 +993,7 @@ def test_launch_auto_activates_draft_and_paused(
     with a workflow is activated inline, then flipped to in_progress."""
     from relay.ticket import Ticket
 
-    ref = _scaffold_chain_task(active_task, mode="interactive")
+    ref = _create_chain_task(active_task, mode="interactive")
     slug = str(ref["slug"])
     ticket_md = Path(ref["path"]) / "ticket.md"
     t = Ticket.read(ticket_md)
@@ -1020,7 +1020,7 @@ def test_launch_auto_activates_done_and_reseeds_step(
     launch restarts the frozen workflow from step 1."""
     from relay.ticket import Ticket
 
-    ref = _scaffold_chain_task(active_task, mode="interactive")
+    ref = _create_chain_task(active_task, mode="interactive")
     slug = str(ref["slug"])
     ticket_md = Path(ref["path"]) / "ticket.md"
     t = Ticket.read(ticket_md)
@@ -1049,7 +1049,7 @@ def test_launch_auto_activate_bails_without_workflow(
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     # Strip the workflow and drop to draft so launch's auto-activate hits the
-    # workflow-less path (a workflow-less non-draft can't be scaffolded now).
+    # workflow-less path (a workflow-less non-draft can't be created now).
     t = Ticket.read(ref.path / "ticket.md")
     t.frontmatter["status"] = "draft"
     t.frontmatter["workflow"] = None
@@ -1133,7 +1133,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
     )
     _write_skill(active_task, "code/implement", "Implement the change.")
     cfg = load_config(active_task)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="Measure prompt scope",
         workflow_name="code/measure",
@@ -1218,7 +1218,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         description: Author a Relay task.
         ---
 
-        Interview, scaffold, fill in the ticket. Stop.
+        Interview, create, fill in the ticket. Stop.
         """,
     )
     monkeypatch.chdir(company)
@@ -1284,7 +1284,7 @@ def test_launch_bootstrap_skips_status_and_lock(
     prompt = captured["prompt"]
     assert isinstance(prompt, str)
     assert "Skill: bootstrap/ticket" in prompt
-    assert "Interview, scaffold, fill in the ticket." in prompt
+    assert "Interview, create, fill in the ticket." in prompt
     # Header still uses the bootstrap/<name> id_slug.
     assert "bootstrap/ticket" in prompt
 
@@ -1591,7 +1591,7 @@ def test_launch_interactive_rotates_across_agents(
         """,
     )
     cfg = load_config(active_task)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="Rotate work", workflow_name="rotate", contexts=[],
         mode="interactive", owner="marc", human="marc", agent="claude",
         assignee="claude", watchers=[], status="active",
@@ -1654,7 +1654,7 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
         """,
     )
     cfg = load_config(active_task)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="Rotate2 work", workflow_name="rotate2", contexts=[],
         mode="interactive", owner="marc", human="marc", agent="claude",
         assignee="claude", watchers=[], status="active",

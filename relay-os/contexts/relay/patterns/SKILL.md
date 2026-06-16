@@ -48,7 +48,7 @@ and optionally `ticket`, `owner`, `watchers`).
 The section lives in a real blackboard, so it can share the file with other
 content. The drain rewrites **only** the spool section and ignores any
 non-JSON line it finds there — that line is preserved, not drained. The
-recurring scaffolder also owns a single `last_serviced_period` high-water line
+recurring creator also owns a single `last_serviced_period` high-water line
 in the template blackboard; spool drains must preserve it. The JSON-only drain
 is still defensive against any stray non-record line.
 

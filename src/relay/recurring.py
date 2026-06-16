@@ -12,7 +12,7 @@ from typing import Any
 import yaml
 from croniter import croniter
 
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.config import Config
 from relay.paths import recurring_dir
 from relay.period_state import write_snapshot
@@ -88,11 +88,11 @@ class Template:
 
 
 @dataclass
-class ScaffoldOutcome:
-    """Result of scaffolding one recurring template for a given firing.
+class CreateOutcome:
+    """Result of creating one recurring template for a given firing.
 
     `created` is False when a task already exists for the template — the
-    scaffold is idempotent, so two `relay recurring` runs converge on the
+    create is idempotent, so two `relay recurring` runs converge on the
     stable `tasks/recurring/<name>/` directory.
     """
 
@@ -133,7 +133,7 @@ class DueTask:
 
     @property
     def launchable(self) -> bool:
-        # `active` → scaffolded-and-not-yet-run (created this scan or carried
+        # `active` → created-and-not-yet-run (created this scan or carried
         # over from one that never launched it).
         # `in_progress` → a *past* sweep died mid-run and left a recurring task
         # frozen. `relay recurring` is a foreground command — no daemon, no
@@ -186,7 +186,7 @@ class DueScan:
         sweep just drove to `done`, instead of trailing them by a full sweep.
         Underneath that, resuming a dead sweep's orphan before any fresh run is
         the "resume any in_progress first" rule — a stuck recurring task gets
-        picked back up before the sweep spends effort scaffolding new work.
+        picked back up before the sweep spends effort creating new work.
         (A resuming Dream orphan still sorts last: cleanup-after-the-rest wins
         over resume-first for the janitor itself, which is what we want.)
         """
@@ -217,7 +217,7 @@ def scan_due(
     errors: list[tuple[str, str]] = []
     for path in sorted(root.iterdir()):
         if path.name.startswith("_"):
-            # Underscore-prefixed entries are templates/scaffolds, not live
+            # Underscore-prefixed entries are templates/creates, not live
             # recurring tasks.
             continue
         if not path.is_dir():
@@ -245,13 +245,13 @@ def scan_due(
 
         # One live task per template. A live (active/in_progress) recurring
         # task for this template — even from a *prior* period — is resumed by
-        # `scaffold_template` below rather than superseded by a fresh period;
+        # `create_template` below rather than superseded by a fresh period;
         # so the "already ran" skip only applies when nothing is live.
         #
         # The template's persistent blackboard carries the serviced-period
         # high-water mark. If it has already advanced through this period and
         # the task directory is gone, the period was handled — do not
-        # re-scaffold what already ran.
+        # re-create what already ran.
         if (
             _live_task_for_template(cfg, template.name) is None
             and _task_with_slug(cfg, target_slug) is None
@@ -269,7 +269,7 @@ def scan_due(
             continue
 
         try:
-            outcome = scaffold_template(
+            outcome = create_template(
                 cfg, template, now, allow_interactive=allow_interactive
             )
         except RecurringError as exc:
@@ -293,10 +293,10 @@ def scan_due(
     return DueScan(tasks=tasks, errors=errors)
 
 
-def scaffold_named(
+def create_named(
     cfg: Config, name: str, now: datetime | None = None
-) -> ScaffoldOutcome:
-    """Scaffold the named recurring task now, ignoring its schedule.
+) -> CreateOutcome:
+    """Create the named recurring task now, ignoring its schedule.
 
     `name` is the directory name under `relay-os/recurring/`. The task slug is
     the stable group-qualified `recurring/<name>`, so a manual `relay
@@ -308,17 +308,17 @@ def scaffold_named(
     if not path.is_dir():
         raise RecurringError(f"no recurring task `recurring/{name}/`")
     template = Template.load(path)
-    return scaffold_template(cfg, template, now)
+    return create_template(cfg, template, now)
 
 
-def scaffold_template(
+def create_template(
     cfg: Config,
     template: Template,
     now: datetime,
     *,
     allow_interactive: bool = True,
-) -> ScaffoldOutcome:
-    """Scaffold one recurring template for `now`'s firing. Idempotent."""
+) -> CreateOutcome:
+    """Create one recurring template for `now`'s firing. Idempotent."""
     effective_mode = _effective_mode(template, allow_interactive=allow_interactive)
 
     last_fire = _last_firing(template.schedule, now)
@@ -327,18 +327,18 @@ def scaffold_template(
 
     # One live task per template: an `active`/`in_progress` instance — current
     # period or a dead sweep's prior-period orphan — is *the* live run. Return
-    # it (resume) instead of scaffolding a competing new period. A stuck run
+    # it (resume) instead of creating a competing new period. A stuck run
     # therefore defers the next period until it reaches `done`/`paused`; that
     # is deliberate — finish the in-flight run before piling another on.
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
-        return ScaffoldOutcome(ref=live, created=False)
+        return CreateOutcome(ref=live, created=False)
 
     existing = _task_with_slug(cfg, target_slug)
     if existing is not None:
-        return ScaffoldOutcome(ref=existing, created=False)
+        return CreateOutcome(ref=existing, created=False)
 
-    outcome = _scaffold_at_slug(
+    outcome = _create_at_slug(
         cfg,
         template,
         target_slug=target_slug,
@@ -350,7 +350,7 @@ def scaffold_template(
 
 
 # A `relay recurring --all` throwaway run is slugged `<name>-dbg-<timestamp>`
-# (see `scaffold_debug_run`), and any child task it spawns embeds that slug, so
+# (see `create_debug_run`), and any child task it spawns embeds that slug, so
 # both carry the `-dbg-<digit>` infix. Requiring a digit after the marker spares
 # ordinary hyphenated ticket names (e.g. `fix-dbg-output`) from matching.
 _DEBUG_SLUG_RE = re.compile(r"-dbg-\d")
@@ -363,16 +363,16 @@ def is_debug_slug(slug: str) -> bool:
     return bool(_DEBUG_SLUG_RE.search(slug))
 
 
-def scaffold_debug_run(
+def create_debug_run(
     cfg: Config,
     template: Template,
     now: datetime,
     *,
     allow_interactive: bool = True,
-) -> ScaffoldOutcome:
-    """Scaffold a throwaway debug run of one template — `relay recurring --all`.
+) -> CreateOutcome:
+    """Create a throwaway debug run of one template — `relay recurring --all`.
 
-    Unlike `scaffold_template`, this ignores both the stable recurring task
+    Unlike `create_template`, this ignores both the stable recurring task
     slug and the serviced-period high-water mark: it always creates a *fresh*
     task under a unique `<template>-dbg-<timestamp>` slug, so it never collides
     with — or mutates — the real run (which may already be `done`/
@@ -382,7 +382,7 @@ def scaffold_debug_run(
     effective_mode = _effective_mode(template, allow_interactive=allow_interactive)
     stamp = now.strftime("%Y%m%dT%H%M%S")
     target_slug = f"{template.name}-dbg-{stamp}"
-    return _scaffold_at_slug(
+    return _create_at_slug(
         cfg,
         template,
         target_slug=target_slug,
@@ -394,11 +394,11 @@ def scaffold_debug_run(
 def scan_debug(
     cfg: Config, now: datetime | None = None, *, allow_interactive: bool = True
 ) -> DueScan:
-    """Scaffold a fresh debug run for every recurring template.
+    """Create a fresh debug run for every recurring template.
 
     The debug counterpart of `scan_due`: it walks the same templates (skipping
     `_`-prefixed directories and `mode: auto`, with the same loud skips) but
-    scaffolds an isolated throwaway run per template instead of get-or-creating
+    creates an isolated throwaway run per template instead of get-or-creating
     the current period's task. `relay recurring --all` launches the results.
     Real period state is left untouched.
     """
@@ -416,7 +416,7 @@ def scan_debug(
             continue
         try:
             template = Template.load(path)
-            outcome = scaffold_debug_run(
+            outcome = create_debug_run(
                 cfg, template, now, allow_interactive=allow_interactive
             )
         except RecurringError as exc:
@@ -440,12 +440,12 @@ def scan_debug(
 class TemplateStatus:
     """Read-only view of one recurring template and its current-period task.
 
-    Produced by `list_templates`. Unlike `scan_due`/`scan_debug` it scaffolds
+    Produced by `list_templates`. Unlike `scan_due`/`scan_debug` it creates
     nothing and never touches git, so it is safe behind a pure `relay
     recurring list`. `instance` is the live (`active`/`in_progress`) task for
     this template if one exists — current period or a resumable prior-period
     orphan — else this period's task if it is already on disk, else `None`
-    (due, not yet scaffolded). `error` is set for a template that failed to
+    (due, not yet created). `error` is set for a template that failed to
     load (e.g. missing `schedule`), with the other fields left `None`.
     """
 
@@ -462,12 +462,12 @@ class TemplateStatus:
     @property
     def due(self) -> bool:
         """No live/current instance covers the latest firing — a bare
-        `relay recurring` would scaffold and launch this template now."""
+        `relay recurring` would create and launch this template now."""
         return self.error is None and self.instance is None
 
 
 def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateStatus]:
-    """Read-only scan of every recurring template. Scaffolds nothing.
+    """Read-only scan of every recurring template. Creates nothing.
 
     For each `recurring/<name>/` template (skipping `_`-prefixed entries) this
     resolves the schedule's last/next firing and the current period's task
@@ -557,23 +557,23 @@ def _effective_mode(template: Template, *, allow_interactive: bool = True) -> st
     return effective_mode
 
 
-def _scaffold_at_slug(
+def _create_at_slug(
     cfg: Config,
     template: Template,
     *,
     target_slug: str,
     effective_mode: str,
     title: str,
-) -> ScaffoldOutcome:
-    """Scaffold one recurring task at an explicit slug. Shared by period and
-    debug scaffolding — the only differences are the slug and ledger handling,
+) -> CreateOutcome:
+    """Create one recurring task at an explicit slug. Shared by period and
+    debug creating — the only differences are the slug and ledger handling,
     which the callers own."""
-    # A recurring task is a machine-authored job: it scaffolds straight to
+    # A recurring task is a machine-authored job: it creates straight to
     # `active` and is meant to run, not be triaged. So when the template
     # doesn't name an assignee, default to the repo's configured default
     # agent — not the human owner, which `relay launch` cannot resolve to
     # an agent type. Without this a workflow-less template like Dream (no
-    # step to ever rewrite `assignee:`) scaffolds unlaunchable.
+    # step to ever rewrite `assignee:`) creates unlaunchable.
     assignee = template.frontmatter.get("assignee")
     if not assignee:
         default_agent = cfg.default_agent()
@@ -587,10 +587,10 @@ def _scaffold_at_slug(
     if "relay/period-task" not in contexts:
         contexts.append("relay/period-task")
 
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title=title,
-        # Recurring tasks scaffold straight to `active`, and every task past
+        # Recurring tasks create straight to `active`, and every task past
         # `draft` carries a workflow. A template that declares its own (e.g.
         # digest) keeps it; a workflow-less one (e.g. Dream, whose process is
         # its body's ordered phases) runs through the one-step `direct/body`
@@ -605,13 +605,13 @@ def _scaffold_at_slug(
         slug_override=target_slug,
         # Carry the template body verbatim so sections beyond `## Description`
         # (notably `## Script config`, which sets a script step's mode/sync)
-        # reach the period task instead of being dropped at scaffold time.
+        # reach the period task instead of being dropped at create time.
         body=template.body,
         created_by="system",
     )
     out_ref = _task_with_slug(cfg, ref["slug"])
     if out_ref is None:
-        raise RecurringError(f"scaffolded task disappeared: {ref['slug']}")
+        raise RecurringError(f"created task disappeared: {ref['slug']}")
 
     # If the template declares the blackboard keys it owns, snapshot their
     # current values into the period task. `relay mark done` later diffs this
@@ -623,14 +623,14 @@ def _scaffold_at_slug(
             out_ref.path, template.name, template.blackboard_path, list(state_keys)
         )
 
-    return ScaffoldOutcome(ref=out_ref, created=True)
+    return CreateOutcome(ref=out_ref, created=True)
 
 
 # --- helpers ------------------------------------------------------------------
 
 
 def _advance_serviced_period(
-    template: Template, period_key: str, outcome: ScaffoldOutcome, now: datetime
+    template: Template, period_key: str, outcome: CreateOutcome, now: datetime
 ) -> None:
     current = read_last_serviced_period(template.blackboard_path)
     if current is not None and current >= period_key:
@@ -640,7 +640,7 @@ def _advance_serviced_period(
 
 
 def _record_run(
-    template: Template, outcome: ScaffoldOutcome, period_key: str, now: datetime
+    template: Template, outcome: CreateOutcome, period_key: str, now: datetime
 ) -> None:
     """Append a period-history line to the template's persistent `log.md`.
 
@@ -655,7 +655,7 @@ def _record_run(
     sep = "" if not existing or existing.endswith("\n") else "\n"
     stamp = now.strftime("%Y-%m-%d %H:%M")
     log.write_text(
-        f"{existing}{sep}{stamp} [system] scaffolded "
+        f"{existing}{sep}{stamp} [system] created "
         f"{outcome.ref.id_slug} for {period_key}\n"
     )
 
@@ -792,14 +792,14 @@ def _extract_title(template: Template) -> str:
 
 __all__ = [
     "Template",
-    "ScaffoldOutcome",
+    "CreateOutcome",
     "DueTask",
     "DueScan",
     "scan_due",
     "scan_debug",
-    "scaffold_named",
-    "scaffold_template",
-    "scaffold_debug_run",
+    "create_named",
+    "create_template",
+    "create_debug_run",
     "is_debug_slug",
     "read_last_serviced_period",
     "write_last_serviced_period",

@@ -4,8 +4,8 @@ schedule_comment: "Every Monday at 9am — Relay's generic ticket cleanup pass"
 title: "Dream"
 # Dream runs interactively: it writes live console progress, delegates to
 # subagents, and exercises agent judgment. A weekly `relay recurring` run
-# scaffolds and launches the Dream task when its schedule is due; `relay dream`
-# (alias for `relay recurring launch dream`) scaffolds and launches it now.
+# creates and launches the Dream task when its schedule is due; `relay dream`
+# (alias for `relay recurring launch dream`) creates and launches it now.
 mode: interactive
 ---
 
@@ -138,7 +138,7 @@ durable (their output is the notification post or PR they already produced),
 so Retro finds no new knowledge in them and **direct-deletes** them via `relay
 delete recurring/<name>` — no PR, no marker — leaving the recurring template's
 `last_serviced_period` line in `relay-os/recurring/<name>/blackboard.md`
-untouched so the period is not re-scaffolded. This includes the **previous
+untouched so the period is not re-created. This includes the **previous
 Dream run's own** `recurring/dream` ticket: Dream does not delete itself
 mid-run, so the last finished Dream period ticket is one of the done tickets
 this pass deletes.
@@ -197,7 +197,7 @@ Route each finding by class:
   packaged/live copy pair. Like `stale`, the PR is `pr-required` and Dream
   never auto-merges. If the fix overlaps a context or skill a Phase 4
   knowledge PR already edits, note the overlap and defer to that PR's review.
-- `gap` — scaffold a tracked draft ticket with
+- `gap` — create a tracked draft ticket with
   `relay create "<title>" --workflow code/with-review`. A gap needs human
   design judgment about whether and how to add the context, skill, or
   workflow; a draft ticket is where that judgment happens, and unlike a

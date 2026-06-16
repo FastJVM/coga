@@ -5,7 +5,7 @@ from textwrap import dedent
 
 import pytest
 
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.slugify import slugify
 from relay.compose import (
     ComposeError,
@@ -27,7 +27,7 @@ def _write(path: Path, text: str) -> None:
 def _write_workflow_less_task(
     repo: Path, *, title: str, mode: str = "interactive", status: str = "active"
 ) -> str:
-    """Write a workflow-less task directly to disk. `scaffold_task` refuses to
+    """Write a workflow-less task directly to disk. `create_task` refuses to
     create a workflow-less non-draft task now, but compose handles a
     workflow-less ticket fine, so on-disk construction keeps these
     compose-only tests focused on a minimal (no workflow-step layer) prompt."""
@@ -105,7 +105,7 @@ def repo(tmp_path: Path) -> Path:
 
 def test_compose_includes_all_sections(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg,
         title="Fix retry logic",
         workflow_name="code/with-review",
@@ -159,7 +159,7 @@ def test_compose_header_uses_resolved_nested_task_directory(repo: Path) -> None:
 
 def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg,
         title="Chain work",
         workflow_name="code/with-review",
@@ -189,7 +189,7 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
 
 def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg,
         title="Fix retry logic",
         workflow_name="code/with-review",
@@ -227,7 +227,7 @@ def test_compose_auto_mode_uses_auto_block(repo: Path) -> None:
 
 def test_compose_inline_step_instructions(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg,
         title="T",
         workflow_name="code/with-review",

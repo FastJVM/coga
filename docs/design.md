@@ -34,9 +34,9 @@ Options
 
 Deduplicated silently, order preserved (first occurrence wins). If any context ref doesn't resolve on disk, the command errors and lists every unresolved ref. No task is created.
 
-### Raw scaffolding and guided authoring are separate
+### Raw creating and guided authoring are separate
 
-`relay draft` is intentionally mechanical — it scaffolds the directory and
+`relay draft` is intentionally mechanical — it creates the directory and
 writes the raw default frontmatter. `relay create` remains a compatibility
 spelling for that raw operation.
 
@@ -82,7 +82,7 @@ Mechanism: naming convention on created tasks, not `last_run` in the template.
    `recurring/<template-name>` if it is `active` or `in_progress` (excluding
    top-level `-dbg-` debug runs). If it exists, it is *the* live run:
    launch/resume it (an `in_progress` orphan is resumed from its current step)
-   and do **not** scaffold a duplicate.
+   and do **not** create a duplicate.
 6. Only when none is live, consider the current period: if
    `last_serviced_period >= current period_key` in
    `relay-os/recurring/<name>/blackboard.md` and the task dir is gone, it's
@@ -118,5 +118,5 @@ We tried a `task.lock` file-existence mutex first. It cost a module of acquisiti
 ## Scope notes for the POC build
 
 - Full Slack integration: webhook POST is implemented; offline/test mode falls back to stdout when no webhook is configured.
-- `bootstrap/ticket` ships with SKILL.md content and templates, while Dream is a recurring task template (`relay-os/recurring/dream/`) whose body scans tickets and runs fixed housekeeping skills; `relay dream` is an alias that scaffolds and launches it on demand. REM is the opt-in repo/user-specific recurring-maintenance template. Their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
+- `bootstrap/ticket` ships with SKILL.md content and templates, while Dream is a recurring task template (`relay-os/recurring/dream/`) whose body scans tickets and runs fixed housekeeping skills; `relay dream` is an alias that creates and launches it on demand. REM is the opt-in repo/user-specific recurring-maintenance template. Their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
 - `status` starts scoped to "one project per invocation"; cross-project scan lands in M3 if trivial, otherwise deferred.

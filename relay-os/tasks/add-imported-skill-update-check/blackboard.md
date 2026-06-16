@@ -115,7 +115,7 @@ found two must-fix issues:
 - Existing repos running `relay init --update` would get the packaged
   `bootstrap/skill-update` skill, but not the new `recurring/skill-update/`
   template or `workflows/skill-update/run.md`, because the update path only
-  refreshed `_` scaffolds, `bootstrap/`, and the hard-coded Dream recurring
+  refreshed `_` creates, `bootstrap/`, and the hard-coded Dream recurring
   template.
 - Follow-up-only skill-update runs (local adaptation, provenance conflict,
   fetch failure) opened no PR, exited 0, and would be marked `done`; after

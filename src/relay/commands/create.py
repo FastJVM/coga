@@ -1,4 +1,4 @@
-"""Raw draft-ticket scaffolding for `relay draft` / legacy `relay create`.
+"""Raw draft-ticket creating for `relay draft` / legacy `relay create`.
 
 Posts ✨ to Slack and leaves the new ticket as `draft`. Does not launch
 an agent. For guided authoring use `relay ticket`; to start work, mark the
@@ -18,7 +18,7 @@ import typer
 
 from relay import git
 from relay.config import ConfigError, load_config
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 
 
 def draft(
@@ -38,8 +38,8 @@ def draft(
         ),
     ),
 ) -> None:
-    """Scaffold a new draft ticket and post ✨ to Slack."""
-    scaffold_draft(title=title, mode=mode, workflow=workflow)
+    """Create a new draft ticket and post ✨ to Slack."""
+    create_draft(title=title, mode=mode, workflow=workflow)
 
 
 def create(
@@ -60,16 +60,16 @@ def create(
     ),
 ) -> None:
     """Compatibility spelling for `relay draft`."""
-    scaffold_draft(title=title, mode=mode, workflow=workflow)
+    create_draft(title=title, mode=mode, workflow=workflow)
 
 
-def scaffold_draft(
+def create_draft(
     *,
     title: str,
     mode: str,
     workflow: str | None = None,
 ) -> dict[str, object]:
-    """Scaffold a raw draft ticket and post the create notification.
+    """Create a raw draft ticket and post the create notification.
 
     `workflow` is optional. A workflow-less draft is a valid authoring
     intermediate — `relay mark active` is the gate that refuses to activate
@@ -85,7 +85,7 @@ def scaffold_draft(
         _bail(str(exc))
 
     try:
-        result = scaffold_task(
+        result = create_task(
             cfg=cfg,
             title=title,
             workflow_name=workflow,

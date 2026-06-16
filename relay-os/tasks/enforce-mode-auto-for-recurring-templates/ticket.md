@@ -39,7 +39,7 @@ sweep then trips `_stop_if_unfinished_after_launch`
 before reaching the next due template — the user's reported "Dream never
 exits, sweep never advances".
 
-Recurring is a machine-driven surface: `relay recurring` scaffolds, sequences,
+Recurring is a machine-driven surface: `relay recurring` creates, sequences,
 and launches without prompting. So `mode: interactive` does not belong on a
 recurring template. Enforce that constraint at template load and flip Dream
 to `mode: auto` to match. Keep the on-demand debug story out of this ticket —

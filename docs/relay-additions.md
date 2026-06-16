@@ -19,7 +19,7 @@ This document distills hands-on evaluations of eight tools — **Linear Agent, C
 *Planning that turns into parallel execution.*
 
 1. **Vision to task list (Paperclip, among others)** — You explain a project and it gets turned into logical, step-by-step tasks. Several services did this; Paperclip's implementation was the coolest. In Relay: describe a project once and get draft tickets out of it — Descriptions and Context written — ready for human review, rather than hand-authoring each ticket.  
-2. **Automatic agent assignment (Paperclip)** — When a project description becomes a task list, agents automatically get assigned to each open issue and work in parallel. In Relay: scaffolded tickets that launch their own agents, instead of a human running a launch once per task.
+2. **Automatic agent assignment (Paperclip)** — When a project description becomes a task list, agents automatically get assigned to each open issue and work in parallel. In Relay: created tickets that launch their own agents, instead of a human running a launch once per task.
 
 ## **3\. Task lifecycle automation**
 

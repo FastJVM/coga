@@ -58,8 +58,8 @@ Silent lifecycle surface — no notification post, no spool record:
   creation.
 - `relay mark active` and `relay mark paused`.
 - `relay bump` with no `--message`.
-- Successful `relay recurring` scaffolds.
-- `relay retire` scaffolding.
+- Successful `relay recurring` creates.
+- `relay retire` creating.
 
 The digest is **opt-in by installing the `recurring/digest/` ticket**. When
 that ticket is absent, `notification.notify` degrades to a live `post` for the
@@ -272,12 +272,12 @@ does not drift from the state humans saw in the channel.
 
 Current surface:
 
-- `relay draft` / `relay create` raw scaffolds.
+- `relay draft` / `relay create` raw creates.
 - `relay mark active`, launch-time `active → in_progress`, `relay mark paused`,
   and `relay mark done`.
 - `relay bump`.
 - `relay automerge`, through the shared `mark_done` finalizer.
-- `relay recurring` and `relay retire` scaffolds.
+- `relay recurring` and `relay retire` creates.
 - `relay panic` — the blocker written to the blackboard + log, synced before
   the teardown signal so the commit lands while the process still owns itself.
 - `relay ticket` authoring — the edits the launched agent makes to `ticket.md`

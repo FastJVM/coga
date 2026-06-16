@@ -108,7 +108,7 @@ specify max backoff ceiling for 429s" is actionable.
 ## FYIs — `bump --message` and `relay slack`
 
 State-transition broadcasts already fire on their own (`create`, `mark`,
-`bump`, `panic`, recurring scaffolds). The two ways to add an FYI on top:
+`bump`, `panic`, recurring creates). The two ways to add an FYI on top:
 
 **`relay bump <id> --message "<short FYI>"`** — when the FYI
 naturally coincides with the step transition you're about to do anyway.

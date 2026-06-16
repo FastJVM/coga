@@ -16,7 +16,7 @@ def _write(path: Path, text: str) -> None:
     path.write_text(dedent(text).lstrip())
 
 
-def _scaffold_min(tmp_path: Path) -> None:
+def _create_min(tmp_path: Path) -> None:
     _write(
         tmp_path / "relay.toml",
         """
@@ -37,7 +37,7 @@ def _scaffold_min(tmp_path: Path) -> None:
 
 @pytest.fixture
 def cfg_with_webhook(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    _scaffold_min(tmp_path)
+    _create_min(tmp_path)
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/test")
     return load_config(tmp_path)
 
@@ -108,7 +108,7 @@ def test_post_without_image_url_omits_attachments(
 
 
 def test_gif_for_returns_none_when_unconfigured(tmp_path: Path) -> None:
-    _scaffold_min(tmp_path)
+    _create_min(tmp_path)
     cfg = load_config(tmp_path)
     assert cfg.gif_for("done") is None
     assert cfg.gif_for("panic") is None
@@ -164,8 +164,8 @@ def test_toml_webhook_env_indirection_resolves(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`[notification.slack].webhook = "env:VAR"` resolves the env var."""
-    # `_scaffold_min` ships `webhook = "env:SLACK_WEBHOOK_URL"`.
-    _scaffold_min(tmp_path)
+    # `_create_min` ships `webhook = "env:SLACK_WEBHOOK_URL"`.
+    _create_min(tmp_path)
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/from-env")
     cfg = load_config(tmp_path)
     assert cfg.slack_webhook == "https://hooks.slack.com/services/from-env"
@@ -308,7 +308,7 @@ def test_toml_env_indirection_unset_var_is_none(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`webhook = "env:VAR"` with the var unset resolves to None, not empty string."""
-    _scaffold_min(tmp_path)
+    _create_min(tmp_path)
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     cfg = load_config(tmp_path)
     assert cfg.slack_webhook is None
@@ -386,7 +386,7 @@ def test_webhook_non_string_raises_config_error(tmp_path: Path) -> None:
 
 
 def test_enabled_default_is_true(tmp_path: Path) -> None:
-    _scaffold_min(tmp_path)
+    _create_min(tmp_path)
     cfg = load_config(tmp_path)
     assert cfg.slack_enabled is True
 
@@ -468,7 +468,7 @@ def test_disabled_post_writes_to_stderr_no_crash(
 def test_enabled_but_no_webhook_crashes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
-    _scaffold_min(tmp_path)
+    _create_min(tmp_path)
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     cfg = load_config(tmp_path)
     with pytest.raises(typer.Exit) as exc:
@@ -551,7 +551,7 @@ def cfg_with_users(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 
 def test_slack_users_default_empty(tmp_path: Path) -> None:
-    _scaffold_min(tmp_path)
+    _create_min(tmp_path)
     cfg = load_config(tmp_path)
     assert cfg.slack_users == {}
 

@@ -32,7 +32,7 @@ REM_TEMPLATE = RECURRING_TEMPLATES / "_rem" / "ticket.md"
 
 def test_dream_ships_as_a_recurring_template() -> None:
     """Dream is a recurring task template, not a built-in command. The body
-    lives in the template's `## Description` section so `scaffold_task` picks
+    lives in the template's `## Description` section so `create_task` picks
     it up the same way it does for any other recurring template."""
     text = DREAM_PROMPT.read_text()
 

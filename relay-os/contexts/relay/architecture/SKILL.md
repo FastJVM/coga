@@ -46,7 +46,7 @@ no in-memory state.
   flips (e.g. `code/with-review`) and agent-rotation relaunches. Steps without
   one leave the assignee unchanged.
 - **Recurring templates** live in `relay-os/recurring/`. `relay recurring`
-  scans them, scaffolds the current run at the stable grouped task ref
+  scans them, creates the current run at the stable grouped task ref
   `tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/notifications),
   records the serviced period as `last_serviced_period` in the template
   blackboard, and launches the due ones. The created tasks then use the same
@@ -55,7 +55,7 @@ no in-memory state.
   stateless launch targets for skills. No status, no workflow. Used for
   ticket-less re-entry points like `relay launch bootstrap/orient`
   (the `chat` alias). They are never factories — `relay launch` no
-  longer scaffolds new tickets from shims; use `relay create` for that.
+  longer creates new tickets from shims; use `relay create` for that.
 - **Bundled batteries** are package-backed core skills, contexts, hooks, and
   launch shims materialized under `relay-os/bootstrap/` by `relay init` and
   `relay init --update`. `pip install relay-os` puts them in the wheel; init
@@ -68,9 +68,9 @@ no in-memory state.
   `relay-os/contexts/` ref to override it.
 - **Dream** is Relay's generic ticket cleanup pass. It is a recurring task
   template (`relay-os/recurring/dream/`) plus a `dream` alias — not a
-  built-in command. `relay recurring` scaffolds and launches it when its
+  built-in command. `relay recurring` creates and launches it when its
   weekly schedule is due; the `relay dream` alias (`recurring launch dream`)
-  scaffolds and launches it on demand. The parent task orchestrates child `mode: script`
+  creates and launches it on demand. The parent task orchestrates child `mode: script`
   tasks over worker skills; its body scans the ticket set, runs fixed Relay
   housekeeping skills, proposes cleanup, and writes reviewable results to its
   blackboard.
@@ -152,12 +152,12 @@ is allowed. A workflow-less `done` ticket is finished and immutable, so it is
 left alone.
 
 `relay ticket` (guided authoring) fills the workflow in through its
-interview skill. `relay recurring` scaffolding (a bare scan-and-launch run
+interview skill. `relay recurring` creating (a bare scan-and-launch run
 and the on-demand `recurring launch <name>`, including the `relay dream`
-alias) and `relay retire` scaffold their own one-shots straight to `active`
-by calling `scaffold_task` directly — but they are **not** workflow-less
+alias) and `relay retire` create their own one-shots straight to `active`
+by calling `create_task` directly — but they are **not** workflow-less
 exceptions: a template that declares no workflow (and every retire task)
-scaffolds with the one-step `direct/body` workflow, which runs the ticket
+creates with the one-step `direct/body` workflow, which runs the ticket
 body's ordered phases directly. There is no sanctioned workflow-less active
 task; the invariant holds for machine-authored tasks too.
 

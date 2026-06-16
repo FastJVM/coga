@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 from conftest import seed_direct_body_workflow
 from relay.cli import app
 from relay.config import load_config
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.ticket import Ticket
 
 
@@ -202,7 +202,7 @@ def test_ticket_existing_active_task_is_editable_without_status_change(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="Queued work",
         workflow_name="direct/body",
@@ -231,7 +231,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="Broken context",
         workflow_name="direct/body",
@@ -271,7 +271,7 @@ def test_ticket_refuses_in_progress_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg,
         title="Running work",
         workflow_name="direct/body",

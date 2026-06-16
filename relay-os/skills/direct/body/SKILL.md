@@ -12,7 +12,7 @@ instruction set for this run and execute it.
 Use this when a task's process is fully described by its own body and does
 not decompose into reusable workflow steps handed between roles. Dream (and
 other workflow-less recurring templates) and retire tasks are the canonical
-cases: each scaffolds straight to `active` and carries an ordered phase list
+cases: each creates straight to `active` and carries an ordered phase list
 in its `## Description`. Wrapping that body in a real one-step workflow is
 what lets the task be activated, bumped, and validated like any other —
 every task past `draft` carries a workflow.

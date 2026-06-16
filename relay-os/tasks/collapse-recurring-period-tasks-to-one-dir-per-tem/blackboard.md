@@ -21,7 +21,7 @@
 - **Debug runs** stay top-level (`tasks/<name>-dbg-<ts>`), outside the group,
   excluded from resume/dedup.
 - **Migration = clean-cut.** Delete old per-period dirs; seed each high-water
-  mark from the newest `scaffolded …` line in `log.md`. No dual-shape support.
+  mark from the newest `created …` line in `log.md`. No dual-shape support.
 
 ## Open Questions
 
@@ -38,9 +38,9 @@
 
 ## Notes / investigation
 
-- `scaffold_task` (scaffold.py:112-124) always does `tasks_dir(cfg) / slug` +
+- `create_task` (create.py:112-124) always does `tasks_dir(cfg) / slug` +
   `mkdir(parents=True)`, so a slashed `slug_override="recurring/<name>"` should
-  land the group dir for free — but the uniqueness check (`scaffold.py:115`)
+  land the group dir for free — but the uniqueness check (`create.py:115`)
   only inspects top-level leaves; verify no surprise when the leaf name
   collides with a top-level task.
 - `relay/period-task` context currently points cross-run state at the parent

@@ -1,11 +1,11 @@
 """Detect period-task runs that complete without advancing declared state.
 
 A recurring task declares the blackboard keys it owns via a `state_keys:` list
-in its `ticket.md` frontmatter. When `relay recurring` scaffolds a period task,
+in its `ticket.md` frontmatter. When `relay recurring` creates a period task,
 it snapshots those keys' current values from the parent recurring task's
 blackboard into the period task directory (`.state-snapshot.json`). When the
 period task completes (`relay mark done`), we diff: a declared key still equal
-to its scaffold-time value did not advance this run — which means the next
+to its create-time value did not advance this run — which means the next
 firing reads the same stale cursor and redoes the same range. We warn (and
 broadcast an FYI) rather than silently accept it.
 
@@ -38,12 +38,12 @@ SNAPSHOT_FILE = ".state-snapshot.json"
 
 @dataclass
 class StateSnapshot:
-    """The parent's declared-key values as they stood when this period scaffolded.
+    """The parent's declared-key values as they stood when this period created.
 
     `parent` is the recurring task name (the period slug minus its period
     suffix); the live blackboard is reconstructed from it via `recurring_dir`,
     so the snapshot stays valid across worktrees and checkouts. `keys` maps each
-    declared key to its scaffold-time value, or `None` when the key was absent
+    declared key to its create-time value, or `None` when the key was absent
     from the blackboard at that time.
     """
 
@@ -78,7 +78,7 @@ def write_snapshot(
 ) -> None:
     """Snapshot the parent blackboard's declared keys into the period task dir.
 
-    Called from the recurring scaffolder for any template that declares
+    Called from the recurring creator for any template that declares
     `state_keys`. A no-op-safe write: a missing parent blackboard snapshots
     every key as `None`.
     """

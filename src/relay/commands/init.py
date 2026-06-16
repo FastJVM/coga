@@ -1,9 +1,9 @@
-"""`relay init` — scaffold a new relay repo, or refresh an existing one.
+"""`relay init` — create a new relay repo, or refresh an existing one.
 
 Default mode (`relay init`) writes everything from scratch into `<path>/relay-os/`
 and refuses to overwrite if it already exists. Templates come from the installed
 relay package; `--update` mode refreshes the vendored CLI in `.relay/` plus
-package-owned template scaffolds, leaving user-edited config (`relay.toml`,
+package-owned template creates, leaving user-edited config (`relay.toml`,
 `rules.md`, etc.) untouched. Both modes (re)build the self-contained venv that
 backs the `relay` console script.
 """
@@ -97,7 +97,7 @@ workflow step are loaded too.
 
 - `relay status` — triage view of all tasks
 - `relay ticket "<title>"` — guided task authoring
-- `relay draft "<title>"` — raw draft scaffold
+- `relay draft "<title>"` — raw draft create
 - `relay dream` — run the Relay cleanup pass now
 - `relay mark active <slug>` — activate a draft before launch
 - `relay launch <slug>` — start or resume a task (any unique prefix works)
@@ -148,11 +148,11 @@ def init(
         help="With --update: refresh every relay repo found under PATH, not just the current one.",
     ),
 ) -> None:
-    """Scaffold `relay-os/` from package templates, or refresh it with --update."""
+    """Create `relay-os/` from package templates, or refresh it with --update."""
     if all_repos and not update:
         typer.secho(
             "--all only applies with --update — it refreshes existing repos, and "
-            "there is no bulk fresh-scaffold. Re-run as "
+            "there is no bulk fresh-create. Re-run as "
             "`relay init --update --all <path>`.",
             fg=typer.colors.RED,
             err=True,
@@ -360,7 +360,7 @@ def _refresh_one(relay_os: Path, clone_dir: Path) -> _UpdateResult:
     source_checkout = is_relay_source_checkout(relay_os)
     refresh_cli(clone_dir, relay_os)
     if source_checkout:
-        # Source checkouts have their `_*` scaffolds, `.gitignore`, and
+        # Source checkouts have their `_*` creates, `.gitignore`, and
         # canonical contexts/skills tracked in git — refresh_templates would
         # clobber them. But `bootstrap/` and `recurring/dream/` are
         # gitignored here, so they must still be materialized from package
@@ -833,7 +833,7 @@ def _git_commit_relay_os(
         if diff.returncode == 0:
             return None
         subprocess.run(
-            ["git", "-C", str(target), "commit", "-m", "Scaffold relay-os via `relay init`"],
+            ["git", "-C", str(target), "commit", "-m", "Create relay-os via `relay init`"],
             check=True,
             capture_output=True,
             text=True,

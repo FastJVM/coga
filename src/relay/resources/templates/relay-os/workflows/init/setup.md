@@ -16,7 +16,7 @@ steps:
 
 ## interview
 
-`relay init` only scaffolds this ticket — it arrives with an empty
+`relay init` only creates this ticket — it arrives with an empty
 Context and placeholder `owner`/`human` fields. Start by setting both
 fields to the `user` value in `relay.local.toml`. Then interview the
 owner, one question at a time, and record each answer verbatim under the

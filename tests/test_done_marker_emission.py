@@ -21,7 +21,7 @@ from typer.testing import CliRunner
 from relay.cli import app
 from relay.config import load_config
 from relay.repl_supervisor import DONE_MARKER, SENTINEL_ENV
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 
 
 _MARKER = DONE_MARKER.decode("ascii")
@@ -71,10 +71,10 @@ def _make_task(
 ) -> tuple[str, Path]:
     cfg = load_config(repo)
     if workflow is None and status != "draft":
-        # `scaffold_task` refuses to create a workflow-less non-draft task now,
+        # `create_task` refuses to create a workflow-less non-draft task now,
         # so the workflow-less bump-error test constructs that shape on disk.
         return _write_workflow_less_task(repo, status=status)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status=status,

@@ -34,7 +34,7 @@ it is a `draft`.** `draft` is the authoring grace period — workflow-less is a
 valid, intentional state there (concept-capture: stash the idea before its
 shape is settled). Once a ticket leaves `draft`, a workflow is mandatory. The
 only sanctioned workflow-less *active* tasks are the machine-authored
-recurring (dream/cron) and retire tasks, which scaffold straight to `active`
+recurring (dream/cron) and retire tasks, which create straight to `active`
 and run their body directly as the prompt.
 
 The validator currently enforces the **opposite** of this rule, and that

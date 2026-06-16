@@ -46,7 +46,7 @@ disappears when stdout is piped or redirected (CI, log files).
 - Dream is unwatchable. Operator stares at a blank terminal for the
   full run; if it dies mid-skill they can't tell where it died from the
   console alone.
-- Recurring tasks scaffolded via `relay recurring check` inherit the
+- Recurring tasks created via `relay recurring check` inherit the
   same auto-mode launch path and the same silence.
 - Violates the principle that every artifact be legible without
   running the system — here the live run is illegible.
