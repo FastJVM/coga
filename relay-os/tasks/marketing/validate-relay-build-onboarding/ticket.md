@@ -1,6 +1,6 @@
 ---
 title: Validate relay build onboarding
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach

@@ -6,3 +6,4 @@ Cannot save the current index state
 fatal: Cannot autostash
 relay-os/recurring/digest/blackboard.md: needs merge
 2026-06-16 08:35 [human:zach] activated (draft → active)
+2026-06-16 08:54 [human:zach] started (active → in_progress) via relay launch
