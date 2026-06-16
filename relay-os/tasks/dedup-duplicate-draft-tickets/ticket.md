@@ -1,13 +1,13 @@
 ---
 title: Dedup duplicate draft tickets
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: claude
 contexts:
-  - relay/roadmap
+- relay/roadmap
 skills: []
 workflow:
   name: direct/body

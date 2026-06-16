@@ -35,6 +35,7 @@ pass.
 
 ### Status
 
-PR opened for owner review. Holding off on `relay mark done` until the PR merges
-(deletions aren't live on `main` until then). Recovery for any deletion is
-`git restore` / closing the PR.
+PR opened for owner review: https://github.com/FastJVM/relay/pull/367
+(branch `dedup-duplicate-draft-tickets`). Holding off on `relay mark done` until
+the PR merges (deletions aren't live on `main` until then). Recovery for any
+deletion is `git restore` / closing the PR.
