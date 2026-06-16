@@ -2,6 +2,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
+pr: https://github.com/FastJVM/relay/pull/290
 - branch: `fix/session-done-sentinel-and-mute`
 - worktree: `/home/n/Code/relay-session-done-fix`
 - commit: `455f503`
@@ -100,3 +101,8 @@ last-resort fallback if writing the sentinel fails.
 Verification after peer-review fix:
 - `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest tests/test_done_marker_emission.py tests/test_repl_supervisor.py -q` → 34 passed.
 - `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest -p no:cacheprovider` → 562 passed, 1 skipped.
+
+## Review closeout
+
+- 2026-06-16: Verified PR #290 is `MERGED` on GitHub at head `455f5037e24ab166689f27fddb2e2165927d9e9f`.
+- Added a plain `pr:` line under `## Dev` so `relay automerge` can recognize the merged PR and mark this final-step ticket done.
