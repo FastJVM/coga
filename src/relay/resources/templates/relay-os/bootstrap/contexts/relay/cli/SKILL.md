@@ -159,9 +159,9 @@ directly. Script launches inject task metadata env vars including
 `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
-  A top-level task is its bare leaf slug; a grouped task is referenced by
-  its group-qualified slug (`marketing/relay-crm`), matching what `relay
-  status` prints — the bare leaf alone won't resolve.
+  A top-level task is its bare leaf slug; a nested task is referenced by its
+  path under `tasks/` (`marketing/relay-crm`), matching what `relay status`
+  prints — the bare leaf alone won't resolve.
 - `relay launch <slug> --agent <type>` — one-off agent-type override
   (e.g. `--agent claude`); does not rewrite the ticket's `assignee:`.
 - `relay launch <slug> --prompt-report` — print composed prompt layers,
@@ -236,14 +236,34 @@ guardrail and task-to-task comparison, not exact provider billing.
 ## relay status
 
 List every task in the repo — `draft`, `active`, `in_progress`, `paused`,
-and `done`. Bootstrap shims have no status and don't appear here. No
-filtering flags yet; pipe through `grep` if you want to slice the output.
+and `done`. Bootstrap shims have no status and don't appear here. Pipe through
+`grep` for ad-hoc slicing of any column.
+
+An optional positional argument narrows the list to a directory under `tasks/`.
+Tasks are directories (a `ticket.md` directory at any depth), so the argument
+is just a directory path in the tree:
+
+- `relay status <dir>` — only tasks under `tasks/<dir>/`, nested ones
+  included, so it reads like `ls -R <dir>`. The path can be nested
+  (`relay status marketing` shows the whole sub-tree; `relay status
+  marketing/social` narrows to that sub-directory).
+- `relay status root` — only tasks directly under `tasks/` (none in a
+  sub-directory). `root` is a reserved sentinel; a directory literally named
+  `root` would be shadowed by it.
+- An unknown directory fails loud, listing the directories that do exist,
+  rather than printing a silently empty list. A *known* directory that
+  currently holds no tasks is not an error — it prints `(no tasks in <dir>)`.
+
+There is no command to create, rename, or delete one of these directories —
+they are plain directories, so you manage them with the shell: `mkdir
+relay-os/tasks/<dir>` to make one (`mkdir -p` to nest), `mv` a task directory
+to move it, `rm` to remove it. The filter only reads `tasks/`; like the rest of
+`relay status` it mutates nothing and hits no network.
 
 Generated recurring period tasks are machine-authored jobs scaffolded ahead of
-execution under the `recurring/` task group (`recurring/<name>`), so they
-render in a **second `Recurring` table** below the hand-authored backlog rather
-than mixed in with it. `relay recurring list` is the schedule-aware view of
-those.
+execution under `tasks/recurring/` (`recurring/<name>`), so they render in a
+**second `Recurring` table** below the hand-authored backlog rather than mixed
+in with it. `relay recurring list` is the schedule-aware view of those.
 
 ## relay show \<slug\>
 
@@ -397,8 +417,8 @@ Run Relay's generic cleanup pass now. `dream` is not a built-in command — it
 is a default alias for `recurring launch dream`. It scaffolds the
 `relay-os/recurring/dream/` recurring task and launches it interactively.
 
-The instantiated task ref is `recurring/dream`: the `recurring/` group marks it
-as generated, and the current period is recorded in
+The instantiated task ref is `recurring/dream`: the `recurring/` directory
+marks it as generated, and the current period is recorded in
 `relay-os/recurring/dream/blackboard.md` as `last_serviced_period`. Running
 `relay dream` mid-week reuses that task instead of creating a second one. Dream
 scans current task state, runs the known Relay housekeeping pass, writes
@@ -409,13 +429,13 @@ results to that run's blackboard, and finishes with `relay mark done`.
 Scan `relay-os/recurring/`, then scaffold and launch every task that is due.
 
 For each template (skipping `_`-prefixed files) `relay recurring` enforces
-**one live task per template**: if the generated grouped task
-`recurring/<name>` is already `active` or orphaned `in_progress`, that one is
+**one live task per template**: if the generated task at `recurring/<name>` is
+already `active` or orphaned `in_progress`, that one is
 launched/resumed and no duplicate is scaffolded; only when none is live does it
 get-or-create the current run at `relay-os/tasks/recurring/<name>/` and advance
 the template blackboard's `last_serviced_period` line. It launches the due ones
 **sequentially** — orphaned `in_progress` resumes first, then fresh launches,
-each group most-overdue first, one finishing before the next starts. It prints
+each set most-overdue first, one finishing before the next starts. It prints
 a scan table (`→ resume` / `→ launch` / `ready` vs `overdue Nd`) before
 launching. `done` and `paused` tasks are skipped — never relaunched; a stuck
 `in_progress` run defers the next period until it reaches one of those.

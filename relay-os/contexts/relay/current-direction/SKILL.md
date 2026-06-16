@@ -9,9 +9,9 @@ Last updated: 2026-06-13.
 
 ## Current redesign (recurring lifecycle and identity)
 
-- **Recurring runs use a stable grouped task ref.** The current direction is
+- **Recurring runs use a stable path-qualified task ref.** The current direction is
   `relay-os/tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/Slack),
-  not `tasks/recurring-<name>-<period>/`. The `recurring/` group is the
+  not `tasks/recurring-<name>-<period>/`. The `recurring/` directory is the
   namespace/identity marker; the schedule period lives in the template
   blackboard as a single overwritten `last_serviced_period` line. The template
   `log.md` remains append-only human history, not the dedup source.
@@ -26,7 +26,7 @@ Last updated: 2026-06-13.
   period_key` means this period already ran.
 
 - **Debug `--all` runs remain top-level scratch for now.** They keep the
-  `<name>-dbg-<timestamp>` shape, are outside the `recurring/` group, and stay
+  `<name>-dbg-<timestamp>` shape, are outside the `recurring/` directory, and stay
   excluded from recurring dedup/resume. The earlier plan to remove the debug
   machinery is not part of the grouped-slug cut; do not conflate real recurring
   task identity with debug scratch cleanup.
@@ -101,8 +101,8 @@ Last updated: 2026-06-13.
   skills.
 - **`relay recurring launch <name>` is the on-demand recurring entry point.**
   It creates one named template now, ignoring its schedule, with the same
-  stable grouped task ref a bare `relay recurring` produces, then launches the
-  task.
+  stable path-qualified task ref a bare `relay recurring` produces, then
+  launches the task.
 
 ## Recent decisions (Dream and REM)
 

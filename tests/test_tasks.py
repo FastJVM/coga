@@ -1,4 +1,4 @@
-"""Task discovery and resolution, including one-level group directories."""
+"""Task discovery and resolution, including tasks nested in sub-directories."""
 
 from __future__ import annotations
 
@@ -76,14 +76,39 @@ def test_list_tasks_finds_tasks_one_level_inside_group_dirs(repo: Path) -> None:
     ]
 
 
-def test_nested_task_gets_group_qualified_id_slug(repo: Path) -> None:
+def test_nested_task_gets_path_qualified_id_slug(repo: Path) -> None:
     _task(repo, "marketing/digest-sweep")
 
     ref = list_tasks(load_config(repo))[0]
 
     assert ref.slug == "digest-sweep"
-    assert ref.group == "marketing"
+    assert ref.directory == "marketing"
     assert ref.id_slug == "marketing/digest-sweep"
+
+
+def test_list_tasks_finds_tasks_at_any_depth(repo: Path) -> None:
+    top = _task(repo, "fix-retry-logic")
+    one = _task(repo, "marketing/digest-sweep")
+    deep = _task(repo, "marketing/social/relaunch")
+
+    refs = list_tasks(load_config(repo))
+
+    assert [(r.id_slug, r.directory, r.path) for r in refs] == [
+        ("fix-retry-logic", None, top),
+        ("marketing/digest-sweep", "marketing", one),
+        ("marketing/social/relaunch", "marketing/social", deep),
+    ]
+
+
+def test_list_tasks_does_not_recurse_into_a_task_dir(repo: Path) -> None:
+    # A `ticket.md` makes a directory a task; nothing inside it is discovered,
+    # even if it happens to contain another `ticket.md`.
+    outer = _task(repo, "outer")
+    _write(outer / "inner" / "ticket.md", TICKET)
+
+    refs = list_tasks(load_config(repo))
+
+    assert [r.id_slug for r in refs] == ["outer"]
 
 
 def test_underscore_dirs_skipped_at_both_levels(repo: Path) -> None:
@@ -148,7 +173,7 @@ def test_resolve_task_finds_nested_task_by_qualified_slug_and_prefix(repo: Path)
     assert resolve_task(cfg, "marketing/dig").path == nested
 
 
-def test_resolve_task_rejects_bare_leaf_of_grouped_task(repo: Path) -> None:
+def test_resolve_task_rejects_bare_leaf_of_nested_task(repo: Path) -> None:
     _task(repo, "marketing/digest-sweep")
     cfg = load_config(repo)
 
@@ -156,8 +181,8 @@ def test_resolve_task_rejects_bare_leaf_of_grouped_task(repo: Path) -> None:
         resolve_task(cfg, "digest-sweep")
 
 
-def test_resolve_task_prefix_ambiguity_spans_top_level_and_group(repo: Path) -> None:
-    # Both id_slugs start with "auto": a top-level task and a group dir.
+def test_resolve_task_prefix_ambiguity_spans_top_level_and_directory(repo: Path) -> None:
+    # Both id_slugs start with "auto": a top-level task and a task directory.
     _task(repo, "auto-pilot")
     _task(repo, "auto/sweep")
     cfg = load_config(repo)

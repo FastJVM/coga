@@ -151,7 +151,7 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
     assert first.created is True
     assert second.created is False
     refs = list_tasks(cfg)
-    assert [(ref.group, ref.slug, ref.id_slug) for ref in refs] == [
+    assert [(ref.directory, ref.slug, ref.id_slug) for ref in refs] == [
         ("recurring", "autoclose-merged", "recurring/autoclose-merged")
     ]
     assert (

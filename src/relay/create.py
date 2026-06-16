@@ -112,8 +112,9 @@ def create_task(
 
     base_slug = slug_override or slugify(title)
     # Creates land at the top level (`tasks/<slug>/`), so uniqueness only
-    # needs to clear other top-level slugs — a grouped task may reuse the leaf.
-    existing_slugs = {t.slug for t in list_tasks(cfg) if t.group is None}
+    # needs to clear other top-level slugs — a task in a sub-directory may
+    # reuse the leaf.
+    existing_slugs = {t.slug for t in list_tasks(cfg) if t.directory is None}
     slug = base_slug
     n = 2
     while slug in existing_slugs:
@@ -185,9 +186,9 @@ def create_task(
 
 def _task_ref_for_created_dir(slug: str, task_dir: Path) -> TaskRef:
     """Build the same TaskRef that discovery will report for a new task dir."""
-    parts = slug.split("/")
-    if len(parts) == 2 and all(parts):
-        return TaskRef(slug=parts[1], path=task_dir, group=parts[0])
+    head, sep, leaf = slug.rpartition("/")
+    if sep and head:
+        return TaskRef(slug=leaf, path=task_dir, directory=head)
     return TaskRef(slug=slug, path=task_dir)
 
 

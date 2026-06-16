@@ -299,7 +299,7 @@ def _reap_debug_orphans(cfg: Config) -> None:
     reaped: list[str] = []
     # Top-level scan only: debug runs are always created as direct
     # children of `tasks/` (see `create_debug_run`), never inside a
-    # task group directory.
+    # sub-directory.
     for entry in sorted(tasks_root.iterdir()):
         if entry.is_dir() and is_debug_slug(entry.name):
             status, panicked = _read_debug_outcome(entry)
@@ -339,7 +339,7 @@ def launch(
     """Create a named recurring template now and launch it.
 
     Ignores the template's schedule — the on-demand entry point behind
-    aliases like `relay dream`. The task slug is the stable group-qualified
+    aliases like `relay dream`. The task slug is the stable qualified
     `recurring/<name>`, so this and a bare `relay recurring` converge on one
     instantiated task directory.
     """
@@ -392,7 +392,7 @@ def list_recurring() -> None:
         sys.exit(2)
 
     statuses = list_templates(cfg)
-    picked = [ref for ref in list_tasks(cfg) if ref.group == "recurring"]
+    picked = [ref for ref in list_tasks(cfg) if ref.directory == "recurring"]
 
     if not statuses and not picked:
         typer.echo("(no recurring templates)")

@@ -268,8 +268,8 @@ def _authored_task_refs(
     before_tasks: set[str],
 ) -> list[TaskRef]:
     # Resolve changed paths against discovered task dirs rather than
-    # reconstructing `tasks/<first-part>` — tasks may live one level deeper
-    # inside a group directory (e.g. `tasks/auto/<slug>/`).
+    # reconstructing `tasks/<first-part>` — tasks may live in a sub-directory
+    # at any depth (e.g. `tasks/auto/<slug>/`).
     refs: dict[str, TaskRef] = {}
     tasks = list_tasks(cfg)
     resolved = [path.resolve(strict=False) for path in changed_paths]
