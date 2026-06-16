@@ -3,7 +3,27 @@
 ## Dev
 branch: status-group-filter
 worktree: ../relay-status-group-filter
-commit: 0e43ee0
+commit: 8fbfafb
+pr: https://github.com/FastJVM/relay/pull/368
+
+## PR step — rebase done, PR opened (2026-06-16)
+Per human decision (interactive), rebased `status-group-filter` onto current
+`main` (ab220e4) BEFORE opening the PR, to reconcile with #366 "scaffold→create"
+(ba88284) which had diverged over the same context/test files.
+- 6 conflicts resolved (create.py — git tracked the scaffold.py→create.py rename;
+  commands/recurring.py; architecture + current-direction contexts; test_recurring.py;
+  test_smoke.py). All were the two vocabulary sweeps overlapping: kept main's
+  scaffold→create wording + this branch's group→directory purge in each.
+- Second commit (self-qa) applied clean. Branch now sits on main; vs-main diff is
+  back to the branch's own 25 files (no more rename noise).
+- Verified: full suite 749 passed, 1 skipped, same 2 pre-existing test_recurring
+  failures (`..._syncs_period_task_and_high_water`,
+  `..._sweep_skips_task_removed_by_create_sync` — note #366 renamed the 2nd from
+  `..._scaffold_sync`). Confirmed both still fail on clean main ab220e4.
+- CLI smoke on rebased code: `status marketing` filters; unknown dir → exit 2
+  "Unknown directory ... Use 'root' ...".
+- No CI checks configured on the repo (`gh pr checks 368`: none) — nothing to wait on.
+- Pre-rebase backup ref: `status-group-filter-prerebase-backup` @ 0e43ee0.
 
 ## SCOPE CHANGE (human, mid-task) — directory-native, no "group" vocab
 
