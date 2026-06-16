@@ -1,6 +1,6 @@
 ---
 title: Remove relay setup command
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: zach
