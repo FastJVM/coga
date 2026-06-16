@@ -1,6 +1,6 @@
 ---
 title: Validate relay build onboarding
-status: draft
+status: active
 mode: interactive
 owner: zach
 human: zach
