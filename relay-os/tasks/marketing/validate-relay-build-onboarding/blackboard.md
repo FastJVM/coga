@@ -222,3 +222,79 @@ Launch offered: `cd …/filled-claude && relay launch add-dividend-discount-mode
    a question list; let the agent probe the gaps in real time.
    → Refines `init-questions` (which leaned toward scripted follow-up probes): the
    probes should be *generated*, not *enumerated*.
+
+## Step 3: synthesize — FINDINGS (deliverable for relay-build-onboarding-flow)
+
+The four questions the design needs answered, settled against the three scorecards
+above. All three legs scored **intent capture 5/5** and friction "very low" /
+"next to nothing"; the differences are about *recall* and *batch shape*, not intent.
+
+### 1. Is one scripted question enough to capture intent, or is a second beat needed?
+**One scripted question is enough — but only paired with an agent-led follow-up beat.**
+Intent capture was 5/5 on all three legs off the single "What do you want to build?"
+plus a short, *dynamically generated* follow-up round. The second beat is mandatory,
+but it must NOT be a fixed question list: Zach's headline verdict is that the agent
+probed gaps better than he could have scripted ("the agent was better than me at
+asking follow-ups"). So the design shape is **one scripted question → agent-led
+dynamic follow-ups**, not a multi-question interview. This sharpens `init-questions`,
+which leaned toward *enumerated* probes — here the probes are *generated*.
+Corollary: the agent should be willing to do external research mid-chat when the
+answer exposes an unknown — on the empty leg, a 2-minute web search for affordable
+data sources independently landed on FMP, GoldRatio's real primary source.
+
+### 2. Is the scan load-bearing on filled repos? (confirm/refute init-questions)
+**Confirmed, emphatically — and the scan must read CODE, not just docs/roadmap.**
+Words-only (Leg 1) captured intent but got *state* wrong: it proposed building from
+scratch features GoldRatio already ships (multi-flavor DCF, quality-score columns, 6
+data clients). Only the filled-repo scan (Leg 2) recovered true state, and Zach's
+strongest signal was real-world: **"It actually built tickets for me that I will go
+and build for real on my actual repo."** Beyond confirming init-questions, this leg
+surfaced a *new* requirement: **code-vs-roadmap reconciliation**. Three items the
+April `IMPROVEMENTS.md` roadmap still listed as gaps were already built in code — a
+roadmap/doc-only read would have generated **dead tickets**. The scan must verify
+claimed gaps against the actual code before emitting a ticket. Carry init-questions'
+precedence rule (repo docs win on facts, answers win on intent) and extend it: **code
+wins over docs on what already exists.**
+
+### 3. Is the empty-repo batch good enough, or does it need different treatment?
+**Good enough — not hollow — when the human has real intent.** Empty leg: 5/6 tickets
+launch-as-is, usefulness 8–9/10, "question-only got me something worth keeping." Same
+linear flow works; the scan simply no-ops and the batch is built from spoken intent +
+agent research. No separate empty-repo treatment is needed. **One honest caveat:** the
+empty path's quality is contingent on the human knowing what they want — GoldRatio is a
+target Zach knows cold. A vague "what do you want to build" answer would yield a
+thinner batch, since there's no code to backstop intent. Keep the scan load-bearing
+precisely so the *filled* path never depends on intent quality the way the empty one does.
+
+### 4. Recommended batch size + concrete fixes to the flow
+**Batch size: ~5 (range 3–6), with exactly one launchable "anchor" ticket.** Batches
+were 6 / 5 / 3 and all scored well; 5 is the comfortable center. The pattern that made
+every leg *feel real*: one ACTIVE/direct ticket with a full execution spec the human
+can `relay launch` immediately, plus the rest as drafts. The launchable anchor is
+load-bearing for the "this is real, not a demo" reaction — keep it in the design.
+
+Concrete fixes / requirements for `relay-build-onboarding-flow`:
+- **Shape:** ask (1 scripted Q) → agent-led dynamic follow-ups → scan (no-op on empty,
+  load-bearing on filled) → short spec the human agrees to → generate batch of ~5,
+  one of them a launchable anchor.
+- **Scan reconciles code vs. docs:** never trust a roadmap's "TODO" — grep the code to
+  confirm a gap is genuinely open before ticketing it.
+- **External research is in-scope:** when intent exposes an unknown (data sources,
+  libraries), the agent may search and fold the answer into the spec/tickets.
+- **CLAUDE.md is a marginal add for recall** (Leg 3): a guide barely moved recall over
+  the bare code scan — the code already encodes state. Its value is **execution
+  de-risking** (conventions, guardrails like "fixed DCF conventions," logic-placement
+  rules). Design implication: don't *depend* on a CLAUDE.md to surface state; if one
+  exists, fold its guardrails into ticket bodies. *(Caveat: this leg is contaminated —
+  the agent read the authored CLAUDE.md during fixture setup, biasing toward "no add."
+  Treat "marginal recall add" as directional, not a hard measurement.)*
+- **Offline / pre-Slack safety is load-bearing, not cosmetic:** `$SLACK_WEBHOOK_URL`
+  was set in this env; without `[notification.slack] enabled = false` the fixtures'
+  create/launch/bump would have posted to the real team channel. `relay build` must
+  produce launchable tickets before Slack is configured (ties to
+  `first-run-works-without-slack-configured`).
+
+**Bottom line for the design:** the one-question premise is validated. `relay build` =
+one scripted question + agent-led follow-ups + a (code-reading, reconciling) scan →
+short agreed spec → a ~5-ticket batch with one launchable anchor. Same flow for empty
+and filled; the scan is what makes the filled path trustworthy.

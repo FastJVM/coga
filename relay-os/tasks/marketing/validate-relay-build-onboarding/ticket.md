@@ -1,6 +1,6 @@
 ---
 title: Validate relay build onboarding
-status: in_progress
+status: done
 mode: interactive
 owner: zach
 human: zach
@@ -20,7 +20,6 @@ workflow:
   - name: synthesize
     skills: []
     assignee: agent
-step: 3 (synthesize)
 ---
 
 ## Description
