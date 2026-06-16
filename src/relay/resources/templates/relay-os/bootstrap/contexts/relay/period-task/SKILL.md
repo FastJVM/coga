@@ -13,7 +13,7 @@ after a completed run and recreated for a later period. Your own
 
 ## Your task ref names your parent
 
-Your task ref is `recurring/<parent-name>`. The `recurring/` group is the
+Your task ref is `recurring/<parent-name>`. The `recurring/` directory is the
 identity marker; the period is **not** encoded in the slug.
 
 Your parent recurring task lives at

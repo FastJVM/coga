@@ -74,16 +74,26 @@ determinism, the standard **SKILL.md** format for skills and contexts. No
 database, no DSL, no exotic stack. A clever mechanism that buys opacity is the
 bug, not the feature — prefer the dumbest legible version. Three similar lines
 beat an abstraction whose purpose you couldn't explain to a new hire in one
-sentence.
+sentence. This extends to the substrate underneath: **reuse the OS the operator
+already knows — the filesystem, git, the shell — rather than reimplementing a
+worse version of it inside Relay.** A concept that the directory tree already
+expresses gets no Relay machinery; you operate it with `mkdir` / `mv` / `rm` /
+`git`, the verbs a shell-fluent operator already has in their hands. That
+reuse is a large part of why Relay is powerful for that operator: there is no
+second, lesser vocabulary to learn.
 
 **Forbids:** a proprietary format; a clever/opaque mechanism where a boring
 legible one would do; premature abstraction; derived/denormalized state that
-hides what a file already says.
+hides what a file already says; a bespoke Relay command that reimplements
+something the filesystem, git, or the shell already does well.
 
 **Receipt:** the whole substrate is markdown + Python + SKILL.md. SKILL.md *is*
 the Claude Code / Codex format (Anthropic's `skill-creator` is vendored
 verbatim, not reinterpreted). `relay validate` and the prompt composition are
-plain file reads.
+plain file reads. Task directories nest like any directory — a task is a
+`ticket.md` directory at any depth under `tasks/`, organized with `mkdir` /
+`mv` / `rm`. `relay status <dir>` is a thin read-only filter over that tree,
+not a new abstraction on top of it.
 
 ## 4. Memory via PR — thinking compounds, human-gated, never opaque
 

@@ -181,7 +181,7 @@ def test_scan_due_creates_task(repo: Path) -> None:
     assert ticket.title == "Weekly deliverability check"
     assert ticket.mode == "interactive"
     assert ticket.owner == "marc"
-    assert task.ref.group == "recurring"
+    assert task.ref.directory == "recurring"
     assert task.ref.slug == "weekly-check"
     assert task.ref.id_slug == "recurring/weekly-check"
     assert task.ref.path == repo / "tasks" / "recurring" / "weekly-check"
@@ -316,8 +316,8 @@ def test_scan_due_resumes_stuck_prior_run_instead_of_new_period(
 ) -> None:
     """A stuck prior-period `in_progress` run is resumed, deferring the new period.
 
-    One live task per template: identity is the `recurring` group plus the
-    template leaf slug, so a stale orphan is found and resumed (`created=False`)
+    One live task per template: identity is the `recurring/` directory plus
+    the template leaf slug, so a stale orphan is found and resumed (`created=False`)
     rather than a fresh current-period task created alongside it.
     """
     cfg = load_config(repo)
@@ -786,7 +786,7 @@ def test_recurring_launch_creates_dream_task(
     cfg = load_config(dream_repo)
     refs = list_tasks(cfg)
     assert len(refs) == 1
-    assert refs[0].group == "recurring"
+    assert refs[0].directory == "recurring"
     assert refs[0].slug == "dream"
     assert refs[0].id_slug == "recurring/dream"
     ticket = Ticket.read(refs[0].path / "ticket.md")
@@ -799,7 +799,7 @@ def test_recurring_launch_creates_dream_task(
     assert ticket.workflow["name"] == "direct/body"
     # The recurring template's `## Description` body composes into the ticket.
     assert "Run the Dream cleanup pass for this Relay repo." in ticket.body
-    # The grouped task id carries recurring identity; the period lives in the
+    # The task path carries recurring identity; the period lives in the
     # recurring template blackboard, not the slug.
     assert refs[0].id_slug != "dream"
     assert read_last_serviced_period(

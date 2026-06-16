@@ -493,9 +493,9 @@ def test_nested_task_validates_clean(repo: Path) -> None:
     assert report.ok_count == 1
 
 
-def test_same_leaf_name_in_different_groups_validates_clean(repo: Path) -> None:
-    # A leaf name reused across two groups is no longer a collision — the
-    # group-qualified slug disambiguates, so validate reports no duplicate.
+def test_same_leaf_name_in_different_directories_validates_clean(repo: Path) -> None:
+    # A leaf name reused across two directories is no longer a collision — the
+    # path under `tasks/` disambiguates, so validate reports no duplicate.
     cfg = load_config(repo)
     _write_full_task(repo, "marketing/dup-task")
     _write_full_task(repo, "eng/dup-task")

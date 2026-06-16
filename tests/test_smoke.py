@@ -72,7 +72,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         assert (task_path / name).is_file()
 
     # Discovery sees both the created top-level task and the seeded
-    # fixture task nested one level inside the `tasks/auto/` group dir.
+    # fixture task nested one level inside the `tasks/auto/` directory.
     by_slug = {t.slug: t for t in list_tasks(cfg)}
     assert "triage-inbound-email" in by_slug
     assert by_slug["triage-inbound-email"].path.parent == seeded / "tasks" / "auto"

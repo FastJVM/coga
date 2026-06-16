@@ -11,15 +11,20 @@ no in-memory state.
 
 ## Primitives
 
-- **Tickets** live as directories under `relay-os/tasks/`: either direct
-  children (`tasks/<slug>/`) or one level deeper in an organizational group
-  (`tasks/<group>/<slug>/`). A top-level task is referenced by its bare leaf
-  slug; a grouped task is referenced by its **group-qualified slug**
-  (`<group>/<leaf>`, e.g. `marketing/relay-crm`) across CLI commands, `relay
-  status`, and notifications. Two groups may therefore reuse a leaf name, and a
-  grouped task's bare leaf does not resolve on its own. Agents should use the
-  composed prompt's exact task directory instead of reconstructing it from
-  the slug. Each task has
+- **Tickets** live as directories under `relay-os/tasks/`: a task is any
+  directory containing a `ticket.md`, at **any depth** — directly
+  (`tasks/<slug>/`) or in a sub-directory (`tasks/marketing/social/<slug>/`).
+  The sub-directories are just plain directories you organize with
+  `mkdir` / `mv` / `rm` (nest them as deep as you like), and a task directory
+  is never recursed into. A task is referenced by
+  its **path under `tasks/`** — its bare leaf at the top level, otherwise the
+  relative path (`marketing/relay-crm`, `marketing/social/relaunch`) — used as
+  the qualified slug across CLI commands, `relay status`, and notifications.
+  Two sibling directories may therefore reuse a leaf name, and a nested task's
+  bare leaf does not resolve on its own. Agents should use the composed
+  prompt's exact task directory instead of reconstructing it from the slug.
+  Relay reads this tree — `relay status <dir>` filters to a sub-tree — but
+  never reimplements it. Each task has
   `ticket.md` (frontmatter + body), `log.md` (append-only, written by CLI
   commands only), and `blackboard.md` (free-form workspace shared between
   human and agent).
@@ -46,7 +51,7 @@ no in-memory state.
   flips (e.g. `code/with-review`) and agent-rotation relaunches. Steps without
   one leave the assignee unchanged.
 - **Recurring templates** live in `relay-os/recurring/`. `relay recurring`
-  scans them, creates the current run at the stable grouped task ref
+  scans them, creates the current run at the stable path-qualified task ref
   `tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/notifications),
   records the serviced period as `last_serviced_period` in the template
   blackboard, and launches the due ones. The created tasks then use the same

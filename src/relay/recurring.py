@@ -143,7 +143,7 @@ class DueTask:
         # current `step:` (it only flips status on an `active` launch). Worst
         # case a false relaunch redoes a step the human then catches — cheaper
         # than a liveness mechanism. The orphan need not be the *current*
-        # period's — identity is the `recurring` task group plus the template
+        # period's — identity is the `recurring` directory plus the template
         # leaf slug, so a stale leftover is found and resumed too (and defers
         # the next period until it reaches done/paused: one live task per
         # template).
@@ -299,7 +299,7 @@ def create_named(
     """Create the named recurring task now, ignoring its schedule.
 
     `name` is the directory name under `relay-os/recurring/`. The task slug is
-    the stable group-qualified `recurring/<name>`, so a manual `relay
+    the stable qualified `recurring/<name>`, so a manual `relay
     recurring launch <name>` and a bare `relay recurring` converge on one
     instantiated task directory.
     """
@@ -712,7 +712,7 @@ def _task_with_slug(cfg: Config, target_slug: str) -> TaskRef | None:
 def _live_task_for_template(cfg: Config, template_name: str) -> TaskRef | None:
     """The template's single live (`active`/`in_progress`) recurring task.
 
-    Identity is the group-qualified slug `recurring/<name>`. That is what lets
+    Identity is the qualified slug `recurring/<name>`. That is what lets
     a stale leftover be found and resumed.
 
     Prefers an `in_progress` orphan (a dead sweep's frozen run, resumed from
@@ -720,7 +720,7 @@ def _live_task_for_template(cfg: Config, template_name: str) -> TaskRef | None:
     """
     live: TaskRef | None = None
     for ref in list_tasks(cfg):
-        if ref.group != "recurring" or ref.slug != template_name:
+        if ref.directory != "recurring" or ref.slug != template_name:
             continue
         status = read_ticket(ref).status
         if status == "in_progress":

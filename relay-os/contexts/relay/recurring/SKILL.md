@@ -89,7 +89,7 @@ task, which carries that rule.
 ## The creation contract
 
 - **Instantiated task ref** is `recurring/<name>`, backed by
-  `relay-os/tasks/recurring/<name>/`. The `recurring/` task group is the
+  `relay-os/tasks/recurring/<name>/`. The `recurring/` directory is the
   identity marker. The period is not in the slug.
 - **`last_serviced_period` in the template blackboard is the period
   high-water mark.** The period key buckets the firing: hourly →

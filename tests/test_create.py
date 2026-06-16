@@ -411,8 +411,8 @@ def test_create_grouped_slug_can_reuse_top_level_leaf(repo: Path) -> None:
     assert top["slug"] == "digest"
     assert grouped["slug"] == "recurring/digest"
     refs = {ref.id_slug: ref for ref in list_tasks(cfg)}
-    assert refs["digest"].group is None
-    assert refs["recurring/digest"].group == "recurring"
+    assert refs["digest"].directory is None
+    assert refs["recurring/digest"].directory == "recurring"
 
 
 def test_create_log_entry_written(repo: Path) -> None:
