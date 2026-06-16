@@ -45,8 +45,9 @@ replaces the long 5-step relay-setup interview: "shorten, don't delete" becomes
 
 ## Context
 
-- Entry mechanic (settled): `relay init` stays a pure scaffold and drops this
-  ticket as `active`, then points the user at `relay build` — the renamed
+- Entry mechanic (settled): `relay init` stays pure — it only creates the repo
+  files — and drops this ticket as `active`, then points the user at `relay
+  build` — the renamed
   `relay setup` command (see companion ticket), which captures the user's name
   and launches this ticket. Name capture stays in the command, so no prompt is
   added to `relay init`.

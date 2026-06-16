@@ -3,7 +3,7 @@
 ## 2026-06-16 — reframed as part of the relay-build onboarding epic
 
 This ticket started as "remove the `relay setup` command, keep `relay init`
-scaffolding the relay-setup interview." During the design step Zach reframed the
+creating the relay-setup interview." During the design step Zach reframed the
 whole onboarding direction into **`relay build`** — one scripted question ("what
 do you want to build?") + agent-led chat → spec → first batch of launchable
 tickets.
@@ -13,7 +13,7 @@ tickets.
 (`src/relay/config.py:216`), so the interview ticket can't capture its own name
 — nothing runs before launch except `relay init`. The clean answer is to
 **rename** `setup` → `build` rather than remove it: name capture stays in the
-command, and `relay init` stays a pure scaffold (no prompt). So the old design
+command, and `relay init` stays pure (creates the repo files, no prompt). So the old design
 exploration (move `_ensure_user` into init, isatty guard, init next-steps note)
 is moot.
 
