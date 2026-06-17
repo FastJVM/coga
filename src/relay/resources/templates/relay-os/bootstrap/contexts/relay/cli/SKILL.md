@@ -239,17 +239,20 @@ List every task in the repo — `draft`, `active`, `in_progress`, `paused`,
 and `done`. Bootstrap shims have no status and don't appear here. Pipe through
 `grep` for ad-hoc slicing of any column.
 
-An optional positional argument narrows the list to a directory under `tasks/`.
-Tasks are directories (a `ticket.md` directory at any depth), so the argument
-is just a directory path in the tree:
+An optional positional argument and the `--no-recurse` flag are two orthogonal
+axes — *which* directory, and *how deep*. Tasks are directories (a `ticket.md`
+directory at any depth), so the argument is just a directory path in the tree
+and there is no Relay-invented vocabulary to learn:
 
 - `relay status <dir>` — only tasks under `tasks/<dir>/`, nested ones
   included, so it reads like `ls -R <dir>`. The path can be nested
   (`relay status marketing` shows the whole sub-tree; `relay status
   marketing/social` narrows to that sub-directory).
-- `relay status root` — only tasks directly under `tasks/` (none in a
-  sub-directory). `root` is a reserved sentinel; a directory literally named
-  `root` would be shadowed by it.
+- `relay status --no-recurse` — only tasks sitting directly under `tasks/`
+  (none in a sub-directory), the way `ls` (without `-R`) lists one level.
+  This is the top-level slice.
+- `relay status <dir> --no-recurse` — combine the axes: only the tasks
+  directly in `tasks/<dir>/`, excluding deeper sub-directories.
 - An unknown directory fails loud, listing the directories that do exist,
   rather than printing a silently empty list. A *known* directory that
   currently holds no tasks is not an error — it prints `(no tasks in <dir>)`.
