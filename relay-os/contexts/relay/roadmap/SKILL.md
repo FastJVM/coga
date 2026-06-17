@@ -34,7 +34,7 @@ This context is **sequencing only**; the reasoning behind decisions lives in
 4. The single-file task-format rewrite is high-blast-radius; sequence it when
    the board is calm.
 
-## v1 — the launch cut (26 tickets)
+## v1 — the launch cut (28 tickets)
 
 ### In-flight (1)
 
@@ -68,7 +68,7 @@ A stranger must be able to install and run Relay out of the box.
   `fail-loud-when-an-env-indirected-secret-is-missing`). Expect it to split
   at the design step.
 
-### Recurring in cron (2)
+### Recurring in cron (4)
 
 - `wire-recurring-sweep-into-system-cron` [draft] — the recurring sweep
   (digest/dream/skill-update) only fires when a human runs `relay recurring`;
@@ -78,6 +78,14 @@ A stranger must be able to install and run Relay out of the box.
 - `enforce-mode-auto-for-recurring-templates` [draft] — no-TTY safety: under
   cron only `mode: auto`/`script` templates launch; an interactive template
   scaffolds but fails to launch. Pairs with the cron ticket.
+- `fix-recurring-templates-not-instantiated` [draft] — **verification gate**
+  (not an open bug): prove a due template reliably instantiates + launches its
+  period task under a no-TTY cron sweep, with failure modes tested. Underlying
+  fix believed merged in PR #357 (`57c01fa`); this confirms it for cron.
+- `fix-git-recurring-issues` [draft] — **verification gate**: prove the
+  high-water merge race (reversed `merge_last_serviced_period_text` args) is
+  fixed and regression-covered so a racing cron sweep can't resurrect a handled
+  period. Fix believed merged in PR #357 (`b82440a`).
 
 ### First-run correctness (4)
 
@@ -151,8 +159,9 @@ broad buckets (see `relay status` / the directory for the authoritative list):
 - **PM / planning features** — `acceptance-criteria`, `identify-blocking-issues`,
   `relay-design-repositories`, `issue-inbox-slack`, ticket-spec splitting,
   subprojects.
-- **Recurring bugfixes** — debug-surface, git issues, template instantiation,
-  Dream persistence, standalone-automerge retirement.
+- **Recurring bugfixes** — debug-surface, Dream persistence,
+  standalone-automerge retirement. (Template-instantiation and the git
+  high-water race were promoted to v1 as verification gates.)
 - **Security / secrets / PII** — `manage-security-and-pii`, per-skill secret
   scoping, a first-class machine-local config dir. (Several feed the v1
   `authentication-system` design; fail-loud-on-missing-secret was promoted to
