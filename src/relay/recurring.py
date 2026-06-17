@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from croniter import croniter
+from croniter import CroniterError, croniter
 
 from relay.create import create_task
 from relay.config import Config
@@ -20,8 +20,6 @@ from relay.tasks import TaskRef, list_tasks, read_ticket
 
 
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
-
-
 class RecurringError(Exception):
     pass
 
@@ -41,7 +39,7 @@ class Template:
     body: str
 
     @classmethod
-    def load(cls, path: Path) -> "Template":
+    def load(cls, path: Path, *, now: datetime | None = None) -> "Template":
         ticket = path / "ticket.md"
         if not ticket.is_file():
             raise RecurringError("missing ticket.md")
@@ -53,6 +51,7 @@ class Template:
             raise RecurringError("frontmatter must be a mapping")
         if "schedule" not in fm:
             raise RecurringError("`schedule` is required")
+        _validate_schedule(fm["schedule"], now or datetime.now())
         if "state_keys" in fm:
             state_keys = fm["state_keys"]
             if not isinstance(state_keys, list) or not all(
@@ -233,7 +232,7 @@ def scan_due(
                 errors.append((path.name, msg))
             continue
         try:
-            template = Template.load(path)
+            template = Template.load(path, now=now)
         except RecurringError as exc:
             sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
             errors.append((path.name, str(exc)))
@@ -307,7 +306,7 @@ def create_named(
     path = recurring_dir(cfg) / name
     if not path.is_dir():
         raise RecurringError(f"no recurring task `recurring/{name}/`")
-    template = Template.load(path)
+    template = Template.load(path, now=now)
     return create_template(cfg, template, now)
 
 
@@ -415,7 +414,7 @@ def scan_debug(
         if not path.is_dir():
             continue
         try:
-            template = Template.load(path)
+            template = Template.load(path, now=now)
             outcome = create_debug_run(
                 cfg, template, now, allow_interactive=allow_interactive
             )
@@ -486,7 +485,7 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
         if path.name.startswith("_") or not path.is_dir():
             continue
         try:
-            template = Template.load(path)
+            template = Template.load(path, now=now)
         except RecurringError as exc:
             out.append(
                 TemplateStatus(
@@ -663,6 +662,17 @@ def _record_run(
 def _last_firing(cron: str, now: datetime) -> datetime:
     it = croniter(cron, now)
     return it.get_prev(datetime)
+
+
+def _validate_schedule(schedule: Any, now: datetime) -> None:
+    if not isinstance(schedule, str) or not schedule.strip():
+        raise RecurringError("`schedule` must be a non-empty cron expression")
+    try:
+        croniter(schedule, now).get_prev(datetime)
+    except CroniterError as exc:
+        raise RecurringError(
+            f"`schedule` is not a valid cron expression: {exc}"
+        ) from exc
 
 
 def _next_firing(cron: str, now: datetime) -> datetime:
