@@ -101,7 +101,8 @@ replaces the long 5-step relay-setup interview: "shorten, don't delete" becomes
   supports (build + "decide/evaluate X" tickets), never padding to a number nor
   truncating real work (usually a handful). **No ordering, grouping, or
   recommendation** — which ticket to run first is the human's call, with context
-  the agent lacks; don't rank, bucket, or suggest a starting point. End in-chat
+  the agent lacks; present one flat list — don't rank, don't bucket (not even
+  "build" vs "decision"), don't suggest a starting point. End in-chat
   (no separate approval step): present a flat list (slug + one-line each, neutral
   order), get the human's approval, then hand over the generic launch command —
   e.g. "Here's your starter batch — launch any one with `relay launch
