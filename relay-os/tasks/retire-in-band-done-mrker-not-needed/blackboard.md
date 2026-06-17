@@ -4,6 +4,14 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 - branch: retire-done-marker
 - worktree: /home/n/Code/claude/relay-retire-done-marker
+- pr: https://github.com/FastJVM/relay/pull/377
+
+### PR opened (claude, 2026-06-16, open-pr step)
+
+Pushed `retire-done-marker` and opened PR #377. `gh pr checks 377` reports
+no checks configured on this repo, so there is no CI gate to wait on —
+verification rests on the local suite (750 passed, 1 skipped) and the codex
+peer review recorded below.
 
 ### Recovery note (claude, 2026-06-16, relaunch)
 
@@ -42,6 +50,23 @@ Removing the in-band PTY byte-match channel entirely:
   `test_emit_done_marker_prints_only_if_file_write_fails`; converted
   marker-leak assertions in `test_done_marker_emission.py` to
   sentinel-presence/absence assertions.
+
+### Peer review (codex)
+
+Ran `codex review --base main` from `/home/n/Code/claude/relay-retire-done-marker`.
+The sandboxed attempt hit the known app-server read-only-filesystem failure, so
+it was rerun outside the sandbox. Codex review found no actionable regressions.
+
+Verification:
+
+- `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest -q -p no:cacheprovider`
+  from the feature worktree: **750 passed, 1 skipped**.
+- `git diff --check main...HEAD`: clean.
+- Targeted `rg` for in-scope `DONE_MARKER`, defusal, PTY byte-match, and
+  literal marker references under `src`, `tests`, and the live architecture
+  context: no matches.
+
+No peer-review fix commit was needed.
 
 ## Bootstrap notes (nick + claude, 2026-06-16)
 
