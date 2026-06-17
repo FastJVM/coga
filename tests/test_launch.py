@@ -466,6 +466,86 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert "launched in interactive mode" in log
 
 
+def test_launch_fails_loud_on_unset_declared_secret(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+    _write(
+        active_task / "relay.local.toml",
+        """
+        user = "marc"
+        [secrets]
+        stripe_key = "env:STRIPE_SECRET_KEY"
+        """,
+    )
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    t = Ticket.read(ref.path / "ticket.md")
+    t.frontmatter["secrets"] = ["stripe_key"]
+    t.write(ref.path / "ticket.md")
+
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        "relay.commands.launch.subprocess.run",
+        lambda cmd, env=None, check=False: calls.append(cmd),
+    )
+    monkeypatch.setattr(
+        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code != 0
+    combined = result.output + (result.stderr or "")
+    assert "stripe_key" in combined and "STRIPE_SECRET_KEY" in combined
+    # Fail-loud: no agent process was ever spawned.
+    assert calls == []
+
+
+def test_launch_injects_only_declared_secret(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live")
+    monkeypatch.setenv("OTHER_SECRET", "nope")
+    _write(
+        active_task / "relay.local.toml",
+        """
+        user = "marc"
+        [secrets]
+        stripe_key = "env:STRIPE_SECRET_KEY"
+        other = "env:OTHER_SECRET"
+        """,
+    )
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    t = Ticket.read(ref.path / "ticket.md")
+    t.frontmatter["secrets"] = ["stripe_key"]
+    t.write(ref.path / "ticket.md")
+
+    captured: dict[str, str] = {}
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        captured.update(env or {})
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+    # Only the declared secret was injected; the undeclared one is withheld.
+    assert captured.get("stripe_key") == "sk_live"
+    assert "other" not in captured
+
+
 def test_direct_launch_timeout_exits_non_zero(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -14,7 +14,7 @@ from relay.bump import (
     advance_step,
     resolve_step_assignee,
 )
-from relay.config import Config
+from relay.config import Config, SecretError, select_launch_secrets
 from relay.logfile import append_log
 from relay.mark import mark_done, mark_in_progress
 from relay.paths import resolve_skill_path, skill_resolution_paths
@@ -127,8 +127,14 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         except TaskValidationError as exc:
             _bail(str(exc))
 
+    # Same secret chokepoint as agent-mode `relay launch`: script-mode tasks
+    # still receive their secrets here (folded in, not dropped), scoped to the
+    # ticket's `secrets:` declaration and failing loud on an unset env var.
     env = os.environ.copy()
-    env.update(cfg.secrets)
+    try:
+        env.update(select_launch_secrets(cfg, ticket.secrets))
+    except SecretError as exc:
+        _bail(str(exc))
     env.update(build_script_env(cfg, ref, skill))
     cwd = script_repo_root(cfg)
 

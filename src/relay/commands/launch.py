@@ -33,7 +33,13 @@ from relay.compose import (
     compose_prompt_report,
     write_prompt_file,
 )
-from relay.config import Config, ConfigError, load_config
+from relay.config import (
+    Config,
+    ConfigError,
+    SecretError,
+    load_config,
+    select_launch_secrets,
+)
 from relay.logfile import append_log
 from relay.mark import (
     RequiredExtensionMissing,
@@ -320,9 +326,15 @@ def launch(
         except TaskValidationError as exc:
             _bail(str(exc))
 
-    # Inject secrets as env vars.
+    # Inject secrets as env vars, scoped to what the ticket declares. This is
+    # the only place `relay launch` (agent mode) hands secrets to the spawned
+    # process; a ticket's declared secret that resolves to an unset env var
+    # fails loud here, before any agent starts.
     env = os.environ.copy()
-    env.update(cfg.secrets)
+    try:
+        env.update(select_launch_secrets(cfg, ticket.secrets))
+    except SecretError as exc:
+        _bail(str(exc))
 
     # Interactive launches chain across consecutive agent-owned steps the
     # same way auto mode does. After the agent exits (via autoquit on

@@ -56,10 +56,10 @@ def delete(
     if not script_path.is_file():
         _bail(f"Delete skill script not found: {script_path}")
 
-    # Run the skill's script directly with the same env contract a
-    # `mode: script` launch injects, pointed at the resolved target task.
+    # Run the skill's script directly with the `RELAY_*` env contract, pointed
+    # at the resolved target task. No secrets: deleting a task directory needs
+    # none, and secrets flow through the `relay launch` chokepoint only.
     env = os.environ.copy()
-    env.update(cfg.secrets)
     env.update(build_script_env(cfg, ref, skill))
 
     result = subprocess.run(

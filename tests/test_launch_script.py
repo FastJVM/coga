@@ -11,6 +11,7 @@ from relay.cli import app
 from relay.create import create_task
 from relay.config import load_config
 from relay.tasks import list_tasks
+from relay.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -108,6 +109,54 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     log = (ref.path / "log.md").read_text()
     assert "launched in script mode" in log
     assert "script exited with code 0" in log
+
+
+def _set_ticket_secrets(ref, value) -> None:
+    t = Ticket.read(ref.path / "ticket.md")
+    t.frontmatter["secrets"] = value
+    t.write(ref.path / "ticket.md")
+
+
+def test_script_mode_fails_loud_on_unset_declared_secret(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("TEST_TOKEN", raising=False)
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], mode="script", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    _set_ticket_secrets(ref, ["token"])
+
+    result = CliRunner().invoke(app, ["launch", "check"])
+    assert result.exit_code != 0
+    combined = result.output + (result.stderr or "")
+    assert "token" in combined and "TEST_TOKEN" in combined
+    # Fail-loud means the script never ran.
+    assert not (cfg.repo_root.parent / "script-output.txt").exists()
+
+
+def test_script_mode_least_privilege_empty_list_injects_nothing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TEST_TOKEN", "secret-abc")
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Check", workflow_name="ops",
+        contexts=[], mode="script", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    _set_ticket_secrets(ref, [])
+
+    result = CliRunner().invoke(app, ["launch", "check"])
+    assert result.exit_code == 0, result.output
+    output = (cfg.repo_root.parent / "script-output.txt").read_text()
+    # `secrets: []` is a strict lockdown — the token is withheld even though
+    # TEST_TOKEN is set in the environment.
+    assert "token=\n" in output
 
 
 def test_script_mode_rejects_agent_override(repo: Path) -> None:
