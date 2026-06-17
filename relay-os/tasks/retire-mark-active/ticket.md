@@ -1,6 +1,6 @@
 ---
 title: Retire relay mark active before launch
-status: draft
+status: active
 mode: interactive
 owner: zach
 human: zach
@@ -8,7 +8,24 @@ agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
+step: 1 (implement)
 ---
 
 ## Description
