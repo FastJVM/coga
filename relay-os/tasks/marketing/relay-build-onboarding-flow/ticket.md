@@ -54,6 +54,15 @@ replaces the long 5-step relay-setup interview: "shorten, don't delete" becomes
 - Empty-repo-only (owner decision 2026-06-17): the onboarding supports empty
   repos only and the **scan step is removed**. Shape: ask → agent-led chat →
   spec (with in-chat sign-off) → generate ticket batch.
+- Intake budget (owner decision 2026-06-17): one scripted question + at most 2
+  follow-ups, and the follow-ups target only *shape-defining* unknowns (what /
+  scope — CLI vs web app, is-X-in-scope-for-v1). Detail/decision unknowns (which
+  library, which provider, exact formula) are NOT chased in intake — they become
+  ticket candidates (usually "decide/evaluate X" tickets), which the agent names
+  at spec sign-off so the deferral is visible and the user can pull a genuinely
+  shape-defining one back into the chat. Why: first-run value is fast launchable
+  tickets + flow, not an exhaustive interview, and sign-off backstops the short
+  intake. Keep open-question tickets a subset of the ~5, not the whole batch.
 - Empty/filled gate lives in `relay init`, checked **before it writes any
   files**: a repo is *empty* if it holds nothing but `.git/`, `.DS_Store`, and
   relay's own files — **any** other file makes it *filled*. Empty → seed this
