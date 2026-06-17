@@ -517,7 +517,15 @@ def launch(
                 )
                 break
 
-            if is_bootstrap or ticket.skills:
+            # Bootstrap shims are stateless single-shot launches — they have no
+            # workflow to chain across, so stop after the one run. A normal
+            # workflow ticket that happens to declare ticket-level `skills:`
+            # MUST still chain; gating on `ticket.skills` here (a rename
+            # artifact of the old singular skill-shim field) silently broke that.
+            if is_bootstrap:
+                typer.echo(
+                    f"Launch: {ref.id_slug} is a bootstrap shim — not chaining"
+                )
                 break
 
             typer.echo("Launch: reading task state after agent exit")
