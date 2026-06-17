@@ -62,7 +62,7 @@ replaces the long 5-step relay-setup interview: "shorten, don't delete" becomes
   at spec sign-off so the deferral is visible and the user can pull a genuinely
   shape-defining one back into the chat. Why: first-run value is fast launchable
   tickets + flow, not an exhaustive interview, and sign-off backstops the short
-  intake. Keep open-question tickets a subset of the ~5, not the whole batch.
+  intake. Keep open-question (decision) tickets a subset of the batch, not the bulk of it.
 - Empty/filled gate lives in `relay init`, checked **before it writes any
   files**: a repo is *empty* if it holds nothing but `.git/`, `.DS_Store`, and
   relay's own files — **any** other file makes it *filled*. Empty → seed this
@@ -92,13 +92,19 @@ replaces the long 5-step relay-setup interview: "shorten, don't delete" becomes
   rides the `relay ticket` creation primitive (see
   `marketing/relay-ticket-creates`). The spec/vision doc is the durable context
   the batch is generated from.
-- Batch ending (owner decision 2026-06-16, supersedes validate finding #4's
-  "one launchable anchor"; batch size ~5 still stands): create the batch as
-  **drafts** with **no pre-chosen anchor** — which to launch first is the
-  human's call, not the agent's. End in-chat (no separate approval workflow
-  step — same reasoning as the spec sign-off collapse): present a numbered
-  "next steps" list, get the human's approval, then hand over the
-  `relay launch <slug>` command for whichever they pick.
+- Batch ending (owner decisions 2026-06-16 / 2026-06-17, supersedes validate
+  finding #4's "one launchable anchor" and its "~5" size): create the batch as
+  **drafts** with **no pre-chosen anchor** — which to launch first is the human's
+  call. **No count cap** — generate as many tickets as the spec genuinely
+  supports (build + "decide/evaluate X" tickets), never padding to a number nor
+  truncating real work (usually a handful, occasionally more). Tame overwhelm by
+  **grouping the batch by theme/area, NOT ranking launch priority**: grouping is
+  low-judgment categorization the agent is reliable at; first-launch priority is
+  the human's call (the same reason the anchor was dropped). Note an obvious hard
+  dependency inline ("needs the data layer") but don't impose a launch sequence.
+  End in-chat (no separate approval step): present the grouped "next steps" list,
+  get the human's approval, then hand over the `relay launch <slug>` command for
+  whichever they pick.
 - Parent: `marketing/onboarding-plan` (this realizes its "fast to launchable
   work" goal and updates its "no interview" stance to "one scripted question +
   agent-led chat"). Companion: `marketing/remove-relay-setup-command` (the
