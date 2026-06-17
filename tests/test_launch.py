@@ -865,6 +865,83 @@ def test_launch_interactive_chains_consecutive_agent_steps(
     assert ticket.step == "3 (review)"
 
 
+def test_launch_chains_when_ticket_has_ticket_level_skills(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ticket-level `skills:` list must not stop the supervised chain.
+
+    Regression: the loop used to break on `is_bootstrap or ticket.skills`,
+    a rename artifact of the old singular skill-shim field. That silently
+    stopped any normal workflow ticket carrying ticket-level skills from
+    chaining to its next agent step. Only bootstrap shims should stop here.
+    """
+    _write(
+        active_task / "workflows" / "chain.md",
+        """
+        ---
+        name: chain
+        description: Agent chain.
+        steps:
+          - name: implement
+            skills:
+              - code/implement
+            assignee: agent
+          - name: self-review
+            skills:
+              - code/self-review
+            assignee: agent
+          - name: review
+            assignee: human
+        ---
+        """,
+    )
+    _write_skill(active_task, "code/implement", "Implement the change.")
+    _write_skill(active_task, "code/self-review", "Review your own change.")
+
+    cfg = load_config(active_task)
+    ref = create_task(
+        cfg=cfg,
+        title="Chain work",
+        workflow_name="chain",
+        contexts=[],
+        mode="interactive",
+        owner="marc",
+        human="marc",
+        agent="claude",
+        assignee="claude",
+        watchers=[],
+        status="active",
+        skills=["code/implement"],  # ticket-level skills — must not block chaining
+    )
+    slug = str(ref["slug"])
+
+    from relay.ticket import Ticket
+    assert Ticket.read(Path(ref["path"]) / "ticket.md").skills == ["code/implement"]
+
+    calls: list[list[str]] = []
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        result = CliRunner().invoke(app, ["bump", slug])
+        assert result.exit_code == 0, result.output
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 0, result.output
+    # Step 1 (agent) chains to step 2 (agent); stops at step 3 (human).
+    assert len(calls) == 2
+    assert Ticket.read(Path(ref["path"]) / "ticket.md").step == "3 (review)"
+
+
 def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
