@@ -4,6 +4,13 @@
 
 - branch: `retire-mark-active-docs`
 - worktree: `/home/n/Code/codex/relay-retire-mark-active`
+- pr: https://github.com/FastJVM/relay/pull/380
+
+## open-pr step (2026-06-17)
+
+Pushed `retire-mark-active-docs` and opened PR #380. No CI checks are configured
+on this repo (`gh pr checks 380` → "no checks reported"), so there is no green
+gate to wait on. Working tree was clean; two commits ahead of main.
 
 ## Implement step (2026-06-16)
 
@@ -45,6 +52,36 @@ inline-auto-activation descriptions).
 - Source comments in `create.py`, `launch.py`, `mark.py`, `config.py`,
   `ticket.py`, `validate.py` and tests: factual descriptions of `mark active`
   semantics / current inline behavior; out of the docs-cleanup scope.
+
+## Peer review (2026-06-17)
+
+Native review:
+- Ran `codex review --base main` from `/home/n/Code/codex/relay-retire-mark-active`.
+- First sandboxed attempt failed with the known Codex app-server
+  `Read-only file system` initialization error; reran outside the sandbox.
+- Finding: packaged bootstrap guides still taught `relay mark active <slug>` →
+  `relay launch <slug>` in
+  `src/relay/resources/templates/relay-os/bootstrap/contexts/relay/cli/SKILL.md`
+  and
+  `src/relay/resources/templates/relay-os/bootstrap/skills/bootstrap/ticket/SKILL.md`.
+
+Applied fix:
+- Reworded the packaged bootstrap CLI reference so the draft/ticket boot path
+  goes directly to `relay launch <slug>`, with `relay mark active <slug>`
+  reserved for approving/queueing without launching.
+- Reworded the bootstrap ticket-authoring skill so its handoff says to run
+  `relay launch <slug>` when ready, and only use `relay mark active <slug>` to
+  approve without launching.
+
+Verification:
+- `rg` check over docs/templates/source/tests found no remaining
+  prerequisite-style `mark active` → `launch` guidance in the patched bootstrap
+  guides; remaining hits are factual command docs, source comments, tests, or
+  historical task text.
+- `git diff --check` passed.
+- `python -m pytest` passed: 754 passed, 1 skipped. Pytest emitted one cache
+  write warning because the sandbox could not write `.pytest_cache`; tests were
+  otherwise clean.
 
 ## Bootstrap notes (2026-06-16, interactive with zach)
 
