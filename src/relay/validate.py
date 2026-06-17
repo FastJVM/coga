@@ -48,6 +48,7 @@ from relay.paths import (
     resolve_skill_path,
     skill_resolution_paths,
 )
+from relay.slack_response import classify_slack_response
 from relay.tasks import (
     DuplicateTaskSlugError,
     TaskNotFoundError,
@@ -862,12 +863,7 @@ def probe_slack(webhook_url: str) -> tuple[str, str]:
     except requests.RequestException as exc:
         return "unreachable", f"{type(exc).__name__}: {exc}"
 
-    body = resp.text.strip()[:200]
-    if resp.status_code == 404 or "no_service" in body:
-        return "revoked", f"HTTP {resp.status_code}: {body!r}"
-    if 200 <= resp.status_code < 500:
-        return "live", f"HTTP {resp.status_code}: {body!r}"
-    return "unreachable", f"HTTP {resp.status_code}: {body!r}"
+    return classify_slack_response(resp.status_code, resp.text)
 
 
 # --- CLI entry ----------------------------------------------------------------
