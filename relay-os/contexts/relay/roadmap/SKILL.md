@@ -1,140 +1,167 @@
 ---
 name: relay/roadmap
-description: The sequenced execution plan for relay — what to build next, grouped into dependency-ordered waves, with the critical path called out. Read this to know where a ticket sits and what gates it. Sequencing only; for the "why" behind decisions see relay/current-direction.
+description: The sequenced execution plan for relay — the v1 launch milestone and everything deferred to v2, with the critical path called out. Read this to know whether a ticket is in the v1 cut or deferred, and what gates it. Sequencing only; for the "why" behind decisions see relay/current-direction.
 ---
 
 # Relay — roadmap
 
 Last updated: 2026-06-16.
 
-This is the **execution order**, not the full backlog. Tickets are grouped into
-dependency-ordered waves; within a wave, order is roughly by leverage. A
-ticket's slug is given so you can `relay show <slug>`. Status tags
-(`[in_progress]`, `[active]`, `[new]`) reflect the last update — verify with
-`relay status` before acting.
+The backlog is split into two milestones plus one orthogonal track:
 
-This context is **sequencing only**. The reasoning behind individual decisions
-lives in `relay/current-direction`; the principles a change must respect live
-in `relay/principles`.
+- **v1** — the launch cut: a stranger can install Relay, run the core loop,
+  trust the first run, and let it work unattended. The 24 tickets below.
+- **v2** — everything else. Physically parked under `relay-os/tasks/v2/`, so a
+  v2 ticket's ref is `v2/<slug>`. Not scheduled against the launch; pulled up
+  into v1 only by explicit decision.
+- **marketing/** — orthogonal. The `marketing/*` tickets (launch comms, Discord,
+  uninstall, onboarding, demos…) run on their own axis and are **not** part of
+  the v1/v2 engineering split. They are neither listed here nor parked in v2.
+
+Status tags reflect the last update — verify with `relay status` before acting.
+This context is **sequencing only**; the reasoning behind decisions lives in
+`relay/current-direction`, and the principles a change must respect live in
+`relay/principles`.
 
 ## Critical path (the short version)
 
-1. Finish the in-flight work (Wave 0) so the board is legible — nearly cleared;
-   only `wire-autonomy-triage-into-impl-ready-workflows` and the dedup pass
-   remain.
-2. Ship installability (Wave 1) — a stranger still can't `pipx install` Relay;
-   that gates the launch.
+1. Land the in-flight autonomy-triage work so the board is legible.
+2. Ship installability — a stranger still can't `pipx install` Relay; that gates
+   the launch.
 3. `auto/stream-agent-progress` is the **single highest-leverage unlock** — it
-   re-enables `mode: auto` and thereby the entire nightly-drain vision (Wave 2).
-4. The single-file format rewrite (Wave 3) is high-blast-radius — do it when the
-   board is calm, after Wave 0's file-model work settles.
+   re-enables `mode: auto` and thereby the entire unattended-drain vision. The
+   whole autonomy chain in v1 sits behind it.
+4. The single-file task-format rewrite is high-blast-radius; sequence it when
+   the board is calm.
 
-## Wave 0 — Finish in-flight + clear the board
+## v1 — the launch cut (24 tickets)
 
-Land what's already moving before opening new fronts. Mostly cleared — three of
-the original in-flight tickets have merged; two items remain.
+### In-flight (1)
 
-Done since last update:
+- `wire-autonomy-triage-into-impl-ready-workflows` [active] — autonomy tiers +
+  authoring-time classification; the last in-flight straggler.
 
-- `collapse-recurring-period-tasks-to-one-dir-per-tem` [done] — one dir per
-  template under `tasks/recurring/`, period in the blackboard.
-- `resolve-missing-workflow-validator-vs-concept-capt` [done] — validator
-  coherence (surfaced as a Dream gap).
-- `session-done-sentinel-leaks-and-agent-stops-respon` [done] — teardown bug
-  that broke unattended runs.
+### Installability — the launch gate (7)
 
-Still open:
+A stranger must be able to install and run Relay out of the box.
 
-- `wire-autonomy-triage-into-impl-ready-workflows` [in_progress] — autonomy
-  tiers + authoring-time classification (the `automation-triage` and
-  `cli-document` tickets have been folded in / retired).
-- **Dedup pass** — `dedup-duplicate-draft-tickets` [draft] — consolidate
-  duplicate drafts so the board is legible before planning later waves. Run it
-  deliberately; it is destructive (`relay delete`) and propose-then-confirm.
+- `relay-forces-https` [active] + `remote-default-origin` [active] — respect SSH
+  users and non-`origin` remotes.
+- `relay-cli-shipping` [active] — `relay init` must ship `workflows/` +
+  `skills/code`, plus the recurring templates, or a fresh repo can't run the
+  core process.
+- `one-line-install` [active] — the `pipx install` story.
+- `register-a-real-domain-for-relay` [draft] — a real domain for the install
+  one-liner and README links; blocks final launch copy.
+- `improve-readme-and-doc` [draft] — a README a stranger can land on and run
+  from.
+- `anonymous-install-telemetry-opt-out-no-pii` [draft] — opt-out, no-PII install
+  count so we can tell if launch landed. Carries a principle tension (phones
+  home); see the ticket.
 
-## Wave 1 — Make Relay installable by outsiders (the launch gate)
+### Auth (1)
 
-Everything here blocks "a stranger can install and run it." Repo-public is the
-keystone for the marketing/install half.
+- `authentication-system` [draft] — design-first umbrella over four scopes:
+  telemetry/install identity, hosted-backend account+token, git/GitHub
+  credential handling, and per-skill secrets (the last folds in the v2 tickets
+  `v2/pass-secrets-to-skills-with-per-skill-scope` +
+  `v2/fail-loud-when-an-env-indirected-secret-is-missing`). Expect it to split
+  at the design step.
 
-1. `relay-forces-https` [active] + `remote-default-origin` [active] — respect
-   SSH users and non-`origin` remotes; real users have varied git setups.
-2. `relay-cli-shipping` [active] — `relay init` must ship `workflows/` +
-   `skills/code`, or a fresh repo can't run the core process out of the box.
-3. `one-line-install` [active] — the `pipx install` story.
-4. `marketing/relay-uninstall` [active] — easy removal lowers the trial barrier.
-5. `register-a-real-domain-for-relay` [draft] — a real domain for the install
-   one-liner, README links, and a minimal landing page. Blocks consistent
-   launch copy (everything below needs a final URL).
-6. `improve-readme-and-doc` [draft] — a real README a stranger can land on and
-   run from. Pulled into Wave 1: it's part of the install/launch surface.
-7. `anonymous-install-telemetry-opt-out-no-pii` [draft] — opt-out, no-PII active
-   install count so we can tell if launch landed. Carries a principle tension
-   (phones home → hosted backend); mitigated by opt-out disclosure + documented
-   payload + trivial disable. See the ticket.
-8. `marketing/relay-discord` [active] → make the repo public (prerequisite) →
-   `marketing/launch-relay-product-launch-comms` [active].
+### Recurring in cron (2)
 
-## Wave 2 — Autonomy + token-utilization track
+- `wire-recurring-sweep-into-system-cron` [draft] — the recurring sweep
+  (digest/dream/skill-update) only fires when a human runs `relay recurring`;
+  `scripts/cron.sh` ships but nothing installs it into a scheduler. Give a fresh
+  install a documented one-step way to turn the sweep on. Scheduling only — the
+  budget-aware drain loop is a separate v1 ticket (below).
+- `enforce-mode-auto-for-recurring-templates` [draft] — no-TTY safety: under
+  cron only `mode: auto`/`script` templates launch; an interactive template
+  scaffolds but fails to launch. Pairs with the cron ticket.
 
-Strict dependency chain; build bottom-up. This is the big new bet: use spare
-overnight token budget to run flagged-ready tickets unattended.
+### First-run correctness (3)
+
+Bugs a stranger hits on day one — in scope precisely because of the v1 promise.
+
+- `first-run-works-without-slack-configured` [draft] — a fresh install with no
+  Slack still works.
+- `fail-loud-on-unrecognized-config-sections-instead` [draft] — config errors
+  fail loud, not silently.
+- `slack-post-ignores-http-response-so-bad-webhook-fa` [draft] — a bad webhook
+  fails loud instead of silently swallowing the error.
+
+### Flow simplification (1)
+
+- `implicit-activation-inrpogress` [draft] — drop the explicit "mark active"
+  step: launching a ticket activates it. draft → (running) → done. Scope is the
+  activation step only; auto-advancing workflow bumps is deferred
+  (`v2/why-ai-asks-me-to-bump-instead-of-doing-it`).
+
+### Single-file task format (1)
+
+- `single-file-task-format-section-aware-compose-filt` [draft] — merge the
+  three-file task layout into one file + a section-aware compose filter so only
+  working sections load. High blast radius; sequence when the board is calm.
+  Pulled into v1 by owner decision (operator-ergonomics win). Likely splits at
+  design: format+migration → compose filter → writer migration → docs rewrite.
+
+### Prompt quality (2)
+
+- `improve-prompt-for-relay-launch` [draft] + `improve-prompt-for-relay-ticket`
+  [draft] — tighten the launch/ticket-authoring prompts.
+
+### Autonomy chain (6)
+
+The big bet: use spare overnight token budget to run flagged-ready tickets
+unattended. Strict dependency chain; `auto/stream-agent-progress` is the hard
+blocker, so this lands late in v1.
 
 1. `track-usage-of-llm` [active] — foundational per-session usage primitive;
    everything below consumes it.
-2. `represent-autonomy-tier-in-ticket-mode-field` [draft] — the "ready for
-   execution" flag; consumes the wire-autonomy-triage work from Wave 0.
-3. `auto/stream-agent-progress-in-auto-mode-and-recurring-l` — **hard blocker**;
-   re-enables `mode: auto` (currently disabled because it buffers stdout).
-4. `async-park-and-continue-on-block` [new] — a blocked ticket parks cleanly and
-   the sweep keeps going instead of stalling the night.
-5. `drain-pending-auto-tickets-with-leftover-session-b` — the budget-aware drain
-   loop.
-6. `nightly-auto-drain-run-for-ready-tickets` [new] — assembles 1–5 into the
-   scheduled overnight run (wires `relay-os/scripts/cron.sh`; Relay does not
-   manage cron itself).
-7. Payoffs: `autoroute-agent-based-on-remaining-usage`, `model-selector`.
+2. `represent-autonomy-tier-in-ticket-mode-field` [draft] — the
+   "ready for unattended execution" flag; consumes the autonomy-triage work.
+3. `auto/stream-agent-progress-in-auto-mode-and-recurring-l` [draft] — **hard
+   blocker**; re-enables `mode: auto` (currently disabled — it buffers stdout).
+4. `async-park-and-continue-on-block` [draft] — a blocked ticket parks cleanly
+   and the sweep keeps going instead of stalling.
+5. `drain-pending-auto-tickets-with-leftover-session-b` [draft] — the
+   budget-aware drain loop.
+6. `nightly-auto-drain-run-for-ready-tickets` [draft] — assembles 1–5 into the
+   scheduled overnight run (wires `relay-os/scripts/cron.sh`, pairing with the
+   recurring-in-cron ticket; Relay does not manage cron itself).
 
-## Wave 3 — Single-file task format (high blast radius)
+## v2 — deferred backlog
 
-- `single-file-task-format-section-aware-compose-filt` [new] — merge the
-  three-file task layout into one file + a section-aware compose filter so only
-  working sections load (audit history excluded). Sequence **after** Wave 0's
-  recurring/validator work, since it rewrites the same file-model. Design step
-  first; likely splits into format+migration → compose filter → writer
-  migration → docs rewrite.
+Everything under `relay-os/tasks/v2/`. Not scheduled against the launch. The
+broad buckets (see `relay status` / the directory for the authoritative list):
 
-## Wave 4 — PM / planning features (product depth)
-
-- `relay-design-repositories` [active] — interview → ordered draft tickets
-  (seeds from a vision doc too). (Was `relay-project-command`.)
-- `acceptance-criteria` [active] + `identify-blocking-issues` [active] —
-  definition-of-done + cross-ticket dependencies.
-- `issue-inbox-slack` [active] — actionable Slack inbox; pairs with
-  `async-park-and-continue-on-block`.
-
-## Wave 5 — Robustness & hygiene (mostly polish, lower urgency)
-
-The dedup half moved up into Wave 0. What remains is genuine polish:
-
-- `validate-tickets-on-hand-edit-gap-outside-relay-co` — close the gap where
-  direct hand-edits to `ticket.md` aren't validated (relay commands already are).
-  Design-first: command-time gate vs opt-in pre-commit hook.
-- Security / PII / per-skill secrets (`manage-security-and-pii`,
-  `pass-secrets-to-skills-with-per-skill-scope`,
-  `fail-loud-when-an-env-indirected-secret-is-missing`).
-- Container/VM isolation (`launch-tasks-in-container-or-vm`).
-- The `document-*` knowledge-base batch — do this **after** Wave 3, or you will
-  clean up docs you are about to rewrite.
-
-Dev-loop git hygiene (`use-worktree-when-starting-a-dev-task`,
-`clean-uncommitted-work`, branch cleanup) is a dogfooding investment that can be
-pulled forward to run alongside Wave 1 — it speeds every later ticket because we
-build Relay with Relay.
+- **Docs / knowledge-base** — the `document-*` batch, context-splitting and
+  file-access cleanups, the `rules.md` audit. Do these after the single-file
+  format rewrite or you will clean up docs you are about to rewrite.
+- **PM / planning features** — `acceptance-criteria`, `identify-blocking-issues`,
+  `relay-design-repositories`, `issue-inbox-slack`, ticket-spec splitting,
+  subprojects.
+- **Recurring bugfixes** — debug-surface, git issues, template instantiation,
+  Dream persistence, standalone-automerge retirement.
+- **Security / secrets / PII** — `manage-security-and-pii`, per-skill secret
+  scoping, fail-loud-on-missing-secret, a first-class machine-local config dir.
+  (Several feed the v1 `authentication-system` design.)
+- **Compose / validation** — frontmatter stripping, prompt token budget,
+  symlink-view exclusion, SKILL.md and hand-edit validation.
+- **Git hygiene / dev-loop** — sync-with-main lift, uncommitted-work cleanup,
+  worktree-per-task. A dogfooding investment that can be pulled forward to run
+  alongside v1 since we build Relay with Relay.
+- **Autonomy payoffs** — `autoroute-agent-based-on-remaining-usage`,
+  `model-selector` (genuinely post-v1).
+- **Robustness / isolation** — file locking, container/VM isolation, timestamp
+  precision.
+- **Skills, prompts, naming, CI** — skill search, sibling-split discipline,
+  `minimal-ci-run-pytest-on-prs-and-tags`, the workflow→playbook rename, and the
+  rest.
 
 ## What this context does NOT cover
 
 - The reasoning behind decisions / what was deferred and why — see
   `relay/current-direction`.
 - The principles a change must not violate — see `relay/principles`.
-- The full backlog — see `relay status`.
+- The full backlog — see `relay status` (and `relay-os/tasks/v2/` for v2).
