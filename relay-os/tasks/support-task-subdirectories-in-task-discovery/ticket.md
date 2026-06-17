@@ -1,6 +1,6 @@
 ---
 title: Support task subdirectories in task discovery
-status: done
+status: active
 mode: interactive
 owner: nick
 human: nick
@@ -26,6 +26,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
+step: 1 (implement)
 ---
 
 ## Description

@@ -20,3 +20,4 @@ relay-os/recurring/digest/blackboard.md: unmerged (11cecae3822426ed153ec452c5553
 Cannot save the current index state
 fatal: Cannot autostash
 relay-os/recurring/digest/blackboard.md: needs merge
+2026-06-17 15:31 [human:nick] activated (done → active) — auto on launch
