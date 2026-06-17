@@ -72,6 +72,13 @@ replaces the long 5-step relay-setup interview: "shorten, don't delete" becomes
   rides the `relay ticket` creation primitive (see
   `marketing/relay-ticket-creates`). The spec/vision doc is the durable context
   the batch is generated from.
+- Batch ending (owner decision 2026-06-16, supersedes validate finding #4's
+  "one launchable anchor"; batch size ~5 still stands): create the batch as
+  **drafts** with **no pre-chosen anchor** — which to launch first is the
+  human's call, not the agent's. End in-chat (no separate approval workflow
+  step — same reasoning as the spec sign-off collapse): present a numbered
+  "next steps" list, get the human's approval, then hand over the
+  `relay launch <slug>` command for whichever they pick.
 - Parent: `marketing/onboarding-plan` (this realizes its "fast to launchable
   work" goal and updates its "no interview" stance to "one scripted question +
   agent-led chat"). Companion: `marketing/remove-relay-setup-command` (the
