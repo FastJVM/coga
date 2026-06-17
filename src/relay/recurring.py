@@ -603,6 +603,7 @@ def _create_at_slug(
         watchers=list(template.frontmatter.get("watchers") or []),
         status="active",
         slug_override=target_slug,
+        secrets=template.frontmatter.get("secrets"),
         # Carry the template body verbatim so sections beyond `## Description`
         # (notably `## Script config`, which sets a script step's mode/sync)
         # reach the period task instead of being dropped at create time.

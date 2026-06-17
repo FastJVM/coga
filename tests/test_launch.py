@@ -501,6 +501,10 @@ def test_launch_fails_loud_on_unset_declared_secret(
     assert "stripe_key" in combined and "STRIPE_SECRET_KEY" in combined
     # Fail-loud: no agent process was ever spawned.
     assert calls == []
+    ticket = Ticket.read(ref.path / "ticket.md")
+    assert ticket.status == "active"
+    log = (ref.path / "log.md").read_text()
+    assert "started (active" not in log
 
 
 def test_launch_injects_only_declared_secret(
@@ -544,6 +548,9 @@ def test_launch_injects_only_declared_secret(
     # Only the declared secret was injected; the undeclared one is withheld.
     assert captured.get("stripe_key") == "sk_live"
     assert "other" not in captured
+    # The raw source env vars used to resolve `[secrets]` are scrubbed too.
+    assert "STRIPE_SECRET_KEY" not in captured
+    assert "OTHER_SECRET" not in captured
 
 
 def test_direct_launch_timeout_exits_non_zero(

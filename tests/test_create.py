@@ -104,6 +104,27 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert ticket.human == "marc"
     assert ticket.agent == "claude"
     assert ticket.workflow is None
+    assert "secrets" in ticket.frontmatter
+    assert ticket.secrets is None
+
+
+def test_create_preserves_secret_declaration(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(repo)
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Call API",
+        workflow_name=None,
+        contexts=[],
+        mode="interactive",
+        owner=None,
+        assignee=None,
+        watchers=[],
+        status=None,
+        secrets=["api_key"],
+    )
+    ticket = Ticket.read(ref["path"] / "ticket.md")
+    assert ticket.secrets == ["api_key"]
 
 
 def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) -> None:

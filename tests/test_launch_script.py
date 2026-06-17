@@ -73,6 +73,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "#!/bin/sh\n"
         "{\n"
         "  echo \"token=$token\"\n"
+        "  echo \"source=$TEST_TOKEN\"\n"
         "  echo \"slug=$RELAY_TASK_SLUG\"\n"
         "  echo \"dir=$RELAY_TASK_DIR\"\n"
         "  echo \"blackboard=$RELAY_TASK_BLACKBOARD\"\n"
@@ -101,6 +102,7 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     # Script wrote to the host repo (parent of relay-os/) with the secret
     output = (cfg.repo_root.parent / "script-output.txt").read_text()
     assert "token=secret-abc" in output
+    assert "source=\n" in output
     assert "slug=check" in output
     assert f"dir={ref.path.resolve()}" in output
     assert f"blackboard={(ref.path / 'blackboard.md').resolve()}" in output
@@ -136,6 +138,10 @@ def test_script_mode_fails_loud_on_unset_declared_secret(
     assert "token" in combined and "TEST_TOKEN" in combined
     # Fail-loud means the script never ran.
     assert not (cfg.repo_root.parent / "script-output.txt").exists()
+    ticket = Ticket.read(ref.path / "ticket.md")
+    assert ticket.status == "active"
+    log = (ref.path / "log.md").read_text()
+    assert "started (active" not in log
 
 
 def test_script_mode_least_privilege_empty_list_injects_nothing(
@@ -157,6 +163,7 @@ def test_script_mode_least_privilege_empty_list_injects_nothing(
     # `secrets: []` is a strict lockdown — the token is withheld even though
     # TEST_TOKEN is set in the environment.
     assert "token=\n" in output
+    assert "source=\n" in output
 
 
 def test_script_mode_rejects_agent_override(repo: Path) -> None:

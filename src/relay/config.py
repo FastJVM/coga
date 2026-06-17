@@ -7,6 +7,7 @@ import os
 import random
 import shlex
 import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -954,4 +955,27 @@ def select_launch_secrets(cfg: Config, declared: object) -> dict[str, str]:
                 f"{sv.env_var!r} is not set"
             )
         env[key] = sv.value
+    return env
+
+
+def build_launch_env(
+    cfg: Config,
+    declared: object,
+    *,
+    base_env: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Build a child process env with Relay secrets scoped and source vars scrubbed.
+
+    Relay resolves `[secrets]` from operator env vars such as `env:STRIPE_KEY`,
+    but the spawned agent/script must only receive the scoped Relay secret keys
+    (for example `stripe_key`), not every raw source env var inherited from
+    `os.environ.copy()`. Scrub all configured source variables first, then add
+    back only `select_launch_secrets`' selected aliases.
+    """
+    env = dict(os.environ if base_env is None else base_env)
+    selected = select_launch_secrets(cfg, declared)
+    for sv in cfg.secrets.values():
+        if sv.env_var is not None:
+            env.pop(sv.env_var, None)
+    env.update(selected)
     return env

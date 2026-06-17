@@ -14,7 +14,7 @@ from relay.bump import (
     advance_step,
     resolve_step_assignee,
 )
-from relay.config import Config, SecretError, select_launch_secrets
+from relay.config import Config, SecretError, build_launch_env
 from relay.logfile import append_log
 from relay.mark import mark_done, mark_in_progress
 from relay.paths import resolve_skill_path, skill_resolution_paths
@@ -108,6 +108,13 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     if not script_path.is_file():
         _bail(f"Script not found: {script_path}")
 
+    # Preflight and build the child env before mutating ticket state. A missing
+    # declared secret is a launch refusal, not a started script task.
+    try:
+        env = build_launch_env(cfg, ticket.secrets)
+    except SecretError as exc:
+        _bail(str(exc))
+
     if ticket.status == "active":
         cur = ticket.current_step()
         step_note = f" (step {ticket.step_index()}: {cur['name']})" if cur else ""
@@ -128,13 +135,7 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
             _bail(str(exc))
 
     # Same secret chokepoint as agent-mode `relay launch`: script-mode tasks
-    # still receive their secrets here (folded in, not dropped), scoped to the
-    # ticket's `secrets:` declaration and failing loud on an unset env var.
-    env = os.environ.copy()
-    try:
-        env.update(select_launch_secrets(cfg, ticket.secrets))
-    except SecretError as exc:
-        _bail(str(exc))
+    # still receive their scoped secrets here (folded in, not dropped).
     env.update(build_script_env(cfg, ref, skill))
     cwd = script_repo_root(cfg)
 

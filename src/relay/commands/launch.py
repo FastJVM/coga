@@ -34,11 +34,11 @@ from relay.compose import (
     write_prompt_file,
 )
 from relay.config import (
+    build_launch_env,
     Config,
     ConfigError,
     SecretError,
     load_config,
-    select_launch_secrets,
 )
 from relay.logfile import append_log
 from relay.mark import (
@@ -309,6 +309,13 @@ def launch(
     except ComposeError as exc:
         _bail(str(exc))
 
+    # Preflight and build the child env before mutating ticket state. A missing
+    # declared secret is a launch refusal, not a started task.
+    try:
+        env = build_launch_env(cfg, ticket.secrets)
+    except SecretError as exc:
+        _bail(str(exc))
+
     if isinstance(ref, TaskRef) and ticket.status == "active":
         try:
             mark_in_progress(
@@ -325,16 +332,6 @@ def launch(
             )
         except TaskValidationError as exc:
             _bail(str(exc))
-
-    # Inject secrets as env vars, scoped to what the ticket declares. This is
-    # the only place `relay launch` (agent mode) hands secrets to the spawned
-    # process; a ticket's declared secret that resolves to an unset env var
-    # fails loud here, before any agent starts.
-    env = os.environ.copy()
-    try:
-        env.update(select_launch_secrets(cfg, ticket.secrets))
-    except SecretError as exc:
-        _bail(str(exc))
 
     # Interactive launches chain across consecutive agent-owned steps the
     # same way auto mode does. After the agent exits (via autoquit on

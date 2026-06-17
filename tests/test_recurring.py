@@ -303,6 +303,31 @@ def test_create_preserves_non_description_template_sections(repo: Path) -> None:
     assert "## Context" in body
 
 
+def test_create_preserves_recurring_template_secrets(repo: Path) -> None:
+    _write_recurring(
+        repo,
+        "locked-down",
+        """
+        ---
+        title: "Locked down"
+        schedule: "0 9 * * 1"
+        mode: interactive
+        secrets: []
+        ---
+
+        ## Description
+
+        No secrets for this recurring run.
+        """,
+    )
+
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 27, 9, 0), allow_interactive=True)
+    task = next(t for t in scan.tasks if t.template == "locked-down")
+    ticket = Ticket.read(task.ref.path / "ticket.md")
+    assert ticket.secrets == []
+
+
 def test_scan_due_idempotent(repo: Path) -> None:
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)
