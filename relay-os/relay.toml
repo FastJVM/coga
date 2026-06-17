@@ -1,7 +1,8 @@
 version = 1
 
-# Default status for new tasks. Tickets stay `draft` until the human
-# approves and runs `relay mark active`.
+# Default status for new tasks. Tickets stay `draft` until approved —
+# `relay launch` activates a draft inline, or `relay mark active` activates
+# it without launching.
 default_status = "draft"
 
 # --- Agents ---

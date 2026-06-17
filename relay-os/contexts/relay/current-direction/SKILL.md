@@ -214,7 +214,7 @@ ones that affect implementation:
   launch` owns the `active` → `in_progress` start transition; `relay bump`
   owns `step:` movement and only runs while the task is `in_progress`.
   The normal boot is `relay ticket "<title>"` → review the draft →
-  `relay mark active <slug>` → `relay launch <slug>`.
+  `relay launch <slug>`, which activates the draft inline as it starts work.
 
 ## Open ticket queue (Slack / notifications)
 

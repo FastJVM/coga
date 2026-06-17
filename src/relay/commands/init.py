@@ -99,7 +99,7 @@ workflow step are loaded too.
 - `relay ticket "<title>"` — guided task authoring
 - `relay draft "<title>"` — raw draft create
 - `relay dream` — run the Relay cleanup pass now
-- `relay mark active <slug>` — activate a draft before launch
+- `relay mark active <slug>` — activate a draft without launching it (launch activates inline on its own)
 - `relay launch <slug>` — start or resume a task (any unique prefix works)
 - `relay show <slug>` — read a task's ticket / blackboard / log
 - `relay bump <slug>` — advance one workflow step
