@@ -36,6 +36,7 @@ CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
     "step",
     "contexts",
     "skills",
+    "secrets",
 })
 
 EXTENSION_MARKER = "# --- extensions ---"
@@ -151,6 +152,19 @@ class Ticket:
         instructions on top of the current workflow step."""
         value = self.frontmatter.get("skills") or []
         return list(value)
+
+    @property
+    def secrets(self) -> Any:
+        """Raw `secrets:` frontmatter value, three-way semantics preserved.
+
+        Returns `None` (absent / explicit null → legacy blanket-inject), `[]`
+        (explicit empty → inject nothing), or a list of secret keys (least
+        privilege). The `None`/`[]` distinction is load-bearing for
+        `relay.config.select_launch_secrets`, so this deliberately does **not**
+        normalize with `or []` the way `watchers`/`skills` do — callers must see
+        the raw value.
+        """
+        return self.frontmatter.get("secrets")
 
     @property
     def workflow(self) -> dict[str, Any] | str | None:

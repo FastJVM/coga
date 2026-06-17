@@ -76,7 +76,7 @@ REQUIRED_TASK_KEYS: tuple[str, ...] = (
     "workflow",
 )
 # Optional keys that may appear in addition to the required set.
-OPTIONAL_TASK_KEYS: frozenset[str] = frozenset({"step", "watchers"})
+OPTIONAL_TASK_KEYS: frozenset[str] = frozenset({"step", "watchers", "secrets"})
 _NON_EMPTY_STRING_KEYS: tuple[str, ...] = (
     "title",
     "owner",
@@ -317,6 +317,7 @@ def _check_one_task(
         return out
 
     out.extend(_check_frontmatter_schema(cfg, task_label, ticket))
+    out.extend(_check_secrets(cfg, task_label, ticket))
 
     # Valid assignees: known agent types OR one of this ticket's role-field
     # values (owner / human / agent). The role rotation puts whichever of
@@ -522,6 +523,55 @@ def _check_frontmatter_schema(
                 for i, step in enumerate(steps, start=1):
                     out.extend(_check_step_shape(task_label, i, step))
 
+    return out
+
+
+def _check_secrets(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
+    """Validate a ticket's `secrets:` declaration.
+
+    Shape is an error (the field is otherwise free-form): `secrets:` must be
+    `null` or a list of strings. Env presence is a warning, not an error, since
+    which env vars are exported is per-shell: a declared key absent from
+    `[secrets]`, or one whose `env:VAR` is unset in this environment, warns so
+    a launch-time fail-loud isn't a surprise.
+    """
+    out: list[Issue] = []
+    fm = ticket.frontmatter
+    if "secrets" not in fm:
+        return out
+    declared = fm["secrets"]
+    if declared is None:
+        return out
+    if not _is_string_list(declared):
+        out.append(Issue(
+            kind="bad-shape",
+            task=task_label,
+            message=f"secrets must be `null` or a list of strings, got {declared!r}",
+            severity="error",
+        ))
+        return out
+    for key in declared:
+        sv = cfg.secrets.get(key)
+        if sv is None:
+            out.append(Issue(
+                kind="undeclared-secret",
+                task=task_label,
+                message=(
+                    f"declares secret {key!r} but it is not defined in "
+                    "[secrets] in relay.local.toml"
+                ),
+                severity="warn",
+            ))
+        elif sv.missing:
+            out.append(Issue(
+                kind="unset-secret-env",
+                task=task_label,
+                message=(
+                    f"declared secret {key!r} points at env var "
+                    f"{sv.env_var!r}, which is unset in this environment"
+                ),
+                severity="warn",
+            ))
     return out
 
 

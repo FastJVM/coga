@@ -93,7 +93,11 @@ Every ticket carries the same canonical key set. These names are
 reserved — no extension or alias may collide with them:
 
 `title`, `status`, `mode`, `owner`, `human`, `agent`, `assignee`,
-`watchers`, `workflow`, `step`, `contexts`, `skills`.
+`watchers`, `workflow`, `step`, `contexts`, `skills`, `secrets`.
+
+`secrets` is nullable. Absent or `null` preserves legacy launch behavior
+(inject all configured secrets, skipping unset env-backed values), `[]`
+injects none, and a non-empty list injects only those `[secrets]` keys.
 
 A repo may declare additional fields under `[ticket.fields.<name>]` in
 `relay.toml` — see "Ticket frontmatter extensions" below.

@@ -127,6 +127,77 @@ def test_invalid_status(repo: Path) -> None:
     assert any(i.kind == "invalid-status" for i in report.issues)
 
 
+def _draft_with_secrets(repo: Path, cfg, secrets_value) -> None:
+    create_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        watchers=[], status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    t = Ticket.read(ref.path / "ticket.md")
+    t.frontmatter["secrets"] = secrets_value
+    t.write(ref.path / "ticket.md")
+
+
+def test_secrets_null_is_valid(repo: Path) -> None:
+    cfg = load_config(repo)
+    _draft_with_secrets(repo, cfg, None)
+    report = run(cfg)
+    assert not [i for i in report.issues if "secret" in i.kind]
+
+
+def test_secrets_non_list_is_error(repo: Path) -> None:
+    cfg = load_config(repo)
+    _draft_with_secrets(repo, cfg, "stripe_key")
+    report = run(cfg)
+    bad = [i for i in report.issues if i.kind == "bad-shape" and "secrets" in i.message]
+    assert bad and bad[0].severity == "error"
+
+
+def test_secrets_undeclared_key_warns(repo: Path) -> None:
+    cfg = load_config(repo)
+    _draft_with_secrets(repo, cfg, ["nope"])
+    report = run(cfg)
+    issues = [i for i in report.issues if i.kind == "undeclared-secret"]
+    assert issues and issues[0].severity == "warn"
+
+
+def test_secrets_unset_env_warns(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _write(
+        repo / "relay.local.toml",
+        """
+        user = "marc"
+        [secrets]
+        stripe_key = "env:STRIPE_SECRET_KEY"
+        """,
+    )
+    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+    cfg = load_config(repo)
+    _draft_with_secrets(repo, cfg, ["stripe_key"])
+    report = run(cfg)
+    issues = [i for i in report.issues if i.kind == "unset-secret-env"]
+    assert issues and issues[0].severity == "warn"
+    assert "STRIPE_SECRET_KEY" in issues[0].message
+
+
+def test_secrets_declared_and_set_is_clean(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write(
+        repo / "relay.local.toml",
+        """
+        user = "marc"
+        [secrets]
+        stripe_key = "env:STRIPE_SECRET_KEY"
+        """,
+    )
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
+    cfg = load_config(repo)
+    _draft_with_secrets(repo, cfg, ["stripe_key"])
+    report = run(cfg)
+    assert not [i for i in report.issues if "secret" in i.kind]
+
+
 def test_missing_file(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(

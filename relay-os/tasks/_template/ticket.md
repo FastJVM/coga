@@ -9,6 +9,10 @@ assignee: replace-with-human-or-agent-nickname
 contexts: []
 skills: []
 workflow: null
+# Secrets this task needs (keys from [secrets] in relay.local.toml). Omit or
+# `null` = legacy blanket-inject all secrets; `[]` = inject none; a list =
+# inject only those keys (and fail loud at launch if any is unset).
+secrets: null
 # --- extensions ---
 # Repo-declared fields (see `[ticket.fields.<name>]` in relay.toml) are
 # injected by `relay draft` / `relay ticket` below this marker. No

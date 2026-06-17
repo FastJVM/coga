@@ -102,8 +102,9 @@ def project(
         f"project planning launched (assignee={launch_assignee}, agent={agent.name})",
     )
 
+    # Project planning does not run task work, so it receives no secrets:
+    # secrets flow through the `relay launch` chokepoint only (least privilege).
     env = os.environ.copy()
-    env.update(cfg.secrets)
     try:
         result = subprocess.run(cmd, env=env, check=False)
     except FileNotFoundError:

@@ -39,6 +39,7 @@ def create_task(
     slug_override: str | None = None,
     description: str | None = None,
     body: str | None = None,
+    secrets: Any = None,
     created_by: str = "human",
 ) -> dict[str, Any]:
     """Create a task directory. Returns dict with {slug, path}.
@@ -139,6 +140,7 @@ def create_task(
         "contexts": list(contexts),
         "skills": list(skills),
         "workflow": wf.freeze() if wf else None,
+        "secrets": secrets,
     }
     if wf and status != "done":
         first_step = wf.steps[0].name

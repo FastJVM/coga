@@ -7,12 +7,45 @@ import os
 import random
 import shlex
 import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
 
 class ConfigError(Exception):
     """Raised for any invalid/missing config."""
+
+
+class SecretError(Exception):
+    """A ticket's declared secret cannot be satisfied at launch time.
+
+    Raised by `select_launch_secrets` when a ticket declares a `secrets:` key
+    that is not in `[secrets]`, or whose `env:VAR` indirection points at an
+    unset env var. `relay launch` turns this into a non-zero exit before any
+    agent or script is spawned — the fail-loud guarantee.
+    """
+
+
+@dataclass(frozen=True)
+class SecretValue:
+    """A resolved `[secrets]` entry that remembers where it came from.
+
+    `cfg.secrets` keeps these instead of bare strings so launch-time
+    enforcement and `relay validate` can tell an `env:VAR` reference whose var
+    is unset (`value is None`) apart from an empty literal (`value == ""`), and
+    can name the missing env var in errors. `raw` is the original `[secrets]`
+    value; `env_var` is the referenced variable name (None for a literal);
+    `value` is the resolved string, or None iff env-indirected and unset.
+    """
+
+    raw: str
+    env_var: str | None
+    value: str | None
+
+    @property
+    def missing(self) -> bool:
+        """True when this is an `env:VAR` reference whose var is unset."""
+        return self.env_var is not None and self.value is None
 
 
 @dataclass(frozen=True)
@@ -75,7 +108,7 @@ class Config:
     # `[notification.slack]`, legacy `[slack]`, or deprecated env fallback.
     slack_webhook: str | None
     slack_enabled: bool
-    secrets: dict[str, str]
+    secrets: dict[str, SecretValue]
     notification_channels: tuple[str, ...] = ("slack",)
     notification_deprecation_notes: tuple[str, ...] = ()
     slack_gifs: dict[str, list[str]] = field(default_factory=dict)
@@ -377,6 +410,7 @@ _RESERVED_TICKET_FIELD_NAMES: frozenset[str] = frozenset({
     "step",
     "contexts",
     "skills",
+    "secrets",
 })
 
 _ALLOWED_TICKET_FIELD_KEYS: frozenset[str] = frozenset({
@@ -840,26 +874,108 @@ def _parse_launch(shared: dict | None) -> tuple[float | None, bool, float | None
 def _resolve_secret_value(value: str) -> str:
     """Resolve an `env:VAR` reference to the env var's value; pass literals through.
 
-    A missing env var resolves to the empty string — secrets are validated at
-    launch time when they're actually needed, not at config load. Shared by
-    `[secrets]` and `[notification.slack].webhook`. The notification layer also
-    keeps a deprecated bare `SLACK_WEBHOOK_URL` fallback for legacy repos; other
-    secret values remain reachable only through an explicit `env:` reference.
+    A missing env var resolves to the empty string here. This is only used for
+    `[notification.slack].webhook`, where an unset var collapsing to "" (then
+    `or None`) correctly means "no webhook configured". `[secrets]` does **not**
+    use this — it goes through `_resolve_secrets`, which keeps provenance so an
+    unset env var can fail loud at launch instead of being injected as "". The
+    notification layer also keeps a deprecated bare `SLACK_WEBHOOK_URL` fallback
+    for legacy repos.
     """
     if value.startswith("env:"):
         return os.environ.get(value[len("env:") :], "")
     return value
 
 
-def _resolve_secrets(raw: dict) -> dict[str, str]:
-    """Resolve `env:VAR` references to the env var's current value.
+def _resolve_secrets(raw: dict) -> dict[str, SecretValue]:
+    """Resolve `[secrets]` into `SecretValue`s, retaining provenance.
 
-    Missing env vars resolve to empty strings — secrets are validated at launch
-    time when they're actually needed, not at config load.
+    Unlike a plain string map, this preserves the `env:VAR` reference and the
+    unset-vs-empty-literal distinction: an `env:VAR` whose var is unset resolves
+    to `value=None` (not `""`), so `relay launch` can fail loud naming the var
+    and `relay validate` can warn — neither of which is possible once the
+    reference is flattened away. Literals and set env vars carry their string.
     """
-    out: dict[str, str] = {}
+    out: dict[str, SecretValue] = {}
     for key, value in raw.items():
         if not isinstance(value, str):
             raise ConfigError(f"secrets.{key} must be a string (got {type(value).__name__})")
-        out[key] = _resolve_secret_value(value)
+        if value.startswith("env:"):
+            env_var = value[len("env:") :]
+            resolved = os.environ.get(env_var)  # None when unset — kept distinct from ""
+            out[key] = SecretValue(raw=value, env_var=env_var, value=resolved)
+        else:
+            out[key] = SecretValue(raw=value, env_var=None, value=value)
     return out
+
+
+def select_launch_secrets(cfg: Config, declared: object) -> dict[str, str]:
+    """Build the env-var secret map a `relay launch` should inject.
+
+    `declared` is the ticket's raw `secrets:` frontmatter value. Three cases
+    (absent and explicit `null` both arrive here as `None`):
+
+    - `None` (absent / null) → **legacy blanket**: every `[secrets]` entry that
+      resolves. Unset `env:VAR` secrets are skipped, never injected as "".
+    - `[]` (explicit empty list) → **strict lockdown**: inject nothing.
+    - non-empty list → **least privilege**: inject only the listed keys; raise
+      `SecretError` (fail loud, no agent spawned) on any key not in `[secrets]`
+      or whose `env:VAR` points at an unset var.
+
+    `None` and `[]` must stay distinct — do not collapse with `declared or []`.
+    """
+    if declared is None:
+        return {
+            key: sv.value
+            for key, sv in cfg.secrets.items()
+            if sv.value is not None
+        }
+    if not isinstance(declared, list):
+        raise SecretError(
+            f"ticket `secrets:` must be a list of secret keys "
+            f"(got {type(declared).__name__})"
+        )
+    if not declared:
+        return {}
+    env: dict[str, str] = {}
+    for key in declared:
+        if not isinstance(key, str):
+            raise SecretError(
+                f"ticket `secrets:` entries must be strings (got {key!r})"
+            )
+        sv = cfg.secrets.get(key)
+        if sv is None:
+            raise SecretError(
+                f"ticket declares secret {key!r} but it is not defined in "
+                "[secrets] in relay.local.toml"
+            )
+        if sv.value is None:
+            raise SecretError(
+                f"ticket declares secret {key!r} but its env var "
+                f"{sv.env_var!r} is not set"
+            )
+        env[key] = sv.value
+    return env
+
+
+def build_launch_env(
+    cfg: Config,
+    declared: object,
+    *,
+    base_env: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Build a child process env with Relay secrets scoped and source vars scrubbed.
+
+    Relay resolves `[secrets]` from operator env vars such as `env:STRIPE_KEY`,
+    but the spawned agent/script must only receive the scoped Relay secret keys
+    (for example `stripe_key`), not every raw source env var inherited from
+    `os.environ.copy()`. Scrub all configured source variables first, then add
+    back only `select_launch_secrets`' selected aliases.
+    """
+    env = dict(os.environ if base_env is None else base_env)
+    selected = select_launch_secrets(cfg, declared)
+    for sv in cfg.secrets.values():
+        if sv.env_var is not None:
+            env.pop(sv.env_var, None)
+    env.update(selected)
+    return env

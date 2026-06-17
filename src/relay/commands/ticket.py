@@ -177,8 +177,9 @@ def _run_authoring_session(
         f"ticket authoring launched (assignee={launch_assignee}, agent={agent.name})",
     )
 
+    # Ticket authoring does not run task work, so it receives no secrets:
+    # secrets flow through the `relay launch` chokepoint only (least privilege).
     env = os.environ.copy()
-    env.update(cfg.secrets)
     try:
         result = subprocess.run(cmd, env=env, check=False)
     except FileNotFoundError:

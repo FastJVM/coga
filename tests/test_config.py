@@ -6,7 +6,13 @@ from textwrap import dedent
 
 import pytest
 
-from relay.config import ConfigError, find_repo_root, load_config
+from relay.config import (
+    ConfigError,
+    SecretError,
+    find_repo_root,
+    load_config,
+    select_launch_secrets,
+)
 
 
 def _write(path: Path, text: str) -> None:
@@ -57,8 +63,11 @@ def test_load_basic(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg.agents["claude"].cli == "claude"
     assert cfg.slack_webhook.startswith("https://")
     assert cfg.slack_enabled is True
-    assert cfg.secrets["stripe_key"] == "sk_test_abc"
-    assert cfg.secrets["literal"] == "just-a-value"
+    assert cfg.secrets["stripe_key"].value == "sk_test_abc"
+    assert cfg.secrets["stripe_key"].env_var == "STRIPE_SECRET_KEY"
+    assert cfg.secrets["stripe_key"].missing is False
+    assert cfg.secrets["literal"].value == "just-a-value"
+    assert cfg.secrets["literal"].env_var is None
 
 
 def test_default_status_defaults_to_draft(tmp_path: Path) -> None:
@@ -358,10 +367,85 @@ def test_find_repo_root_not_found(tmp_path: Path) -> None:
         find_repo_root(tmp_path)
 
 
-def test_missing_env_secret_is_empty(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_missing_env_secret_resolves_to_none_not_empty(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # An unset env:VAR keeps provenance and resolves to value=None (not ""),
+    # so launch can fail loud instead of injecting a silent empty secret.
     monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
     cfg = load_config(repo)
-    assert cfg.secrets["stripe_key"] == ""
+    sv = cfg.secrets["stripe_key"]
+    assert sv.value is None
+    assert sv.env_var == "STRIPE_SECRET_KEY"
+    assert sv.missing is True
+
+
+def test_select_launch_secrets_blanket_when_absent(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Absent/null `secrets:` (passed as None) keeps legacy blanket-inject of
+    # every resolvable secret, but never injects an unset env: secret as "".
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
+    cfg = load_config(repo)
+    env = select_launch_secrets(cfg, None)
+    assert env == {"stripe_key": "sk_test_abc", "literal": "just-a-value"}
+
+
+def test_select_launch_secrets_blanket_skips_unset_env(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+    cfg = load_config(repo)
+    env = select_launch_secrets(cfg, None)
+    # Unset env: secret is omitted entirely — never injected as "".
+    assert env == {"literal": "just-a-value"}
+
+
+def test_select_launch_secrets_empty_list_injects_nothing(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
+    cfg = load_config(repo)
+    assert select_launch_secrets(cfg, []) == {}
+
+
+def test_select_launch_secrets_least_privilege(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
+    cfg = load_config(repo)
+    # Only the declared key is injected; the undeclared `literal` is withheld.
+    assert select_launch_secrets(cfg, ["stripe_key"]) == {"stripe_key": "sk_test_abc"}
+
+
+def test_select_launch_secrets_fails_on_unset_env(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+    cfg = load_config(repo)
+    with pytest.raises(SecretError) as exc:
+        select_launch_secrets(cfg, ["stripe_key"])
+    # Message names both the secret key and the missing env var.
+    assert "stripe_key" in str(exc.value)
+    assert "STRIPE_SECRET_KEY" in str(exc.value)
+
+
+def test_select_launch_secrets_fails_on_undeclared_key(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
+    cfg = load_config(repo)
+    with pytest.raises(SecretError, match="not defined in"):
+        select_launch_secrets(cfg, ["nonexistent_key"])
+
+
+def test_select_launch_secrets_rejects_non_list(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
+    cfg = load_config(repo)
+    with pytest.raises(SecretError, match="must be a list"):
+        select_launch_secrets(cfg, "stripe_key")
 
 
 def test_unsupported_version(tmp_path: Path) -> None:
