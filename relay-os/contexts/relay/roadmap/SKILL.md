@@ -34,7 +34,7 @@ This context is **sequencing only**; the reasoning behind decisions lives in
 4. The single-file task-format rewrite is high-blast-radius; sequence it when
    the board is calm.
 
-## v1 — the launch cut (24 tickets)
+## v1 — the launch cut (26 tickets)
 
 ### In-flight (1)
 
@@ -64,8 +64,8 @@ A stranger must be able to install and run Relay out of the box.
 - `authentication-system` [draft] — design-first umbrella over four scopes:
   telemetry/install identity, hosted-backend account+token, git/GitHub
   credential handling, and per-skill secrets (the last folds in the v2 tickets
-  `v2/pass-secrets-to-skills-with-per-skill-scope` +
-  `v2/fail-loud-when-an-env-indirected-secret-is-missing`). Expect it to split
+  `v2/pass-secrets-to-skills-with-per-skill-scope` + the v1
+  `fail-loud-when-an-env-indirected-secret-is-missing`). Expect it to split
   at the design step.
 
 ### Recurring in cron (2)
@@ -79,7 +79,7 @@ A stranger must be able to install and run Relay out of the box.
   cron only `mode: auto`/`script` templates launch; an interactive template
   scaffolds but fails to launch. Pairs with the cron ticket.
 
-### First-run correctness (3)
+### First-run correctness (4)
 
 Bugs a stranger hits on day one — in scope precisely because of the v1 promise.
 
@@ -89,6 +89,10 @@ Bugs a stranger hits on day one — in scope precisely because of the v1 promise
   fail loud, not silently.
 - `slack-post-ignores-http-response-so-bad-webhook-fa` [draft] — a bad webhook
   fails loud instead of silently swallowing the error.
+- `fail-loud-when-an-env-indirected-secret-is-missing` [draft] — a missing
+  `env:VAR` secret resolves to `""` instead of erroring (`config.py:435`); a
+  stranger mis-setting a secret fails silently. Same family as the two above;
+  also feeds the `authentication-system` per-skill-secrets scope.
 
 ### Flow simplification (1)
 
@@ -110,11 +114,17 @@ Bugs a stranger hits on day one — in scope precisely because of the v1 promise
 - `improve-prompt-for-relay-launch` [draft] + `improve-prompt-for-relay-ticket`
   [draft] — tighten the launch/ticket-authoring prompts.
 
-### Autonomy chain (6)
+### Autonomy chain (7)
 
 The big bet: use spare overnight token budget to run flagged-ready tickets
 unattended. Strict dependency chain; `auto/stream-agent-progress` is the hard
 blocker, so this lands late in v1.
+
+- `session-done-sentinel-from-mark-done-bump-leaks-in` [draft] —
+  reliability prerequisite: a child `relay mark done`/`bump` leaks the
+  session-done sentinel and tears down the supervised run. Unattended runs can't
+  be trusted until this is fixed; the sibling `session-done-sentinel-leaks…` is
+  already done.
 
 1. `track-usage-of-llm` [active] — foundational per-session usage primitive;
    everything below consumes it.
@@ -144,8 +154,9 @@ broad buckets (see `relay status` / the directory for the authoritative list):
 - **Recurring bugfixes** — debug-surface, git issues, template instantiation,
   Dream persistence, standalone-automerge retirement.
 - **Security / secrets / PII** — `manage-security-and-pii`, per-skill secret
-  scoping, fail-loud-on-missing-secret, a first-class machine-local config dir.
-  (Several feed the v1 `authentication-system` design.)
+  scoping, a first-class machine-local config dir. (Several feed the v1
+  `authentication-system` design; fail-loud-on-missing-secret was promoted to
+  v1.)
 - **Compose / validation** — frontmatter stripping, prompt token budget,
   symlink-view exclusion, SKILL.md and hand-edit validation.
 - **Git hygiene / dev-loop** — sync-with-main lift, uncommitted-work cleanup,
