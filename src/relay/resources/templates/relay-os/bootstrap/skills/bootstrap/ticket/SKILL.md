@@ -206,7 +206,8 @@ Edit `ticket.md` in place. YAML discipline (from the base prompt) applies:
   from an older seeded flow, remove it. Modern `relay ticket` injects this
   skill only into the prompt; it should not persist on normal tasks.
 - Preserve the current `status:`. You do not activate or start the ticket —
-  the human does that with `relay mark active` / `relay launch`.
+  the human starts it later with `relay launch`, or queues it without starting
+  via `relay mark active`.
 - Fill the `## Description` and `## Context` body sections from the
   interview.
 
@@ -282,8 +283,7 @@ once they explicitly confirm.
 After confirmation, print one closing line. For a draft:
 
 ```
-Filled <slug>. Run `relay mark active <slug>` and `relay launch <slug>`
-when ready.
+Filled <slug>. Run `relay launch <slug>` when ready. Use `relay mark active <slug>` only to approve it without launching.
 ```
 
 For an already-active ticket:

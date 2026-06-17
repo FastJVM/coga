@@ -50,10 +50,11 @@ fix the issue and re-run; it resumes where it stopped.
 ## relay draft "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
 
 Scaffold a new raw `draft` ticket and post `✨` to Slack. Does not launch
-an agent. Step one of the three-step boot: `draft` → edit the body /
-workflow / contexts as needed → `relay mark active <slug>` →
-`relay launch <slug>`. `relay create` is a compatibility spelling for
-`relay draft` — identical behavior, no guided interview.
+an agent. Step one of the boot path: `draft` → edit the body / workflow /
+contexts as needed → `relay launch <slug>`. Launch activates a draft inline;
+use `relay mark active <slug>` only when you want to approve/queue without
+launching. `relay create` is a compatibility spelling for `relay draft` —
+identical behavior, no guided interview.
 
 `--workflow <name>` (path under `relay-os/workflows/`) is optional *in
 draft only*. A workflow-less draft is a valid authoring state; the workflow
@@ -83,8 +84,8 @@ The guided authoring flow chooses workflow/context/assignee with the human,
 edits the ticket, and leaves status unchanged. After the session it
 validates the task; a draft handed back with no workflow is rejected at the
 terminal rather than later at activation. For a new draft, the boot sequence
-is: `relay ticket "<title>"` → review/edit → `relay mark active <slug>` →
-`relay launch <slug>`.
+is: `relay ticket "<title>"` → review/edit → `relay launch <slug>`, which
+activates the draft inline as it starts work.
 
 For the standard `claude` and `codex` CLIs, `relay ticket` passes the
 composed authoring prompt as system/developer context instead of as the first
@@ -133,10 +134,9 @@ subcommand>`.
 `--message` piggy-backs an FYI onto the Slack broadcast.
 
 `relay launch` owns the `active` → `in_progress` start transition, and will
-run `mark active` itself when launched against a `draft`/`paused`/`done`
-ticket (launching is the readiness signal). `relay bump` no longer marks
-final-step tickets done. The status state machine and the step state machine
-are separate.
+activate a `draft`/`paused`/`done` ticket inline first (launching is the
+readiness signal). `relay bump` no longer marks final-step tickets done. The
+status state machine and the step state machine are separate.
 
 ## relay launch \<target\>
 
@@ -144,11 +144,11 @@ Compose every relevant file (rules + repo context + ticket contexts +
 current step's skill + blackboard + ticket body) into one prompt and
 start the configured agent. Accepts `status: active` or `in_progress`
 directly; a `draft` / `paused` / `done` ticket is activated inline first —
-typing `relay launch` is the readiness signal, so it runs the `relay mark
-active` step for you (re-activating a `done` ticket restarts its workflow at
-step 1) rather than refusing. A ticket that can't be activated — no workflow,
-or an empty `required` extension field — still fails loud with the same
-remedy `mark active` gives. Launching an `active` ticket then marks it
+typing `relay launch` is the readiness signal, so it activates the ticket for
+you (re-activating a `done` ticket restarts its workflow at step 1) rather
+than refusing. A ticket that can't be activated — no workflow, or an empty
+`required` extension field — still fails loud with the same remedy `mark
+active` gives. Launching an `active` ticket then marks it
 `in_progress` (posting `▶️`) before spawning the agent; launching an
 already-`in_progress` ticket resumes it without another status flip. Interactive launches require stdin and stdout to both be
 terminals. **`mode: auto` is temporarily disabled** — auto runs (claude
@@ -548,7 +548,8 @@ only; they don't accept their own flags.
 
 - Scaffolding a raw new draft → `relay draft "<title>"`.
 - Guided ticket authoring → `relay ticket` or `relay ticket "<title-or-slug>"`.
-- Activating a draft to start work → `relay mark active <slug>`.
+- Starting a draft's work → `relay launch <slug>` (activates inline).
+- Approving/queueing without launching → `relay mark active <slug>`.
 - Pausing a task → `relay mark paused <slug>`.
 - Finishing a task (final step, or no workflow) → `relay mark done <slug>`.
 - Ticket-less chat session → `relay chat` (alias for
