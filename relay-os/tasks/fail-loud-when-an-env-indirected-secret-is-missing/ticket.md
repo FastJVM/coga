@@ -1,6 +1,6 @@
 ---
 title: Scope secret injection to declared per-task secrets and fail loud on missing
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
