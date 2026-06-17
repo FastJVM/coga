@@ -158,3 +158,4 @@ posted:
 {"ts":"2026-06-15T21:48","project":"relay","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/290|PR #290> merged ✅","ticket":"session-done-sentinel-leaks-and-agent-stops-respon","owner":"nick"}
 {"ts":"2026-06-15T21:54","project":"relay","kind":"done","detail":"nick finished: review → done ✅ — PR merged: https://github.com/FastJVM/relay/pull/328","ticket":"wire-autonomy-triage-into-impl-ready-workflows","owner":"nick"}
 {"ts":"2026-06-16T11:34","project":"relay","kind":"done","detail":"claude finished: execute → done ✅ — Dedup pass shipped: PR #367 merged, 6 covered draft stubs removed","ticket":"dedup-duplicate-draft-tickets","owner":"nick"}
+{"ts":"2026-06-16T12:50","project":"relay-cli","kind":"done","detail":"claude finished: synthesize → done ✅","ticket":"marketing/validate-relay-build-onboarding","owner":"zach"}

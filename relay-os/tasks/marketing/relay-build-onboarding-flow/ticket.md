@@ -53,8 +53,16 @@ replaces the long 5-step relay-setup interview: "shorten, don't delete" becomes
   added to `relay init`.
 - One linear workflow handles both repo states: the scan step no-ops on an
   empty repo (output is intent-only starter tickets) and is load-bearing on a
-  filled one. Shape: ask → agent-led chat → scan → spec → review → generate
-  ticket batch.
+  filled one. Shape: ask → agent-led chat → scan → spec (with in-chat sign-off)
+  → generate ticket batch.
+- Spec sign-off is in-chat, NOT a separate workflow step. The agent presents the
+  drafted spec, takes the owner's confirmation in the same step, then proceeds
+  straight to generating tickets. Found while prototyping (2026-06-16): a
+  standalone human `review-spec` step is redundant — the agent had already
+  gotten verbal sign-off when it presented the spec, then bumped to the formal
+  step anyway, producing a double sign-off and a confusing stop right before
+  tickets. An interactive step already pauses for the human in-chat, so the
+  extra gate buys nothing.
 - Read `relay show marketing/init-questions` before designing — it holds the
   dry-run eval and the load-bearing finding (answers-only recovered ~7/20
   facts; the scan recovered all 20). Even with one scripted question, keep the
