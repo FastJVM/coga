@@ -2,8 +2,8 @@
 
 Tasks are directories with `ticket.md` anywhere under `tasks/`, and the filter
 narrows the listing to a directory sub-tree
-(nested tasks included), to the top level (`root`), and fails loud on an
-unknown directory.
+(nested tasks included), to a single directory level (`--no-recurse`), and
+fails loud on an unknown directory.
 """
 
 from __future__ import annotations
@@ -125,15 +125,26 @@ def test_filter_by_nested_directory(repo: Path) -> None:
     assert [r.id_slug for r in refs] == ["marketing/social/relaunch"]
 
 
-def test_filter_by_root_keeps_only_top_level(repo: Path) -> None:
+def test_filter_no_recurse_top_level_keeps_only_top_level(repo: Path) -> None:
     _task(repo, "fix-retry-logic")
     _task(repo, "ship-it")
     _task(repo, "marketing/digest-sweep")
     cfg = load_config(repo)
 
-    refs = filter_tasks_under(list_tasks(cfg), "root", cfg)
+    refs = filter_tasks_under(list_tasks(cfg), None, cfg, recurse=False)
 
     assert [r.id_slug for r in refs] == ["fix-retry-logic", "ship-it"]
+
+
+def test_filter_no_recurse_directory_keeps_only_direct_children(repo: Path) -> None:
+    _task(repo, "marketing/digest-sweep")
+    _task(repo, "marketing/social/relaunch")
+    cfg = load_config(repo)
+
+    refs = filter_tasks_under(list_tasks(cfg), "marketing", cfg, recurse=False)
+
+    # The nested task under marketing/social is excluded.
+    assert [r.id_slug for r in refs] == ["marketing/digest-sweep"]
 
 
 def test_filter_by_empty_known_dir_is_not_an_error(repo: Path) -> None:
@@ -182,15 +193,26 @@ def test_status_directory_filter_lists_subtree(repo: Path) -> None:
     assert "fix-retry-logic" not in result.stdout
 
 
-def test_status_root_filter_lists_only_top_level(repo: Path) -> None:
+def test_status_no_recurse_lists_only_top_level(repo: Path) -> None:
     _task(repo, "fix-retry-logic")
     _task(repo, "marketing/digest-sweep")
 
-    result = CliRunner().invoke(app, ["status", "root"])
+    result = CliRunner().invoke(app, ["status", "--no-recurse"])
 
     assert result.exit_code == 0
     assert "fix-retry-logic" in result.stdout
     assert "digest-sweep" not in result.stdout
+
+
+def test_status_directory_no_recurse_excludes_nested(repo: Path) -> None:
+    _task(repo, "marketing/digest-sweep")
+    _task(repo, "marketing/social/relaunch")
+
+    result = CliRunner().invoke(app, ["status", "marketing", "--no-recurse"])
+
+    assert result.exit_code == 0
+    assert "digest-sweep" in result.stdout
+    assert "marketing/social/relaunch" not in result.stdout
 
 
 def test_status_unknown_directory_fails_loud(repo: Path) -> None:

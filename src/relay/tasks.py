@@ -122,12 +122,6 @@ def list_tasks(cfg: Config) -> list[TaskRef]:
     return sorted(found.values(), key=lambda t: t.id_slug)
 
 
-# Reserved arg meaning "tasks directly under `tasks/`, no sub-directories".
-# A directory literally named `root` would be shadowed by it; that collision
-# is documented rather than guarded, keeping the sentinel a plain word.
-ROOT_DIR = "root"
-
-
 def is_under(directory: str | None, target: str) -> bool:
     """True if a task's `directory` is `target` itself or nested below it.
 
@@ -154,7 +148,8 @@ class UnknownDirectoryError(Exception):
         listed = ", ".join(available) if available else "(none)"
         super().__init__(
             f"Unknown directory {directory!r}. Directories under tasks/: "
-            f"{listed}. Use '{ROOT_DIR}' for tasks directly under tasks/."
+            f"{listed}. Omit the directory (add --no-recurse) to list the "
+            f"tasks directly under tasks/."
         )
 
 
@@ -186,26 +181,37 @@ def list_task_dirs(cfg: Config) -> list[str]:
 
 
 def filter_tasks_under(
-    refs: list[TaskRef], directory: str | None, cfg: Config
+    refs: list[TaskRef], directory: str | None, cfg: Config, *, recurse: bool = True
 ) -> list[TaskRef]:
-    """Narrow `refs` to a directory sub-tree, or to the top level.
+    """Narrow `refs` to a directory and (optionally) its sub-tree.
 
-    `directory` is None (no filter), `ROOT_DIR` (only tasks directly under
-    `tasks/`), or a directory path (`marketing`, `marketing/social`) — keeping
-    every task at or below `tasks/<directory>/`, nested ones included. A path
-    that is not an existing directory raises `UnknownDirectoryError` — fail
-    loud, not a silently empty list. Pure in-memory selection plus one `tasks/`
-    walk; no ticket mutation, so the read-only contract of `relay status` holds.
+    Two orthogonal axes:
+
+    - `directory` picks the directory — None for the `tasks/` root, or a path
+      (`marketing`, `marketing/social`). A path that is not an existing
+      directory raises `UnknownDirectoryError` — fail loud, not a silently
+      empty list.
+    - `recurse` picks the depth. True (default) keeps every task at or below
+      that directory, nested ones included (`find <dir>`). False keeps only
+      the tasks sitting directly in it, none from sub-directories (`ls <dir>`).
+
+    So `recurse=False` with `directory=None` is "the tasks directly under
+    `tasks/`" — the top-level slice that used to need a reserved `root` arg.
+
+    Pure in-memory selection plus one `tasks/` walk; no ticket mutation, so the
+    read-only contract of `relay status` holds.
     """
     if directory is None:
-        return refs
-    if directory == ROOT_DIR:
+        if recurse:
+            return refs
         return [r for r in refs if r.directory is None]
     target = directory.strip("/")
     available = list_task_dirs(cfg)
     if target not in available:
         raise UnknownDirectoryError(target, available)
-    return [r for r in refs if is_under(r.directory, target)]
+    if recurse:
+        return [r for r in refs if is_under(r.directory, target)]
+    return [r for r in refs if r.directory == target]
 
 
 def resolve_task(cfg: Config, task_arg: str) -> TaskRef:
@@ -268,7 +274,6 @@ __all__ = [
     "TargetRef",
     "TaskNotFoundError",
     "DuplicateTaskSlugError",
-    "ROOT_DIR",
     "UnknownDirectoryError",
     "is_under",
     "list_tasks",

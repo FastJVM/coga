@@ -53,8 +53,17 @@ def status(
         metavar="[DIR]",
         help=(
             "Show only tasks under `tasks/<DIR>/` (a directory path, nested "
-            "ones included, e.g. `marketing` or `marketing/social`). Use "
-            "'root' for tasks directly under tasks/. Omit to show every task."
+            "ones included, e.g. `marketing` or `marketing/social`). Omit to "
+            "show every task; add --no-recurse to show only the top level."
+        ),
+    ),
+    no_recurse: bool = typer.Option(
+        False,
+        "--no-recurse",
+        help=(
+            "List only tasks sitting directly in the directory, none from "
+            "sub-directories. With no DIR, shows the tasks directly under "
+            "tasks/ (the top-level slice)."
         ),
     ),
     order_by: str = typer.Option(
@@ -88,7 +97,7 @@ def status(
     # merged PRs is the job of `relay automerge`, run explicitly.
     refs = list_tasks(cfg)
     try:
-        refs = filter_tasks_under(refs, directory, cfg)
+        refs = filter_tasks_under(refs, directory, cfg, recurse=not no_recurse)
     except UnknownDirectoryError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
@@ -130,8 +139,14 @@ def status(
         if directory:
             # The directory exists (an unknown one already failed loud above)
             # but holds no tasks yet — say which, so an empty list isn't
-            # mistaken for "no tasks anywhere".
-            typer.echo(f"(no tasks in {directory})")
+            # mistaken for "no tasks anywhere". --no-recurse means "directly
+            # in it", so spell that out too.
+            where = f"directly in {directory}" if no_recurse else f"in {directory}"
+            typer.echo(f"(no tasks {where})")
+        elif no_recurse:
+            # Top-level slice is empty, but nested tasks may still exist —
+            # don't claim "no tasks" outright.
+            typer.echo("(no top-level tasks)")
         else:
             typer.echo("(no tasks)")
         return
