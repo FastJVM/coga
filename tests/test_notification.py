@@ -42,16 +42,18 @@ def cfg_with_webhook(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return load_config(tmp_path)
 
 
+class _SlackResponse:
+    def __init__(self, status_code: int = 200, text: str = "ok") -> None:
+        self.status_code = status_code
+        self.text = text
+
+
 def test_post_calls_webhook(cfg_with_webhook, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[dict] = []
 
     def fake_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
         calls.append({"url": url, "json": json})
-
-        class R:
-            pass
-
-        return R()
+        return _SlackResponse()
 
     monkeypatch.setattr("relay.notification.slack.requests.post", fake_post)
     post(cfg_with_webhook, "task done")
@@ -66,7 +68,7 @@ def test_post_with_owner_prefixes_human(
     calls: list[dict] = []
     monkeypatch.setattr(
         "relay.notification.slack.requests.post",
-        lambda url, json=None, timeout=None: (calls.append({"json": json}), type("R", (), {})())[1],
+        lambda url, json=None, timeout=None: (calls.append({"json": json}), _SlackResponse())[1],
     )
     post(cfg_with_webhook, "task done", owner="marc")
     assert calls[0]["json"]["text"] == (
@@ -81,9 +83,7 @@ def test_post_with_image_url_attaches(
 
     def fake_post(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
         calls.append({"url": url, "json": json})
-        class R:
-            pass
-        return R()
+        return _SlackResponse()
 
     monkeypatch.setattr("relay.notification.slack.requests.post", fake_post)
     post(cfg_with_webhook, "🎉 done", image_url="https://media.giphy.com/x.gif")
@@ -101,7 +101,7 @@ def test_post_without_image_url_omits_attachments(
     calls: list[dict] = []
     monkeypatch.setattr(
         "relay.notification.slack.requests.post",
-        lambda url, json=None, timeout=None: (calls.append({"json": json}), type("R", (), {})())[1],
+        lambda url, json=None, timeout=None: (calls.append({"json": json}), _SlackResponse())[1],
     )
     post(cfg_with_webhook, "plain")
     assert "attachments" not in calls[0]["json"]
@@ -180,7 +180,7 @@ def test_notification_channels_dispatch_enabled(
         "relay.notification.slack.requests.post",
         lambda url, json=None, timeout=None: (
             calls.append({"url": url, "json": json}),
-            type("R", (), {})(),
+            _SlackResponse(),
         )[1],
     )
 
@@ -514,6 +514,35 @@ def test_post_failure_with_task_path_appends_to_log_then_crashes(
     assert "ConnectionError" in log_text
 
 
+def test_post_revoked_webhook_response_logs_then_crashes(
+    cfg_with_webhook,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    task_path = tmp_path / "tasks" / "001-x"
+    task_path.mkdir(parents=True)
+    (task_path / "log.md").write_text("")
+
+    def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
+        return _SlackResponse(404, "no_service")
+
+    monkeypatch.setattr("relay.notification.slack.requests.post", fake_post)
+    with pytest.raises(typer.Exit) as exc:
+        post(cfg_with_webhook, "daemon message", task_path=task_path)
+    assert exc.value.exit_code == 1
+
+    err = capsys.readouterr().err
+    assert "revoked/invalid webhook" in err
+    assert "HTTP 404" in err
+    assert f"[{cfg_with_webhook.project_name}] daemon message" in err
+
+    log_text = (task_path / "log.md").read_text()
+    assert "[slack]" in log_text
+    assert "revoked/invalid webhook" in log_text
+    assert "HTTP 404" in log_text
+
+
 def _capture(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     """Stub requests.post and return the list it appends each call's json to."""
     calls: list[dict] = []
@@ -521,7 +550,7 @@ def _capture(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
         "relay.notification.slack.requests.post",
         lambda url, json=None, timeout=None: (
             calls.append({"json": json}),
-            type("R", (), {})(),
+            _SlackResponse(),
         )[1],
     )
     return calls

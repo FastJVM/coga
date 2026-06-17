@@ -10,6 +10,7 @@ import typer
 
 from relay.config import Config
 from relay.logfile import append_log
+from relay.slack_response import classify_slack_response
 
 
 def mention(cfg: Config, name: str) -> str:
@@ -80,20 +81,39 @@ class SlackChannel:
                 {"image_url": image_url, "fallback": full_message}
             ]
 
+        def fail(message: str, log_detail: str) -> None:
+            sys.stderr.write(
+                f"[slack] post failed: {message}. Message was: {full_message}\n"
+            )
+            if task_path is not None:
+                append_log(task_path, "slack", f"post failed: {log_detail}")
+            raise typer.Exit(1)
+
         try:
-            requests.post(
+            resp = requests.post(
                 self.cfg.slack_webhook,
                 json=payload,
                 timeout=5,
             )
         except requests.RequestException as exc:
-            sys.stderr.write(
-                f"[slack] post failed: {exc}. Message was: {full_message}\n"
+            fail(
+                f"network error: {exc}",
+                f"{type(exc).__name__}: {exc}",
             )
-            if task_path is not None:
-                append_log(
-                    task_path,
-                    "slack",
-                    f"post failed: {type(exc).__name__}: {exc}",
+
+        status, detail = classify_slack_response(resp.status_code, resp.text)
+        if status == "revoked":
+            fail(
+                f"revoked/invalid webhook: {detail}",
+                f"revoked/invalid webhook: {detail}",
+            )
+        if not 200 <= resp.status_code < 300:
+            if status == "unreachable":
+                fail(
+                    f"transient Slack HTTP failure: {detail}",
+                    f"transient HTTP failure: {detail}",
                 )
-            raise typer.Exit(1)
+            fail(
+                f"non-OK Slack response: {detail}",
+                f"non-OK response: {detail}",
+            )
