@@ -1,6 +1,6 @@
 ---
 title: Filter relay status by directory/group
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
