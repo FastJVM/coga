@@ -5,7 +5,7 @@ mode: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (design)
+step: 2 (review-design)
 ---
 
 ## Description
@@ -115,3 +115,107 @@ replaces the long 5-step relay-setup interview: "shorten, don't delete" becomes
 - Validation: `marketing/validate-relay-build-onboarding` exercised this across
   empty / filled / ±CLAUDE.md repos; the filled / ±CLAUDE.md legs now inform the
   deferred filled-repo path, and the empty leg is what v1 ships.
+
+## Acceptance Criteria
+
+- A `build/onboarding` workflow exists (superseding `init/setup`) with exactly
+  **two agent steps and no scan step**:
+  1. `gather-and-spec` (assignee `agent`, runs interactively) — asks the single
+     scripted question "What do you want to build?", runs an agent-led chat of
+     **at most two follow-ups** that target only shape-defining unknowns, drafts
+     a short vision, takes **in-chat sign-off** (no separate review step), writes
+     the signed-off vision to a durable context, then bumps.
+  2. `generate-batch` (assignee `agent`) — reads the vision context, creates a
+     flat batch of **draft** tickets, ends in-chat with the generic launch
+     handoff, then `relay mark done`.
+- Step 1 produces a short **vision context** at
+  `relay-os/contexts/product/vision/SKILL.md` (in the *user's* repo): a few
+  sentences — what / who / success + v1 scope shape — with valid `SKILL.md`
+  frontmatter, framed as a living starter doc the owner edits as the project
+  evolves. Raw intake / working notes stay transient on the blackboard.
+- The chat does **not** chase detail/decision unknowns (library, provider,
+  formula); those are named at sign-off as deferred and become "decide/evaluate
+  X" ticket candidates. The owner may pull a shape-defining one back into chat.
+- Every generated ticket is a **draft**, has a thin what+why body, and lists the
+  vision context in its `contexts:` frontmatter, so a later `relay launch <slug>`
+  is oriented by the product without re-stating it.
+- The batch has **no pre-chosen anchor, no count cap, and no ordering, grouping,
+  or recommendation** — one flat list (slug + one line each, neutral order). The
+  "decide/evaluate X" tickets are a **subset**, not the bulk.
+- No `scan-and-generate`, `resolve-open-questions`, `review-and-sign-off`, or
+  `apply-review` step survives anywhere in the flow.
+- The delivered onboarding ticket template carries the frozen `build/onboarding`
+  workflow snapshot (the two steps above) and a thin what+why body.
+- Live (`relay-os/workflows/...`) and packaged
+  (`src/relay/resources/templates/relay-os/...`) copies are in sync;
+  `relay validate` passes (the delivered ticket's workflow snapshot matches the
+  workflow file).
+
+## Proposed Shape
+
+Authored files (this ticket owns the **content**; see the coordination note):
+
+- `relay-os/workflows/build/onboarding.md` **+** packaged
+  `src/relay/resources/templates/relay-os/workflows/build/onboarding.md` — the
+  new two-step workflow, full step prose inline (same shape as `init/setup.md`,
+  `skills: []` per step). The `build/` namespace already exists live (alongside
+  `build/dry-run.md`); the packaged side gains a new `build/` dir.
+- packaged `src/relay/resources/templates/relay-os/tasks/relay-build/ticket.md`
+  — the delivered onboarding ticket: thin body + frozen `build/onboarding`
+  snapshot. (Delivered ticket is packaged-only; relay-cli doesn't onboard
+  itself.)
+
+The vision context is **not** a file in this repo — it is created at runtime in
+the user's repo by step 1; the workflow prose specifies its path and shape.
+
+Workflow frontmatter:
+
+```yaml
+name: build/onboarding
+description: First-run onboarding — one scripted question, an agent-led chat, a signed-off vision, and a flat batch of launchable draft tickets. Empty repos only; no scan.
+steps:
+  - name: gather-and-spec
+    assignee: agent
+  - name: generate-batch
+    assignee: agent
+```
+
+`gather-and-spec` prose covers: assume `current_user` is valid (set by `relay
+init` — name capture is a companion ticket, do not re-prompt); ask the one
+scripted question; run ≤2 shape-defining follow-ups (draw out intent, don't
+interrogate); draft the short vision and present it in the same turn for
+sign-off; at sign-off, name the deferred decisions so they're visible; on
+sign-off write `contexts/product/vision/SKILL.md` and record raw notes on the
+blackboard; `relay bump`.
+
+`generate-batch` prose covers: read the vision context (+ blackboard); generate
+as many drafts as the vision genuinely supports (build tickets + a subset of
+"decide/evaluate X"), no padding/truncation/cap; each draft thin, `status:
+draft`, `contexts: [product/vision]`; no anchor/ordering/grouping; create them
+via the `relay ticket` creation primitive (dependency: `relay-ticket-creates`,
+still in design — note the fallback if it hasn't landed); present the flat list,
+get approval, hand over "launch any one with `relay launch <ticket-slug>`";
+`relay mark done`.
+
+Coordination note (residual open question on the blackboard): `relay-build-command`
+claims the `init/setup`→`build/onboarding` and `relay-setup`→`relay-build`
+renames. Recommendation — this ticket authors content under the **new** names and
+removes the stale `init/setup` + `relay-setup`; if the command ticket lands
+first, this ticket edits the already-renamed files. Either way this ticket's
+content is authoritative. review-design to confirm the sequencing.
+
+## Out of Scope
+
+- The `relay build` command, CLI registration, `setup.py`→`build.py`, init
+  next-steps text, and the latent `launch()` arg-count bug fix →
+  `marketing/relay-build-command`.
+- `relay init` capturing the name, the empty/filled gate, seeding the onboarding
+  ticket, and killing the `new-user` placeholder / stamping the name →
+  `marketing/relay-init-captures-name`.
+- The `relay ticket` creation primitive (yes/no defer gate; removing `relay
+  draft` / `relay create`) → `marketing/relay-ticket-creates` (nick).
+- Filled-repo onboarding and the bounded, opt-in scan with a token ceiling →
+  deferred to a future ticket.
+- Generating durable contexts / rules / recurring artifacts beyond the single
+  vision context — the old `init/setup` ambition, deliberately dropped here.
+- `tests/test_setup.py` updates → land with the command rename ticket.
