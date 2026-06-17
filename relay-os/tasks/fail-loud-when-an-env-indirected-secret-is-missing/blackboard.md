@@ -84,3 +84,45 @@ secrets. Future ticket can flip default to strict.
 - The `extra_local` typo-warn (config.py:225) is tacked on at the end ("worth a warn in the same pass"). This is genuinely a *separate* ticket — different config layer (local.toml unknown keys), different surface. Bundling it here would inflate scope and dilute the focused security fix. Recommend dropping it from this ticket or splitting it out.
 
 **Bottom line:** Premise verified, design sound, safe to launch. Two things to fix/flag before or during work: (1) the stale line numbers in the Description, and (2) the dual-registration requirement — `secrets:` must be added to validate.py's `OPTIONAL_TASK_KEYS` (line 79), not only config.py's reserved set, and launch enforcement must treat an absent/null `secrets:` field as "enforce nothing" to avoid breaking every existing ticket. Consider de-scoping the `extra_local` warn into its own ticket.
+
+## Decisions after second-pass review (nick, 2026-06-17)
+
+- **`secrets: []` semantics:** explicit `[]` = STRICT, inject nothing
+  (deliberate lockdown). absent/null = legacy blanket-inject. non-empty list =
+  only those keys. `[]` ≠ null — implementer must NOT collapse via
+  `get("secrets") or []` for the injection-mode branch.
+- **Inject sites:** `relay launch` is the ONLY place secrets are injected.
+  Strip blanket inject from launch_script/ticket/delete/project. RISK:
+  launch_script.py:74 documents script-mode secret env vars — fold script-mode
+  delivery into the launch chokepoint, don't silently drop it.
+- **Provenance:** baked into item 3 — `cfg.secrets` loses the env:VAR ref +
+  unset/empty distinction at load (config.py:223); this is a data-model change,
+  not a one-liner.
+- **Field shape:** validate that `secrets:` is a list of strings (error on
+  scalar/non-string) — registration alone doesn't type it.
+- Scope still bundled per nick's earlier call (incl. extra_local warn).
+
+## Evaluator review — second pass (after scope expansion)
+
+(Independent cold read, general-purpose subagent, 2026-06-17 — verbatim.)
+
+**Second-pass cold read: `fail-loud-when-an-env-indirected-secret-is-missing`**
+
+Code pointers in the ticket are accurate (config.py:850 footgun, :364 reserved names, launch.py:325, validate.py optional keys at :79, all 5 inject sites confirmed: launch.py:325, launch_script.py:131, ticket.py:173, delete.py:62, project.py:106). The ticket is well-written and self-aware about drift. The expansion is mostly coherent, but the second pass surfaces several real issues.
+
+**1. The opt-in backward-compat model is coherent — but it quietly relocates where resolution must happen, and the ticket never says so.**
+`cfg.secrets` is resolved eagerly at config-load (config.py:223 `_resolve_secrets`). By the time any inject site or fail-loud check runs, the `env:VAR` reference is **already gone** — it's a flat `{key: ""}` dict, with unset vars already collapsed to `""`. Item 2's fail-loud ("name the missing env var") and item 4's validate-warn both need to know *which env var* a key pointed at and *whether it was unset vs empty literal*. That information is destroyed at load time. So the real implementation either (a) stops resolving eagerly and carries raw refs forward, or (b) has `_resolve_secrets` retain provenance (e.g., a sentinel/`None` for unset, plus the original var name). The ticket gestures at "distinguish unset from empty literal in `_resolve_secret_value`/`_resolve_secrets`" but treats it as a local in-function fix; it is actually a **data-model change to `cfg.secrets`** that ripples to every consumer. This is the biggest under-specified item and the most likely source of a half-done PR.
+
+**2. Empty-string fix vs least-privilege interact correctly in principle, but "which of the 5 sites change" is explicitly left undecided — and that's a gap, not a deferral.**
+Item 3 is stated as "independent of the list" and the empty-string drop happens inside `_resolve_secrets`, which feeds all 5 sites — so all 5 automatically stop injecting `""` for free. Good. But least-privilege (item 0) only names `launch`. The ticket says the other four "may warrant the same guard" and "decide which paths enforce." For a security/least-privilege ticket, leaving 4 of 5 injection sites as blanket-inject is a coherence hole: a ticket that declares `secrets: [STRIPE_KEY]` would get least-privilege at `relay launch` but full blanket-inject at `launch_script`/`ticket`/`delete`/`project`. That's a confusing, leaky least-privilege guarantee. Acceptance only covers launch, so a PR could legitimately ship the leak. This should be **decided in the ticket**, not in the PR.
+
+**3. No contradiction in the "absent==null==[]" rule — it's stated consistently** (lines 51-61, 84-87, and the `get("secrets") or []` defensive guidance). This part is clean. One subtle edge though: `secrets: []` (explicitly empty list) is folded into "needs none" in item 1 ("`null`/`[]` means the task needs none"), but under strict least-privilege an explicit `[]` arguably should mean "inject nothing" (strict), whereas absent/null means "blanket-inject" (legacy). The ticket collapses `[]` and `null` to the *same* legacy-blanket behavior via `get("secrets") or []` — which means a deliberately-empty `secrets: []` still gets blanket-inject, the opposite of least-privilege intent. That's a genuine latent contradiction between "the field is opt-in to least-privilege" and "`[] == null == blanket." Worth an explicit call: does `secrets: []` mean "inject nothing" or "inject everything"? The defensive idiom silently picks "everything."
+
+**4. Scope: borderline-too-big, and one clean split is available.** Three coupled items (field + least-privilege + fail-loud/empty-string) plus template sync plus validate-warn plus the `extra_local` typo-warn aside. Items 3 (empty-string drop) and 4 (validate warn for unset env) are the core safety fix and are self-contained. Item 0 (least-privilege scoping across N inject sites) is the heavier, riskier piece and depends on the data-model change in #1. A reasonable split: **PR-A** = empty-string fail-loud fix + `_resolve_secrets` provenance change (the actual security bug, item 3, applies to all sites today). **PR-B** = the `secrets:` frontmatter field + least-privilege scoping + validate-warn. As written it's shippable as one PR but the blast radius (config data model + 5 call sites + 2 schema registries + 2 templates + validate) is large for one review.
+
+**5. Smaller gaps:**
+- The `extra_local` typo-warn (closing paragraph) is a 6th, unrelated concern bolted on — it touches neither secrets injection nor the field. Drop it or split it; it inflates scope with no acceptance coverage.
+- Item 1 requires registering in *both* `_RESERVED_TICKET_FIELD_NAMES` and `OPTIONAL_TASK_KEYS` — correct and well-flagged. But note `_RESERVED_TICKET_FIELD_NAMES` is a *collision guard for extensions*, not a parser allowlist; the ticket should confirm whether `secrets` also needs to be parsed/typed somewhere as a real list (the frontmatter is otherwise free-form). Right now nothing validates that `secrets:` is a *list of strings* vs a scalar — item 4 should add that type check, and it currently doesn't mention it.
+- Acceptance says "the new `secrets:` field is validated" but the only validate behavior specified (item 4) is a **warn** for unset env. There's no specified validation that the field's *shape* is correct or that listed keys exist in `[secrets]` as an error. "Validated" is vague against the actual specified behavior (warn-only). Tighten the acceptance wording.
+
+**Net:** No fatal contradiction, and the backward-compat model is sound. The two things I'd block on before implementation: (a) make explicit that `cfg.secrets` loses provenance at load and item 3 is a data-model change, not a one-liner; (b) decide the `[] == null` semantics and which of the 5 inject sites enforce least-privilege — leaving both to the PR invites a half-correct, leaky implementation.
