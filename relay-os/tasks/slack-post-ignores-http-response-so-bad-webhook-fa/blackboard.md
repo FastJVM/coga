@@ -3,6 +3,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: codex/slack-response-check
 worktree: /tmp/relay-slack-response-check
+pr: https://github.com/FastJVM/relay/pull/376
 commit: 532f915
 
 ## Implementation notes
@@ -14,6 +15,7 @@ commit: 532f915
 - `python -m pytest tests/test_notification.py tests/test_validate.py` in `/tmp/relay-slack-response-check`: 61 passed.
 - `python -m pytest` in `/tmp/relay-slack-response-check`: 754 passed, 1 skipped.
 - `PYTHONPATH=/tmp/relay-slack-response-check/src python -m relay.validate --task slack-post-ignores-http-response-so-bad-webhook-fa --json` from the primary checkout: ok_count 1, no issues.
+- PR #376 is open, non-draft, mergeStateStatus CLEAN; `gh pr checks 376` reports no checks on `codex/slack-response-check`.
 
 ## Peer review (Claude, /code-review default effort)
 - Ran 8 finder angles (correctness x3, removed-behavior/cross-file, reuse/simplification/efficiency, altitude, conventions). **Zero must-fix findings.**
