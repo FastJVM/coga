@@ -90,10 +90,11 @@ replaces the long 5-step relay-setup interview: "shorten, don't delete" becomes
   returns later behind a bounded, opt-in scan with a hard token ceiling
   (deferred). Empty-path rule still carries from init-questions: stub-and-ask,
   never fabricate.
-- Final deliverable is always a launchable ticket batch — the generate step
-  rides the `relay ticket` creation primitive (see
-  `marketing/relay-ticket-creates`). The spec/vision doc is the durable context
-  the batch is generated from.
+- Final deliverable is always a launchable ticket batch — the generate step needs
+  only non-interactive bulk draft creation, which ships today (`create_task`,
+  surfaced as `relay create`); it upgrades to the consolidated `relay ticket`
+  primitive if/when `marketing/relay-ticket-creates` lands, but does not depend on
+  it. The spec/vision doc is the durable context the batch is generated from.
 - Batch ending (owner decisions 2026-06-16 / 2026-06-17, supersedes validate
   finding #4's "one launchable anchor" and its "~5" size): create the batch as
   **drafts** with **no pre-chosen anchor** — which to launch first is the human's
