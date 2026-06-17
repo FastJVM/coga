@@ -161,7 +161,6 @@ The normal path for a new ticket is:
 
 ```sh
 relay ticket "Add retry to webhook handler"
-relay mark active add-retry
 relay launch add-retry
 # agent works, writes blackboard, and bumps workflow steps
 relay mark done add-retry
@@ -261,8 +260,9 @@ The usual boot sequence is:
 
 1. `relay ticket "<title>"` — create and fill the draft.
 2. Review or edit the ticket.
-3. `relay mark active <slug>` — approve it into the queue.
-4. `relay launch <slug>` — mark it `in_progress` and spawn the agent.
+3. `relay launch <slug>` — approve, mark it `in_progress`, and spawn the
+   agent. Launching a `draft` activates it inline, so there is no separate
+   `relay mark active` step.
 
 Programmatic callers (e.g. `relay recurring`) call `create_task()` in
 `relay.create` directly with the full keyword surface.
@@ -409,8 +409,8 @@ prompt and start the configured agent against it.
 
 `launch` accepts `status: active` or `status: in_progress` directly. A
 `draft` / `paused` / `done` ticket is activated inline first — typing `relay
-launch` is the readiness signal, so it runs the `relay mark active` step for
-you (re-activating a `done` ticket restarts its workflow at step 1) rather
+launch` is the readiness signal, so it activates the ticket for you
+(re-activating a `done` ticket restarts its workflow at step 1) rather
 than refusing. A ticket that can't be activated — no workflow, or an empty
 `required` extension field — fails loud with the same remedy `mark active`
 gives. Launching an active ticket then marks it `in_progress`; launching an

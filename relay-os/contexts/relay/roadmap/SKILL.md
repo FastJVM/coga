@@ -142,9 +142,11 @@ Bugs a stranger hits on day one — in scope precisely because of the v1 promise
 
 ### Flow simplification (1)
 
-- `implicit-activation-inrpogress` [draft] — drop the explicit "mark active"
-  step: launching a ticket activates it. draft → (running) → done. Scope is the
-  activation step only; auto-advancing workflow bumps is deferred
+- `implicit-activation-inrpogress` [shipped] — launching a ticket now activates
+  it inline (`_auto_activate` in `launch.py`), so the explicit "mark active"
+  step is retired: draft → (running) → done. Docs/help/context cleanup tracked
+  by `retire-mark-active`. Scope was the activation step only; auto-advancing
+  workflow bumps remains deferred
   (`v2/why-ai-asks-me-to-bump-instead-of-doing-it`).
 
 ### Single-file task format (1)
