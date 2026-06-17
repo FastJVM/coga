@@ -1,14 +1,31 @@
 ---
 title: Slack post ignores HTTP response so bad webhook fails silently
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
-agent: claude
-assignee: nick
+agent: codex
+assignee: codex
 contexts: []
 skills: []
-workflow: null
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
+step: 1 (implement)
 ---
 
 ## Description
