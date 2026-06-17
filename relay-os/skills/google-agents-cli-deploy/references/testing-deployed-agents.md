@@ -28,12 +28,9 @@ For more control (scripting, direct curl), see the target-specific sections belo
 
 ## Agent Runtime Deployment
 
-**Option 1: Testing Notebook**
-```bash
-jupyter notebook notebooks/adk_app_testing.ipynb
-```
+Beyond the `run --url` quick test above, you can query the deployment directly.
 
-**Option 2: Python Script**
+**Option 1: Python Script**
 ```python
 import json
 import vertexai
@@ -48,7 +45,7 @@ async for event in agent.async_stream_query(message="Hello!", user_id="test"):
     print(event)
 ```
 
-**Option 3: Playground**
+**Option 2: Playground**
 ```bash
 agents-cli playground
 ```

@@ -1,153 +1,106 @@
 # User Simulation for Dynamic Evaluation
 
-> File paths below reference the scaffolded layout. Adjust for your project structure if not using /google-agents-cli-scaffold.
+> File paths below reference the scaffolded layout. Adjust for your project structure if not using `/google-agents-cli-scaffold`.
 
 ## When to Use
 
-Use user simulation when fixed prompts are impractical — the agent may ask for information in different orders or respond in unexpected ways. Instead of hardcoding every user turn, define a **conversation scenario** and let an AI model generate realistic user responses dynamically.
+Use user simulation when fixed prompts are impractical — the agent may ask for information in different orders or respond in unexpected ways. Instead of hand-recording every user/agent turn, let `agents-cli eval dataset synthesize` ask the Vertex AI evaluation service to generate **user scenarios** for your agent and then play each scenario against an LLM-backed user simulator. The resulting traces (with full `agent_data.turns` populated) drop straight into `agents-cli eval grade`.
+
+A user scenario is a `starting_prompt` (the user's opening message) plus a free-text `conversation_plan` (how the simulated user should behave for the rest of the conversation). You don't author these yourself in the agents-cli flow — `eval dataset synthesize` generates them from your agent's tools and instructions.
+
+> **For deterministic, hand-authored eval cases** (e.g., regression coverage), use the recorded-turns format instead: write `agent_data.turns` directly in your dataset and run `agents-cli eval generate` to play it back. See `references/dataset_schema.md`. `agents-cli eval generate` requires either a top-level `prompt` or `agent_data` on every case; it does **not** play hand-authored `user_scenario` cases.
 
 ---
 
-## ConversationScenario Schema
-
-Instead of `conversation` (static turns), use `conversation_scenario` in your eval case:
-
-```json
-{
-  "eval_set_id": "dynamic_tests",
-  "eval_cases": [
-    {
-      "eval_id": "booking_flow",
-      "conversation_scenario": {
-        "starting_prompt": "I need to book a flight to London",
-        "conversation_plan": "Provide your name (John Smith) and email (john@example.com) when asked. Confirm the booking when the agent offers a flight."
-      },
-      "session_input": {
-        "app_name": "my_app",
-        "user_id": "test_user",
-        "state": {}
-      }
-    }
-  ]
-}
-```
-
-- `starting_prompt` — fixed first user message
-- `conversation_plan` — guidelines for how the simulated user should behave in subsequent turns
-
-**Important:** An eval case must have exactly one of `conversation` or `conversation_scenario`, not both.
-
----
-
-## Compatible Criteria
-
-Only these criteria work with user simulation (no ground-truth available):
-
-| Criterion | Compatible |
-|-----------|:-:|
-| `hallucinations_v1` | Yes |
-| `safety_v1` | Yes |
-| `rubric_based_final_response_quality_v1` | Yes |
-| `rubric_based_tool_use_quality_v1` | Yes |
-| `per_turn_user_simulator_quality_v1` | Yes |
-| `tool_trajectory_avg_score` | No |
-| `response_match_score` | No |
-| `final_response_match_v2` | No |
-
-Example config for user simulation evals:
-```json
-{
-  "criteria": {
-    "hallucinations_v1": {
-      "threshold": 0.5,
-      "evaluate_intermediate_nl_responses": true
-    },
-    "safety_v1": 0.8
-  }
-}
-```
-
----
-
-## User Simulator Configuration
-
-Override default simulator behavior in `eval_config.json`:
-
-```json
-{
-  "criteria": { ... },
-  "user_simulator_config": {
-    "model": "gemini-flash-latest",
-    "model_configuration": {
-      "thinking_config": {
-        "include_thoughts": true,
-        "thinking_budget": 10240
-      }
-    },
-    "max_allowed_invocations": 20,
-    "custom_instructions": "..."
-  }
-}
-```
-
-- `model` — model backing the user simulator
-- `model_configuration` — GenerateContentConfig controlling model behavior
-- `max_allowed_invocations` — max user-agent turns before forced termination (set higher than your longest expected conversation)
-- `custom_instructions` — override default simulator instructions (must include `{stop_signal}`, `{conversation_plan}`, `{conversation_history}` placeholders)
-
----
-
-## Creating Eval Sets with Scenarios
+## Running `eval dataset synthesize`
 
 ```bash
-# Run evaluations
-agents-cli eval run --evalset <path_to_evalset.json>
+# Synthesize 3 scenarios (default), simulate them, write traces to artifacts/traces/traces_<ts>.json
+agents-cli eval dataset synthesize
+
+# Steer scenario generation with an instruction and environment context
+agents-cli eval dataset synthesize \
+  -n 5 \
+  --max-turns 8 \
+  --instruction "Customer asking about refunds" \
+  --environment-context "E-commerce support; orders are visible by order_id"
+
+# Use a custom model for scenario generation (default: service default)
+agents-cli eval dataset synthesize --model gemini-2.5-pro
 ```
 
-**Scenarios file format:**
-```json
-{
-  "scenarios": [
-    {
-      "starting_prompt": "What can you do for me?",
-      "conversation_plan": "Ask the agent to search for flights to Paris. After results, ask to book the cheapest option."
-    }
-  ]
-}
-```
+CLI flags exposed by `agents-cli eval dataset synthesize`:
 
-**Session input file:**
-```json
-{
-  "app_name": "my_app",
-  "user_id": "test_user"
-}
-```
+| Flag | What it controls |
+|------|------------------|
+| `-n / --count` | Number of scenarios to generate (default 3) |
+| `--instruction` | Natural-language steering for scenario generation |
+| `--environment-context` | World context the simulator can rely on (e.g., available data) |
+| `--model` | Model used for **scenario generation** (server-side; not the simulated user model) |
+| `--max-turns` | Cap on user↔agent turns per scenario (default 5) |
+| `-o / --output` | Output path; defaults to `artifacts/traces/traces_<ts>.json` |
+| `--project` / `--region` | GCP project / region overrides. `synthesize` defaults to the `global` eval endpoint (ignores the manifest `region`); pass `--region` only for data residency — the service rejects an unsupported one. |
+
+**Simulator internals are NOT user-configurable from agents-cli.** The LLM-backed user simulator that plays the user side runs inside `_synthesize_runner.py` with hardcoded ADK defaults (`gemini-2.5-flash` for the user voice, default thinking config, no `custom_instructions`). Only `--max-turns` reaches it (as `LlmBackedUserSimulatorConfig.max_allowed_invocations`). There is no `eval_config.yaml` key, no `--simulator-model` flag, and no way to override `custom_instructions` or `model_configuration` short of editing `_synthesize_runner.py` directly.
 
 ---
 
-## Evaluating Simulator Quality
+## What `synthesize` writes
 
-Use `per_turn_user_simulator_quality_v1` to verify the simulator follows the conversation plan:
+A single JSON `EvaluationDataset` file at the output path. Each case has:
 
-```json
-{
-  "criteria": {
-    "per_turn_user_simulator_quality_v1": {
-      "threshold": 1.0,
-      "judge_model_options": {
-        "judge_model": "gemini-flash-latest",
-        "num_samples": 5
-      },
-      "stop_signal": "</finished>"
-    }
-  }
-}
+- `eval_case_id` — server-generated UUID
+- `user_scenario` — the generated `{starting_prompt, conversation_plan}` (preserved for traceability)
+- `agent_data.turns` — the full simulated conversation: user events, agent responses, tool calls, tool responses
+
+Because `agent_data.turns` is fully populated, the file is already a graded-ready trace. Skip `eval generate` and go straight to `eval grade`:
+
+```bash
+agents-cli eval dataset synthesize
+agents-cli eval grade   # reads artifacts/traces/ by default
 ```
+
+If `synthesize` fails for some scenarios, the failing cases land in the output with empty `agent_data.turns` and a stderr warning; the rest still pass through to `eval grade`.
 
 ---
 
-## Deep Dive
+## Compatible Metrics
 
-For the full user simulation guide with examples:
-- WebFetch: `https://raw.githubusercontent.com/google/adk-docs/main/docs/evaluate/user-sim.md`
+Simulated conversations have no ground-truth response, so only reference-free metrics work:
+
+| Metric | Why it works |
+|--------|--------------|
+| `hallucination` | Reference-free; checks claims against tool output |
+| `safety` | Reference-free; static-rubric policy check |
+| `final_response_reference_free` | Reference-free by design |
+| `tool_use_quality` | Adaptive rubric — no expected trajectory needed |
+| `multi_turn_task_success` | Adaptive rubric judges whether the simulated user's goal was met |
+| `multi_turn_trajectory_quality` | Adaptive rubric on agent reasoning across turns |
+| `multi_turn_tool_use_quality` | Adaptive rubric on tool calls across turns |
+
+Reference-required metrics (e.g., `final_response_match`) cannot be used: simulated conversations have no ground-truth response to match against.
+
+Example `tests/eval/eval_config.yaml` for grading synthesized traces:
+
+```yaml
+metrics_to_run:
+  - hallucination
+  - safety
+  - multi_turn_task_success
+```
+
+Run with:
+
+```bash
+agents-cli eval grade --config tests/eval/eval_config.yaml
+```
+
+The `eval_config.yaml` file is read by `eval grade` only — `eval dataset synthesize` ignores it.
+
+---
+
+## Notes
+
+- **Scenario quality depends entirely on agent metadata.** `generate_conversation_scenarios` reads your agent's instructions and tool descriptions to generate plausible user behaviors. Vague tool descriptions produce vague scenarios. Tighten tool docstrings before running synthesize on a new agent.
+- **`--max-turns` is a hard cap.** The simulated user can stop earlier (when its goal is met or it gives up); `--max-turns` only prevents runaway loops.
+- **Re-running synthesize generates new scenarios.** There is no seed flag — each invocation produces fresh scenarios. For repeatable regression coverage, write `agent_data.turns` directly (see `references/dataset_schema.md`) instead of relying on `synthesize`.

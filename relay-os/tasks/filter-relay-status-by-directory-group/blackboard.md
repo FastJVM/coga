@@ -44,6 +44,13 @@ Reviewed the merged PR state from Codex on the owner review step.
 - Final terminology scan on current `main` only returns unrelated digest
   grouping usage, not task-directory vocabulary.
 
+## Reopened-state closeout (2026-06-16)
+The ticket was done after PR #368 merged, then was accidentally relaunched and
+reactivated to `in_progress`. Live `main` already contains the implementation;
+`relay status marketing` works, and the root-only slice is now the current
+`relay status --no-recurse` shape from follow-up #374. Marking the ticket done
+again to repair task state.
+
 ## SCOPE CHANGE (human, mid-task) — directory-native, no "group" vocab
 
 Human pushed back on two things after the first pass:

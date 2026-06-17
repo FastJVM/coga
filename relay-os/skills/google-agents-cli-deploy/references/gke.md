@@ -26,7 +26,7 @@ All Kubernetes resources are managed by Terraform in `deployment/terraform/cicd/
 
 ## Terraform Infrastructure
 
-GKE infrastructure is provisioned in `deployment/terraform/service.tf`. Check that file for current configuration.
+GKE infrastructure is provisioned in `deployment/terraform/single-project/service.tf`. Check that file for current configuration.
 
 Key differences from Cloud Run: Terraform provisions a full networking stack (VPC, subnet, Cloud NAT for private node internet access) and a GKE Autopilot cluster with private nodes. Cloud SQL (optional, when `session_type == "cloud_sql"`) uses a proxy sidecar in the pod rather than Cloud Run's Unix socket volume mount.
 

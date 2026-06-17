@@ -12,7 +12,7 @@ No configuration required. Works in local dev (`agents-cli playground`) and all 
 
 ## Prompt-Response Logging Infrastructure
 
-All provisioned automatically by `deployment/terraform/telemetry.tf`:
+All provisioned automatically by `deployment/terraform/single-project/telemetry.tf` (and the `cicd/` variant):
 
 - **Log sinks** — Route GenAI inference logs and feedback logs directly to BigQuery (partitioned tables)
 - **BigQuery dataset** — Telemetry dataset with external tables over GCS data and pre-created log export table
@@ -21,7 +21,7 @@ All provisioned automatically by `deployment/terraform/telemetry.tf`:
 - **BigQuery connection** — Service account for GCS access from BigQuery
 - **Completions view** — Joins BQ log export data with GCS-stored prompt/response data
 
-Check `deployment/terraform/telemetry.tf` for exact configuration. IAM bindings grant log sink service accounts `roles/bigquery.dataEditor` on the telemetry dataset.
+Check `deployment/terraform/single-project/telemetry.tf` for exact configuration. IAM bindings grant log sink service accounts `roles/bigquery.dataEditor` on the telemetry dataset.
 
 ## Environment Variables
 
@@ -31,8 +31,9 @@ Set automatically by Terraform on the deployed service:
 |----------|---------|
 | `LOGS_BUCKET_NAME` | GCS bucket for completions and logs. Required to enable prompt-response logging |
 | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | Controls logging state and content capture |
-| `BQ_ANALYTICS_DATASET_ID` | BigQuery dataset for telemetry |
-| `BQ_ANALYTICS_CONNECTION_ID` | BigQuery connection for GCS access |
+| `BQ_ANALYTICS_DATASET_ID` | BigQuery dataset for telemetry (only when scaffolded with `--bq-analytics`) |
+| `BQ_ANALYTICS_CONNECTION_ID` | BigQuery connection for GCS access (only when scaffolded with `--bq-analytics`) |
+| `BQ_ANALYTICS_GCS_BUCKET` | GCS bucket for BigQuery Analytics multimodal offloading (only when scaffolded with `--bq-analytics`) |
 | `GENAI_TELEMETRY_PATH` | Optional: override upload path within bucket (default: `completions`) |
 
 ## Enabling / Disabling
@@ -48,7 +49,7 @@ export OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT="NO_CONTENT"
 
 ### Disable in Deployed Environments
 
-Set `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false` in `deployment/terraform/service.tf` and re-apply Terraform.
+Set `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false` in `deployment/terraform/single-project/service.tf` (or the `cicd/` variant) and re-apply Terraform.
 
 ## BigQuery Dataset Naming Convention
 

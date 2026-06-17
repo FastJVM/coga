@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-scaffold
-    github-ref: refs/tags/v0.1.3
+    github-ref: refs/tags/v0.5.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 9f0cc078abdba093942c5bc670ed4ef936be5b6a
+    github-tree-sha: 3aed46ea41a15870d7f8700093e58269218635d3
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 0.1.3
+    version: 0.5.0
 name: google-agents-cli-scaffold
 ---
 # ADK Project Scaffolding Guide
@@ -40,7 +40,7 @@ Use the `agents-cli` CLI to create new ADK agent projects or enhance existing on
 | A2A protocol | `--agent adk_a2a` |
 | Prototype (no deployment) | `--prototype` |
 | Deployment target | `--deployment-target <agent_runtime\|cloud_run\|gke>` |
-| CI/CD runner | `--cicd-runner <github_actions\|cloud_build>` |
+| CI/CD runner | `--cicd-runner <github_actions\|google_cloud_build>` |
 | Session storage | `--session-type <in_memory\|cloud_sql\|agent_platform_sessions>` |
 
 ### Product name mapping
@@ -161,12 +161,10 @@ When using `agent_runtime as the deployment target, Agent Runtime manages sessio
 
 ## Step 3: Load Dev Workflow
 
-After scaffolding, save `DESIGN_SPEC.md` to the project root if it isn't there already.
-
-**Then immediately load `/google-agents-cli-workflow`** — it contains the development workflow, coding guidelines, and operational rules you must follow when implementing the agent.
+After scaffolding, immediately load `/google-agents-cli-workflow` — it contains the development workflow, coding guidelines, and operational rules you must follow when implementing the agent.
 
 **Key files to customize:** `app/agent.py` (instruction, tools, model), `app/tools.py` (custom tool functions), `.env` (project ID, location, API keys).
-**Files to preserve:** `pyproject.toml` `[tool.agents-cli]` section (CLI reads this), deployment configs under `deployment/`, `Makefile`, `app/__init__.py` (the `App(name=...)` must match the directory name — default `app`).
+**Files to preserve:** `agents-cli-manifest.yaml` (CLI reads this), deployment configs under `deployment/`, `Makefile`, `app/__init__.py` (the `App(name=...)` must match the directory name — default `app`).
 
 **RAG projects (`agentic_rag`) — provision datastore first:**
 Before running `agents-cli playground` or testing your RAG agent, you must provision the datastore and ingest data:
@@ -178,7 +176,7 @@ Use `infra datastore` — **not** `infra single-project`. Both provision the dat
 
 > **Vector Search region:** `vector_search_location` defaults to `us-central1`, separate from `region` (`us-east1`). It sets both the Vector Search collection region and the BQ ingestion dataset region, kept colocated to avoid cross-region data movement. Override per-invocation with `agents-cli data-ingestion --vector-search-location <region>`.
 
-**Verifying your agent works:** Use `agents-cli run "test prompt"` for quick smoke tests, then `agents-cli eval run` for systematic validation. Do NOT write pytest tests that assert on LLM response content — that belongs in eval.
+**Verifying your agent works:** Use `agents-cli run "test prompt"` for quick smoke tests, then `agents-cli eval generate` and `agents-cli eval grade` for systematic validation. Do NOT write pytest tests that assert on LLM response content — that belongs in eval.
 
 ---
 
@@ -249,4 +247,4 @@ See `/google-agents-cli-workflow` → **Setup** section.
 - `/google-agents-cli-workflow` — Development workflow, coding guidelines, and the build-evaluate-deploy lifecycle
 - `/google-agents-cli-adk-code` — ADK Python API quick reference for writing agent code
 - `/google-agents-cli-deploy` — Deployment targets, CI/CD pipelines, and production workflows
-- `/google-agents-cli-eval` — Evaluation methodology, evalset schema, and the eval-fix loop
+- `/google-agents-cli-eval` — Evaluation methodology, dataset schema, and the eval-fix loop

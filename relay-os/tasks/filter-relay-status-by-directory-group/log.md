@@ -14,3 +14,6 @@
 2026-06-16 11:43 [human:nick] auto-bumped on merge of PR #368 → done
 2026-06-16 20:30 [human:nick] activated (done → active) — auto on launch
 2026-06-16 20:30 [human:nick] started (active → in_progress) via relay launch
+2026-06-16 20:30 [human:nick] launched in interactive mode (assignee=nick, launch_assignee=codex, agent=codex)
+2026-06-16 20:33 [human:nick] task done — implemented and merged; repairing reopened task state
+2026-06-16 20:33 [git] sync failed: `git add -- relay-os/tasks/filter-relay-status-by-directory-group` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
