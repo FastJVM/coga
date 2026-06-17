@@ -36,8 +36,11 @@ from relay.validate import format_task_issues, validate_task_dir
 
 
 AUTHORING_SKILL = "bootstrap/ticket"
-EDITABLE_STATUSES = {"draft", "active", "paused"}
-PROTECTED_STATUSES = {"in_progress", "done"}
+# Guided editing is allowed from any lifecycle status — the human owns the
+# ticket and may revise it at any stage. `in_progress` and `done` are unusual
+# enough to warrant a heads-up (see CAUTION_STATUSES) but are not refused.
+EDITABLE_STATUSES = {"draft", "active", "in_progress", "paused", "done"}
+CAUTION_STATUSES = {"in_progress", "done"}
 AUTHORING_SYNC_DIRS = ("tasks", "contexts", "skills")
 
 
@@ -45,7 +48,7 @@ def ticket(
     target: str | None = typer.Argument(
         None,
         help=(
-            "Existing draft/active task slug to edit, or a new title to draft. "
+            "Existing task slug to edit (any status), or a new title to draft. "
             "Omit to start an empty interview."
         ),
     ),
@@ -106,15 +109,20 @@ def _resolve_or_create_target(cfg: Config, target: str) -> tuple[TaskRef, Ticket
         return ref, read_ticket(ref)
 
     ticket = read_ticket(ref)
-    if ticket.status in PROTECTED_STATUSES:
-        _bail(
-            f"Task {ref.id_slug} is {ticket.status!r}; guided ticket editing is "
-            "for draft, active, or paused tickets."
-        )
     if ticket.status not in EDITABLE_STATUSES:
         _bail(
             f"Task {ref.id_slug} has unknown status {ticket.status!r}; "
             "refusing guided ticket editing."
+        )
+    if ticket.status in CAUTION_STATUSES:
+        typer.secho(
+            f"Note: {ref.id_slug} is {ticket.status!r}. Editing leaves its "
+            "status unchanged; this revises a ticket already in flight"
+            if ticket.status == "in_progress"
+            else f"Note: {ref.id_slug} is {ticket.status!r}. Editing leaves its "
+            "status unchanged; this revises a finished ticket",
+            fg=typer.colors.YELLOW,
+            err=True,
         )
     return ref, ticket
 

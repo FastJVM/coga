@@ -266,7 +266,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
     assert not called
 
 
-def test_ticket_refuses_in_progress_task(
+def test_ticket_edits_in_progress_task(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -282,18 +282,15 @@ def test_ticket_refuses_in_progress_task(
         watchers=[],
         status="in_progress",
     )
-    called = False
-
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
-        nonlocal called
-        called = True
-
-    monkeypatch.setattr("relay.commands.ticket.subprocess.run", fake_run)
+    prompts: list[str] = []
+    _allow_ticket_launch(monkeypatch, prompts)
 
     result = CliRunner().invoke(app, ["ticket", "running-work"])
-    assert result.exit_code == 2
+    assert result.exit_code == 0, result.output
+    # in_progress no longer refused — the editing session launches, with a
+    # heads-up that the ticket is in flight.
     assert "in_progress" in (result.output + (result.stderr or ""))
-    assert not called
+    assert len(prompts) == 1
 
 
 def test_ticket_without_target_launches_bootstrap_interview(

@@ -44,9 +44,10 @@ The judgment about *which* workflow / contexts / assignee fit is in the
 `bootstrap/ticket` skill (`relay-os/bootstrap/skills/bootstrap/ticket/SKILL.md`,
 unless shadowed by a local skill under `relay-os/skills/`). A
 human invokes that skill through `relay ticket`: with no argument it asks for
-a title, with a title it drafts then edits, and with an existing draft/active
-slug it edits that ticket in place. It refuses `in_progress` and `done`
-tickets by default.
+a title, with a title it drafts then edits, and with an existing slug it edits
+that ticket in place at any lifecycle status. Editing leaves the status
+unchanged; revising an `in_progress` or `done` ticket prints a heads-up first
+but is not refused.
 
 The creation skill treats `contexts:` as launch-prompt payload, not labels. It
 should attach only context bodies that must be inlined for the future task run.

@@ -243,12 +243,13 @@ and edit the ticket before work starts.
 ```sh
 relay ticket                                  # ask for title, then fill a draft
 relay ticket "Add retry to webhook handler"  # create draft, then interview
-relay ticket add-retry                        # edit existing draft/active/paused
+relay ticket add-retry                        # edit existing ticket (any status)
 relay ticket add-retry --agent codex          # choose authoring agent
 ```
 
-`relay ticket` refuses `in_progress` and `done` tickets by default. Editing a
-draft/active/paused ticket leaves its status unchanged.
+`relay ticket` edits a ticket at any lifecycle status. Editing leaves the
+status unchanged; for an `in_progress` (in flight) or `done` (finished)
+ticket it prints a heads-up first, since revising those is unusual.
 
 For the standard `claude` and `codex` CLIs, `relay ticket` passes the
 composed authoring prompt as system/developer context. That keeps the first
