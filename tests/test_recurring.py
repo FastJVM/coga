@@ -583,6 +583,30 @@ def test_scan_due_skips_malformed_schedule(repo: Path, capsys) -> None:
     assert "skipping bad-cron" in capsys.readouterr().err
 
 
+def test_scan_due_accepts_year_scoped_schedule_for_current_year(repo: Path) -> None:
+    _write_recurring(
+        repo,
+        "year-scoped",
+        """
+        ---
+        schedule: "0 0 1 1 * * 2026"
+        title: "Year-scoped"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Year-scoped schedule.
+        """,
+    )
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 6, 1, 10, 0, 0))
+    assert scan.errors == []
+    assert [task.template for task in scan.tasks] == ["weekly-check", "year-scoped"]
+
+
 def test_scan_due_skips_template_missing_ticket_md(repo: Path, capsys) -> None:
     (repo / "recurring" / "missing-ticket").mkdir(parents=True)
     cfg = load_config(repo)
