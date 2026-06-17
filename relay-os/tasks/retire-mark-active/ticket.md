@@ -1,6 +1,6 @@
 ---
 title: Retire relay mark active before launch
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach
