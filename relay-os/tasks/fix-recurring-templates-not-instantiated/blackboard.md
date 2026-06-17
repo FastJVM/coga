@@ -5,11 +5,26 @@
 - branch: codex/validate-recurring-cron
 - worktree: /tmp/relay-validate-recurring-cron
 - pr: https://github.com/FastJVM/relay/pull/381
+pr: https://github.com/FastJVM/relay/pull/381
 
 ### open-pr (2026-06-17)
 - Pushed branch and opened PR #381 (base `main`). `gh pr checks 381` → "no
   checks reported on the branch" — this repo has no CI configured, so green/red
   is N/A; correctness rests on the local suite (756 passed, 1 skipped).
+
+### owner-review (2026-06-17)
+- Reviewed PR #381 from `/tmp/relay-validate-recurring-cron`. Static review
+  found no owner-review blockers: malformed schedules validate through
+  `Template.load(..., now=...)`, scan/list/debug/create callers pass the
+  resolved timestamp, and the added regressions cover malformed cron skip,
+  missing `ticket.md`, the unattended bare sweep, and the peer-review
+  year-scoped schedule case.
+- Verification:
+  - `PYTHONPATH=/tmp/relay-validate-recurring-cron/src python -m pytest tests/test_recurring.py -q` → 72 passed
+  - `PYTHONPATH=/tmp/relay-validate-recurring-cron/src python -m pytest -q` → 756 passed, 1 skipped
+  - `git diff --check main...HEAD` → clean
+- GitHub state before merge: PR #381 open, mergeable, no comments/reviews, no
+  checks reported for the branch.
 
 ## Implementation (2026-06-17)
 
