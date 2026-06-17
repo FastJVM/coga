@@ -1,11 +1,11 @@
 ---
 title: Relay build onboarding flow
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: zach
+assignee: claude
 contexts: []
 skills: []
 workflow:
