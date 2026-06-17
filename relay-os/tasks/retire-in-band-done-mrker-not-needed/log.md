@@ -13,3 +13,4 @@
 2026-06-16 21:09 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/377 (no CI configured; local suite green, codex review clean)
 2026-06-16 21:30 [human:nick] task done
 2026-06-17 12:05 [human:nick] activated (done → active) — auto on launch
+2026-06-17 12:05 [human:nick] started (active → in_progress) via relay launch
