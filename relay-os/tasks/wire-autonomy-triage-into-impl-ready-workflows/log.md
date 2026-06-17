@@ -14,3 +14,4 @@
 2026-06-15 21:54 [human:nick] task done — PR merged: https://github.com/FastJVM/relay/pull/328
 2026-06-15 21:54 [git] sync failed: `git add -- relay-os/tasks/wire-autonomy-triage-into-impl-ready-workflows` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
 2026-06-15 22:00 [human:nick] activated (done → active) — auto on launch
+2026-06-15 22:00 [human:nick] started (active → in_progress) via relay launch
