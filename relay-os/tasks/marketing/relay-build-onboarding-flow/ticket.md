@@ -45,12 +45,14 @@ replaces the long 5-step relay-setup interview: "shorten, don't delete" becomes
 
 ## Context
 
-- Entry mechanic: `relay init` creates the repo and seeds this ticket as
-  `active` **only when the repo is empty** (see the gate below), pointing the
-  user at `relay build`. `relay build` (renamed from `relay setup`) captures the
-  user's name and launches this ticket; it requires an already-initialized repo
-  and no longer runs `relay init` itself (companion:
-  `marketing/relay-build-requires-init`). Name capture stays in the command.
+- Entry mechanic: `relay init` asks for the user's name (scripted prompt) and
+  seeds this ticket as `active` **only when the repo is empty** (see the gate
+  below), pointing the user at `relay build`. `relay build` (renamed from `relay
+  setup`) launches this ticket; it requires an already-initialized repo and no
+  longer runs `relay init` itself (companion: `marketing/relay-build-requires-init`).
+  Name capture moves to `relay init` (reversing the earlier "name stays in the
+  command" call) so `current_user` is valid for the bootstrap machinery usable
+  right after init — see `marketing/relay-init-captures-name`.
 - Empty-repo-only (owner decision 2026-06-17): the onboarding supports empty
   repos only and the **scan step is removed**. Shape: ask → agent-led chat →
   spec (with in-chat sign-off) → generate ticket batch.
