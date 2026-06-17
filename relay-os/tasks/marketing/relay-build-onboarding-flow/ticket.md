@@ -99,14 +99,13 @@ replaces the long 5-step relay-setup interview: "shorten, don't delete" becomes
   **drafts** with **no pre-chosen anchor** — which to launch first is the human's
   call. **No count cap** — generate as many tickets as the spec genuinely
   supports (build + "decide/evaluate X" tickets), never padding to a number nor
-  truncating real work (usually a handful, occasionally more). Tame overwhelm by
-  **grouping the batch by theme/area, NOT ranking launch priority**: grouping is
-  low-judgment categorization the agent is reliable at; first-launch priority is
-  the human's call (the same reason the anchor was dropped). Note an obvious hard
-  dependency inline ("needs the data layer") but don't impose a launch sequence.
-  End in-chat (no separate approval step): present the grouped "next steps" list,
-  get the human's approval, then hand over the `relay launch <slug>` command for
-  whichever they pick.
+  truncating real work (usually a handful). **No ordering, grouping, or
+  recommendation** — which ticket to run first is the human's call, with context
+  the agent lacks; don't rank, bucket, or suggest a starting point. End in-chat
+  (no separate approval step): present a flat list (slug + one-line each, neutral
+  order), get the human's approval, then hand over the generic launch command —
+  e.g. "Here's your starter batch — launch any one with `relay launch
+  <ticket-slug>`."
 - Parent: `marketing/onboarding-plan` (this realizes its "fast to launchable
   work" goal and updates its "no interview" stance to "one scripted question +
   agent-led chat"). Companion: `marketing/remove-relay-setup-command` (the
