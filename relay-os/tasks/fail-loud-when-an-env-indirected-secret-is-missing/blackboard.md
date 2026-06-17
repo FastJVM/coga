@@ -4,7 +4,8 @@
 
 - branch: `scoped-secrets`
 - worktree: `../relay-scoped-secrets` (i.e. `/home/n/Code/claude/relay-scoped-secrets`)
-- commit: `37b935e` (committed, not pushed — open-pr step does that)
+- commit: `3bd0a03` (pushed)
+- pr: https://github.com/FastJVM/relay/pull/382
 
 ## Implementation (claude, 2026-06-17)
 
@@ -54,6 +55,32 @@ needs its own precise enumeration of valid `relay.local.toml` keys). NOT done
 here. → needs a new draft ticket (e.g. `warn-on-unknown-relay-local-keys`).
 The query/retrieve-on-demand capability remains the separate
 `add-a-way-to-query-a-declared-secret-on-demand` ticket.
+
+## Peer review (codex, 2026-06-17)
+
+Native review command: `codex review --base f23289e5e210cfe197b7352c076891749bc2eac5`
+from `/home/n/Code/claude/relay-scoped-secrets`. First sandboxed attempt hit
+the known Codex app-server read-only init failure; reran outside the sandbox.
+
+Must-fix findings applied in commit `3bd0a03` (`peer-review: apply review findings`):
+- **P1 source-env leak:** scoped injection withheld Relay aliases like `other`,
+  but `os.environ.copy()` still leaked raw source vars such as `OTHER_SECRET`.
+  Added shared `build_launch_env(...)` to scrub every configured `env:VAR`
+  source variable, then add back only selected Relay secret keys.
+- **P2 state mutation before secret preflight:** agent and script launches
+  selected secrets after `mark_in_progress`, so a missing secret could leave a
+  durable "started" state with no child process. Moved env/secret preflight
+  before the active → in_progress transition in both launch paths.
+- **Local peer-review gap:** `create_task` did not write the new canonical
+  `secrets:` field and recurring templates could lose `secrets: []` before the
+  created period task launched. Added `create_task(..., secrets=...)`, preserved
+  recurring template declarations, and synced the `relay/architecture` context
+  plus packaged copy to list `secrets` as canonical.
+
+Verification:
+- `python3.12 -m pytest -p no:cacheprovider tests/test_config.py tests/test_launch.py tests/test_launch_script.py tests/test_create.py tests/test_recurring.py tests/test_validate.py` → 249 passed.
+- `python3.12 -m pytest -p no:cacheprovider` → 770 passed, 1 skipped.
+- `git diff --check` → clean.
 
 ## Bootstrap decisions (nick + claude, 2026-06-17)
 
