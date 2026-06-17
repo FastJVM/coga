@@ -1,5 +1,51 @@
 # Blackboard — retire-mark-active
 
+## Dev
+
+- branch: `retire-mark-active-docs`
+- worktree: `/home/n/Code/codex/relay-retire-mark-active`
+
+## Implement step (2026-06-16)
+
+Classified every `mark active` hit (grep across `*.md`/`*.py`/`*.toml`, minus
+task dirs) into **scrub** (prerequisite-to-launch framing) vs **keep** (factual
+command docs, workflow-less refusal, "same remedy" error text, current
+inline-auto-activation descriptions).
+
+**Scrubbed (prerequisite framing removed/reworded):**
+- `README.md` normal-path snippet (~164): dropped the standalone
+  `relay mark active` line — `relay launch` activates inline.
+- `README.md` boot sequence (~259-265): folded step 3 (`mark active`) into the
+  `relay launch` step; noted launch activates a draft inline.
+- `README.md` launch section (~411): "runs the `relay mark active` step for
+  you" → "activates the ticket inline for you" (drops the "step" framing). Kept
+  the "same remedy `mark active` gives" error text two lines down.
+- `src/relay/commands/init.py:102` (AGENT_GUIDE): "activate a draft before
+  launch" → "activate a draft without launching it". Single-source, no packaged
+  duplicate.
+- `current-direction/SKILL.md:216`: dropped `mark active` from the boot arrow.
+- `roadmap/SKILL.md:145`: `implicit-activation-inrpogress` retagged
+  `[draft]` → `[shipped]`, reworded to record the runtime landed + this docs
+  ticket. (No `[done]` convention exists in the contexts; `[shipped]` is the
+  honest "update/close" the ticket asked for.)
+
+**Kept as factual (verified, not prerequisite framing):**
+- `README.md` cheat-sheet (~274), workflow-less refusal (~279), recurring "can't
+  go through the mark active gate" (~320), "same remedy" (~414).
+- `architecture/SKILL.md` (129, 142, 176, 191, 277, 280): all describe the
+  activation *gate* or launch's *inline* auto-activation — current/correct
+  behavior, not the retired pre-launch step. No scrub needed.
+- `sync/SKILL.md` (59, 276): notification/sync surface command lists — factual.
+- `relay.toml` x3 (`relay-os/`, `example/`, `templates/`): comment "human
+  approves and runs `relay mark active`" — describes the standalone approval
+  command, still valid. Left as-is (low risk; could reword but not prerequisite-
+  to-launch sequencing).
+- `docs/relay-vs-paperclip.md:70`: comparison-table cell listing `mark active`
+  as an approval mechanism — factual, kept (ticket flagged as judgment call).
+- Source comments in `create.py`, `launch.py`, `mark.py`, `config.py`,
+  `ticket.py`, `validate.py` and tests: factual descriptions of `mark active`
+  semantics / current inline behavior; out of the docs-cleanup scope.
+
 ## Bootstrap notes (2026-06-16, interactive with zach)
 
 - Runtime change already shipped: `relay launch` auto-activates via
