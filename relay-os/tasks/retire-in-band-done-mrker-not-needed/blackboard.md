@@ -1,5 +1,48 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+
+- branch: retire-done-marker
+- worktree: /home/n/Code/claude/relay-retire-done-marker
+
+### Recovery note (claude, 2026-06-16, relaunch)
+
+Picked up the `implement` step and found the worktree did NOT match the log
+below: nothing was committed, and only `repl_supervisor.py` was modified —
+partially and **broken** (the `DONE_MARKER` constant was deleted but still
+referenced at the `marker=` default arg, the `marker in buf` block, the
+stdout fallback, and `__all__`, so the module raised `NameError` on import;
+`compose.py`/`launch.py`/tests/docs were untouched). The "Implementation
+log" below described work that was never saved.
+
+Completed the implementation for real this time, matching that plan, and
+committed it (worktree commit `9438443`). `python3.12 -m pytest`:
+**750 passed, 1 skipped**. The notes below are accurate as a description of
+what is now on disk and committed.
+
+### Implementation log (claude, 2026-06-16)
+
+Verified all ticket line numbers against source before editing — accurate.
+Removing the in-band PTY byte-match channel entirely:
+
+- `repl_supervisor.py`: dropped `DONE_MARKER` const + `__all__` entry;
+  removed `marker` param, the `marker in buf` PTY-match block, and the
+  now-unused `buf` bytearray from `run_with_done_marker`; removed the
+  stdout fallback in `emit_done_marker` (a failed sentinel write is now
+  swallowed best-effort — degrades to the supervisor's idle/max-session
+  backstop, the only remaining channel). Rewrote module + function
+  docstrings to describe one channel.
+- `compose.py`: dropped `_defuse_done_marker` + the two module constants +
+  the `DONE_MARKER` import; `prompt` returns assembled text directly.
+- `launch.py`: updated the stale `DONE_MARKER` comment.
+- Docs: both architecture SKILL.md copies (live + template) and
+  `prompt.md` updated.
+- Tests: dropped `test_compose_defuses_*` (x2),
+  `test_marker_in_child_output_terminates_child`, and
+  `test_emit_done_marker_prints_only_if_file_write_fails`; converted
+  marker-leak assertions in `test_done_marker_emission.py` to
+  sentinel-presence/absence assertions.
+
 ## Bootstrap notes (nick + claude, 2026-06-16)
 
 Filled the draft via `bootstrap/ticket`.
