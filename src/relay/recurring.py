@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from croniter import croniter
+from croniter import CroniterError, croniter
 
 from relay.create import create_task
 from relay.config import Config
@@ -20,6 +20,7 @@ from relay.tasks import TaskRef, list_tasks, read_ticket
 
 
 _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
+_CRON_VALIDATION_BASE = datetime(2000, 1, 1)
 
 
 class RecurringError(Exception):
@@ -53,6 +54,7 @@ class Template:
             raise RecurringError("frontmatter must be a mapping")
         if "schedule" not in fm:
             raise RecurringError("`schedule` is required")
+        _validate_schedule(fm["schedule"])
         if "state_keys" in fm:
             state_keys = fm["state_keys"]
             if not isinstance(state_keys, list) or not all(
@@ -663,6 +665,17 @@ def _record_run(
 def _last_firing(cron: str, now: datetime) -> datetime:
     it = croniter(cron, now)
     return it.get_prev(datetime)
+
+
+def _validate_schedule(schedule: Any) -> None:
+    if not isinstance(schedule, str) or not schedule.strip():
+        raise RecurringError("`schedule` must be a non-empty cron expression")
+    try:
+        croniter(schedule, _CRON_VALIDATION_BASE).get_prev(datetime)
+    except CroniterError as exc:
+        raise RecurringError(
+            f"`schedule` is not a valid cron expression: {exc}"
+        ) from exc
 
 
 def _next_firing(cron: str, now: datetime) -> datetime:

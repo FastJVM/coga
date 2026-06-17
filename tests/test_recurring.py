@@ -555,6 +555,44 @@ def test_scan_due_skips_bad_template(repo: Path, capsys) -> None:
     assert "skipping bad" in capsys.readouterr().err
 
 
+def test_scan_due_skips_malformed_schedule(repo: Path, capsys) -> None:
+    _write_recurring(
+        repo,
+        "bad-cron",
+        """
+        ---
+        schedule: "not a cron"
+        title: "Bad cron"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Bad schedule.
+        """,
+    )
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    assert len(scan.tasks) == 1  # the good template still creates
+    assert scan.tasks[0].template == "weekly-check"
+    assert len(scan.errors) == 1
+    assert scan.errors[0][0] == "bad-cron"
+    assert "`schedule` is not a valid cron expression" in scan.errors[0][1]
+    assert "skipping bad-cron" in capsys.readouterr().err
+
+
+def test_scan_due_skips_template_missing_ticket_md(repo: Path, capsys) -> None:
+    (repo / "recurring" / "missing-ticket").mkdir(parents=True)
+    cfg = load_config(repo)
+    scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    assert len(scan.tasks) == 1  # the good template still creates
+    assert len(scan.errors) == 1
+    assert scan.errors[0] == ("missing-ticket", "missing ticket.md")
+    assert "skipping missing-ticket" in capsys.readouterr().err
+
+
 def test_scan_due_flags_legacy_md_file(repo: Path, capsys) -> None:
     """A leftover single-file `<name>.md` is flagged, not silently ignored."""
     _write(
@@ -2120,6 +2158,81 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
     assert any(
         "skipped 1 template" in msg and "weekly-check" in msg
         for msg in slack_msgs
+    )
+
+
+def test_bare_recurring_skips_malformed_schedule_and_continues(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A bad cron is a per-template skip, not a sweep-killer."""
+    _write_recurring(
+        repo,
+        "bad-cron",
+        """
+        ---
+        schedule: "not a cron"
+        title: "Bad cron"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Bad schedule.
+        """,
+    )
+    _write_recurring(
+        repo,
+        "z-script-check",
+        """
+        ---
+        schedule: "0 9 * * *"
+        title: "Script check"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Script.
+        """,
+    )
+    monkeypatch.chdir(repo)
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://example.invalid/webhook")
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
+    _allow_interactive_recurring(monkeypatch)
+    calls: list[str] = []
+    slack_msgs: list[str] = []
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        calls.append(task)
+        ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
+        ticket.frontmatter["status"] = "done"
+        ticket.write(repo / "tasks" / task / "ticket.md")
+
+    def capture_slack(url, json=None, timeout=None):  # type: ignore[no-untyped-def]
+        slack_msgs.append(json["text"])
+
+        class R:
+            status_code = 200
+            text = "ok"
+
+        return R()
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("relay.notification.slack.requests.post", capture_slack)
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 0, result.output
+    assert calls == ["recurring/weekly-check", "recurring/z-script-check"]
+    combined = result.output + (result.stderr or "")
+    assert "skipping bad-cron" in combined
+    assert "`schedule` is not a valid cron expression" in combined
+    assert any(
+        "skipped 1 template" in msg and "bad-cron" in msg for msg in slack_msgs
     )
 
 
