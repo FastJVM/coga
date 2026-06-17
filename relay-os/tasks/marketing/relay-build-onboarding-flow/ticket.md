@@ -5,7 +5,7 @@ mode: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: zach
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (review-design)
+step: 3 (implement)
 ---
 
 ## Description
@@ -191,11 +191,15 @@ blackboard; `relay bump`.
 `generate-batch` prose covers: read the vision context (+ blackboard); generate
 as many drafts as the vision genuinely supports (build tickets + a subset of
 "decide/evaluate X"), no padding/truncation/cap; each draft thin, `status:
-draft`, `contexts: [product/vision]`; no anchor/ordering/grouping; create them
-via the `relay ticket` creation primitive (dependency: `relay-ticket-creates`,
-still in design — note the fallback if it hasn't landed); present the flat list,
-get approval, hand over "launch any one with `relay launch <ticket-slug>`";
-`relay mark done`.
+draft`, `contexts: [product/vision]`; no anchor/ordering/grouping; create each as
+a bare draft non-interactively (no per-ticket authoring interview) — the
+load-bearing capability is non-interactive bulk draft creation, which ships today
+via `create_task`; name the command `relay create <slug>` for now, upgrading to
+`relay ticket <slug>` if/when `marketing/relay-ticket-creates` consolidates
+creation. Build does not block on that ticket — only the printed command name
+changes, and the fallback (`relay create`) is the already-sanctioned survivor.
+Then present the flat list, get approval, hand over "launch any one with `relay
+launch <ticket-slug>`"; `relay mark done`.
 
 Coordination note (residual open question on the blackboard): `relay-build-command`
 claims the `init/setup`→`build/onboarding` and `relay-setup`→`relay-build`
