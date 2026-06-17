@@ -5,67 +5,31 @@ description: What we're building right now in relay. Recent decisions, open tick
 
 # Relay — current direction
 
-Last updated: 2026-06-10.
+Last updated: 2026-06-13.
 
-## Open redesign (recurring lifecycle: generate → done → Dream-deletes)
+## Current redesign (recurring lifecycle and identity)
 
-- **Recurring period tickets get a single, ordinary task lifecycle — and the
-  recurring command stops deleting anything.** Today the lifecycle is
-  special-cased and self-contradicting: the bare sweep persists a period
-  task, `relay recurring --all` scaffolds throwaway `<name>-dbg-<ts>` runs and
-  `rmtree`s them, a crashed `--all` leaves orphans the *next* sweep reaps, and
-  Dream `relay delete`s *itself* at the end of its own run. The three deleters
-  (debug `_finalize_debug_run`, `_reap_debug_orphans`, Dream self-delete) are
-  why a real run can look like it "started and got cleaned up," and they break
-  the period ledger: `_record_run` writes `scaffolded <slug>` at *creation*,
-  but a non-`done` dir getting deleted out from under it makes the ledger read
-  "this period ran" when it only "was created" — so a crashed period is
-  silently skipped forever.
+- **Recurring runs use a stable path-qualified task ref.** The current direction is
+  `relay-os/tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/Slack),
+  not `tasks/recurring-<name>-<period>/`. The `recurring/` directory is the
+  namespace/identity marker; the schedule period lives in the template
+  blackboard as a single overwritten `last_serviced_period` line. The template
+  `log.md` remains append-only human history, not the dedup source.
 
-  The target is the same three-stage lifecycle every other task already has,
-  with one deleter:
+- **The lifecycle stays ordinary and Dream owns cleanup.** `relay recurring`
+  creates a normal `active` task, `relay launch` moves it through the usual
+  ticket lifecycle, and a completed run sits as `status: done` until Dream's
+  retro pass direct-deletes it. Since the instantiated task is deleted after a
+  completed run, a leftover `tasks/recurring/<name>/` directory is the orphan
+  signal: `in_progress` is resumed before fresh period work, and `paused` stays
+  human-parked. A missing task dir plus `last_serviced_period >= current
+  period_key` means this period already ran.
 
-  1. **Generate.** `relay recurring` scaffolds a normal task at
-     `relay-os/tasks/recurring-<name>-<period>/`, status `active` → `in_progress`
-     on launch. *(Already true — this is the only stage built today.)*
-  2. **Done.** The run ends by marking its own ticket `done` (`relay mark done`,
-     or `relay bump` past the final workflow step). The terminal on-disk state
-     of a finished period is a **persistent `done` ticket**, never a deleted
-     dir. The recurring command itself deletes *nothing*.
-  3. **Delete (deferred to Dream/retro).** A `done` recurring period ticket is
-     cleaned up by the same retro-first Dream pass that already deletes every
-     other processed `done` ticket (see "Done-ticket cleanup is retro-first"
-     below). Period tickets carry nothing durable — their output is the Slack
-     post / PR — so they direct-delete. Each Dream run is itself a recurring
-     period ticket, so it is cleaned up by the *next* Dream run, not by
-     deleting itself mid-run.
-
-  Why this fixes the never-runs bug: once the *only* thing that deletes a
-  recurring ticket is Dream-acting-on-`done`, "ledger has the slug + dir gone"
-  reliably means "this period completed." A crash leaves an `in_progress` dir
-  Dream won't touch, so the next sweep **resumes** it; a parked run stays
-  `paused` and is neither deleted nor wrongly skipped. The period ledger stays
-  (it is load-bearing for the deleted-after-`done` case) — earlier notes that
-  said "drop the ledger" were wrong under this model.
-
-  `relay recurring --all` keeps its "ignore the schedule, exercise every
-  template now" purpose but force-runs the **real** period tickets (persistent,
-  active) instead of throwaway debug scratch — it loses the "isolated from real
-  state" property by design. The debug throwaway machinery
-  (`scaffold_debug_run`, `scan_debug`, `is_debug_slug`/`_DEBUG_SLUG_RE`,
-  `_finalize_debug_run`, `_reap_debug_orphans`, `_read_debug_outcome`, and the
-  `-dbg-` suppression in `git.py`/`slack.py`/`spool.py`) is all removed.
-
-  Tickets implementing this: `dream-recurring-persist-done-stop-inline-delete`
-  (stages 1–2: stop all inline deletion, `--all` force-runs real tickets, keep
-  ledger, fix paused handling) and `dream-sweeps-done-recurring-period-tickets`
-  (stage 3: Dream owns recurring-`*` `done` cleanup). **Stage 3 has landed:**
-  the Dream template no longer self-deletes mid-run (its Phase 4 retro pass is
-  now the single deleter of done `recurring-*` tickets, the previous Dream run
-  included), and `relay/recurring` documents Dream-as-janitor under "Dream is
-  the recurring janitor." Stages 1–2 are still open, so `relay/recurring` still
-  documents the current `*-dbg-*` debug-reap behavior — don't edit that
-  debug-reap prose ahead of the sibling's code.
+- **Debug `--all` runs remain top-level scratch for now.** They keep the
+  `<name>-dbg-<timestamp>` shape, are outside the `recurring/` directory, and stay
+  excluded from recurring dedup/resume. The earlier plan to remove the debug
+  machinery is not part of the task-directory cut; do not conflate real recurring
+  task identity with debug scratch cleanup.
 
 ## Open rename (workflow → playbook)
 
@@ -128,16 +92,16 @@ Last updated: 2026-06-10.
 - **Dream is a recurring task template plus an alias.** The standalone
   `relay dream` Typer command is gone. Dream now ships as
   `relay-os/recurring/dream/` — an ordinary recurring template. `relay
-  recurring` scaffolds and launches it when its weekly schedule is due;
+  recurring` creates and launches it when its weekly schedule is due;
   `relay dream` is a default alias for `recurring launch dream`, which
-  scaffolds and launches it on demand through the same path. The task slug is
-  `recurring-<name>-<period>` (`recurring-dream-2026-W21`), so the two paths
-  converge on one task. This reverses the earlier "ad-hoc command" decision: there was
+  creates and launches it on demand through the same path. The task ref is
+  now `recurring/dream`, so the scheduled and on-demand paths converge on one
+  task. This reverses the earlier "ad-hoc command" decision: there was
   nothing left in a dedicated command worth keeping once the workers became
   skills.
 - **`relay recurring launch <name>` is the on-demand recurring entry point.**
-  It scaffolds one named template now, ignoring its schedule, with the same
-  period-keyed (idempotent) slug a bare `relay recurring` produces, then
+  It creates one named template now, ignoring its schedule, with the same
+  stable path-qualified task ref a bare `relay recurring` produces, then
   launches the task.
 
 ## Recent decisions (Dream and REM)
@@ -196,12 +160,11 @@ Last updated: 2026-06-10.
   single `post(cfg, message)` and `post_mention` / `_mention_tag` were
   dropped.
 - **Per-user @mentions since re-introduced.** The prediction above
-  held: `slack.py` now exposes
-  `post(cfg, message, *, owner=..., watchers=...)` and a `_mention`
-  helper that renders any name mapped in `[slack.users]` as a real
-  `<@U…>` ping — owner inline, watchers cc'd in a trailer. Posts ping
-  the ticket owner and watchers again; see `relay/sync` for the
-  current behavior.
+  held: `notification.post(cfg, message, *, owner=..., watchers=...)`
+  dispatches through the Slack backend, whose mention helper renders any name
+  mapped in `[notification.slack.users]` as a real `<@U…>` ping — owner
+  inline, watchers cc'd in a trailer. Posts ping the ticket owner and watchers
+  again; see `relay/sync` for the current behavior.
 
 ## Recent decisions (alias mechanism)
 
@@ -211,8 +174,8 @@ Last updated: 2026-06-10.
   `chat = "launch bootstrap/orient"`. Validated at config load:
   alias names can't collide with built-ins; first token of expansion
   must be a known built-in.
-- **`relay draft` and `relay ticket` split raw scaffolding from guided
-  authoring.** `relay draft` scaffolds a raw draft and posts `✨`;
+- **`relay draft` and `relay ticket` split raw creating from guided
+  authoring.** `relay draft` creates a raw draft and posts `✨`;
   `relay create` remains a compatibility spelling. `relay ticket`
   runs the `bootstrap/ticket` interview against a new or existing
   draft/active/paused ticket. Aliases stay positional-pass-through only.
@@ -242,10 +205,10 @@ ones that affect implementation:
   not finish tickets — bumping past the last step (or on a no-workflow
   ticket) errors and points at `relay mark done`.
 - **`relay recurring` is the canonical entry point** for the recurring
-  scaffolder. It scans templates, scaffolds the current period's task for
+  creator. It scans templates, creates the current period's task for
   each, and launches the due ones sequentially — current period only, no
   backlog of missed periods. `scripts/cron.sh` calls it directly rather than
-  going through `relay draft` / `scaffold_task()`.
+  going through `relay draft` / `create_task()`.
 - **Control plane and data plane are fully split.** `draft` is unapproved,
   `active` is approved/queued, and `in_progress` is launched work. `relay
   launch` owns the `active` → `in_progress` start transition; `relay bump`

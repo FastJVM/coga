@@ -9,6 +9,13 @@ mode: script
 workflow: namespace/your-workflow
 owner: replace-with-human-name
 assignee: replace-with-human-or-agent-nickname
+# If each run carries a cursor / high-water mark in this recurring task's
+# blackboard (a `last_commit: <SHA>` line, a cursor), list those keys here.
+# `relay recurring` snapshots them when it scaffolds a period task, and a run
+# that finishes without advancing one is flagged at `relay mark done` and in
+# `relay validate` — so a forgotten state write can't silently re-do a range.
+# state_keys:
+#   - last_commit
 ---
 
 ## Description

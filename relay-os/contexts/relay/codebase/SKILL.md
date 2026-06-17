@@ -20,9 +20,10 @@ review bars.
 - `src/relay/commands/` — Typer entrypoints, one file per `relay
   <command>`. **Keep these thin.** No business logic.
 - `src/relay/` (other modules) — testable logic. `compose.py`
-  builds the prompt. `slack.py` posts. `config.py` loads config.
+  builds the prompt. `notification/` dispatches notifications with Slack as
+  the first backend. `config.py` loads config.
   `commands/launch.py` / `commands/launch_script.py` run agents.
-  `slack.py` (in `commands/`) posts an explicit FYI.
+  `commands/slack.py` keeps the explicit FYI command spelling.
   `commands/panic.py` surfaces agent distress. `bump.py`
   advances workflow steps. `validate.py` checks repo consistency.
 - `tests/` — pytest. Run with `python -m pytest`.
@@ -44,8 +45,8 @@ relay-os/
   bootstrap/<name>/      ← stateless launch shims
   bootstrap/skills/      ← package-backed core skills (overwritten on update)
   bootstrap/contexts/    ← package-backed bundled contexts (overwritten on update)
-  tasks/<slug>/          ← live tickets (bare slug is the leaf directory name)
-  tasks/<group>/<slug>/  ← grouped live tickets, one level deep
+  tasks/<slug>/          ← live tickets (top-level: bare leaf slug)
+  tasks/<dir>/.../<slug>/ ← tickets in sub-dirs at any depth (ref'd by path)
   skills/<ns>/<name>/    ← project-local process knowledge / overrides
   contexts/<ns>/<name>/  ← project-local domain knowledge / overrides
   workflows/<ns>/<name>.md ← step definitions

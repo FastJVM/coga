@@ -9,11 +9,12 @@ Read this once. Follow it throughout the session.
 
 ## Files in the task directory
 
-Task directories live under `relay-os/tasks/` either as direct children
-(`relay-os/tasks/<slug>/`) or one level deeper inside an organizational group
-(`relay-os/tasks/<group>/<slug>/`). The composed prompt header gives the exact
-task directory for this launch; use that path instead of reconstructing it from
-the slug. Each task directory contains:
+Task directories live under `relay-os/tasks/` as directories containing a
+`ticket.md`, either directly (`relay-os/tasks/<slug>/`) or nested under plain
+sub-directories (`relay-os/tasks/<dir>/<slug>/`,
+`relay-os/tasks/<dir>/<subdir>/<slug>/`, and so on). The composed prompt
+header gives the exact task directory for this launch; use that path instead
+of reconstructing it from the slug. Each task directory contains:
 
 - `ticket.md` — source of truth for task state. YAML frontmatter + markdown
   body. You **may** edit frontmatter when the spec says so (e.g. update
@@ -38,7 +39,7 @@ blackboard first.
 ## Finishing a step
 
 A step is **not done** until you have run `relay bump <id>`.
-`bump` is what advances workflow state, posts the handoff to Slack,
+`bump` is what advances workflow state, posts the handoff notification,
 and signals the next step (or human reviewer) to pick up. If you stop
 without bumping, the team sees nothing, the workflow stalls, and your
 work is invisible — even if the code is on disk and the PR is open.
@@ -98,8 +99,8 @@ Call this when stuck. Specifically:
 Before panicking: write the blocker to the blackboard so the human relaunching
 can read it without digging through history.
 
-After panicking: stop. Do not keep trying. The panic posts to Slack naming
-the task owner so they can pick the task back up.
+After panicking: stop. Do not keep trying. The panic posts a notification
+naming the task owner so they can pick the task back up.
 
 `--reason` is required. Be specific. "Unclear what to do" is useless.
 "Retry logic ambiguous — spec says respect Retry-After headers but doesn't
@@ -108,13 +109,13 @@ specify max backoff ceiling for 429s" is actionable.
 ## FYIs — `bump --message` and `relay slack`
 
 State-transition broadcasts already fire on their own (`create`, `mark`,
-`bump`, `panic`, recurring scaffolds). The two ways to add an FYI on top:
+`bump`, `panic`, recurring creates). The two ways to add an FYI on top:
 
 **`relay bump <id> --message "<short FYI>"`** — when the FYI
 naturally coincides with the step transition you're about to do anyway.
 Examples: advancing into the PR step with "PR opened: <link>";
 finishing a task with "shipped to staging, watching error rate". The
-message is appended to the state-transition broadcast — one Slack post,
+message is appended to the state-transition broadcast — one notification,
 not two.
 
 **`relay slack --task <id> --message "<short FYI>"`** — the manual

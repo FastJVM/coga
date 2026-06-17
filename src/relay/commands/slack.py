@@ -1,4 +1,4 @@
-"""`relay slack` — post an FYI to the team Slack channel.
+"""`relay slack` — post an FYI through the notification system.
 
 The manual broadcast escape hatch: state-machine transitions
 (`launch`, `bump`, `panic`, `recurring`) already broadcast on
@@ -16,7 +16,7 @@ import typer
 
 from relay.config import ConfigError, load_config
 from relay.logfile import append_log
-from relay.slack import post
+from relay.notification import post
 from relay.tasks import (
     TaskNotFoundError,
     read_ticket,
@@ -28,7 +28,7 @@ def slack(
     task: str = typer.Option(..., "--task", help="Task ID or id-slug."),
     message: str = typer.Option(..., "--message", help="Short FYI message."),
 ) -> None:
-    """Post an FYI to the team Slack channel."""
+    """Post an FYI through the configured notification channel(s)."""
     if not message.strip():
         _bail("--message cannot be empty")
 

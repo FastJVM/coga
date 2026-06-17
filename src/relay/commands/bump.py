@@ -78,7 +78,7 @@ def bump(
         _bail(f"Task {ref.id_slug} is {ticket.status!r}. Cannot advance.")
 
     # Hand-authored / pre-freeze tickets carry `workflow:` as a bare string
-    # ref instead of the frozen dict scaffold produces. Resolve and freeze
+    # ref instead of the frozen dict create produces. Resolve and freeze
     # in-place so the rest of bump (and future bumps) sees a normal shape.
     if isinstance(ticket.workflow, str):
         try:

@@ -32,7 +32,7 @@ REM_TEMPLATE = RECURRING_TEMPLATES / "_rem" / "ticket.md"
 
 def test_dream_ships_as_a_recurring_template() -> None:
     """Dream is a recurring task template, not a built-in command. The body
-    lives in the template's `## Description` section so `scaffold_task` picks
+    lives in the template's `## Description` section so `create_task` picks
     it up the same way it does for any other recurring template."""
     text = DREAM_PROMPT.read_text()
 
@@ -102,7 +102,7 @@ def test_dream_documents_decide_then_execute_phases() -> None:
 
 def test_dream_is_the_single_deleter_of_done_recurring_tickets() -> None:
     """Stage 3 of the recurring-lifecycle redesign: Dream's Phase 4 retro pass
-    is the single deleter of done `recurring-*` period tickets, and Dream no
+    is the single deleter of done `recurring/` period tickets, and Dream no
     longer self-deletes mid-run — the next run's retro pass cleans it up."""
     text = DREAM_PROMPT.read_text()
     # Prose wraps across lines; normalize whitespace and bold markers so phrase
@@ -110,11 +110,11 @@ def test_dream_is_the_single_deleter_of_done_recurring_tickets() -> None:
     norm = " ".join(text.replace("**", "").split())
 
     # Phase 4 explicitly owns done recurring period-ticket cleanup: a
-    # `recurring-<name>-<period>` ticket is an eligible done ticket like any
-    # other and, carrying nothing durable, is direct-deleted.
-    assert "A done `recurring-<name>-<period>` ticket is an eligible done ticket" in norm
+    # `recurring/<name>` ticket is an eligible done ticket like any other and,
+    # carrying nothing durable, is direct-deleted.
+    assert "A done `recurring/<name>` ticket is an eligible done ticket" in norm
     assert "The recurring command does not delete real done period tasks" in norm
-    assert "the previous Dream run's own `recurring-dream-<period>` ticket" in norm
+    assert "the previous Dream run's own `recurring/dream` ticket" in norm
 
     # Phase 6 marks the Dream task done and STOPS — it must not self-delete.
     assert "do not delete this task" in norm

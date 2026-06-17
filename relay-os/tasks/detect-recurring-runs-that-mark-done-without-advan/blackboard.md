@@ -7,19 +7,19 @@ worktree: ../relay-state-advance
 ## Findings (codebase map)
 
 - **Period task → parent link**: period slug is `<parent>-<period_key>`; the
-  `relay/period-task` context (auto-attached at scaffold) tells the run to
+  `relay/period-task` context (auto-attached at create) tells the run to
   read/write `relay-os/recurring/<parent>/blackboard.md`. No explicit
-  backpointer field — but at scaffold time we *know* the parent (`template.name`).
+  backpointer field — but at create time we *know* the parent (`template.name`).
 - **Parent blackboard** is freeform markdown; state is `key: value` lines under a
   section (e.g. `### Dev Update State` → `last_commit: <SHA>`). No structured key
   parser exists in core today.
 - **Lifecycle finalizers** live in `src/relay/mark.py` (`mark_done`,
   `mark_in_progress`) and `src/relay/bump.py` (`advance_step`). Each has
   `cfg, ref, ticket` in hand; writes ticket, logs, `notify(...)`, git-syncs.
-- **Scaffold** of a period task: `recurring.py::_scaffold_at_slug` — has the
+- **Create** of a period task: `recurring.py::_create_at_slug` — has the
   `Template` (frontmatter + blackboard_path) at hand. Ideal place to snapshot a
   baseline.
-- **Debug runs** (`-dbg-<stamp>`) also go through `_scaffold_at_slug`; broadcasts
+- **Debug runs** (`-dbg-<stamp>`) also go through `_create_at_slug`; broadcasts
   are suppressed for them via `is_debug_slug`.
 - **validate.py** does NOT currently look at recurring at all. Report/Issue shape:
   `Issue(kind, task, message, severity)`; JSON via `--json`.
@@ -32,9 +32,9 @@ worktree: ../relay-state-advance
 
 1. **Machine-readable contract**: recurring `ticket.md` frontmatter declares the
    keys it owns, e.g. `state_keys: [last_commit]`.
-2. **Baseline snapshot at scaffold**: `_scaffold_at_slug` reads the parent
+2. **Baseline snapshot at create**: `_create_at_slug` reads the parent
    blackboard's declared keys and writes a small artifact into the period task
-   dir (`.state-snapshot.json`: parent name + `{key: value}` at scaffold). Only
+   dir (`.state-snapshot.json`: parent name + `{key: value}` at create). Only
    tasks with declared keys get one → the whole check keys off this artifact's
    presence, so non-recurring tasks are untouched.
 3. **Compare at finish**: in `mark_done` (and final `bump`/`advance_step`), if a
@@ -61,7 +61,7 @@ would be wrong. The check lives only at `mark_done` + `validate`.
    `write_snapshot`, `read_snapshot`, `stale_keys`. Snapshot artifact is
    `.state-snapshot.json` in the period task dir: `{parent, keys:{k:v}}`.
    Whole mechanism keys off this file's presence → non-recurring tasks untouched.
-2. `recurring.py::_scaffold_at_slug` — when the template declares `state_keys`,
+2. `recurring.py::_create_at_slug` — when the template declares `state_keys`,
    snapshot the parent blackboard's current values into the new period task dir.
 3. `mark.py::mark_done` — after git sync, if a snapshot exists and any declared
    key is unchanged: local warn echo + FYI `post` (suppressed for `-dbg-` runs).
@@ -76,7 +76,7 @@ would be wrong. The check lives only at `mark_done` + `validate`.
 ## Implementation result (2026-06-07)
 Done on branch `detect-stale-recurring-state`. Files:
 - NEW `src/relay/period_state.py` — pure detection (snapshot + key diff).
-- `recurring.py::_scaffold_at_slug` — writes `.state-snapshot.json` when the
+- `recurring.py::_create_at_slug` — writes `.state-snapshot.json` when the
   template declares `state_keys`.
 - `mark.py::mark_done` — `_warn_if_state_not_advanced`: local warn + FYI
   broadcast (debug-suppressed, best-effort so it never breaks completion).
@@ -85,7 +85,7 @@ Done on branch `detect-stale-recurring-state`. Files:
   `state_keys: [last_commit]`.
 - period-task context + `_template` recurring ticket document the field
   (live + packaged copies kept in sync).
-- `tests/test_period_state.py` — 15 tests (pure helpers, scaffold snapshot,
+- `tests/test_period_state.py` — 15 tests (pure helpers, create snapshot,
   mark-done warn/quiet, validate flag/quiet). All pass.
 
 Full suite: **592 passed, 1 skipped, 0 failed** (fully green).

@@ -10,7 +10,7 @@ from typer.testing import CliRunner
 
 from relay.cli import app
 from relay.config import load_config
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.ticket import Ticket
 
 
@@ -55,7 +55,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "draft") -> tuple[str, Path]:
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status=status,
@@ -368,7 +368,7 @@ def test_mark_active_is_silent(repo: Path, monkeypatch: pytest.MonkeyPatch) -> N
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
@@ -387,7 +387,7 @@ def test_mark_paused_is_silent(repo: Path, monkeypatch: pytest.MonkeyPatch) -> N
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "paused", slug])
@@ -406,7 +406,7 @@ def test_mark_done_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "done", slug])

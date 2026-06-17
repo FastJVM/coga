@@ -21,7 +21,7 @@ from typer.testing import CliRunner
 from relay.cli import app
 from relay.config import load_config
 from relay.repl_supervisor import DONE_MARKER, SENTINEL_ENV
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 
 
 _MARKER = DONE_MARKER.decode("ascii")
@@ -70,12 +70,42 @@ def _make_task(
     repo: Path, *, workflow: str | None = "code", status: str = "in_progress"
 ) -> tuple[str, Path]:
     cfg = load_config(repo)
-    ref = scaffold_task(
+    if workflow is None and status != "draft":
+        # `create_task` refuses to create a workflow-less non-draft task now,
+        # so the workflow-less bump-error test constructs that shape on disk.
+        return _write_workflow_less_task(repo, status=status)
+    ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status=status,
     )
     return ref["slug"], ref["path"]
+
+
+def _write_workflow_less_task(
+    repo: Path, *, slug: str = "work", status: str = "in_progress"
+) -> tuple[str, Path]:
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(dedent(f"""
+        ---
+        title: Work
+        status: {status}
+        mode: interactive
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: claude
+        contexts: []
+        skills: []
+        workflow: null
+        ---
+
+        ## Description
+    """).lstrip())
+    (task_dir / "blackboard.md").write_text("# Blackboard\n")
+    (task_dir / "log.md").write_text("")
+    return slug, task_dir
 
 
 @pytest.fixture

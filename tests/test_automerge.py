@@ -9,13 +9,42 @@ from typer.testing import CliRunner
 from relay import automerge as am
 from relay.cli import app
 from relay.config import load_config
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
+
+
+def _write_workflow_less_task(
+    repo: Path, *, slug: str = "work", status: str = "active"
+) -> tuple[str, Path]:
+    """Write a workflow-less task directly to disk. `create_task` refuses to
+    create a workflow-less non-draft task now, so on-disk construction is the
+    only way to exercise the workflow-less automerge → mark-done path."""
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(dedent(f"""
+        ---
+        title: Work
+        status: {status}
+        mode: interactive
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: claude
+        contexts: []
+        skills: []
+        workflow: null
+        ---
+
+        ## Description
+    """).lstrip())
+    (task_dir / "blackboard.md").write_text("# Blackboard\n")
+    (task_dir / "log.md").write_text("")
+    return slug, task_dir
 
 
 @pytest.fixture
@@ -63,11 +92,17 @@ def _make_task(
     pr_url: str | None = None,
 ) -> tuple[str, Path]:
     cfg = load_config(repo)
-    ref = scaffold_task(
-        cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
-        watchers=[], status=status,
-    )
+    if workflow is None and status != "draft":
+        # `create_task` refuses to create a workflow-less non-draft task now,
+        # so the workflow-less mark-done tests construct that shape on disk.
+        slug, path = _write_workflow_less_task(repo, status=status)
+        ref = {"slug": slug, "path": path}
+    else:
+        ref = create_task(
+            cfg=cfg, title="Work", workflow_name=workflow,
+            contexts=[], mode="interactive", owner="marc", assignee="claude",
+            watchers=[], status=status,
+        )
     path = ref["path"]
     if workflow and on_final:
         t = Ticket.read(path / "ticket.md")
@@ -162,7 +197,7 @@ def test_auto_bump_merged_bumps_final_step_with_merged_pr(
 def test_auto_bump_merged_skips_non_final_step(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Default scaffolds at step 1 (implement) of a 2-step workflow.
+    # Default creates at step 1 (implement) of a 2-step workflow.
     slug, path = _make_task(repo, pr_url="https://github.com/o/r/pull/8")
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/8": "MERGED"})
 

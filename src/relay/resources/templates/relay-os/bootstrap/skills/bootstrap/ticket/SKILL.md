@@ -20,10 +20,16 @@ your filled ticket has to match. For a real example, browse the same tree:
 - `relay-os/tasks/<slug>/ticket.md` — any existing code-change ticket with
   `contexts:` + `workflow:` filled in works as a model to mimic.
 
-Every ticket carries a workflow — the ordered steps the work moves through.
-A ticket with no workflow can't be activated: `relay mark active` refuses it.
-Picking the workflow is part of this interview (step 3), and you do not hand
-back a ticket without one.
+A ticket carries a workflow — the ordered steps the work moves through —
+everywhere except while it is a `draft`. A ticket with no workflow can't be
+activated: `relay mark active` refuses it, and `relay validate` errors on a
+workflow-less `active`/`in_progress`/`paused` ticket. Picking the workflow is
+part of this interview (step 3), and your default is to hand back a ticket
+with one. The one exception is deliberate **concept-capture**: when the human
+wants to stash an idea before its shape is settled, a workflow-less *draft* is
+a valid end state — it simply stays a draft until someone adds a workflow.
+Don't force a workflow onto an idea that isn't ready for one; just make the
+tradeoff explicit (it can't be activated yet).
 
 Match this shape exactly. Don't invent fields the template doesn't define
 (see "YAML discipline" in the base prompt).
@@ -124,12 +130,14 @@ answer.
 4. **Workflow** — which workflow fits? `ls relay-os/workflows/` for the
    options (e.g. `code/with-review` for a code change shipped via PR). Let the
    triage tier above advise this choice, but never override a workflow the
-   human explicitly picks. Every ticket needs one — a workflow-less ticket
-   can't be activated — so pick the lightest workflow that matches the shape
-   of the work. If genuinely nothing fits (e.g. pure concept-capture with no
-   sequence of steps), do not leave the field off: tell the human so, since
-   the repo may need a new workflow or the idea may not be ready to be a
-   ticket yet.
+   human explicitly picks. Every ticket needs one before activation — a
+   workflow-less ticket can't be activated and `relay validate` errors on a
+   workflow-less active ticket — so pick the lightest workflow that matches
+   the shape of the work. If genuinely nothing fits (e.g. pure
+   concept-capture with no sequence of steps), tell the human: either the repo
+   needs a new workflow, or the idea stays a deliberate workflow-less *draft*
+   (valid, but un-activatable until a workflow is added) until it is ready to
+   be a real ticket.
 5. **Contexts to attach** — which exact context bodies must be included in the
    future prompt? Keep the list narrow. If only a specific fact is needed, put
    it in `## Context` instead of attaching the whole context.

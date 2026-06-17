@@ -36,6 +36,17 @@ resources. It does not modify a repo. `relay init` and `relay init --update`
 materialize those package resources into `relay-os/bootstrap/`, where Relay
 resolves them after project-local `relay-os/skills` and `relay-os/contexts`.
 
+## relay setup [PATH]
+
+One-command onboarding for a new repo — the entry point to tell new users
+about. Runs the bootstrap stages in order, skipping any that are already
+satisfied: scaffold via `relay init` if there is no relay repo at `PATH`
+(default `.`), prompt for your name and write it to `user` in
+`relay.local.toml` if unset, then launch the `relay-setup` interview
+ticket (no-op with a message if that ticket is already done or absent).
+Idempotent — if a stage fails (e.g. Slack webhook not configured yet),
+fix the issue and re-run; it resumes where it stopped.
+
 ## relay draft "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
 
 Scaffold a new raw `draft` ticket and post `✨` to Slack. Does not launch
@@ -44,11 +55,14 @@ workflow / contexts as needed → `relay mark active <slug>` →
 `relay launch <slug>`. `relay create` is a compatibility spelling for
 `relay draft` — identical behavior, no guided interview.
 
-`--workflow <name>` (path under `relay-os/workflows/`) is optional. A
-workflow-less draft is a valid authoring state; the workflow can be added
-to the ticket any time before activation. The bumpability gate lives at
-activation, not here: `relay mark active` refuses a workflow-less ticket
-with an error pointing at `--workflow` or `relay ticket`. For guided
+`--workflow <name>` (path under `relay-os/workflows/`) is optional *in
+draft only*. A workflow-less draft is a valid authoring state; the workflow
+can be added to the ticket any time before activation. The bumpability gate
+lives at activation, not here: `relay mark active` refuses a workflow-less
+ticket with an error pointing at `--workflow` or `relay ticket`, and
+`relay validate` reports a workflow-less `active`/`in_progress`/`paused`
+ticket as an `active-no-workflow` **error** (a stuck task no `relay bump` can
+advance). Once a ticket leaves `draft`, a workflow is mandatory. For guided
 authoring that fills the workflow in for you, use `relay ticket`.
 
 The deliberate separation keeps the moment of authorship distinct from
@@ -77,6 +91,28 @@ composed authoring prompt as system/developer context instead of as the first
 user message. That lets the first real human exchange set the agent session
 title for later resume. Set `[agents.<type>].discussion` to override the argv
 template for another agent.
+
+## relay project [\<seed\>] [--agent <type>]
+
+Plan a whole project into an ordered set of `draft` tickets. Runs the
+`bootstrap/project` skill in an interactive session: it interviews the human
+(outcome → prior art → constraints → dependencies & sign-off, one question at
+a time), proposes the ordered ticket list for the human to prune/reorder, then
+scaffolds the surviving set with `relay draft` — one launchable step per
+ticket. Where `relay ticket` authors one ticket, `relay project` decomposes a
+project into many.
+
+- `relay project` — start from the first interview question.
+- `relay project "<seed>"` — seed the interview with a one-line description or
+  a path/link to a vision doc; the agent reads it and confirms/fills gaps
+  rather than starting cold. Covers the vision-to-plan case.
+- `relay project --agent <type>` — run the interview with a specific agent.
+
+The interview questions and decomposition rules live in the skill, not in CLI
+code, so they can't drift. The command creates only `draft`s and never
+activates or launches them — the human owns what happens next. Like
+`relay ticket`, it requires a TTY (interactive). After the session it lists the
+created drafts and fails loud if any has a schema error.
 
 ## relay mark \<state\> \<slug\> [--message "..."]
 
@@ -123,6 +159,9 @@ directly. Script launches inject task metadata env vars including
 `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 
 - `relay launch <slug>` — accepts any unique prefix (git-short-SHA-style).
+  A top-level task is its bare leaf slug; a nested task is referenced by its
+  path under `tasks/` (`marketing/relay-crm`), matching what `relay status`
+  prints — the bare leaf alone won't resolve.
 - `relay launch <slug> --agent <type>` — one-off agent-type override
   (e.g. `--agent claude`); does not rewrite the ticket's `assignee:`.
 - `relay launch <slug> --prompt-report` — print composed prompt layers,
@@ -197,8 +236,34 @@ guardrail and task-to-task comparison, not exact provider billing.
 ## relay status
 
 List every task in the repo — `draft`, `active`, `in_progress`, `paused`,
-and `done`. Bootstrap shims have no status and don't appear here. No
-filtering flags yet; pipe through `grep` if you want to slice the output.
+and `done`. Bootstrap shims have no status and don't appear here. Pipe through
+`grep` for ad-hoc slicing of any column.
+
+An optional positional argument narrows the list to a directory under `tasks/`.
+Tasks are directories (a `ticket.md` directory at any depth), so the argument
+is just a directory path in the tree:
+
+- `relay status <dir>` — only tasks under `tasks/<dir>/`, nested ones
+  included, so it reads like `ls -R <dir>`. The path can be nested
+  (`relay status marketing` shows the whole sub-tree; `relay status
+  marketing/social` narrows to that sub-directory).
+- `relay status root` — only tasks directly under `tasks/` (none in a
+  sub-directory). `root` is a reserved sentinel; a directory literally named
+  `root` would be shadowed by it.
+- An unknown directory fails loud, listing the directories that do exist,
+  rather than printing a silently empty list. A *known* directory that
+  currently holds no tasks is not an error — it prints `(no tasks in <dir>)`.
+
+There is no command to create, rename, or delete one of these directories —
+they are plain directories, so you manage them with the shell: `mkdir
+relay-os/tasks/<dir>` to make one (`mkdir -p` to nest), `mv` a task directory
+to move it, `rm` to remove it. The filter only reads `tasks/`; like the rest of
+`relay status` it mutates nothing and hits no network.
+
+Generated recurring period tasks are machine-authored jobs scaffolded ahead of
+execution under `tasks/recurring/` (`recurring/<name>`), so they render in a
+**second `Recurring` table** below the hand-authored backlog rather than mixed
+in with it. `relay recurring list` is the schedule-aware view of those.
 
 ## relay show \<slug\>
 
@@ -352,26 +417,25 @@ Run Relay's generic cleanup pass now. `dream` is not a built-in command — it
 is a default alias for `recurring launch dream`. It scaffolds the
 `relay-os/recurring/dream/` recurring task and launches it interactively.
 
-The task slug is `recurring-<name>-<period>` (`recurring-dream-2026-W21`):
-the `recurring-` prefix marks it as generated and the period disambiguates.
-Running `relay dream` mid-week reuses that week's task instead of creating a
-second one — and if a prior week's Dream run is still `in_progress` (a dead
-sweep's orphan), it resumes *that* rather than starting a new one (one live
-task per template). Dream scans current task state, runs the known Relay
-housekeeping pass, writes results to that run's blackboard, and finishes with
-`relay mark done`.
+The instantiated task ref is `recurring/dream`: the `recurring/` directory
+marks it as generated, and the current period is recorded in
+`relay-os/recurring/dream/blackboard.md` as `last_serviced_period`. Running
+`relay dream` mid-week reuses that task instead of creating a second one. Dream
+scans current task state, runs the known Relay housekeeping pass, writes
+results to that run's blackboard, and finishes with `relay mark done`.
 
 ## relay recurring
 
 Scan `relay-os/recurring/`, then scaffold and launch every task that is due.
 
 For each template (skipping `_`-prefixed files) `relay recurring` enforces
-**one live task per template**: if a generated task (slug prefix
-`recurring-<name>-`) is already `active` or orphaned `in_progress`, that one
-is launched/resumed and no new period is scaffolded; only when none is live
-does it get-or-create the **current period's** task. It launches the due ones
+**one live task per template**: if the generated task at `recurring/<name>` is
+already `active` or orphaned `in_progress`, that one is
+launched/resumed and no duplicate is scaffolded; only when none is live does it
+get-or-create the current run at `relay-os/tasks/recurring/<name>/` and advance
+the template blackboard's `last_serviced_period` line. It launches the due ones
 **sequentially** — orphaned `in_progress` resumes first, then fresh launches,
-each group most-overdue first, one finishing before the next starts. It prints
+each set most-overdue first, one finishing before the next starts. It prints
 a scan table (`→ resume` / `→ launch` / `ready` vs `overdue Nd`) before
 launching. `done` and `paused` tasks are skipped — never relaunched; a stuck
 `in_progress` run defers the next period until it reaches one of those.
@@ -381,6 +445,9 @@ recurring` once a month for a weekly template produces one run (this
 period's), not a backlog. It does not install or manage system cron —
 nothing runs unless you invoke it. `relay-os/scripts/cron.sh` is the
 optional entry point if you later wire it into a scheduler yourself.
+Dedup after Dream deletes a completed run comes from
+`last_serviced_period >= current period_key`; the template `log.md` is
+append-only human history, not the dedup source.
 
 `relay recurring --interactive` launches every due task in interactive mode
 for that run from an attended TTY, even ones whose template says `mode: auto`
@@ -389,11 +456,11 @@ for that run from an attended TTY, even ones whose template says `mode: auto`
 
 `relay recurring --all` is the heavier debug escape hatch: it bypasses both
 the schedule and the status filter. For every template it scaffolds a *fresh,
-isolated* throwaway run under a `<template>-dbg-<timestamp>` slug and launches
-them all sequentially — regardless of whether this period's real task already
-exists or has run. The real period tasks are left untouched (the debug runs
-have their own slugs and are not recorded in the period ledger), and the runs
-launch interactively (script templates run as scripts) so there is a live
+isolated* throwaway run under a top-level `<template>-dbg-<timestamp>` slug and
+launches them all sequentially — regardless of whether this period's real task
+already exists or has run. The real period tasks and their
+`last_serviced_period` high-water marks are left untouched, and the runs launch
+interactively (script templates run as scripts) so there is a live
 console to watch. Debug runs are disposable scratch tasks: the `-dbg-<digit>`
 slug keeps them out of both Slack and git history (`sync_task_state` suppresses
 it, so a debug run never commits task state), each run's scratch dir is removed
@@ -428,14 +495,24 @@ Dream, REM, and other recurring maintenance loops all use this surface.
 
 Scaffold one named recurring template now and launch it, ignoring its
 schedule. `name` is the directory name under `relay-os/recurring/`. The task
-slug is `recurring-<name>-<period>`, so a manual `launch` and a bare `relay
-recurring` converge on one task directory per period (idempotent — a second
-`launch` in the same period reuses the existing task). An orphaned
-`in_progress` run — even from a prior period — is resumed rather than
+ref is `recurring/<name>`, so a manual `launch` and a bare `relay recurring`
+converge on one stable task directory (idempotent — a second `launch` reuses
+the existing task). An orphaned `in_progress` run is resumed rather than
 duplicated; a `done` or `paused` run is left alone. This is exactly what the
 `relay dream` alias expands to.
 `--interactive` runs it in interactive mode even if the template says
 `mode: auto`, for debugging one template by hand.
+
+## relay recurring list
+
+Read-only view of the recurring system — scaffolds nothing and launches
+nothing (the inspectable counterpart of a bare `relay recurring`, which
+get-or-creates each due period's task and runs it). Prints two tables: every
+template with its schedule, last/next firing, and current-period state
+(`due — not scaffolded`, or the live instance's status); then the **picked
+tasks** — the recurring period tasks already on disk, with their status and
+step. A template that fails to load (e.g. missing `schedule`) shows as an
+error row instead of crashing the view.
 
 ## relay --version
 
@@ -475,6 +552,8 @@ only; they don't accept their own flags.
   `launch bootstrap/orient`).
 - Running Relay cleanup now → `relay dream`.
 - Launching every due recurring task → `relay recurring`.
+- Inspecting recurring templates + schedules + instantiated tasks (read-only)
+  → `relay recurring list`.
 - Debug-launching every template now, isolated from real state →
   `relay recurring --all`.
 - Launching one named recurring task now → `relay recurring launch <name>`.

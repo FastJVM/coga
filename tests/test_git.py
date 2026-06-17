@@ -689,7 +689,7 @@ def test_cli_ticket_authoring_syncs_edits_to_origin(git_repo, monkeypatch):
 def test_cli_ticket_authoring_syncs_a_newly_created_task(git_repo, monkeypatch):
     """`relay ticket "<title>"` with no existing task syncs the draft it creates.
 
-    The authoring flow scaffolds a brand-new task mid-session, so there is no
+    The authoring flow creates a brand-new task mid-session, so there is no
     pre-resolved `TaskRef` to sync. `sync_paths` picks it up via the
     before/after snapshot of `tasks/`, then commits + pushes it as authored.
     """

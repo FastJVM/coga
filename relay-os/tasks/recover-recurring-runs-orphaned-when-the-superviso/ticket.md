@@ -1,6 +1,6 @@
 ---
 title: Recover recurring runs orphaned when the supervisor dies (e.g. laptop sleep)
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -27,7 +27,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
@@ -73,7 +72,7 @@ is a cheap, recoverable event, not worth a detection mechanism to avoid.
   status for free: a completed period task is `done`, a crashed one is
   `in_progress` (it definitionally never reached `relay mark done`).
 - `in_progress` period task → **relaunch and resume its current workflow step**
-  (not scaffold fresh, not restart from step 1). This is the only behavior
+  (not create fresh, not restart from step 1). This is the only behavior
   change.
 - `active` period task → launches as today.
 
@@ -101,12 +100,12 @@ Two flavors of "runs twice," only one of which we're accepting:
 - `recurring.py` — widen the relaunch predicate. `DueTask.launchable` currently
   returns `status == "active"`; it (or a new "relaunchable" notion feeding
   `DueScan.due`) must also include `in_progress`. `scan_due` already
-  get-or-creates the existing period task (`scaffold_template` returns the
+  get-or-creates the existing period task (`create_template` returns the
   existing dir when present), so no duplicate task dir is created.
 - The launch path must **resume the existing step** of an `in_progress` ticket
   rather than treat it as a fresh `active` launch. Confirm `relay launch`
   accepts an `in_progress` ticket and re-composes from its current `step:`; wire
-  it up if it currently refuses anything past `active` (cf. `_launch_scaffolded`
+  it up if it currently refuses anything past `active` (cf. `_launch_created`
   in `commands/recurring.py`, which today only launches `active`).
 - Leave `paused` skipped (a human deliberately parked it — not an orphan).
 - Update the `relay/recurring` context and `relay recurring` CLI help to state
@@ -131,7 +130,7 @@ not duplicates.
 
 ## Context
 
-- `relay/recurring` — recurring tasks as ticket-format directories, the scaffold
+- `relay/recurring` — recurring tasks as ticket-format directories, the create
   contract, period-task naming, the template-blackboard ledger, and that the
   bare sweep currently skips `done`/`in_progress`/`paused`. **Attached** — this
   ticket changes that skip behavior for `in_progress`.
@@ -141,6 +140,6 @@ not duplicates.
   single-foreground-sweep reality that makes skipping liveness detection safe.
 - Source: `recurring.py` (`scan_due`, `DueTask.launchable`, `DueScan.due`,
   period slug + ledger helpers), `commands/recurring.py` (the sequential
-  `for task in due` sweep loop and `_launch_scaffolded`, which today only
+  `for task in due` sweep loop and `_launch_created`, which today only
   launches `active`).
 

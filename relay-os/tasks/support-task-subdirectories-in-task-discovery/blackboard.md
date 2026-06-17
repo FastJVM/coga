@@ -31,8 +31,8 @@ path.
 - `task_dir()` (paths.py): REMOVE — uncalled in src/ and tests, exported
   landmine; ticket allows "make nesting-aware or remove".
 - Recurring orphan sweep (commands/recurring.py): debug runs are always
-  scaffolded top-level, sweep stays top-level — confirm, no change.
-- Scaffold (scaffold.py): new tasks stay top-level; slug dedup now sees
+  created top-level, sweep stays top-level — confirm, no change.
+- Create (create.py): new tasks stay top-level; slug dedup now sees
   nested slugs via list_tasks — intentional, no change.
 - git.py / compose.py carry `ref.path` — safe, no change.
 - `git mv` stream-agent ticket → tasks/auto/ on this branch (atomic with
@@ -64,9 +64,9 @@ What changed:
 - `task_dir()` REMOVED from paths.py (uncalled landmine; ticket allowed
   remove). Nothing in src/ or tests imported it.
 - Debug-orphan sweep (commands/recurring.py): confirmed safe —
-  `scaffold_debug_run` → `_scaffold_at_slug` → `scaffold_task` always
+  `create_debug_run` → `_create_at_slug` → `create_task` always
   creates top-level; added a comment documenting the assumption.
-- Scaffold: unchanged by design — new tasks always created top-level
+- Create: unchanged by design — new tasks always created top-level
   (grouping = manual `git mv`); slug dedup via list_tasks now sees
   nested slugs, so cross-group collisions are prevented at creation.
 - `git mv relay-os/tasks/stream-agent-… → tasks/auto/` in the same
@@ -74,7 +74,7 @@ What changed:
 - Fixture: added example/relay-os/tasks/auto/triage-inbound-email/
   (frozen code/with-review workflow so the example validates with zero
   warnings); smoke test now asserts the nested fixture is discovered
-  and selects the scaffolded task by slug instead of `[0]`.
+  and selects the created task by slug instead of `[0]`.
 - New tests/test_tasks.py (discovery, `_` skipping, no-recursion,
   duplicate error, prefix resolution across groups) + two validate
   tests (nested-clean, duplicate-slug report).
@@ -140,12 +140,12 @@ sites, fixture gap, move-ordering hazard) were folded into the ticket's
 
 4. **Context-vs-ticket fact placement: handled well.** The ticket already copied the load-bearing facts out of the broad context into `## Context` (discovery location and mechanics, fixture-sync rule, template-sync rule). No reliance on the reader fishing a buried fact out of `relay/codebase/SKILL.md`. This is the right pattern.
 
-5. **Scope: reasonable, with the right escape valve.** Core (discovery + resolution + validate + collision check + tests + fixture) is one coherent ticket. The scaffolding question (`group/slug` form in `relay draft`/`relay ticket`) is correctly marked optional with "manual `git mv` is acceptable" — that's good scope discipline. The single ticket move is a fine smoke test, not scope creep. Out-of-scope lines are explicit.
+5. **Scope: reasonable, with the right escape valve.** Core (discovery + resolution + validate + collision check + tests + fixture) is one coherent ticket. The creating question (`group/slug` form in `relay draft`/`relay ticket`) is correctly marked optional with "manual `git mv` is acceptable" — that's good scope discipline. The single ticket move is a fine smoke test, not scope creep. Out-of-scope lines are explicit.
 
 6. **Assumptions to question before launch** (I verified these against the source):
    - **Collision behavior is under-specified.** "Fail loud in discovery/validate" is ambiguous: if `list_tasks()` raises on a duplicate leaf name, *every* command breaks — including `relay validate`, which needs discovery to run in order to report the problem legibly. Decide: discovery raises a typed error (validate catches and reports it), or discovery dedups/returns and validate flags it. One sentence would settle it.
-   - **Two slug→path reconstruction sites exist beyond `list_tasks`, and the ticket's checklist ("validate and any log/digest/Slack code") doesn't name either.** (a) `src/relay/commands/ticket.py:270–282` (`_authored_task_refs`) computes `slug = rel.parts[0]` and `task_path = tasks_root / slug` — for a nested task, `parts[0]` is the *group* dir, so authored-task detection silently misses or mis-attributes nested tickets. (b) `src/relay/paths.py:92` `task_dir(cfg, id_slug)` builds `tasks/<slug>` directly — it appears uncalled in `src/relay/` today, but it's exported API and a landmine; deprecate or make it nesting-aware. Also note `src/relay/commands/recurring.py:279–296` runs its own `tasks_root.iterdir()` sweep (debug-run orphan reaping) — probably fine since debug runs are always scaffolded at top level, but the implementer should confirm rather than assume. `git.py` and `compose.py` carry `ref.path`/`id_slug` correctly and look safe.
-   - **Scaffold dedup misses cross-group collisions in one branch.** `src/relay/scaffold.py:113–121` dedups against `{t.slug for t in list_tasks(cfg)}` then checks `tasks_dir(cfg)/slug` existence — once nested tasks are discoverable, the slug-set check covers them, but the new-task dir is always created at top level, which is consistent with "grouping is a manual git mv." Fine, just confirm intentionally.
+   - **Two slug→path reconstruction sites exist beyond `list_tasks`, and the ticket's checklist ("validate and any log/digest/Slack code") doesn't name either.** (a) `src/relay/commands/ticket.py:270–282` (`_authored_task_refs`) computes `slug = rel.parts[0]` and `task_path = tasks_root / slug` — for a nested task, `parts[0]` is the *group* dir, so authored-task detection silently misses or mis-attributes nested tickets. (b) `src/relay/paths.py:92` `task_dir(cfg, id_slug)` builds `tasks/<slug>` directly — it appears uncalled in `src/relay/` today, but it's exported API and a landmine; deprecate or make it nesting-aware. Also note `src/relay/commands/recurring.py:279–296` runs its own `tasks_root.iterdir()` sweep (debug-run orphan reaping) — probably fine since debug runs are always created at top level, but the implementer should confirm rather than assume. `git.py` and `compose.py` carry `ref.path`/`id_slug` correctly and look safe.
+   - **Create dedup misses cross-group collisions in one branch.** `src/relay/create.py:113–121` dedups against `{t.slug for t in list_tasks(cfg)}` then checks `tasks_dir(cfg)/slug` existence — once nested tasks are discoverable, the slug-set check covers them, but the new-task dir is always created at top level, which is consistent with "grouping is a manual git mv." Fine, just confirm intentionally.
    - **One-level-deep: adequate for the stated use** (`tasks/auto/`), and bounding depth keeps the "subdir with ticket.md is a task, not a group" rule decidable. No evidence anything needs deeper nesting. Accept.
-   - **Reserved names.** If scaffolding ever accepts a `group/slug` arg, note that `resolve_target` reserves the `bootstrap/` prefix (`src/relay/tasks.py:113–117`); a group literally named `bootstrap` would be unreachable by that arg form. Trivial, but worth a line if the optional scaffold work happens.
+   - **Reserved names.** If creating ever accepts a `group/slug` arg, note that `resolve_target` reserves the `bootstrap/` prefix (`src/relay/tasks.py:113–117`); a group literally named `bootstrap` would be unreachable by that arg form. Trivial, but worth a line if the optional create work happens.
    - **Fixture gap.** `example/relay-os/` currently has *no* `tasks/` directory at all, so "mirror in the seeded fixture" means *adding* a nested-task fixture, not editing one — slightly more work than the ticket implies.

@@ -9,7 +9,7 @@ assignee: claude
 contexts: []
 skills:
 - bootstrap/ticket
-workflow: null
+workflow: autonomy/assist-only
 ---
 
 ## Description
@@ -39,21 +39,69 @@ orchestration runner) share vocabulary.
 
 ## Context
 
+### The model to lock
+
+One-sentence definition:
+
+> An autotrigger is a ticket the system may fire on its own — moving it
+> from `active` (ready) to `in_progress` **without a human `relay launch`
+> gesture** — when a trigger condition matches.
+
 Two orthogonal axes the model needs to express:
 
 - **Trigger condition** — `schedule` (cron), `idle` (spare budget),
   later `event` / `webhook` / `queue-depth`. Multiple triggers OR
   together by default.
 - **Cardinality** — `one-shot` (fires once → `done`) or `recurring`
-  (each fire scaffolds a fresh task instance — today's recurring
+  (each fire creates a fresh task instance — today's recurring
   template flow).
+
+**Key insight — "fire" is always the same transition.** The status
+lifecycle already has the state we need; no new status is required.
+`relay launch` already owns the `active → in_progress` start transition
+(the flip is `mark_in_progress` in `src/relay/mark.py`, fired by
+`relay launch` — `src/relay/commands/launch.py`). An autotrigger simply
+makes a *trigger* the owner of that same transition instead of a human:
+
+- `draft` — not approved
+- `active` — approved, **ready/armed, waiting to be fired**
+- `in_progress` — running now
+- `done` / `paused`
+
+So one-shot and recurring are **the same firing act**, and differ in
+only one thing — whether anything is re-stocked afterward:
+
+```
+every autotrigger:  ready (active)  →  in_progress     (the fire; was: human relay launch)
+
+one-shot:           ...→ done.  end.
+recurring:          ...→ done, then re-stock a fresh "ready" (active) ticket for next cycle
+```
+
+That is the whole distinction: **one-shot = no re-stock; recurring =
+re-stock after done.** The fire itself is identical.
+
+Which means "auto" is just the system performing a gesture a human used
+to perform:
+
+| autotrigger does the job of… | human gesture it replaces        | cardinality |
+| ---------------------------- | -------------------------------- | ----------- |
+| **launch**                   | `relay launch` (fire, in place)  | one-shot    |
+| **recurring**                | the recurring create (re-stock)| recurring   |
+
+`relay-os/recurring/` was always "auto-create"; the `idle-eligible`
+proposal was always "auto-launch." Both are the same concept — *who
+fires the `active → in_progress` transition* = the system — which is
+exactly the unification this ticket exists to name.
+
+### Open questions
 
 Open design questions worth surfacing in the body so a future
 session has them on hand:
 
 - File shape for recurring autotriggers — a recurring source can't
   itself be the running task; needs to be template-shaped or have a
-  scaffolding rule.
+  creating rule.
 - Is `triggers:` presence the standing consent that bypasses
   human-launch approval, or do we want an explicit `autotrigger:
   true` flag for legibility?
@@ -65,12 +113,19 @@ session has them on hand:
   today's `relay launch` post.
 
 Related tickets to cross-reference when the implementation tickets
-get written:
+get written. **Note (verified 2026-06-12):** the two names below are
+*planned, not-yet-created* slugs — they do not exist as task dirs. Use
+them as intended titles, and see the existing clusters for live work:
 
-- `token-budget-aware-idle-execution-of-low-priority` — provides
-  the `idle` trigger.
-- `reconcile-recurring-command-spec-contradiction` — the recurring
-  side that this concept absorbs.
+- `token-budget-aware-idle-execution-of-low-priority` *(not created)* —
+  would provide the `idle` trigger. Closest existing: none yet
+  (`enforce-a-prompt-token-budget-in-compose` is adjacent but not this).
+- `reconcile-recurring-command-spec-contradiction` *(not created)* — the
+  recurring side this concept absorbs. Live recurring-hazard cluster to
+  read instead: `detect-recurring-runs-that-mark-done-without-advan`,
+  `recover-recurring-runs-orphaned-when-the-superviso`,
+  `fix-recurring-templates-not-instantiated`,
+  `enforce-mode-auto-for-recurring-templates`.
 
 Out of scope here: trigger evaluator implementation, frontmatter
 syntax, migration of existing recurring templates, event/webhook

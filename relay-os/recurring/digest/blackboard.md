@@ -2,17 +2,19 @@ This blackboard is the **spool and git high-water state** for the daily Slack
 digest.
 
 Done outcomes and recurring scan errors append one JSONL record to the
-`## Spool (pending)` section below as they happen (see `relay.slack.notify`).
+`## Spool (pending)` section below as they happen (see `relay.notification.notify`).
 The daily `relay digest` run combines those records with a git scan of
 `origin/main`, posts one outcome-focused message to Slack, empties the spool
 back to just the heading, and updates `### Digest State`. Everything here is
 plain text in a git-tracked file on purpose — the pending queue and high-water
 mark stay legible, never hidden state.
 
-`relay recurring`'s period ledger lives in this template's `log.md` (never
-composed into a run, so it can grow unbounded) — not here in the spool. The
-digest flush still parses only valid JSON records and rewrites only the spool
-section, so any stray non-JSON line is left untouched.
+`relay recurring` keeps the serviced-period high-water mark here and append-only
+human history in this template's `log.md` (never composed into a run, so it can
+grow unbounded). The digest flush still parses only valid JSON records and
+rewrites only the spool section, so any stray non-JSON line is left untouched.
+
+last_serviced_period: 2026-06-11
 
 ### Digest State
 
@@ -104,6 +106,10 @@ posted:
 {"ts":"2026-06-10T15:32","project":"relay","kind":"done","detail":"nick finished → done ✅","ticket":"lift-dream-subagent-scan-contract-into-reusable-sk","owner":"nick"}
 {"ts":"2026-06-10T15:35","project":"relay","kind":"done","detail":"nick finished → done ✅","ticket":"install-init-skills-via-skill-downloader","owner":"nick"}
 {"ts":"2026-06-10T15:41","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"add-dev-testing-setup-skill","owner":"nick"}
+{"ts":"2026-06-10T17:26","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"restructure-slack-message","owner":"nick"}
+{"ts":"2026-06-10T20:51","project":"relay","kind":"bump","detail":"claude advanced → step 2 (peer-review) → assigned to codex","ticket":"restructure-slack-message","owner":"nick"}
+{"ts":"2026-06-10T21:23","project":"relay","kind":"active","detail":"→ active — assignee claude","ticket":"add-imported-skill-update-check","owner":"nick"}
+{"ts":"2026-06-10T21:25","project":"relay","kind":"bump","detail":"claude advanced → step 2 (peer-review) → assigned to codex — implement done: skill-update is now a standalone weekly recurring task; Dream drops its Phase 4. Branch skill-update-recurring, 629 tests pass.","ticket":"add-imported-skill-update-check","owner":"nick"}
 {"ts":"2026-06-09T15:51","project":"relay","kind":"draft","detail":"created \"Document untrusted-tool-output verify-through-ground-truth agent discipline\" (draft)","ticket":"document-untrusted-tool-output-verify-through-grou","owner":"nick"}
 {"ts":"2026-06-09T15:51","project":"relay","kind":"draft","detail":"created \"Exclude dev-tree agent-skill symlink views from the wheel build\" (draft)","ticket":"exclude-dev-tree-agent-skill-symlink-views-from-th","owner":"nick"}
 {"ts":"2026-06-09T15:52","project":"relay","kind":"draft","detail":"created \"Dream dbg cleanup-orphan-markers\" (draft)","ticket":"dream-dbg-cleanup-orphan-markers","owner":"nick"}
@@ -140,3 +146,11 @@ posted:
 {"ts":"2026-06-11T16:13","project":"relay","kind":"draft","detail":"created \"Dev-loop git hygiene: lift sync-with-main into code/open-pr + add recurring merged-branch cleanup\" (draft)","ticket":"dev-loop-git-hygiene-lift-sync-with-main-into-code","owner":"nick"}
 {"ts":"2026-06-11T16:16","project":"relay","kind":"draft","detail":"created \"Audit rules.md usage across relay and decide whether to keep, gut, or remove it\" (draft)","ticket":"audit-rules-md-usage-across-relay-and-decide-wheth","owner":"nick"}
 {"ts":"2026-06-11T16:30","project":"relay","kind":"draft","detail":"created \"simplify command lines\" (draft)","ticket":"simplify-command-lines","owner":"nick"}
+{"ts":"2026-06-12T17:51","project":"relay","kind":"done","detail":"codex finished: peer-review → done ✅","ticket":"detect-recurring-runs-that-mark-done-without-advan","owner":"nick"}
+{"ts":"2026-06-12T17:21","project":"relay-cli","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/347|PR #347> merged ✅","ticket":"recurring-task-check-ticket-done","owner":"nick"}
+{"ts":"2026-06-12T17:21","project":"relay-cli","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/346|PR #346> merged ✅","ticket":"supervisor-liveness-watchdog-for-agents-that-never","owner":"nick"}
+{"ts":"2026-06-11T17:25","project":"relay-cli","kind":"done","detail":"claude finished: verify-read-only → done ✅","ticket":"relay-crm","owner":"zach"}
+{"ts":"2026-06-12T21:17","project":"relay","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/287|PR #287> merged ✅","ticket":"recover-recurring-runs-orphaned-when-the-superviso","owner":"nick"}
+{"ts":"2026-06-12T22:41","project":"relay","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/359|PR #359> merged ✅","ticket":"rename-slack-to-a-notification-system-with-pluggab","owner":"nick"}
+{"ts":"2026-06-14T13:23","project":"relay-cli","kind":"done","detail":"claude finished: revise → done ✅ — Relay Onboarding doc approved & final: https://docs.google.com/document/d/1eAdnxopeVC7jLGUfdo05R-h_a4jM-OwhracyUgYLtq0/edit","ticket":"relay-onboarding","owner":"zach"}
+{"ts":"2026-06-16T12:50","project":"relay-cli","kind":"done","detail":"claude finished: synthesize → done ✅","ticket":"marketing/validate-relay-build-onboarding","owner":"zach"}

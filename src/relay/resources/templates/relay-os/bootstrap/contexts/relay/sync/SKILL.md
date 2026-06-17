@@ -1,27 +1,29 @@
 ---
 name: relay/sync
-description: Slack and git as relay's sync layers — why Slack is required by default, how task-state git sync works, why failures crash, and how to design new features that respect sync.
+description: Notifications and git as relay's sync layers — why a live notification channel is required by default, how task-state git sync works, why failures crash, and how to design new features that respect sync.
 ---
 
-# Sync layers — Slack and git
+# Sync layers — notifications and git
 
-## Slack — the team sync point
+## Notifications — the team sync point
 
 Agents work asynchronously. The humans they collaborate with do not.
 Multi-user coordination needs a channel where state changes surface as
 they happen, or the human side accumulates a stale mental model of what
-the agents are doing. That channel, in relay, is Slack.
+the agents are doing. That channel, in relay, is the notification layer. Slack
+is the first backend behind it, not the whole abstraction.
 
-Relay commands reach that channel via an incoming webhook, but not every
-state change belongs there. A channel shared across many projects and tickets
-drowns in lifecycle chatter — humans tune it out, which defeats the point. So
-relay routes Slack-worthy events into **two tiers** and keeps routine
-lifecycle churn out of Slack entirely:
+Relay commands reach that channel through configured notification backends
+(`channels = ["slack"]` today), but not every state change belongs there. A
+channel shared across many projects and tickets drowns in lifecycle chatter —
+humans tune it out, which defeats the point. So relay routes
+notification-worthy events into **two tiers** and keeps routine lifecycle churn
+out of notifications entirely:
 
 - **Live (urgent)** — posted the moment they happen. A stuck agent or a
-  failure must never wait. This is the `slack.post` path.
+  failure must never wait. This is the `notification.post` path.
 - **Outcome digest** — done tickets and recurring scan errors, collapsed into
-  **one daily digest**. This is the `slack.notify` path: each outcome/error
+  **one daily digest**. This is the `notification.notify` path: each outcome/error
   appends a structured JSONL record to the `recurring/digest/` ticket's
   blackboard (its `## Spool (pending)` section), and the digest recurring
   ticket flushes the spool once a day via `relay digest` (drain → fetch
@@ -50,7 +52,7 @@ Outcome digest surface — spooled into the daily digest (live fallback below):
 - `relay recurring` — only the end-of-run summary when templates failed to
   parse (`recurring-error`).
 
-Silent lifecycle surface — no Slack post, no spool record:
+Silent lifecycle surface — no notification post, no spool record:
 
 - `relay draft` / `relay create` and `relay ticket "<title>"'s raw draft
   creation.
@@ -60,28 +62,29 @@ Silent lifecycle surface — no Slack post, no spool record:
 - `relay retire` scaffolding.
 
 The digest is **opt-in by installing the `recurring/digest/` ticket**. When
-that ticket is absent, `slack.notify` degrades to a live `post` for the same
-outcome/error events. It does not revive the silent lifecycle surface. Owners
-ping as `<@ID>` and watchers cc exactly as a live post does — the digest
-reuses `slack._mention`.
+that ticket is absent, `notification.notify` degrades to a live `post` for the
+same outcome/error events. It does not revive the silent lifecycle surface.
+Owners ping as `<@ID>` and watchers cc exactly as a live post does — the
+digest reuses Slack-channel mention rendering.
 
-Slack is not an "FYI nice-to-have" — it's the synchronization point
-between async agents and the people approving, unblocking, or watching
-their work.
+Notifications are not an "FYI nice-to-have" — they are the synchronization
+point between async agents and the people approving, unblocking, or watching
+their work. Slack is channel #1 because it is where this team currently
+coordinates.
 
 What also deliberately does *not* post at all: relaunching an
 already-`in_progress` interactive or auto ticket. The sync-relevant start
 transition already happened when the ticket moved `active` → `in_progress`;
 subsequent launches are resume attempts.
 
-## Slack required by default
+## Notifications required by default
 
-When `[slack].enabled` is true (the default), commands crash on any
-Slack failure:
+When `[notification.slack].enabled` is true (the default), commands crash on
+any live Slack-channel failure:
 
-- `[slack].webhook` resolves empty (key absent, or an `env:` reference
+- `[notification.slack].webhook` resolves empty (key absent, or an `env:` reference
   whose variable is unset) → `typer.Exit(1)` with a message pointing the
-  user at the `[slack].webhook` key or the opt-out.
+  user at the `[notification.slack].webhook` key or the opt-out.
 - Network or webhook-rejection error during `requests.post` →
   `typer.Exit(1)` with the error and (when `task_path` is given) a line
   appended to that task's `log.md`.
@@ -90,9 +93,9 @@ Why crash instead of degrading to stderr-only? Because a silent FYI
 becomes a stale mental model on the human side, and that's worse than a
 noisy retry. Loud failures force resolution; quiet ones rot.
 
-## Why no Slack retry
+## Why no notification retry
 
-Earlier versions of `slack.post` retried with exponential backoff. PR
+Earlier versions of `notification.post` retried with exponential backoff. PR
 #56 removed that. An FYI is fire-and-forget — by the time a retry
 succeeds 6 seconds later, the message is already stale relative to
 local state, and a delayed sync is a dishonest sync. Better to fail
@@ -100,10 +103,10 @@ fast and let the user retry the command (which re-derives the message
 from current state), or use the manual `relay validate --check-slack`
 probe before the next batch of work.
 
-## The Slack opt-out is an exit, not a default
+## The notification opt-out is an exit, not a default
 
-`[slack].enabled = false` in `relay.local.toml` silences every Slack
-call to stderr and never crashes. It exists for genuinely solo
+`[notification.slack].enabled = false` in `relay.local.toml` silences every
+Slack-channel call to stderr and never crashes. It exists for genuinely solo
 contexts: dev/test runs against fake tickets, CI environments where you
 don't want webhook spam, single-developer experimentation branches.
 
@@ -112,8 +115,8 @@ your launches, bumps, or panics. Treat `enabled = false` as a
 deliberate exit, not a way to "make the warning go away." Once you're
 working with another person, turn it back on.
 
-When suppressed, each call still writes one line to stderr (`[slack]
-disabled (post suppressed): <message>`) so the user notices their
+When suppressed, each call still writes one line to stderr (`[slack] disabled
+(post suppressed): <message>`) so the user notices their
 opt-out is active. Quiet opt-outs become forgotten opt-outs.
 
 ## Pinging the owner and watchers
@@ -123,9 +126,9 @@ and cc's any `watchers`. For those names to actually *notify* someone,
 Slack needs the `<@U…>` member-ID mention form — a plain `@name` or
 `[name]` in incoming-webhook text never pings.
 
-`[slack.users]` in `relay.toml` supplies the mapping: a relay name (the
+`[notification.slack.users]` in `relay.toml` supplies the mapping: a relay name (the
 token used in a ticket's `owner` / `watchers` fields) → a Slack member
-ID. `slack.post` resolves `owner` and `watchers` through it, emitting
+ID. `notification.post` resolves `owner` and `watchers` through it, emitting
 `<@U…>` for mapped names and plain text for the rest. A watcher is cc'd
 only when mapped — cc'ing an unmapped name notifies no one and is just
 noise.
@@ -137,7 +140,8 @@ a name itself. Member IDs aren't secret, so the table lives in shared
 
 ## Message format conventions
 
-Every **per-ticket** Slack post (live or spooled) follows one uniform shape.
+Every **per-ticket** notification rendered for Slack (live or spooled) follows
+one uniform shape.
 When adding or editing a call site, match these rules instead of inventing a
 new string:
 
@@ -157,7 +161,7 @@ new string:
   (plain text doesn't link in incoming-webhook posts).
 - Message strings are built **at the call sites** (`commands/*.py`,
   `automerge.py`) — `advance_step`/`mark_done` receive finished `slack_text`,
-  and `post()`/`notify()` never reformat. `tests/test_slack_messages.py`
+  and `post()`/`notify()` never reformat. `tests/test_notification_messages.py`
   snapshots the formats; extend it when a string changes.
 - **Keep the live text and the digest detail in step.** A call site that uses
   `notify` posts the live string only as a fallback; the spooled record's
@@ -165,39 +169,45 @@ new string:
   see a poorer message than live users (automerge regressed exactly this way
   once).
 
-## Slack implementation pointers
+## Notification implementation pointers
 
-- `src/relay/slack.py::post(cfg, message, *, task_path=None, owner=None,
+- `src/relay/notification/__init__.py::post(cfg, message, *, task_path=None, owner=None,
   watchers=None, image_url=None)` — the **live** path. Three branches: not
-  enabled → stderr; enabled + no webhook → crash; enabled + webhook → POST
-  then crash on failure. The private `_mention` helper renders a name as
-  `<@ID>` when mapped.
-- `src/relay/slack.py::notify(cfg, slack_text, *, kind, detail, ticket=None,
+  configured channel(s). Slack has three branches: not enabled → stderr;
+  enabled + no webhook → crash; enabled + webhook → POST then crash on
+  failure.
+- `src/relay/notification/slack.py::SlackChannel` — the Slack backend. It owns
+  Slack text rendering (project/owner prefix, watcher cc, image attachment),
+  mention rendering, and the webhook POST.
+- `src/relay/notification/__init__.py::notify(cfg, slack_text, *, kind, detail, ticket=None,
   owner=None, watchers=None, task_path=None, image_url=None)` — the
   **outcome digest** path. It accepts only `done` and `recurring-error`
   records. When `digest_spool_path(cfg)` is non-None (the
   `recurring/digest/` ticket is installed), it appends a structured record to
   the spool; otherwise it falls back to `post(slack_text, …)`. `kind` is the
   event tag; `detail` is the digest one-liner.
-- `src/relay/slack.py::render_digest(cfg, records, *, date_label,
+- `src/relay/notification/__init__.py::render_digest(cfg, records, *, date_label,
   also_merged=None)` — renders Done owner sections, an optional "Also merged
   (no ticket)" section, and recurring errors (no `[project]` prefix — `relay
   digest` hands it to `post`, which adds it).
-- `[slack].webhook` in `relay.toml` (or `relay.local.toml`) — the single
+- `[notification].channels = ["slack"]` selects the enabled backend list.
+  Unknown channel names fail config load until their backend exists.
+- `[notification.slack].webhook` in `relay.toml` (or `relay.local.toml`) — the single
   source for the webhook URL. It is a bearer token, so the committed value
   is an `env:SLACK_WEBHOOK_URL` reference, resolved like `[secrets]` via
-  `config._resolve_secret_value`. A bare exported `SLACK_WEBHOOK_URL` with no
-  `webhook` key is *not* configured — the environment reaches relay only
-  through that reference. A literal URL is accepted by the parser but must
-  never be committed; use `env:` indirection.
+  `config._resolve_secret_value`. Legacy `[slack].webhook` and a bare exported
+  `SLACK_WEBHOOK_URL` still resolve as deprecated compatibility fallbacks.
+  A literal URL is accepted by the parser but must never be committed; use
+  `env:` indirection.
 - `cfg.slack_enabled` (`bool`, default `True`) and `cfg.slack_webhook`
-  (`str | None`) — both come from `relay.config`. `[slack].enabled` and
-  `[slack].webhook` each resolve with `relay.local.toml` overriding shared
-  (`_resolve_slack_enabled` / `_resolve_slack_webhook`), so a machine can
+  (`str | None`) — compatibility fields holding the effective Slack-channel
+  config. `[notification.slack].enabled` and `[notification.slack].webhook`
+  each resolve with `relay.local.toml` overriding shared, so a machine can
   carry its own webhook while shared `relay.toml` holds a safe `env:`
   reference or omits the key.
 - `cfg.slack_users` (`dict[str, str]`, relay name → Slack member ID) —
-  parsed from `[slack.users]` in `relay.toml` by `_parse_slack_users`.
+  parsed from `[notification.slack.users]` in `relay.toml`; legacy
+  `[slack.users]` remains a deprecated compatibility input.
 - Live callers (`post`): `commands/panic.py`, `commands/slack.py`,
   `commands/launch_script.py` (failure path only),
   `commands/bump.py` when `--message` is present, and
@@ -213,11 +223,11 @@ new string:
 
 ## The daily digest — a blackboard producer/consumer
 
-The digest collapses outcomes into one Slack message a day. It is a
+The digest collapses outcomes into one notification message a day. It is a
 **producer → blackboard + git high-water → consumer** pipeline with no side
 mechanism:
 
-- **Producer.** `slack.notify` appends one JSONL record per outcome/error to the
+- **Producer.** `notification.notify` appends one JSONL record per outcome/error to the
   `recurring/digest/` ticket's `blackboard.md`, under a `## Spool (pending)`
   section. The record is self-describing — `ts`, `project`, `kind`, `detail`,
   and (when present) `ticket`, `owner`, `watchers`. JSONL so `detail` can hold
@@ -233,9 +243,9 @@ mechanism:
   `Sync task state: …` and `Ticket: <slug> — <status>`.
 - **The spool is a real blackboard.** It is git-tracked, human-readable, never
   a hidden dotfile — consistent with relay's no-hidden-state rule. It shares
-  the file with `recurring._record_run`'s `scaffolded …` ledger lines; the
+  the file with recurring template state such as `last_serviced_period`; the
   flush parses only valid-JSON lines and rewrites only the spool section, so
-  the ledger is untouched.
+  other state is untouched.
 - **Consumer.** The `recurring/digest/` ticket (`mode: script`, daily
   `schedule:`) fires through the normal `relay recurring` scan. Its one
   workflow step runs the `relay/digest/flush` skill, whose `script:` calls
@@ -250,15 +260,15 @@ mechanism:
   `## Spool (pending)` JSONL section via `atomicio.atomic_write_text`. Relay
   runs one CLI process at a time, so appends and drains are serialized by that
   — no lock is introduced, consistent with the no-mutex model. The primitive
-  is deliberately Slack-agnostic; the digest is its first caller.
+  is deliberately notification-agnostic; the digest is its first caller.
 
 ## Git — durable task-state sync
 
-Slack tells the team what changed; git makes the markdown state durable and
-shareable. Relay-owned commands that mutate a task directory should commit
-the resolved task directory path under `relay-os/tasks/` (top-level or grouped
-one level deep) and push it after the Slack post, so `origin/main` does not
-drift from the state humans saw in Slack.
+Notifications tell the team what changed; git makes the markdown state durable
+and shareable. Relay-owned commands that mutate a task directory should commit
+the resolved task directory path under `relay-os/tasks/` (top-level or nested
+in a sub-directory) and push it after the live notification post, so
+`origin/main` does not drift from the state humans saw in the channel.
 
 Current surface:
 
@@ -307,9 +317,9 @@ cross-branch land, since every staging op runs against the throwaway index.
 
 Failure model:
 
-- `[git].enabled = false` suppresses sync with a stderr line. Like Slack's
-  opt-out, this is a deliberate exit for dev/test/solo repos, not the normal
-  team path.
+- `[git].enabled = false` suppresses sync with a stderr line. Like the
+  notification opt-out, this is a deliberate exit for dev/test/solo repos, not
+  the normal team path.
 - A non-git checkout is a soft warning and no-op.
 - Git operation failures (missing git, invalid repo state, commit failure,
   fetch/push failure, no remote, or contention exhausting the retry loop) crash
@@ -331,30 +341,30 @@ urgency and substance: would a teammate need this within minutes (live), is it
 a daily outcome/error (digest), or is it lifecycle audit noise that belongs
 only in `log.md` and git? Don't add silent state mutations that bypass both
 when the team needs awareness. Conversely, don't emit chatter that doesn't
-represent an outcome, urgent exception, or explicit FYI — Slack is the sync
-surface, not a debug stream.
+represent an outcome, urgent exception, or explicit FYI — notifications are the
+sync surface, not a debug stream.
 
 If the command mutates a task directory through Relay-owned code, it should
-also call `git.sync_task_state` after the Slack post unless the path is
+also call `git.sync_task_state` after the live notification post unless the path is
 explicitly deferred and documented. The git sync call belongs at the logic
-boundary where the file write, validation, log append, and Slack post have
-all finalized.
+boundary where the file write, validation, log append, and notification post
+have all finalized.
 
 When the post needs to describe state that has *just* changed, the
 command echoes the local outcome to stdout *before* calling
-`slack.post`. That way, if Slack crashes the user still sees the
-local-state confirmation on stdout above the error on stderr, and can
-reason about idempotency (most state changes — like `bump` — should
-not be re-run blindly after a Slack failure).
+`notification.post`. That way, if the notification channel crashes the user
+still sees the local-state confirmation on stdout above the error on stderr,
+and can reason about idempotency (most state changes — like `bump` — should not
+be re-run blindly after a notification failure).
 
 ## Future direction — bidirectional sync
 
-Today the sync is outbound only: agents/CLI → channel. The obvious next
-step is inbound: humans replying / reacting / running slash commands in
-the channel that reach back into the agent. A Slack app with the events
-API or slash-command endpoints would close the loop.
+Today the sync is outbound only: agents/CLI → channel. The obvious next step is
+inbound: humans replying / reacting / running slash commands in the channel
+that reach back into the agent. For Slack, an app with the events API or
+slash-command endpoints would close the loop.
 
-The current `slack.post` API doesn't preclude this — it just doesn't
+The current `notification.post` API doesn't preclude this — it just doesn't
 implement it yet. When designing new sync-touching features, avoid
 baking in "outbound-only" assumptions; treat the Slack channel as a
 two-way medium that's currently used in one direction.

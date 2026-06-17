@@ -19,7 +19,7 @@ from relay.logfile import append_log
 from relay.mark import mark_done, mark_in_progress
 from relay.paths import resolve_skill_path, skill_resolution_paths
 from relay.skill import Skill
-from relay.slack import post
+from relay.notification import post
 from relay.tasks import TaskRef
 from relay.ticket import Ticket
 from relay.validate import TaskValidationError

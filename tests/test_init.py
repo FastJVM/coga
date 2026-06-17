@@ -1,4 +1,4 @@
-"""`relay init` — scaffolds relay-os/ from package templates, or refreshes one."""
+"""`relay init` — creates relay-os/ from package templates, or refreshes one."""
 
 from __future__ import annotations
 
@@ -28,14 +28,24 @@ EXPECTED_FILES = {
     "relay-os/bootstrap/contexts/dev/code/SKILL.md",
     "relay-os/bootstrap/contexts/relay/sync/SKILL.md",
     "relay-os/bootstrap/skills/eval/ticket-diagnostic/SKILL.md",
+    "relay-os/bootstrap/skills/relay/autoclose/sweep/SKILL.md",
+    "relay-os/bootstrap/skills/relay/autoclose/sweep/run.py",
     "relay-os/contexts/_template/SKILL.md",
     "relay-os/skills/_template/SKILL.md",
+    "relay-os/skills/direct/body/SKILL.md",
     "relay-os/workflows/_template.md",
     "relay-os/recurring/_template/ticket.md",
+    "relay-os/recurring/autoclose-merged/ticket.md",
     "relay-os/recurring/dream/ticket.md",
     "relay-os/recurring/skill-update/ticket.md",
     "relay-os/tasks/_template/ticket.md",
+    "relay-os/tasks/relay-setup/ticket.md",
+    "relay-os/tasks/relay-setup/blackboard.md",
+    "relay-os/tasks/relay-setup/log.md",
+    "relay-os/workflows/autoclose-merged/sweep.md",
+    "relay-os/workflows/direct/body.md",
     "relay-os/workflows/skill-update/run.md",
+    "relay-os/workflows/init/setup.md",
 }
 
 
@@ -72,6 +82,27 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         / "ticket-diagnostic"
         / "SKILL.md"
     ).write_text("---\nname: eval/ticket-diagnostic\n---\neval skill\n")
+    (templates / "bootstrap" / "skills" / "relay" / "autoclose" / "sweep").mkdir(
+        parents=True
+    )
+    (
+        templates
+        / "bootstrap"
+        / "skills"
+        / "relay"
+        / "autoclose"
+        / "sweep"
+        / "SKILL.md"
+    ).write_text("---\nname: relay/autoclose/sweep\nscript: run.py\n---\nsweep\n")
+    (
+        templates
+        / "bootstrap"
+        / "skills"
+        / "relay"
+        / "autoclose"
+        / "sweep"
+        / "run.py"
+    ).write_text("#!/usr/bin/env python3\n")
     for ctx in ("architecture", "principles", "cli"):
         (templates / "bootstrap" / "contexts" / "relay" / ctx).mkdir(parents=True)
         (templates / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").write_text(
@@ -97,15 +128,86 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         path.write_text(f"# {kind} template\n")
     # Relay-owned recurring battery — no `_` prefix, refreshed on --update.
     # Recurring tasks are ticket-format directories; only `ticket.md` is vendored.
+    (templates / "recurring" / "autoclose-merged").mkdir(parents=True, exist_ok=True)
+    (templates / "recurring" / "autoclose-merged" / "ticket.md").write_text(
+        "autoclose merged template\n"
+    )
     (templates / "recurring" / "dream").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "dream" / "ticket.md").write_text("dream template\n")
     (templates / "recurring" / "skill-update").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "skill-update" / "ticket.md").write_text(
         "skill update template\n"
     )
+    (templates / "skills" / "direct" / "body").mkdir(parents=True, exist_ok=True)
+    (templates / "skills" / "direct" / "body" / "SKILL.md").write_text(
+        "direct body skill\n"
+    )
+    (templates / "workflows" / "direct").mkdir(parents=True, exist_ok=True)
+    (templates / "workflows" / "direct" / "body.md").write_text(
+        "direct body workflow\n"
+    )
     (templates / "workflows" / "skill-update").mkdir(parents=True, exist_ok=True)
     (templates / "workflows" / "skill-update" / "run.md").write_text(
         "skill update workflow\n"
+    )
+    (templates / "workflows" / "init").mkdir(parents=True, exist_ok=True)
+    (templates / "workflows" / "init" / "setup.md").write_text(
+        "---\n"
+        "name: init/setup\n"
+        "description: Setup workflow.\n"
+        "steps:\n"
+        "  - name: interview\n"
+        "    assignee: agent\n"
+        "  - name: scan-and-generate\n"
+        "    assignee: agent\n"
+        "  - name: resolve-open-questions\n"
+        "    assignee: agent\n"
+        "  - name: review-and-sign-off\n"
+        "    assignee: human\n"
+        "  - name: apply-review\n"
+        "    assignee: agent\n"
+        "---\n"
+        "\n"
+        "## interview\n"
+        "\n"
+        "Ask the four setup questions.\n"
+    )
+    (templates / "tasks" / "relay-setup").mkdir(parents=True, exist_ok=True)
+    (templates / "tasks" / "relay-setup" / "ticket.md").write_text(
+        "---\n"
+        "title: relay-setup\n"
+        "status: active\n"
+        "mode: interactive\n"
+        "owner: new-user\n"
+        "human: new-user\n"
+        "agent: claude\n"
+        "assignee: claude\n"
+        "contexts: []\n"
+        "skills: []\n"
+        "workflow:\n"
+        "  name: init/setup\n"
+        "  steps:\n"
+        "  - name: interview\n"
+        "    skills: []\n"
+        "    assignee: agent\n"
+        "step: 1 (interview)\n"
+        "---\n"
+        "\n"
+        "## Description\n"
+        "\n"
+        "Setup task.\n"
+        "\n"
+        "## Context\n"
+        "\n"
+        "Empty until the `interview` step runs at first launch.\n"
+    )
+    (templates / "tasks" / "relay-setup" / "blackboard.md").write_text("notepad\n")
+    (templates / "tasks" / "relay-setup" / "log.md").write_text("created\n")
+    (templates / "workflows" / "autoclose-merged").mkdir(
+        parents=True, exist_ok=True
+    )
+    (templates / "workflows" / "autoclose-merged" / "sweep.md").write_text(
+        "autoclose merged workflow\n"
     )
 
     cli_src = clone_dir / update_cmd.CLI_SRC_SUBPATH
@@ -218,8 +320,19 @@ def test_init_into_empty_dir(
     assert (
         target / "relay-os" / ".agent-skills" / "eval" / "ticket-diagnostic"
     ).is_symlink()
-    assert not (target / "relay-os" / "bootstrap" / "skills" / "relay").exists()
-    assert not (target / "relay-os" / ".agent-skills" / "relay").exists()
+    assert (
+        target
+        / "relay-os"
+        / "bootstrap"
+        / "skills"
+        / "relay"
+        / "autoclose"
+        / "sweep"
+        / "SKILL.md"
+    ).read_text().startswith("---\nname: relay/autoclose/sweep\n")
+    assert (
+        target / "relay-os" / ".agent-skills" / "relay" / "autoclose" / "sweep"
+    ).is_symlink()
 
     assert "version = 1" in (target / "relay-os" / "relay.toml").read_text()
     assert fake_managed_skill_sync.install_calls == [target / "relay-os"]
@@ -401,6 +514,33 @@ def test_init_creates_missing_dir(tmp_path: Path, fake_clone, fake_venv) -> None
     assert (target / "relay-os" / "relay.toml").is_file()
 
 
+# --- init setup ticket ----------------------------------------------------------
+
+
+def test_init_ships_setup_ticket_template(
+    tmp_path: Path, fake_clone, fake_venv
+) -> None:
+    """The relay-setup task is a static packaged template: fresh init copies
+    it verbatim — no prompts, no creating code — and the interview happens
+    at first launch as the workflow's first step."""
+    target = tmp_path / "company"
+    target.mkdir()
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    task_dir = target / "relay-os" / "tasks" / "relay-setup"
+    text = (task_dir / "ticket.md").read_text()
+    assert "status: active" in text
+    assert "name: init/setup" in text
+    assert "step: 1 (interview)" in text
+    assert "Empty until the `interview` step runs at first launch" in text
+    assert (task_dir / "blackboard.md").is_file()
+    assert (task_dir / "log.md").is_file()
+    # Bare init points at `relay setup` (which records the user name, then
+    # launches this ticket) rather than at a manual launch.
+    assert "Run `relay setup`" in result.output
+
+
 # --- --update mode ------------------------------------------------------------
 
 
@@ -448,7 +588,7 @@ def _seed_local_relay_os(root: Path) -> Path:
     (relay_os / "contexts" / "dev" / "code" / "SKILL.md").write_text(
         "OLD dev/code context\n"
     )
-    # Stale `_*` scaffold upstream no longer ships (rename or removal).
+    # Stale `_*` create upstream no longer ships (rename or removal).
     (relay_os / "recurring").mkdir(exist_ok=True)
     (relay_os / "recurring" / "_template_old.md").write_text("STALE recurring template\n")
 
@@ -479,9 +619,29 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     # Recurring tasks are ticket-format directories; only `ticket.md` is vendored.
     (templates / "recurring" / "dream").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "dream" / "ticket.md").write_text("NEW dream template\n")
+    (templates / "recurring" / "autoclose-merged").mkdir(
+        parents=True, exist_ok=True
+    )
+    (templates / "recurring" / "autoclose-merged" / "ticket.md").write_text(
+        "NEW autoclose merged template\n"
+    )
     (templates / "recurring" / "skill-update").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "skill-update" / "ticket.md").write_text(
         "NEW skill update template\n"
+    )
+    (templates / "skills" / "direct" / "body").mkdir(parents=True, exist_ok=True)
+    (templates / "skills" / "direct" / "body" / "SKILL.md").write_text(
+        "NEW direct body skill\n"
+    )
+    (templates / "workflows" / "direct").mkdir(parents=True, exist_ok=True)
+    (templates / "workflows" / "direct" / "body.md").write_text(
+        "NEW direct body workflow\n"
+    )
+    (templates / "workflows" / "autoclose-merged").mkdir(
+        parents=True, exist_ok=True
+    )
+    (templates / "workflows" / "autoclose-merged" / "sweep.md").write_text(
+        "NEW autoclose merged workflow\n"
     )
     (templates / "workflows" / "skill-update").mkdir(parents=True, exist_ok=True)
     (templates / "workflows" / "skill-update" / "run.md").write_text(
@@ -510,6 +670,27 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
         / "ticket-diagnostic"
         / "SKILL.md"
     ).write_text("NEW eval/ticket-diagnostic skill\n")
+    (templates / "bootstrap" / "skills" / "relay" / "autoclose" / "sweep").mkdir(
+        parents=True
+    )
+    (
+        templates
+        / "bootstrap"
+        / "skills"
+        / "relay"
+        / "autoclose"
+        / "sweep"
+        / "SKILL.md"
+    ).write_text("NEW relay/autoclose/sweep skill\n")
+    (
+        templates
+        / "bootstrap"
+        / "skills"
+        / "relay"
+        / "autoclose"
+        / "sweep"
+        / "run.py"
+    ).write_text("#!/usr/bin/env python3\n")
     for ctx in ("architecture", "principles", "cli"):
         (templates / "bootstrap" / "contexts" / "relay" / ctx).mkdir(parents=True)
         (templates / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").write_text(
@@ -595,7 +776,9 @@ def test_init_update_refreshes_cli_and_underscore_templates(
         (relay_os / "bootstrap" / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md").read_text()
         == "NEW eval/ticket-diagnostic skill\n"
     )
-    assert not (relay_os / "bootstrap" / "skills" / "relay").exists()
+    assert (
+        relay_os / "bootstrap" / "skills" / "relay" / "autoclose" / "sweep" / "SKILL.md"
+    ).read_text() == "NEW relay/autoclose/sweep skill\n"
     for ctx in ("architecture", "principles", "cli"):
         assert (
             (relay_os / "bootstrap" / "contexts" / "relay" / ctx / "SKILL.md").read_text()
@@ -614,6 +797,7 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert (relay_os / ".agent-skills" / "bootstrap" / "ticket").is_symlink()
     assert (relay_os / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
     assert (relay_os / ".agent-skills" / "retro" / "done-ticket").is_symlink()
+    assert (relay_os / ".agent-skills" / "relay" / "autoclose" / "sweep").is_symlink()
     assert (relay_os / ".agent-skills" / "relay" / "calendar-reminder").is_symlink()
     assert (relay_os / ".agent-skills" / "_template").is_symlink()
     # Shims dropped upstream (renamed/removed) are pruned locally.
@@ -626,7 +810,7 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     legacy_bootstrap_skill = relay_os / "skills" / "bootstrap"
     assert legacy_bootstrap_skill.is_dir() and not legacy_bootstrap_skill.is_symlink()
     assert (legacy_bootstrap_skill / "create").exists() is False
-    # `_*` scaffolds upstream no longer ships are also pruned.
+    # `_*` creates upstream no longer ships are also pruned.
     assert not (relay_os / "recurring" / "_template_old.md").exists()
     # Per-update prune count includes only narrow known Relay-owned paths plus
     # the underscore-template prune. Local namespace roots are preserved.
@@ -681,23 +865,39 @@ def test_init_update_refreshes_vendored_recurring_template(
 
     `init --update` must restore them when missing (repos predating the
     template) and overwrite them when stale, or their launch paths have nothing
-    to scaffold.
+    to create.
     """
     relay_os = _seed_local_relay_os(tmp_path)
+    autoclose = relay_os / "recurring" / "autoclose-merged" / "ticket.md"
     dream = relay_os / "recurring" / "dream" / "ticket.md"
     skill_update = relay_os / "recurring" / "skill-update" / "ticket.md"
+    autoclose_workflow = relay_os / "workflows" / "autoclose-merged" / "sweep.md"
+    direct_workflow = relay_os / "workflows" / "direct" / "body.md"
     skill_update_workflow = relay_os / "workflows" / "skill-update" / "run.md"
+    direct_skill = relay_os / "skills" / "direct" / "body" / "SKILL.md"
     if preexisting is None:
+        assert not autoclose.exists()
         assert not dream.exists()
         assert not skill_update.exists()
+        assert not autoclose_workflow.exists()
+        assert not direct_workflow.exists()
         assert not skill_update_workflow.exists()
+        assert not direct_skill.exists()
     else:
+        autoclose.parent.mkdir(parents=True, exist_ok=True)
+        autoclose.write_text("STALE autoclose merged template\n")
         dream.parent.mkdir(parents=True, exist_ok=True)
         dream.write_text(preexisting)
         skill_update.parent.mkdir(parents=True, exist_ok=True)
         skill_update.write_text("STALE skill update template\n")
+        autoclose_workflow.parent.mkdir(parents=True, exist_ok=True)
+        autoclose_workflow.write_text("STALE autoclose merged workflow\n")
+        direct_workflow.parent.mkdir(parents=True, exist_ok=True)
+        direct_workflow.write_text("STALE direct body workflow\n")
         skill_update_workflow.parent.mkdir(parents=True, exist_ok=True)
         skill_update_workflow.write_text("STALE skill update workflow\n")
+        direct_skill.parent.mkdir(parents=True, exist_ok=True)
+        direct_skill.write_text("STALE direct body skill\n")
 
     package_clone = tmp_path / "package"
     _seed_fake_upstream_for_update(package_clone)
@@ -727,12 +927,20 @@ def test_init_update_refreshes_vendored_recurring_template(
     result = CliRunner().invoke(app, ["init", "--update"])
     assert result.exit_code == 0, result.output
 
+    assert autoclose.read_text() == "NEW autoclose merged template\n"
     assert dream.read_text() == "NEW dream template\n"
     assert skill_update.read_text() == "NEW skill update template\n"
+    assert autoclose_workflow.read_text() == "NEW autoclose merged workflow\n"
+    assert direct_workflow.read_text() == "NEW direct body workflow\n"
     assert skill_update_workflow.read_text() == "NEW skill update workflow\n"
+    assert direct_skill.read_text() == "NEW direct body skill\n"
+    assert "recurring/autoclose-merged/ticket.md" in result.output
     assert "recurring/dream/ticket.md" in result.output
     assert "recurring/skill-update/ticket.md" in result.output
+    assert "workflows/autoclose-merged/sweep.md" in result.output
+    assert "workflows/direct/body.md" in result.output
     assert "workflows/skill-update/run.md" in result.output
+    assert "skills/direct/body/SKILL.md" in result.output
 
 
 def test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors(
@@ -822,8 +1030,14 @@ def test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors(
         relay_os / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md"
     ).read_text() == "NEW bootstrap/ticket skill\n"
     assert (
+        relay_os / "bootstrap" / "skills" / "relay" / "autoclose" / "sweep" / "SKILL.md"
+    ).read_text() == "NEW relay/autoclose/sweep skill\n"
+    assert (
         relay_os / "recurring" / "dream" / "ticket.md"
     ).read_text() == "NEW dream template\n"
+    assert (
+        relay_os / "recurring" / "autoclose-merged" / "ticket.md"
+    ).read_text() == "NEW autoclose merged template\n"
     assert (
         relay_os / "recurring" / "skill-update" / "ticket.md"
     ).read_text() == "NEW skill update template\n"
@@ -851,7 +1065,7 @@ def test_init_commits_relay_os_when_target_is_git_repo(
         ["git", "-C", str(target), "log", "--oneline"],
         capture_output=True, text=True, check=True,
     )
-    assert "Scaffold relay-os via `relay init`" in log.stdout
+    assert "Create relay-os via `relay init`" in log.stdout
 
     # Upstream-managed paths and machine-local files are gitignored — none should be tracked.
     tracked = subprocess.run(
@@ -1047,7 +1261,7 @@ def test_init_preserves_existing_agent_guides(
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0, result.output
 
-    # Pre-existing CLAUDE.md untouched; AGENTS.md still scaffolded.
+    # Pre-existing CLAUDE.md untouched; AGENTS.md still created.
     assert (target / "CLAUDE.md").read_text() == "# my hand-written guide\n"
     assert (target / "AGENTS.md").read_text() == init_cmd.AGENT_GUIDE_TEMPLATE
     assert "Wrote AGENTS.md" in result.output
@@ -1060,7 +1274,7 @@ def test_init_update_tops_up_missing_agent_guides(
     relay_os = _seed_local_relay_os(tmp_path)
     monkeypatch.chdir(relay_os)
     # Simulate a repo init'd before agent guides shipped: CLAUDE.md absent,
-    # AGENTS.md user-written. Update should scaffold the missing one and
+    # AGENTS.md user-written. Update should create the missing one and
     # leave the existing one alone.
     (tmp_path / "AGENTS.md").write_text("# pre-existing AGENTS\n")
 
@@ -1798,7 +2012,7 @@ def _make_update_fake_run(real_run):
 
 
 def test_all_flag_requires_update(tmp_path: Path) -> None:
-    """`--all` without `--update` is a loud error — there is no bulk scaffold."""
+    """`--all` without `--update` is a loud error — there is no bulk create."""
     result = CliRunner().invoke(app, ["init", "--all", str(tmp_path)])
     assert result.exit_code == 2
     assert "--all only applies with --update" in result.output

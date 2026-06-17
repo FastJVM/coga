@@ -49,7 +49,7 @@ than reusing/re-activating it. Duplicates for one period are accepted and all
 launched. (This SUPERSEDES the earlier "--all re-activates the on-disk done
 ticket" wording, which contradicted always-create.)
 
-Implementation note: scaffold needs a slug-collision strategy (suffix) so
+Implementation note: create needs a slug-collision strategy (suffix) so
 always-create can't crash on an existing dir; and the enqueue pass needs a
 helper to parse a firing date back out of a `recurring-<name>-<period>` slug.
 
@@ -58,7 +58,7 @@ helper to parse a firing date back out of a `recurring-<name>-<period>` slug.
   `DueScan.due` + the sequential loop in `commands/recurring.py`).
 - The crash bug is the **three deleters lying to the ledger**
   (`_finalize_debug_run`, `_reap_debug_orphans`, Dream self-`relay delete`):
-  ledger writes `scaffolded` at creation, so a non-`done` dir deleted out from
+  ledger writes `created` at creation, so a non-`done` dir deleted out from
   under it reads as "ran" → crashed period skipped forever. Removing the
   deleters is the fix.
 - Dream is just another instantiated recurring ticket and is THE deleter

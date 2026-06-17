@@ -41,6 +41,7 @@ import requests
 
 from relay.blackboard import BLACKBOARD_WARN_BYTES, blackboard_size_warning, render_blackboard
 from relay.config import Config, ConfigError, load_config
+from relay.period_state import read_snapshot, stale_keys
 from relay.paths import (
     context_resolution_paths,
     resolve_context_path,
@@ -145,7 +146,7 @@ def run(
         report.fixes.extend(apply_safe_fixes(cfg, only=refs))
 
     if check_slack:
-        report.issues.extend(_slack_issues(cfg))
+        report.issues.extend(_notification_issues(cfg))
 
     valid_assignees = _valid_assignee_set(cfg)
     now = datetime.now(timezone.utc)
@@ -344,6 +345,26 @@ def _check_one_task(
                     kind="stuck-in-progress",
                     task=task_label,
                     message=f"in_progress but idle for {idle.total_seconds() / 3600:.1f}h",
+                    severity="warn",
+                ))
+
+    # A `done` period task whose declared state keys still match their
+    # create-time snapshot finished without advancing its cursor — the next
+    # firing will redo the same range. Surface it here so a stuck cursor is
+    # visible without waiting for that duplicate run. Only `done` tasks qualify:
+    # an unfinished run legitimately hasn't recorded state yet.
+    if ticket.status == "done":
+        snapshot = read_snapshot(ref.path)
+        if snapshot is not None:
+            stale = stale_keys(cfg, snapshot)
+            if stale:
+                out.append(Issue(
+                    kind="recurring-state-stuck",
+                    task=task_label,
+                    message=(
+                        f"finished without advancing declared state key(s) "
+                        f"{', '.join(stale)} in {snapshot.parent}'s blackboard"
+                    ),
                     severity="warn",
                 ))
 
@@ -634,16 +655,28 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
                 message="`step:` set but `workflow:` is null",
                 severity="error",
             ))
-        if ticket.status == "draft":
+        # The governing rule: a workflow is mandatory everywhere EXCEPT while a
+        # ticket is a `draft`. `draft` is the authoring grace period — a
+        # workflow-less draft (concept-capture: stash an idea before its shape
+        # settles) is valid and intentional, so it is NOT flagged. Once a
+        # ticket is `active`/`in_progress`/`paused`, a missing workflow means it
+        # can never be bumped — structurally stuck — so that is an error. (`done`
+        # is left alone: a finished workflow-less task is harmless and flagging
+        # it would only nag immutable history.) Machine-authored tasks that
+        # used to be workflow-less here — recurring/Dream and retire — now
+        # create with the `direct/body` workflow, so no whitelist is needed.
+        if ticket.status in {"active", "in_progress", "paused"}:
             out.append(Issue(
-                kind="missing-workflow",
+                kind="active-no-workflow",
                 task=task_label,
                 message=(
-                    "draft has no `workflow:` — it can't be activated "
-                    "(`relay mark active` refuses a workflow-less ticket). "
-                    "Set `workflow: <name>` or run `relay ticket <slug>`."
+                    f"{ticket.status} ticket has no `workflow:` — it can never "
+                    "be advanced (`relay bump` has no step to move). A workflow "
+                    "is required once a ticket leaves `draft`. Set "
+                    "`workflow: <name>` (e.g. `direct/body` to run the body "
+                    "directly) or rewind it to `draft`."
                 ),
-                severity="warn",
+                severity="error",
             ))
         return out
 
@@ -711,32 +744,56 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def _slack_issues(cfg: Config) -> list[Issue]:
+def _notification_issues(cfg: Config) -> list[Issue]:
+    issues = [
+        Issue(
+            kind="notification-deprecated-config",
+            task="(notification)",
+            message=note,
+            severity="warn",
+        )
+        for note in cfg.notification_deprecation_notes
+    ]
+    if "slack" not in cfg.notification_channels:
+        return issues
     if not cfg.slack_enabled:
-        return []
+        return issues
     if not cfg.slack_webhook:
-        return [Issue(
-            kind="slack-misconfigured",
-            task="(slack)",
-            message="no Slack webhook configured — set [slack].webhook (relay requires it unless [slack].enabled = false)",
-            severity="error",
-        )]
+        issues.append(
+            Issue(
+                kind="slack-misconfigured",
+                task="(slack)",
+                message=(
+                    "no Slack webhook configured — set "
+                    "[notification.slack].webhook (Relay requires it unless "
+                    "[notification.slack].enabled = false)"
+                ),
+                severity="error",
+            )
+        )
+        return issues
     status, detail = probe_slack(cfg.slack_webhook)
     if status == "live":
-        return []
+        return issues
     if status == "revoked":
-        return [Issue(
-            kind="slack-revoked",
+        issues.append(
+            Issue(
+                kind="slack-revoked",
+                task="(slack)",
+                message=f"webhook URL not recognized by Slack: {detail}",
+                severity="error",
+            )
+        )
+        return issues
+    issues.append(
+        Issue(
+            kind="slack-unreachable",
             task="(slack)",
-            message=f"webhook URL not recognized by Slack: {detail}",
+            message=f"could not reach Slack: {detail}",
             severity="error",
-        )]
-    return [Issue(
-        kind="slack-unreachable",
-        task="(slack)",
-        message=f"could not reach Slack: {detail}",
-        severity="error",
-    )]
+        )
+    )
+    return issues
 
 
 def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix]:
@@ -754,9 +811,9 @@ def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix
     for ref in targets:
         blackboard_path = ref.path / "blackboard.md"
         if not blackboard_path.is_file():
-            title = ref.slug
+            title = ref.id_slug
             try:
-                title = Ticket.read(ref.path / "ticket.md").title or ref.slug
+                title = Ticket.read(ref.path / "ticket.md").title or ref.id_slug
             except (TicketError, FileNotFoundError):
                 pass
             blackboard_path.write_text(render_blackboard(title))

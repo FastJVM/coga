@@ -37,7 +37,7 @@ exploration; the tier confirms feasibility in its own prerequisites step.
 
 ## emit-and-launch
 
-Scaffold a concrete automation ticket bound to the chosen `autonomy/<tier>`
+Create a concrete automation ticket bound to the chosen `autonomy/<tier>`
 workflow and write the goal / target / success-check into its body.
 
 Attach the browser context + runner only when the agent will drive the browser:

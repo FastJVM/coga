@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from relay.cli import app
 from relay.config import load_config
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.tasks import list_tasks
 
 
@@ -83,7 +83,7 @@ def test_validate_drift_runs_as_script_skill(repo: Path) -> None:
     _install_dream_skill(repo, "validate-drift")
     _write_workflow(repo, "validate-drift", "bootstrap/dream/tasks/validate-drift")
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg,
         title="Validate Drift",
         workflow_name="validate-drift",
@@ -142,7 +142,7 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
     _write(repo / "tasks" / "processed-ticket" / "log.md", "")
 
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg,
         title="Cleanup Orphan Markers",
         workflow_name="cleanup-orphan-markers",
@@ -204,7 +204,7 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
     _write(repo / "tasks" / "processed-ticket" / "log.md", "")
 
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg,
         title="Cleanup Orphan Markers",
         workflow_name="cleanup-orphan-markers",
@@ -268,7 +268,7 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> Non
     _write(repo / "tasks" / "documents-the-marker" / "log.md", "")
 
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg,
         title="Cleanup Orphan Markers",
         workflow_name="cleanup-orphan-markers",

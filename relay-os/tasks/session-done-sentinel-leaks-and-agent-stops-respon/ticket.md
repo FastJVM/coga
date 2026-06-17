@@ -1,6 +1,6 @@
 ---
 title: Session-done sentinel leaks and agent stops responding to a present human
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -25,7 +25,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

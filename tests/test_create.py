@@ -7,9 +7,11 @@ import pytest
 
 from typer.testing import CliRunner
 
+from conftest import seed_direct_body_workflow
 from relay.cli import app
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.config import load_config
+from relay.tasks import list_tasks
 from relay.ticket import Ticket
 
 
@@ -64,7 +66,7 @@ def repo(tmp_path: Path) -> Path:
     )
     _write(company / "skills" / "infra" / "testing-conventions" / "SKILL.md", "---\nname: x\n---\n")
     _write(company / "contexts" / "email" / "payment-flow" / "SKILL.md", "---\nname: x\n---\n")
-    # The recurring scaffolder auto-attaches `relay/period-task` to every
+    # The recurring creator auto-attaches `relay/period-task` to every
     # period task, so any recurring test path needs a resolvable stub.
     _write(
         company / "contexts" / "relay" / "period-task" / "SKILL.md",
@@ -76,7 +78,7 @@ def repo(tmp_path: Path) -> Path:
 def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(repo)
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="Fix retry logic",
         workflow_name=None,
@@ -128,7 +130,7 @@ def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) ->
         """,
     )
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="Try me",
         workflow_name=None,
@@ -154,7 +156,7 @@ def test_create_requires_agent_before_writing_task_dir(repo: Path) -> None:
     )
     cfg = load_config(repo)
     with pytest.raises(ValueError, match="No default agent configured"):
-        scaffold_task(
+        create_task(
             cfg=cfg,
             title="No agent",
             workflow_name=None,
@@ -184,7 +186,7 @@ def test_create_initial_assignee_resolved_from_workflow_step(repo: Path) -> None
         """,
     )
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="W", workflow_name="review",
         contexts=[], mode="interactive",
         owner="marc", assignee=None,
@@ -197,7 +199,7 @@ def test_create_initial_assignee_resolved_from_workflow_step(repo: Path) -> None
 
 def test_create_explicit_human_and_agent_overrides_defaults(repo: Path) -> None:
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive",
         owner="marc", assignee=None,
@@ -315,7 +317,7 @@ def test_backfill_freezes_legacy_workflow_and_fills_assignee(repo: Path) -> None
 
 def test_create_with_workflow_and_contexts(repo: Path) -> None:
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="Task A",
         workflow_name="code/with-review",
@@ -336,7 +338,7 @@ def test_create_with_workflow_and_contexts(repo: Path) -> None:
 def test_create_rejects_unknown_context(repo: Path) -> None:
     cfg = load_config(repo)
     with pytest.raises(ValueError, match="Unknown contexts"):
-        scaffold_task(
+        create_task(
             cfg=cfg,
             title="X",
             workflow_name=None,
@@ -352,7 +354,7 @@ def test_create_rejects_unknown_context(repo: Path) -> None:
 def test_create_distinct_titles_get_distinct_slugs(repo: Path) -> None:
     cfg = load_config(repo)
     refs = [
-        scaffold_task(
+        create_task(
             cfg=cfg,
             title=f"Task {i}",
             workflow_name=None,
@@ -381,17 +383,41 @@ def test_create_collision_auto_suffixes(repo: Path) -> None:
         watchers=[],
         status=None,
     )
-    a = scaffold_task(title="Same title", **kwargs)
-    b = scaffold_task(title="Same title", **kwargs)
-    c = scaffold_task(title="Same title", **kwargs)
+    a = create_task(title="Same title", **kwargs)
+    b = create_task(title="Same title", **kwargs)
+    c = create_task(title="Same title", **kwargs)
     assert a["slug"] == "same-title"
     assert b["slug"] == "same-title-2"
     assert c["slug"] == "same-title-3"
 
 
+def test_create_nested_slug_can_reuse_top_level_leaf(repo: Path) -> None:
+    cfg = load_config(repo)
+    kwargs = dict(
+        cfg=cfg,
+        workflow_name=None,
+        contexts=[],
+        mode="interactive",
+        owner=None,
+        assignee=None,
+        watchers=[],
+        status=None,
+    )
+    top = create_task(title="Digest", slug_override="digest", **kwargs)
+    nested = create_task(
+        title="Recurring digest", slug_override="recurring/digest", **kwargs
+    )
+
+    assert top["slug"] == "digest"
+    assert nested["slug"] == "recurring/digest"
+    refs = {ref.id_slug: ref for ref in list_tasks(cfg)}
+    assert refs["digest"].directory is None
+    assert refs["recurring/digest"].directory == "recurring"
+
+
 def test_create_log_entry_written(repo: Path) -> None:
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="X",
         workflow_name=None,
@@ -436,13 +462,16 @@ def repo_with_shim(repo: Path) -> Path:
         Interview, fill in the ticket. Stop.
         """,
     )
+    # Recurring period tasks now create with the `direct/body` workflow, so a
+    # repo that materializes them needs the shipped workflow + skill present.
+    seed_direct_body_workflow(repo)
     return repo
 
 
-def test_recurring_scaffolds_silently(
+def test_recurring_creates_silently(
     repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Bare `relay recurring` scans and scaffolds due tasks without lifecycle Slack."""
+    """Bare `relay recurring` scans and creates due tasks without lifecycle Slack."""
     _write(
         repo_with_shim / "recurring" / "weekly-check" / "ticket.md",
         """
@@ -470,7 +499,7 @@ def test_recurring_scaffolds_silently(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
     monkeypatch.setattr(
         "relay.commands.recurring._interactive_stdio_has_tty", lambda: True
     )
@@ -507,7 +536,7 @@ def test_recurring_posts_error_summary(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["recurring"])
@@ -520,10 +549,10 @@ def test_recurring_posts_error_summary(
 # --- `relay draft` / legacy `relay create` CLI --------------------------------
 
 
-def test_cli_draft_scaffolds_draft_silently(
+def test_cli_draft_creates_draft_silently(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay draft "<title>"` scaffolds a raw draft ticket without Slack noise."""
+    """`relay draft "<title>"` creates a raw draft ticket without Slack noise."""
     monkeypatch.chdir(repo)
     posts: list[str] = []
 
@@ -534,7 +563,7 @@ def test_cli_draft_scaffolds_draft_silently(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -552,10 +581,10 @@ def test_cli_draft_scaffolds_draft_silently(
     assert posts == []
 
 
-def test_cli_create_scaffolds_draft_silently(
+def test_cli_create_creates_draft_silently(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay create "<title>"` scaffolds a draft ticket without Slack noise."""
+    """`relay create "<title>"` creates a draft ticket without Slack noise."""
     monkeypatch.chdir(repo)
     posts: list[str] = []
 
@@ -566,7 +595,7 @@ def test_cli_create_scaffolds_draft_silently(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.slack.requests.post", _capture)
+    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -587,7 +616,7 @@ def test_cli_create_scaffolds_draft_silently(
 def test_cli_create_does_not_spawn_agent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay create` only scaffolds; it never spawns an agent."""
+    """`relay create` only creates; it never spawns an agent."""
     monkeypatch.chdir(repo)
     called = False
 
@@ -635,7 +664,7 @@ def test_cli_create_workflow_flag_attaches_workflow(
     """`relay create --workflow <name>` attaches the workflow to the draft."""
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "relay.slack.requests.post",
+        "relay.notification.slack.requests.post",
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
     runner = CliRunner()
@@ -652,7 +681,7 @@ def test_cli_create_workflow_flag_attaches_workflow(
 def test_cli_create_allows_no_workflow(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay create` without `--workflow` scaffolds a workflow-less draft.
+    """`relay create` without `--workflow` creates a workflow-less draft.
 
     `--workflow` is optional; `relay mark active` is the gate that refuses to
     activate a workflow-less ticket.
@@ -678,18 +707,18 @@ def test_cli_draft_allows_no_workflow(
     assert t.workflow is None
 
 
-def test_scaffold_draft_without_workflow(
+def test_create_draft_without_workflow(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`scaffold_draft` with no workflow produces a workflow-less draft."""
-    from relay.commands.create import scaffold_draft
+    """`create_draft` with no workflow produces a workflow-less draft."""
+    from relay.commands.create import create_draft
 
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "relay.slack.requests.post",
+        "relay.notification.slack.requests.post",
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
-    result = scaffold_draft(title="Interview start", mode="interactive")
+    result = create_draft(title="Interview start", mode="interactive")
     t = Ticket.read(result["path"] / "ticket.md")
     assert t.workflow is None
 
@@ -697,7 +726,7 @@ def test_scaffold_draft_without_workflow(
 # --- ticket frontmatter extensions ------------------------------------------
 
 
-def test_scaffold_writes_declared_extension_fields(repo: Path) -> None:
+def test_create_writes_declared_extension_fields(repo: Path) -> None:
     (repo / "relay.toml").write_text(
         (repo / "relay.toml").read_text()
         + (
@@ -710,7 +739,7 @@ def test_scaffold_writes_declared_extension_fields(repo: Path) -> None:
         )
     )
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="With extensions",
         workflow_name=None,
@@ -734,9 +763,9 @@ def test_scaffold_writes_declared_extension_fields(repo: Path) -> None:
     assert raw.index("workflow:") < marker_pos
 
 
-def test_scaffold_no_extensions_no_marker(repo: Path) -> None:
+def test_create_no_extensions_no_marker(repo: Path) -> None:
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="Plain",
         workflow_name=None,
@@ -757,7 +786,7 @@ def test_extension_fields_round_trip(repo: Path) -> None:
         + '\n[ticket.fields.docket]\ndescription = "d"\n'
     )
     cfg = load_config(repo)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="Round trip",
         workflow_name=None,

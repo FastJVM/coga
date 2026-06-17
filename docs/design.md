@@ -34,9 +34,9 @@ Options
 
 Deduplicated silently, order preserved (first occurrence wins). If any context ref doesn't resolve on disk, the command errors and lists every unresolved ref. No task is created.
 
-### Raw scaffolding and guided authoring are separate
+### Raw creating and guided authoring are separate
 
-`relay draft` is intentionally mechanical — it scaffolds the directory and
+`relay draft` is intentionally mechanical — it creates the directory and
 writes the raw default frontmatter. `relay create` remains a compatibility
 spelling for that raw operation.
 
@@ -75,19 +75,20 @@ Mechanism: naming convention on created tasks, not `last_run` in the template.
    - Weekly → `YYYY-WW` (ISO week)
    - Monthly → `YYYY-MM`
    - Fallback / other → the raw datetime `YYYYMMDDTHHMM`
-4. Expected task slug: `recurring-<template-name>-<period-key>` in the
-   template's `project`. The `recurring-` prefix is the identity marker; the
-   period-key disambiguates instances.
-5. **One live task per template.** Look for any generated task under the
-   `recurring-<template-name>-` prefix that is `active` or `in_progress`
-   (excluding `-dbg-` debug runs). If one exists — even from an *older*
-   period — it is *the* live run: launch/resume it (an `in_progress` orphan
-   is resumed from its current step) and do **not** scaffold a new period.
-6. Only when none is live, consider the current period: if its task already
-   ran (still on disk as `done`/`paused`, or recorded in the template `log.md`
-   ledger after self-deleting), it's handled — skip. Otherwise create it using
-   the template's frontmatter (mode, workflow, assignee, owner, contexts,
-   description).
+4. Expected task ref: `recurring/<template-name>`, backed by
+   `tasks/recurring/<template-name>/`. The `recurring/` group is the identity
+   marker; the period key lives in the template blackboard.
+5. **One live task per template.** Look for the generated grouped task
+   `recurring/<template-name>` if it is `active` or `in_progress` (excluding
+   top-level `-dbg-` debug runs). If it exists, it is *the* live run:
+   launch/resume it (an `in_progress` orphan is resumed from its current step)
+   and do **not** create a duplicate.
+6. Only when none is live, consider the current period: if
+   `last_serviced_period >= current period_key` in
+   `relay-os/recurring/<name>/blackboard.md` and the task dir is gone, it's
+   handled — skip. Otherwise create it using the template's frontmatter (mode,
+   workflow, assignee, owner, contexts, description), write the high-water
+   mark, and append human-readable history to `log.md`.
 
 This is idempotent — running `relay recurring` twice inside the same period is a no-op.
 Across periods, a template does not start a new run while an older period run
@@ -117,5 +118,5 @@ We tried a `task.lock` file-existence mutex first. It cost a module of acquisiti
 ## Scope notes for the POC build
 
 - Full Slack integration: webhook POST is implemented; offline/test mode falls back to stdout when no webhook is configured.
-- `bootstrap/ticket` ships with SKILL.md content and templates, while Dream is a recurring task template (`relay-os/recurring/dream/`) whose body scans tickets and runs fixed housekeeping skills; `relay dream` is an alias that scaffolds and launches it on demand. REM is the opt-in repo/user-specific recurring-maintenance template. Their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
+- `bootstrap/ticket` ships with SKILL.md content and templates, while Dream is a recurring task template (`relay-os/recurring/dream/`) whose body scans tickets and runs fixed housekeeping skills; `relay dream` is an alias that creates and launches it on demand. REM is the opt-in repo/user-specific recurring-maintenance template. Their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
 - `status` starts scoped to "one project per invocation"; cross-project scan lands in M3 if trivial, otherwise deferred.

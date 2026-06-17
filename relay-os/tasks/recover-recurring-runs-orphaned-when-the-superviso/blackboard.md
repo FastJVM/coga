@@ -2,9 +2,9 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Dev
 
-- branch: `resume-orphaned-recurring`
-- worktree: `../relay-resume-orphaned-recurring`
-- pr: https://github.com/FastJVM/relay/pull/287
+branch: `resume-orphaned-recurring`
+worktree: `../relay-resume-orphaned-recurring`
+pr: https://github.com/FastJVM/relay/pull/287
 
 ### open-pr step (2026-06-05)
 Pushed `resume-orphaned-recurring` to origin and opened PR #287. Worktree was
@@ -23,7 +23,7 @@ Grounding confirmed by reading source before touching anything:
 Changes:
 1. `recurring.py` `DueTask.launchable` → `status in {"active", "in_progress"}`
    (was `== "active"`). Drives the bare sweep's `.due`.
-2. `commands/recurring.py` `_launch_scaffolded` (the `relay recurring launch
+2. `commands/recurring.py` `_launch_created` (the `relay recurring launch
    <name>` / `relay dream` path) → also relaunch `in_progress` (resume), still
    skip `done`/`paused`. "Resuming" vs "Launching" echo.
 3. `_print_table` → "→ resume" label for an `in_progress` launchable task so the
@@ -74,9 +74,9 @@ Workflow = `code/with-review` (implement → peer-review → open-pr → human r
 ### Key grounding facts (from reading source)
 - `recurring.py:102` `DueTask.launchable` = `status == "active"` only → the trap;
   widen it (or `DueScan.due`) to include `in_progress`.
-- `scan_due` get-or-creates the existing period task (`scaffold_template`
+- `scan_due` get-or-creates the existing period task (`create_template`
   returns the existing dir) → no duplicate task dir on relaunch.
-- `commands/recurring.py` `_launch_scaffolded` today only launches `active` →
+- `commands/recurring.py` `_launch_created` today only launches `active` →
   the launch path must accept an `in_progress` ticket and re-compose from its
   current `step:`. Confirm/ wire this.
 - Period slug + template-blackboard ledger already make per-period status

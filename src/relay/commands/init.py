@@ -1,9 +1,9 @@
-"""`relay init` — scaffold a new relay repo, or refresh an existing one.
+"""`relay init` — create a new relay repo, or refresh an existing one.
 
 Default mode (`relay init`) writes everything from scratch into `<path>/relay-os/`
 and refuses to overwrite if it already exists. Templates come from the installed
 relay package; `--update` mode refreshes the vendored CLI in `.relay/` plus
-package-owned template scaffolds, leaving user-edited config (`relay.toml`,
+package-owned template creates, leaving user-edited config (`relay.toml`,
 `rules.md`, etc.) untouched. Both modes (re)build the self-contained venv that
 backs the `relay` console script.
 """
@@ -97,7 +97,7 @@ workflow step are loaded too.
 
 - `relay status` — triage view of all tasks
 - `relay ticket "<title>"` — guided task authoring
-- `relay draft "<title>"` — raw draft scaffold
+- `relay draft "<title>"` — raw draft create
 - `relay dream` — run the Relay cleanup pass now
 - `relay mark active <slug>` — activate a draft before launch
 - `relay launch <slug>` — start or resume a task (any unique prefix works)
@@ -148,11 +148,11 @@ def init(
         help="With --update: refresh every relay repo found under PATH, not just the current one.",
     ),
 ) -> None:
-    """Scaffold `relay-os/` from package templates, or refresh it with --update."""
+    """Create `relay-os/` from package templates, or refresh it with --update."""
     if all_repos and not update:
         typer.secho(
             "--all only applies with --update — it refreshes existing repos, and "
-            "there is no bulk fresh-scaffold. Re-run as "
+            "there is no bulk fresh-create. Re-run as "
             "`relay init --update --all <path>`.",
             fg=typer.colors.RED,
             err=True,
@@ -174,7 +174,7 @@ def init(
         _do_init(path or Path("."))
 
 
-def _do_init(path: Path) -> None:
+def _do_init(path: Path, *, via_setup: bool = False) -> None:
     target = path.resolve()
     relay_os = target / "relay-os"
 
@@ -220,7 +220,7 @@ def _do_init(path: Path) -> None:
     typer.echo("")
     typer.echo(f"Initialized relay repo at {relay_os}")
     _print_managed_skill_summary(managed_skills)
-    typer.echo(f"Wrote {local_toml} (set `user` to your assignee name).")
+    typer.echo(f"Wrote {local_toml} (machine-local config — gitignored).")
     if sha is not None:
         typer.echo(f"Pinned to upstream {sha[:12]}.")
     if wired_agents:
@@ -257,8 +257,17 @@ def _do_init(path: Path) -> None:
             "Add the bin dir to your PATH so `relay` runs:\n"
             f"       export PATH=\"{bin_dir}:$PATH\""
         )
-    steps.append(f"Edit {relay_os}/relay.toml — set your agents, Slack, and aliases.")
-    steps.append(f"Set `user` in {local_toml} to your name.")
+    steps.append(
+        f"Edit {relay_os}/relay.toml — set your agents, notification channels, "
+        "and aliases."
+    )
+    if not via_setup:
+        steps.append(
+            "Run `relay setup` — it records your name in relay.local.toml, then "
+            "launches the relay-setup interview: the agent asks about the repo "
+            "and turns your answers plus a repo scan into starter contexts, "
+            "rules, workflows, and recurring tasks."
+        )
     steps.append("Run `relay --help` to see what's available.")
 
     typer.echo("")
@@ -266,27 +275,28 @@ def _do_init(path: Path) -> None:
     for i, step in enumerate(steps, 1):
         typer.echo(f"  {i}. {step}")
 
-    _print_slack_state(local_toml)
+    _print_notification_state(local_toml)
 
 
-def _print_slack_state(local_toml: Path) -> None:
-    """End-of-init line on Slack — set ✓, unset ⚠. Doesn't gate the init."""
+def _print_notification_state(local_toml: Path) -> None:
+    """End-of-init line on notifications — set ✓, unset ⚠. Doesn't gate init."""
     typer.echo("")
     if os.environ.get("SLACK_WEBHOOK_URL"):
         typer.secho(
-            "✓ Slack: $SLACK_WEBHOOK_URL is set — relay will post once "
-            '[slack].webhook = "env:SLACK_WEBHOOK_URL" is in relay.toml (the default).',
+            "✓ Notifications: $SLACK_WEBHOOK_URL is set — Relay will post "
+            "through Slack once [notification.slack].webhook points at it "
+            "(the default).",
             fg=typer.colors.GREEN,
         )
         return
     typer.secho(
-        "⚠ Slack: $SLACK_WEBHOOK_URL is not set. Relay requires a webhook for the team\n"
-        "  sync point — bump/slack/panic/launch will refuse to run until you point\n"
-        '  [slack].webhook at it (relay.toml ships webhook = "env:SLACK_WEBHOOK_URL")\n'
-        "  and export the env var.\n"
+        "⚠ Notifications: $SLACK_WEBHOOK_URL is not set. Relay requires a live\n"
+        "  notification channel for the team sync point — bump/slack/panic/launch\n"
+        "  will refuse to run until you point [notification.slack].webhook at it\n"
+        '  (relay.toml ships webhook = "env:SLACK_WEBHOOK_URL") and export the env var.\n'
         "  To opt out (solo runs, dev/test), add to "
         f"{local_toml}:\n"
-        "      [slack]\n"
+        "      [notification.slack]\n"
         "      enabled = false",
         fg=typer.colors.YELLOW,
     )
@@ -350,7 +360,7 @@ def _refresh_one(relay_os: Path, clone_dir: Path) -> _UpdateResult:
     source_checkout = is_relay_source_checkout(relay_os)
     refresh_cli(clone_dir, relay_os)
     if source_checkout:
-        # Source checkouts have their `_*` scaffolds, `.gitignore`, and
+        # Source checkouts have their `_*` creates, `.gitignore`, and
         # canonical contexts/skills tracked in git — refresh_templates would
         # clobber them. But `bootstrap/` and `recurring/dream/` are
         # gitignored here, so they must still be materialized from package
@@ -823,7 +833,7 @@ def _git_commit_relay_os(
         if diff.returncode == 0:
             return None
         subprocess.run(
-            ["git", "-C", str(target), "commit", "-m", "Scaffold relay-os via `relay init`"],
+            ["git", "-C", str(target), "commit", "-m", "Create relay-os via `relay init`"],
             check=True,
             capture_output=True,
             text=True,

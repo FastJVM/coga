@@ -21,7 +21,10 @@ def repo(tmp_path: Path) -> Path:
         version = 1
         default_status = "draft"
 
-        [slack]
+        [notification]
+        channels = ["slack"]
+
+        [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
 
         [agents.claude]
@@ -262,6 +265,53 @@ def test_default_agent_is_first_declared(repo: Path) -> None:
     assert default.name == "claude"
 
 
+def test_launch_limits_default_to_none(repo: Path) -> None:
+    """No `[launch]` table → both liveness limits are unset (config contributes
+    no default; the recurring sweep supplies its own idle default)."""
+    cfg = load_config(repo)
+    assert cfg.launch_idle_timeout is None
+    assert cfg.launch_idle_timeout_present is False
+    assert cfg.launch_max_session is None
+
+
+def test_launch_limits_parsed(repo: Path) -> None:
+    """`[launch]` idle_timeout / max_session parse to floats (int accepted)."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + "\n[launch]\nidle_timeout = 600\nmax_session = 3600.0\n"
+    )
+    cfg = load_config(repo)
+    assert cfg.launch_idle_timeout == 600.0
+    assert cfg.launch_idle_timeout_present is True
+    assert cfg.launch_max_session == 3600.0
+
+
+def test_launch_limits_non_positive_disarm(repo: Path) -> None:
+    """A `<= 0` value disarms that limit (None), matching the env override.
+
+    Idle timeout has a built-in recurring default, so the presence bit is
+    load-bearing: `idle_timeout = 0` must mean "explicitly disabled", not
+    "omitted, fall back to 900s".
+    """
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + "\n[launch]\nidle_timeout = 0\nmax_session = -1\n"
+    )
+    cfg = load_config(repo)
+    assert cfg.launch_idle_timeout is None
+    assert cfg.launch_idle_timeout_present is True
+    assert cfg.launch_max_session is None
+
+
+def test_launch_limit_non_number_rejected(repo: Path) -> None:
+    """A non-numeric limit fails config load loudly (booleans included)."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text() + '\n[launch]\nidle_timeout = "soon"\n'
+    )
+    with pytest.raises(ConfigError, match=r"\[launch\].idle_timeout must be a number"):
+        load_config(repo)
+
+
 def test_legacy_assignees_table_rejected(tmp_path: Path) -> None:
     _write(
         tmp_path / "relay.toml",
@@ -472,4 +522,3 @@ def test_ticket_fields_required_must_be_bool(repo: Path) -> None:
     )
     with pytest.raises(ConfigError, match="required must be a boolean"):
         load_config(repo)
-

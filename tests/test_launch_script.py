@@ -8,7 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from relay.cli import app
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.config import load_config
 from relay.tasks import list_tasks
 
@@ -86,7 +86,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TEST_TOKEN", "secret-abc")
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="Check", workflow_name="ops",
         contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
@@ -112,7 +112,7 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
 
 def test_script_mode_rejects_agent_override(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="Check", workflow_name="ops",
         contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
@@ -131,7 +131,7 @@ def test_script_mode_requires_skill_field(repo: Path) -> None:
     skill_md = repo / "skills" / "ops" / "checker" / "SKILL.md"
     skill_md.write_text("---\nname: ops/checker\n---\n")
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="Check", workflow_name="ops",
         contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
@@ -148,7 +148,7 @@ def test_script_mode_nonzero_exit_logged(repo: Path) -> None:
     script.chmod(0o755)
 
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="Fail", workflow_name="ops",
         contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",

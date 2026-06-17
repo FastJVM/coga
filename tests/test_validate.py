@@ -8,7 +8,7 @@ import pytest
 
 import requests
 
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.config import load_config
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
@@ -54,7 +54,7 @@ def repo(tmp_path: Path):
 
 def test_clean_repo_has_no_issues(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=["email/payment-flow"], mode="interactive",
         owner="marc", assignee="claude", watchers=[], status="draft",
@@ -98,7 +98,7 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
     to crash the validator at `wf.get("steps", [])`. Regression: surface
     them as a warning instead."""
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -114,7 +114,7 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
 
 def test_invalid_status(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -129,7 +129,7 @@ def test_invalid_status(repo: Path) -> None:
 
 def test_missing_file(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -142,7 +142,7 @@ def test_missing_file(repo: Path) -> None:
 
 def test_apply_safe_fixes_creates_missing_workspace_files(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -164,7 +164,7 @@ def test_apply_safe_fixes_creates_missing_workspace_files(repo: Path) -> None:
 
 def test_run_fix_repairs_before_reporting(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -181,7 +181,7 @@ def test_run_fix_repairs_before_reporting(repo: Path) -> None:
 
 def test_large_blackboard_warns(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -282,7 +282,7 @@ def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
         + '\n[ticket.fields.docket]\ndescription = "d"\n'
     )
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -293,7 +293,7 @@ def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
 
 def test_validate_flags_missing_declared_extension(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -317,7 +317,7 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
         + '\n[ticket.fields.docket]\ndescription = "d"\n'
     )
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -346,7 +346,7 @@ def test_validate_flags_enum_violation(repo: Path) -> None:
         )
     )
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -375,7 +375,7 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
         )
     )
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
@@ -384,38 +384,70 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
     assert report.issues == []
 
 
-def test_workflow_less_draft_warns(repo: Path) -> None:
-    """A `draft` with `workflow: null` is a non-fatal warning — it can't be
-    activated until a workflow is added, but it's a valid in-progress draft."""
+def test_workflow_less_draft_is_clean(repo: Path) -> None:
+    """A `draft` with `workflow: null` is valid (concept-capture: stash the
+    idea before its shape settles). It is NOT flagged — `draft` is the one
+    status where a workflow is optional."""
     cfg = load_config(repo)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="X", workflow_name=None,
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
-    missing = [i for i in report.issues if i.kind == "missing-workflow"]
-    assert missing, [i.kind for i in report.issues]
-    assert all(i.severity == "warn" for i in missing)
+    kinds = [i.kind for i in report.issues]
+    assert "missing-workflow" not in kinds
+    assert "active-no-workflow" not in kinds
 
 
-def test_workflow_less_active_task_is_not_flagged(repo: Path) -> None:
-    """A workflow-less `active` task (a recurring/retire task) is not a
-    `missing-workflow` issue — the warn is scoped to drafts."""
+def _write_workflow_less_task(repo: Path, slug: str, status: str) -> Path:
+    """Write a workflow-less task directly to disk. `create_task` refuses to
+    create a workflow-less non-draft task now, so on-disk construction is the
+    only way to exercise the validator against that (invalid) shape."""
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(dedent(f"""
+        ---
+        title: X
+        status: {status}
+        mode: interactive
+        owner: marc
+        assignee: claude
+        workflow: null
+        ---
+
+        ## Description
+    """).lstrip())
+    (task_dir / "blackboard.md").write_text("# Blackboard\n")
+    (task_dir / "log.md").write_text("")
+    return task_dir
+
+
+@pytest.mark.parametrize("status", ["active", "in_progress", "paused"])
+def test_workflow_less_non_draft_is_error(repo: Path, status: str) -> None:
+    """A workflow-less `active`/`in_progress`/`paused` ticket can never be
+    bumped — it is structurally stuck. The validator flags it as an error."""
     cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
-        watchers=[], status="active",
-    )
+    _write_workflow_less_task(repo, "stuck-x", status)
     report = run(cfg)
-    assert not [i for i in report.issues if i.kind == "missing-workflow"]
+    stuck = [i for i in report.issues if i.kind == "active-no-workflow"]
+    assert stuck, [i.kind for i in report.issues]
+    assert all(i.severity == "error" for i in stuck)
+
+
+def test_workflow_less_done_is_not_flagged(repo: Path) -> None:
+    """A `done` workflow-less task is finished and immutable — flagging it
+    would only nag history. It is left alone."""
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, "finished-x", "done")
+    report = run(cfg)
+    assert "active-no-workflow" not in [i.kind for i in report.issues]
 
 
 def test_stuck_in_progress_flagged(repo: Path) -> None:
     cfg = load_config(repo)
-    scaffold_task(
-        cfg=cfg, title="X", workflow_name=None,
+    create_task(
+        cfg=cfg, title="X", workflow_name="code/with-review",
         contexts=[], mode="interactive", owner="marc", assignee="claude",
         watchers=[], status="in_progress",
     )
@@ -461,14 +493,11 @@ def test_nested_task_validates_clean(repo: Path) -> None:
     assert report.ok_count == 1
 
 
-def test_duplicate_task_slug_reported_as_error_not_crash(repo: Path) -> None:
+def test_same_leaf_name_in_different_directories_validates_clean(repo: Path) -> None:
+    # A leaf name reused across two directories is no longer a collision — the
+    # path under `tasks/` disambiguates, so validate reports no duplicate.
     cfg = load_config(repo)
-    top = _write_full_task(repo, "dup-task")
-    nested = _write_full_task(repo, "auto/dup-task")
+    _write_full_task(repo, "marketing/dup-task")
+    _write_full_task(repo, "eng/dup-task")
     report = run(cfg)
-    assert [i.kind for i in report.issues] == ["duplicate-slug"]
-    issue = report.issues[0]
-    assert issue.severity == "error"
-    assert issue.task == "dup-task"
-    assert str(top) in issue.message
-    assert str(nested) in issue.message
+    assert "duplicate-slug" not in [i.kind for i in report.issues]

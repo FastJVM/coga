@@ -15,4 +15,4 @@
 2026-06-07 20:30 [system] debug run digest-dbg-20260607T203015: completed → done
 2026-06-07 21:09 [system] debug run digest-dbg-20260607T210907: completed → done
 2026-06-08 12:07 [system] debug run digest-dbg-20260608T120715: completed → done
-2026-06-11 11:16 [system] scaffolded recurring-digest-2026-06-11
+2026-06-11 11:16 [system] created recurring-digest-2026-06-11

@@ -1,15 +1,27 @@
 ---
 title: Launch Relay — product launch comms
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: nick
 contexts:
-  - marketing/positioning
+- marketing/positioning
 skills: []
-workflow: null
+workflow:
+  name: autonomy/assist-only
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: human
+  - name: report-to-relay
+    skills: []
+    assignee: agent
+step: 1 (agent-produces)
 ---
 
 ## Description

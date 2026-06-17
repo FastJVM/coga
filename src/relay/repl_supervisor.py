@@ -32,6 +32,7 @@ import tempfile
 import termios
 import time
 import tty
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
@@ -55,6 +56,34 @@ _KILL_GRACE_SECONDS = 2.0
 # How often the select loop wakes to poll the sentinel file. Cheap (a single
 # stat) and bounds the worst-case autoquit latency to this interval.
 _SENTINEL_POLL_INTERVAL = 0.25
+
+# Exit code reported when *we* tore the REPL down because it exceeded a liveness
+# limit (idle-output or max-session wall-clock) without ever signalling done.
+# 124 is the `timeout(1)` convention — a non-zero code distinct from a clean
+# done (0) so a caller can tell a wedge apart from a cooperative teardown.
+_TIMEOUT_EXIT_CODE = 124
+
+
+@dataclass(frozen=True)
+class ReplOutcome:
+    """How a supervised REPL ended.
+
+    `exit_code` is what the caller should propagate (0 for a clean done,
+    `_TIMEOUT_EXIT_CODE` for a liveness teardown, `128 + signal` for a crash,
+    or the child's own code when it exited on its own). `kind` names *why* it
+    ended so a caller can branch without re-deriving it from the number:
+
+    - `"natural"` — the child exited on its own; we never signalled it.
+    - `"done"` — we tore it down after a done signal (sentinel / marker).
+    - `"timeout"` — we tore it down on a liveness limit (idle / max-session);
+      the agent never signalled done. This is the wedge the watchdog catches.
+    - `"crash"` — a death by a signal we did **not** send, surfaced rather than
+      masked even when it raced our own teardown.
+    """
+
+    exit_code: int
+    kind: str
+
 
 # Terminal-sanitizing reset, emitted to the real terminal only when *we* tore
 # the child down with a signal. A SIGTERM/SIGKILL'd TUI (Claude Code, Codex)
@@ -118,15 +147,18 @@ def run_with_done_marker(
     *,
     session_id: str | None = None,
     idle_timeout: float | None = None,
+    max_session: float | None = None,
     output_fd: int | None = None,
     input_fd: int | None = None,
-) -> int:
+) -> ReplOutcome:
     """Spawn `cmd` in a PTY, proxy stdio, SIGTERM the child on done signal.
 
-    Returns the child's exit code (0 if killed by the signal, or the natural
-    exit code if the child exited on its own). Falls back to a plain
-    `subprocess.run` if stdout is not a TTY — the watcher is only meaningful
-    for interactive REPLs that wouldn't otherwise exit on their own.
+    Returns a `ReplOutcome` carrying the exit code *and* the reason it ended
+    (`natural` / `done` / `timeout` / `crash`) so the caller can tell a
+    cooperative teardown apart from a liveness wedge without inspecting the
+    number. Falls back to a plain `subprocess.run` if stdout is not a TTY — the
+    watcher is only meaningful for interactive REPLs that wouldn't otherwise
+    exit on their own.
 
     `session_id` scopes the sentinel-file channel to one session: the child's
     `emit_done_marker` writes this string into the file and the supervisor
@@ -136,11 +168,17 @@ def run_with_done_marker(
     `idle_timeout`, when set, is a backstop for a REPL that never signals done
     — an agent that stalls or crashes before reaching `relay bump` / `mark
     done` / `panic`. If no PTY output and no stdin reaches the loop for that
-    many seconds, the supervisor tears the REPL down (`idle-timeout` trigger,
-    reported exit 0) instead of blocking its caller forever. Leave it None to
-    wait indefinitely for the done signal — the default, so an attended
+    many seconds, the supervisor tears the REPL down (a `timeout` outcome,
+    exit `_TIMEOUT_EXIT_CODE`) instead of blocking its caller forever. Leave it
+    None to wait indefinitely for the done signal — the default, so an attended
     interactive session is never killed mid-think. Unattended sweeps
     (`relay recurring`) arm it so one stuck agent can't starve later tasks.
+
+    `max_session`, when set, is a wall-clock cap measured from spawn. It fires
+    even while the child is *still producing output* — the case idle-timeout
+    misses, e.g. an agent stuck in an output-producing loop that keeps the PTY
+    busy but never signals done. Also a `timeout` outcome. Leave None for no
+    wall-clock cap.
 
     `output_fd` / `input_fd` exist for tests; production callers leave them
     None and the supervisor proxies the real stdio.
@@ -148,7 +186,8 @@ def run_with_done_marker(
     if not sys.stdout.isatty():
         import subprocess
 
-        return subprocess.run(cmd, env=dict(env), check=False).returncode
+        code = subprocess.run(cmd, env=dict(env), check=False).returncode
+        return ReplOutcome(code, "natural")
 
     sentinel_dir = tempfile.mkdtemp(prefix="relay-done-")
     sentinel_path = os.path.join(sentinel_dir, "sentinel")
@@ -196,13 +235,16 @@ def run_with_done_marker(
 
     buf = bytearray()
     sent_term = False
+    term_kind: str | None = None
     term_deadline: float | None = None
     sent_kill = False
-    last_activity = time.monotonic()
+    session_start = time.monotonic()
+    last_activity = session_start
 
-    def _trigger_term(reason: str) -> None:
-        nonlocal sent_term, term_deadline
+    def _trigger_term(reason: str, *, kind: str) -> None:
+        nonlocal sent_term, term_kind, term_deadline
         sent_term = True
+        term_kind = kind
         term_deadline = time.monotonic() + _KILL_GRACE_SECONDS
         _notify(f"stopping REPL — trigger={reason}")
         _notify("SIGTERM sent to process group")
@@ -245,7 +287,9 @@ def run_with_done_marker(
                     pass
 
             if not sent_term and _sentinel_signals_done(sentinel_path, session_id):
-                _trigger_term("sentinel-file (RELAY_DONE_SENTINEL touched)")
+                _trigger_term(
+                    "sentinel-file (RELAY_DONE_SENTINEL touched)", kind="done"
+                )
 
             if (
                 idle_timeout is not None
@@ -253,7 +297,18 @@ def run_with_done_marker(
                 and time.monotonic() - last_activity >= idle_timeout
             ):
                 _trigger_term(
-                    f"idle-timeout (no REPL activity for {idle_timeout:.0f}s)"
+                    f"idle-timeout (no REPL activity for {idle_timeout:.0f}s)",
+                    kind="timeout",
+                )
+
+            if (
+                max_session is not None
+                and not sent_term
+                and time.monotonic() - session_start >= max_session
+            ):
+                _trigger_term(
+                    f"max-session (wall-clock exceeded {max_session:.0f}s)",
+                    kind="timeout",
                 )
 
             if master_fd in rlist:
@@ -270,7 +325,9 @@ def run_with_done_marker(
                     pass
                 buf.extend(chunk)
                 if not sent_term and marker in buf:
-                    _trigger_term("pty-byte-match (DONE_MARKER seen in output)")
+                    _trigger_term(
+                        "pty-byte-match (DONE_MARKER seen in output)", kind="done"
+                    )
                 # Bound the buffer but keep enough context to span chunks.
                 if len(buf) > 4 * len(marker):
                     del buf[: -4 * len(marker)]
@@ -307,44 +364,58 @@ def run_with_done_marker(
             pass
 
     _, status = os.waitpid(pid, 0)
-    code, notes = _classify_exit(status, sent_term)
+    code, kind, notes = _classify_exit(status, term_kind)
     for note in notes:
         _notify(note)
-    return code
+    return ReplOutcome(code, kind)
 
 
-def _classify_exit(status: int, sent_term: bool) -> tuple[int, list[str]]:
-    """Map a raw `waitpid` status into (exit_code, console_notes).
+def _classify_exit(
+    status: int, term_kind: str | None
+) -> tuple[int, str, list[str]]:
+    """Map a raw `waitpid` status into (exit_code, kind, console_notes).
 
-    When we never signalled the child, its status passes straight through.
-    When we *did* signal it, a death from our own SIGTERM/SIGKILL — or a
-    self-exit — is the expected done-signal teardown and reports 0. But a
-    death from some *other* signal means the watcher's stop raced a genuine
-    crash; surface the real `128 + signal` code (and say so) instead of
-    masking it as clean, so a watcher-adjacent crash stays visible.
+    `term_kind` is why *we* tore the child down: None when we never signalled
+    it (its status passes straight through as a `natural` exit), `"done"` when
+    a done signal released it, `"timeout"` when a liveness limit did.
+
+    When we did signal it, a death from our own SIGTERM/SIGKILL — or a
+    self-exit after our signal — is the expected teardown: it reports 0 for a
+    `done` teardown and `_TIMEOUT_EXIT_CODE` for a `timeout` one, so a wedge is
+    visibly non-zero rather than masquerading as a clean done. But a death from
+    some *other* signal means the watcher's stop raced a genuine crash; surface
+    the real `128 + signal` code as a `crash` (and say so) regardless of why we
+    were tearing down, so a watcher-adjacent crash stays visible.
     """
-    if not sent_term:
+    if term_kind is None:
         if os.WIFEXITED(status):
-            return os.WEXITSTATUS(status), []
+            return os.WEXITSTATUS(status), "natural", []
         if os.WIFSIGNALED(status):
-            return 128 + os.WTERMSIG(status), []
-        return 1, []
+            return 128 + os.WTERMSIG(status), "crash", []
+        return 1, "crash", []
+
+    if term_kind == "timeout":
+        teardown_code = _TIMEOUT_EXIT_CODE
+        teardown_label = "timeout — liveness limit, agent never signalled done"
+    else:
+        teardown_code = 0
+        teardown_label = "done-signal received"
 
     if os.WIFSIGNALED(status):
         sig = os.WTERMSIG(status)
         if sig in (signal.SIGTERM, signal.SIGKILL):
-            return 0, [
+            return teardown_code, term_kind, [
                 f"child exited: killed by our signal {sig}",
-                "reporting exit 0 (done-signal received)",
+                f"reporting exit {teardown_code} ({teardown_label})",
             ]
-        return 128 + sig, [
+        return 128 + sig, "crash", [
             f"child exited: killed by signal {sig}",
             f"NOT our signal — real crash, reporting exit {128 + sig}",
         ]
     code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else 0
-    return 0, [
+    return teardown_code, term_kind, [
         f"child exited on its own with code {code} after our stop",
-        "reporting exit 0 (done-signal received)",
+        f"reporting exit {teardown_code} ({teardown_label})",
     ]
 
 
@@ -411,7 +482,9 @@ def emit_done_marker(session_id: str | None = None) -> None:
 __all__ = [
     "DONE_MARKER",
     "SENTINEL_ENV",
+    "_TIMEOUT_EXIT_CODE",
     "_TTY_SANITIZE",
+    "ReplOutcome",
     "emit_done_marker",
     "run_with_done_marker",
 ]

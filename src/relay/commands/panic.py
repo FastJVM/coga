@@ -11,7 +11,7 @@ from relay.blackboard import append_blocker
 from relay.config import ConfigError, load_config
 from relay.logfile import append_log
 from relay.repl_supervisor import emit_done_marker
-from relay.slack import post
+from relay.notification import post
 from relay.tasks import (
     TaskNotFoundError,
     read_ticket,
@@ -56,7 +56,7 @@ def panic(
     )
     typer.echo(f"{ref.id_slug}: panicked (owner {owner} notified)")
     # Sync the blocker (blackboard + log) to the control branch, the git
-    # analogue of the Slack post above. Scoped to the task dir by
+    # analogue of the notification post above. Scoped to the task dir by
     # `sync_task_state` — never `git add -A` — so the feature worktree's
     # uncommitted *code* (panic often fires from inside one) is left alone.
     # Run it before `emit_done_marker` so the commit/push completes while we

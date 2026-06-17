@@ -7,13 +7,15 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from conftest import seed_direct_body_workflow
 from relay.cli import app
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.commands.launch import (
     _skip_permissions_argv_for_launch,
     build_agent_command,
 )
 from relay.config import AgentType, ConfigError, load_config
+from relay.repl_supervisor import _TIMEOUT_EXIT_CODE, ReplOutcome
 from relay.tasks import BootstrapRef, TaskRef, list_tasks
 from relay.ticket import Ticket
 
@@ -340,11 +342,12 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
 
+    seed_direct_body_workflow(company)
     monkeypatch.chdir(company)
     cfg = load_config(company)
-    scaffold_task(
+    create_task(
         cfg=cfg, title="Fix retry logic",
-        workflow_name=None, contexts=[], mode="interactive",
+        workflow_name="direct/body", contexts=[], mode="interactive",
         owner="marc", assignee="claude", watchers=[], status="active",
     )
     return company
@@ -354,7 +357,7 @@ def _allow_slack(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://slack.example.test")
     slack_msgs: list[str] = []
     monkeypatch.setattr(
-        "relay.slack.requests.post",
+        "relay.notification.slack.requests.post",
         lambda url, json=None, timeout=None: _capture_slack(slack_msgs, json),
     )
     return slack_msgs
@@ -388,7 +391,7 @@ def _write_skill(repo: Path, ref: str, body: str) -> None:
     )
 
 
-def _scaffold_chain_task(active_task: Path, *, mode: str = "interactive") -> dict[str, object]:
+def _create_chain_task(active_task: Path, *, mode: str = "interactive") -> dict[str, object]:
     _write(
         active_task / "workflows" / "chain.md",
         """
@@ -413,7 +416,7 @@ def _scaffold_chain_task(active_task: Path, *, mode: str = "interactive") -> dic
     _write_skill(active_task, "code/self-review", "Review your own change.")
 
     cfg = load_config(active_task)
-    return scaffold_task(
+    return create_task(
         cfg=cfg,
         title="Chain work",
         workflow_name="chain",
@@ -461,6 +464,35 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     log = (ref.path / "log.md").read_text()
     assert "started (active → in_progress) via relay launch" in log
     assert "launched in interactive mode" in log
+
+
+def test_direct_launch_timeout_exits_non_zero(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A public `relay launch --idle-timeout` timeout must fail loud.
+
+    Recurring gets an internal return-value path so it can record the watchdog
+    timeout and continue its sweep, but the visible CLI should still propagate
+    the supervisor's non-zero timeout code to scripts and shells.
+    """
+    _allow_interactive_tty(monkeypatch)
+
+    def fake_supervisor(*args, **kwargs):  # type: ignore[no-untyped-def]
+        return ReplOutcome(_TIMEOUT_EXIT_CODE, "timeout")
+
+    monkeypatch.setattr(
+        "relay.commands.launch.run_with_done_marker", fake_supervisor
+    )
+    monkeypatch.setattr(
+        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(
+        app, ["launch", "fix-retry-logic", "--idle-timeout", "1"]
+    )
+
+    assert result.exit_code == _TIMEOUT_EXIT_CODE, result.output
+    assert "Agent timed out" in result.output
 
 
 def test_launch_interactive_ignores_local_skip_policy(
@@ -742,7 +774,7 @@ def test_launch_no_verify_skips_freshness_check(
 def test_launch_freshness_check_no_op_without_pr_link(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Default-scaffold blackboard has no `## Dev` section → no gh call."""
+    """Default-create blackboard has no `## Dev` section → no gh call."""
     from relay import automerge as am
     pr_state_calls: list[str] = []
     monkeypatch.setattr(am, "pr_state", lambda u: pr_state_calls.append(u) or "OPEN")
@@ -801,7 +833,7 @@ def test_launch_interactive_chains_consecutive_agent_steps(
     the launch loop re-composes the prompt and spawns a fresh REPL. The
     chain stops at the first human-assigned step (step 3 here).
     """
-    ref = _scaffold_chain_task(active_task, mode="interactive")
+    ref = _create_chain_task(active_task, mode="interactive")
     slug = str(ref["slug"])
     calls: list[list[str]] = []
     _allow_slack(monkeypatch)
@@ -858,7 +890,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
     _write_skill(active_task, "code/implement", "Implement the change.")
     _write_skill(active_task, "code/human-check", "Human checks the change.")
     cfg = load_config(active_task)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="Handoff work",
         workflow_name="handoff",
@@ -905,7 +937,7 @@ def test_launch_harness_stops_on_agent_panic(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    ref = _scaffold_chain_task(active_task)
+    ref = _create_chain_task(active_task)
     slug = str(ref["slug"])
     calls: list[list[str]] = []
     _allow_slack(monkeypatch)
@@ -961,7 +993,7 @@ def test_launch_auto_activates_draft_and_paused(
     with a workflow is activated inline, then flipped to in_progress."""
     from relay.ticket import Ticket
 
-    ref = _scaffold_chain_task(active_task, mode="interactive")
+    ref = _create_chain_task(active_task, mode="interactive")
     slug = str(ref["slug"])
     ticket_md = Path(ref["path"]) / "ticket.md"
     t = Ticket.read(ticket_md)
@@ -988,7 +1020,7 @@ def test_launch_auto_activates_done_and_reseeds_step(
     launch restarts the frozen workflow from step 1."""
     from relay.ticket import Ticket
 
-    ref = _scaffold_chain_task(active_task, mode="interactive")
+    ref = _create_chain_task(active_task, mode="interactive")
     slug = str(ref["slug"])
     ticket_md = Path(ref["path"]) / "ticket.md"
     t = Ticket.read(ticket_md)
@@ -1015,9 +1047,12 @@ def test_launch_auto_activate_bails_without_workflow(
     from relay.ticket import Ticket
 
     cfg = load_config(active_task)
-    ref = list_tasks(cfg)[0]  # the default fixture task has no workflow
+    ref = list_tasks(cfg)[0]
+    # Strip the workflow and drop to draft so launch's auto-activate hits the
+    # workflow-less path (a workflow-less non-draft can't be created now).
     t = Ticket.read(ref.path / "ticket.md")
     t.frontmatter["status"] = "draft"
+    t.frontmatter["workflow"] = None
     t.write(ref.path / "ticket.md")
 
     calls = _launch_single_spawn(monkeypatch)
@@ -1098,7 +1133,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
     )
     _write_skill(active_task, "code/implement", "Implement the change.")
     cfg = load_config(active_task)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="Measure prompt scope",
         workflow_name="code/measure",
@@ -1183,7 +1218,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         description: Author a Relay task.
         ---
 
-        Interview, scaffold, fill in the ticket. Stop.
+        Interview, create, fill in the ticket. Stop.
         """,
     )
     monkeypatch.chdir(company)
@@ -1209,7 +1244,7 @@ def test_launch_bare_bootstrap_does_not_post_to_slack(
     class _Result:
         returncode = 0
 
-    monkeypatch.setattr("relay.slack.requests.post", fake_post)
+    monkeypatch.setattr("relay.notification.slack.requests.post", fake_post)
     monkeypatch.setattr(
         "relay.commands.launch.subprocess.run",
         lambda cmd, env=None, check=False: _Result(),
@@ -1249,7 +1284,7 @@ def test_launch_bootstrap_skips_status_and_lock(
     prompt = captured["prompt"]
     assert isinstance(prompt, str)
     assert "Skill: bootstrap/ticket" in prompt
-    assert "Interview, scaffold, fill in the ticket." in prompt
+    assert "Interview, create, fill in the ticket." in prompt
     # Header still uses the bootstrap/<name> id_slug.
     assert "bootstrap/ticket" in prompt
 
@@ -1556,7 +1591,7 @@ def test_launch_interactive_rotates_across_agents(
         """,
     )
     cfg = load_config(active_task)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="Rotate work", workflow_name="rotate", contexts=[],
         mode="interactive", owner="marc", human="marc", agent="claude",
         assignee="claude", watchers=[], status="active",
@@ -1619,7 +1654,7 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
         """,
     )
     cfg = load_config(active_task)
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg, title="Rotate2 work", workflow_name="rotate2", contexts=[],
         mode="interactive", owner="marc", human="marc", agent="claude",
         assignee="claude", watchers=[], status="active",

@@ -1,7 +1,7 @@
 """End-to-end smoke test: run the full lifecycle against the seeded `example/` repo.
 
 Verifies:
-- task scaffolding creates a task with a frozen workflow snapshot.
+- task creating creates a task with a frozen workflow snapshot.
 - Prompt composition includes every expected section.
 - `relay bump` advances; `relay mark done` finishes the final step.
 - `relay panic` writes to blackboard + releases the lock.
@@ -19,7 +19,7 @@ import pytest
 from typer.testing import CliRunner
 
 from relay.cli import app
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.compose import compose_prompt
 from relay.config import load_config
 from relay.tasks import list_tasks, read_ticket
@@ -56,7 +56,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg.default_status == "draft"
 
     # 1. Create a task with the code/with-review workflow.
-    ref = scaffold_task(
+    ref = create_task(
         cfg=cfg,
         title="Fix retry logic",
         workflow_name="code/with-review",
@@ -71,8 +71,8 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     for name in ("ticket.md", "blackboard.md", "log.md"):
         assert (task_path / name).is_file()
 
-    # Discovery sees both the scaffolded top-level task and the seeded
-    # fixture task nested one level inside the `tasks/auto/` group dir.
+    # Discovery sees both the created top-level task and the seeded
+    # fixture task nested one level inside the `tasks/auto/` directory.
     by_slug = {t.slug: t for t in list_tasks(cfg)}
     assert "triage-inbound-email" in by_slug
     assert by_slug["triage-inbound-email"].path.parent == seeded / "tasks" / "auto"
@@ -107,9 +107,9 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "task done" in log
 
     # 4. Create a second task so we can exercise panic + slack without revival of the first.
-    ref2 = scaffold_task(
+    ref2 = create_task(
         cfg=cfg, title="Investigate slow DNS",
-        workflow_name=None, contexts=[], mode="interactive",
+        workflow_name="code/with-review", contexts=[], mode="interactive",
         owner="marc", assignee="claude", watchers=[], status="in_progress",
     )
     r = runner.invoke(app, [

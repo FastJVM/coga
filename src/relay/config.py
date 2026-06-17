@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 import random
 import shlex
@@ -51,7 +52,7 @@ class TicketField:
     """A repo-declared extension to the canonical ticket frontmatter schema.
 
     Declared in `relay.toml` under `[ticket.fields.<name>]`. The field is
-    written into every freshly scaffolded ticket below the
+    written into every freshly created ticket below the
     `# --- extensions ---` marker, and `relay validate` / `relay mark active`
     enforce the declared constraints.
     """
@@ -69,9 +70,14 @@ class Config:
     current_user: str
     default_status: str
     agents: dict[str, AgentType]
+    # Slack remains as the first notification backend. These compatibility
+    # fields hold the effective Slack-channel config resolved from
+    # `[notification.slack]`, legacy `[slack]`, or deprecated env fallback.
     slack_webhook: str | None
     slack_enabled: bool
     secrets: dict[str, str]
+    notification_channels: tuple[str, ...] = ("slack",)
+    notification_deprecation_notes: tuple[str, ...] = ()
     slack_gifs: dict[str, list[str]] = field(default_factory=dict)
     slack_users: dict[str, str] = field(default_factory=dict)
     aliases: dict[str, str] = field(default_factory=dict)
@@ -83,6 +89,18 @@ class Config:
     git_enabled: bool = True
     git_remote: str = "origin"
     git_control_branch: str = "main"
+    # Liveness limits for the interactive REPLs `relay recurring` spawns, from
+    # the shared `[launch]` table. None = no limit from config. The idle timeout
+    # also keeps a presence flag because that limit has a built-in default:
+    # `[launch].idle_timeout = 0` must explicitly disarm it rather than collapse
+    # to "omitted" and re-enable the default. The env overrides
+    # (`RELAY_REPL_IDLE_TIMEOUT` / `RELAY_REPL_MAX_SESSION`) still win over these;
+    # see `relay.commands.recurring`. Attended `relay launch` does not read them
+    # — only the unattended sweep arms a limit, so a human's session is never
+    # killed by a committed default.
+    launch_idle_timeout: float | None = None
+    launch_idle_timeout_present: bool = False
+    launch_max_session: float | None = None
 
     # --- convenience accessors -------------------------------------------------
 
@@ -107,7 +125,7 @@ class Config:
         return self.agents[name]
 
     def default_agent(self) -> AgentType | None:
-        """First-declared agent type, used as the scaffold-time default.
+        """First-declared agent type, used as the create-time default.
 
         TOML preserves declaration order, so the team puts their default
         first in `relay.toml`.
@@ -120,8 +138,9 @@ class Config:
     def gif_for(self, kind: str) -> str | None:
         """Pick a random GIF URL for `kind` (e.g. "done", "panic"), or None.
 
-        Configured under `[slack.gifs]` in relay.toml as `kind = ["url", ...]`.
-        Empty/missing → None, and the caller posts text-only.
+        Configured under `[notification.slack.gifs]` in relay.toml as
+        `kind = ["url", ...]`. Empty/missing → None, and the caller posts
+        text-only.
         """
         urls = self.slack_gifs.get(kind, [])
         return random.choice(urls) if urls else None
@@ -171,20 +190,28 @@ def load_config(repo_root: Path | None = None) -> Config:
             "[assignees.*] tables — ticket `assignee:` now names an agent "
             "type (e.g. `claude`) or a human directly. See docs/spec.md."
         )
-    # The webhook is read from `[slack].webhook` (local overriding shared) and
-    # resolves `env:` indirection like any other secret. The bare process
-    # environment is not a second source: `SLACK_WEBHOOK_URL` only reaches relay
-    # when a `webhook = "env:SLACK_WEBHOOK_URL"` key points at it.
-    slack_webhook = _resolve_slack_webhook(shared.get("slack"), local.get("slack"))
-    # `[slack].enabled = false` (in either toml) is the explicit opt-out.
-    # Local overrides shared. Default is enabled — slack is the team sync point.
-    slack_enabled = _resolve_slack_enabled(shared.get("slack"), local.get("slack"))
-    slack_gifs = _parse_slack_gifs(shared.get("slack"))
-    slack_users = _parse_slack_users(shared.get("slack"))
+    notification_channels = _resolve_notification_channels(
+        shared.get("notification"), local.get("notification")
+    )
+    (
+        slack_webhook,
+        slack_enabled,
+        slack_gifs,
+        slack_users,
+        notification_deprecation_notes,
+    ) = _parse_slack_notification(
+        shared.get("notification"),
+        local.get("notification"),
+        shared.get("slack"),
+        local.get("slack"),
+    )
     aliases = _parse_aliases(shared.get("aliases", {}))
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
     git_enabled = _resolve_git_enabled(shared.get("git"), local.get("git"))
     git_remote, git_control_branch = _parse_git(shared.get("git"))
+    launch_idle_timeout, launch_idle_timeout_present, launch_max_session = (
+        _parse_launch(shared.get("launch"))
+    )
 
     current_user = local.get("user")
     if not current_user:
@@ -204,6 +231,8 @@ def load_config(repo_root: Path | None = None) -> Config:
         agents=agents,
         slack_webhook=slack_webhook,
         slack_enabled=slack_enabled,
+        notification_channels=notification_channels,
+        notification_deprecation_notes=notification_deprecation_notes,
         slack_gifs=slack_gifs,
         slack_users=slack_users,
         secrets=secrets,
@@ -213,6 +242,9 @@ def load_config(repo_root: Path | None = None) -> Config:
         git_enabled=git_enabled,
         git_remote=git_remote,
         git_control_branch=git_control_branch,
+        launch_idle_timeout=launch_idle_timeout,
+        launch_idle_timeout_present=launch_idle_timeout_present,
+        launch_max_session=launch_max_session,
     )
 
 
@@ -358,7 +390,7 @@ _ALLOWED_TICKET_FIELD_KEYS: frozenset[str] = frozenset({
 def _parse_ticket_fields(raw: dict | None) -> dict[str, TicketField]:
     """Parse `[ticket.fields.<name>]` tables into `TicketField` records.
 
-    Order in TOML is preserved (insertion order on dict), so scaffold writes
+    Order in TOML is preserved (insertion order on dict), so create writes
     extension fields in declaration order.
     """
     if raw is None:
@@ -460,8 +492,225 @@ def _parse_aliases(raw: dict) -> dict[str, str]:
     return out
 
 
-def _parse_slack_gifs(shared: dict | None) -> dict[str, list[str]]:
-    """Parse `[slack.gifs]` table — each key maps an event-kind to a list of URLs.
+_SUPPORTED_NOTIFICATION_CHANNELS: frozenset[str] = frozenset({"slack"})
+
+
+def _resolve_notification_channels(
+    shared: dict | None, local: dict | None
+) -> tuple[str, ...]:
+    """Resolve `[notification].channels` with local overriding shared."""
+    for label, table in (
+        ("[notification] in relay.local.toml", local),
+        ("[notification] in relay.toml", shared),
+    ):
+        if table is None:
+            continue
+        if not isinstance(table, dict):
+            raise ConfigError(f"{label} must be a table (got {type(table).__name__})")
+        if "channels" not in table:
+            continue
+        channels = table["channels"]
+        if not isinstance(channels, list) or not all(
+            isinstance(ch, str) for ch in channels
+        ):
+            raise ConfigError("[notification].channels must be a list of strings")
+        cleaned: list[str] = []
+        for channel in channels:
+            name = channel.strip()
+            if name and name not in cleaned:
+                cleaned.append(name)
+        unsupported = sorted(set(cleaned) - _SUPPORTED_NOTIFICATION_CHANNELS)
+        if unsupported:
+            allowed = ", ".join(sorted(_SUPPORTED_NOTIFICATION_CHANNELS))
+            raise ConfigError(
+                "[notification].channels contains unsupported channel(s) "
+                f"{unsupported}; supported: {allowed}"
+            )
+        return tuple(cleaned)
+    return ("slack",)
+
+
+def _notification_slack_table(raw: dict | None, label: str) -> dict | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ConfigError(f"{label} must be a table (got {type(raw).__name__})")
+    table = raw.get("slack")
+    if table is None:
+        return None
+    if not isinstance(table, dict):
+        raise ConfigError(
+            f"{label}.slack must be a table (got {type(table).__name__})"
+        )
+    return table
+
+
+def _parse_slack_notification(
+    shared_notification: dict | None,
+    local_notification: dict | None,
+    shared_legacy_slack: dict | None,
+    local_legacy_slack: dict | None,
+) -> tuple[str | None, bool, dict[str, list[str]], dict[str, str], tuple[str, ...]]:
+    """Parse the effective Slack channel config.
+
+    New config lives under `[notification.slack]`. Legacy `[slack]` and a bare
+    `SLACK_WEBHOOK_URL` environment variable remain compatibility fallbacks and
+    are reported through `notification_deprecation_notes`.
+    """
+    shared_slack = _notification_slack_table(
+        shared_notification, "[notification] in relay.toml"
+    )
+    local_slack = _notification_slack_table(
+        local_notification, "[notification] in relay.local.toml"
+    )
+    notes: list[str] = []
+
+    webhook = _resolve_notification_slack_webhook(
+        shared_slack,
+        local_slack,
+        shared_legacy_slack,
+        local_legacy_slack,
+        notes,
+    )
+    enabled = _resolve_notification_slack_enabled(
+        shared_slack,
+        local_slack,
+        shared_legacy_slack,
+        local_legacy_slack,
+        notes,
+    )
+    gifs = _parse_notification_slack_gifs(
+        shared_slack,
+        local_slack,
+        shared_legacy_slack,
+        local_legacy_slack,
+        notes,
+    )
+    users = _parse_notification_slack_users(
+        shared_slack,
+        local_slack,
+        shared_legacy_slack,
+        local_legacy_slack,
+        notes,
+    )
+    return webhook, enabled, gifs, users, tuple(dict.fromkeys(notes))
+
+
+def _legacy_note(notes: list[str], key: str) -> None:
+    notes.append(
+        f"`[slack].{key}` is deprecated; move it to `[notification.slack].{key}`."
+    )
+
+
+def _resolve_notification_slack_webhook(
+    shared: dict | None,
+    local: dict | None,
+    shared_legacy: dict | None,
+    local_legacy: dict | None,
+    notes: list[str],
+) -> str | None:
+    """Resolve Slack webhook with local overriding shared."""
+    for table in (local, shared):
+        if isinstance(table, dict) and "webhook" in table:
+            value = table["webhook"]
+            if not isinstance(value, str):
+                raise ConfigError(
+                    "[notification.slack].webhook must be a string "
+                    f"(got {type(value).__name__})"
+                )
+            return _resolve_secret_value(value) or None
+    for table in (local_legacy, shared_legacy):
+        if isinstance(table, dict) and "webhook" in table:
+            _legacy_note(notes, "webhook")
+            value = table["webhook"]
+            if not isinstance(value, str):
+                raise ConfigError(
+                    f"[slack].webhook must be a string (got {type(value).__name__})"
+                )
+            return _resolve_secret_value(value) or None
+    value = os.environ.get("SLACK_WEBHOOK_URL")
+    if value:
+        notes.append(
+            "bare `SLACK_WEBHOOK_URL` fallback is deprecated; set "
+            '`[notification.slack].webhook = "env:SLACK_WEBHOOK_URL"`.'
+        )
+        return value
+    return None
+
+
+def _resolve_notification_slack_enabled(
+    shared: dict | None,
+    local: dict | None,
+    shared_legacy: dict | None,
+    local_legacy: dict | None,
+    notes: list[str],
+) -> bool:
+    """Resolve Slack channel enabled flag. Default: True."""
+    for table in (local, shared):
+        if isinstance(table, dict) and "enabled" in table:
+            value = table["enabled"]
+            if not isinstance(value, bool):
+                raise ConfigError(
+                    "[notification.slack].enabled must be a boolean "
+                    f"(got {type(value).__name__})"
+                )
+            return value
+    for table in (local_legacy, shared_legacy):
+        if isinstance(table, dict) and "enabled" in table:
+            _legacy_note(notes, "enabled")
+            value = table["enabled"]
+            if not isinstance(value, bool):
+                raise ConfigError(
+                    f"[slack].enabled must be a boolean (got {type(value).__name__})"
+                )
+            return value
+    return True
+
+
+def _parse_notification_slack_gifs(
+    shared: dict | None,
+    local: dict | None,
+    shared_legacy: dict | None,
+    local_legacy: dict | None,
+    notes: list[str],
+) -> dict[str, list[str]]:
+    for table, prefix, legacy_key in (
+        (local, "[notification.slack.gifs]", None),
+        (shared, "[notification.slack.gifs]", None),
+        (local_legacy, "[slack.gifs]", "gifs"),
+        (shared_legacy, "[slack.gifs]", "gifs"),
+    ):
+        if isinstance(table, dict) and "gifs" in table:
+            if legacy_key:
+                _legacy_note(notes, legacy_key)
+            return _parse_slack_gifs(table, prefix)
+    return {}
+
+
+def _parse_notification_slack_users(
+    shared: dict | None,
+    local: dict | None,
+    shared_legacy: dict | None,
+    local_legacy: dict | None,
+    notes: list[str],
+) -> dict[str, str]:
+    for table, prefix, legacy_key in (
+        (local, "[notification.slack.users]", None),
+        (shared, "[notification.slack.users]", None),
+        (local_legacy, "[slack.users]", "users"),
+        (shared_legacy, "[slack.users]", "users"),
+    ):
+        if isinstance(table, dict) and "users" in table:
+            if legacy_key:
+                _legacy_note(notes, legacy_key)
+            return _parse_slack_users(table, prefix)
+    return {}
+
+
+def _parse_slack_gifs(
+    shared: dict | None, table_name: str = "[slack.gifs]"
+) -> dict[str, list[str]]:
+    """Parse Slack GIF table — each key maps an event-kind to a list of URLs.
 
     A random URL is picked per post. Missing/empty → text-only Slack messages.
     """
@@ -472,13 +721,13 @@ def _parse_slack_gifs(shared: dict | None) -> dict[str, list[str]]:
         return {}
     if not isinstance(gifs, dict):
         raise ConfigError(
-            f"[slack.gifs] must be a table (got {type(gifs).__name__})"
+            f"{table_name} must be a table (got {type(gifs).__name__})"
         )
     out: dict[str, list[str]] = {}
     for kind, urls in gifs.items():
         if not isinstance(urls, list) or not all(isinstance(u, str) for u in urls):
             raise ConfigError(
-                f"[slack.gifs].{kind} must be a list of URL strings"
+                f"{table_name}.{kind} must be a list of URL strings"
             )
         cleaned = [u.strip() for u in urls if u.strip()]
         if cleaned:
@@ -486,8 +735,10 @@ def _parse_slack_gifs(shared: dict | None) -> dict[str, list[str]]:
     return out
 
 
-def _parse_slack_users(shared: dict | None) -> dict[str, str]:
-    """Parse `[slack.users]` — maps a relay name (the token used in a
+def _parse_slack_users(
+    shared: dict | None, table_name: str = "[slack.users]"
+) -> dict[str, str]:
+    """Parse Slack user mapping — maps a relay name (the token used in a
     ticket's `owner` / `watchers` fields) to a Slack member ID.
 
     The member ID is what lets an incoming webhook actually *ping* someone:
@@ -502,64 +753,24 @@ def _parse_slack_users(shared: dict | None) -> dict[str, str]:
         return {}
     if not isinstance(users, dict):
         raise ConfigError(
-            f"[slack.users] must be a table (got {type(users).__name__})"
+            f"{table_name} must be a table (got {type(users).__name__})"
         )
     out: dict[str, str] = {}
     for name, user_id in users.items():
         if not isinstance(user_id, str) or not user_id.strip():
             raise ConfigError(
-                f"[slack.users].{name} must be a non-empty Slack member ID string"
+                f"{table_name}.{name} must be a non-empty Slack member ID string"
             )
         out[name] = user_id.strip()
     return out
 
 
-def _resolve_slack_webhook(shared: dict | None, local: dict | None) -> str | None:
-    """Resolve `[slack].webhook` with local overriding shared. Default: None.
-
-    The value may be a literal URL or an `env:VAR` reference resolved the same
-    way `[secrets]` are (see `_resolve_secret_value`). This is the *only* webhook
-    source — the bare process environment is not a second, independent one:
-    `SLACK_WEBHOOK_URL` reaches relay only when a `webhook = "env:SLACK_WEBHOOK_URL"`
-    key points at it. An `env:` whose var is unset (or an empty literal) resolves
-    to None — i.e. unconfigured — matching `slack_webhook`'s `str | None` contract
-    and the "enabled but no webhook" crash path in `slack.post`.
-
-    `[slack].webhook` is a machine-specific secret, so `relay.local.toml` may
-    carry it and override a safe `env:` reference (or omitted key) in shared
-    `relay.toml`. Examples and docs steer users to `env:` indirection; a literal
-    URL is accepted by the parser but must never be committed.
-    """
-    for table in (local, shared):
-        if isinstance(table, dict) and "webhook" in table:
-            value = table["webhook"]
-            if not isinstance(value, str):
-                raise ConfigError(
-                    f"[slack].webhook must be a string (got {type(value).__name__})"
-                )
-            return _resolve_secret_value(value) or None
-    return None
-
-
-def _resolve_slack_enabled(shared: dict | None, local: dict | None) -> bool:
-    """Resolve [slack].enabled with local overriding shared. Default: True."""
-    for table in (local, shared):
-        if isinstance(table, dict) and "enabled" in table:
-            value = table["enabled"]
-            if not isinstance(value, bool):
-                raise ConfigError(
-                    f"[slack].enabled must be a boolean (got {type(value).__name__})"
-                )
-            return value
-    return True
-
-
 def _resolve_git_enabled(shared: dict | None, local: dict | None) -> bool:
     """Resolve [git].enabled with local overriding shared. Default: True.
 
-    Mirrors `_resolve_slack_enabled`: git sync is on by default, and the
-    machine-local opt-out (`[git].enabled = false` in `relay.local.toml`) is
-    for repos with no remote — dev/CI/single-developer checkouts.
+    Git sync is on by default, and the machine-local opt-out (`[git].enabled =
+    false` in `relay.local.toml`) is for repos with no remote —
+    dev/CI/single-developer checkouts.
     """
     for table in (local, shared):
         if isinstance(table, dict) and "enabled" in table:
@@ -597,13 +808,43 @@ def _parse_git(shared: dict | None) -> tuple[str, str]:
     return remote, control_branch
 
 
+def _parse_launch(shared: dict | None) -> tuple[float | None, bool, float | None]:
+    """Parse `[launch]` for the recurring sweep's liveness limits.
+
+    `idle_timeout` / `max_session` are seconds (int or float). A `<= 0` or
+    non-finite value disarms that limit (returns None), matching the env-var
+    override's "off" contract in `relay.commands.recurring`. `idle_timeout`
+    returns a separate presence flag so an explicit disarm can beat the built-in
+    recurring default; omitted keys are None/False. These are defaults for the
+    *unattended* sweep only — attended `relay launch` never reads them.
+    """
+    if shared is None:
+        return None, False, None
+    if not isinstance(shared, dict):
+        raise ConfigError(f"[launch] must be a table (got {type(shared).__name__})")
+
+    def _seconds(key: str) -> float | None:
+        if key not in shared:
+            return None
+        value = shared[key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ConfigError(f"[launch].{key} must be a number (got {value!r})")
+        seconds = float(value)
+        if not math.isfinite(seconds) or seconds <= 0:
+            return None
+        return seconds
+
+    return _seconds("idle_timeout"), "idle_timeout" in shared, _seconds("max_session")
+
+
 def _resolve_secret_value(value: str) -> str:
     """Resolve an `env:VAR` reference to the env var's value; pass literals through.
 
     A missing env var resolves to the empty string — secrets are validated at
     launch time when they're actually needed, not at config load. Shared by
-    `[secrets]` and `[slack].webhook`, which both treat the bare environment as
-    reachable only through an explicit `env:` reference.
+    `[secrets]` and `[notification.slack].webhook`. The notification layer also
+    keeps a deprecated bare `SLACK_WEBHOOK_URL` fallback for legacy repos; other
+    secret values remain reachable only through an explicit `env:` reference.
     """
     if value.startswith("env:"):
         return os.environ.get(value[len("env:") :], "")

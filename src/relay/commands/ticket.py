@@ -13,7 +13,7 @@ from typing import cast
 import typer
 
 from relay import git
-from relay.commands.create import scaffold_draft
+from relay.commands.create import create_draft
 from relay.commands.launch import (
     _format_agent_command_for_console,
     _interactive_stdio_has_tty,
@@ -100,7 +100,7 @@ def _resolve_or_create_target(cfg: Config, target: str) -> tuple[TaskRef, Ticket
         msg = str(exc)
         if msg.startswith("Ambiguous task ref"):
             _bail(msg)
-        result = scaffold_draft(title=target, mode="interactive")
+        result = create_draft(title=target, mode="interactive")
         ref = TaskRef(slug=str(result["slug"]), path=cast(Path, result["path"]))
         typer.echo(f"{ref.id_slug}: launching guided ticket authoring")
         return ref, read_ticket(ref)
@@ -161,7 +161,7 @@ def _run_authoring_session(
         "Ticket: command: "
         f"{_format_agent_command_for_console(cmd, prompt)}"
     )
-    before_tasks = {task_ref.slug for task_ref in list_tasks(cfg)}
+    before_tasks = {task_ref.id_slug for task_ref in list_tasks(cfg)}
     before_authoring = _snapshot_authoring_files(cfg)
     append_log(
         ref.path,
@@ -268,19 +268,19 @@ def _authored_task_refs(
     before_tasks: set[str],
 ) -> list[TaskRef]:
     # Resolve changed paths against discovered task dirs rather than
-    # reconstructing `tasks/<first-part>` — tasks may live one level deeper
-    # inside a group directory (e.g. `tasks/auto/<slug>/`).
+    # reconstructing `tasks/<first-part>` — tasks may live in a sub-directory
+    # at any depth (e.g. `tasks/auto/<slug>/`).
     refs: dict[str, TaskRef] = {}
     tasks = list_tasks(cfg)
     resolved = [path.resolve(strict=False) for path in changed_paths]
     for task_ref in tasks:
         task_root = task_ref.path.resolve(strict=False)
         if any(task_root in path.parents for path in resolved):
-            refs[task_ref.slug] = task_ref
+            refs[task_ref.id_slug] = task_ref
 
     for task_ref in tasks:
-        if task_ref.slug not in before_tasks:
-            refs.setdefault(task_ref.slug, task_ref)
+        if task_ref.id_slug not in before_tasks:
+            refs.setdefault(task_ref.id_slug, task_ref)
     return [refs[slug] for slug in sorted(refs)]
 
 

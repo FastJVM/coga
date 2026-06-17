@@ -32,18 +32,20 @@ file = "AGENTS.md"
 mode = "local"
 discussion = "-c developer_instructions={prompt}"
 
-# --- Slack ---
-# Slack is the team sync point — every state change (ticket created,
-# draft → active, active → in_progress, paused/done, bump, panic, slack,
-# script-mode failure, recurring scaffolds) posts to the channel pointed at by
-# `[slack].webhook`. Relaunching an already-in-progress ticket does not post.
+# --- Notification channels ---
+# Relay's notification system is the team sync point. Slack is the first
+# channel: urgent/manual events post through the Slack webhook, while outcome
+# events may spool into the daily digest before that digest posts to Slack.
+# Relaunching an already-in-progress ticket does not post.
 #
-# The webhook is the single way to configure Slack. Use `env:` indirection so
-# the URL (a bearer token) stays out of this committed file — export
-# SLACK_WEBHOOK_URL locally and relay resolves it. A bare exported
-# SLACK_WEBHOOK_URL with no `webhook` key does NOT count as configured: the
-# value reaches relay only through this reference.
-[slack]
+# Use `env:` indirection so the URL (a bearer token) stays out of this
+# committed file — export SLACK_WEBHOOK_URL locally and relay resolves it. A
+# bare exported SLACK_WEBHOOK_URL with no `webhook` key is only a deprecated
+# compatibility fallback.
+[notification]
+channels = ["slack"]
+
+[notification.slack]
 webhook = "env:SLACK_WEBHOOK_URL"
 # A machine-specific webhook can override this in relay.local.toml (local wins),
 # e.g. a literal URL there for a personal channel. Never commit a real URL.
@@ -52,13 +54,13 @@ webhook = "env:SLACK_WEBHOOK_URL"
 #
 # To opt out (solo runs, dev/test, CI without notifications), set in
 # relay.local.toml:
-#   [slack]
+#   [notification.slack]
 #   enabled = false
 #
 # Optional: attach a GIF to milestone events. One URL is picked at random
 # per post. Skip a kind (or leave its list empty) to keep that event
 # text-only. Example:
-#   [slack.gifs]
+#   [notification.slack.gifs]
 #   done  = ["https://media.giphy.com/media/<id>/giphy.gif"]
 #   panic = [
 #     "https://media.giphy.com/media/<id-a>/giphy.gif",
@@ -71,7 +73,7 @@ webhook = "env:SLACK_WEBHOOK_URL"
 # watchers cc'd. Without one they're still named, just in plain text (no
 # ping). An incoming webhook can't look an ID up itself, so it has to be
 # listed here. Grab an ID from Slack: profile → ⋮ (More) → Copy member ID.
-#   [slack.users]
+#   [notification.slack.users]
 #   marc = "U01ABC234"
 #   ada  = "U05XYZ789"
 
@@ -92,7 +94,7 @@ webhook = "env:SLACK_WEBHOOK_URL"
 # Defaults: enabled = true, remote = "origin", control_branch = "main".
 # To opt out (a repo with no remote: dev/test, CI, solo branches), set
 # `enabled = false` here or in relay.local.toml (local overrides shared,
-# like [slack]):
+# like [notification.slack]):
 #   [git]
 #   enabled = false
 
@@ -104,7 +106,7 @@ webhook = "env:SLACK_WEBHOOK_URL"
 
 [aliases]
 chat = "launch bootstrap/orient"
-# `dream` scaffolds the `recurring/dream/` cleanup task and launches it now —
+# `dream` creates the `recurring/dream/` cleanup task and launches it now —
 # the same path `relay recurring launch dream` takes.
 dream = "recurring launch dream"
 # Uncomment to add per-agent shortcuts. The --agent value must match an

@@ -11,11 +11,20 @@ no in-memory state.
 
 ## Primitives
 
-- **Tickets** live as directories under `relay-os/tasks/`: either direct
-  children (`tasks/<slug>/`) or one level deeper in an organizational group
-  (`tasks/<group>/<slug>/`). The leaf directory name is the slug used by CLI
-  commands and Slack; agents should use the composed prompt's exact task
-  directory instead of reconstructing `tasks/<slug>/`. Each task has
+- **Tickets** live as directories under `relay-os/tasks/`: a task is any
+  directory containing a `ticket.md`, at **any depth** — directly
+  (`tasks/<slug>/`) or in a sub-directory (`tasks/marketing/social/<slug>/`).
+  The sub-directories are just plain directories you organize with
+  `mkdir` / `mv` / `rm` (nest them as deep as you like), and a task directory
+  is never recursed into. A task is referenced by
+  its **path under `tasks/`** — its bare leaf at the top level, otherwise the
+  relative path (`marketing/relay-crm`, `marketing/social/relaunch`) — used as
+  the qualified slug across CLI commands, `relay status`, and notifications.
+  Two sibling directories may therefore reuse a leaf name, and a nested task's
+  bare leaf does not resolve on its own. Agents should use the composed
+  prompt's exact task directory instead of reconstructing it from the slug.
+  Relay reads this tree — `relay status <dir>` filters to a sub-tree — but
+  never reimplements it. Each task has
   `ticket.md` (frontmatter + body), `log.md` (append-only, written by CLI
   commands only), and `blackboard.md` (free-form workspace shared between
   human and agent).
@@ -42,9 +51,11 @@ no in-memory state.
   flips (e.g. `code/with-review`) and agent-rotation relaunches. Steps without
   one leave the assignee unchanged.
 - **Recurring templates** live in `relay-os/recurring/`. `relay recurring`
-  scans them, scaffolds the current period's task for each, and launches the
-  due ones; the created tasks then use the same ticket, workflow, launch,
-  bump, and blackboard machinery as any other task.
+  scans them, scaffolds the current run at the stable path-qualified task ref
+  `tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/notifications),
+  records the serviced period as `last_serviced_period` in the template
+  blackboard, and launches the due ones. The created tasks then use the same
+  ticket, workflow, launch, bump, and blackboard machinery as any other task.
 - **Bootstrap shims** in `relay-os/bootstrap/<name>/ticket.md` are
   stateless launch targets for skills. No status, no workflow. Used for
   ticket-less re-entry points like `relay launch bootstrap/orient`
@@ -136,12 +147,24 @@ moment work is approved rather than the moment it is drafted, so a
 half-formed draft is never blocked on a workflow decision it isn't ready to
 make.
 
+The rule is symmetric, and `relay validate` enforces the other half: a
+workflow is mandatory everywhere *except* `draft`. A workflow-less
+`active`/`in_progress`/`paused` ticket is a structurally stuck task that no
+`relay bump` can advance, so the validator reports it as an **error**
+(`active-no-workflow`) — the activation gate and the validator now agree
+instead of the validator nagging the one state (`draft`) where workflow-less
+is allowed. A workflow-less `done` ticket is finished and immutable, so it is
+left alone.
+
 `relay ticket` (guided authoring) fills the workflow in through its
 interview skill. `relay recurring` scaffolding (a bare scan-and-launch run
 and the on-demand `recurring launch <name>`, including the `relay dream`
-alias) and `relay retire` scaffold their own one-shots by calling
-`scaffold_task` directly — they are intentional internal exceptions, not
-user-authored drafts.
+alias) and `relay retire` scaffold their own one-shots straight to `active`
+by calling `scaffold_task` directly — but they are **not** workflow-less
+exceptions: a template that declares no workflow (and every retire task)
+scaffolds with the one-step `direct/body` workflow, which runs the ticket
+body's ordered phases directly. There is no sanctioned workflow-less active
+task; the invariant holds for machine-authored tasks too.
 
 ## Two state machines per ticket
 

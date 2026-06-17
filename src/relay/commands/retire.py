@@ -9,7 +9,7 @@ import typer
 
 from relay import git
 from relay.config import Config, ConfigError, load_config
-from relay.scaffold import scaffold_task
+from relay.create import create_task
 from relay.slugify import slugify
 from relay.tasks import (
     TaskRef,
@@ -39,7 +39,7 @@ def retire(
 ) -> None:
     """Wrap up a done task by running retro/done-ticket against it.
 
-    Validates the named task is `status: done`, then scaffolds a one-shot
+    Validates the named task is `status: done`, then creates a one-shot
     ad-hoc task whose body invokes the `retro/done-ticket` skill against it.
     The retro skill opens a PR when it extracts new durable knowledge; that PR
     records the `## Retro` marker, edits the knowledge base, and deletes the
@@ -85,14 +85,18 @@ def retire(
         f"(agent type {agent_type.name}, mode {mode})"
     )
 
-    title = f"Retire {ref.slug}"
-    slug_override = f"retire-{slugify(ref.slug)}"
+    title = f"Retire {ref.id_slug}"
+    slug_override = f"retire-{slugify(ref.id_slug)}"
     try:
-        typer.echo(f"Retire: scaffolding task {title!r}")
-        result = scaffold_task(
+        typer.echo(f"Retire: creating task {title!r}")
+        result = create_task(
             cfg=cfg,
             title=title,
-            workflow_name=None,
+            # Retire creates straight to `active`; every task past `draft`
+            # carries a workflow, so it runs its body through the one-step
+            # `direct/body` workflow rather than being a workflow-less active
+            # task the validator (rightly) rejects as un-bumpable.
+            workflow_name="direct/body",
             contexts=[],
             mode=mode,
             owner=cfg.current_user,
@@ -100,7 +104,7 @@ def retire(
             watchers=[],
             status="active",
             slug_override=slug_override,
-            description=_retire_body(ref.slug),
+            description=_retire_body(ref.id_slug),
             created_by="retire",
         )
     except (ConfigError, ValueError) as exc:
