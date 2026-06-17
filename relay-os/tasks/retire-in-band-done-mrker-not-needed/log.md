@@ -11,3 +11,4 @@
 2026-06-16 21:08 [git] sync failed: `git add -- relay-os/tasks/retire-in-band-done-mrker-not-needed` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/relay/.git/index.lock': Read-only file system
 2026-06-16 21:08 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-16 21:09 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/377 (no CI configured; local suite green, codex review clean)
+2026-06-16 21:30 [human:nick] task done
