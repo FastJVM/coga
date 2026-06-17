@@ -48,6 +48,26 @@ def _write_recurring(company: Path, name: str, text: str) -> None:
     _write(company / "recurring" / name / "ticket.md", text)
 
 
+def _freeze_recurring_now(monkeypatch, when: datetime) -> None:
+    """Pin `relay.recurring`'s wall clock to `when`.
+
+    The deterministic recurring tests inject `now=` straight into `scan_due`
+    / `create_named`, but the ones that exercise the CLI (`relay recurring`,
+    `relay recurring launch`) can't — the command derives the current period
+    from `datetime.now()`. Without this the period key tracks the real ISO
+    week, so a test asserting a specific `2026-Wnn` only passes during that
+    calendar week. Subclassing keeps every other `datetime` use intact and
+    only overrides `.now()`.
+    """
+
+    class _FixedNow(datetime):
+        @classmethod
+        def now(cls, tz=None):  # noqa: ARG003 - match datetime.now signature
+            return when
+
+    monkeypatch.setattr("relay.recurring.datetime", _FixedNow)
+
+
 def _seed_direct_body_workflow(company: Path) -> None:
     """Seed the `direct/body` workflow + skill the creator freezes onto
     workflow-less recurring templates (e.g. Dream).
@@ -841,6 +861,7 @@ def test_recurring_launch_syncs_period_task_and_high_water(
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
     monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
@@ -1354,6 +1375,7 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
     git_repo.git("reset", "--hard", stale_head)
 
     launch_calls: list[tuple[object, ...]] = []
+    _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
     monkeypatch.setattr(
         "relay.commands.recurring._interactive_stdio_has_tty", lambda: True
     )
