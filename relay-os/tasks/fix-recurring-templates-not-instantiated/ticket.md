@@ -5,7 +5,7 @@ mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts:
 - relay/recurring
 skills: []
@@ -26,7 +26,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 4 (review)
 ---
 
 ## Description
@@ -78,6 +78,8 @@ Deliverable:
 - **The gap:** malformed `schedule` → uncaught `CroniterBadCronError` at
   `src/relay/recurring.py:242`. `Template.load` (lines 43–64) is the natural
   place to validate.
+- **Verified after fix (2026-06-17):** malformed schedules are per-template
+  skips and the bare sweep still creates/launches the other due templates.
 - `relay-os/scripts/cron.sh` is just `exec relay recurring` (no TTY) — no
   change needed there; the fix is in the Python create/scan path.
 - Reframed from a stale bug stub to a verification gate (owner decision,

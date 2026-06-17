@@ -1,5 +1,29 @@
 # fix-recurring-templates-not-instantiated
 
+## Dev
+
+- branch: codex/validate-recurring-cron
+- worktree: /tmp/relay-validate-recurring-cron
+- pr: https://github.com/FastJVM/relay/pull/381
+
+### open-pr (2026-06-17)
+- Pushed branch and opened PR #381 (base `main`). `gh pr checks 381` → "no
+  checks reported on the branch" — this repo has no CI configured, so green/red
+  is N/A; correctness rests on the local suite (756 passed, 1 skipped).
+
+## Implementation (2026-06-17)
+
+- Added load-time cron validation in `Template.load`, catching `CroniterError`
+  after probing `croniter(schedule, base).get_prev(datetime)`. Malformed
+  schedules now become `RecurringError`, so scans/listing report per-template
+  errors instead of letting raw croniter exceptions kill the sweep.
+- Added regressions for malformed schedules, missing `ticket.md` template
+  directories, and a bare recurring sweep that still launches other due
+  templates after skipping a malformed one.
+- Verification:
+  - `PYTHONPATH=/tmp/relay-validate-recurring-cron/src python -m pytest tests/test_recurring.py -q` → 71 passed
+  - `PYTHONPATH=/tmp/relay-validate-recurring-cron/src python -m pytest -q` → 755 passed, 1 skipped
+
 ## Verification findings (2026-06-17, bootstrap session)
 
 Ran the v1 cron verification gate against the create path. PR #357's
@@ -81,3 +105,21 @@ Reasonable for one ticket, lightly bundled but cohesively. Deliverable 1 (the fi
 - **Slack-summary claim.** The comment at line 277 says the command "posts a Slack summary so the failure is never silent." The ticket leans on errors landing in `DueScan.errors` as sufficient. Confirm the `relay recurring` CLI actually surfaces `DueScan.errors` to Slack/stderr under cron (no TTY) — that's the whole "no human is watching" justification. Not in the files reviewed; the implementer should not assume it.
 
 Net: ticket is high-quality and launch-ready. Two things to fix before/at implementation — catch `CroniterError` (not just `CroniterBadCronError`) and make the load-time probe match the real `_last_firing` call so validation can't be bypassed by lazy parsing.
+
+## Peer review (2026-06-17, Codex)
+
+- Ran native review from `/tmp/relay-validate-recurring-cron` with
+  `codex review --base main` (sandbox retry required because the first attempt
+  hit Codex's read-only app-server init failure).
+- Finding: the implementation validated schedules against fixed
+  `datetime(2000, 1, 1)`, which could reject croniter-valid year-scoped
+  schedules that are valid at the actual sweep date.
+- Applied must-fix in commit `062d9b5`:
+  `Template.load(..., now=...)` now validates with the caller's `now`, and
+  `scan_due`, `scan_debug`, `list_templates`, and `create_named` pass their
+  resolved timestamp through. Added a regression for a 2026 year-scoped
+  schedule.
+- Verification after peer fix:
+  - `PYTHONPATH=/tmp/relay-validate-recurring-cron/src python -m pytest tests/test_recurring.py -q` → 72 passed
+  - `PYTHONPATH=/tmp/relay-validate-recurring-cron/src python -m pytest -q` → 756 passed, 1 skipped
+  - `git diff --check` → clean
