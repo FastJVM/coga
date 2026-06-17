@@ -9,7 +9,18 @@ assignee: claude
 contexts: []
 skills:
 - bootstrap/ticket
-workflow: autonomy/assist-only
+workflow:
+  name: autonomy/assist-only
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: human
+  - name: report-to-relay
+    skills: []
+    assignee: agent
 ---
 
 ## Description
