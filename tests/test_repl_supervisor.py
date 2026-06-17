@@ -1,4 +1,5 @@
-"""Tests for the PTY watcher that releases an interactive REPL on marker."""
+"""Tests for the PTY watcher that releases an interactive REPL on a
+sentinel-file done signal."""
 
 from __future__ import annotations
 
@@ -10,7 +11,6 @@ import time
 import pytest
 
 from relay.repl_supervisor import (
-    DONE_MARKER,
     SENTINEL_ENV,
     _TIMEOUT_EXIT_CODE,
     _TTY_SANITIZE,
@@ -112,25 +112,11 @@ def _run_through_pty(
         os.close(devnull_in)
 
 
-def test_marker_in_child_output_terminates_child(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Child writes the marker → supervisor SIGTERMs it and reports a clean done.
-
-    Without the watcher, the trailing `sleep 30` would block the test for
-    half a minute; we assert it returns quickly with a clean exit code.
-    """
-    marker = DONE_MARKER.decode()
-    outcome = _run_through_pty(
-        monkeypatch, ["bash", "-c", f"echo '{marker}'; sleep 30"]
-    )
-    assert (outcome.exit_code, outcome.kind) == (0, "done")
-
-
 def test_natural_exit_passes_through_exit_code(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Child that exits on its own without the marker → exit code is forwarded."""
+    """Child that exits on its own without signalling done → exit code is
+    forwarded."""
     outcome = _run_through_pty(monkeypatch, ["bash", "-c", "exit 7"])
     assert (outcome.exit_code, outcome.kind) == (7, "natural")
 
@@ -221,10 +207,10 @@ def test_sentinel_file_terminates_child(
 ) -> None:
     """Child that writes $RELAY_DONE_SENTINEL → supervisor SIGTERMs it.
 
-    This is the channel that survives TUI agents (Claude Code, Codex) which
-    capture bash subprocess stdout into a private pipe rather than echoing it
-    to the PTY — the marker bytes never reach the watcher in that case, but
-    the file does.
+    This is the only done channel, and it survives TUI agents (Claude Code,
+    Codex) which capture bash subprocess stdout into a private pipe rather
+    than echoing it to the PTY: the supervisor reads the file regardless of
+    where the child's stdout goes.
     """
     outcome = _run_through_pty(
         monkeypatch,
@@ -341,27 +327,27 @@ def test_emit_done_marker_writes_sentinel(
     tmp_path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """`emit_done_marker` writes the sentinel file when env var is set, and
-    does NOT print the marker — the file is the channel, and a printed marker
+    prints nothing — the file is the only channel, and any in-band print
     would leak into a TUI's visible output / a parent supervisor's PTY."""
     sentinel = tmp_path / "done"
     monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
     emit_done_marker()
     assert sentinel.exists()
-    assert DONE_MARKER.decode() not in capsys.readouterr().out
+    assert capsys.readouterr().out == ""
 
 
-def test_emit_done_marker_prints_only_if_file_write_fails(
+def test_emit_done_marker_write_failure_is_silent(
     tmp_path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Last-resort fallback: if the sentinel file write raises, fall back to
-    the PTY-byte-match channel by printing the marker so a shell-shaped agent
-    can still be torn down."""
+    """The sentinel file is the only channel: if its write raises there is
+    nothing to fall back to, so the call swallows the error and prints
+    nothing rather than emitting an in-band signal."""
     # Parent directory does not exist → the atomic write's `mkstemp` raises.
     sentinel = tmp_path / "missing-dir" / "done"
     monkeypatch.setenv(SENTINEL_ENV, str(sentinel))
-    emit_done_marker()
+    emit_done_marker()  # must not raise
     assert not sentinel.exists()
-    assert DONE_MARKER.decode() in capsys.readouterr().out
+    assert capsys.readouterr().out == ""
 
 
 def test_bare_touch_ignores_empty_sentinel(tmp_path) -> None:
@@ -388,9 +374,9 @@ def test_sentinel_missing_is_not_done(tmp_path) -> None:
 def test_emit_done_marker_no_env_is_silent(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Without the env var (non-supervised terminal), nothing watches for the
-    marker, so emit nothing — printing it would only leak the internal
-    teardown string into the human's visible transcript."""
+    """Without the env var (non-supervised terminal), there is no sentinel to
+    write and no in-band channel, so emit nothing — a print would only leak an
+    internal teardown string into the human's visible transcript."""
     monkeypatch.delenv(SENTINEL_ENV, raising=False)
     emit_done_marker()
-    assert DONE_MARKER.decode() not in capsys.readouterr().out
+    assert capsys.readouterr().out == ""

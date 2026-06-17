@@ -5,17 +5,13 @@ types `/exit`. For `relay recurring --interactive` (and any other unattended
 caller of an interactive launch) we want the agent itself to be able to
 signal completion so the next task can start without manual intervention.
 
-Two signal channels, checked in parallel:
-
-1. **Sentinel file** (primary). The supervisor creates a tempfile path and
-   exports it as `RELAY_DONE_SENTINEL` in the child's env. `emit_done_marker`
-   touches the file. Robust against TUI agents (Claude Code, Codex) that
-   capture bash subprocess stdout into a private pipe rather than echoing it
-   to the PTY — the PTY watcher never sees the marker bytes in that case.
-
-2. **PTY byte match** (fallback). For shell-shaped agents that pipe stdout
-   straight through, a literal match on `DONE_MARKER` in the PTY stream also
-   triggers teardown.
+The signal travels over a single **sentinel file**. The supervisor creates a
+tempfile path and exports it as `RELAY_DONE_SENTINEL` in the child's env;
+`emit_done_marker` writes the launched session's id into it and the supervisor
+polls for that match. The file channel is robust against TUI agents (Claude
+Code, Codex) that capture bash subprocess stdout into a private pipe rather
+than echoing it to the PTY, and — because its content names the session — it
+never tears down a *different* session that merely inherited the env var.
 """
 
 from __future__ import annotations
@@ -38,11 +34,6 @@ from typing import Mapping
 
 from relay.atomicio import atomic_write_text
 
-
-# Unique sentinel — long enough that an agent's prose, code review, or
-# context echo cannot collide with it by accident. Changing this is a
-# breaking change for any agent context teaching the convention.
-DONE_MARKER = b"<<<RELAY_SESSION_DONE_a9f3c41e>>>"
 
 # Env var name the supervisor uses to advertise the sentinel-file path to
 # the child. `emit_done_marker` reads this. Stable name = stable contract.
@@ -74,7 +65,7 @@ class ReplOutcome:
     ended so a caller can branch without re-deriving it from the number:
 
     - `"natural"` — the child exited on its own; we never signalled it.
-    - `"done"` — we tore it down after a done signal (sentinel / marker).
+    - `"done"` — we tore it down after a sentinel-file done signal.
     - `"timeout"` — we tore it down on a liveness limit (idle / max-session);
       the agent never signalled done. This is the wedge the watchdog catches.
     - `"crash"` — a death by a signal we did **not** send, surfaced rather than
@@ -143,7 +134,6 @@ def _sentinel_signals_done(path: str, session_id: str | None) -> bool:
 def run_with_done_marker(
     cmd: list[str],
     env: Mapping[str, str],
-    marker: bytes = DONE_MARKER,
     *,
     session_id: str | None = None,
     idle_timeout: float | None = None,
@@ -233,7 +223,6 @@ def run_with_done_marker(
 
     prev_winch = signal.signal(signal.SIGWINCH, _on_winch)
 
-    buf = bytearray()
     sent_term = False
     term_kind: str | None = None
     term_deadline: float | None = None
@@ -323,14 +312,6 @@ def run_with_done_marker(
                     os.write(out_fd, chunk)
                 except OSError:
                     pass
-                buf.extend(chunk)
-                if not sent_term and marker in buf:
-                    _trigger_term(
-                        "pty-byte-match (DONE_MARKER seen in output)", kind="done"
-                    )
-                # Bound the buffer but keep enough context to span chunks.
-                if len(buf) > 4 * len(marker):
-                    del buf[: -4 * len(marker)]
             if stdin_fd in rlist:
                 try:
                     data = os.read(stdin_fd, 4096)
@@ -440,18 +421,15 @@ def emit_done_marker(session_id: str | None = None) -> None:
     tears down a *different* session that merely inherited the env var (e.g.
     a parent orchestrator marking a child task done).
 
-    We deliberately do **not** print `DONE_MARKER` to stdout on the success
-    path. That print used to be a "fallback" PTY-byte-match channel, but the
-    file write already covers every supervised agent regardless of shape, so
-    the print was redundant — and actively harmful: a TUI captures it into
-    visible tool output (the human sees the raw teardown marker), and when a
-    TUI renders that captured output back to its display the unscoped bytes
-    can cross-talk into a *parent* supervisor's PTY and tear the parent down.
-    In a non-supervised terminal nothing watches for it at all, so printing
-    only leaks the internal protocol string into the transcript. The marker
-    is emitted to stdout *only* as a genuine last resort if the file write
-    itself fails — then the PTY-byte-match in `run_with_done_marker` is the
-    only channel left for a shell-shaped agent.
+    The sentinel file is the *only* channel: there is deliberately no
+    in-band stdout signal. An earlier design printed the done marker to
+    stdout as a fallback, but it was unscoped to the session and actively
+    harmful — a TUI captures the print into visible tool output (the human
+    sees the raw teardown marker), and when a TUI renders that captured
+    output back to its display the bytes can cross-talk into a *parent*
+    supervisor's PTY and tear the parent down. If the file write fails there
+    is nothing left to fall back to; the supervisor's idle/max-session
+    backstop catches a session that never signalled done.
 
     `session_id` is written as the file content so the supervisor can verify
     the signal names *its* session and ignore stray writes from unrelated
@@ -472,15 +450,13 @@ def emit_done_marker(session_id: str | None = None) -> None:
         # "done" (see `_sentinel_signals_done`).
         atomic_write_text(Path(sentinel), f"{session_id or 'done'}\n")
     except OSError:
-        # File channel failed — fall back to the PTY-byte-match channel so a
-        # shell-shaped agent can still be torn down. A TUI captures this into
-        # private tool output where it can't reach the supervisor's PTY watch,
-        # so it won't help there, but it is the last resort either way.
-        print(DONE_MARKER.decode("ascii"), flush=True)
+        # The sentinel file is the only channel; if its write fails there is
+        # nothing to fall back to. The session degrades to the supervisor's
+        # idle/max-session backstop rather than signalling done in-band.
+        pass
 
 
 __all__ = [
-    "DONE_MARKER",
     "SENTINEL_ENV",
     "_TIMEOUT_EXIT_CODE",
     "_TTY_SANITIZE",

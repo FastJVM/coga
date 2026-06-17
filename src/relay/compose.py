@@ -19,7 +19,6 @@ from relay.paths import (
     skill_resolution_paths,
     workflow_path,
 )
-from relay.repl_supervisor import DONE_MARKER
 from relay.tasks import TargetRef
 from relay.ticket import Ticket
 from relay.workflow import Workflow
@@ -37,21 +36,6 @@ class ComposeError(RuntimeError):
 
 
 _SECTION_HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
-
-# A composed prompt may quote DONE_MARKER (the ticket teaching this very
-# convention does). Anything echoed by the agent's REPL onto its PTY is
-# matched by `run_with_done_marker`'s literal byte search and SIGTERMs the
-# child before any work happens. Defuse by inserting a zero-width joiner
-# inside the marker so the byte sequence can never match, while the line
-# stays visibly identical to a human reading the composed prompt.
-_DONE_MARKER_TEXT = DONE_MARKER.decode("ascii")
-_DONE_MARKER_DEFUSED = _DONE_MARKER_TEXT[:3] + "‍" + _DONE_MARKER_TEXT[3:]
-
-
-def _defuse_done_marker(text: str) -> str:
-    if _DONE_MARKER_TEXT in text:
-        return text.replace(_DONE_MARKER_TEXT, _DONE_MARKER_DEFUSED)
-    return text
 
 
 @dataclass(frozen=True)
@@ -92,10 +76,9 @@ class PromptComposition:
 
     @property
     def prompt(self) -> str:
-        assembled = "\n\n---\n\n".join(
+        return "\n\n---\n\n".join(
             layer.rendered.strip() for layer in self.layers if layer.rendered.strip()
         ) + "\n"
-        return _defuse_done_marker(assembled)
 
     @property
     def byte_count(self) -> int:

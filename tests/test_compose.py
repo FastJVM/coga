@@ -14,7 +14,6 @@ from relay.compose import (
     write_prompt_file,
 )
 from relay.config import load_config
-from relay.repl_supervisor import DONE_MARKER
 from relay.tasks import list_tasks, read_ticket
 from relay.ticket import Ticket
 
@@ -247,46 +246,6 @@ def test_compose_inline_step_instructions(repo: Path) -> None:
     prompt = compose_prompt(cfg, ref, ticket)
     assert "Open a PR. Push branch first." in prompt
     assert "Current step: pr" in prompt
-
-
-def test_compose_defuses_done_marker_in_ticket_body(repo: Path) -> None:
-    """A ticket body that quotes DONE_MARKER (e.g. one teaching the
-    auto-quit convention) must not echo the literal byte sequence into
-    the composed prompt — the supervisor would otherwise SIGTERM the
-    agent's REPL before any work begins."""
-    cfg = load_config(repo)
-    _write_workflow_less_task(repo, title="Quote the marker")
-    ref = list_tasks(cfg)[0]
-    ticket = read_ticket(ref)
-    # Rewrite the body so `## Description` carries the literal marker. The
-    # composer extracts that section and renders it as the trailing layer.
-    marker = DONE_MARKER.decode("ascii")
-    ticket.body = (
-        f"## Description\n\nThis ticket discusses the marker {marker} "
-        "which the supervisor watches for.\n\n## Context\n\n"
-    )
-    ticket.write(ref.path / "ticket.md")
-    ticket = read_ticket(ref)
-
-    prompt = compose_prompt(cfg, ref, ticket)
-    assert marker not in prompt
-    # The defused variant still reads as the marker visually — assert by
-    # checking the unique distinguishing token is still present.
-    assert "RELAY_SESSION_DONE_a9f3c41e" in prompt
-
-
-def test_compose_defuses_done_marker_in_blackboard(repo: Path) -> None:
-    """Same defusal must cover the blackboard layer."""
-    cfg = load_config(repo)
-    _write_workflow_less_task(repo, title="bb marker")
-    ref = list_tasks(cfg)[0]
-    marker = DONE_MARKER.decode("ascii")
-    (ref.path / "blackboard.md").write_text(
-        f"prior session notes:\n{marker}\nmore notes\n"
-    )
-    ticket = read_ticket(ref)
-    prompt = compose_prompt(cfg, ref, ticket)
-    assert marker not in prompt
 
 
 def test_compose_raises_on_missing_context(repo: Path) -> None:
