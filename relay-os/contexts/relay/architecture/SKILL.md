@@ -200,11 +200,11 @@ that touches both planes.
   composed prompt, human stays in the loop. The REPL doesn't terminate on
   its own — `relay bump` / `relay mark done` / `relay panic` signal the
   launch supervisor via the session-scoped `$RELAY_DONE_SENTINEL` file, and
-  the supervisor SIGTERMs the REPL. The legacy `DONE_MARKER` PTY byte-match
-  exists only as a last-resort fallback if the sentinel file write fails; it
-  is not printed on the success path, and the supervisor honors it only when
-  the marker carries the launched task's session id appended — so a bare
-  marker an agent reads, greps, or quotes at runtime cannot trigger teardown. After teardown, `relay launch` re-reads
+  the supervisor SIGTERMs the REPL. The sentinel file is the only done
+  channel: the supervisor honors it only when the file's content names the
+  launched task's session id, so a session-ending command run by an
+  unrelated descendant that merely inherited the env var cannot trigger
+  teardown. After teardown, `relay launch` re-reads
   the ticket and either spawns a fresh REPL for the next workflow step (whenever
   it is an *agent's* turn — relaunching the next agent's CLI, so it rotates
   e.g. claude → codex → claude across a peer-review workflow) or returns
@@ -255,17 +255,13 @@ must read goes in the blackboard (and is therefore composed, so keep it
 small); durable history goes in the log (never composed, so let it
 accumulate).
 
-The composer defuses the session-teardown marker before returning the
-assembled prompt. An interactive launch's PTY supervisor tears down the REPL
-when the session-scoped `$RELAY_DONE_SENTINEL` file names the launched task.
-It still keeps a legacy PTY byte-match fallback for the `DONE_MARKER` byte
-sequence, used only if a session-ending command cannot write the sentinel
-file — and the supervisor honors that match only when the marker carries the
-launched task's session id appended, so a *bare* marker (one an agent reads,
-greps, or a dev-update/digest quotes at runtime) can never trigger teardown.
-As additional defense for the composed prompt, `compose._defuse_done_marker`
-inserts a zero-width joiner right after the leading `<<<` so the bare marker
-sequence cannot appear intact in composed text either.
+An interactive launch's PTY supervisor tears down the REPL when the
+session-scoped `$RELAY_DONE_SENTINEL` file names the launched task — its sole
+done channel. Because the signal is a side-channel file whose content must
+match the launched task's session id, there is nothing in the composed prompt
+or PTY byte stream to trip: an agent that reads, greps, or quotes a teardown
+string at runtime cannot end its own (or a parent's) session, so the composer
+returns the assembled prompt verbatim with no defusal step.
 
 ## Status is the signal
 

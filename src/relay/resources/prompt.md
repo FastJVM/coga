@@ -60,9 +60,9 @@ Rules:
   the new step and continue in the same process. In a supervised
   `relay launch`, `relay bump` / `relay panic` / `relay mark done` already
   signal the supervisor to tear down your REPL — just run the command and
-  stop. Don't paste any marker string yourself. The `relay launch`
-  supervisor evaluates the post-bump state and respawns the next agent step
-  in a fresh process; it stops the chain on human-owned steps, assignee
+  stop. The `relay launch` supervisor evaluates the post-bump state and
+  respawns the next agent step in a fresh process; it stops the chain on
+  human-owned steps, assignee
   changes, no-skill steps, `done`/`paused` tasks, and panic/non-zero exits.
   This gives every step a clean prompt scope (no carryover reasoning from
   the previous skill) and lets workflows rotate between agent types

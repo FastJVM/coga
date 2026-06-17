@@ -461,11 +461,11 @@ def launch(
                 if mode == "interactive":
                     # Interactive REPLs (`claude`, `codex`) don't exit on
                     # their own. Run through a PTY watcher so an agent that
-                    # emits the session-done marker after `relay mark done`
-                    # / `relay panic` releases the REPL — and `relay
+                    # writes the session-done sentinel file after `relay mark
+                    # done` / `relay panic` releases the REPL — and `relay
                     # recurring --interactive` can move to the next task
-                    # without the human typing `/exit`. The marker string
-                    # is `relay.repl_supervisor.DONE_MARKER`.
+                    # without the human typing `/exit`. The sentinel path is
+                    # advertised via `relay.repl_supervisor.SENTINEL_ENV`.
                     outcome = run_with_done_marker(
                         cmd,
                         env,

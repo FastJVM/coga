@@ -3,11 +3,10 @@
 `relay bump`, `relay mark done`, and `relay panic` signal the supervising
 `relay launch` that the session is over so it can SIGTERM the agent's REPL
 (see `relay.repl_supervisor`). The signal travels over the *sentinel file*
-(`$RELAY_DONE_SENTINEL`), not stdout: the raw `DONE_MARKER` must never leak
-into the command's visible output, or a TUI shows it to the human and it can
-cross-talk into a parent supervisor's PTY. Other transitions (`mark active`,
-`mark paused`, or any error path) must NOT signal at all — the session is
-not over.
+(`$RELAY_DONE_SENTINEL`) and nothing else: a success writes the task's
+resolved path into the file, scoped to this session. Other transitions
+(`mark active`, `mark paused`, or any error path) must NOT write it at all
+— the session is not over.
 """
 
 from __future__ import annotations
@@ -20,11 +19,8 @@ from typer.testing import CliRunner
 
 from relay.cli import app
 from relay.config import load_config
-from relay.repl_supervisor import DONE_MARKER, SENTINEL_ENV
+from relay.repl_supervisor import SENTINEL_ENV
 from relay.create import create_task
-
-
-_MARKER = DONE_MARKER.decode("ascii")
 
 
 def _write(path: Path, text: str) -> None:
@@ -125,103 +121,107 @@ def _no_supervisor(monkeypatch: pytest.MonkeyPatch) -> None:
 # --- bump ---------------------------------------------------------------------
 
 
-def test_bump_success_signals_via_sentinel_not_stdout(
+def test_bump_success_signals_via_sentinel(
     repo: Path, sentinel: Path
 ) -> None:
     slug, path = _make_task(repo)
     result = CliRunner().invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
-    # The signal goes to the side-channel file, scoped to this task...
+    # The signal goes to the side-channel file, scoped to this task.
     assert sentinel.read_text().strip() == str(path.resolve())
-    # ...and never leaks the raw marker into visible output.
-    assert _MARKER not in result.output
 
 
-def test_bump_success_unsupervised_does_not_leak_marker(
+def test_bump_success_unsupervised_is_noop(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """No supervisor (no env var): nothing watches for the marker, so it must
-    not be printed into the human's transcript."""
+    """No supervisor (no env var): the signal is a silent no-op rather than an
+    error — there is no in-band channel to fall back to."""
     _no_supervisor(monkeypatch)
     slug, _ = _make_task(repo)
     result = CliRunner().invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
-    assert _MARKER not in result.output
 
 
-def test_bump_error_past_final_step_does_not_emit_marker(repo: Path) -> None:
+def test_bump_error_past_final_step_does_not_signal(
+    repo: Path, sentinel: Path
+) -> None:
     slug, _ = _make_task(repo)
     runner = CliRunner()
     runner.invoke(app, ["bump", slug])  # → step 2
-    runner.invoke(app, ["bump", slug])  # → step 3 (final)
+    runner.invoke(app, ["bump", slug])  # → step 3 (final), signals success
+    # Clear the sentinel left by the successful bumps so the assertion below
+    # isolates the *erroring* bump's behavior.
+    sentinel.unlink(missing_ok=True)
     result = runner.invoke(app, ["bump", slug])  # past final
     assert result.exit_code == 2
-    assert _MARKER not in result.output
+    assert not sentinel.exists()
 
 
-def test_bump_error_no_workflow_does_not_emit_marker(repo: Path) -> None:
+def test_bump_error_no_workflow_does_not_signal(
+    repo: Path, sentinel: Path
+) -> None:
     slug, _ = _make_task(repo, workflow=None)
     result = CliRunner().invoke(app, ["bump", slug])
     assert result.exit_code == 2
-    assert _MARKER not in result.output
+    assert not sentinel.exists()
 
 
-def test_bump_error_wrong_status_does_not_emit_marker(repo: Path) -> None:
+def test_bump_error_wrong_status_does_not_signal(
+    repo: Path, sentinel: Path
+) -> None:
     slug, _ = _make_task(repo, status="paused")
     result = CliRunner().invoke(app, ["bump", slug])
     assert result.exit_code == 2
-    assert _MARKER not in result.output
+    assert not sentinel.exists()
 
 
 # --- mark done ----------------------------------------------------------------
 
 
-def test_mark_done_success_signals_via_sentinel_not_stdout(
+def test_mark_done_success_signals_via_sentinel(
     repo: Path, sentinel: Path
 ) -> None:
     slug, path = _make_task(repo, status="active")
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
     assert sentinel.read_text().strip() == str(path.resolve())
-    assert _MARKER not in result.output
 
 
-def test_mark_done_success_unsupervised_does_not_leak_marker(
+def test_mark_done_success_unsupervised_is_noop(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _no_supervisor(monkeypatch)
     slug, _ = _make_task(repo, status="active")
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
-    assert _MARKER not in result.output
 
 
-def test_mark_done_error_does_not_emit_marker(repo: Path) -> None:
+def test_mark_done_error_does_not_signal(repo: Path, sentinel: Path) -> None:
     slug, _ = _make_task(repo, status="draft")
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 2
-    assert _MARKER not in result.output
+    assert not sentinel.exists()
 
 
-def test_mark_active_does_not_emit_marker(repo: Path) -> None:
+def test_mark_active_does_not_signal(repo: Path, sentinel: Path) -> None:
     """Only the terminal `mark done` transition signals session end."""
     slug, _ = _make_task(repo, status="draft")
     result = CliRunner().invoke(app, ["mark", "active", slug])
     assert result.exit_code == 0, result.output
-    assert _MARKER not in result.output
+    assert not sentinel.exists()
 
 
-def test_mark_paused_does_not_emit_marker(repo: Path) -> None:
+def test_mark_paused_does_not_signal(repo: Path, sentinel: Path) -> None:
     slug, _ = _make_task(repo, status="active")
     result = CliRunner().invoke(app, ["mark", "paused", slug])
     assert result.exit_code == 0, result.output
-    assert _MARKER not in result.output
+    assert not sentinel.exists()
 
 
 # --- panic --------------------------------------------------------------------
 
 
-def test_panic_success_signals_via_sentinel_not_stdout(
+def test_panic_success_signals_via_sentinel(
     repo: Path, sentinel: Path
 ) -> None:
     slug, path = _make_task(repo)
@@ -229,13 +229,12 @@ def test_panic_success_signals_via_sentinel_not_stdout(
         app, ["panic", "--task", slug, "--reason", "stuck on 429 backoff ceiling"]
     )
     # Panic exits non-zero on the success path; the supervisor is still
-    # released — via the sentinel file, not a visible marker.
+    # released — via the sentinel file.
     assert result.exit_code == 1, result.output
     assert sentinel.read_text().strip() == str(path.resolve())
-    assert _MARKER not in result.output
 
 
-def test_panic_success_unsupervised_does_not_leak_marker(
+def test_panic_success_unsupervised_is_noop(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _no_supervisor(monkeypatch)
@@ -244,13 +243,14 @@ def test_panic_success_unsupervised_does_not_leak_marker(
         app, ["panic", "--task", slug, "--reason", "stuck on 429 backoff ceiling"]
     )
     assert result.exit_code == 1, result.output
-    assert _MARKER not in result.output
 
 
-def test_panic_error_empty_reason_does_not_emit_marker(repo: Path) -> None:
+def test_panic_error_empty_reason_does_not_signal(
+    repo: Path, sentinel: Path
+) -> None:
     slug, _ = _make_task(repo)
     result = CliRunner().invoke(
         app, ["panic", "--task", slug, "--reason", "   "]
     )
     assert result.exit_code == 2
-    assert _MARKER not in result.output
+    assert not sentinel.exists()
