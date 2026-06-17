@@ -1,6 +1,6 @@
 ---
 title: Relay build onboarding flow
-status: draft
+status: active
 mode: interactive
 owner: zach
 human: zach
