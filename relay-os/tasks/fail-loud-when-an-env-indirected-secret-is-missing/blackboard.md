@@ -1,5 +1,60 @@
 # Blackboard — fail-loud-when-an-env-indirected-secret-is-missing
 
+## Dev
+
+- branch: `scoped-secrets`
+- worktree: `../relay-scoped-secrets` (i.e. `/home/n/Code/claude/relay-scoped-secrets`)
+- commit: `37b935e` (committed, not pushed — open-pr step does that)
+
+## Implementation (claude, 2026-06-17)
+
+All blackboard decisions honored. Single commit on `scoped-secrets`.
+
+**Data model (the load-bearing change).** `cfg.secrets` is now
+`dict[str, SecretValue]` (new frozen dataclass: `raw`, `env_var`, `value`).
+`_resolve_secrets` keeps provenance — an `env:VAR` whose var is unset resolves
+to `value=None`, kept distinct from an empty literal (`value == ""`). The old
+`os.environ.get(VAR, "")` footgun is gone. `_resolve_secret_value` is left as-is
+(still string-returning) but is now used *only* by the slack webhook path; its
+docstring is corrected. Only 5 sites consumed `cfg.secrets`, so the blast radius
+was contained.
+
+**Chokepoint + three-way semantics.** New `config.select_launch_secrets(cfg,
+declared)` + `SecretError`:
+- `declared is None` (absent/null) → legacy blanket, minus any unset env: secret
+  (never injected as "").
+- `declared == []` → strict, inject nothing. (Distinguished from None — no
+  `or []` collapse. `Ticket.secrets` returns the raw value for the same reason.)
+- non-empty list → least privilege; `SecretError` on undeclared key or unset
+  env var, message names both key + env var.
+- non-list / non-string entries → `SecretError` (defensive; validate also errors).
+
+**Inject sites.** `launch.py` (agent) and `launch_script.py` (script — folded in,
+NOT dropped) both call the helper and `_bail` on `SecretError`. Blanket inject
+stripped from `ticket.py` / `delete.py` / `project.py` — verified each: authoring,
+planning, and task-dir deletion run no task work and need no secrets.
+
+**Registrations.** `secrets` added to `ticket.CANONICAL_TICKET_KEYS`,
+`config._RESERVED_TICKET_FIELD_NAMES`, and `validate.OPTIONAL_TASK_KEYS` (NOT
+required). `validate._check_secrets`: shape error (must be null or list of
+strings) + warns (undeclared key / unset env var). Templates: `secrets: null`
+documented in both `_template/ticket.md` copies (live + packaged). No example
+`_template` exists, nothing to sync there.
+
+**Tests.** `python -m pytest` → 768 passed, 1 skipped (note: system `python` is
+3.9; run with `python3.12`). `relay validate --json` on `example/relay-os` →
+clean. New coverage: config (provenance + all 3 select_launch_secrets cases +
+fail-loud), launch + launch_script (fail-loud no-spawn + least-privilege
+integration), validate (shape error + both warns).
+
+**Out of scope.** The `extra_local` typo-warn is **split to a follow-up**
+(confirmed by nick at implement time, reversing the earlier "bundle" note — both
+evaluators had recommended splitting; it touches a different config layer and
+needs its own precise enumeration of valid `relay.local.toml` keys). NOT done
+here. → needs a new draft ticket (e.g. `warn-on-unknown-relay-local-keys`).
+The query/retrieve-on-demand capability remains the separate
+`add-a-way-to-query-a-declared-secret-on-demand` ticket.
+
 ## Bootstrap decisions (nick + claude, 2026-06-17)
 
 - **Premise confirmed.** `config.py:850` `os.environ.get(VAR, "")` → unset env
