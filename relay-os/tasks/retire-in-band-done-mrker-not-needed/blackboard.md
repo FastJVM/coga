@@ -5,6 +5,43 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - branch: retire-done-marker
 - worktree: /home/n/Code/claude/relay-retire-done-marker
 - pr: https://github.com/FastJVM/relay/pull/377
+pr: https://github.com/FastJVM/relay/pull/377
+
+### Review closeout (codex, 2026-06-17)
+
+Verified live PR #377 is `MERGED` on GitHub, the feature worktree is clean at
+`b5ea0e5` and matches `origin/retire-done-marker`, and task-scoped validation
+passes. Added this plain `pr:` line so Relay's automerge parser can close the
+final review step.
+
+### Open-pr refresh (codex, 2026-06-17)
+
+Verified `/home/n/Code/claude/relay-retire-done-marker` is clean on
+`retire-done-marker` at `b5ea0e5` and matches `origin/retire-done-marker`.
+`git push origin retire-done-marker` reported everything up to date.
+
+Live PR state from `gh pr view 377`: PR #377 is non-draft and already
+`MERGED`; `gh pr checks 377` reports no checks configured for the branch.
+The local verification remains the recorded full suite: **750 passed,
+1 skipped**.
+
+### Implement handoff verification (codex, 2026-06-17)
+
+Relaunch prompt still had the ticket on `step: 1 (implement)`, but the
+recorded feature worktree is clean at commit `9438443` on `retire-done-marker`
+and already pushed to `origin/retire-done-marker`. I made no code changes.
+
+Fresh verification from `/home/n/Code/claude/relay-retire-done-marker`:
+
+- `env PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -B -m pytest -q -p no:cacheprovider`:
+  **750 passed, 1 skipped**.
+- `git diff --check main...HEAD`: clean.
+- Targeted `rg` for `DONE_MARKER`, literal session marker text, compose
+  defusal helpers, and PTY marker-match terms under `src`, `tests`, and the
+  live architecture context: no matches.
+
+Conclusion: the implement step's code/test acceptance is already satisfied;
+the remaining implement-step action is the Relay workflow transition.
 
 ### PR opened (claude, 2026-06-16, open-pr step)
 
@@ -51,22 +88,33 @@ Removing the in-band PTY byte-match channel entirely:
   marker-leak assertions in `test_done_marker_emission.py` to
   sentinel-presence/absence assertions.
 
-### Peer review (codex)
+### Peer review (codex, 2026-06-17)
 
 Ran `codex review --base main` from `/home/n/Code/claude/relay-retire-done-marker`.
 The sandboxed attempt hit the known app-server read-only-filesystem failure, so
-it was rerun outside the sandbox. Codex review found no actionable regressions.
+it was rerun outside the sandbox.
 
-Verification:
+Codex review found one actionable issue: the packaged bootstrap
+`src/relay/resources/templates/relay-os/bootstrap/contexts/relay/cli/SKILL.md`
+still instructed agents to emit the removed literal teardown marker. I updated
+that shipped context to describe the sentinel-only `$RELAY_DONE_SENTINEL`
+teardown path and committed it as:
 
-- `PYTHONPATH=src /home/n/Code/relay/.venv/bin/python -m pytest -q -p no:cacheprovider`
-  from the feature worktree: **750 passed, 1 skipped**.
+- `b5ea0e5 peer-review: update CLI teardown context`
+
+Verification from the feature worktree:
+
+- `env PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 /home/n/Code/relay/.venv/bin/python -m pytest -q -p no:cacheprovider`:
+  **750 passed, 1 skipped**.
 - `git diff --check main...HEAD`: clean.
-- Targeted `rg` for in-scope `DONE_MARKER`, defusal, PTY byte-match, and
-  literal marker references under `src`, `tests`, and the live architecture
-  context: no matches.
+- Targeted `rg` for `RELAY_SESSION_DONE`, `DONE_MARKER`, `marker string`, and
+  `PTY supervisor watches for that marker` under `src/relay`,
+  `relay-os/contexts`, and `tests`: the only remaining hit is
+  `tests/test_dream_skill_scripts.py` prose about generic marker strings, not
+  the removed teardown marker.
 
-No peer-review fix commit was needed.
+Feature worktree is clean and ahead of `origin/retire-done-marker` by the
+peer-review fix commit. The open-pr step should push the branch update.
 
 ## Bootstrap notes (nick + claude, 2026-06-16)
 

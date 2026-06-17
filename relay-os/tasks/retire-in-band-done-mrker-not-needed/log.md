@@ -14,3 +14,15 @@
 2026-06-16 21:30 [human:nick] task done
 2026-06-17 12:05 [human:nick] activated (done → active) — auto on launch
 2026-06-17 12:05 [human:nick] started (active → in_progress) via relay launch
+2026-06-17 12:05 [human:nick] launched in interactive mode (assignee=nick, launch_assignee=codex, agent=codex)
+2026-06-17 12:07 [agent:nick] advanced to step 2 (peer-review) → assigned to codex
+2026-06-17 12:07 [git] sync failed: `git add -- relay-os/tasks/retire-in-band-done-mrker-not-needed` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
+2026-06-17 12:07 [human:nick] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-17 12:17 [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-06-17 12:17 [git] sync failed: `git add -- relay-os/tasks/retire-in-band-done-mrker-not-needed` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
+2026-06-17 12:17 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-17 12:19 [human:nick] launched in interactive mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-06-17 12:20 [agent:claude] advanced to step 4 (review) → assigned to nick
+2026-06-17 12:20 [git] sync failed: `git add -- relay-os/tasks/retire-in-band-done-mrker-not-needed` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
+2026-06-17 12:25 [human:nick] launched in interactive mode (assignee=nick, launch_assignee=codex, agent=codex)
+2026-06-17 12:48 [human:nick] auto-bumped on merge of PR #377 → done
