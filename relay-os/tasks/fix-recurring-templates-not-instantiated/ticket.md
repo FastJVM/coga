@@ -1,6 +1,6 @@
 ---
 title: Verify recurring templates reliably instantiate under unattended cron
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
