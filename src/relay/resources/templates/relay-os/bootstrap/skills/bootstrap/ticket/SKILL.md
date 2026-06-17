@@ -45,9 +45,12 @@ Four ways this skill runs:
 - **New-title launch** — `relay ticket "<title>"` already scaffolded a draft
   and launched you against it. The current task has a `title:`, `status:
   draft`, and usually an empty `## Description` / `## Context` body.
-- **Existing draft/active edit** — `relay ticket <slug>` launched you against
-  an existing `draft`, `active`, or `paused` task. Preserve existing useful
-  body text and frontmatter; ask only for the missing or ambiguous pieces.
+- **Existing-ticket edit** — `relay ticket <slug>` launched you against an
+  existing task at any status (`draft`, `active`, `in_progress`, `paused`, or
+  `done`). Editing leaves the status unchanged. Preserve existing useful body
+  text and frontmatter; ask only for the missing or ambiguous pieces. For an
+  `in_progress` or `done` ticket, be aware you are revising one already in
+  flight or finished — confirm intent if the change looks substantive.
 - **Raw draft** — `relay draft "<title>"` only creates bytes on disk and does
   not run this skill. If the human expected the interview, tell them to run
   `relay ticket <slug>`.
