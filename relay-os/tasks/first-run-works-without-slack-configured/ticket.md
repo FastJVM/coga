@@ -1,6 +1,6 @@
 ---
 title: First run works without Slack configured
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
