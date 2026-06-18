@@ -15,15 +15,22 @@ yourself.
 1. **Find the feature worktree.** Read `branch:` and `worktree:` under
    `## Dev` on the blackboard. Change into that worktree and confirm
    it is on the recorded branch with a clean working tree.
-2. **Push** the branch from the feature worktree.
-3. **Open the PR** with `gh pr create`. If the `code/self-qa` step
+2. **Probe auth before you push.** Run `relay validate --check-github`
+   (or, minimally, `gh auth status`) *first*. If git/`gh` auth isn't
+   ready, do **not** improvise around it: write the exact failure and the
+   suggested fix (set/fix the remote, load your SSH key or credential
+   helper, run `gh auth login`) under `## Dev` on the blackboard, then
+   `relay panic` with a one-line reason so the human can fix auth and
+   relaunch. The push and PR cannot succeed without it.
+3. **Push** the branch from the feature worktree.
+4. **Open the PR** with `gh pr create`. If the `code/self-qa` step
    already opened a draft, run `gh pr ready <PR#>` instead. Title =
    ticket title. Body = short summary + "Closes ticket: `<slug>`" + a
    one-line test plan.
-4. **Blackboard the URL from the primary checkout.** Return to the
+5. **Blackboard the URL from the primary checkout.** Return to the
    primary checkout and add `pr: <url>` under the `## Dev` section on
    the blackboard (see the `dev/code` context).
-5. **Bump from the primary checkout.** Run `relay bump <slug>` to
+6. **Bump from the primary checkout.** Run `relay bump <slug>` to
    advance to the next step.
 
 ## Acceptance for this step
@@ -44,8 +51,9 @@ yourself.
 
 ## Gotchas
 
-- If `gh` isn't authed, surface the error to the human on the
-  blackboard — don't skip the PR step.
+- If git/`gh` auth isn't ready, you caught it in step 2: blackboard the
+  failure and `relay panic` rather than skipping the PR step or
+  improvising around missing auth.
 - If CI fails for reasons unrelated to your change, write it to the
   blackboard with a link to the failing run, then bump anyway. The
   human decides whether to re-run or rework.

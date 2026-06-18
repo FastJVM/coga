@@ -34,14 +34,21 @@ ticket reassigned to the human owner.
 6. **Commit.** Conventional, present-tense summary line. Reference the
    ticket slug in the body. One commit per logical change is fine; rebase
    to clean up before pushing.
-7. **Push** the branch from the feature worktree.
-8. **Open the PR** with `gh pr create`. Title = ticket title. Body =
+7. **Probe auth before you push.** Run `relay validate --check-github`
+   (or, minimally, `gh auth status`) *first*. If git/`gh` auth isn't
+   ready, do **not** improvise around it: write the exact failure and the
+   suggested fix (set/fix the remote, load your SSH key or credential
+   helper, run `gh auth login`) under `## Dev` on the blackboard, then
+   `relay panic` with a one-line reason so the human can fix auth and
+   relaunch. The push and PR cannot succeed without it.
+8. **Push** the branch from the feature worktree.
+9. **Open the PR** with `gh pr create`. Title = ticket title. Body =
    short summary + "Closes ticket: `<slug>`" + a one-line test plan.
-9. **Hand off from the primary checkout.** Return to the primary checkout
-   and edit the ticket's `assignee:` frontmatter to the
-   ticket's `owner:` (the human who created it). Add `pr: <url>`
-   under the `## Dev` section on the blackboard.
-10. **Advance.** Run `relay bump` to move the workflow to `review`. This
+10. **Hand off from the primary checkout.** Return to the primary checkout
+    and edit the ticket's `assignee:` frontmatter to the
+    ticket's `owner:` (the human who created it). Add `pr: <url>`
+    under the `## Dev` section on the blackboard.
+11. **Advance.** Run `relay bump` to move the workflow to `review`. This
     posts to Slack and logs the handoff.
 
 ## Acceptance for this step
@@ -65,7 +72,8 @@ You are done when:
 
 - If the work is too big for one PR, **stop and split the ticket** on
   the blackboard. Don't ship a half-PR.
-- If `gh` isn't authed, surface the error to the human on the
-  blackboard — don't skip the PR step.
+- If git/`gh` auth isn't ready, you caught it in step 7: blackboard the
+  failure and `relay panic` rather than skipping the PR step or
+  improvising around missing auth.
 - If the test suite fails for reasons unrelated to your change, write
   it to the blackboard and `relay panic` rather than masking it.

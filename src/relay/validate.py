@@ -25,6 +25,7 @@ Checks (whole-repo):
 - Tasks stuck in `in_progress` with no recent log activity.
 - Assignees referenced in tickets exist in relay.toml.
 - (Opt-in) Slack webhook reachability via an empty-text probe.
+- (Opt-in) Git/GitHub auth readiness via `git`/`gh` preflight probes.
 """
 
 from __future__ import annotations
@@ -134,6 +135,7 @@ def run(
     idle_hours: float = 72.0,
     max_blackboard_bytes: int = BLACKBOARD_WARN_BYTES,
     check_slack: bool = False,
+    check_github: bool = False,
     fix: bool = False,
 ) -> Report:
     report = Report(generated_at=_now_iso())
@@ -148,6 +150,9 @@ def run(
 
     if check_slack:
         report.issues.extend(_notification_issues(cfg))
+
+    if check_github:
+        report.issues.extend(_github_issues(cfg))
 
     valid_assignees = _valid_assignee_set(cfg)
     now = datetime.now(timezone.utc)
@@ -787,7 +792,8 @@ def _valid_assignee_set(cfg: Config) -> set[str]:
 
 
 def _ok_count(refs: list[TaskRef], issues: list[Issue]) -> int:
-    bad = {i.task for i in issues if i.severity == "error" and i.task != "(slack)"}
+    synthetic = {"(slack)", "(github)"}
+    bad = {i.task for i in issues if i.severity == "error" and i.task not in synthetic}
     return len(refs) - len(bad)
 
 
@@ -844,6 +850,31 @@ def _notification_issues(cfg: Config) -> list[Issue]:
             severity="error",
         )
     )
+    return issues
+
+
+def _github_issues(cfg: Config) -> list[Issue]:
+    """Map the git/GitHub preflight probes into report issues.
+
+    Opt-in only (gated by `--check-github`): this is the single call site that
+    shells out to `git`/`gh`, so the default read-only validate path never hits
+    the network. Every failed probe is an `error` — the operator explicitly
+    asked "is my setup ready?", and a clear no (with an actionable hint and a
+    non-zero exit) is the useful answer, including when the machine is offline.
+    """
+    from relay.github_preflight import run_preflight
+
+    issues: list[Issue] = []
+    for result in run_preflight(cfg.git_remote):
+        if not result.ok:
+            issues.append(
+                Issue(
+                    kind=f"github-{result.name}",
+                    task="(github)",
+                    message=result.detail,
+                    severity="error",
+                )
+            )
     return issues
 
 
@@ -945,6 +976,11 @@ def _main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Also probe the Slack webhook with an empty-text payload (network call).",
     )
+    parser.add_argument(
+        "--check-github",
+        action="store_true",
+        help="Also probe git/GitHub auth readiness via git/gh (network call).",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -956,6 +992,9 @@ def _main(argv: list[str] | None = None) -> int:
     if args.task is not None:
         if args.check_slack:
             sys.stderr.write("--check-slack is not supported with --task\n")
+            return 2
+        if args.check_github:
+            sys.stderr.write("--check-github is not supported with --task\n")
             return 2
         report = validate_task(
             cfg,
@@ -970,6 +1009,7 @@ def _main(argv: list[str] | None = None) -> int:
             idle_hours=args.idle_hours,
             max_blackboard_bytes=int(args.max_blackboard_kb * 1024),
             check_slack=args.check_slack,
+            check_github=args.check_github,
             fix=args.fix,
         )
 
