@@ -1,6 +1,6 @@
 ---
 title: GitHub auth preflight and setup docs
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
