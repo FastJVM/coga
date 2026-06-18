@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-publish
-    github-ref: refs/tags/v0.1.3
+    github-ref: refs/tags/v0.5.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 70d657debb716cc701f46f6873b83c11d112255a
+    github-tree-sha: 78d1a551d9a657f7c13f072cc1c217942039f95e
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 0.1.3
+    version: 0.5.0
 name: google-agents-cli-publish
 ---
 # Gemini Enterprise Registration
@@ -82,7 +82,7 @@ agents-cli publish gemini-enterprise \
 
 ### Via environment variables
 
-Every flag has an env var alternative:
+Most flags have an env var alternative (`--metadata-file`, `--interactive`, and `--list` do not):
 
 ```bash
 export AGENT_RUNTIME_ID="projects/123456/locations/us-east1/reasoningEngines/789"
@@ -122,6 +122,7 @@ agents-cli publish gemini-enterprise --interactive
 | `--authorization-id` | `GEMINI_AUTHORIZATION_ID` | OAuth authorization resource name |
 | `--metadata-file` | — | Path to deployment metadata (default: `deployment_metadata.json`) |
 | `--interactive` / `-i` | — | Enable interactive prompts |
+| `--list` | — | List Gemini Enterprise apps in the current project and exit |
 
 ---
 
@@ -156,7 +157,7 @@ Agent Runtime deployments may encounter "Session not found" errors with `google-
 | "Session not found" after registration | SDK version issue — upgrade `google-cloud-aiplatform` (see SDK Compatibility above), redeploy, then re-register |
 | `--registration-type is required` | Non-interactive mode needs `--registration-type` when no `deployment_metadata.json` exists |
 | "Gemini Enterprise App ID is required" | Provide `--gemini-enterprise-app-id` or set the `ID` / `GEMINI_ENTERPRISE_APP_ID` env var |
-| "Agent already registered" | The command automatically updates the existing registration — this is not an error |
+| Re-publishing the same agent | Registration is idempotent — re-running updates the existing registration in place instead of creating a duplicate |
 | HTTP 403 on registration | Check that your account has Discovery Engine Editor permissions on the Gemini Enterprise project |
 | "Could not fetch agent card" | Verify the agent is running and the URL is correct; for Cloud Run, ensure `gcloud auth login` is done |
 

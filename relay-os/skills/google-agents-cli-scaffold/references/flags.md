@@ -9,12 +9,12 @@
 | `--region` | | `us-east1` | GCP region |
 | `--prototype` | `-p` | off | Skip CI/CD and Terraform (recommended for first pass) |
 | `--datastore` | `-ds` | — | RAG datastore type (`agent_platform_search`, `agent_platform_vector_search`). Use with `--agent agentic_rag`. |
-| `--session-type` | | — | Session storage (`in_memory`, `cloud_sql`, `agent_platform_sessions`). Use with `cloud_run` target. |
+| `--session-type` | | — | Session storage (`in_memory`, `cloud_sql`, `agent_platform_sessions`). Use with `cloud_run` or `gke` targets (Agent Runtime manages sessions itself). |
 | `--cicd-runner` | | — | CI/CD runner (`github_actions`, `google_cloud_build`, `skip`) |
 | `--agent-directory` | `-dir` | `app/` | Custom agent code directory inside the project |
 | `--agent-guidance-filename` | | `GEMINI.md` | Coding agent guidance file (`GEMINI.md`, `CLAUDE.md`, or `AGENTS.md`) |
 | `--output-dir` | `-o` | `.` | Output directory for the project |
-| `--bq-analytics` | | off | Enable BigQuery Agent Analytics plugin (requires `--deployment-target agent_runtime` or `cloud_run`) |
+| `--bq-analytics` | | off | Enable BigQuery Agent Analytics plugin (supported on `agent_runtime`, `cloud_run`, and `gke`) |
 | `--google-api-key` / `--api-key` | `-k` | — | Use Google AI Studio API key instead of Agent Platform |
 | `--skip-checks` | `-s` | off | Skip verification checks for GCP and Agent Platform |
 | `--adk` | | off | Quickstart mode: adk + agent_runtime + prototype, skips prompts |
