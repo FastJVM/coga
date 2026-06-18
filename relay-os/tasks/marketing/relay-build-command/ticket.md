@@ -1,6 +1,6 @@
 ---
 title: Add the relay build command (replaces relay setup)
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach
