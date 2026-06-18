@@ -87,3 +87,10 @@ Reviewed from feature worktree `/home/n/Code/claude/relay-op-secrets` on branch
   `tests/test_autoclose_sweep.py::test_autoclose_live_and_packaged_copies_stay_in_sync`
   and
   `tests/test_autoclose_sweep.py::test_autoclose_recurring_template_creates_idempotently`.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Refresh relay/cli context (relay build, validate --check-github)

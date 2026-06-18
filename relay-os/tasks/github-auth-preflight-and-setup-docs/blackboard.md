@@ -92,3 +92,10 @@ Verification:
   and setup docs"), closes ticket `github-auth-preflight-and-setup-docs`.
 - CI: `gh pr checks 385` reports no checks configured on this repo — nothing to
   wait on (not a failure).
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: Refresh relay/cli context (relay build, validate --check-github)
