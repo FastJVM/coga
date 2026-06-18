@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-observability
-    github-ref: refs/tags/v0.1.3
+    github-ref: refs/tags/v0.5.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: a6d91abe8b6011a35fcd66c1a3d9c038d2536d67
+    github-tree-sha: b7d1719334708d4a5377ca37a01d42840fb4bdc1
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 0.1.3
+    version: 0.5.0
 name: google-agents-cli-observability
 ---
 # ADK Observability Guide
@@ -85,7 +85,7 @@ For detailed setup instructions (Agent Runtime CLI/SDK, Cloud Run, custom deploy
 
 Captures GenAI interactions (model name, tokens, timing) and exports to GCS (JSONL) and BigQuery (via direct log sinks and external tables). Privacy-preserving by default — only metadata is logged unless explicitly configured otherwise.
 
-Key env var: `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` — set to `NO_CONTENT` (metadata only, default in deployed envs), `true` (full content), or `false` (disabled). Logging is disabled locally unless `LOGS_BUCKET_NAME` is set.
+Key env var: `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` — OTel GenAI semantic-conventions standard (modes: `span_only`, `event_only`, `span_and_event`, `no_content`). The scaffolded `setup_telemetry()` collapses every non-`false` value to `NO_CONTENT` (metadata-only); `false` disables capture. Logging is disabled locally unless `LOGS_BUCKET_NAME` is set.
 
 For scaffolded project details (Terraform resources, env vars, privacy modes, enabling/disabling, verification commands), see `references/cloud-trace-and-logging.md`.
 

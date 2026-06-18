@@ -23,63 +23,61 @@ Search results come back as `grounding_metadata`, not function call/response eve
 }
 ```
 
-This causes `tool_trajectory_avg_score` to ALWAYS fail for agents using `google_search`.
+This causes `multi_turn_tool_use_quality` to ALWAYS fail for agents using `google_search`.
 
 **Metric compatibility for `google_search` agents:**
 
 | Metric | Usable? | Why |
 |--------|---------|-----|
-| `tool_trajectory_avg_score` | NO | Always fails due to unexpected google_search |
-| `rubric_based_final_response_quality_v1` | YES | Evaluates output quality semantically |
-| `final_response_match_v2` | Maybe | Works for stable expected outputs |
+| `multi_turn_tool_use_quality` | NO | Always fails due to unexpected google_search (the `google_search` invocation is detected by the evaluator but never appears as a `function_call` / `function_response` event) |
+| `final_response_quality` | YES | Adaptive rubric-based evaluation; works without a reference answer |
+| `final_response_match` | NO | Search results vary across runs, so the agent's response rarely matches a fixed reference |
 
-**Evalset best practices for `google_search` agents:**
-
-```json
-{
-  "eval_id": "news_digest_test",
-  "conversation": [{
-    "user_content": { "parts": [{"text": "Give me my news digest."}] }
-    // NO intermediate_data.tool_uses for google_search - it won't match anyway
-  }]
-}
-```
-
-For custom tools alongside google_search, still include them (but NOT google_search):
-```json
-{
-  "intermediate_data": {
-    "tool_uses": [
-      { "name": "save_feedback" }
-      // Do NOT include google_search here
-    ]
-  }
-}
-```
-
-**Config for `google_search` agents:**
+**Dataset best practices for `google_search` agents:**
 
 ```json
 {
-  "criteria": {
-    // REMOVE this - incompatible with google_search:
-    // "tool_trajectory_avg_score": 1.0,
-
-    // Use rubric-based evaluation instead:
-    "rubric_based_final_response_quality_v1": {
-      "threshold": 0.6,
-      "rubrics": [
-        { "rubricId": "has_citations", "rubricContent": { "textProperty": "Response includes source citations or references" } },
-        { "rubricId": "relevance", "rubricContent": { "textProperty": "Response directly addresses the user's query" } }
-      ]
+  "eval_cases": [
+    {
+      "eval_case_id": "news_digest_test",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Give me my news digest."}]
+      }
+      // NO trajectory criteria for google_search - it won't appear in the trace anyway
     }
-    // Note: both camelCase and snake_case field names are accepted (Pydantic aliases).
-    // Examples elsewhere use snake_case (`rubric_id`, `rubric_content`, `text_property`).
-  }
+  ]
 }
 ```
 
-**Bottom line:** `google_search` is a model feature, not a function tool. You cannot test it with trajectory matching. Use rubric-based LLM-as-judge evaluation to verify the agent produces grounded, cited responses.
+For agents that mix `google_search` with custom function tools, grade the custom tool usage with `multi_turn_tool_use_quality` — it judges the tool calls in the generated trace, so you don't hand-author expected calls. Optionally add a `reference` response for reference-based matching:
+```json
+{
+  "eval_case_id": "news_digest_feedback",
+  "prompt": {
+    "role": "user",
+    "parts": [{"text": "Great, save my positive feedback."}]
+  },
+  "reference": {
+    "response": {
+      "role": "model",
+      "parts": [{"text": "Feedback saved!"}]
+    }
+  }
+}
+```
+The `google_search` invocation still won't appear in the trace, so `multi_turn_tool_use_quality` only assesses the function-tool calls (e.g., `save_feedback`).
+
+**Config for `google_search` agents (`eval_config.yaml`):**
+
+```yaml
+metrics_to_run:
+  - final_response_quality
+```
+
+The built-in `final_response_quality` is sufficient for most `google_search` agents; it auto-generates a content-based rubric. Define a custom override in `custom_metrics` only if you need project-specific judge instructions — see SKILL.md's *Evaluation Configuration Schema* for the override pattern.
+
+**Bottom line:** `google_search` is a model feature, not a function tool. You cannot test it with trajectory matching. Use `final_response_quality` to verify the agent produces grounded, cited responses.
 
 ---
 
@@ -106,16 +104,16 @@ types.Tool(retrieval=types.Retrieval(...))
 
 | Tool | In Trajectory? | Eval Strategy |
 |------|----------------|---------------|
-| `load_web_page` | Yes | `tool_trajectory_avg_score` works |
-| Custom tools | Yes | `tool_trajectory_avg_score` works |
-| AgentTool | Yes | `tool_trajectory_avg_score` works |
+| `load_web_page` | Yes | `multi_turn_tool_use_quality` works |
+| Custom tools | Yes | `multi_turn_tool_use_quality` works |
+| AgentTool | Yes | `multi_turn_tool_use_quality` works |
 
 These generate `function_call` and `function_response` events:
 ```python
 types.Tool(function_declarations=[...])
 ```
 
-**Quick Reference — Can I use `tool_trajectory_avg_score`?**
+**Quick Reference — Can I use `multi_turn_tool_use_quality`?**
 - `google_search` → NO (model-internal)
 - `code_executor` → NO (model-internal)
 - `VertexAiSearchTool` → NO (model-internal)
@@ -124,8 +122,8 @@ types.Tool(function_declarations=[...])
 - Custom functions → YES (FunctionTool)
 
 **When mixing both types** (e.g., `google_search` + `save_preferences`):
-1. Remove `tool_trajectory_avg_score` entirely, OR
-2. Only test function-based tools in `tool_uses` and accept the trajectory will be incomplete
+1. Rely on `final_response_quality` for overall quality, OR
+2. Keep `multi_turn_tool_use_quality` — it assesses the function-tool calls that do appear in the trace, accepting that the `google_search` step is invisible to it
 
 **Rule of Thumb:**
 - If a tool provides grounding/retrieval/execution capabilities built into Gemini → model-internal, won't appear in trajectory

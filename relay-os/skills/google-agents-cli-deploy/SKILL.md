@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-deploy
-    github-ref: refs/tags/v0.1.3
+    github-ref: refs/tags/v0.5.0
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: cd831565e7892d322398d8363637f2a6d01d6f24
+    github-tree-sha: d4d5c51d1d4869aeac47df6cb0592e340035d12f
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 0.1.3
+    version: 0.5.0
 name: google-agents-cli-deploy
 ---
 # ADK Deployment Guide
@@ -45,7 +45,7 @@ Choose the right deployment target based on your requirements:
 |----------|-------------|-----------|-----|
 | **Languages** | Python | Python | Python (+ others via custom containers) |
 | **Scaling** | Managed auto-scaling (configurable min/max, concurrency) | Fully configurable (min/max instances, concurrency, CPU allocation) | Full Kubernetes scaling (HPA, VPA, node auto-provisioning) |
-| **Networking** | VPC-SC and PSC supported | Full VPC support, direct VPC egress, IAP, ingress rules | Full Kubernetes networking|
+| **Networking** | VPC-SC and PSC-I supported (private VPC connectivity via network attachments) | Full VPC support, direct VPC egress, IAP, ingress rules | Full Kubernetes networking|
 | **Session state** | Native `VertexAiSessionService` (persistent, managed) | In-memory (dev), Cloud SQL, or Agent Platform Sessions backend | In-memory (dev), Cloud SQL, or Agent Platform Sessions backend |
 | **Batch/event processing** | Not supported | Native trigger endpoints (Pub/Sub, Eventarc); see `/google-agents-cli-adk-code` | Custom (Kubernetes Jobs, Pub/Sub) |
 | **Cost model** | vCPU-iours + memory-iours (not billed when idle) | Per-instance-second + min instance costs | Node pool costs (always-on or auto-provisioned) |
@@ -56,9 +56,9 @@ Choose the right deployment target based on your requirements:
 
 > **Product name mapping:** "Agent Engine" / "Vertex AI Agent Engine" is now **Agent Runtime**. Use `--deployment-target agent_runtime`.
 
-> **Ambient / scheduled / event-driven agents:** Agent Runtime does not support Pub/Sub, Eventarc, or Cloud Scheduler triggers. Use **Cloud Run** (recommended) or **GKE** for these workloads. See `/google-agents-cli-adk-code` Section 12 for the `trigger_sources` pattern.
+> **Ambient / scheduled / event-driven agents:** Agent Runtime does not support Pub/Sub, Eventarc, or Cloud Scheduler triggers. Use **Cloud Run** (recommended) or **GKE** for these workloads. See `/google-agents-cli-adk-code` (`references/adk-python.md`, section "12. Event-Driven / Ambient Agents") for the `trigger_sources` pattern.
 
-> **OAuth / user consent agents:** Use **Agent Runtime** with Gemini Enterprise for agents that need OAuth 2.0 user consent (e.g., accessing Google Drive, Calendar, or other user-scoped APIs). Cloud Run does not currently support managed OAuth flows. See the `adk-ae-oauth` sample in `/google-agents-cli-workflow` Phase 2.
+> **OAuth / user consent agents:** Use **Agent Runtime** with Gemini Enterprise for agents that need OAuth 2.0 user consent (e.g., accessing Google Drive, Calendar, or other user-scoped APIs). Cloud Run does not currently support managed OAuth flows. See the `adk-ae-oauth` sample in `/google-agents-cli-workflow` Phase 1.
 
 ---
 
@@ -97,10 +97,20 @@ agents-cli infra single-project
 | `--project` | GCP project ID | All |
 | `--region` | GCP region | All |
 | `--service-account` | Service account email for the deployed agent | All |
-| `--secrets` | Comma-separated `ENV=SECRET` or `ENV=SECRET:VERSION` pairs | Agent Runtime |
+| `--service-name` | Override the deployed service name (Cloud Run service or Agent Runtime display name); defaults to the project name. If you override it, consider updating your Terraform and CI (if present) — they name resources from the project name. Not supported for GKE, whose names are fully owned by Terraform. | Agent Runtime, Cloud Run |
+| `--secrets` | Comma-separated `ENV=SECRET` or `ENV=SECRET:VERSION` pairs | Agent Runtime, Cloud Run |
 | `--update-env-vars` | Comma-separated `KEY=VALUE` environment variables | Agent Runtime, Cloud Run |
 | `--agent-identity` | Enable [agent identity](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/agent-identity) (Preview) | Agent Runtime |
-| `--memory` | Memory limit (default: `4Gi`) | Cloud Run |
+| `--network-attachment` | Network attachment resource name for [PSC interface](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/private-service-connect-interface) (enables private VPC connectivity) | Agent Runtime |
+| `--dns-peering-domain` | DNS peering domain suffix, e.g. `my-internal.corp.` (requires `--network-attachment`) | Agent Runtime |
+| `--dns-peering-project` | Project ID hosting the Cloud DNS managed zone for DNS peering (requires `--network-attachment`) | Agent Runtime |
+| `--dns-peering-network` | VPC network name in the target project for DNS peering (requires `--network-attachment`) | Agent Runtime |
+| `--memory` | Memory limit (default: `4Gi`) | Agent Runtime, Cloud Run |
+| `--cpu` | CPU limit (default: `1`) | Agent Runtime, Cloud Run |
+| `--min-instances` | Minimum number of instances (default: `1`) | Agent Runtime, Cloud Run |
+| `--max-instances` | Maximum number of instances (default: `10`) | Agent Runtime, Cloud Run |
+| `--concurrency` | Concurrent requests per container (default: `8`; see [Sizing a deployment](#sizing-a-deployment)) | Agent Runtime, Cloud Run |
+| `--num-workers` | Worker processes per container (default: `1`) | Agent Runtime |
 | `--port` | Container port | Cloud Run |
 | `--iap` | Enable Identity-Aware Proxy | Cloud Run |
 | `--image` | Container image URI (skips source build) | Cloud Run, GKE |
@@ -118,6 +128,27 @@ Run `agents-cli deploy --help` for the full flag reference.
 
 ---
 
+## Sizing a deployment
+
+Defaults (same on Agent Runtime, Cloud Run, and the generated `service.tf`): `--cpu 1`, `--memory 4Gi`, `--num-workers 1`, `--concurrency 8`, `--min-instances 1`, `--max-instances 10`.
+
+The params are coupled — scale them together:
+
+- **Workers = vCPUs.** Each worker is one GIL-bound process that saturates one core, so raise `--num-workers` with `--cpu` (e.g. `--cpu 4` → `--num-workers 4`) or you pay for idle cores.
+- **Memory bounds concurrency.** Each concurrent request keeps its full working set (context window, history, RAG chunks, response buffer) in memory while it waits on the model, so peak ≈ base + `concurrency × per-request memory`. Memory — not CPU — is the first limit, so raising `--concurrency` without `--memory` is the main OOM cause.
+- **Concurrency default is conservative.** An async worker can serve many concurrent requests while it waits on the model, but per-request memory is agent-specific, so `8` protects a memory-heavy (RAG/multimodal) agent. Light agents can raise it to 16–32+ after load-testing. See [Underutilized asynchronous workers](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/runtime/optimize-and-scale#underutilized-workers).
+
+```bash
+# 4x throughput: scale every param, not just one
+agents-cli deploy --cpu 4 --num-workers 4 --concurrency 16 --memory 16Gi
+```
+
+**Tune with the scaffolded load test** (`tests/load_test/`, run locally or in the CI/CD staging pipeline): drive load, watch *max* latency and memory/OOM restarts, then adjust — high max latency → raise concurrency (+ workers/cpu); OOM → raise memory or lower concurrency.
+
+> `--num-workers` is Agent-Runtime-only (Cloud Run runs one uvicorn process). On **GKE** these flags are rejected — size via the Terraform manifests + HorizontalPodAutoscaler under `deployment/terraform/`.
+
+---
+
 ## Production Deployment — CI/CD Pipeline
 
 For the full CI/CD pipeline setup guide — prerequisites, `infra cicd` flags, runner comparison, WIF authentication, pipeline stages, and production approval — see `references/cicd-pipeline.md`.
@@ -128,7 +159,7 @@ For the full CI/CD pipeline setup guide — prerequisites, `infra cicd` flags, r
 
 For detailed infrastructure configuration (scaling defaults, Dockerfile, FastAPI endpoints, session types, networking), see `references/cloud-run.md`. For ADK docs on Cloud Run deployment, fetch `https://adk.dev/deploy/cloud-run/index.md`.
 
-For event-driven / ambient agent deployment on Cloud Run, see the [`ambient-expense-agent`](https://github.com/google/adk-samples/tree/main/python/agents/ambient-expense-agent) sample and `/google-agents-cli-adk-code` for the `trigger_sources` pattern.
+For event-driven / ambient agent deployment on Cloud Run, see the [`ambient-expense-agent`](https://github.com/google/adk-samples/tree/main/python/agents/ambient-expense-agent) sample and `/google-agents-cli-adk-code` (`references/adk-python.md`, section "12. Event-Driven / Ambient Agents") for the `trigger_sources` pattern.
 
 ---
 
@@ -213,7 +244,7 @@ echo -n "NEW_API_KEY" | gcloud secrets versions add MY_SECRET_NAME --data-file=-
 
 **Grant access:** For Cloud Run, grant `secretmanager.secretAccessor` to `app_sa`. For Agent Runtime, grant it to the platform-managed SA (`service-PROJECT_NUMBER@gcp-sa-aiplatform-re.iam.gserviceaccount.com`). For GKE, grant `secretmanager.secretAccessor` to `app_sa`. Access secrets via Kubernetes Secrets or directly via the Secret Manager API with Workload Identity.
 
-**Pass secrets at deploy time (Agent Runtime):**
+**Pass secrets at deploy time (Agent Runtime, Cloud Run):**
 ```bash
 agents-cli deploy --secrets "API_KEY=my-api-key,DB_PASS=db-password:2"
 ```
@@ -254,7 +285,7 @@ For advanced testing (custom headers, session reuse, scripting, load tests), see
 
 ## Deploying with a UI (IAP)
 
-IAP (Identity-Aware Proxy) secures a Cloud Run service so only authorized Google accounts can access it. Support for IAP deployment via `agents-cli deploy` is planned for a future release.
+IAP (Identity-Aware Proxy) secures a Cloud Run service so only authorized Google accounts can access it. Enable it by adding the `--iap` flag when deploying (Cloud Run only): `agents-cli deploy --iap`.
 
 For Agent Runtime with a custom frontend, use a **decoupled deployment** — deploy the frontend separately to Cloud Run or Cloud Storage, connecting to the Agent Runtime backend API.
 
@@ -328,7 +359,7 @@ For registering deployed agents with Gemini Enterprise, see `/google-agents-cli-
 
 - `/google-agents-cli-workflow` — Development workflow, coding guidelines, and operational rules
 - `/google-agents-cli-adk-code` — ADK Python API quick reference for writing agent code
-- `/google-agents-cli-eval` — Evaluation methodology, evalset schema, and the eval-fix loop
+- `/google-agents-cli-eval` — Evaluation methodology, dataset schema, and the eval-fix loop
 - `/google-agents-cli-scaffold` — Project creation and enhancement with `agents-cli scaffold create` / `scaffold enhance`
 - `/google-agents-cli-observability` — Cloud Trace, logging, BigQuery Analytics, and third-party integrations
 - `/google-agents-cli-publish` — Gemini Enterprise registration

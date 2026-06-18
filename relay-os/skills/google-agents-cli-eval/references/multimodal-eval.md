@@ -1,38 +1,25 @@
 # Multimodal Evaluation
 
-> File paths below reference the scaffolded layout (`tests/eval/`). Adjust for your project structure if not using /google-agents-cli-scaffold.
+Two distinct cases are covered here:
 
-## Schema Support
+1. **Evaluate generated image / video quality** against a text prompt.
+2. **Evaluate an agent that consumes multimodal input and produces text** (e.g., the agent describes an image and we want to verify the description).
 
-`Invocation.user_content` is `genai_types.Content`, which accepts multimodal `Part` types beyond text:
+Both cases use a custom `LLMMetric` with a vision-capable judge model. The built-in adaptive metrics only inspect `text` parts, so they can't reason about media content directly — a custom metric is required for true multimodal grading.
 
-- **`inline_data`** — base64-encoded bytes with a mime type (images, audio, PDF)
-- **`file_data`** — GCS URI reference (`gs://bucket/path`)
+> **Multimodal field-model note.** `agents-cli eval generate` populates `{response}` by extracting the **text** parts of the agent's final event. If your agent returns non-text parts (e.g., `inline_data` images, `file_data` URIs), those parts are not copied into `{response}` automatically. To grade with the full multimodal Content, either hand-author the eval case with a `responses[0].response` Content containing the media parts, or post-process the generated trace file to copy the media parts into `responses`.
 
-### Evalset example with image input
+> File paths below reference the scaffolded layout (`tests/eval/`). Adjust for your project structure if not using `google-agents-cli-scaffold`.
+
+---
+
+## Dataset shape for multimodal parts
+
+Multimodal content lives inside `parts` as either `inline_data` (base64-encoded bytes with a mime type) or `file_data` (GCS URI reference). Use whichever fits — `file_data` is preferred for anything larger than a few KB.
 
 ```json
-{
-  "eval_id": "describe_image",
-  "conversation": [
-    {
-      "invocation_id": "inv_1",
-      "user_content": {
-        "parts": [
-          { "text": "Describe this image" },
-          { "inline_data": { "mime_type": "image/png", "data": "<base64>" } }
-        ]
-      },
-      "final_response": {
-        "role": "model",
-        "parts": [{ "text": "The image shows a bar chart..." }]
-      }
-    }
-  ]
-}
+{ "inline_data": { "mime_type": "image/png", "data": "<base64>" } }
 ```
-
-For GCS-hosted files, use `file_data` instead:
 
 ```json
 { "file_data": { "mime_type": "image/jpeg", "file_uri": "gs://my-bucket/photos/test.jpg" } }
@@ -40,101 +27,116 @@ For GCS-hosted files, use `file_data` instead:
 
 ---
 
-## What Works Out of the Box
+## Case 1: Evaluate generated image / video against a text prompt
 
-- **`tool_trajectory_avg_score`** — evaluates tool call sequences, not content modality. Works fine with multimodal inputs.
-- **Response/rubric evaluators** — evaluate the agent's *text response*. If the agent produces a text answer from multimodal input (e.g., describes an image), these metrics work normally.
-
----
-
-## The Text-Only Gap
-
-Built-in LLM-as-judge evaluators call `get_text_from_content()` (`llm_as_judge_utils.py:46-50`), which extracts only `.text` parts and skips `inline_data`/`file_data`. This means:
-
-- The **judge never sees** the original image/audio/file content
-- If the evaluation itself needs to reason about the multimodal input (e.g., "did the agent correctly describe this image?"), the built-in judge cannot verify it
-- A **custom metric** is needed for true multimodal evaluation
-
----
-
-## Custom Metric for Multimodal Evaluation
-
-Custom metric functions receive full `Invocation` objects (`custom_metric_evaluator.py:54-76`), including all multimodal parts. Build a prompt that sends the original media + agent response to a vision-capable judge model.
-
-```python
-# my_app/eval/multimodal_metric.py
-import os
-from google import genai
-from google.adk.evaluation.eval_case import Invocation
-from google.adk.evaluation.eval_metrics import EvalMetric
-from google.adk.evaluation.evaluator import EvaluationResult, PerInvocationResult, EvalStatus
-
-def _get_genai_client() -> genai.Client:
-    # genai.Client() does NOT auto-detect GOOGLE_GENAI_USE_VERTEXAI
-    if os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "").lower() == "true":
-        return genai.Client(
-            vertexai=True,
-            project=os.environ.get("GOOGLE_CLOUD_PROJECT"),
-            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-east1"),
-        )
-    return genai.Client()
-
-async def multimodal_response_quality(
-    eval_metric: EvalMetric,
-    actual_invocations: list[Invocation],
-    expected_invocations: list[Invocation] | None,
-    conversation_scenario=None,
-) -> EvaluationResult:
-    client = _get_genai_client()
-    threshold = eval_metric.threshold or 0.8
-    per_invocation = []
-    for actual in actual_invocations:
-        if not actual.final_response or not actual.final_response.parts:
-            per_invocation.append(PerInvocationResult(
-                actual_invocation=actual, score=0.0, eval_status=EvalStatus.FAILED))
-            continue
-        agent_text = "\n".join(p.text for p in actual.final_response.parts if p.text)
-        # Build prompt with original multimodal parts + agent response
-        judge_parts = list(actual.user_content.parts) + [
-            genai.types.Part.from_text(  # note: text= keyword is required
-                text=f"\n\nAgent response: {agent_text}"
-                "\n\nDoes the agent response accurately describe the content above? "
-                "Reply with ONLY a single number from 0.0 to 1.0 (nothing else)."
-            ),
-        ]
-        response = await client.aio.models.generate_content(
-            model="gemini-flash-latest",
-            contents=genai.types.Content(role="user", parts=judge_parts),
-        )
-        try:
-            score = max(0.0, min(1.0, float(response.text.strip())))
-        except (ValueError, AttributeError):
-            score = 0.0
-        per_invocation.append(PerInvocationResult(
-            actual_invocation=actual, score=score,
-            eval_status=EvalStatus.PASSED if score >= threshold else EvalStatus.FAILED,
-        ))
-    avg = sum(r.score for r in per_invocation) / len(per_invocation) if per_invocation else 0.0
-    return EvaluationResult(
-        overall_score=avg, per_invocation_results=per_invocation,
-        overall_eval_status=EvalStatus.PASSED if avg >= threshold else EvalStatus.FAILED,
-    )
-```
-
-### Wire it in `eval_config.json`
+The eval case has the user prompt as text and the model response as a Content with a media `file_data` (or `inline_data`) part.
 
 ```json
 {
-  "criteria": {
-    "multimodal_response_quality": 0.8
-  },
-  "custom_metrics": {
-    "multimodal_response_quality": {
-      "code_config": {
-        "name": "my_app.eval.multimodal_metric.multimodal_response_quality"
+  "eval_cases": [
+    {
+      "eval_case_id": "coffee_image",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "steaming cup of coffee and a croissant on a table"}]
       },
-      "description": "Evaluates response accuracy against multimodal input"
+      "responses": [
+        {
+          "response": {
+            "role": "model",
+            "parts": [
+              {"file_data": {"mime_type": "image/png", "file_uri": "gs://cloud-samples-data/generative-ai/evaluation/images/coffee.png"}}
+            ]
+          }
+        }
+      ]
     }
-  }
+  ]
 }
 ```
+
+For video, swap `mime_type` to `video/mp4` (or appropriate) and point at a video URI.
+
+### Custom metric (`eval_config.yaml`)
+
+```yaml
+custom_metrics:
+  - name: image_prompt_alignment
+    prompt_template: |
+      You are evaluating whether the generated image (in {response}) matches
+      the user's text prompt. Consider object presence, attributes, actions,
+      composition, and style.
+
+      Prompt: {prompt}
+      Image: {response}
+
+      Return JSON: {"score": <0.0-1.0>, "explanation": "<reason>"}
+    judge_model: gemini-flash-latest
+    judge_model_sampling_count: 3
+```
+
+Run with `agents-cli eval grade --config tests/eval/eval_config.yaml`. For video evaluation, use the same pattern with a video-capable judge model and rubric criteria (motion consistency, temporal coherence, scene transitions).
+
+---
+
+## Case 2: Agent consumes multimodal input, produces text
+
+The user input contains an image / audio / file; the agent produces a text response. To verify the text against the original media (e.g., "did the agent correctly describe this image?"), use a custom `LLMMetric` with a vision-capable judge.
+
+### Dataset shape
+
+The multimodal input lives in the `prompt` field for single-turn, or inside the user-authored event in `agent_data` for multi-turn:
+
+```json
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "describe_chart",
+      "prompt": {
+        "role": "user",
+        "parts": [
+          {"text": "Describe this image"},
+          {"inline_data": {"mime_type": "image/png", "data": "<base64>"}}
+        ]
+      },
+      "responses": [
+        {
+          "response": {
+            "role": "model",
+            "parts": [{"text": "The image shows a bar chart..."}]
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Custom metric (`eval_config.yaml`)
+
+```yaml
+custom_metrics:
+  - name: multimodal_response_quality
+    prompt_template: |
+      You are evaluating whether the agent's text response accurately reflects
+      the user's multimodal input. Inspect the user input parts (which may
+      include images, audio, or files) and the agent response, then return JSON:
+      {"score": <0.0-1.0>, "explanation": "<reason>"}.
+
+      User input: {prompt}
+      Agent response: {response}
+    judge_model: gemini-flash-latest
+    judge_model_sampling_count: 3
+```
+
+Run with `agents-cli eval grade --config tests/eval/eval_config.yaml`.
+
+---
+
+## Notes
+
+- **Built-in adaptive metrics (`final_response_quality`, etc.) skip media parts.** They extract only `.text` parts when constructing the judge prompt. Use a custom `LLMMetric` for true multimodal grading.
+- **Choose a vision-capable `judge_model`.** `gemini-flash-latest` and `gemini-pro-latest` both handle images and video; verify capability before relying on it.
+- **Sampling count** (`judge_model_sampling_count`) of 3–5 reduces variance for multimodal judges, which can be noisier than text-only.
+
+For the full custom-metric field reference, see `references/metrics-guide.md`. For dataset schema and the `inline_data` / `file_data` part types, see `references/dataset_schema.md`.
