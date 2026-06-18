@@ -704,6 +704,8 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
         commands.append(command)
         if command == ["relay", "validate", "--json"]:
             return _completed(command, stdout='{"issues":[]}\n')
+        if command == ["git", "diff", "--name-only", "--diff-filter=U"]:
+            return _completed(command)
         if command == ["git", "branch", "--show-current"]:
             return _completed(command, stdout="main\n")
         if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
@@ -783,6 +785,8 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
         commands.append(command)
         if command == ["relay", "validate", "--json"]:
             return _completed(command, stdout='{"issues":[]}\n')
+        if command == ["git", "diff", "--name-only", "--diff-filter=U"]:
+            return _completed(command)
         if command == ["git", "branch", "--show-current"]:
             return _completed(command, stdout="main\n")
         if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
@@ -853,6 +857,8 @@ def test_dream_pr_summary_restores_branch_when_commit_fails(
     def runner(args, cwd=None):
         command = list(args)
         commands.append(command)
+        if command == ["git", "diff", "--name-only", "--diff-filter=U"]:
+            return _completed(command)
         if command == ["git", "branch", "--show-current"]:
             return _completed(command, stdout="feature/work\n")
         if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
@@ -935,6 +941,8 @@ def test_dream_pr_summary_skips_pr_when_commit_is_empty(
     def runner(args, cwd=None):
         command = list(args)
         commands.append(command)
+        if command == ["git", "diff", "--name-only", "--diff-filter=U"]:
+            return _completed(command)
         if command == ["git", "branch", "--show-current"]:
             return _completed(command, stdout="main\n")
         if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
@@ -962,6 +970,50 @@ def test_dream_pr_summary_skips_pr_when_commit_is_empty(
     # restored to where the caller left it.
     assert ["git", "commit", "-m", "Update Relay-managed skills"] not in commands
     assert ["git", "checkout", "main"] in commands
+
+
+def test_dream_pr_summary_fails_loud_on_unmerged_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unmerged path in the working tree makes `git checkout -B` refuse with
+    a raw "resolve your current index first". The flow must detect it up front,
+    name the offending files, and never touch git state (no branch switch)."""
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    summary = SkillUpdateSummary(
+        results=[
+            SkillResult(
+                name="tools/example",
+                source_type="url",
+                status="updated",
+                message="updated from URL source",
+                changed=True,
+            )
+        ]
+    )
+    commands: list[list[str]] = []
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        if command == ["git", "diff", "--name-only", "--diff-filter=U"]:
+            return _completed(command, stdout="relay-os/recurring/digest/blackboard.md\n")
+        raise AssertionError(f"unexpected command after precheck: {command}")
+
+    with pytest.raises(SkillManagerError) as excinfo:
+        run_skill_update_pr_flow(
+            cfg,
+            summary,
+            title="Update Relay-managed skills",
+            verification_commands=["relay validate --json"],
+            runner=runner,
+        )
+
+    message = str(excinfo.value)
+    assert "unmerged paths" in message
+    assert "relay-os/recurring/digest/blackboard.md" in message
+    # Failed before any branch switch — only the precheck ran.
+    assert commands == [["git", "diff", "--name-only", "--diff-filter=U"]]
+    assert not any(command[:3] == ["git", "checkout", "-B"] for command in commands)
 
 
 def test_update_cli_emits_json_summary(

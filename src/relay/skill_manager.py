@@ -366,6 +366,7 @@ def run_skill_update_pr_flow(
 
     run = runner or run_subprocess
     git_cwd = cfg.repo_root.parent
+    _assert_no_unmerged_paths(run, git_cwd)
     original_branch = _current_git_branch(run, git_cwd)
     try:
         committed = _commit_skill_updates(
@@ -400,6 +401,28 @@ def run_skill_update_pr_flow(
         if original_branch and original_branch != branch:
             _checkout(run, git_cwd, original_branch)
     return summary
+
+
+def _assert_no_unmerged_paths(run: Runner, cwd: Path) -> None:
+    """Fail loud before the PR flow if the working tree has unmerged paths.
+
+    The flow runs `git checkout -B <branch> <base>` to carry skill updates onto
+    a dedicated branch, and git refuses *any* checkout while an unmerged path
+    exists ("error: you need to resolve your current index first"). Detecting it
+    up front lets us name the offending files and the fix instead of surfacing a
+    raw, context-free git error from deep inside the checkout.
+    """
+    result = run(["git", "diff", "--name-only", "--diff-filter=U"], cwd)
+    if result.returncode != 0:
+        raise SkillManagerError((result.stderr or result.stdout).strip())
+    unmerged = [line for line in result.stdout.splitlines() if line.strip()]
+    if unmerged:
+        listed = "\n".join(f"  - {path}" for path in unmerged)
+        raise SkillManagerError(
+            "Cannot open a skill-update PR while the working tree has unmerged "
+            "paths. Resolve the conflict and `git add` these files, then retry:\n"
+            f"{listed}"
+        )
 
 
 def _current_git_branch(run: Runner, cwd: Path) -> str:
