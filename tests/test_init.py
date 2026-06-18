@@ -21,11 +21,6 @@ from relay.notification import post
 from relay.skill_manager import SkillResult
 
 
-# The name prompt that `relay setup`'s `_ensure_user` fallback still uses —
-# exercised directly by the one test that covers its validation loop. `relay
-# init` itself no longer prompts; it requires `--user`.
-_real_prompt_user_name = init_cmd._prompt_user_name
-
 _PACKAGED_RELAY_TOML = (
     Path(__file__).resolve().parents[1]
     / "src" / "relay" / "resources" / "templates" / "relay-os" / "relay.toml"
@@ -52,13 +47,13 @@ EXPECTED_FILES = {
     "relay-os/recurring/dream/ticket.md",
     "relay-os/recurring/skill-update/ticket.md",
     "relay-os/tasks/_template/ticket.md",
-    "relay-os/tasks/relay-setup/ticket.md",
-    "relay-os/tasks/relay-setup/blackboard.md",
-    "relay-os/tasks/relay-setup/log.md",
+    "relay-os/tasks/relay-build/ticket.md",
+    "relay-os/tasks/relay-build/blackboard.md",
+    "relay-os/tasks/relay-build/log.md",
     "relay-os/workflows/autoclose-merged/sweep.md",
     "relay-os/workflows/direct/body.md",
     "relay-os/workflows/skill-update/run.md",
-    "relay-os/workflows/init/setup.md",
+    "relay-os/workflows/build/onboarding.md",
 }
 
 
@@ -163,32 +158,26 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     (templates / "workflows" / "skill-update" / "run.md").write_text(
         "skill update workflow\n"
     )
-    (templates / "workflows" / "init").mkdir(parents=True, exist_ok=True)
-    (templates / "workflows" / "init" / "setup.md").write_text(
+    (templates / "workflows" / "build").mkdir(parents=True, exist_ok=True)
+    (templates / "workflows" / "build" / "onboarding.md").write_text(
         "---\n"
-        "name: init/setup\n"
-        "description: Setup workflow.\n"
+        "name: build/onboarding\n"
+        "description: Onboarding workflow.\n"
         "steps:\n"
-        "  - name: interview\n"
+        "  - name: gather-and-spec\n"
         "    assignee: agent\n"
-        "  - name: scan-and-generate\n"
-        "    assignee: agent\n"
-        "  - name: resolve-open-questions\n"
-        "    assignee: agent\n"
-        "  - name: review-and-sign-off\n"
-        "    assignee: human\n"
-        "  - name: apply-review\n"
+        "  - name: generate-batch\n"
         "    assignee: agent\n"
         "---\n"
         "\n"
-        "## interview\n"
+        "## gather-and-spec\n"
         "\n"
-        "Ask the four setup questions.\n"
+        "Ask what the user wants to build.\n"
     )
-    (templates / "tasks" / "relay-setup").mkdir(parents=True, exist_ok=True)
-    (templates / "tasks" / "relay-setup" / "ticket.md").write_text(
+    (templates / "tasks" / "relay-build").mkdir(parents=True, exist_ok=True)
+    (templates / "tasks" / "relay-build" / "ticket.md").write_text(
         "---\n"
-        "title: relay-setup\n"
+        "title: relay-build\n"
         "status: active\n"
         "mode: interactive\n"
         "owner: new-user\n"
@@ -198,24 +187,24 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         "contexts: []\n"
         "skills: []\n"
         "workflow:\n"
-        "  name: init/setup\n"
+        "  name: build/onboarding\n"
         "  steps:\n"
-        "  - name: interview\n"
+        "  - name: gather-and-spec\n"
         "    skills: []\n"
         "    assignee: agent\n"
-        "step: 1 (interview)\n"
+        "step: 1 (gather-and-spec)\n"
         "---\n"
         "\n"
         "## Description\n"
         "\n"
-        "Setup task.\n"
+        "Onboarding task.\n"
         "\n"
         "## Context\n"
         "\n"
-        "Empty until the `interview` step runs at first launch.\n"
+        "Empty until the `gather-and-spec` step runs at first launch.\n"
     )
-    (templates / "tasks" / "relay-setup" / "blackboard.md").write_text("notepad\n")
-    (templates / "tasks" / "relay-setup" / "log.md").write_text("created\n")
+    (templates / "tasks" / "relay-build" / "blackboard.md").write_text("notepad\n")
+    (templates / "tasks" / "relay-build" / "log.md").write_text("created\n")
     (templates / "workflows" / "autoclose-merged").mkdir(
         parents=True, exist_ok=True
     )
@@ -587,36 +576,36 @@ def test_init_creates_missing_dir(tmp_path: Path, fake_clone, fake_venv) -> None
     assert (target / "relay-os" / "relay.toml").is_file()
 
 
-# --- init setup ticket ----------------------------------------------------------
+# --- init build ticket ----------------------------------------------------------
 
 
-def test_init_ships_setup_ticket_template(
+def test_init_ships_build_ticket_template(
     tmp_path: Path, fake_clone, fake_venv
 ) -> None:
-    """The relay-setup task ships from the packaged template largely as-is on an
-    empty repo — the workflow snapshot and body are preserved; only the
-    `new-user` placeholder is stamped with the captured name. The interview
-    happens at first launch as the workflow's first step."""
+    """The relay-build task is a static packaged template: fresh init copies
+    it verbatim — no prompts, no creating code — and the onboarding chat happens
+    at first launch as the workflow's first step. The `--user` name is stamped
+    over the `new-user` placeholder so it never ships live."""
     target = tmp_path / "company"
     target.mkdir()
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    task_dir = target / "relay-os" / "tasks" / "relay-setup"
+    task_dir = target / "relay-os" / "tasks" / "relay-build"
     text = (task_dir / "ticket.md").read_text()
     assert "status: active" in text
-    assert "name: init/setup" in text
-    assert "step: 1 (interview)" in text
-    assert "Empty until the `interview` step runs at first launch" in text
+    assert "name: build/onboarding" in text
+    assert "step: 1 (gather-and-spec)" in text
+    assert "Empty until the `gather-and-spec` step runs at first launch" in text
     # The placeholder is stamped with the captured name; it never ships live.
     assert "owner: tester" in text
     assert "human: tester" in text
     assert "new-user" not in text
     assert (task_dir / "blackboard.md").is_file()
     assert (task_dir / "log.md").is_file()
-    # Bare init on an empty repo points at `relay setup`, which launches this
-    # ticket, rather than at a manual launch.
-    assert "Run `relay setup`" in result.output
+    # Bare init on an empty repo points at `relay build` (the alias that
+    # launches this ticket) rather than at a manual launch.
+    assert "Run `relay build`" in result.output
 
 
 def test_init_stamps_new_user_out_of_every_delivered_ticket(
@@ -640,7 +629,7 @@ def test_init_stamps_new_user_out_of_every_delivered_ticket(
     assert "human: marc" in browser
 
 
-def test_init_empty_repo_seeds_onboarding_and_points_at_setup(
+def test_init_empty_repo_seeds_onboarding_and_points_at_build(
     tmp_path: Path, fake_clone, fake_venv
 ) -> None:
     """An empty repo keeps the onboarding ticket and the next-steps coax
@@ -652,8 +641,8 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_setup(
     assert result.exit_code == 0, result.output
 
     tasks = target / "relay-os" / "tasks"
-    assert (tasks / "relay-setup" / "ticket.md").is_file()
-    assert "Run `relay setup`" in result.output
+    assert (tasks / "relay-build" / "ticket.md").is_file()
+    assert "Run `relay build`" in result.output
     assert 'relay ticket "' not in result.output
     assert "Skipped the onboarding ticket" not in result.output
 
@@ -672,14 +661,14 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     assert result.exit_code == 0, result.output
 
     tasks = target / "relay-os" / "tasks"
-    assert not (tasks / "relay-setup").exists()  # onboarding pruned
+    assert not (tasks / "relay-build").exists()  # onboarding pruned
     # Not gated — still delivered, and stamped (no placeholder survives).
     browser = tasks / "browser-automation" / "ticket.md"
     assert browser.is_file()
     assert "new-user" not in browser.read_text()
     assert 'relay ticket "' in result.output
     assert "Skipped the onboarding ticket" in result.output
-    assert "Run `relay setup`" not in result.output
+    assert "Run `relay build`" not in result.output
 
 
 def test_init_filled_repo_ignores_relay_managed_files(
@@ -696,24 +685,11 @@ def test_init_filled_repo_ignores_relay_managed_files(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    assert (target / "relay-os" / "tasks" / "relay-setup" / "ticket.md").is_file()
-    assert "Run `relay setup`" in result.output
+    assert (target / "relay-os" / "tasks" / "relay-build" / "ticket.md").is_file()
+    assert "Run `relay build`" in result.output
 
 
 # --- name capture + gate helpers ----------------------------------------------
-
-
-def test_prompt_user_name_rejects_invalid_then_returns(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    answers = iter(["", 'a"b', "c\\d", "  marc  "])
-    monkeypatch.setattr(init_cmd.typer, "prompt", lambda *a, **k: next(answers))
-
-    name = _real_prompt_user_name()
-
-    assert name == "marc"  # stripped, returned once valid
-    out = capsys.readouterr().out
-    assert out.count("without quotes or backslashes") == 3
 
 
 def test_repo_is_empty_true_for_missing_or_relay_managed(tmp_path: Path) -> None:

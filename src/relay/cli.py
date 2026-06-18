@@ -21,7 +21,6 @@ from relay.commands import project as project_cmd
 from relay.commands import recurring as recurring_cmd
 from relay.commands import retire as retire_cmd
 from relay.commands import secret as secret_cmd
-from relay.commands import setup as setup_cmd
 from relay.commands import show as show_cmd
 from relay.commands import slack as slack_cmd
 from relay.commands import status as status_cmd
@@ -73,7 +72,6 @@ def _root(
 
 
 app.command("init")(init_cmd.init)
-app.command("setup")(setup_cmd.setup)
 app.command("create")(create_cmd.create)
 app.command("draft")(create_cmd.draft)
 app.command("ticket")(ticket_cmd.ticket)
@@ -100,7 +98,7 @@ app.add_typer(secret_cmd.app, name="secret")
 # real commands.
 _BUILTIN_COMMANDS = frozenset(
     {
-        "init", "setup", "create", "launch", "status", "show", "bump",
+        "init", "create", "launch", "status", "show", "bump",
         "automerge", "delete", "draft", "retire", "panic", "slack", "digest",
         "skill", "mark", "recurring", "ticket", "project", "validate", "secret",
     }
@@ -118,9 +116,16 @@ _BUILTIN_COMMANDS = frozenset(
 # just creates and launches it on demand — the same path `relay recurring
 # launch dream` takes. Shipping it as a default keeps `relay dream` working in
 # repos init'd before the recurring template landed.
+#
+# `build` is the first-run onboarding entry point: it just launches the
+# packaged `relay-build` ticket (`relay launch relay-build`), the same path a
+# manual launch takes. As an alias it dispatches through normal `relay launch`
+# CLI parsing — so it requires an already-init'd repo and captures no name (both
+# now `relay init`'s job) and never hits the in-code `launch()` sentinel pitfall.
 _DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
+    "build": "launch relay-build",
 }
 
 

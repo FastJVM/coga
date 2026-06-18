@@ -80,8 +80,7 @@ def _clean_user_name(raw: str) -> str | None:
 
     Valid = non-empty after stripping, no `"` or `\\` (both would break the
     `user = "..."` line in `relay.local.toml`). The single source of truth for
-    what counts as a usable name, shared by the `relay init --user` parameter
-    and the `_prompt_user_name` loop that `relay setup` falls back on.
+    what counts as a usable name, used by the `relay init --user` parameter.
     """
     name = raw.strip()
     if name and '"' not in name and "\\" not in name:
@@ -117,32 +116,11 @@ def _require_user_name(user: str | None) -> str:
     return name
 
 
-def _prompt_user_name() -> str:
-    """Prompt for the operator's name until it's valid, then return it.
-
-    The `relay setup` fallback (`_ensure_user`) for the onboarding path, where
-    no name was passed on the command line. `relay init` itself no longer
-    prompts — it requires `--user` (see `_require_user_name`). Validation is
-    shared via `_clean_user_name`, so prompt and parameter agree on what's
-    valid.
-    """
-    while True:
-        name = _clean_user_name(
-            typer.prompt(
-                "Your name — it becomes `user` in relay.local.toml, the name "
-                "tickets and agents refer to you by (e.g. marc)"
-            )
-        )
-        if name is not None:
-            return name
-        typer.echo("Give a non-empty name without quotes or backslashes.")
-
-
 def render_local_toml(name: str) -> str:
     """`LOCAL_TOML_TEMPLATE` with the captured name substituted into `user`.
 
-    `name` is the output of `_prompt_user_name`, so it carries no `"`/`\\` and
-    is safe to interpolate directly into the quoted TOML value.
+    `name` is the validated `--user` value (via `_require_user_name`), so it
+    carries no `"`/`\\` and is safe to interpolate into the quoted TOML value.
     """
     return LOCAL_TOML_TEMPLATE.replace('user = ""', f'user = "{name}"', 1)
 
@@ -327,7 +305,7 @@ def init(
         _do_init(path or Path("."), user=user)
 
 
-def _do_init(path: Path, *, user: str | None = None, via_setup: bool = False) -> None:
+def _do_init(path: Path, *, user: str | None = None) -> None:
     target = path.resolve()
     relay_os = target / "relay-os"
 
@@ -344,10 +322,8 @@ def _do_init(path: Path, *, user: str | None = None, via_setup: bool = False) ->
     is_empty = _repo_is_empty(target)
     # Require the operator's name up front (before the slow clone/venv) so
     # `current_user` is valid from the first moment after init, and a bad
-    # invocation leaves nothing on disk. `relay setup` drives its own name
-    # capture (`_ensure_user`), so it inits without `--user` and leaves `user`
-    # empty here for setup to fill.
-    name = None if via_setup else _require_user_name(user)
+    # invocation leaves nothing on disk.
+    name = _require_user_name(user)
 
     target.mkdir(parents=True, exist_ok=True)
 
@@ -362,18 +338,14 @@ def _do_init(path: Path, *, user: str | None = None, via_setup: bool = False) ->
         refresh_cli(clone_dir, relay_os)
         sha = upstream_sha(clone_dir)
 
-    # On a filled repo (bare init only), drop the onboarding ticket(s) the
-    # template ships. `relay setup` drives onboarding deliberately, so it
-    # keeps them regardless of the gate.
+    # On a filled repo, drop the onboarding ticket(s) the template ships — a
+    # real project doesn't want the bootstrap interview seeded for it.
     pruned_onboarding = (
-        _prune_onboarding_tickets(relay_os) if not is_empty and not via_setup else []
+        _prune_onboarding_tickets(relay_os) if not is_empty else []
     )
     # Stamp the captured name over the `new-user` placeholder in whatever
-    # tickets remain, so the placeholder never ships as a live owner. The
-    # `relay setup` path has no name yet, so it leaves the placeholder for its
-    # own onboarding flow to resolve.
-    if name is not None:
-        _stamp_user_into_delivered_tickets(relay_os, name)
+    # tickets remain, so the placeholder never ships as a live owner.
+    _stamp_user_into_delivered_tickets(relay_os, name)
 
     managed_skills = _install_managed_skills_or_exit(relay_os)
     install_venv(relay_os)
@@ -381,9 +353,7 @@ def _do_init(path: Path, *, user: str | None = None, via_setup: bool = False) ->
     write_pin(relay_os, sha)
 
     local_toml = relay_os / "relay.local.toml"
-    local_toml.write_text(
-        render_local_toml(name) if name is not None else LOCAL_TOML_TEMPLATE
-    )
+    local_toml.write_text(render_local_toml(name))
 
     bin_dir = relay_os / ".relay" / "bin"
     shim = _try_install_shim(bin_dir / "relay")
@@ -398,12 +368,9 @@ def _do_init(path: Path, *, user: str | None = None, via_setup: bool = False) ->
     typer.echo("")
     typer.echo(f"Initialized relay repo at {relay_os}")
     _print_managed_skill_summary(managed_skills)
-    if name is not None:
-        typer.echo(
-            f'Wrote {local_toml} (machine-local config — gitignored) with user = "{name}".'
-        )
-    else:
-        typer.echo(f"Wrote {local_toml} (machine-local config — gitignored).")
+    typer.echo(
+        f'Wrote {local_toml} (machine-local config — gitignored) with user = "{name}".'
+    )
     if pruned_onboarding:
         typer.echo(
             "Skipped the onboarding ticket (this dir already has a project) — "
@@ -449,18 +416,18 @@ def _do_init(path: Path, *, user: str | None = None, via_setup: bool = False) ->
         f"Edit {relay_os}/relay.toml — set your agents, notification channels, "
         "and aliases."
     )
-    if not via_setup:
-        if is_empty:
-            steps.append(
-                "Run `relay setup` — it launches the relay-setup interview: the "
-                "agent asks about the repo and turns your answers plus a repo scan "
-                "into starter contexts, rules, workflows, and recurring tasks."
-            )
-        else:
-            steps.append(
-                'Run `relay ticket "<title>"` to author your first task — the '
-                "guided author turns a one-line title into a ready ticket."
-            )
+    if is_empty:
+        steps.append(
+            "Run `relay build` — it launches the relay-build onboarding: one "
+            "question about what you want to build, then an agent-led chat that "
+            "ends in a short vision you sign off on and a flat batch of starter "
+            "tickets you can immediately `relay launch`."
+        )
+    else:
+        steps.append(
+            'Run `relay ticket "<title>"` to author your first task — the '
+            "guided author turns a one-line title into a ready ticket."
+        )
     steps.append("Run `relay --help` to see what's available.")
 
     typer.echo("")

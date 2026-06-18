@@ -147,5 +147,8 @@ zach = "U0AG5LKCK8E"
 
 [aliases]
 chat = "launch bootstrap/orient"
+# `build` launches the packaged `relay-build` onboarding ticket — the same path
+# `relay launch relay-build` takes. Requires an already-init'd repo.
+build = "launch relay-build"
 claude = "launch bootstrap/orient --agent claude"
 codex = "launch bootstrap/orient --agent codex"

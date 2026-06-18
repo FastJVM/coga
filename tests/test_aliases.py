@@ -162,6 +162,33 @@ def test_default_chat_alias_dispatches_without_user_aliases_section(
     assert captured["argv"] == ["relay", "launch", "bootstrap/orient"]
 
 
+def test_build_is_default_alias_for_launch_relay_build() -> None:
+    """`relay build` is the onboarding entry point — a default alias expanding
+    to `launch relay-build`, not a built-in command."""
+    assert _DEFAULT_ALIASES["build"] == "launch relay-build"
+    assert "build" not in _BUILTIN_COMMANDS
+
+
+def test_default_build_alias_dispatches_without_user_aliases_section(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A repo whose `relay.toml` has no `[aliases]` still routes `relay build`
+    to the packaged onboarding ticket."""
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr("sys.argv", ["relay", "build"])
+    monkeypatch.setattr("relay.cli._register_alias_placeholder", lambda *_: None)
+
+    captured: dict[str, list[str]] = {}
+
+    def fake_app() -> None:
+        import sys
+        captured["argv"] = list(sys.argv)
+
+    monkeypatch.setattr("relay.cli.app", fake_app)
+    main()
+    assert captured["argv"] == ["relay", "launch", "relay-build"]
+
+
 def test_user_alias_overrides_default(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
