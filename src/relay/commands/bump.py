@@ -13,7 +13,7 @@ from relay.bump import (
     resolve_step_assignee,
 )
 from relay.config import ConfigError, load_config
-from relay.paths import workflow_path
+from relay.paths import resolve_workflow_path
 from relay.repl_supervisor import emit_done_marker
 from relay.tasks import (
     TaskNotFoundError,
@@ -82,7 +82,7 @@ def bump(
     # in-place so the rest of bump (and future bumps) sees a normal shape.
     if isinstance(ticket.workflow, str):
         try:
-            wf_def = Workflow.load(workflow_path(cfg, ticket.workflow))
+            wf_def = Workflow.load(resolve_workflow_path(cfg, ticket.workflow))
         except WorkflowError as exc:
             _bail(str(exc))
         ticket.frontmatter["workflow"] = wf_def.freeze()

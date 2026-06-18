@@ -45,11 +45,12 @@ relay-os/
   bootstrap/<name>/      ← stateless launch shims
   bootstrap/skills/      ← package-backed core skills (overwritten on update)
   bootstrap/contexts/    ← package-backed bundled contexts (overwritten on update)
+  bootstrap/workflows/   ← package-backed reusable workflows (overwritten on update)
   tasks/<slug>/          ← live tickets (top-level: bare leaf slug)
   tasks/<dir>/.../<slug>/ ← tickets in sub-dirs at any depth (ref'd by path)
   skills/<ns>/<name>/    ← project-local process knowledge / overrides
   contexts/<ns>/<name>/  ← project-local domain knowledge / overrides
-  workflows/<ns>/<name>.md ← step definitions
+  workflows/<ns>/<name>.md ← step definitions (local-first over bootstrap/workflows/)
   scripts/cron.sh        ← entry for recurring scheduler
 ```
 
@@ -63,8 +64,9 @@ are not copied from the template tree.
 
 ## Authoring bundled batteries
 
-Bundled (package-backed) core skills and contexts are authored in the *source*
-tree under `src/relay/resources/templates/relay-os/bootstrap/{skills,contexts}/`,
+Bundled (package-backed) core skills, contexts, and reusable workflows are
+authored in the *source* tree under
+`src/relay/resources/templates/relay-os/bootstrap/{skills,contexts,workflows}/`,
 not in the live `relay-os/bootstrap/` of a working repo — that copy is
 gitignored and overwritten wholesale on `relay init --update`. Optional domain
 skills belong in a published skill source plus

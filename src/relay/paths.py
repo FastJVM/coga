@@ -15,6 +15,29 @@ def workflow_path(cfg: Config, name: str) -> Path:
     return cfg.repo_root / "workflows" / f"{name}.md"
 
 
+def bootstrap_workflow_path(cfg: Config, name: str) -> Path:
+    return cfg.repo_root / "bootstrap" / "workflows" / f"{name}.md"
+
+
+def resolve_workflow_path(cfg: Config, name: str) -> Path:
+    """Resolve a workflow ref from local workflows first, then bundled bootstrap.
+
+    Mirrors `resolve_skill_path` / `resolve_context_path`: a repo's own
+    `workflows/<name>.md` overrides a package-backed
+    `bootstrap/workflows/<name>.md`. Unlike those resolvers this returns a
+    `Path` rather than `None` when neither exists — it falls back to the local
+    path so a caller's `Workflow.load(...)` raises a not-found error naming the
+    conventional `workflows/` location.
+    """
+    local = workflow_path(cfg, name)
+    if local.is_file():
+        return local
+    bundled = bootstrap_workflow_path(cfg, name)
+    if bundled.is_file():
+        return bundled
+    return local
+
+
 def skill_path(cfg: Config, ref: str) -> Path:
     return cfg.repo_root / "skills" / ref / "SKILL.md"
 
@@ -100,6 +123,8 @@ def bootstrap_path(cfg: Config, name: str) -> Path:
 __all__ = [
     "rules_path",
     "workflow_path",
+    "bootstrap_workflow_path",
+    "resolve_workflow_path",
     "skill_path",
     "skill_dir",
     "bootstrap_skill_path",

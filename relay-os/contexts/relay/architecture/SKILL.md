@@ -41,8 +41,13 @@ no in-memory state.
   ticket as a whole; `bootstrap/ticket` is the authoring interview and must
   never appear there — `relay ticket` injects it into the launch prompt
   only, never persists it on the ticket.
-- **Workflows** are ordered step definitions. Live in
-  `relay-os/workflows/`. Frozen into a ticket's frontmatter at
+- **Workflows** are ordered step definitions. A repo's own workflows live in
+  `relay-os/workflows/`; package-backed reusable workflows (the core `code/*`
+  loop, `dev/with-self-review`, `docs/create-google-doc`, the Dream child
+  workflows, `digest/post`) live under `relay-os/bootstrap/workflows/`.
+  Resolution is local-first, exactly like skills and contexts: a local
+  `workflows/<ref>.md` overrides a bundled `bootstrap/workflows/<ref>.md`.
+  Frozen into a ticket's frontmatter at
   creation — in-flight tickets are unaffected by later workflow edits.
   Each step may declare an `assignee:` role token (`owner` | `human` |
   `agent` | `other-agent`); on bump, the token resolves against the ticket's
@@ -61,9 +66,9 @@ no in-memory state.
   ticket-less re-entry points like `relay launch bootstrap/orient`
   (the `chat` alias). They are never factories — `relay launch` no
   longer creates new tickets from shims; use `relay create` for that.
-- **Bundled batteries** are package-backed core skills, contexts, hooks, and
-  launch shims materialized under `relay-os/bootstrap/` by `relay init` and
-  `relay init --update`. `pip install relay-os` puts them in the wheel; init
+- **Bundled batteries** are package-backed core skills, contexts, reusable
+  workflows, hooks, and launch shims materialized under `relay-os/bootstrap/`
+  by `relay init` and `relay init --update`. `pip install relay-os` puts them in the wheel; init
   materializes them into each repo. They are inspectable local files, but
   edits under `bootstrap/` are overwritten on update. Optional domain skills
   declared in Relay's managed-skill manifest install into `relay-os/skills/`

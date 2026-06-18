@@ -21,10 +21,37 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "autoclose/sweep/run.py",
     "relay/resources/templates/relay-os/bootstrap/contexts/relay/sync/SKILL.md",
     "relay/resources/templates/relay-os/recurring/autoclose-merged/ticket.md",
+    "relay/resources/templates/relay-os/recurring/digest/ticket.md",
     "relay/resources/templates/relay-os/recurring/skill-update/ticket.md",
     "relay/resources/templates/relay-os/workflows/autoclose-merged/sweep.md",
     "relay/resources/templates/relay-os/workflows/direct/body.md",
     "relay/resources/templates/relay-os/workflows/skill-update/run.md",
+    # Bundled reusable workflows ship under bootstrap/workflows/ (local-first
+    # fallback) so a fresh repo can run the core code loop, the docs flow, the
+    # Dream child workflows, and the digest battery without hand-copying.
+    "relay/resources/templates/relay-os/bootstrap/workflows/code/"
+    "with-review.md",
+    "relay/resources/templates/relay-os/bootstrap/workflows/code/"
+    "design-then-implement.md",
+    "relay/resources/templates/relay-os/bootstrap/workflows/dev/"
+    "with-self-review.md",
+    "relay/resources/templates/relay-os/bootstrap/workflows/docs/"
+    "create-google-doc.md",
+    "relay/resources/templates/relay-os/bootstrap/workflows/dream/"
+    "validate-drift.md",
+    "relay/resources/templates/relay-os/bootstrap/workflows/dream/"
+    "cleanup-orphan-markers.md",
+    "relay/resources/templates/relay-os/bootstrap/workflows/digest/post.md",
+    # …and the code/* and digest-flush skills those workflows reference.
+    "relay/resources/templates/relay-os/bootstrap/skills/code/design/SKILL.md",
+    "relay/resources/templates/relay-os/bootstrap/skills/code/implement/"
+    "SKILL.md",
+    "relay/resources/templates/relay-os/bootstrap/skills/code/open-pr/SKILL.md",
+    "relay/resources/templates/relay-os/bootstrap/skills/code/self-qa/SKILL.md",
+    "relay/resources/templates/relay-os/bootstrap/skills/relay/digest/flush/"
+    "SKILL.md",
+    "relay/resources/templates/relay-os/bootstrap/skills/relay/digest/flush/"
+    "run.py",
     "relay/resources/templates/relay-os/skills/_template/SKILL.md",
     "relay/resources/templates/relay-os/skills/direct/body/SKILL.md",
 )

@@ -67,6 +67,7 @@ OBSOLETE_PATHS: tuple[str, ...] = (
 # `log.md` (run history) are per-repo and deliberately left untouched.
 VENDORED_RECURRING_TEMPLATES: tuple[str, ...] = (
     "recurring/autoclose-merged/ticket.md",
+    "recurring/digest/ticket.md",
     "recurring/dream/ticket.md",
     "recurring/skill-update/ticket.md",
 )

@@ -52,7 +52,9 @@ table above.
 - Recommendations must be grounded. Name only files, workflows,
   contexts, or commands that actually exist. Before suggesting
   `--workflow X` or `contexts: [X]`, verify `X` is in
-  `relay-os/workflows/` or `relay-os/contexts/`. If nothing existing
-  fits, recommend creating a new one and name the path it would live
-  at (e.g. `relay-os/workflows/code/<name>.md`). Never invent
+  `relay-os/workflows/` or `relay-os/bootstrap/workflows/` (bundled
+  batteries like `code/with-review` live under the latter), or in
+  `relay-os/contexts/` or `relay-os/bootstrap/contexts/`. If nothing
+  existing fits, recommend creating a new one and name the path it would
+  live at (e.g. `relay-os/workflows/code/<name>.md`). Never invent
   plausible-sounding names from memory.
