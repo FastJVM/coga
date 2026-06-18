@@ -1045,6 +1045,43 @@ def test_status_shows_done_tasks(repo: Path) -> None:
     assert slug in result.output
 
 
+def test_status_hide_done_omits_done_tasks_without_deleting(repo: Path) -> None:
+    cfg = load_config(repo)
+    active = create_task(
+        cfg=cfg, title="Active", workflow_name="code", contexts=[],
+        mode="interactive", owner="marc", assignee="claude",
+        watchers=[], status="active", slug_override="active-task",
+    )
+    done = create_task(
+        cfg=cfg, title="Finished", workflow_name="code", contexts=[],
+        mode="interactive", owner="marc", assignee="claude",
+        watchers=[], status="done", slug_override="finished-task",
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["status", "--hide-done", "--order-by", "slug"])
+
+    assert result.exit_code == 0, result.output
+    assert active["slug"] in result.output
+    assert done["slug"] not in result.output
+    assert "1 task  ·  1 active" in result.output
+    assert done["path"].is_dir()
+
+
+def test_status_no_done_alias_omits_done_tasks(repo: Path) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Finished", workflow_name="code", contexts=[],
+        mode="interactive", owner="marc", assignee="claude",
+        watchers=[], status="done", slug_override="finished-task",
+    )
+
+    result = CliRunner().invoke(app, ["status", "--no-done"])
+
+    assert result.exit_code == 0, result.output
+    assert "finished-task" not in result.output
+
+
 # --- status --order-by / --reverse / updated column ---------------------------
 
 

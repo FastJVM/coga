@@ -75,6 +75,12 @@ def status(
     reverse: bool = typer.Option(
         False, "--reverse", "-r", help="Reverse sort order."
     ),
+    hide_done: bool = typer.Option(
+        False,
+        "--hide-done",
+        "--no-done",
+        help="Omit tasks whose status is `done` from the listing.",
+    ),
 ) -> None:
     """Show tasks in the repo."""
     try:
@@ -109,6 +115,8 @@ def status(
         try:
             ticket = read_ticket(ref)
         except TicketError:
+            continue
+        if hide_done and ticket.status == "done":
             continue
         rows.append({
             "slug": ref.id_slug,
