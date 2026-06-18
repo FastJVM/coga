@@ -100,6 +100,36 @@ human-installed command line tools:
   update workflows once those commands land. Older `gh` versions should fail
   loud with an upgrade hint.
 
+### Git/GitHub auth readiness
+
+Relay does not run its own account system or store a GitHub token — it uses the
+standard tools you already have. PR and git-sync paths need:
+
+- A configured git remote. Relay uses the remote named in `[git].remote`
+  (default `origin`), not a hardcoded `origin` — if yours is named differently,
+  set that key in `relay.toml`.
+- Push access to that remote through your normal git setup. Transport is your
+  choice: for SSH, keep your key loaded in `ssh-agent` (`ssh-add -l`) and
+  authorized on GitHub; for HTTPS, let a git credential helper hold valid
+  credentials. Relay never reads `GITHUB_TOKEN` or stores a PAT.
+- `gh` installed and authenticated for the same GitHub host as the remote:
+  run `gh auth login` once, or `gh auth login --hostname <host>` for GitHub
+  Enterprise.
+
+Check all of this before launching work with the opt-in preflight:
+
+```sh
+relay validate --check-github
+```
+
+It verifies the configured remote exists, probes push access with a
+non-mutating `git push --dry-run`, and confirms `gh` is installed and
+authenticated for the remote host - turning each failure into a direct setup
+hint (set/fix the remote, load your SSH key or credential helper, run
+`gh auth login`) instead of a surprise at PR time. Like `--check-slack`, it is
+the only thing that makes `relay validate` touch the network; plain
+`relay validate`, `relay status`, and `relay show` stay offline and read-only.
+
 After init, edit the freshly-written `relay-os/relay.toml` to declare your
 agent types, and set `user = "<you>"` in `relay-os/relay.local.toml`.
 Then draft your first ticket:
