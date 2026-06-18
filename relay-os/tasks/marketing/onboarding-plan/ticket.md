@@ -35,7 +35,7 @@ condition: `relay build` leaves the user with a first batch of tickets they can
 
 ## Context
 
-- The flow to teach: clone the repo, run `relay init` (downloads relay-os);
+- The flow to teach: clone the repo, run `relay init` and set the user. "Relay init --user zach" (downloads relay-os and makes you a system user);
   at the end of init, run `relay build` — one scripted question ("what do you
   want to build?") plus an agent-led chat (and a repo scan on a filled repo)
   that ends in a first batch of draft tickets — then `relay launch <slug>` to
