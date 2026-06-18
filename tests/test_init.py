@@ -714,19 +714,18 @@ def test_repo_is_empty_false_when_user_content_present(tmp_path: Path) -> None:
     assert init_cmd._repo_is_empty(target) is False
 
 
-def test_prune_onboarding_tickets_removes_both_names(tmp_path: Path) -> None:
-    """Both onboarding ticket dir names are pruned (relay-build ships once the
-    sibling rename lands); other tasks are left alone."""
+def test_prune_onboarding_tickets_removes_build_ticket(tmp_path: Path) -> None:
+    """The delivered onboarding ticket (relay-build) is pruned on a filled
+    repo; other tasks are left alone."""
     relay_os = tmp_path / "relay-os"
     tasks = relay_os / "tasks"
-    for name in ("relay-setup", "relay-build", "browser-automation", "_template"):
+    for name in ("relay-build", "browser-automation", "_template"):
         (tasks / name).mkdir(parents=True)
         (tasks / name / "ticket.md").write_text("---\n---\n")
 
     pruned = init_cmd._prune_onboarding_tickets(relay_os)
 
-    assert set(pruned) == {"relay-setup", "relay-build"}
-    assert not (tasks / "relay-setup").exists()
+    assert set(pruned) == {"relay-build"}
     assert not (tasks / "relay-build").exists()
     assert (tasks / "browser-automation").is_dir()  # not gated
     assert (tasks / "_template").is_dir()

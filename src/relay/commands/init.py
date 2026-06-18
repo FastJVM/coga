@@ -146,11 +146,9 @@ def _repo_is_empty(target: Path) -> bool:
     return all(entry.name in _INIT_IGNORE for entry in target.iterdir())
 
 
-# Delivered onboarding tickets, pruned from the copied tree on a filled repo
-# (a real project doesn't want the bootstrap interview seeded for it). Both
-# names ship today; `relay-setup` is renamed to `relay-build` elsewhere, so we
-# match either generically and no rework lands when one is removed.
-_ONBOARDING_TICKET_DIRS: tuple[str, ...] = ("relay-build", "relay-setup")
+# Delivered onboarding ticket, pruned from the copied tree on a filled repo
+# (a real project doesn't want the bootstrap interview seeded for it).
+_ONBOARDING_TICKET_DIRS: tuple[str, ...] = ("relay-build",)
 
 
 def _prune_onboarding_tickets(relay_os: Path) -> list[str]:
