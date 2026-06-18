@@ -14,10 +14,8 @@ from relay.cli import app
 from relay.config import load_config
 from relay.paths import tasks_dir
 from relay.recurring import (
-    is_debug_slug,
     read_last_serviced_period,
     create_named,
-    scan_debug,
     scan_due,
 )
 from relay.tasks import list_tasks
@@ -514,47 +512,6 @@ def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
     assert order[-1] == "dream"
 
 
-def test_is_debug_slug() -> None:
-    """Debug runs (and their children) match; ordinary names don't."""
-    # `recurring --all` throwaway run and a child task embedding its slug.
-    assert is_debug_slug("weekly-summary-dbg-20260606T204523")
-    assert is_debug_slug("dream-cleanup-orphan-markers-child-of-dream-dbg-20")
-    # A digit must follow `-dbg-`, so an ordinary hyphenated name is spared.
-    assert not is_debug_slug("fix-dbg-output")
-    assert not is_debug_slug("add-retry-to-webhook")
-    assert not is_debug_slug("weekly-summary-2026-W17")
-
-
-def test_reap_debug_orphans_removes_only_debug_dirs(repo: Path) -> None:
-    """`_reap_debug_orphans` clears `*-dbg-*` scratch a crashed sweep left behind,
-    sparing real tasks and `_template` — the "take over on relaunch" guarantee."""
-    from relay.commands.recurring import _reap_debug_orphans
-
-    cfg = load_config(repo)
-    tasks_root = tasks_dir(cfg)
-    tasks_root.mkdir(parents=True, exist_ok=True)
-
-    def _mk(slug: str) -> Path:
-        d = tasks_root / slug
-        d.mkdir(parents=True)
-        (d / "ticket.md").write_text("---\ntitle: x\n---\n\nbody\n")
-        return d
-
-    orphan = _mk("digest-dbg-20260607T084314")
-    other_orphan = _mk("weekly-summary-dbg-20260606T222205")
-    child_orphan = _mk("dream-cleanup-child-of-dream-dbg-20260607T084314")
-    real = _mk("add-retry-to-webhook")
-    template = _mk("_template")
-
-    _reap_debug_orphans(cfg)
-
-    assert not orphan.exists()
-    assert not other_orphan.exists()
-    assert not child_orphan.exists()
-    assert real.exists()  # real tasks untouched
-    assert template.exists()  # `_template` is spared
-
-
 def test_scan_due_recognizes_blackboard_high_water(repo: Path) -> None:
     """A period recorded in `last_serviced_period` is honored."""
     now = datetime(2026, 4, 22, 10, 0, 0)  # week 17
@@ -965,55 +922,6 @@ def test_recurring_launch_syncs_period_task_and_high_water(
     assert "last_serviced_period: 2026-W24" in blackboard
     ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
     assert f"created {ref.id_slug}" in ledger
-
-
-def test_recurring_launch_syncs_ledger_without_debug_log_entries(
-    git_repo, monkeypatch
-) -> None:
-    """`--all` debug audit lines stay local when the next real create syncs."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
-    _write_recurring(
-        relay_os,
-        "weekly-check",
-        """
-        ---
-        schedule: "0 9 * * 1"
-        title: "Weekly check"
-        mode: interactive
-        assignee: claude
-        owner: marc
-        ---
-
-        ## Description
-
-        Run the weekly check.
-        """,
-    )
-    _write(relay_os / "recurring" / "weekly-check" / "blackboard.md", "state\n")
-    log = relay_os / "recurring" / "weekly-check" / "log.md"
-    _write(log, "")
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
-    git_repo.git("commit", "-m", "seed recurring template")
-    git_repo.git("push", "origin", "main")
-
-    debug_line = (
-        "2026-06-08 10:00 [system] debug run "
-        "weekly-check-dbg-20260608T100000: completed → done\n"
-    )
-    log.write_text(debug_line)
-
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
-    result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
-
-    assert result.exit_code == 0, result.output
-    cfg = load_config(relay_os)
-    ref = list_tasks(cfg)[0]
-    ledger_rel = "relay-os/recurring/weekly-check/log.md"
-    ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
-    assert f"created {ref.id_slug}" in ledger
-    assert "-dbg-" not in ledger
-    assert debug_line in log.read_text()
 
 
 def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
@@ -1928,12 +1836,13 @@ def test_recurring_launch_and_scan_converge(dream_repo: Path) -> None:
     assert len(list_tasks(cfg)) == 1
 
 
-# --- relay recurring --all (debug) --------------------------------------------
+# --- relay recurring --all (forced full run) ----------------------------------
 
 
-def test_scan_debug_creates_fresh_isolated_run(repo: Path) -> None:
-    """`--all` creates a throwaway run per template, even when the real
-    current-period task already exists and is past `active`."""
+def test_scan_due_force_reruns_already_done_period(repo: Path) -> None:
+    """`--all` (`force=True`) surfaces the real `recurring/<name>` task for
+    launch even after it ran and moved to `done` — no `-dbg-` scratch run, and
+    the real task is reused, not duplicated."""
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)
 
@@ -1947,29 +1856,44 @@ def test_scan_debug_creates_fresh_isolated_run(repo: Path) -> None:
     ticket_path.write_text(t.render())
     assert scan_due(cfg, now=now).due == []  # nothing launchable normally
 
-    debug = scan_debug(cfg, now=now)
-    assert debug.errors == []
-    assert len(debug.tasks) == 1
-    run = debug.tasks[0]
-    # Fresh, isolated slug — never the real period slug.
-    assert run.ref.id_slug != period_slug
-    assert "-dbg-" in run.ref.id_slug
-    assert run.launchable is True  # creates straight to `active`
-    assert Ticket.read(run.ref.path / "ticket.md").title.startswith("[debug]")
+    forced = scan_due(cfg, now=now, force=True)
+    assert forced.errors == []
+    assert len(forced.tasks) == 1
+    run = forced.tasks[0]
+    # The real period task is reused — same slug, no `-dbg-` scratch.
+    assert run.ref.id_slug == period_slug
+    assert "-dbg-" not in run.ref.id_slug
+    # `forced` includes the `done` task (relay launch re-activates it); the
+    # status-filtered `due` list still skips it.
+    assert run.status == "done"
+    assert forced.forced == [run]
+    assert forced.due == []
+    # No second task dir created — the real run is reused, not cloned.
+    assert len(list_tasks(cfg)) == 1
 
-    # Real period task untouched, two task dirs now on disk.
-    assert Ticket.read(ticket_path).status == "done"
-    assert len(list_tasks(cfg)) == 2
 
-
-def test_scan_debug_does_not_advance_period_high_water(repo: Path) -> None:
-    """A debug run must not advance the template's serviced-period high-water."""
+def test_scan_due_force_recreates_serviced_deleted_period(repo: Path) -> None:
+    """`--all` bypasses the `last_serviced_period` high-water: a period that
+    already ran and had its task dir deleted is re-created as a real run."""
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)
-    scan_debug(cfg, now=now)
-    ledger = repo / "recurring" / "weekly-check" / "blackboard.md"
-    if ledger.is_file():
-        assert "-dbg-" not in ledger.read_text()
+
+    # First real run, then delete the task dir (as Dream's retro pass would).
+    first = scan_due(cfg, now=now)
+    shutil.rmtree(first.tasks[0].ref.path)
+
+    # Normal sweep skips it — already serviced and the dir is gone.
+    skipped = scan_due(cfg, now=now)
+    assert skipped.tasks[0].ref is None
+    assert skipped.due == []
+
+    # Force re-creates the real period task instead.
+    forced = scan_due(cfg, now=now, force=True)
+    assert len(forced.forced) == 1
+    run = forced.forced[0]
+    assert run.ref is not None
+    assert "-dbg-" not in run.ref.id_slug
+    assert run.status == "active"
 
 
 def test_recurring_all_launches_every_template(
@@ -1986,14 +1910,14 @@ def test_recurring_all_launches_every_template(
 
     assert result.exit_code == 0, result.output
     assert len(launched) == 1
-    dbg_slug = launched[0]
-    assert "-dbg-" in dbg_slug
-    # The throwaway run is folded back into the template log and its scratch
-    # dir removed, so nothing lingers in `relay status`.
-    assert "scratch dir removed" in result.output
-    assert not (repo / "tasks" / dbg_slug).exists()
-    template_log = (repo / "recurring" / "weekly-check" / "log.md").read_text()
-    assert f"debug run {dbg_slug}" in template_log
+    slug = launched[0]
+    # The REAL period task is launched — not a `-dbg-` scratch run, and no
+    # fold-back-to-template-log / scratch-removal step runs.
+    assert slug == "recurring/weekly-check"
+    assert "-dbg-" not in slug
+    assert "scratch dir removed" not in result.output
+    assert (repo / "tasks" / "recurring" / "weekly-check" / "ticket.md").is_file()
+    assert not any("-dbg-" in p.name for p in (repo / "tasks").iterdir())
 
 
 def test_recurring_all_skips_interactive_template_without_tty(

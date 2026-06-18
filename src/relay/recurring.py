@@ -7,7 +7,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 import yaml
 from croniter import CroniterError, croniter
@@ -189,14 +189,36 @@ class DueScan:
         (A resuming Dream orphan still sorts last: cleanup-after-the-rest wins
         over resume-first for the janitor itself, which is what we want.)
         """
-        return sorted(
-            (t for t in self.tasks if t.launchable),
-            key=lambda t: (t.is_cleanup, not t.resuming, t.last_fire),
-        )
+        return _order_for_launch(t for t in self.tasks if t.launchable)
+
+    @property
+    def forced(self) -> list[DueTask]:
+        """Every materialized template task in launch order — for `relay
+        recurring --all`.
+
+        Unlike `due`, this does **not** filter to launchable status: a `done`
+        or `paused` period task is still included, because `--all` force-runs
+        every template and `relay launch` re-activates a finished/parked ticket
+        (restarting its workflow at step 1). The same Dream-last / resume-first
+        ordering as `due` applies.
+        """
+        return _order_for_launch(t for t in self.tasks if t.ref is not None)
+
+
+def _order_for_launch(tasks: Iterable[DueTask]) -> list[DueTask]:
+    """Sort tasks into sweep launch order: Dream last, orphan-resumes before
+    fresh launches, each group most-overdue first."""
+    return sorted(
+        tasks, key=lambda t: (t.is_cleanup, not t.resuming, t.last_fire)
+    )
 
 
 def scan_due(
-    cfg: Config, now: datetime | None = None, *, allow_interactive: bool = True
+    cfg: Config,
+    now: datetime | None = None,
+    *,
+    allow_interactive: bool = True,
+    force: bool = False,
 ) -> DueScan:
     """Scan every recurring template and get-or-create its current-period task.
 
@@ -206,6 +228,12 @@ def scan_due(
     Idempotent: a template whose current-period task already exists is a
     no-op. The caller (`relay recurring`) launches the `active` results
     sequentially.
+
+    `force` (the `relay recurring --all` knob) bypasses the
+    "period already serviced this period" skip, so every template's real
+    `recurring/<name>` task is get-or-created and surfaced for launch even when
+    it already ran — `relay launch` re-activates a finished one. It does not
+    invent a separate scratch task; `--all` is a forced real run, not a sandbox.
     """
     now = now or datetime.now()
     root = recurring_dir(cfg)
@@ -250,9 +278,11 @@ def scan_due(
         # The template's persistent blackboard carries the serviced-period
         # high-water mark. If it has already advanced through this period and
         # the task directory is gone, the period was handled — do not
-        # re-create what already ran.
+        # re-create what already ran. `--all` (`force`) overrides this: it
+        # re-runs every template for real regardless of the high-water mark.
         if (
-            _live_task_for_template(cfg, template.name) is None
+            not force
+            and _live_task_for_template(cfg, template.name) is None
             and _task_with_slug(cfg, target_slug) is None
             and _period_already_serviced(template, period_key)
         ):
@@ -348,98 +378,11 @@ def create_template(
     return outcome
 
 
-# A `relay recurring --all` throwaway run is slugged `<name>-dbg-<timestamp>`
-# (see `create_debug_run`), and any child task it spawns embeds that slug, so
-# both carry the `-dbg-<digit>` infix. Requiring a digit after the marker spares
-# ordinary hyphenated ticket names (e.g. `fix-dbg-output`) from matching.
-_DEBUG_SLUG_RE = re.compile(r"-dbg-\d")
-
-
-def is_debug_slug(slug: str) -> bool:
-    """True if `slug` belongs to a `relay recurring --all` debug run (or its
-    descendants). Debug runs are disposable scratch and must never reach Slack
-    or the digest spool — only the task's own `log.md` records their events."""
-    return bool(_DEBUG_SLUG_RE.search(slug))
-
-
-def create_debug_run(
-    cfg: Config,
-    template: Template,
-    now: datetime,
-    *,
-    allow_interactive: bool = True,
-) -> CreateOutcome:
-    """Create a throwaway debug run of one template — `relay recurring --all`.
-
-    Unlike `create_template`, this ignores both the stable recurring task
-    slug and the serviced-period high-water mark: it always creates a *fresh*
-    task under a unique `<template>-dbg-<timestamp>` slug, so it never collides
-    with — or mutates — the real run (which may already be `done`/
-    `in_progress`/`paused`). The run is meant to be observed once and then
-    deleted; it does not advance `last_serviced_period`.
-    """
-    effective_mode = _effective_mode(template, allow_interactive=allow_interactive)
-    stamp = now.strftime("%Y%m%dT%H%M%S")
-    target_slug = f"{template.name}-dbg-{stamp}"
-    return _create_at_slug(
-        cfg,
-        template,
-        target_slug=target_slug,
-        effective_mode=effective_mode,
-        title=f"[debug] {_extract_title(template)}",
-    )
-
-
-def scan_debug(
-    cfg: Config, now: datetime | None = None, *, allow_interactive: bool = True
-) -> DueScan:
-    """Create a fresh debug run for every recurring template.
-
-    The debug counterpart of `scan_due`: it walks the same templates (skipping
-    `_`-prefixed directories and `mode: auto`, with the same loud skips) but
-    creates an isolated throwaway run per template instead of get-or-creating
-    the current period's task. `relay recurring --all` launches the results.
-    Real period state is left untouched.
-    """
-    now = now or datetime.now()
-    root = recurring_dir(cfg)
-    if not root.is_dir():
-        return DueScan(tasks=[], errors=[])
-
-    tasks: list[DueTask] = []
-    errors: list[tuple[str, str]] = []
-    for path in sorted(root.iterdir()):
-        if path.name.startswith("_"):
-            continue
-        if not path.is_dir():
-            continue
-        try:
-            template = Template.load(path, now=now)
-            outcome = create_debug_run(
-                cfg, template, now, allow_interactive=allow_interactive
-            )
-        except RecurringError as exc:
-            sys.stderr.write(f"[recurring] skipping {path.name}: {exc}\n")
-            errors.append((path.name, str(exc)))
-            continue
-        ticket = read_ticket(outcome.ref)
-        tasks.append(
-            DueTask(
-                template=template.name,
-                ref=outcome.ref,
-                last_fire=now,
-                created=True,
-                status=ticket.status,
-            )
-        )
-    return DueScan(tasks=tasks, errors=errors)
-
-
 @dataclass
 class TemplateStatus:
     """Read-only view of one recurring template and its current-period task.
 
-    Produced by `list_templates`. Unlike `scan_due`/`scan_debug` it creates
+    Produced by `list_templates`. Unlike `scan_due` it creates
     nothing and never touches git, so it is safe behind a pure `relay
     recurring list`. `instance` is the live (`active`/`in_progress`) task for
     this template if one exists — current period or a resumable prior-period
@@ -807,11 +750,8 @@ __all__ = [
     "DueTask",
     "DueScan",
     "scan_due",
-    "scan_debug",
     "create_named",
     "create_template",
-    "create_debug_run",
-    "is_debug_slug",
     "read_last_serviced_period",
     "write_last_serviced_period",
     "merge_last_serviced_period_text",

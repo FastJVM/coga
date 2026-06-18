@@ -80,10 +80,9 @@ Mechanism: naming convention on created tasks, not `last_run` in the template.
    `tasks/recurring/<template-name>/`. The `recurring/` group is the identity
    marker; the period key lives in the template blackboard.
 5. **One live task per template.** Look for the generated grouped task
-   `recurring/<template-name>` if it is `active` or `in_progress` (excluding
-   top-level `-dbg-` debug runs). If it exists, it is *the* live run:
-   launch/resume it (an `in_progress` orphan is resumed from its current step)
-   and do **not** create a duplicate.
+   `recurring/<template-name>` if it is `active` or `in_progress`. If it exists,
+   it is *the* live run: launch/resume it (an `in_progress` orphan is resumed
+   from its current step) and do **not** create a duplicate.
 6. Only when none is live, consider the current period: if
    `last_serviced_period >= current period_key` in
    `relay-os/recurring/<name>/blackboard.md` and the task dir is gone, it's
