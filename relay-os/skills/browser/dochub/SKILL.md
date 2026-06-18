@@ -11,8 +11,10 @@ site-specific layer on top of two substrates:
 - **`browser/playwright`** — the terminal-driven Playwright CLI (how you open,
   snapshot, click, screenshot). Read it first; everything here assumes you are
   driving DocHub through that CLI.
-- **`browser/dom-backed`** — the DOM-backed control standard (snapshot →
-  ref → act, fail loud, capture artifacts). DocHub follows it, with **one
+- **`browser/dom-backed`** — the DOM-backed control standard context
+  (snapshot → ref → act, fail loud, capture artifacts). This is a Relay
+  **context** (`relay-os/contexts/browser/dom-backed/`), not a loadable
+  skill — attach/read it as a context. DocHub follows it, with **one
   sanctioned coordinate exception** documented under Technique B.
 
 DocHub is the chosen e-sign target (v7). Use this skill when a ticket attaches
