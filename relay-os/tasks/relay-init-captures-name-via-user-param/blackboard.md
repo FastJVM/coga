@@ -46,3 +46,48 @@ path and my ticket should stay a pure `relay init` change.
 
 None outstanding — all resolved above. (review-design: override any of the three
 defaults if you disagree.)
+
+## Dev
+
+This ticket lands on the existing #391 PR, so it reuses #391's branch/worktree
+rather than cutting a new one (per task context).
+
+- branch: `init-captures-name-impl`
+- worktree: `/Users/zach2179/Desktop/relay-init-name-impl`
+
+Note: the editable `relay` install points at the primary checkout
+(`/Users/zach2179/Desktop/relay-cli/src`), so tests must run with
+`PYTHONPATH=<worktree>/src` to exercise the worktree code.
+
+## Implement step (done)
+
+Committed on `init-captures-name-impl` (no push/PR yet — that's `code/open-pr`).
+
+What changed (`src/relay/commands/init.py`):
+- Added `--user NAME` option to `init()`; passed to `_do_init(..., user=...)`
+  only on the fresh path. `--update` / `--update --all` never read it (Decision 2).
+- Extracted the validation predicate into `_clean_user_name(raw) -> str | None`
+  (strip + reject empty/`"`/`\\`), now the single source of truth shared by the
+  `--user` param and `_prompt_user_name`.
+- Added `_require_user_name(user)`: errors (exit 2) on a missing flag and on an
+  invalid value, with distinct messages. Validated **before** mkdir/clone, so a
+  bad invocation writes nothing.
+- `_do_init` now takes `user`; `name = None if via_setup else _require_user_name(user)`.
+  When `name is None` (the `relay setup` path), it writes the empty
+  `LOCAL_TOML_TEMPLATE` and skips stamping (Decision 1 / Option A).
+- `_prompt_user_name` kept (now only `setup._ensure_user` uses it); `setup.py`
+  untouched.
+
+Tests (`tests/test_init.py`): dropped the autouse prompt-stub fixture; added
+`--user tester` to the name-agnostic fresh-init invocations; converted the two
+name-specific tests to pass `--user` (`"  marc  "` also covers stripping); added
+`test_init_without_user_errors` and `test_init_rejects_invalid_user`. Kept the
+`_prompt_user_name` validation-loop test (still live via setup). No
+`setup.py`/`test_setup.py` changes; example fixture unaffected (init isn't
+re-run on it).
+
+Verification: `python -m pytest` → 785 passed, 1 skipped (pre-existing).
+`relay init --help` shows `--user`; bare `relay init <dir>` exits 2 and writes
+no `relay-os/`.
+
+PR #391 body still needs updating to the param flow — that's part of `code/open-pr`.
