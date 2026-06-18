@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 from textwrap import dedent
 
@@ -446,6 +447,122 @@ def test_select_launch_secrets_rejects_non_list(
     cfg = load_config(repo)
     with pytest.raises(SecretError, match="must be a list"):
         select_launch_secrets(cfg, "stripe_key")
+
+
+# --- 1Password `op://` references ---------------------------------------------
+
+
+@pytest.fixture
+def op_repo(tmp_path: Path) -> Path:
+    """A repo whose `[secrets]` carries a 1Password `op://` reference."""
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        mode = "local"
+        """,
+    )
+    _write(
+        tmp_path / "relay.local.toml",
+        """
+        user = "marc"
+
+        [secrets]
+        stripe_key = "op://vault/stripe/key"
+        literal = "just-a-value"
+        """,
+    )
+    return tmp_path
+
+
+def test_op_reference_loads_deferred_not_resolved(
+    op_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Loading config records the op reference but never shells out — a config
+    # load must not prompt 1Password.
+    def _boom(*args, **kwargs):  # pragma: no cover — must not be called
+        raise AssertionError("config load must not invoke `op`")
+
+    monkeypatch.setattr("relay.config.subprocess.run", _boom)
+    cfg = load_config(op_repo)
+    sv = cfg.secrets["stripe_key"]
+    assert sv.op_ref == "op://vault/stripe/key"
+    assert sv.value is None
+    assert sv.env_var is None
+    assert sv.missing is False  # deferred, not env-unset
+
+
+def test_select_launch_secrets_blanket_skips_op(
+    op_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Legacy blanket mode (declared is None) must not resolve op references —
+    # an unselected op secret is skipped, never prompted for.
+    def _boom(*args, **kwargs):  # pragma: no cover — must not be called
+        raise AssertionError("blanket mode must not invoke `op`")
+
+    monkeypatch.setattr("relay.config.subprocess.run", _boom)
+    cfg = load_config(op_repo)
+    env = select_launch_secrets(cfg, None)
+    assert env == {"literal": "just-a-value"}
+
+
+def test_select_launch_secrets_resolves_op_when_declared(
+    op_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        # `op read` prints the secret followed by a trailing newline.
+        return subprocess.CompletedProcess(argv, 0, stdout="sk_op_secret\n", stderr="")
+
+    monkeypatch.setattr("relay.config.subprocess.run", fake_run)
+    cfg = load_config(op_repo)
+    env = select_launch_secrets(cfg, ["stripe_key"])
+    # Only the declared op key; trailing newline stripped, value untransformed.
+    assert env == {"stripe_key": "sk_op_secret"}
+    assert calls == [["op", "read", "op://vault/stripe/key"]]
+
+
+def test_select_launch_secrets_op_missing_binary(
+    op_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(argv, **kwargs):
+        raise FileNotFoundError("op")
+
+    monkeypatch.setattr("relay.config.subprocess.run", fake_run)
+    cfg = load_config(op_repo)
+    with pytest.raises(SecretError) as exc:
+        select_launch_secrets(cfg, ["stripe_key"])
+    msg = str(exc.value)
+    # Names the key and reference; never a secret value (there is none).
+    assert "stripe_key" in msg
+    assert "op://vault/stripe/key" in msg
+    assert "not installed" in msg
+
+
+def test_select_launch_secrets_op_read_nonzero(
+    op_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            argv, 1, stdout="", stderr="[ERROR] not signed in"
+        )
+
+    monkeypatch.setattr("relay.config.subprocess.run", fake_run)
+    cfg = load_config(op_repo)
+    with pytest.raises(SecretError) as exc:
+        select_launch_secrets(cfg, ["stripe_key"])
+    msg = str(exc.value)
+    assert "stripe_key" in msg
+    assert "op://vault/stripe/key" in msg
+    assert "not signed in" in msg
 
 
 def test_unsupported_version(tmp_path: Path) -> None:

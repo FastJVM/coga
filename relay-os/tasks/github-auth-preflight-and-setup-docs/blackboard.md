@@ -34,7 +34,8 @@ Add an opt-in `relay validate --check-github` preflight mirroring `--check-slack
 ## Dev
 branch: github-preflight
 worktree: /home/n/Code/claude/relay-github-preflight
-commit: 97652bf
+commit: 57ab2bc
+pr: https://github.com/FastJVM/relay/pull/385
 
 ## Implement step — done
 
@@ -64,3 +65,30 @@ Notes for reviewer / next steps:
   offline machine fails the explicit check with a message enumerating causes.
 - Example fixture untouched — change is a CLI flag + check, no task-layout /
   prompt-composition / workflow-semantics impact.
+
+## Peer-review step
+
+Native review: `codex review --base main`.
+
+Findings addressed:
+- The git preflight used `git ls-remote`, which could pass with read/fetch
+  access even when the next push would fail. Fixed by probing push access with
+  non-mutating `git push --dry-run <remote> HEAD:refs/heads/relay-preflight-auth-check`.
+- The `gh` auth preflight was host-agnostic. Fixed by deriving the host from
+  the configured remote URL and running `gh auth status --hostname <host>`
+  when available.
+
+Peer-review commit: `57ab2bc` (`peer-review: tighten GitHub auth preflight`).
+
+Verification:
+- `PYTHONPATH=/home/n/Code/claude/relay-github-preflight/src /home/n/Code/relay/relay-os/.relay/.venv/bin/python -m pytest tests/test_validate.py -q -p no:cacheprovider` -> 37 passed.
+- `PYTHONPATH=/home/n/Code/claude/relay-github-preflight/src /home/n/Code/relay/relay-os/.relay/.venv/bin/python -m pytest -p no:cacheprovider` -> 781 passed.
+
+## Open-PR step
+
+- Branch pushed (`github-preflight` -> `origin`, clean tree at `57ab2bc`).
+- `gh auth status` probed green before push (account `nicktoper`, host github.com).
+- PR opened: https://github.com/FastJVM/relay/pull/385 ("GitHub auth preflight
+  and setup docs"), closes ticket `github-auth-preflight-and-setup-docs`.
+- CI: `gh pr checks 385` reports no checks configured on this repo — nothing to
+  wait on (not a failure).

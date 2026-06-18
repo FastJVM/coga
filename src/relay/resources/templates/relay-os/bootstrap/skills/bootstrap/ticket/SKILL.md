@@ -59,7 +59,11 @@ Four ways this skill runs:
 
 Before suggesting anything, ground yourself in what actually exists:
 
-- `ls relay-os/workflows/` (and one level deeper) — known workflows.
+- `ls relay-os/workflows/ relay-os/bootstrap/workflows/` (and one level
+  deeper) — known workflows. Repo-local workflows live under
+  `relay-os/workflows/`; bundled batteries (e.g. `code/with-review`) under
+  `relay-os/bootstrap/workflows/`. A local file overrides a bundled one
+  with the same ref.
 - `ls relay-os/contexts/*/` — known contexts (path shape:
   `relay-os/contexts/<namespace>/<name>/SKILL.md`; reference shape in
   tickets: `<namespace>/<name>`).
@@ -130,8 +134,10 @@ answer.
      an all-agent `code/*`); you may *suggest* an unattended `mode` (`script`,
      or `auto` = `script` + `claude -p`), but do not set `mode` semantics or
      encode a tier↔mode mapping here — that's a separate ticket.
-4. **Workflow** — which workflow fits? `ls relay-os/workflows/` for the
-   options (e.g. `code/with-review` for a code change shipped via PR). Let the
+4. **Workflow** — which workflow fits? `ls relay-os/workflows/
+   relay-os/bootstrap/workflows/` for the options (e.g. `code/with-review`
+   for a code change shipped via PR — a bundled `bootstrap/workflows/`
+   battery). Let the
    triage tier above advise this choice, but never override a workflow the
    human explicitly picks. Every ticket needs one before activation — a
    workflow-less ticket can't be activated and `relay validate` errors on a
@@ -250,8 +256,10 @@ hard to spot once the ticket has launched — workflow shape, the skills each
 step will run, and the autonomy tier you landed on (so the human validates the
 classification before launch).
 
-Read `relay-os/workflows/<name>.md` for the workflow you picked and pull
-its step list (each step's `name:` and `skills:`). Then print:
+Read `relay-os/workflows/<name>.md` (or
+`relay-os/bootstrap/workflows/<name>.md` for a bundled battery) for the
+workflow you picked and pull its step list (each step's `name:` and
+`skills:`). Then print:
 
 ```
 <slug> — <title>

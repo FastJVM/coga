@@ -13,8 +13,8 @@ from relay.logfile import append_log
 from relay.paths import (
     resolve_context_path,
     resolve_skill_path,
+    resolve_workflow_path,
     tasks_dir,
-    workflow_path,
 )
 from relay.slugify import slugify
 from relay.tasks import TaskRef, list_tasks
@@ -75,7 +75,7 @@ def create_task(
 
     wf: Workflow | None = None
     if workflow_name:
-        wf = Workflow.load(workflow_path(cfg, workflow_name))
+        wf = Workflow.load(resolve_workflow_path(cfg, workflow_name))
         missing_step_skills: list[str] = []
         for s in wf.steps:
             for ref in s.skills:

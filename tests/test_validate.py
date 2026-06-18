@@ -328,6 +328,28 @@ def test_run_check_slack_emits_issue_for_revoked(
     assert "slack-revoked" in kinds
 
 
+def test_run_check_slack_misconfigured_when_selected_without_webhook(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Selecting Slack but leaving the webhook unset still fails loud."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[notification]\nchannels = ["slack"]\n'
+        '[notification.slack]\nwebhook = "env:SLACK_WEBHOOK_URL"\n'
+    )
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+
+    def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("must not probe the network with no webhook")
+
+    monkeypatch.setattr("relay.validate.requests.post", boom)
+    cfg = load_config(repo)
+    report = run(cfg, check_slack=True)
+    misconfigured = [i for i in report.issues if i.kind == "slack-misconfigured"]
+    assert misconfigured
+    assert misconfigured[0].severity == "error"
+
+
 def test_run_no_slack_check_by_default(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -340,6 +362,173 @@ def test_run_no_slack_check_by_default(
         raise AssertionError("network must not be called when --check-slack is off")
 
     monkeypatch.setattr("relay.validate.requests.post", boom)
+    cfg = load_config(repo)
+    run(cfg)  # must not raise
+
+
+# --- github preflight (--check-github) --------------------------------------
+
+
+class _FakeProc:
+    def __init__(self, returncode: int, stdout: str = "", stderr: str = "") -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def _fake_subprocess_factory(responses: dict[tuple[str, ...], object]):
+    """Dispatch `subprocess.run` by matching the start of its argv.
+
+    A value may be a `_FakeProc` (returned) or an `Exception` (raised, e.g.
+    `FileNotFoundError` to model a missing binary). An argv that matches no key
+    fails the test — that proves probes we expect to be *skipped* are not run.
+    """
+
+    def fake_run(args, **kwargs):  # type: ignore[no-untyped-def]
+        for key, resp in responses.items():
+            if tuple(args[: len(key)]) == key:
+                if isinstance(resp, Exception):
+                    raise resp
+                return resp
+        raise AssertionError(f"unexpected subprocess call: {args}")
+
+    return fake_run
+
+
+def _github_kinds(report) -> list[str]:
+    return [i.kind for i in report.issues if i.task == "(github)"]
+
+
+def test_check_github_success(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "relay.github_preflight.subprocess.run",
+        _fake_subprocess_factory(
+            {
+                ("git", "remote", "get-url", "origin"): _FakeProc(
+                    0, "git@github.com:o/r.git\n"
+                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
+                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
+                    0, "", "Logged in to github.com"
+                ),
+            }
+        ),
+    )
+    cfg = load_config(repo)
+    report = run(cfg, check_github=True)
+    assert _github_kinds(report) == []
+
+
+def test_check_github_missing_remote(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # No push entry: a missing remote must short-circuit before the auth probe
+    # runs (the factory raises on any unexpected call).
+    monkeypatch.setattr(
+        "relay.github_preflight.subprocess.run",
+        _fake_subprocess_factory(
+            {
+                ("git", "remote", "get-url", "origin"): _FakeProc(
+                    2, "", "error: No such remote 'origin'"
+                ),
+                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
+                ("gh", "auth", "status"): _FakeProc(0, "", "Logged in"),
+            }
+        ),
+    )
+    cfg = load_config(repo)
+    report = run(cfg, check_github=True)
+    kinds = _github_kinds(report)
+    assert "github-git-remote" in kinds
+    assert "github-git-auth" not in kinds
+
+
+def test_check_github_missing_gh(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # `gh` absent (FileNotFoundError): gh-auth must be skipped.
+    monkeypatch.setattr(
+        "relay.github_preflight.subprocess.run",
+        _fake_subprocess_factory(
+            {
+                ("git", "remote", "get-url", "origin"): _FakeProc(
+                    0, "git@github.com:o/r.git\n"
+                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("gh", "--version"): FileNotFoundError(),
+            }
+        ),
+    )
+    cfg = load_config(repo)
+    report = run(cfg, check_github=True)
+    kinds = _github_kinds(report)
+    assert "github-gh-installed" in kinds
+    assert "github-gh-auth" not in kinds
+
+
+def test_check_github_gh_unauthenticated(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "relay.github_preflight.subprocess.run",
+        _fake_subprocess_factory(
+            {
+                ("git", "remote", "get-url", "origin"): _FakeProc(
+                    0, "git@ghe.example.com:o/r.git\n"
+                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
+                ("gh", "auth", "status", "--hostname", "ghe.example.com"): _FakeProc(
+                    1, "", "not logged in to ghe.example.com"
+                ),
+            }
+        ),
+    )
+    cfg = load_config(repo)
+    report = run(cfg, check_github=True)
+    kinds = _github_kinds(report)
+    assert "github-gh-auth" in kinds
+    auth_issue = next(i for i in report.issues if i.kind == "github-gh-auth")
+    assert "gh auth login --hostname ghe.example.com" in auth_issue.message
+    assert auth_issue.severity == "error"
+
+
+def test_check_github_push_auth_failure(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "relay.github_preflight.subprocess.run",
+        _fake_subprocess_factory(
+            {
+                ("git", "remote", "get-url", "origin"): _FakeProc(
+                    0, "https://github.com/o/r.git\n"
+                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(
+                    128, "", "remote: Permission to o/r.git denied"
+                ),
+                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
+                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
+                    0, "", "Logged in to github.com"
+                ),
+            }
+        ),
+    )
+    cfg = load_config(repo)
+    report = run(cfg, check_github=True)
+    kinds = _github_kinds(report)
+    assert "github-git-auth" in kinds
+    auth_issue = next(i for i in report.issues if i.kind == "github-git-auth")
+    assert "push access" in auth_issue.message
+
+
+def test_run_no_github_check_by_default(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("git/gh must not run when --check-github is off")
+
+    monkeypatch.setattr("relay.github_preflight.subprocess.run", boom)
     cfg = load_config(repo)
     run(cfg)  # must not raise
 

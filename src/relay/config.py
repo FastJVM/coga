@@ -6,6 +6,7 @@ import math
 import os
 import random
 import shlex
+import subprocess
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -20,9 +21,12 @@ class SecretError(Exception):
     """A ticket's declared secret cannot be satisfied at launch time.
 
     Raised by `select_launch_secrets` when a ticket declares a `secrets:` key
-    that is not in `[secrets]`, or whose `env:VAR` indirection points at an
-    unset env var. `relay launch` turns this into a non-zero exit before any
-    agent or script is spawned — the fail-loud guarantee.
+    that is not in `[secrets]`, whose `env:VAR` indirection points at an unset
+    env var, or whose `op://` reference cannot be resolved (the `op` CLI is
+    missing or `op read` returns non-zero). `relay launch` turns this into a
+    non-zero exit before any agent or script is spawned — the fail-loud
+    guarantee. Messages name the Relay secret key and reference, never the
+    resolved secret value.
     """
 
 
@@ -35,16 +39,26 @@ class SecretValue:
     is unset (`value is None`) apart from an empty literal (`value == ""`), and
     can name the missing env var in errors. `raw` is the original `[secrets]`
     value; `env_var` is the referenced variable name (None for a literal);
-    `value` is the resolved string, or None iff env-indirected and unset.
+    `op_ref` is the `op://vault/item/field` 1Password reference (None unless
+    op-indirected); `value` is the resolved string, or None iff env-indirected
+    and unset, **or** op-indirected (op values are resolved on demand at launch
+    / `relay secret get` time, never at config load — see `_resolve_secrets`).
     """
 
     raw: str
     env_var: str | None
     value: str | None
+    op_ref: str | None = None
 
     @property
     def missing(self) -> bool:
-        """True when this is an `env:VAR` reference whose var is unset."""
+        """True when this is an `env:VAR` reference whose var is unset.
+
+        An `op://` reference is **not** missing here — its `value` is None only
+        because resolution is deferred, not because anything is wrong. The
+        env-unset and op-deferred cases are kept distinct so legacy blanket
+        injection skips op references without trying to read them.
+        """
         return self.env_var is not None and self.value is None
 
 
@@ -224,7 +238,10 @@ def load_config(repo_root: Path | None = None) -> Config:
             "type (e.g. `claude`) or a human directly. See docs/spec.md."
         )
     notification_channels = _resolve_notification_channels(
-        shared.get("notification"), local.get("notification")
+        shared.get("notification"),
+        local.get("notification"),
+        shared.get("slack"),
+        local.get("slack"),
     )
     (
         slack_webhook,
@@ -530,9 +547,20 @@ _SUPPORTED_NOTIFICATION_CHANNELS: frozenset[str] = frozenset({"slack"})
 
 
 def _resolve_notification_channels(
-    shared: dict | None, local: dict | None
+    shared: dict | None,
+    local: dict | None,
+    shared_legacy_slack: dict | None,
+    local_legacy_slack: dict | None,
 ) -> tuple[str, ...]:
-    """Resolve `[notification].channels` with local overriding shared."""
+    """Resolve `[notification].channels` with local overriding shared.
+
+    An explicit `channels` list — including an empty one — is authoritative. A
+    fresh repo that names no `channels` key anywhere gets no notification
+    channels: Slack is opt-in, not the first-run default. Slack is *inferred*
+    only when the absent key is paired with opt-in or compatibility evidence —
+    a `[notification.slack]` table, a legacy `[slack]` table, or a bare
+    `SLACK_WEBHOOK_URL` env var (see `_slack_opt_in_present`).
+    """
     for label, table in (
         ("[notification] in relay.local.toml", local),
         ("[notification] in relay.toml", shared),
@@ -561,7 +589,41 @@ def _resolve_notification_channels(
                 f"{unsupported}; supported: {allowed}"
             )
         return tuple(cleaned)
-    return ("slack",)
+    if _slack_opt_in_present(shared, local, shared_legacy_slack, local_legacy_slack):
+        return ("slack",)
+    return ()
+
+
+def _slack_opt_in_present(
+    shared_notification: dict | None,
+    local_notification: dict | None,
+    shared_legacy_slack: dict | None,
+    local_legacy_slack: dict | None,
+) -> bool:
+    """True when a repo has opted into Slack via new, legacy, or env config.
+
+    Drives channel inference when `[notification].channels` is absent: a
+    `[notification.slack]` table (shared or local), a legacy `[slack]` table,
+    or a bare exported `SLACK_WEBHOOK_URL` each count as opt-in evidence. With
+    none of these a fresh repo selects no channels.
+    """
+    if (
+        _notification_slack_table(shared_notification, "[notification] in relay.toml")
+        is not None
+    ):
+        return True
+    if (
+        _notification_slack_table(
+            local_notification, "[notification] in relay.local.toml"
+        )
+        is not None
+    ):
+        return True
+    if isinstance(shared_legacy_slack, dict) or isinstance(local_legacy_slack, dict):
+        return True
+    if os.environ.get("SLACK_WEBHOOK_URL"):
+        return True
+    return False
 
 
 def _notification_slack_table(raw: dict | None, label: str) -> dict | None:
@@ -895,6 +957,14 @@ def _resolve_secrets(raw: dict) -> dict[str, SecretValue]:
     to `value=None` (not `""`), so `relay launch` can fail loud naming the var
     and `relay validate` can warn — neither of which is possible once the
     reference is flattened away. Literals and set env vars carry their string.
+
+    An `op://vault/item/field` 1Password reference is recorded as `op_ref` with
+    `value=None` and is **not** resolved here: shelling out to `op read` at
+    config-load time would prompt 1Password on every command. Op references are
+    resolved on demand by `select_launch_secrets` — only when a ticket's
+    explicit `secrets:` list selects the key, or a human runs
+    `relay secret get`. Prefix dispatch lives here (the extension seam for new
+    providers is another explicit branch), not in a provider registry.
     """
     out: dict[str, SecretValue] = {}
     for key, value in raw.items():
@@ -904,8 +974,44 @@ def _resolve_secrets(raw: dict) -> dict[str, SecretValue]:
             env_var = value[len("env:") :]
             resolved = os.environ.get(env_var)  # None when unset — kept distinct from ""
             out[key] = SecretValue(raw=value, env_var=env_var, value=resolved)
+        elif value.startswith("op://"):
+            # Deferred: value stays None until resolved on demand. Never read here.
+            out[key] = SecretValue(raw=value, env_var=None, value=None, op_ref=value)
         else:
             out[key] = SecretValue(raw=value, env_var=None, value=value)
+    return out
+
+
+def _resolve_op_reference(key: str, ref: str) -> str:
+    """Resolve a 1Password `op://` reference by shelling out to `op read`.
+
+    Passes the reference URI verbatim to `op read` — Relay does not parse
+    vault/item/field. Strips only the single trailing newline `op` prints; the
+    secret is otherwise returned untransformed. Raises `SecretError` (naming the
+    Relay secret key and reference, never the value) when `op` is not installed
+    or `op read` returns non-zero.
+    """
+    try:
+        result = subprocess.run(
+            ["op", "read", ref],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise SecretError(
+            f"secret {key!r} references {ref!r} but the 1Password CLI `op` is "
+            "not installed or not on PATH"
+        ) from exc
+    if result.returncode != 0:
+        detail = result.stderr.strip()
+        raise SecretError(
+            f"secret {key!r}: `op read {ref}` failed (exit {result.returncode})"
+            + (f": {detail}" if detail else "")
+        )
+    out = result.stdout
+    if out.endswith("\n"):
+        out = out[:-1]
     return out
 
 
@@ -916,11 +1022,15 @@ def select_launch_secrets(cfg: Config, declared: object) -> dict[str, str]:
     (absent and explicit `null` both arrive here as `None`):
 
     - `None` (absent / null) → **legacy blanket**: every `[secrets]` entry that
-      resolves. Unset `env:VAR` secrets are skipped, never injected as "".
+      resolves. Unset `env:VAR` secrets are skipped, never injected as "". An
+      `op://` reference has `value is None` (deferred) so it is skipped too —
+      blanket mode never prompts 1Password for every configured op secret. A
+      task that needs an op secret must declare that key explicitly.
     - `[]` (explicit empty list) → **strict lockdown**: inject nothing.
     - non-empty list → **least privilege**: inject only the listed keys; raise
-      `SecretError` (fail loud, no agent spawned) on any key not in `[secrets]`
-      or whose `env:VAR` points at an unset var.
+      `SecretError` (fail loud, no agent spawned) on any key not in `[secrets]`,
+      whose `env:VAR` points at an unset var, or whose `op://` reference cannot
+      be resolved. `op://` keys are resolved live here via `op read`.
 
     `None` and `[]` must stay distinct — do not collapse with `declared or []`.
     """
@@ -949,6 +1059,9 @@ def select_launch_secrets(cfg: Config, declared: object) -> dict[str, str]:
                 f"ticket declares secret {key!r} but it is not defined in "
                 "[secrets] in relay.local.toml"
             )
+        if sv.op_ref is not None:
+            env[key] = _resolve_op_reference(key, sv.op_ref)
+            continue
         if sv.value is None:
             raise SecretError(
                 f"ticket declares secret {key!r} but its env var "

@@ -1,11 +1,11 @@
 ---
 title: GitHub auth preflight and setup docs
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: nick
 contexts:
 - relay/principles
 - relay/codebase
@@ -28,7 +28,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (peer-review)
 ---
 
 ## Description

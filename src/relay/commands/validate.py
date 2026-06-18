@@ -44,6 +44,11 @@ def validate(
         "--check-slack",
         help="Probe the Slack webhook with an empty-text payload (network call).",
     ),
+    check_github: bool = typer.Option(
+        False,
+        "--check-github",
+        help="Probe git/GitHub auth readiness via git/gh (network call).",
+    ),
 ) -> None:
     """Validate repo + config; exits 1 if any errors are found."""
     try:
@@ -61,6 +66,14 @@ def validate(
                 err=True,
             )
             raise typer.Exit(2)
+        if check_github:
+            typer.secho(
+                "--check-github is not supported with --task; "
+                "it probes git/GitHub auth, which is a whole-repo concern.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(2)
         report = validate_task(
             cfg,
             task,
@@ -74,6 +87,7 @@ def validate(
             idle_hours=idle_hours,
             max_blackboard_bytes=int(max_blackboard_kb * 1024),
             check_slack=check_slack,
+            check_github=check_github,
             fix=fix,
         )
 

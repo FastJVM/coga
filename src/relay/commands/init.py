@@ -468,30 +468,31 @@ def _do_init(path: Path, *, user: str | None = None, via_setup: bool = False) ->
     for i, step in enumerate(steps, 1):
         typer.echo(f"  {i}. {step}")
 
-    _print_notification_state(local_toml)
+    _print_notification_state()
 
 
-def _print_notification_state(local_toml: Path) -> None:
-    """End-of-init line on notifications — set ✓, unset ⚠. Doesn't gate init."""
+def _print_notification_state() -> None:
+    """End-of-init line on notifications — optional on first run, Slack opt-in."""
     typer.echo("")
     if os.environ.get("SLACK_WEBHOOK_URL"):
         typer.secho(
-            "✓ Notifications: $SLACK_WEBHOOK_URL is set — Relay will post "
-            "through Slack once [notification.slack].webhook points at it "
-            "(the default).",
+            "✓ Notifications: optional on first run — Relay runs without them. "
+            "$SLACK_WEBHOOK_URL is already set, so opting in is one step: add "
+            'channels = ["slack"] under [notification] and '
+            '[notification.slack].webhook = "env:SLACK_WEBHOOK_URL" in relay.toml.',
             fg=typer.colors.GREEN,
         )
         return
     typer.secho(
-        "⚠ Notifications: $SLACK_WEBHOOK_URL is not set. Relay requires a live\n"
-        "  notification channel for the team sync point — bump/slack/panic/launch\n"
-        "  will refuse to run until you point [notification.slack].webhook at it\n"
-        '  (relay.toml ships webhook = "env:SLACK_WEBHOOK_URL") and export the env var.\n'
-        "  To opt out (solo runs, dev/test), add to "
-        f"{local_toml}:\n"
+        "✓ Notifications: optional on first run — bump/slack/panic/launch run\n"
+        "  without them. To turn on team notifications later, select the Slack\n"
+        "  channel and point it at a webhook in relay.toml:\n"
+        "      [notification]\n"
+        '      channels = ["slack"]\n'
         "      [notification.slack]\n"
-        "      enabled = false",
-        fg=typer.colors.YELLOW,
+        '      webhook = "env:SLACK_WEBHOOK_URL"\n'
+        "  then export SLACK_WEBHOOK_URL. Once Slack is selected it is fail-loud.",
+        fg=typer.colors.GREEN,
     )
 
 

@@ -100,6 +100,36 @@ human-installed command line tools:
   update workflows once those commands land. Older `gh` versions should fail
   loud with an upgrade hint.
 
+### Git/GitHub auth readiness
+
+Relay does not run its own account system or store a GitHub token — it uses the
+standard tools you already have. PR and git-sync paths need:
+
+- A configured git remote. Relay uses the remote named in `[git].remote`
+  (default `origin`), not a hardcoded `origin` — if yours is named differently,
+  set that key in `relay.toml`.
+- Push access to that remote through your normal git setup. Transport is your
+  choice: for SSH, keep your key loaded in `ssh-agent` (`ssh-add -l`) and
+  authorized on GitHub; for HTTPS, let a git credential helper hold valid
+  credentials. Relay never reads `GITHUB_TOKEN` or stores a PAT.
+- `gh` installed and authenticated for the same GitHub host as the remote:
+  run `gh auth login` once, or `gh auth login --hostname <host>` for GitHub
+  Enterprise.
+
+Check all of this before launching work with the opt-in preflight:
+
+```sh
+relay validate --check-github
+```
+
+It verifies the configured remote exists, probes push access with a
+non-mutating `git push --dry-run`, and confirms `gh` is installed and
+authenticated for the remote host - turning each failure into a direct setup
+hint (set/fix the remote, load your SSH key or credential helper, run
+`gh auth login`) instead of a surprise at PR time. Like `--check-slack`, it is
+the only thing that makes `relay validate` touch the network; plain
+`relay validate`, `relay status`, and `relay show` stay offline and read-only.
+
 After init, edit the freshly-written `relay-os/relay.toml` to declare your
 agent types, and set `user = "<you>"` in `relay-os/relay.local.toml`.
 Then draft your first ticket:
@@ -219,7 +249,7 @@ setup), it skips that agent and prints what to clear.
 ### `relay draft "<title>"`
 
 Create a new raw `draft` ticket under `relay-os/tasks/<slug>/` (slug
-derived from the title) and post `✨` to Slack. Does **not** spawn an agent
+derived from the title). Does **not** spawn an agent
 and does **not** run the guided authoring interview. The new ticket is empty
 — title, owner, mode, and timestamp set; workflow, contexts, assignee, and
 description still need to be filled in. If the slug already exists, the new
@@ -272,7 +302,7 @@ Programmatic callers (e.g. `relay recurring`) call `create_task()` in
 Change a ticket's `status`. Three subcommands:
 
 ```sh
-relay mark active add-retry         # draft / paused → active. Posts 🚀.
+relay mark active add-retry         # draft / paused → active.
 relay mark paused add-retry         # active / in_progress → paused. Preserves step.
 relay mark done   add-retry         # active / in_progress → done. Clears step.
 ```
@@ -624,19 +654,23 @@ relay slack --task add-retry --message "Reassigned to pierre"
 
 ### Notifications — the team sync point
 
-Notifications are required by default. Slack is the first backend. Urgent and
-manual events post to the channel configured by `[notification.slack].webhook`;
-outcome events may spool into the daily digest before posting. Relaunching an
-already-`in_progress` ticket does *not* post — that isn't a new state change.
-Failures are loud: if Slack is unreachable or the webhook isn't set, the
+**Notifications are optional on first run.** A fresh `relay init` selects no
+channels (`[notification] channels = []`), so you can `draft`, `launch`, and
+`bump` your first task without configuring anything. Turn them on when you
+start coordinating with other people.
+
+Slack is the first backend. Once selected, urgent and manual events post to the
+channel configured by `[notification.slack].webhook`; outcome events may spool
+into the daily digest before posting. Relaunching an already-`in_progress`
+ticket does *not* post — that isn't a new state change. Once Slack is selected,
+failures are loud: if Slack is unreachable or the webhook isn't set, the
 command exits non-zero rather than silently dropping the message — a missed FYI
 becomes a stale mental model on the human side, and that's worse than a noisy
 retry.
 
-**Setup (solo or team).** Create a Slack incoming webhook for the
-channel, keep the shared config pointed at an env var, and export the URL
-locally. Fresh `relay.toml` files include this entry; older or minimal repos
-should add it:
+**Opt in (team).** Create a Slack incoming webhook for the channel, select the
+Slack channel, keep the shared config pointed at an env var, and export the URL
+locally; older or minimal repos add the same block:
 
 ```toml
 [notification]
@@ -667,7 +701,9 @@ so a dead URL surfaces at config time, not at first `bump`. Failures
 during runtime posts also append a line to the task's `log.md` so
 daemon / cron / launched-script runs leave a recoverable trace.
 
-**Opt out (solo dev / CI / dry runs).** Set in `relay.local.toml`:
+**Temporarily silence a repo that already opted in (solo dev / CI / dry
+runs).** To run without posts but keep the Slack channel selected, set in
+`relay.local.toml`:
 
 ```toml
 [notification.slack]
@@ -676,7 +712,8 @@ enabled = false
 
 With `enabled = false`, every Slack-channel call is suppressed to stderr and
 nothing crashes. Treat this as an exit from the sync loop, not a
-default — once you're working with another person, turn it back on.
+default — once you're working with another person, turn it back on. (If you
+never opted in, you don't need this — a fresh repo posts nothing already.)
 
 ### `relay --version`
 

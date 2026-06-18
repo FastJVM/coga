@@ -216,23 +216,19 @@ ones that affect implementation:
   The normal boot is `relay ticket "<title>"` → review the draft →
   `relay launch <slug>`, which activates the draft inline as it starts work.
 
-## Open ticket queue (Slack / notifications)
+## Notification layer (Slack) — shipped
 
-The earlier audit-driven bug queue has been worked off — its tickets are
-completed-and-pruned and no longer on disk. The live work now centers on
-Slack/notifications. As of this refresh the on-disk tickets are:
+The earlier audit-driven bug queue and the Slack-notification queue have both
+been worked off. The notification-layer rename shipped: Slack is now the
+notification layer (a pluggable notification system), and the tickets that
+drove it are done and pruned — `rename-slack-to-a-notification-system-with-pluggab`,
+`post-slack-notification-on-mode-script-failures`, and
+`slack-post-ignores-http-response-so-bad-webhook-fa` are all completed and no
+longer on disk.
 
-- **`rename-slack-to-a-notification-system-with-pluggab`** (active) — the
-  broader rename of Slack into a pluggable notification system. The other
-  Slack tickets should stay narrow rather than fold into this one.
-- Open Slack bug/feature drafts:
-  `post-slack-notification-on-mode-script-failures`,
-  `slack-post-ignores-http-response-so-bad-webhook-fa`,
-  `slack-webhook-is-env-only-despite-toml-comment-imp`,
-  `rewrite-slack-messages`, and `use-slack-as-a-sync-channel-for-tickets`.
-
-This reflects the tickets present on disk at refresh time, not a committed
-priority order — re-prioritize as needed.
+The only Slack idea still parked is a v2 draft:
+`use-slack-as-a-sync-channel-for-tickets` — inbound Slack → ticket sync. It is
+not active work; see "Deliberately deferred" below.
 
 ## Deliberately deferred
 
