@@ -416,6 +416,26 @@ not two. Slack is required (see `relay/sync`); commands crash if
 `$SLACK_WEBHOOK_URL` is unset and the user hasn't opted out via
 `[slack].enabled = false`.
 
+## relay secret get \<key>
+
+Resolve one declared `[secrets]` key on demand and print its value to
+stdout — a human-facing query, not something agents call. It loads config,
+resolves exactly that key through the same shared path `relay launch` uses
+(no second resolver), and prints the value only because you explicitly asked.
+The value is never logged or posted.
+
+`[secrets]` values may be literals, `env:VAR` indirections, or
+`op://vault/item/field` 1Password references. An `op://` reference is resolved
+live by passing it verbatim to `op read`; `env:`/`op://` resolution is deferred
+until the key is actually selected, so neither a config load nor `relay
+validate` ever prompts 1Password. Like launch, this fails loud (non-zero, no
+value printed) when the key is undeclared, an `env:VAR` is unset, or `op` is
+missing / not signed in / returns non-zero — error messages name the Relay
+secret key and reference, never the resolved value.
+
+- `relay secret get stripe_key` — print the resolved value of the
+  `stripe_key` secret (reading 1Password if it is an `op://` reference).
+
 ## relay dream
 
 Run Relay's generic cleanup pass now. `dream` is not a built-in command — it

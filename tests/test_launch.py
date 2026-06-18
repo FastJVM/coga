@@ -553,6 +553,94 @@ def test_launch_injects_only_declared_secret(
     assert "OTHER_SECRET" not in captured
 
 
+def test_launch_fails_loud_on_op_read_error(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A declared `op://` secret that can't be resolved fails loud before any
+    # agent is spawned, naming the key and reference (never a value).
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    _write(
+        active_task / "relay.local.toml",
+        """
+        user = "marc"
+        [secrets]
+        stripe_key = "op://vault/stripe/key"
+        """,
+    )
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    t = Ticket.read(ref.path / "ticket.md")
+    t.frontmatter["secrets"] = ["stripe_key"]
+    t.write(ref.path / "ticket.md")
+
+    # `relay.config` and `relay.commands.launch` share one `subprocess` module,
+    # so a single dispatching mock serves both the `op read` and the agent spawn.
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd[:2] == ["op", "read"]:
+            return subprocess.CompletedProcess(
+                cmd, 1, stdout="", stderr="[ERROR] not signed in"
+            )
+        calls.append(cmd)
+        return type("R", (), {"returncode": 0})()
+
+    monkeypatch.setattr("relay.config.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code != 0
+    combined = result.output + (result.stderr or "")
+    assert "stripe_key" in combined and "op://vault/stripe/key" in combined
+    # Fail-loud: no agent process was ever spawned, ticket stays active.
+    assert calls == []
+    assert Ticket.read(ref.path / "ticket.md").status == "active"
+
+
+def test_launch_injects_op_secret(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    _write(
+        active_task / "relay.local.toml",
+        """
+        user = "marc"
+        [secrets]
+        stripe_key = "op://vault/stripe/key"
+        """,
+    )
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    t = Ticket.read(ref.path / "ticket.md")
+    t.frontmatter["secrets"] = ["stripe_key"]
+    t.write(ref.path / "ticket.md")
+
+    # One dispatching mock for both modules' shared `subprocess`: `op read`
+    # returns the secret; the agent spawn records its injected env.
+    captured: dict[str, str] = {}
+
+    def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd[:2] == ["op", "read"]:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout="sk_op_secret\n", stderr=""
+            )
+        captured.update(kwargs.get("env") or {})
+        return type("R", (), {"returncode": 0})()
+
+    monkeypatch.setattr("relay.config.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+    assert result.exit_code == 0, result.output
+    assert captured.get("stripe_key") == "sk_op_secret"
+
+
 def test_direct_launch_timeout_exits_non_zero(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
