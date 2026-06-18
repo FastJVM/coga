@@ -3,7 +3,7 @@
 ## Dev
 branch: init-captures-name-impl
 worktree: /Users/zach2179/Desktop/relay-init-name-impl
-pr:
+pr: https://github.com/FastJVM/relay/pull/391
 
 ## Implementation decisions (agent, 2026-06-17, implement step)
 
