@@ -34,6 +34,7 @@ default, Slack opt-in, configured Slack remains fail-loud.
 - branch: `first-run-no-slack`
 - worktree: `/home/n/Code/codex/relay-first-run-no-slack`
 - based on `main` (826b1e9).
+- pr: https://github.com/FastJVM/relay/pull/394
 
 ### Implementation plan / decisions
 
