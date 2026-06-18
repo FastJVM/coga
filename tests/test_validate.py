@@ -328,6 +328,28 @@ def test_run_check_slack_emits_issue_for_revoked(
     assert "slack-revoked" in kinds
 
 
+def test_run_check_slack_misconfigured_when_selected_without_webhook(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Selecting Slack but leaving the webhook unset still fails loud."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[notification]\nchannels = ["slack"]\n'
+        '[notification.slack]\nwebhook = "env:SLACK_WEBHOOK_URL"\n'
+    )
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+
+    def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("must not probe the network with no webhook")
+
+    monkeypatch.setattr("relay.validate.requests.post", boom)
+    cfg = load_config(repo)
+    report = run(cfg, check_slack=True)
+    misconfigured = [i for i in report.issues if i.kind == "slack-misconfigured"]
+    assert misconfigured
+    assert misconfigured[0].severity == "error"
+
+
 def test_run_no_slack_check_by_default(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

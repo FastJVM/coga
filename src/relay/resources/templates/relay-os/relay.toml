@@ -34,31 +34,43 @@ mode = "local"
 discussion = "-c developer_instructions={prompt}"
 
 # --- Notification channels ---
-# Relay's notification system is the team sync point. Slack is the first
-# channel: urgent/manual events post through the Slack webhook, while outcome
-# events may spool into the daily digest before that digest posts to Slack.
-# Relaunching an already-in-progress ticket does not post.
+# Relay's notification system is the team sync point. It is optional on first
+# run: a fresh repo ships with no channels selected, so a brand-new user can
+# run draft/mark/launch/bump without configuring anything. Turn it on when you
+# start coordinating with other people.
 #
-# Use `env:` indirection so the URL (a bearer token) stays out of this
-# committed file — export SLACK_WEBHOOK_URL locally and relay resolves it. A
-# bare exported SLACK_WEBHOOK_URL with no `webhook` key is only a deprecated
-# compatibility fallback.
-[notification]
-channels = ["slack"]
-
-[notification.slack]
-webhook = "env:SLACK_WEBHOOK_URL"
+# Slack is the first channel: urgent/manual events post through the Slack
+# webhook, while outcome events may spool into the daily digest before that
+# digest posts to Slack. Relaunching an already-in-progress ticket does not
+# post. Once Slack is selected it is fail-loud — a missing/revoked/unreachable
+# webhook crashes the command rather than dropping the message silently.
+#
+# To opt in, select the channel and point it at a webhook. Use `env:`
+# indirection so the URL (a bearer token) stays out of this committed file —
+# export SLACK_WEBHOOK_URL locally and relay resolves it:
+#
+#   [notification]
+#   channels = ["slack"]
+#
+#   [notification.slack]
+#   webhook = "env:SLACK_WEBHOOK_URL"
+#
 # A machine-specific webhook can override this in relay.local.toml (local wins),
 # e.g. a literal URL there for a personal channel. Never commit a real URL.
 # `relay validate --check-slack` probes the webhook so dead URLs surface
-# at config time, not at first bump.
+# at config time, not at first bump. A bare exported SLACK_WEBHOOK_URL with no
+# `webhook` key is only a deprecated compatibility fallback.
 #
-# To opt out (solo runs, dev/test, CI without notifications), set in
-# relay.local.toml:
+# Already opted in but want Slack temporarily silent (solo runs, dev/test, CI
+# without notifications)? Keep the channel selected and set in relay.local.toml:
 #   [notification.slack]
 #   enabled = false
+[notification]
+channels = []
+
+# Optional Slack extras, active once you opt in above:
 #
-# Optional: attach a GIF to milestone events. One URL is picked at random
+# Attach a GIF to milestone events. One URL is picked at random
 # per post. Skip a kind (or leave its list empty) to keep that event
 # text-only. Example:
 #   [notification.slack.gifs]

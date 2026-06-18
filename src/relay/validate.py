@@ -815,9 +815,10 @@ def _notification_issues(cfg: Config) -> list[Issue]:
                 kind="slack-misconfigured",
                 task="(slack)",
                 message=(
-                    "no Slack webhook configured — set "
-                    "[notification.slack].webhook (Relay requires it unless "
-                    "[notification.slack].enabled = false)"
+                    "no Slack webhook configured — Slack is selected in "
+                    "[notification].channels; set [notification.slack].webhook, "
+                    "remove slack from [notification].channels, or set "
+                    "[notification.slack].enabled = false"
                 ),
                 severity="error",
             )

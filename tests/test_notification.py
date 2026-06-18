@@ -234,6 +234,80 @@ def test_notification_channels_dedupe(tmp_path: Path) -> None:
     assert cfg.notification_channels == ("slack",)
 
 
+def test_no_notification_config_and_no_env_resolves_to_no_channels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A fresh repo with no notification config and no env selects no channels.
+
+    This is the first-run posture: a stranger who hasn't set up Slack can run
+    commands without a missing-webhook crash. With no `[notification].channels`
+    key, no `[notification.slack]`/`[slack]` table, and no `SLACK_WEBHOOK_URL`,
+    channels resolve to `()` (not the old `("slack",)` default) and `post`
+    takes the no-channel branch instead of crashing.
+    """
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    cfg = load_config(tmp_path)
+    assert cfg.notification_channels == ()
+    post(cfg, "first run, no slack")
+    assert "[notification] no channels configured" in capsys.readouterr().err
+
+
+def test_notification_slack_table_without_channels_infers_slack(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `[notification.slack]` table is opt-in evidence even with no `channels`."""
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        [notification.slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    cfg = load_config(tmp_path)
+    assert cfg.notification_channels == ("slack",)
+
+
+def test_bare_env_without_config_infers_slack(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A bare exported `SLACK_WEBHOOK_URL` is opt-in evidence on its own."""
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/x")
+    cfg = load_config(tmp_path)
+    assert cfg.notification_channels == ("slack",)
+
+
 def test_empty_notification_channels_suppresses_post(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

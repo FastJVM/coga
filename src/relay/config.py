@@ -224,7 +224,10 @@ def load_config(repo_root: Path | None = None) -> Config:
             "type (e.g. `claude`) or a human directly. See docs/spec.md."
         )
     notification_channels = _resolve_notification_channels(
-        shared.get("notification"), local.get("notification")
+        shared.get("notification"),
+        local.get("notification"),
+        shared.get("slack"),
+        local.get("slack"),
     )
     (
         slack_webhook,
@@ -530,9 +533,20 @@ _SUPPORTED_NOTIFICATION_CHANNELS: frozenset[str] = frozenset({"slack"})
 
 
 def _resolve_notification_channels(
-    shared: dict | None, local: dict | None
+    shared: dict | None,
+    local: dict | None,
+    shared_legacy_slack: dict | None,
+    local_legacy_slack: dict | None,
 ) -> tuple[str, ...]:
-    """Resolve `[notification].channels` with local overriding shared."""
+    """Resolve `[notification].channels` with local overriding shared.
+
+    An explicit `channels` list — including an empty one — is authoritative. A
+    fresh repo that names no `channels` key anywhere gets no notification
+    channels: Slack is opt-in, not the first-run default. Slack is *inferred*
+    only when the absent key is paired with opt-in or compatibility evidence —
+    a `[notification.slack]` table, a legacy `[slack]` table, or a bare
+    `SLACK_WEBHOOK_URL` env var (see `_slack_opt_in_present`).
+    """
     for label, table in (
         ("[notification] in relay.local.toml", local),
         ("[notification] in relay.toml", shared),
@@ -561,7 +575,41 @@ def _resolve_notification_channels(
                 f"{unsupported}; supported: {allowed}"
             )
         return tuple(cleaned)
-    return ("slack",)
+    if _slack_opt_in_present(shared, local, shared_legacy_slack, local_legacy_slack):
+        return ("slack",)
+    return ()
+
+
+def _slack_opt_in_present(
+    shared_notification: dict | None,
+    local_notification: dict | None,
+    shared_legacy_slack: dict | None,
+    local_legacy_slack: dict | None,
+) -> bool:
+    """True when a repo has opted into Slack via new, legacy, or env config.
+
+    Drives channel inference when `[notification].channels` is absent: a
+    `[notification.slack]` table (shared or local), a legacy `[slack]` table,
+    or a bare exported `SLACK_WEBHOOK_URL` each count as opt-in evidence. With
+    none of these a fresh repo selects no channels.
+    """
+    if (
+        _notification_slack_table(shared_notification, "[notification] in relay.toml")
+        is not None
+    ):
+        return True
+    if (
+        _notification_slack_table(
+            local_notification, "[notification] in relay.local.toml"
+        )
+        is not None
+    ):
+        return True
+    if isinstance(shared_legacy_slack, dict) or isinstance(local_legacy_slack, dict):
+        return True
+    if os.environ.get("SLACK_WEBHOOK_URL"):
+        return True
+    return False
 
 
 def _notification_slack_table(raw: dict | None, label: str) -> dict | None:

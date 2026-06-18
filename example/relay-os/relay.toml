@@ -26,17 +26,24 @@ discussion = "-c developer_instructions={prompt}"
 
 # --- Notification channels ---
 
-# Slack is Relay's first notification channel. Use `env:` indirection so
-# the URL (a bearer token) stays out of the committed file — export
-# SLACK_WEBHOOK_URL locally and relay resolves it. Local `relay.local.toml`
-# may override this with a machine-specific webhook. To run without real
-# posts (messages go to stderr), opt out with
-# `[notification.slack].enabled = false` in relay.local.toml.
+# Notifications are optional on first run: no channels are selected, so this
+# repo runs draft/mark/launch/bump without any setup. Turn Slack on when you
+# start coordinating with other people by selecting the channel and pointing
+# it at a webhook (use `env:` indirection so the bearer-token URL stays out of
+# the committed file):
+#
+#   [notification]
+#   channels = ["slack"]
+#
+#   [notification.slack]
+#   webhook = "env:SLACK_WEBHOOK_URL"
+#
+# Once Slack is selected it is fail-loud — a missing/revoked/unreachable
+# webhook crashes the command rather than dropping the message. To keep it
+# selected but temporarily silent, set `[notification.slack].enabled = false`
+# in relay.local.toml.
 [notification]
-channels = ["slack"]
-
-[notification.slack]
-webhook = "env:SLACK_WEBHOOK_URL"
+channels = []
 
 # --- Aliases ---
 # Thin sugar for often-used commands. Each entry maps a name to an
