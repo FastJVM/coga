@@ -4,6 +4,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: ship-bootstrap-workflows
 worktree: ../relay-ship-workflows (off main @ 8067e2e)
+pr: https://github.com/FastJVM/relay/pull/387
 
 ### Implementation plan (implement step, 2026-06-17)
 

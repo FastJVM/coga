@@ -17,3 +17,5 @@ Created autostash: 8daad4af
 2026-06-17 20:45 [git] sync failed: `git add -- relay-os/tasks/relay-cli-shipping` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
 2026-06-17 20:45 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-17 21:03 [agent:claude] advanced to step 4 (open-pr)
+2026-06-17 21:03 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-17 21:04 [agent:claude] advanced to step 5 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/387
