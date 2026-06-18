@@ -249,7 +249,7 @@ setup), it skips that agent and prints what to clear.
 ### `relay draft "<title>"`
 
 Create a new raw `draft` ticket under `relay-os/tasks/<slug>/` (slug
-derived from the title) and post `✨` to Slack. Does **not** spawn an agent
+derived from the title). Does **not** spawn an agent
 and does **not** run the guided authoring interview. The new ticket is empty
 — title, owner, mode, and timestamp set; workflow, contexts, assignee, and
 description still need to be filled in. If the slug already exists, the new
@@ -302,7 +302,7 @@ Programmatic callers (e.g. `relay recurring`) call `create_task()` in
 Change a ticket's `status`. Three subcommands:
 
 ```sh
-relay mark active add-retry         # draft / paused → active. Posts 🚀.
+relay mark active add-retry         # draft / paused → active.
 relay mark paused add-retry         # active / in_progress → paused. Preserves step.
 relay mark done   add-retry         # active / in_progress → done. Clears step.
 ```
