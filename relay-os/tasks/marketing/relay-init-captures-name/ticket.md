@@ -29,7 +29,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
