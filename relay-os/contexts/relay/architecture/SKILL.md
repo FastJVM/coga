@@ -222,7 +222,11 @@ that touches both planes.
   agent-vs-human, not same-vs-changed assignee. Cross-ticket chaining is
   `relay recurring --interactive`.
 - **`auto`** — one-shot autonomous run. Same composed prompt, no
-  human input. An operator may opt an agent into skipping its CLI's
+  human input. **Note: `mode: auto` launches are currently temporarily
+  disabled** — `relay launch` refuses them
+  (`src/relay/commands/launch.py`) and recurring enforces the same freeze
+  (`src/relay/recurring.py`); the description below documents the intended
+  design for when it is re-enabled. An operator may opt an agent into skipping its CLI's
   per-command permission/approval prompts for these runs with a partial
   `[agents.<name>]` table in `relay.local.toml`: `skip_permissions = "auto"`
   plus `skip_permissions_argv = "..."` (one string, `shlex`-split, inserted

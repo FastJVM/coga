@@ -737,6 +737,8 @@ the alias name forward to the expansion. Default aliases shipped by
 ```toml
 [aliases]
 chat = "launch bootstrap/orient"
+dream = "recurring launch dream"
+build = "launch relay-build"
 # Add per-agent shortcuts once those types are declared in `[agents.*]`:
 # claude = "launch bootstrap/orient --agent claude"
 # codex = "launch bootstrap/orient --agent codex"
