@@ -72,14 +72,7 @@ def _ensure_user(local_toml: Path) -> None:
         typer.echo(f"user: {current} (from {local_toml})")
         return
 
-    while True:
-        name = typer.prompt(
-            "Your name — it becomes `user` in relay.local.toml, the name "
-            "tickets and agents refer to you by (e.g. marc)"
-        ).strip()
-        if name and '"' not in name and "\\" not in name:
-            break
-        typer.echo("Give a non-empty name without quotes or backslashes.")
+    name = init_cmd._prompt_user_name()
 
     text = local_toml.read_text()
     new_text, replaced = re.subn(

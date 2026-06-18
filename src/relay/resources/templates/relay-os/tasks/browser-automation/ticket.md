@@ -2,8 +2,8 @@
 title: Browser automation
 status: draft
 mode: interactive
-owner: zach
-human: zach
+owner: new-user
+human: new-user
 agent: claude
 assignee: claude
 contexts:

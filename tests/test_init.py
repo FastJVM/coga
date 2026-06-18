@@ -19,6 +19,11 @@ from relay.managed_skills import ManagedSkillError, ManagedSkillSummary
 from relay.skill_manager import SkillResult
 
 
+# The real name prompt, captured before the autouse stub below replaces it —
+# used by the one test that exercises the actual validation loop.
+_real_prompt_user_name = init_cmd._prompt_user_name
+
+
 EXPECTED_FILES = {
     "relay-os/.gitignore",
     "relay-os/relay.toml",
@@ -289,6 +294,15 @@ def fake_managed_skill_sync(monkeypatch: pytest.MonkeyPatch):
     return state
 
 
+@pytest.fixture(autouse=True)
+def stub_name_prompt(monkeypatch: pytest.MonkeyPatch):
+    """Fresh init now prompts for the operator's name; stub it so the existing
+    CliRunner-driven init tests don't block on stdin. Tests that need a
+    specific name re-patch `_prompt_user_name`; the real validation loop is
+    exercised via `_real_prompt_user_name`."""
+    monkeypatch.setattr(init_cmd, "_prompt_user_name", lambda: "tester")
+
+
 # --- fresh init ---------------------------------------------------------------
 
 
@@ -421,12 +435,13 @@ def test_init_vendors_cli_and_links_wrapper_to_venv(
     assert "Add the bin dir to your PATH" in result.output
 
 
-def test_init_writes_local_toml_placeholder(
+def test_init_writes_captured_user_name_to_local_toml(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = tmp_path / "company"
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(init_cmd, "_prompt_user_name", lambda: "marc")
 
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0, result.output
@@ -434,8 +449,11 @@ def test_init_writes_local_toml_placeholder(
     local_toml = target / "relay-os" / "relay.local.toml"
     assert local_toml.is_file()
     text = local_toml.read_text()
-    assert 'user = ""' in text
+    # The captured name lands in `user` — a fresh init never leaves it empty.
+    assert 'user = "marc"' in text
+    assert 'user = ""' not in text
     assert "[secrets]" in text  # commented example present
+    assert 'with user = "marc"' in result.output
 
 
 def test_init_installs_shim_when_local_bin_on_path(
@@ -520,9 +538,10 @@ def test_init_creates_missing_dir(tmp_path: Path, fake_clone, fake_venv) -> None
 def test_init_ships_setup_ticket_template(
     tmp_path: Path, fake_clone, fake_venv
 ) -> None:
-    """The relay-setup task is a static packaged template: fresh init copies
-    it verbatim — no prompts, no creating code — and the interview happens
-    at first launch as the workflow's first step."""
+    """The relay-setup task ships from the packaged template largely as-is on an
+    empty repo — the workflow snapshot and body are preserved; only the
+    `new-user` placeholder is stamped with the captured name. The interview
+    happens at first launch as the workflow's first step."""
     target = tmp_path / "company"
     target.mkdir()
     result = CliRunner().invoke(app, ["init", str(target)])
@@ -534,11 +553,185 @@ def test_init_ships_setup_ticket_template(
     assert "name: init/setup" in text
     assert "step: 1 (interview)" in text
     assert "Empty until the `interview` step runs at first launch" in text
+    # The placeholder is stamped with the captured name; it never ships live.
+    assert "owner: tester" in text
+    assert "human: tester" in text
+    assert "new-user" not in text
     assert (task_dir / "blackboard.md").is_file()
     assert (task_dir / "log.md").is_file()
-    # Bare init points at `relay setup` (which records the user name, then
-    # launches this ticket) rather than at a manual launch.
+    # Bare init on an empty repo points at `relay setup`, which launches this
+    # ticket, rather than at a manual launch.
     assert "Run `relay setup`" in result.output
+
+
+def test_init_stamps_new_user_out_of_every_delivered_ticket(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No delivered ticket carries the `new-user` placeholder after a fresh
+    init — the captured name is stamped over it everywhere, including the
+    `browser-automation` draft that ships on every repo."""
+    target = tmp_path / "company"
+    target.mkdir()
+    monkeypatch.setattr(init_cmd, "_prompt_user_name", lambda: "marc")
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    tasks = target / "relay-os" / "tasks"
+    for ticket in tasks.glob("**/ticket.md"):
+        assert "new-user" not in ticket.read_text(), f"new-user survived in {ticket}"
+    # browser-automation ships on every repo (not gated) and is stamped too.
+    browser = (tasks / "browser-automation" / "ticket.md").read_text()
+    assert "owner: marc" in browser
+    assert "human: marc" in browser
+
+
+def test_init_empty_repo_seeds_onboarding_and_points_at_setup(
+    tmp_path: Path, fake_clone, fake_venv
+) -> None:
+    """An empty repo keeps the onboarding ticket and the next-steps coax
+    points the user at the onboarding command."""
+    target = tmp_path / "company"
+    target.mkdir()
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    tasks = target / "relay-os" / "tasks"
+    assert (tasks / "relay-setup" / "ticket.md").is_file()
+    assert "Run `relay setup`" in result.output
+    assert 'relay ticket "' not in result.output
+    assert "Skipped the onboarding ticket" not in result.output
+
+
+def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
+    tmp_path: Path, fake_clone, fake_venv
+) -> None:
+    """A filled repo (any pre-existing user file) drops the onboarding ticket
+    and the next-steps coax points the user at `relay ticket`.
+    browser-automation is not gated, so it still ships (stamped)."""
+    target = tmp_path / "existing-repo"
+    target.mkdir()
+    (target / "README.md").write_text("hi")
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    tasks = target / "relay-os" / "tasks"
+    assert not (tasks / "relay-setup").exists()  # onboarding pruned
+    # Not gated — still delivered, and stamped (no placeholder survives).
+    browser = tasks / "browser-automation" / "ticket.md"
+    assert browser.is_file()
+    assert "new-user" not in browser.read_text()
+    assert 'relay ticket "' in result.output
+    assert "Skipped the onboarding ticket" in result.output
+    assert "Run `relay setup`" not in result.output
+
+
+def test_init_filled_repo_ignores_relay_managed_files(
+    tmp_path: Path, fake_clone, fake_venv
+) -> None:
+    """Pre-existing `.git`/`.DS_Store` and relay-managed names (CLAUDE.md etc.)
+    don't count as a filled repo — onboarding is still seeded."""
+    target = tmp_path / "company"
+    target.mkdir()
+    (target / ".git").mkdir()
+    (target / ".DS_Store").write_text("")
+    (target / "CLAUDE.md").write_text("user-authored guide")
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 0, result.output
+
+    assert (target / "relay-os" / "tasks" / "relay-setup" / "ticket.md").is_file()
+    assert "Run `relay setup`" in result.output
+
+
+# --- name capture + gate helpers ----------------------------------------------
+
+
+def test_prompt_user_name_rejects_invalid_then_returns(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    answers = iter(["", 'a"b', "c\\d", "  marc  "])
+    monkeypatch.setattr(init_cmd.typer, "prompt", lambda *a, **k: next(answers))
+
+    name = _real_prompt_user_name()
+
+    assert name == "marc"  # stripped, returned once valid
+    out = capsys.readouterr().out
+    assert out.count("without quotes or backslashes") == 3
+
+
+def test_repo_is_empty_true_for_missing_or_relay_managed(tmp_path: Path) -> None:
+    assert init_cmd._repo_is_empty(tmp_path / "nope") is True
+
+    target = tmp_path / "fresh"
+    target.mkdir()
+    assert init_cmd._repo_is_empty(target) is True
+
+    (target / ".git").mkdir()
+    (target / ".DS_Store").write_text("")
+    (target / "CLAUDE.md").write_text("x")
+    (target / "AGENTS.md").write_text("x")
+    (target / ".gitignore").write_text("x")
+    assert init_cmd._repo_is_empty(target) is True
+
+
+def test_repo_is_empty_false_when_user_content_present(tmp_path: Path) -> None:
+    target = tmp_path / "proj"
+    target.mkdir()
+    (target / "README.md").write_text("hi")
+    assert init_cmd._repo_is_empty(target) is False
+
+
+def test_prune_onboarding_tickets_removes_both_names(tmp_path: Path) -> None:
+    """Both onboarding ticket dir names are pruned (relay-build ships once the
+    sibling rename lands); other tasks are left alone."""
+    relay_os = tmp_path / "relay-os"
+    tasks = relay_os / "tasks"
+    for name in ("relay-setup", "relay-build", "browser-automation", "_template"):
+        (tasks / name).mkdir(parents=True)
+        (tasks / name / "ticket.md").write_text("---\n---\n")
+
+    pruned = init_cmd._prune_onboarding_tickets(relay_os)
+
+    assert set(pruned) == {"relay-setup", "relay-build"}
+    assert not (tasks / "relay-setup").exists()
+    assert not (tasks / "relay-build").exists()
+    assert (tasks / "browser-automation").is_dir()  # not gated
+    assert (tasks / "_template").is_dir()
+
+
+def test_stamp_user_into_delivered_tickets(tmp_path: Path) -> None:
+    relay_os = tmp_path / "relay-os"
+    tasks = relay_os / "tasks"
+    (tasks / "alpha").mkdir(parents=True)
+    (tasks / "alpha" / "ticket.md").write_text(
+        "---\nowner: new-user\nhuman: new-user\nassignee: claude\n---\n"
+    )
+    (tasks / "beta").mkdir(parents=True)
+    (tasks / "beta" / "ticket.md").write_text(
+        "---\nowner: new-user\nhuman: new-user\nassignee: new-user\n---\n"
+    )
+    # The `replace-with-human-name` token is a different placeholder, owned by
+    # create_task/recurring — the stamp must leave it alone.
+    (tasks / "_template").mkdir(parents=True)
+    (tasks / "_template" / "ticket.md").write_text(
+        "---\nowner: replace-with-human-name\nhuman: replace-with-human-name\n---\n"
+    )
+
+    stamped = init_cmd._stamp_user_into_delivered_tickets(relay_os, "marc")
+
+    assert set(stamped) == {"alpha", "beta"}
+    alpha = (tasks / "alpha" / "ticket.md").read_text()
+    assert "owner: marc" in alpha and "human: marc" in alpha
+    assert "assignee: claude" in alpha  # non-placeholder line untouched
+    assert "new-user" not in alpha
+    beta = (tasks / "beta" / "ticket.md").read_text()
+    assert "assignee: marc" in beta
+    assert "new-user" not in beta
+    template = (tasks / "_template" / "ticket.md").read_text()
+    assert "replace-with-human-name" in template  # left alone
 
 
 # --- --update mode ------------------------------------------------------------

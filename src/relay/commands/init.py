@@ -11,6 +11,7 @@ backs the `relay` console script.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -72,6 +73,104 @@ user = ""
 # skip_permissions = "auto"
 # skip_permissions_argv = "--dangerously-bypass-approvals-and-sandbox"
 """
+
+
+def _prompt_user_name() -> str:
+    """Prompt for the operator's name until it's valid, then return it.
+
+    Valid = non-empty after stripping, no `"` or `\\` (both would break the
+    `user = "..."` line in `relay.local.toml`). Shared by `relay init` (which
+    captures the name up front) and the `_ensure_user` fallback in
+    `relay setup`, so the prompt text and rejection message live in one place.
+    """
+    while True:
+        name = typer.prompt(
+            "Your name — it becomes `user` in relay.local.toml, the name "
+            "tickets and agents refer to you by (e.g. marc)"
+        ).strip()
+        if name and '"' not in name and "\\" not in name:
+            return name
+        typer.echo("Give a non-empty name without quotes or backslashes.")
+
+
+def render_local_toml(name: str) -> str:
+    """`LOCAL_TOML_TEMPLATE` with the captured name substituted into `user`.
+
+    `name` is the output of `_prompt_user_name`, so it carries no `"`/`\\` and
+    is safe to interpolate directly into the quoted TOML value.
+    """
+    return LOCAL_TOML_TEMPLATE.replace('user = ""', f'user = "{name}"', 1)
+
+
+# Files/dirs that don't count as pre-existing user content when deciding
+# whether a target dir is "empty" — `.git`/`.DS_Store` plus everything init
+# itself creates. Anything else present before init runs marks the repo as
+# already-filled (a real project), which suppresses onboarding-ticket seeding.
+_INIT_IGNORE: frozenset[str] = frozenset(
+    {".git", ".DS_Store", "relay-os", "CLAUDE.md", "AGENTS.md", ".claude", ".codex", ".gitignore"}
+)
+
+
+def _repo_is_empty(target: Path) -> bool:
+    """True when `target` holds no pre-existing user content.
+
+    Evaluated against the directory's pristine contents — call it before init
+    writes any of its own files. A missing dir is empty; otherwise any entry
+    outside `_INIT_IGNORE` means the repo is already a real project.
+    """
+    if not target.exists():
+        return True
+    return all(entry.name in _INIT_IGNORE for entry in target.iterdir())
+
+
+# Delivered onboarding tickets, pruned from the copied tree on a filled repo
+# (a real project doesn't want the bootstrap interview seeded for it). Both
+# names ship today; `relay-setup` is renamed to `relay-build` elsewhere, so we
+# match either generically and no rework lands when one is removed.
+_ONBOARDING_TICKET_DIRS: tuple[str, ...] = ("relay-build", "relay-setup")
+
+
+def _prune_onboarding_tickets(relay_os: Path) -> list[str]:
+    """Remove the delivered onboarding ticket dir(s) from a freshly copied tree.
+
+    Returns the names removed (for the caller's report). Used on filled repos,
+    where the bootstrap interview should not be seeded.
+    """
+    pruned: list[str] = []
+    tasks = relay_os / "tasks"
+    for name in _ONBOARDING_TICKET_DIRS:
+        ticket_dir = tasks / name
+        if ticket_dir.is_dir():
+            shutil.rmtree(ticket_dir)
+            pruned.append(name)
+    return pruned
+
+
+# Matches an owner/human/assignee line whose value is exactly the `new-user`
+# placeholder. Deliberately does NOT match `replace-with-human-name` (the
+# `_template`/recurring token, owned by `create_task`/recurring) — only the
+# placeholder that would otherwise ship as a live value.
+_NEW_USER_LINE = re.compile(r"^(owner|human|assignee):[ \t]*new-user[ \t]*$", re.M)
+
+
+def _stamp_user_into_delivered_tickets(relay_os: Path, name: str) -> list[str]:
+    """Replace the `new-user` placeholder with `name` in every delivered ticket.
+
+    Rewrites `owner:`/`human:`/`assignee:` lines that read `new-user` across
+    `tasks/**/ticket.md`, so the placeholder never ships as a live owner.
+    Returns the ticket dir names that were stamped.
+    """
+    stamped: list[str] = []
+    tasks = relay_os / "tasks"
+    if not tasks.is_dir():
+        return stamped
+    for ticket in sorted(tasks.glob("**/ticket.md")):
+        text = ticket.read_text()
+        new_text, count = _NEW_USER_LINE.subn(rf"\1: {name}", text)
+        if count:
+            ticket.write_text(new_text)
+            stamped.append(ticket.parent.name)
+    return stamped
 
 
 # Orientation file dropped at the host repo root for agent CLIs that look for
@@ -186,6 +285,14 @@ def _do_init(path: Path, *, via_setup: bool = False) -> None:
         )
         sys.exit(2)
 
+    # Decide empty-vs-filled against the pristine dir, before init writes
+    # anything of its own — a filled repo skips onboarding-ticket seeding.
+    is_empty = _repo_is_empty(target)
+    # Capture the operator's name up front (before the slow clone/venv) so
+    # `current_user` is valid from the first moment after init, and a Ctrl-C
+    # at the prompt leaves nothing on disk.
+    name = _prompt_user_name()
+
     target.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="relay-init-") as tmp:
@@ -199,13 +306,23 @@ def _do_init(path: Path, *, via_setup: bool = False) -> None:
         refresh_cli(clone_dir, relay_os)
         sha = upstream_sha(clone_dir)
 
+    # On a filled repo (bare init only), drop the onboarding ticket(s) the
+    # template ships. `relay setup` drives onboarding deliberately, so it
+    # keeps them regardless of the gate.
+    pruned_onboarding = (
+        _prune_onboarding_tickets(relay_os) if not is_empty and not via_setup else []
+    )
+    # Stamp the captured name over the `new-user` placeholder in whatever
+    # tickets remain, so the placeholder never ships as a live owner.
+    _stamp_user_into_delivered_tickets(relay_os, name)
+
     managed_skills = _install_managed_skills_or_exit(relay_os)
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha)
 
     local_toml = relay_os / "relay.local.toml"
-    local_toml.write_text(LOCAL_TOML_TEMPLATE)
+    local_toml.write_text(render_local_toml(name))
 
     bin_dir = relay_os / ".relay" / "bin"
     shim = _try_install_shim(bin_dir / "relay")
@@ -220,7 +337,14 @@ def _do_init(path: Path, *, via_setup: bool = False) -> None:
     typer.echo("")
     typer.echo(f"Initialized relay repo at {relay_os}")
     _print_managed_skill_summary(managed_skills)
-    typer.echo(f"Wrote {local_toml} (machine-local config — gitignored).")
+    typer.echo(
+        f'Wrote {local_toml} (machine-local config — gitignored) with user = "{name}".'
+    )
+    if pruned_onboarding:
+        typer.echo(
+            "Skipped the onboarding ticket (this dir already has a project) — "
+            "create tasks with `relay ticket` when you're ready."
+        )
     if sha is not None:
         typer.echo(f"Pinned to upstream {sha[:12]}.")
     if wired_agents:
@@ -262,12 +386,17 @@ def _do_init(path: Path, *, via_setup: bool = False) -> None:
         "and aliases."
     )
     if not via_setup:
-        steps.append(
-            "Run `relay setup` — it records your name in relay.local.toml, then "
-            "launches the relay-setup interview: the agent asks about the repo "
-            "and turns your answers plus a repo scan into starter contexts, "
-            "rules, workflows, and recurring tasks."
-        )
+        if is_empty:
+            steps.append(
+                "Run `relay setup` — it launches the relay-setup interview: the "
+                "agent asks about the repo and turns your answers plus a repo scan "
+                "into starter contexts, rules, workflows, and recurring tasks."
+            )
+        else:
+            steps.append(
+                'Run `relay ticket "<title>"` to author your first task — the '
+                "guided author turns a one-line title into a ready ticket."
+            )
     steps.append("Run `relay --help` to see what's available.")
 
     typer.echo("")
