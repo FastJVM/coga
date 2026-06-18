@@ -19,8 +19,9 @@ from relay.managed_skills import ManagedSkillError, ManagedSkillSummary
 from relay.skill_manager import SkillResult
 
 
-# The real name prompt, captured before the autouse stub below replaces it —
-# used by the one test that exercises the actual validation loop.
+# The name prompt that `relay setup`'s `_ensure_user` fallback still uses —
+# exercised directly by the one test that covers its validation loop. `relay
+# init` itself no longer prompts; it requires `--user`.
 _real_prompt_user_name = init_cmd._prompt_user_name
 
 
@@ -294,15 +295,6 @@ def fake_managed_skill_sync(monkeypatch: pytest.MonkeyPatch):
     return state
 
 
-@pytest.fixture(autouse=True)
-def stub_name_prompt(monkeypatch: pytest.MonkeyPatch):
-    """Fresh init now prompts for the operator's name; stub it so the existing
-    CliRunner-driven init tests don't block on stdin. Tests that need a
-    specific name re-patch `_prompt_user_name`; the real validation loop is
-    exercised via `_real_prompt_user_name`."""
-    monkeypatch.setattr(init_cmd, "_prompt_user_name", lambda: "tester")
-
-
 # --- fresh init ---------------------------------------------------------------
 
 
@@ -312,7 +304,7 @@ def test_init_into_empty_dir(
     target = tmp_path / "company"
     target.mkdir()
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     for rel in EXPECTED_FILES:
@@ -381,7 +373,7 @@ def test_init_reports_installed_managed_skills(
     fake_managed_skill_sync.install_summary = ManagedSkillSummary()
     monkeypatch.setattr(init_cmd, "install_managed_skills", fake_install)
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     assert "Managed skills: installed=1" in result.output
@@ -404,7 +396,7 @@ def test_init_fails_loud_when_required_managed_skill_fails(
 
     monkeypatch.setattr(init_cmd, "install_managed_skills", fail_required)
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2
     assert "Required managed skill `relay/core` failed from example/repo" in result.output
     assert "Remediation: relay skill install example/repo relay/core" in result.output
@@ -417,7 +409,7 @@ def test_init_vendors_cli_and_links_wrapper_to_venv(
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     assert (target / "relay-os" / ".relay" / "src" / "relay" / "cli.py").is_file()
@@ -441,19 +433,45 @@ def test_init_writes_captured_user_name_to_local_toml(
     target = tmp_path / "company"
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setattr(init_cmd, "_prompt_user_name", lambda: "marc")
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    # Surrounding whitespace is stripped, same as the prompt path.
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "  marc  "])
     assert result.exit_code == 0, result.output
 
     local_toml = target / "relay-os" / "relay.local.toml"
     assert local_toml.is_file()
     text = local_toml.read_text()
-    # The captured name lands in `user` — a fresh init never leaves it empty.
+    # The `--user` value lands in `user` — a fresh init never leaves it empty.
     assert 'user = "marc"' in text
     assert 'user = ""' not in text
     assert "[secrets]" in text  # commented example present
     assert 'with user = "marc"' in result.output
+
+
+def test_init_without_user_errors(tmp_path: Path, fake_clone, fake_venv) -> None:
+    """A fresh `relay init` with no `--user` is a hard error — the name is a
+    required parameter (so init stays scriptable), and we never fall back to
+    writing `user = ""`. Nothing lands on disk."""
+    target = tmp_path / "company"
+    target.mkdir()
+
+    result = CliRunner().invoke(app, ["init", str(target)])
+    assert result.exit_code == 2
+    assert "--user" in result.output
+    assert not (target / "relay-os").exists()
+
+
+def test_init_rejects_invalid_user(tmp_path: Path, fake_clone, fake_venv) -> None:
+    """An invalid `--user` (a quote or backslash, which would break the `user`
+    line in relay.local.toml) is rejected up front, before anything is
+    written."""
+    target = tmp_path / "company"
+    target.mkdir()
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", 'a"b'])
+    assert result.exit_code == 2
+    assert "quotes or backslashes" in result.output
+    assert not (target / "relay-os").exists()
 
 
 def test_init_installs_shim_when_local_bin_on_path(
@@ -466,7 +484,7 @@ def test_init_installs_shim_when_local_bin_on_path(
     monkeypatch.setenv("PATH", f"{local_bin}:/usr/bin")
 
     target = tmp_path / "company"
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     shim = local_bin / "relay"
@@ -490,7 +508,7 @@ def test_init_skips_shim_when_target_exists(
     monkeypatch.setenv("PATH", f"{local_bin}:/usr/bin")
 
     target = tmp_path / "company"
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     # Pre-existing file untouched and we don't nag the user about PATH —
@@ -507,7 +525,7 @@ def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_clone, fake_venv) 
     (target / "README.md").write_text("hi")
     (target / "src").mkdir()
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
     assert (target / "relay-os" / "relay.toml").is_file()
     assert (target / "README.md").read_text() == "hi"
@@ -518,7 +536,7 @@ def test_init_refuses_existing_relay_os(tmp_path: Path, fake_clone, fake_venv) -
     target.mkdir()
     (target / "relay-os").mkdir()
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2
     assert "use `relay init --update`" in result.output
 
@@ -527,7 +545,7 @@ def test_init_creates_missing_dir(tmp_path: Path, fake_clone, fake_venv) -> None
     target = tmp_path / "fresh"
     assert not target.exists()
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
     assert (target / "relay-os" / "relay.toml").is_file()
 
@@ -544,7 +562,7 @@ def test_init_ships_setup_ticket_template(
     happens at first launch as the workflow's first step."""
     target = tmp_path / "company"
     target.mkdir()
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     task_dir = target / "relay-os" / "tasks" / "relay-setup"
@@ -565,16 +583,15 @@ def test_init_ships_setup_ticket_template(
 
 
 def test_init_stamps_new_user_out_of_every_delivered_ticket(
-    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, fake_clone, fake_venv
 ) -> None:
     """No delivered ticket carries the `new-user` placeholder after a fresh
-    init — the captured name is stamped over it everywhere, including the
+    init — the `--user` name is stamped over it everywhere, including the
     `browser-automation` draft that ships on every repo."""
     target = tmp_path / "company"
     target.mkdir()
-    monkeypatch.setattr(init_cmd, "_prompt_user_name", lambda: "marc")
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "marc"])
     assert result.exit_code == 0, result.output
 
     tasks = target / "relay-os" / "tasks"
@@ -594,7 +611,7 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_setup(
     target = tmp_path / "company"
     target.mkdir()
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     tasks = target / "relay-os" / "tasks"
@@ -614,7 +631,7 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     target.mkdir()
     (target / "README.md").write_text("hi")
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     tasks = target / "relay-os" / "tasks"
@@ -639,7 +656,7 @@ def test_init_filled_repo_ignores_relay_managed_files(
     (target / ".DS_Store").write_text("")
     (target / "CLAUDE.md").write_text("user-authored guide")
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     assert (target / "relay-os" / "tasks" / "relay-setup" / "ticket.md").is_file()
@@ -1250,7 +1267,7 @@ def test_init_commits_relay_os_when_target_is_git_repo(
     monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
     assert "Committed relay-os/ as" in result.output
 
@@ -1279,7 +1296,7 @@ def test_init_skips_commit_when_target_is_not_git_repo(
     target = tmp_path / "company"
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
     assert "Committed relay-os/" not in result.output
 
@@ -1293,7 +1310,7 @@ def test_init_links_skills_into_agent_dirs(
     target = tmp_path / "company"
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     skills_src = (target / "relay-os" / ".agent-skills").resolve()
@@ -1314,7 +1331,7 @@ def test_init_skips_skill_link_when_agent_marker_is_a_file(
     sentinel.write_text("")  # mimic the empty-file Codex marker
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     # Sentinel left alone.
@@ -1428,7 +1445,7 @@ def test_init_writes_agent_guides(
     target = tmp_path / "company"
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     for name in ("CLAUDE.md", "AGENTS.md"):
@@ -1451,7 +1468,7 @@ def test_init_preserves_existing_agent_guides(
     (target / "CLAUDE.md").write_text("# my hand-written guide\n")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     # Pre-existing CLAUDE.md untouched; AGENTS.md still created.
@@ -1506,7 +1523,7 @@ def test_init_commits_agent_guides_in_git_repo(
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     tracked = subprocess.run(
@@ -1524,7 +1541,7 @@ def test_init_writes_pin_file(
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     pin = target / "relay-os" / ".relay" / "RELAY_PIN"
@@ -1575,7 +1592,7 @@ def test_init_writes_host_gitignore_block_in_git_repo(
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     host_gi = (target / ".gitignore").read_text()
@@ -1604,7 +1621,7 @@ def test_init_appends_to_existing_host_gitignore(
     monkeypatch.setenv("PATH", os.environ["PATH"])
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
     host_gi = (target / ".gitignore").read_text()
@@ -1620,7 +1637,7 @@ def test_init_skips_host_gitignore_when_not_git_repo(
     target = tmp_path / "company"
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    result = CliRunner().invoke(app, ["init", str(target)])
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
     assert not (target / ".gitignore").exists()
 

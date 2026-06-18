@@ -75,20 +75,65 @@ user = ""
 """
 
 
+def _clean_user_name(raw: str) -> str | None:
+    """Strip `raw` and return it if it's a valid `user` value, else None.
+
+    Valid = non-empty after stripping, no `"` or `\\` (both would break the
+    `user = "..."` line in `relay.local.toml`). The single source of truth for
+    what counts as a usable name, shared by the `relay init --user` parameter
+    and the `_prompt_user_name` loop that `relay setup` falls back on.
+    """
+    name = raw.strip()
+    if name and '"' not in name and "\\" not in name:
+        return name
+    return None
+
+
+def _require_user_name(user: str | None) -> str:
+    """Validate the `--user` value for a direct `relay init`, or exit.
+
+    `relay init` takes the operator's name as a parameter rather than
+    prompting, so init stays scriptable. A missing flag or an invalid value is
+    a hard error (exit 2, matching init's other arg errors) — we never fall
+    back to writing `user = ""` on this path.
+    """
+    if user is None:
+        typer.secho(
+            "relay init needs your name to set `user` in relay.local.toml — "
+            "pass it as `relay init --user NAME` (e.g. `relay init --user marc`).",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    name = _clean_user_name(user)
+    if name is None:
+        typer.secho(
+            "`--user NAME` must be non-empty and contain no quotes or "
+            "backslashes (they would break the `user` line in relay.local.toml).",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    return name
+
+
 def _prompt_user_name() -> str:
     """Prompt for the operator's name until it's valid, then return it.
 
-    Valid = non-empty after stripping, no `"` or `\\` (both would break the
-    `user = "..."` line in `relay.local.toml`). Shared by `relay init` (which
-    captures the name up front) and the `_ensure_user` fallback in
-    `relay setup`, so the prompt text and rejection message live in one place.
+    The `relay setup` fallback (`_ensure_user`) for the onboarding path, where
+    no name was passed on the command line. `relay init` itself no longer
+    prompts — it requires `--user` (see `_require_user_name`). Validation is
+    shared via `_clean_user_name`, so prompt and parameter agree on what's
+    valid.
     """
     while True:
-        name = typer.prompt(
-            "Your name — it becomes `user` in relay.local.toml, the name "
-            "tickets and agents refer to you by (e.g. marc)"
-        ).strip()
-        if name and '"' not in name and "\\" not in name:
+        name = _clean_user_name(
+            typer.prompt(
+                "Your name — it becomes `user` in relay.local.toml, the name "
+                "tickets and agents refer to you by (e.g. marc)"
+            )
+        )
+        if name is not None:
             return name
         typer.echo("Give a non-empty name without quotes or backslashes.")
 
@@ -236,6 +281,15 @@ def init(
             "tree scanned for relay repos to refresh (required)."
         ),
     ),
+    user: str | None = typer.Option(
+        None,
+        "--user",
+        help=(
+            "Your name — becomes `user` in relay.local.toml, the name tickets "
+            "and agents refer to you by (e.g. marc). Required for a fresh init; "
+            "ignored under --update."
+        ),
+    ),
     update: bool = typer.Option(
         False,
         "--update",
@@ -270,10 +324,10 @@ def init(
     elif update:
         _do_update()
     else:
-        _do_init(path or Path("."))
+        _do_init(path or Path("."), user=user)
 
 
-def _do_init(path: Path, *, via_setup: bool = False) -> None:
+def _do_init(path: Path, *, user: str | None = None, via_setup: bool = False) -> None:
     target = path.resolve()
     relay_os = target / "relay-os"
 
@@ -288,10 +342,12 @@ def _do_init(path: Path, *, via_setup: bool = False) -> None:
     # Decide empty-vs-filled against the pristine dir, before init writes
     # anything of its own — a filled repo skips onboarding-ticket seeding.
     is_empty = _repo_is_empty(target)
-    # Capture the operator's name up front (before the slow clone/venv) so
-    # `current_user` is valid from the first moment after init, and a Ctrl-C
-    # at the prompt leaves nothing on disk.
-    name = _prompt_user_name()
+    # Require the operator's name up front (before the slow clone/venv) so
+    # `current_user` is valid from the first moment after init, and a bad
+    # invocation leaves nothing on disk. `relay setup` drives its own name
+    # capture (`_ensure_user`), so it inits without `--user` and leaves `user`
+    # empty here for setup to fill.
+    name = None if via_setup else _require_user_name(user)
 
     target.mkdir(parents=True, exist_ok=True)
 
@@ -313,8 +369,11 @@ def _do_init(path: Path, *, via_setup: bool = False) -> None:
         _prune_onboarding_tickets(relay_os) if not is_empty and not via_setup else []
     )
     # Stamp the captured name over the `new-user` placeholder in whatever
-    # tickets remain, so the placeholder never ships as a live owner.
-    _stamp_user_into_delivered_tickets(relay_os, name)
+    # tickets remain, so the placeholder never ships as a live owner. The
+    # `relay setup` path has no name yet, so it leaves the placeholder for its
+    # own onboarding flow to resolve.
+    if name is not None:
+        _stamp_user_into_delivered_tickets(relay_os, name)
 
     managed_skills = _install_managed_skills_or_exit(relay_os)
     install_venv(relay_os)
@@ -322,7 +381,9 @@ def _do_init(path: Path, *, via_setup: bool = False) -> None:
     write_pin(relay_os, sha)
 
     local_toml = relay_os / "relay.local.toml"
-    local_toml.write_text(render_local_toml(name))
+    local_toml.write_text(
+        render_local_toml(name) if name is not None else LOCAL_TOML_TEMPLATE
+    )
 
     bin_dir = relay_os / ".relay" / "bin"
     shim = _try_install_shim(bin_dir / "relay")
@@ -337,9 +398,12 @@ def _do_init(path: Path, *, via_setup: bool = False) -> None:
     typer.echo("")
     typer.echo(f"Initialized relay repo at {relay_os}")
     _print_managed_skill_summary(managed_skills)
-    typer.echo(
-        f'Wrote {local_toml} (machine-local config — gitignored) with user = "{name}".'
-    )
+    if name is not None:
+        typer.echo(
+            f'Wrote {local_toml} (machine-local config — gitignored) with user = "{name}".'
+        )
+    else:
+        typer.echo(f"Wrote {local_toml} (machine-local config — gitignored).")
     if pruned_onboarding:
         typer.echo(
             "Skipped the onboarding ticket (this dir already has a project) — "
