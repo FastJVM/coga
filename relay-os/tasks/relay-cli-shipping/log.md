@@ -8,3 +8,4 @@ error: could not detach HEAD
 Created autostash: 8daad4af
 2026-06-08 15:24 [human:zach] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-12 17:33 [human:zach] activated (draft → active)
+2026-06-17 20:29 [human:nick] started (active → in_progress) via relay launch

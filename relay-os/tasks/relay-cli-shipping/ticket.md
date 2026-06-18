@@ -1,6 +1,6 @@
 ---
 title: relay init must ship reusable workflows + code skills into new repos
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
