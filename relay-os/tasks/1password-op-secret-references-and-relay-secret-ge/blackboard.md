@@ -4,6 +4,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: op-secret-references
 worktree: ../relay-op-secrets
+pr: https://github.com/FastJVM/relay/pull/396
 
 ## Plan (implement step)
 
@@ -68,3 +69,21 @@ unrelated to secrets. Left untouched per implement-skill scope.
 `relay.config` and `relay.commands.launch` share one `subprocess` module object,
 so patching both `.subprocess.run` collides — launch tests use a single
 argv-dispatching mock on `relay.config.subprocess.run`.
+
+## Peer review (codex)
+
+Reviewed from feature worktree `/home/n/Code/claude/relay-op-secrets` on branch
+`op-secret-references` against `main`.
+
+- Required native review: `codex review --base main`. First sandboxed attempt
+  failed before review with `failed to initialize in-process app-server client:
+  Read-only file system`; reran outside the sandbox and it completed with: "No
+  diff-scoped correctness issues were found in the new op:// secret resolution,
+  launch integration, or `relay secret get` command."
+- Must-fix findings: none. No code changes and no peer-review commit needed.
+- Verification: `python -m pytest` in the feature worktree reported `2 failed,
+  792 passed, 1 skipped`. The two failures are the already-recorded unrelated
+  autoclose date/template-state failures:
+  `tests/test_autoclose_sweep.py::test_autoclose_live_and_packaged_copies_stay_in_sync`
+  and
+  `tests/test_autoclose_sweep.py::test_autoclose_recurring_template_creates_idempotently`.
