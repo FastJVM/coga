@@ -1,6 +1,6 @@
 """Raw draft-ticket creating for `relay draft` / legacy `relay create`.
 
-Posts ✨ to Slack and leaves the new ticket as `draft`. Does not launch
+Leaves the new ticket as `draft`. Does not post to Slack and does not launch
 an agent. For guided authoring use `relay ticket`; to start work, mark the
 ticket active and then launch it.
 
@@ -38,7 +38,7 @@ def draft(
         ),
     ),
 ) -> None:
-    """Create a new draft ticket and post ✨ to Slack."""
+    """Create a new draft ticket."""
     create_draft(title=title, mode=mode, workflow=workflow)
 
 
@@ -69,7 +69,9 @@ def create_draft(
     mode: str,
     workflow: str | None = None,
 ) -> dict[str, object]:
-    """Create a raw draft ticket and post the create notification.
+    """Create a raw draft ticket.
+
+    Does not post to Slack — it just writes the ticket and git-syncs it.
 
     `workflow` is optional. A workflow-less draft is a valid authoring
     intermediate — `relay mark active` is the gate that refuses to activate
