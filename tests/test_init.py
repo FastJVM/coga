@@ -39,13 +39,13 @@ EXPECTED_FILES = {
     "relay-os/recurring/dream/ticket.md",
     "relay-os/recurring/skill-update/ticket.md",
     "relay-os/tasks/_template/ticket.md",
-    "relay-os/tasks/relay-setup/ticket.md",
-    "relay-os/tasks/relay-setup/blackboard.md",
-    "relay-os/tasks/relay-setup/log.md",
+    "relay-os/tasks/relay-build/ticket.md",
+    "relay-os/tasks/relay-build/blackboard.md",
+    "relay-os/tasks/relay-build/log.md",
     "relay-os/workflows/autoclose-merged/sweep.md",
     "relay-os/workflows/direct/body.md",
     "relay-os/workflows/skill-update/run.md",
-    "relay-os/workflows/init/setup.md",
+    "relay-os/workflows/build/onboarding.md",
 }
 
 
@@ -150,32 +150,26 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     (templates / "workflows" / "skill-update" / "run.md").write_text(
         "skill update workflow\n"
     )
-    (templates / "workflows" / "init").mkdir(parents=True, exist_ok=True)
-    (templates / "workflows" / "init" / "setup.md").write_text(
+    (templates / "workflows" / "build").mkdir(parents=True, exist_ok=True)
+    (templates / "workflows" / "build" / "onboarding.md").write_text(
         "---\n"
-        "name: init/setup\n"
-        "description: Setup workflow.\n"
+        "name: build/onboarding\n"
+        "description: Onboarding workflow.\n"
         "steps:\n"
-        "  - name: interview\n"
+        "  - name: gather-and-spec\n"
         "    assignee: agent\n"
-        "  - name: scan-and-generate\n"
-        "    assignee: agent\n"
-        "  - name: resolve-open-questions\n"
-        "    assignee: agent\n"
-        "  - name: review-and-sign-off\n"
-        "    assignee: human\n"
-        "  - name: apply-review\n"
+        "  - name: generate-batch\n"
         "    assignee: agent\n"
         "---\n"
         "\n"
-        "## interview\n"
+        "## gather-and-spec\n"
         "\n"
-        "Ask the four setup questions.\n"
+        "Ask what the user wants to build.\n"
     )
-    (templates / "tasks" / "relay-setup").mkdir(parents=True, exist_ok=True)
-    (templates / "tasks" / "relay-setup" / "ticket.md").write_text(
+    (templates / "tasks" / "relay-build").mkdir(parents=True, exist_ok=True)
+    (templates / "tasks" / "relay-build" / "ticket.md").write_text(
         "---\n"
-        "title: relay-setup\n"
+        "title: relay-build\n"
         "status: active\n"
         "mode: interactive\n"
         "owner: new-user\n"
@@ -185,24 +179,24 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         "contexts: []\n"
         "skills: []\n"
         "workflow:\n"
-        "  name: init/setup\n"
+        "  name: build/onboarding\n"
         "  steps:\n"
-        "  - name: interview\n"
+        "  - name: gather-and-spec\n"
         "    skills: []\n"
         "    assignee: agent\n"
-        "step: 1 (interview)\n"
+        "step: 1 (gather-and-spec)\n"
         "---\n"
         "\n"
         "## Description\n"
         "\n"
-        "Setup task.\n"
+        "Onboarding task.\n"
         "\n"
         "## Context\n"
         "\n"
-        "Empty until the `interview` step runs at first launch.\n"
+        "Empty until the `gather-and-spec` step runs at first launch.\n"
     )
-    (templates / "tasks" / "relay-setup" / "blackboard.md").write_text("notepad\n")
-    (templates / "tasks" / "relay-setup" / "log.md").write_text("created\n")
+    (templates / "tasks" / "relay-build" / "blackboard.md").write_text("notepad\n")
+    (templates / "tasks" / "relay-build" / "log.md").write_text("created\n")
     (templates / "workflows" / "autoclose-merged").mkdir(
         parents=True, exist_ok=True
     )
@@ -514,31 +508,31 @@ def test_init_creates_missing_dir(tmp_path: Path, fake_clone, fake_venv) -> None
     assert (target / "relay-os" / "relay.toml").is_file()
 
 
-# --- init setup ticket ----------------------------------------------------------
+# --- init build ticket ----------------------------------------------------------
 
 
-def test_init_ships_setup_ticket_template(
+def test_init_ships_build_ticket_template(
     tmp_path: Path, fake_clone, fake_venv
 ) -> None:
-    """The relay-setup task is a static packaged template: fresh init copies
-    it verbatim — no prompts, no creating code — and the interview happens
+    """The relay-build task is a static packaged template: fresh init copies
+    it verbatim — no prompts, no creating code — and the onboarding chat happens
     at first launch as the workflow's first step."""
     target = tmp_path / "company"
     target.mkdir()
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0, result.output
 
-    task_dir = target / "relay-os" / "tasks" / "relay-setup"
+    task_dir = target / "relay-os" / "tasks" / "relay-build"
     text = (task_dir / "ticket.md").read_text()
     assert "status: active" in text
-    assert "name: init/setup" in text
-    assert "step: 1 (interview)" in text
-    assert "Empty until the `interview` step runs at first launch" in text
+    assert "name: build/onboarding" in text
+    assert "step: 1 (gather-and-spec)" in text
+    assert "Empty until the `gather-and-spec` step runs at first launch" in text
     assert (task_dir / "blackboard.md").is_file()
     assert (task_dir / "log.md").is_file()
-    # Bare init points at `relay setup` (which records the user name, then
-    # launches this ticket) rather than at a manual launch.
-    assert "Run `relay setup`" in result.output
+    # Bare init points at `relay build` (the alias that launches this ticket)
+    # rather than at a manual launch.
+    assert "Run `relay build`" in result.output
 
 
 # --- --update mode ------------------------------------------------------------

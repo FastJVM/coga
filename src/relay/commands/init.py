@@ -174,7 +174,7 @@ def init(
         _do_init(path or Path("."))
 
 
-def _do_init(path: Path, *, via_setup: bool = False) -> None:
+def _do_init(path: Path) -> None:
     target = path.resolve()
     relay_os = target / "relay-os"
 
@@ -261,13 +261,12 @@ def _do_init(path: Path, *, via_setup: bool = False) -> None:
         f"Edit {relay_os}/relay.toml — set your agents, notification channels, "
         "and aliases."
     )
-    if not via_setup:
-        steps.append(
-            "Run `relay setup` — it records your name in relay.local.toml, then "
-            "launches the relay-setup interview: the agent asks about the repo "
-            "and turns your answers plus a repo scan into starter contexts, "
-            "rules, workflows, and recurring tasks."
-        )
+    steps.append(
+        "Run `relay build` — it launches the relay-build onboarding: one "
+        "question about what you want to build, then an agent-led chat that "
+        "ends in a short vision you sign off on and a flat batch of starter "
+        "tickets you can immediately `relay launch`."
+    )
     steps.append("Run `relay --help` to see what's available.")
 
     typer.echo("")

@@ -107,6 +107,10 @@ webhook = "env:SLACK_WEBHOOK_URL"
 
 [aliases]
 chat = "launch bootstrap/orient"
+# `build` is first-run onboarding — it launches the packaged `relay-build`
+# ticket (one question → agent-led chat → vision → starter tickets). Requires
+# an already-init'd repo; `relay init` captures your name beforehand.
+build = "launch relay-build"
 # `dream` creates the `recurring/dream/` cleanup task and launches it now —
 # the same path `relay recurring launch dream` takes.
 dream = "recurring launch dream"
