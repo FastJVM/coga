@@ -64,3 +64,21 @@ Notes for reviewer / next steps:
   offline machine fails the explicit check with a message enumerating causes.
 - Example fixture untouched — change is a CLI flag + check, no task-layout /
   prompt-composition / workflow-semantics impact.
+
+## Peer-review step
+
+Native review: `codex review --base main`.
+
+Findings addressed:
+- The git preflight used `git ls-remote`, which could pass with read/fetch
+  access even when the next push would fail. Fixed by probing push access with
+  non-mutating `git push --dry-run <remote> HEAD:refs/heads/relay-preflight-auth-check`.
+- The `gh` auth preflight was host-agnostic. Fixed by deriving the host from
+  the configured remote URL and running `gh auth status --hostname <host>`
+  when available.
+
+Peer-review commit: `57ab2bc` (`peer-review: tighten GitHub auth preflight`).
+
+Verification:
+- `PYTHONPATH=/home/n/Code/claude/relay-github-preflight/src /home/n/Code/relay/relay-os/.relay/.venv/bin/python -m pytest tests/test_validate.py -q -p no:cacheprovider` -> 37 passed.
+- `PYTHONPATH=/home/n/Code/claude/relay-github-preflight/src /home/n/Code/relay/relay-os/.relay/.venv/bin/python -m pytest -p no:cacheprovider` -> 781 passed.
