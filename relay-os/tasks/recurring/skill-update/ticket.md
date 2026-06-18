@@ -1,6 +1,6 @@
 ---
 title: Skill update
-status: in_progress
+status: done
 mode: script
 owner: nick
 human: nick
@@ -16,7 +16,6 @@ workflow:
     skills:
     - bootstrap/skill-update
     assignee: agent
-step: 1 (update)
 ---
 
 ## Description
