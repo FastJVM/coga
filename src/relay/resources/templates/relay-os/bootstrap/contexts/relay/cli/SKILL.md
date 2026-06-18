@@ -44,13 +44,14 @@ satisfied: scaffold via `relay init` if there is no relay repo at `PATH`
 (default `.`), prompt for your name and write it to `user` in
 `relay.local.toml` if unset, then launch the `relay-setup` interview
 ticket (no-op with a message if that ticket is already done or absent).
-Idempotent — if a stage fails (e.g. Slack webhook not configured yet),
-fix the issue and re-run; it resumes where it stopped.
+Idempotent — if a stage fails, fix the issue and re-run; it resumes where
+it stopped.
 
 ## relay draft "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
 
-Scaffold a new raw `draft` ticket and post `✨` to Slack. Does not launch
-an agent. Step one of the boot path: `draft` → edit the body / workflow /
+Scaffold a new raw `draft` ticket and post `✨` when a notification channel
+is selected (a fresh repo selects none, so this is silent out of the box).
+Does not launch an agent. Step one of the boot path: `draft` → edit the body / workflow /
 contexts as needed → `relay launch <slug>`. Launch activates a draft inline;
 use `relay mark active <slug>` only when you want to approve/queue without
 launching. `relay create` is a compatibility spelling for `relay draft` —
@@ -412,9 +413,11 @@ channel without changing task state. Use for events that don't
 coincide with a state transition (e.g. announcing a hand-edit to a
 ticket, or surfacing a non-blocker mid-step). For FYIs that *do*
 coincide with a `bump`, use `bump --message` instead — one post,
-not two. Slack is required (see `relay/sync`); commands crash if
+not two. Notifications are optional on first run (a fresh repo selects no
+channels), so with nothing configured this posts nothing and does not crash.
+Once Slack is selected it is fail-loud (see `relay/sync`): commands crash if
 `$SLACK_WEBHOOK_URL` is unset and the user hasn't opted out via
-`[slack].enabled = false`.
+`[notification.slack].enabled = false`.
 
 ## relay dream
 

@@ -1,6 +1,6 @@
 ---
 name: relay/sync
-description: Notifications and git as relay's sync layers — why a live notification channel is required by default, how task-state git sync works, why failures crash, and how to design new features that respect sync.
+description: Notifications and git as relay's sync layers — why notifications are optional on first run but configured Slack fails loud, how task-state git sync works, why failures crash, and how to design new features that respect sync.
 ---
 
 # Sync layers — notifications and git
@@ -77,21 +77,35 @@ already-`in_progress` interactive or auto ticket. The sync-relevant start
 transition already happened when the ticket moved `active` → `in_progress`;
 subsequent launches are resume attempts.
 
-## Notifications required by default
+## Notifications optional on first run; configured Slack fails loud
 
-When `[notification.slack].enabled` is true (the default), commands crash on
-any live Slack-channel failure:
+A fresh `relay init` selects no notification channels (`[notification]
+channels = []`), so a brand-new user runs `draft`/`mark`/`launch`/`bump`
+without configuring anything. Notifications are opt-in: a repo turns Slack on
+by selecting the channel and pointing it at a webhook (see `relay/cli` for the
+exact snippet). With no channel selected, `notification.post` takes its
+no-channel branch — one stderr line, no crash. When `[notification].channels`
+is absent entirely, Slack is *inferred* only from opt-in/compat evidence (a
+`[notification.slack]` table, a legacy `[slack]` table, or a bare
+`SLACK_WEBHOOK_URL`); with none of those, channels resolve to `()`.
+
+Once Slack *is* selected and enabled (`[notification.slack].enabled` defaults
+to true), the fail-loud contract holds — commands crash on any live
+Slack-channel failure:
 
 - `[notification.slack].webhook` resolves empty (key absent, or an `env:` reference
   whose variable is unset) → `typer.Exit(1)` with a message pointing the
-  user at the `[notification.slack].webhook` key or the opt-out.
+  user at the `[notification.slack].webhook` key, removing slack from
+  `[notification].channels`, or the opt-out.
 - Network or webhook-rejection error during `requests.post` →
   `typer.Exit(1)` with the error and (when `task_path` is given) a line
   appended to that task's `log.md`.
 
 Why crash instead of degrading to stderr-only? Because a silent FYI
 becomes a stale mental model on the human side, and that's worse than a
-noisy retry. Loud failures force resolution; quiet ones rot.
+noisy retry. Loud failures force resolution; quiet ones rot. That bargain
+applies once a team has opted in — before then there is no sync loop to keep
+honest, which is why first run selects nothing.
 
 ## Why no notification retry
 
