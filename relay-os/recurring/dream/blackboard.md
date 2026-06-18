@@ -8,4 +8,4 @@ ends in a PR, a draft ticket, or a recorded marker instead. `relay recurring`
 keeps Dream's serviced-period high-water mark here; `log.md` keeps append-only
 human history.
 
-last_serviced_period: 2026-W24
+last_serviced_period: 2026-W25
