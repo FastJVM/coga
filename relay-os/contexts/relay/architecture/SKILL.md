@@ -287,6 +287,37 @@ mode of two divergent workers (two blackboard edits,
 two PR branches) is visible and recoverable in git; the cost of a hard
 mutex (stale lock files, `--force` flags, orphan-lock cleanup) is not.
 
+## Identity and capability boundaries
+
+"Who is acting?" and "what may this action use?" resolve to four boundaries.
+Relay stays classical: local files and standard CLIs first, a hosted crossing
+only where a v1 requirement genuinely needs one, no secret or account state
+committed to git.
+
+- **Local user / operator.** Relay does **not** own the human's identity. The
+  operator is the OS user plus the local tools they already authenticate: `git`,
+  `ssh-agent` / git credential helpers, and `gh`. Relay inspects these and fails
+  with actionable setup hints (`gh auth login`, fix your git remote); it never
+  stores a GitHub PAT, reads `GITHUB_TOKEN`/PATs from `[secrets]` for normal
+  human PR work, or reimplements GitHub auth. Git transport uses the user's
+  configured remote; GitHub PR/API operations use `gh` auth.
+- **Repo / install identity.** The repo is identified by the git checkout and
+  `relay-os/` config. An install may additionally carry an anonymous telemetry
+  identity, generated locally and stored only in gitignored local config/state —
+  it counts active installs, it never names a person, repo, or path.
+- **Skill / task capability.** A task's capabilities are its ticket-level
+  `secrets:` list. Secret values live in `relay.local.toml` as literals (local
+  testing only) or, normally, as indirections: `env:VAR` and
+  `op://vault/item/field`. Launch resolves only what the task is allowed to
+  receive and fails loud when a declared value cannot be satisfied (e.g. `op`
+  missing, not signed in, or `op read` non-zero) — error messages name the
+  Relay secret key and reference, never the value. The extension seam for new
+  providers is **prefix dispatch in `config.py`**, not a provider registry: a
+  future provider is another explicit branch on the same shared secret path.
+- **Hosted endpoint.** v1 has at most one hosted crossing — the anonymous
+  telemetry sink, with a trivial opt-out. Relay does **not** ship a hosted
+  account, signup/login flow, API-token store, or sync backend in v1.
+
 ## Command Surface
 
 The command reference lives in `relay/cli`. The important architectural split
