@@ -15,9 +15,9 @@ from relay.paths import (
     repo_context_path,
     resolve_context_path,
     resolve_skill_path,
+    resolve_workflow_path,
     rules_path,
     skill_resolution_paths,
-    workflow_path,
 )
 from relay.tasks import TargetRef
 from relay.ticket import Ticket
@@ -332,9 +332,9 @@ def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]
     if not wf_name:
         return []
     try:
-        wf = Workflow.load(workflow_path(cfg, wf_name))
+        wf = Workflow.load(resolve_workflow_path(cfg, wf_name))
     except Exception:  # workflow may have been deleted after ticket was created
-        wp = workflow_path(cfg, wf_name)
+        wp = resolve_workflow_path(cfg, wf_name)
         return [PromptLayer(
             "workflow_inline",
             f"Current step: {name}",
@@ -349,14 +349,14 @@ def _step_layers(cfg: Config, ticket: Ticket, *, slug: str) -> list[PromptLayer]
             f"Current step: {name}",
             inline,
             ref=wf_name,
-            path=str(workflow_path(cfg, wf_name)),
+            path=str(resolve_workflow_path(cfg, wf_name)),
         )]
     return [PromptLayer(
         "workflow_inline",
         f"Current step: {name}",
         "*No instructions attached to this step.*",
         ref=wf_name,
-        path=str(workflow_path(cfg, wf_name)),
+        path=str(resolve_workflow_path(cfg, wf_name)),
     )]
 
 

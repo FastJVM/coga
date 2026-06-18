@@ -16,7 +16,7 @@ import typer
 from relay import git
 from relay.config import Config
 from relay.logfile import append_log
-from relay.paths import recurring_dir, workflow_path
+from relay.paths import recurring_dir, resolve_workflow_path
 from relay.period_state import StateSnapshot, read_snapshot, stale_keys
 from relay.notification import notify, post
 from relay.tasks import TaskRef
@@ -203,7 +203,7 @@ def _freeze_workflow_ref(cfg: Config, ticket: Ticket) -> None:
     """
     wf = ticket.workflow
     if isinstance(wf, str):
-        wf_def = Workflow.load(workflow_path(cfg, wf))
+        wf_def = Workflow.load(resolve_workflow_path(cfg, wf))
         ticket.frontmatter["workflow"] = wf_def.freeze()
     if not ticket.step:
         steps = (ticket.workflow or {}).get("steps") or []

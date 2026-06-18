@@ -8,7 +8,7 @@ own; everything else in ticket frontmatter is preserved.
 from __future__ import annotations
 
 from relay.config import Config
-from relay.paths import workflow_path
+from relay.paths import resolve_workflow_path
 from relay.tasks import list_tasks
 from relay.ticket import Ticket, TicketError
 from relay.workflow import Workflow, WorkflowError
@@ -145,7 +145,7 @@ def _freeze_legacy_workflow_ref(ticket: Ticket, cfg: Config) -> bool:
     if not isinstance(ref, str) or not ref.strip():
         return False
     try:
-        ticket.frontmatter["workflow"] = Workflow.load(workflow_path(cfg, ref)).freeze()
+        ticket.frontmatter["workflow"] = Workflow.load(resolve_workflow_path(cfg, ref)).freeze()
     except WorkflowError:
         return False
     return True
