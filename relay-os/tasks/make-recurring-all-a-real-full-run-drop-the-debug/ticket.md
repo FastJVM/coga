@@ -1,6 +1,6 @@
 ---
 title: make recurring --all a real full run, drop the debug-sandbox machinery
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
