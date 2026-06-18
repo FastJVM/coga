@@ -54,6 +54,12 @@ rather than cutting a new one (per task context).
 
 - branch: `init-captures-name-impl`
 - worktree: `/Users/zach2179/Desktop/relay-init-name-impl`
+- pr: https://github.com/FastJVM/relay/pull/391
+
+open-pr step (done): pushed `35918848` to update #391; rewrote the PR body to the
+`--user` param flow via `gh pr edit` (title unchanged — the new-user/gate/placeholder
+scope still holds). CI: `gh pr checks 391` → no checks configured on this repo, so
+nothing to wait on. Owner merges #391 — no second PR.
 
 Note: the editable `relay` install points at the primary checkout
 (`/Users/zach2179/Desktop/relay-cli/src`), so tests must run with
