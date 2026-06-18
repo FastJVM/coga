@@ -14,7 +14,7 @@ human history in this template's `log.md` (never composed into a run, so it can
 grow unbounded). The digest flush still parses only valid JSON records and
 rewrites only the spool section, so any stray non-JSON line is left untouched.
 
-last_serviced_period: 2026-06-11
+last_serviced_period: 2026-06-17
 
 ### Digest State
 
