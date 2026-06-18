@@ -1,6 +1,6 @@
 ---
 title: Skill update
-status: active
+status: in_progress
 mode: script
 owner: nick
 human: nick
