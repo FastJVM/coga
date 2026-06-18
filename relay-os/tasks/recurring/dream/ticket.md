@@ -1,6 +1,6 @@
 ---
 title: Dream
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -16,7 +16,6 @@ workflow:
     skills:
     - direct/body
     assignee: agent
-step: 1 (execute)
 ---
 
 ## Description
