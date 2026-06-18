@@ -1,6 +1,6 @@
 ---
 title: GitHub auth preflight and setup docs
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -28,7 +28,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

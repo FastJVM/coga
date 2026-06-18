@@ -539,6 +539,11 @@ def _check_secrets(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
     which env vars are exported is per-shell: a declared key absent from
     `[secrets]`, or one whose `env:VAR` is unset in this environment, warns so
     a launch-time fail-loud isn't a surprise.
+
+    An `op://` reference is intentionally **not** probed here: validate never
+    requires a real 1Password account, so it does no live `op read` (that
+    belongs to explicit launch / `relay secret get`). An op secret is neither
+    undeclared nor env-unset (`missing` is env-only), so it produces no issue.
     """
     out: list[Issue] = []
     fm = ticket.frontmatter
@@ -821,9 +826,10 @@ def _notification_issues(cfg: Config) -> list[Issue]:
                 kind="slack-misconfigured",
                 task="(slack)",
                 message=(
-                    "no Slack webhook configured — set "
-                    "[notification.slack].webhook (Relay requires it unless "
-                    "[notification.slack].enabled = false)"
+                    "no Slack webhook configured — Slack is selected in "
+                    "[notification].channels; set [notification.slack].webhook, "
+                    "remove slack from [notification].channels, or set "
+                    "[notification.slack].enabled = false"
                 ),
                 severity="error",
             )

@@ -15,8 +15,16 @@ from typer.testing import CliRunner
 from relay.cli import app
 from relay.commands import init as init_cmd
 from relay.commands import update as update_cmd
+from relay.config import load_config
 from relay.managed_skills import ManagedSkillError, ManagedSkillSummary
+from relay.notification import post
 from relay.skill_manager import SkillResult
+
+
+_PACKAGED_RELAY_TOML = (
+    Path(__file__).resolve().parents[1]
+    / "src" / "relay" / "resources" / "templates" / "relay-os" / "relay.toml"
+)
 
 
 EXPECTED_FILES = {
@@ -330,6 +338,36 @@ def test_init_into_empty_dir(
 
     assert "version = 1" in (target / "relay-os" / "relay.toml").read_text()
     assert fake_managed_skill_sync.install_calls == [target / "relay-os"]
+
+
+def test_packaged_template_first_run_works_without_slack(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The shipped relay.toml lets a stranger run commands with no Slack set up.
+
+    Reads the real packaged template (the file `relay init` ships, not a fake
+    fixture) into a repo with `SLACK_WEBHOOK_URL` unset, then proves the
+    first-run posture: it selects no notification channels, `post()` is
+    suppressed instead of crash-loud, and a first `relay draft` succeeds.
+    """
+    repo = tmp_path / "relay-os"
+    repo.mkdir()
+    shutil.copy(_PACKAGED_RELAY_TOML, repo / "relay.toml")
+    (repo / "relay.local.toml").write_text('user = "marc"\n')
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+
+    text = (repo / "relay.toml").read_text()
+    assert "channels = []" in text
+
+    cfg = load_config(repo)
+    assert cfg.notification_channels == ()
+    # A fresh repo must not crash on the notification path.
+    post(cfg, "first run, no slack")
+
+    monkeypatch.chdir(repo)
+    result = CliRunner().invoke(app, ["draft", "First task"])
+    assert result.exit_code == 0, result.output
+    assert "[notification.slack].webhook" not in result.output
 
 
 def test_init_reports_installed_managed_skills(

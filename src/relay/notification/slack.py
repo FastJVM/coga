@@ -67,10 +67,12 @@ class SlackChannel:
 
         if not self.cfg.slack_webhook:
             sys.stderr.write(
-                "[notification.slack] no webhook configured. Set "
+                "[notification.slack] Slack is selected in "
+                "[notification].channels but no webhook is configured. Set "
                 "[notification.slack].webhook in relay.toml "
                 '(e.g. webhook = "env:SLACK_WEBHOOK_URL", then export '
-                "SLACK_WEBHOOK_URL), or opt out with "
+                "SLACK_WEBHOOK_URL), remove slack from [notification].channels "
+                "to run without it, or opt out with "
                 "[notification.slack].enabled = false in relay.local.toml.\n"
             )
             raise typer.Exit(1)

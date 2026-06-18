@@ -654,19 +654,23 @@ relay slack --task add-retry --message "Reassigned to pierre"
 
 ### Notifications — the team sync point
 
-Notifications are required by default. Slack is the first backend. Urgent and
-manual events post to the channel configured by `[notification.slack].webhook`;
-outcome events may spool into the daily digest before posting. Relaunching an
-already-`in_progress` ticket does *not* post — that isn't a new state change.
-Failures are loud: if Slack is unreachable or the webhook isn't set, the
+**Notifications are optional on first run.** A fresh `relay init` selects no
+channels (`[notification] channels = []`), so you can `draft`, `launch`, and
+`bump` your first task without configuring anything. Turn them on when you
+start coordinating with other people.
+
+Slack is the first backend. Once selected, urgent and manual events post to the
+channel configured by `[notification.slack].webhook`; outcome events may spool
+into the daily digest before posting. Relaunching an already-`in_progress`
+ticket does *not* post — that isn't a new state change. Once Slack is selected,
+failures are loud: if Slack is unreachable or the webhook isn't set, the
 command exits non-zero rather than silently dropping the message — a missed FYI
 becomes a stale mental model on the human side, and that's worse than a noisy
 retry.
 
-**Setup (solo or team).** Create a Slack incoming webhook for the
-channel, keep the shared config pointed at an env var, and export the URL
-locally. Fresh `relay.toml` files include this entry; older or minimal repos
-should add it:
+**Opt in (team).** Create a Slack incoming webhook for the channel, select the
+Slack channel, keep the shared config pointed at an env var, and export the URL
+locally; older or minimal repos add the same block:
 
 ```toml
 [notification]
@@ -697,7 +701,9 @@ so a dead URL surfaces at config time, not at first `bump`. Failures
 during runtime posts also append a line to the task's `log.md` so
 daemon / cron / launched-script runs leave a recoverable trace.
 
-**Opt out (solo dev / CI / dry runs).** Set in `relay.local.toml`:
+**Temporarily silence a repo that already opted in (solo dev / CI / dry
+runs).** To run without posts but keep the Slack channel selected, set in
+`relay.local.toml`:
 
 ```toml
 [notification.slack]
@@ -706,7 +712,8 @@ enabled = false
 
 With `enabled = false`, every Slack-channel call is suppressed to stderr and
 nothing crashes. Treat this as an exit from the sync loop, not a
-default — once you're working with another person, turn it back on.
+default — once you're working with another person, turn it back on. (If you
+never opted in, you don't need this — a fresh repo posts nothing already.)
 
 ### `relay --version`
 
