@@ -1,6 +1,6 @@
 ---
 title: relay init must ship reusable workflows + code skills into new repos
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -31,7 +31,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 5 (review)
 ---
 
 ## Description
