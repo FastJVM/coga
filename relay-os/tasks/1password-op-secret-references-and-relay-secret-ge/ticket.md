@@ -1,6 +1,6 @@
 ---
 title: 1Password op secret references and relay secret get
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
