@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shlex
+import signal
 import sys
 from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
@@ -182,8 +183,26 @@ def _register_alias_placeholder(name: str, expansion: str) -> None:
         )
 
 
+def _restore_default_sigpipe() -> None:
+    """Behave like a standard Unix filter when output is piped to a consumer
+    that closes early (`relay status | head`, `relay skill update --json | jq`).
+
+    Python sets SIGPIPE to SIG_IGN and turns a write to a closed pipe into a
+    `BrokenPipeError`; when that surfaces during the interpreter's
+    shutdown-time stdout flush, CPython exits 120 with a noisy
+    "Exception ignored" traceback instead of dying quietly. Restoring the
+    default disposition makes the process terminate on SIGPIPE the way `cat`
+    and `grep` do. It also fixes the well-known SIG_IGN-inheritance footgun for
+    the many `git`/`gh` subprocesses relay spawns. Guarded for platforms
+    without SIGPIPE (Windows).
+    """
+    if hasattr(signal, "SIGPIPE"):
+        signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
+
 def main() -> None:
     """Console-script entry point. Loads config, registers aliases, dispatches."""
+    _restore_default_sigpipe()
     # `relay init` (fresh or `--update`) is the create/recovery command — it
     # must run even when the current config is missing, legacy, or broken,
     # since repairing exactly that is often why it's invoked. A stale CLI plus
