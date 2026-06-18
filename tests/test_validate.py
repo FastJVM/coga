@@ -385,11 +385,11 @@ def test_check_github_success(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
                 ("git", "remote", "get-url", "origin"): _FakeProc(
                     0, "git@github.com:o/r.git\n"
                 ),
-                ("git", "ls-remote", "--heads", "origin"): _FakeProc(
-                    0, "abc123\trefs/heads/main\n"
-                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
                 ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
-                ("gh", "auth", "status"): _FakeProc(0, "", "Logged in to github.com"),
+                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
+                    0, "", "Logged in to github.com"
+                ),
             }
         ),
     )
@@ -401,8 +401,8 @@ def test_check_github_success(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
 def test_check_github_missing_remote(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # No ls-remote entry: a missing remote must short-circuit before the
-    # reachability probe runs (the factory raises on any unexpected call).
+    # No push entry: a missing remote must short-circuit before the auth probe
+    # runs (the factory raises on any unexpected call).
     monkeypatch.setattr(
         "relay.github_preflight.subprocess.run",
         _fake_subprocess_factory(
@@ -433,9 +433,7 @@ def test_check_github_missing_gh(
                 ("git", "remote", "get-url", "origin"): _FakeProc(
                     0, "git@github.com:o/r.git\n"
                 ),
-                ("git", "ls-remote", "--heads", "origin"): _FakeProc(
-                    0, "abc123\trefs/heads/main\n"
-                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
                 ("gh", "--version"): FileNotFoundError(),
             }
         ),
@@ -455,14 +453,12 @@ def test_check_github_gh_unauthenticated(
         _fake_subprocess_factory(
             {
                 ("git", "remote", "get-url", "origin"): _FakeProc(
-                    0, "git@github.com:o/r.git\n"
+                    0, "git@ghe.example.com:o/r.git\n"
                 ),
-                ("git", "ls-remote", "--heads", "origin"): _FakeProc(
-                    0, "abc123\trefs/heads/main\n"
-                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
                 ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
-                ("gh", "auth", "status"): _FakeProc(
-                    1, "", "You are not logged into any GitHub hosts. Run gh auth login"
+                ("gh", "auth", "status", "--hostname", "ghe.example.com"): _FakeProc(
+                    1, "", "not logged in to ghe.example.com"
                 ),
             }
         ),
@@ -472,8 +468,36 @@ def test_check_github_gh_unauthenticated(
     kinds = _github_kinds(report)
     assert "github-gh-auth" in kinds
     auth_issue = next(i for i in report.issues if i.kind == "github-gh-auth")
-    assert "gh auth login" in auth_issue.message
+    assert "gh auth login --hostname ghe.example.com" in auth_issue.message
     assert auth_issue.severity == "error"
+
+
+def test_check_github_push_auth_failure(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "relay.github_preflight.subprocess.run",
+        _fake_subprocess_factory(
+            {
+                ("git", "remote", "get-url", "origin"): _FakeProc(
+                    0, "https://github.com/o/r.git\n"
+                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(
+                    128, "", "remote: Permission to o/r.git denied"
+                ),
+                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
+                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
+                    0, "", "Logged in to github.com"
+                ),
+            }
+        ),
+    )
+    cfg = load_config(repo)
+    report = run(cfg, check_github=True)
+    kinds = _github_kinds(report)
+    assert "github-git-auth" in kinds
+    auth_issue = next(i for i in report.issues if i.kind == "github-git-auth")
+    assert "push access" in auth_issue.message
 
 
 def test_run_no_github_check_by_default(

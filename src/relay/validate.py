@@ -3,8 +3,8 @@
 Exposed as `relay validate` (see `relay.commands.validate`); also runnable
 directly as a module:
 
-    relay validate [--json] [--task <slug>] [--fix] [--max-blackboard-kb N] [--check-slack]
-    python -m relay.validate [--json] [--task <slug>] [--fix] [--max-blackboard-kb N] [--check-slack]
+    relay validate [--json] [--task <slug>] [--fix] [--max-blackboard-kb N] [--check-slack] [--check-github]
+    python -m relay.validate [--json] [--task <slug>] [--fix] [--max-blackboard-kb N] [--check-slack] [--check-github]
 
 Two entry points:
 - `run(cfg, ...)` — whole-repo sweep (every task under `relay-os/tasks/`).

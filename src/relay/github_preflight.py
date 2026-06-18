@@ -10,9 +10,9 @@ surprise an agent at PR time into an actionable setup hint a new operator can
 act on before launch.
 
 Each probe returns a structured `CheckResult`; `relay.validate` maps the
-failures into report `Issue`s. The reachability probe runs non-interactively
-(`GIT_TERMINAL_PROMPT=0` plus ssh `BatchMode=yes`) so a missing credential can
-never hang the check on a hidden password prompt.
+failures into report `Issue`s. The push probe is a non-mutating dry run and
+runs non-interactively (`GIT_TERMINAL_PROMPT=0` plus ssh `BatchMode=yes`) so a
+missing credential can never hang the check on a hidden password prompt.
 """
 
 from __future__ import annotations
@@ -20,11 +20,13 @@ from __future__ import annotations
 import os
 import subprocess
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
-# Wall-clock ceiling for any single probe. The reachability probe talks to the
-# network; the rest are local, but a uniform timeout keeps a wedged subprocess
+# Wall-clock ceiling for any single probe. The push probe talks to the network;
+# the rest are local, but a uniform timeout keeps a wedged subprocess
 # from stalling the whole check.
 _PROBE_TIMEOUT = 20.0
+_PREFLIGHT_BRANCH = "refs/heads/relay-preflight-auth-check"
 
 
 @dataclass
@@ -39,6 +41,7 @@ class CheckResult:
     name: str
     ok: bool
     detail: str
+    value: str | None = None
 
 
 def _run(args: list[str], *, env: dict[str, str] | None = None) -> tuple[int | None, str, str]:
@@ -91,19 +94,21 @@ def check_git_remote(remote: str) -> CheckResult:
             f"`git remote add {remote} <url>`, or point Relay at the right "
             f"remote via [git].remote in relay.toml.",
         )
-    return CheckResult("git-remote", True, f"remote {remote!r} → {_first_line(out)}")
+    remote_url = _first_line(out)
+    return CheckResult("git-remote", True, f"remote {remote!r} -> {remote_url}", remote_url)
 
 
 def check_git_auth(remote: str) -> CheckResult:
-    """Probe reachability/auth for the configured remote, transport-neutral.
+    """Probe push auth for the configured remote, transport-neutral.
 
-    Uses `git ls-remote --heads <remote>` so it exercises whatever transport
+    Uses `git push --dry-run <remote>` so it exercises whatever transport
     the remote is configured with (SSH or HTTPS) through the operator's normal
     `ssh-agent` / credential-helper setup. Runs non-interactively so a missing
     credential fails fast instead of blocking on a prompt.
     """
-    rc, out, err = _run(
-        ["git", "ls-remote", "--heads", remote],
+    refspec = f"HEAD:{_PREFLIGHT_BRANCH}"
+    rc, _out, err = _run(
+        ["git", "push", "--dry-run", remote, refspec],
         env={
             "GIT_TERMINAL_PROMPT": "0",
             "GIT_SSH_COMMAND": "ssh -o BatchMode=yes -o ConnectTimeout=10",
@@ -119,13 +124,33 @@ def check_git_auth(remote: str) -> CheckResult:
         return CheckResult(
             "git-auth",
             False,
-            f"could not reach/authenticate remote {remote!r} "
-            f"(`git ls-remote {remote}` failed: {_first_line(err) or 'no output'}). "
+            f"could not authenticate push access for remote {remote!r} "
+            f"(`git push --dry-run {remote} HEAD:{_PREFLIGHT_BRANCH}` failed: "
+            f"{_first_line(err) or 'no output'}). "
             "Check that you are online and that the remote's transport is set "
             "up: for SSH, that your key is loaded (`ssh-add -l`) and authorized; "
-            "for HTTPS, that a git credential helper has valid credentials.",
+            "for HTTPS, that a git credential helper has valid credentials; and "
+            "that your GitHub account can push branches to this repository.",
         )
-    return CheckResult("git-auth", True, f"remote {remote!r} reachable and authenticated")
+    return CheckResult("git-auth", True, f"remote {remote!r} push access authenticated")
+
+
+def _remote_host(remote_url: str | None) -> str | None:
+    """Return a hostname from common git remote URL forms."""
+    if not remote_url:
+        return None
+    text = remote_url.strip()
+    if "://" in text:
+        parsed = urlparse(text)
+        return parsed.hostname
+
+    # SCP-like SSH remotes: git@github.com:org/repo.git or github.com:org/repo.git.
+    left, sep, right = text.partition(":")
+    if sep and "/" in right and "/" not in left:
+        host = left.rsplit("@", 1)[-1].strip()
+        return host or None
+
+    return None
 
 
 def check_gh_installed() -> CheckResult:
@@ -148,9 +173,12 @@ def check_gh_installed() -> CheckResult:
     return CheckResult("gh-installed", True, _first_line(out) or "gh installed")
 
 
-def check_gh_auth() -> CheckResult:
-    """Verify `gh` is authenticated via `gh auth status`."""
-    rc, out, err = _run(["gh", "auth", "status"])
+def check_gh_auth(host: str | None = None) -> CheckResult:
+    """Verify `gh` is authenticated for the configured remote host."""
+    args = ["gh", "auth", "status"]
+    if host:
+        args.extend(["--hostname", host])
+    rc, out, err = _run(args)
     if rc is None:
         return CheckResult(
             "gh-auth",
@@ -160,13 +188,16 @@ def check_gh_auth() -> CheckResult:
         )
     if rc != 0:
         # `gh auth status` writes its report to stderr.
+        login_hint = f"`gh auth login --hostname {host}`" if host else "`gh auth login`"
+        target = f" for {host}" if host else ""
         return CheckResult(
             "gh-auth",
             False,
-            "`gh` is not authenticated — run `gh auth login`. "
+            f"`gh` is not authenticated{target} — run {login_hint}. "
             f"({_first_line(err) or _first_line(out) or 'gh auth status failed'})",
         )
-    return CheckResult("gh-auth", True, "gh authenticated")
+    target = f" for {host}" if host else ""
+    return CheckResult("gh-auth", True, f"gh authenticated{target}")
 
 
 def run_preflight(remote: str) -> list[CheckResult]:
@@ -186,6 +217,6 @@ def run_preflight(remote: str) -> list[CheckResult]:
     gh_installed = check_gh_installed()
     results.append(gh_installed)
     if gh_installed.ok:
-        results.append(check_gh_auth())
+        results.append(check_gh_auth(_remote_host(remote_result.value)))
 
     return results
