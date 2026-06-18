@@ -1,6 +1,6 @@
 ---
 title: Dream debug validate-drift
-status: in_progress
+status: done
 mode: script
 owner: nick
 human: nick
@@ -16,7 +16,6 @@ workflow:
     - bootstrap/dream/tasks/validate-drift
     assignee: agent
 secrets: null
-step: 1 (run)
 ---
 
 ## Description
