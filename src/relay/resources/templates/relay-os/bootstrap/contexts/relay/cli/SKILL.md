@@ -36,16 +36,16 @@ resources. It does not modify a repo. `relay init` and `relay init --update`
 materialize those package resources into `relay-os/bootstrap/`, where Relay
 resolves them after project-local `relay-os/skills` and `relay-os/contexts`.
 
-## relay setup [PATH]
+## relay build
 
-One-command onboarding for a new repo — the entry point to tell new users
-about. Runs the bootstrap stages in order, skipping any that are already
-satisfied: scaffold via `relay init` if there is no relay repo at `PATH`
-(default `.`), prompt for your name and write it to `user` in
-`relay.local.toml` if unset, then launch the `relay-setup` interview
-ticket (no-op with a message if that ticket is already done or absent).
-Idempotent — if a stage fails, fix the issue and re-run; it resumes where
-it stopped.
+First-run onboarding entry point — the command to tell new users about. `build`
+is not a built-in; it is a default alias for `launch relay-build`, so it
+launches the packaged `relay-build` ticket through the normal `relay launch`
+path (one question → agent-led chat → vision → starter tickets). Because it
+dispatches through `relay launch` CLI parsing it requires an already-init'd
+repo, and capturing your name is `relay init`'s job, not `build`'s. There is no
+separate `relay setup` command — initialize the repo with `relay init`, then run
+`relay build`.
 
 ## relay draft "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
 
@@ -556,11 +556,12 @@ Default aliases shipped by `relay init`:
 ```toml
 [aliases]
 chat = "launch bootstrap/orient"
+build = "launch relay-build"
 dream = "recurring launch dream"
 ```
 
-`chat` and `dream` are also registered as built-in default aliases, so they
-dispatch even in repos whose `relay.toml` predates the line. `create` is a
+`chat`, `build`, and `dream` are also registered as built-in default aliases,
+so they dispatch even in repos whose `relay.toml` predates the line. `create` is a
 built-in command, not an alias (it has its own scaffolding behavior beyond
 what a `launch bootstrap/...` expansion would give it).
 
@@ -601,8 +602,8 @@ only; they don't accept their own flags.
 - Wrapping up a finished ticket (retro + source-dir delete via retro PR) →
   `relay retire <slug>`.
 
-There's also `relay validate [--task <slug>] [--json] [--fix] [--check-slack]`,
-a static repo + config diagnostic. By default it scans every task; `--task
+There's also `relay validate [--task <slug>] [--json] [--fix] [--check-slack]
+[--check-github]`, a static repo + config diagnostic. By default it scans every task; `--task
 <slug>` validates exactly one task directory (files plus strict frontmatter
 schema) and is what a human or agent runs after a direct hand-edit to a single
 ticket. Relay-owned commands that mutate a task — draft, ticket-authoring exit,
@@ -611,7 +612,19 @@ same task-scoped check after the write and before reporting success, so
 malformed frontmatter fails at the edge of the edit instead of drifting until
 launch. `--fix` is deliberately narrow: it creates missing `blackboard.md` and
 empty `log.md` files, then reports the remaining issues. It does not rewrite
-existing files, freeze workflows, delete locks, or push git state. Reach for
+existing files, freeze workflows, delete locks, or push git state. `--check-github`
+is an opt-in preflight that mirrors `--check-slack`: it probes git/GitHub auth
+readiness so a raw tool failure surfaces as an actionable setup hint before PR
+time instead of surprising an agent mid-run. It probes the *configured* remote
+(`git remote get-url <cfg.git_remote>`, not a hardcoded `origin`), checks push
+access with a non-mutating `git push --dry-run`, and verifies `gh --version` and
+`gh auth status --hostname <host>` for that remote's host. Every probe is fully
+non-interactive (`GIT_TERMINAL_PROMPT=0`, ssh `BatchMode=yes`) so a missing
+credential fails fast rather than hanging on a hidden prompt; failures are
+`(github)` errors excluded from the ok count. It is opt-in because the default
+validate path runs no subprocess and reads no network; Relay stores no PAT and
+does not reimplement GitHub auth — it just exercises the operator's own `git` and
+`gh` setup. Reach for
 validation when a command is misbehaving or slack/webhook setup looks broken;
 Dream's validate-drift skill is the normal place to apply safe fixes and
 broadcast a summary during a Dream run.
