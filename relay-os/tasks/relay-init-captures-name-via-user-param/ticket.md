@@ -1,6 +1,6 @@
 ---
 title: relay init captures name via --user param
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach
