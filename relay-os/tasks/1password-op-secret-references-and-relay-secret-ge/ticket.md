@@ -1,6 +1,6 @@
 ---
 title: 1Password op secret references and relay secret get
-status: done
+status: active
 mode: interactive
 owner: nick
 human: nick
@@ -28,6 +28,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
+step: 1 (implement)
 ---
 
 ## Description

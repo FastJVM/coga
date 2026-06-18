@@ -10,3 +10,4 @@
 2026-06-18 12:30 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-18 12:31 [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/396
 2026-06-18 16:10 [human:nick] auto-bumped on merge of PR #396 → done
+2026-06-18 16:10 [human:nick] activated (done → active) — auto on launch
