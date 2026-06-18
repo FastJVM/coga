@@ -31,7 +31,19 @@ step: 1 (implement)
 
 ## Description
 
+Found by the Dream run on 2026-06-18 (knowledge scan, gap finding G-NEW-3,
+lower confidence).
 
+Across multiple docs-only tickets (`improve-readme-and-doc`, `retire-mark-active`,
+`v2/automerge-ticket`, and others), evaluators repeatedly flag that
+`code/with-review`'s peer-review step (code diff review + `python -m pytest`) is
+value-light for markdown/docs-only changes, yet no lighter docs-oriented review
+workflow exists. The mismatch has recurred 3+ times.
+
+This is a judgment call, hence a draft ticket rather than an auto-built
+workflow: the team has tolerated the mismatch each time, so a human should
+decide whether a dedicated `docs/with-review` (or similar) workflow is worth
+adding, or whether the status quo is fine.
 
 ## Context
 
