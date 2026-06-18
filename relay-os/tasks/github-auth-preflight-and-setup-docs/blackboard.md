@@ -34,7 +34,8 @@ Add an opt-in `relay validate --check-github` preflight mirroring `--check-slack
 ## Dev
 branch: github-preflight
 worktree: /home/n/Code/claude/relay-github-preflight
-commit: 97652bf
+commit: 57ab2bc
+pr: https://github.com/FastJVM/relay/pull/385
 
 ## Implement step — done
 
@@ -82,3 +83,12 @@ Peer-review commit: `57ab2bc` (`peer-review: tighten GitHub auth preflight`).
 Verification:
 - `PYTHONPATH=/home/n/Code/claude/relay-github-preflight/src /home/n/Code/relay/relay-os/.relay/.venv/bin/python -m pytest tests/test_validate.py -q -p no:cacheprovider` -> 37 passed.
 - `PYTHONPATH=/home/n/Code/claude/relay-github-preflight/src /home/n/Code/relay/relay-os/.relay/.venv/bin/python -m pytest -p no:cacheprovider` -> 781 passed.
+
+## Open-PR step
+
+- Branch pushed (`github-preflight` -> `origin`, clean tree at `57ab2bc`).
+- `gh auth status` probed green before push (account `nicktoper`, host github.com).
+- PR opened: https://github.com/FastJVM/relay/pull/385 ("GitHub auth preflight
+  and setup docs"), closes ticket `github-auth-preflight-and-setup-docs`.
+- CI: `gh pr checks 385` reports no checks configured on this repo — nothing to
+  wait on (not a failure).
