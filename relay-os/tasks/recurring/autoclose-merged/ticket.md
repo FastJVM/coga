@@ -1,6 +1,6 @@
 ---
 title: Autoclose merged tickets
-status: in_progress
+status: done
 mode: script
 owner: nick
 human: nick
@@ -16,7 +16,6 @@ workflow:
     skills:
     - relay/autoclose/sweep
     assignee: agent
-step: 1 (sweep)
 ---
 
 ## Description
