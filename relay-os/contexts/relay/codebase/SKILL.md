@@ -73,14 +73,30 @@ skills belong in a published skill source plus
 `src/relay/resources/managed-skills.toml`, not under the packaged template
 payload.
 
-Two sharp gotchas live here:
+Three sharp gotchas live here:
 
-- **Force-add new battery files.** `src/relay/resources/templates/relay-os/.gitignore`
-  ignores `bootstrap/` (it is the `.gitignore` shipped *into* generated repos,
-  where `bootstrap/` is materialized, not committed — but it also sits inside
-  the source template dir, so it applies there too). A new bundled skill or
-  context file therefore must be added with `git add -f`, or it silently never
-  commits and ships nothing despite passing local validation and tests.
+- **Force-add every battery edit, not just new files.**
+  `src/relay/resources/templates/relay-os/.gitignore` ignores `bootstrap/` (it
+  is the `.gitignore` shipped *into* generated repos, where `bootstrap/` is
+  materialized, not committed — but it also sits inside the source template dir,
+  so it applies there too). A new bundled skill or context file must be added
+  with `git add -f`, or it silently never commits and ships nothing despite
+  passing local validation and tests. The same trap bites **already-tracked**
+  files: a plain edit to a committed `bootstrap/**` template silently drops from
+  the commit, and `git mv` is worse — it stages the rename (so the file looks
+  handled) but *subsequent content edits* to the renamed file vanish. Always
+  `git add -f` every `bootstrap/**` template path you touch, edits included, and
+  verify the diff is actually staged before committing.
+- **Deliver new required workflows/skills through the vendored refresh lists.**
+  Putting a new battery file in the packaged tree ships it to *fresh* `relay
+  init` repos, but `relay init --update` only refreshes a fixed set: `_`
+  creates, `bootstrap/`, and the hard-coded vendored template lists. A new
+  *required* workflow or skill (e.g. one that recurring/retire now depend on)
+  must be added to `VENDORED_WORKFLOW_TEMPLATES` / `VENDORED_SKILL_TEMPLATES`
+  (and a new recurring template to the vendored recurring-refresh list) in
+  `src/relay/commands/update.py`, or existing repos break on upgrade — the
+  dependency is referenced but its file was never delivered. Extend the
+  `init`/update/packaging tests to cover the new path.
 - **Skill Python deps via `requirements.txt`.** A skill declares its
   dependencies in a `requirements.txt` beside its `SKILL.md`.
   `install_skill_requirements` (the tail of `install_venv` in
