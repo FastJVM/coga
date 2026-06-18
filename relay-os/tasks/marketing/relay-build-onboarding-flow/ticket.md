@@ -29,7 +29,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -90,10 +90,11 @@ replaces the long 5-step relay-setup interview: "shorten, don't delete" becomes
   returns later behind a bounded, opt-in scan with a hard token ceiling
   (deferred). Empty-path rule still carries from init-questions: stub-and-ask,
   never fabricate.
-- Final deliverable is always a launchable ticket batch — the generate step
-  rides the `relay ticket` creation primitive (see
-  `marketing/relay-ticket-creates`). The spec/vision doc is the durable context
-  the batch is generated from.
+- Final deliverable is always a launchable ticket batch — the generate step needs
+  only non-interactive bulk draft creation, which ships today (`create_task`,
+  surfaced as `relay create`); it upgrades to the consolidated `relay ticket`
+  primitive if/when `marketing/relay-ticket-creates` lands, but does not depend on
+  it. The spec/vision doc is the durable context the batch is generated from.
 - Batch ending (owner decisions 2026-06-16 / 2026-06-17, supersedes validate
   finding #4's "one launchable anchor" and its "~5" size): create the batch as
   **drafts** with **no pre-chosen anchor** — which to launch first is the human's
@@ -201,12 +202,17 @@ changes, and the fallback (`relay create`) is the already-sanctioned survivor.
 Then present the flat list, get approval, hand over "launch any one with `relay
 launch <ticket-slug>`"; `relay mark done`.
 
-Coordination note (residual open question on the blackboard): `relay-build-command`
-claims the `init/setup`→`build/onboarding` and `relay-setup`→`relay-build`
-renames. Recommendation — this ticket authors content under the **new** names and
-removes the stale `init/setup` + `relay-setup`; if the command ticket lands
-first, this ticket edits the already-renamed files. Either way this ticket's
-content is authoritative. review-design to confirm the sequencing.
+Coordination note (resolved at implement): `relay-build-command` claims the
+`init/setup`→`build/onboarding` and `relay-setup`→`relay-build` renames. This
+ticket authors the new files **additively** (`build/onboarding.md` live +
+packaged, and the packaged `relay-build/` delivered ticket) and removes nothing:
+deleting the stale `init/setup` + `relay-setup` here would break the still-live
+`relay setup` command and the tests that cover it (`tests/test_init.py`,
+`tests/test_setup.py`), all of which are out of scope (→ `relay-build-command`).
+Removal therefore rides with the command swap, which updates those tests and the
+init next-steps text in the same change. Interim consequence until the siblings
+land: a fresh `relay init` seeds both onboarding tickets. This ticket's content
+is authoritative.
 
 ## Out of Scope
 
