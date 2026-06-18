@@ -1,6 +1,6 @@
 ---
 title: relay init captures the user's name (kill the new-user placeholder)
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach
