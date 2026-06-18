@@ -30,7 +30,16 @@ step: 1 (implement)
 
 ## Description
 
+`relay automerge` only recognizes a PLAIN `pr: <url>` line under `## Dev` when
+deciding whether a ticket's linked PR has merged. It does NOT recognize a
+`- pr: <url>` list-item bullet. Across at least 6 done tickets, reviewers
+repeatedly had to hand-add a bare `pr:` line to a ticket before a merged PR
+would auto-close it.
 
+This is a doc task for a human to design and place: the `dev/code` context owns
+the `pr:` convention and should explicitly state the bare-line requirement (a
+plain `pr: <url>` under `## Dev`, not a `- pr:` bullet) so authors and reviewers
+write the line in the form `automerge` actually parses.
 
 ## Context
 
