@@ -36,6 +36,21 @@ resources. It does not modify a repo. `relay init` and `relay init --update`
 materialize those package resources into `relay-os/bootstrap/`, where Relay
 resolves them after project-local `relay-os/skills` and `relay-os/contexts`.
 
+## relay uninstall [--yes] [--purge]
+
+Remove the Relay footprint from the current repo: `relay-os/`, the agent skill
+symlinks in `.claude/` and `.codex/`, unmodified Relay orientation guides
+(`CLAUDE.md` / `AGENTS.md`), the relay-managed `.gitignore` block, and the
+`~/.local/bin/relay` shim if it points back into this repo.
+
+It prints the plan and asks for confirmation; `--yes` skips the prompt for
+scripted runs. Edited `CLAUDE.md` / `AGENTS.md` files are renamed to
+`<name>.relay-bak` rather than deleted. Without `--purge`, the global
+`relay-os` package is left installed and the command prints the exact pipx/pip
+uninstall commands. With `--purge`, it also uninstalls the global package; if
+the running CLI is this repo's vendored copy, there is no separate global
+package to remove.
+
 ## relay build
 
 First-run onboarding entry point — the command to tell new users about. `build`

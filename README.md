@@ -226,6 +226,20 @@ failed.
 If `~/.local/bin` is on your `PATH`, init also drops a `~/.local/bin/relay`
 symlink so the vendored copy is usable from any cwd in a new shell.
 
+### `relay uninstall [--yes] [--purge]`
+
+Remove the Relay footprint from the current repo: `relay-os/`, the agent skill
+symlinks in `.claude/` and `.codex/`, unmodified Relay orientation guides
+(`CLAUDE.md` / `AGENTS.md`), the relay-managed `.gitignore` block, and the
+`~/.local/bin/relay` shim if it points back into this repo.
+
+Uninstall prints a removal plan and asks for confirmation; `--yes` skips the
+prompt for scripts. Edited `CLAUDE.md` / `AGENTS.md` files are renamed to
+`<name>.relay-bak` rather than deleted. By default the global `relay-os`
+package is left installed and the command prints the exact `pipx uninstall
+relay-os` / `pip uninstall relay-os` commands. Add `--purge` to run the global
+uninstall too.
+
 **Batteries and skill discovery.** The installed Relay package carries bundled
 skills, contexts, hooks, and bootstrap shims as package resources. `pip install`
 puts those resources in the wheel; `relay init` / `relay init --update`
