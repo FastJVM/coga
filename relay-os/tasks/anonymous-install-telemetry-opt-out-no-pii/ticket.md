@@ -129,8 +129,23 @@ activity.
       telemetry off), mirroring the existing `_stub_slack` autouse pattern.
 - [ ] Docs (README / a telemetry doc + the relevant `relay/` context) state the
       exact payload, the default-on behavior, and every disable mechanism.
+- [ ] The `telemetry-endpoint/` service accepts the 3-field POST, stores exactly
+      those fields in BigQuery, ignores any extra key, and returns `204` even on
+      malformed input (logging the error server-side).
+- [ ] The endpoint never persists the client IP — a Cloud Logging exclusion
+      filter on the service's request logs is part of `deploy.sh`, and the app
+      reads no IP header.
+- [ ] `deploy.sh` is idempotent and parameterized by `PROJECT_ID`/`REGION`, and
+      prints the service URL to pin into the client.
 
 ## Proposed Shape
+
+Two deliverables, both built and committed in this ticket: the **Relay client**
+(`src/relay/`) and the **GCP endpoint** (`telemetry-endpoint/`). The only step
+left to the owner is running the deploy with real cloud credentials and pinning
+the resulting URL into the client.
+
+### Part A — Relay client
 
 New module **`src/relay/telemetry.py`** holding the client. Order of work:
 
@@ -195,13 +210,57 @@ New module **`src/relay/telemetry.py`** holding the client. Order of work:
    respects the legibility mitigations. Keep the live `relay-os/` copy and the
    packaged `src/relay/resources/templates/relay-os/` copy in sync.
 
+The client ships a `TELEMETRY_URL` constant in `telemetry.py` (overridable via
+`RELAY_TELEMETRY_URL`), set to the URL printed by Part B's deploy.
+
+### Part B — GCP endpoint (`telemetry-endpoint/`, new top-level dir)
+
+A small, inspectable service we own. Everything except the credentialed deploy
+run is delivered in this ticket.
+
+10. **Service** — `telemetry-endpoint/main.py`: one HTTP handler (Cloud Run
+    gen2 container, or Cloud Functions gen2 — same underlying runtime). On
+    `POST /`:
+    - Parse JSON and **accept only** `instance_id` (str, uuid4 shape),
+      `tickets_total` (int ≥ 0), `last_run` (`YYYY-MM-DD`). Any other key is
+      ignored/rejected — the server never stores a field the client shouldn't
+      send (belt-and-suspenders on the no-PII line).
+    - Append one row to BigQuery, return `204` with an empty body. Even on a
+      malformed body or storage error it returns `204` (telemetry must never
+      look broken to the client) but logs the error server-side.
+    - **Never reads `X-Forwarded-For` / client IP** and never persists transport
+      metadata.
+    - `requirements.txt`: `functions-framework` (or `flask`) +
+      `google-cloud-bigquery`.
+
+11. **Storage** — BigQuery dataset `telemetry`, table `pings`, schema
+    `instance_id STRING, tickets_total INT64, last_run DATE` (file
+    `telemetry-endpoint/schema.json`). Append-only; dedup is done at query time
+    (`GROUP BY instance_id, last_run`), so an occasional double-send is harmless.
+
+12. **IP drop at the edge** — Cloud Run/Functions request access logs include
+    `httpRequest.remoteIp` by default. Add a **Cloud Logging exclusion filter**
+    on the service's request logs (in `deploy.sh`) so `remoteIp` is never
+    persisted, and confirm the app reads no IP header. This is the load-bearing
+    no-PII control — documented as such in the endpoint README.
+
+13. **Deploy** — `telemetry-endpoint/deploy.sh`: idempotent `gcloud` commands —
+    create the dataset/table if absent, deploy the service
+    `--allow-unauthenticated` (random installs POST without creds), apply the
+    log-exclusion filter, and print the resulting service URL (which becomes the
+    client's `TELEMETRY_URL`). Parameterized by `PROJECT_ID` / `REGION` env vars.
+
+14. **Endpoint README** — `telemetry-endpoint/README.md`: what the service does,
+    the exact 3-field contract, the IP-drop control, how to deploy, the "active
+    installs" query, and the abuse/cost posture (Cloud Armor rate-limit noted as
+    optional, not required for v1).
+
 ## Out of Scope
 
-- **Provisioning the GCP project/IAM and deploying the service.** This ticket
-  builds the client against a configurable endpoint URL and specifies the
-  endpoint contract; standing up the actual Cloud Run service, its IP-drop
-  config, and the BigQuery sink is owner-driven infra (needs cloud access) —
-  see Open Questions.
+- **The credentialed deploy run itself.** The endpoint code, schema, deploy
+  script, and IP-drop config are all delivered here; the owner runs `deploy.sh`
+  against a real GCP project (needs cloud credentials + a chosen `PROJECT_ID`)
+  and pins the printed URL into the client. See Open Questions.
 - **The analytics/dashboard side** — defining and computing "active installs"
   (distinct `instance_id` with a `last_run` in the last N days) from the rows.
 - **PyPI/GitHub download cross-check** — a cheap no-infra complement, tracked

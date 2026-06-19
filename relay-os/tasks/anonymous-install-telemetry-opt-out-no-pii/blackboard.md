@@ -76,11 +76,11 @@ total + last run + some kind of unique id per instance.")
 
 ## Open Questions (for review-design / owner)
 
-1. **GCP endpoint ownership & deployment.** Who provisions the Cloud Run/Function
-   service + the IP-drop config + the storage sink (BigQuery?), and what's the
-   prod URL the client ships with? Client is built against a configurable URL;
-   the actual deploy needs cloud access — owner-driven. Until a URL exists, the
-   client default URL is a placeholder.
+1. **GCP deploy run + prod URL.** Endpoint code/schema/deploy.sh/IP-drop config
+   are now IN scope (Part B of Proposed Shape). Remaining owner-only bits: which
+   GCP `PROJECT_ID`/`REGION`, who runs `deploy.sh` with creds, and pinning the
+   printed URL into the client `TELEMETRY_URL`. Until then the client default URL
+   is a placeholder (pings fail-silent).
 2. **RESOLVED — payload fields.** Trimmed in review to exactly instance_id,
    tickets_total, last_run. All system fields (version/os/arch/python/ci) and
    the extra ticket counts (done, active_30d) are cut.
