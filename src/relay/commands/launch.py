@@ -218,12 +218,26 @@ def launch(
             fg=typer.colors.YELLOW,
         )
 
-    # Typing `relay launch` *is* the readiness signal: a draft / paused /
-    # done ticket is brought to `active` inline rather than refused with a
-    # "run `relay mark active` first" hint. The flip to `in_progress` still
-    # happens later (after the compose pre-flight), so this only does the
-    # `mark active` half. Done before the script-mode dispatch so both
-    # interactive and script launches start from an activated, stepped ticket.
+    # A `done` ticket is finished: launching it must not restart its frozen
+    # workflow. Re-activating would re-seed `step: 1` without re-resolving
+    # `assignee` (which still holds the final step's resolved human owner),
+    # crashing the agent-type lookup and leaving the ticket wedged
+    # (`active, step 1, assignee=<human>`). Reopening is the deliberate
+    # `relay mark active` path, so refuse loud with that hint. Draft/paused
+    # still activate inline below.
+    if not is_bootstrap and isinstance(ref, TaskRef) and ticket.status == "done":
+        _bail(
+            f"Cannot launch {ref.id_slug}: it is done; nothing to launch. "
+            f"Run `relay mark active {ref.id_slug}` to reopen it, or launch a "
+            "different ticket."
+        )
+
+    # Typing `relay launch` *is* the readiness signal: a draft / paused ticket
+    # is brought to `active` inline rather than refused with a "run
+    # `relay mark active` first" hint. The flip to `in_progress` still happens
+    # later (after the compose pre-flight), so this only does the `mark active`
+    # half. Done before the script-mode dispatch so both interactive and script
+    # launches start from an activated, stepped ticket.
     if (
         not is_bootstrap
         and isinstance(ref, TaskRef)
@@ -551,15 +565,15 @@ def launch(
 
 
 def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
-    """Bring a draft / paused / done ticket to `active` inline.
+    """Bring a draft / paused ticket to `active` inline.
 
     `relay launch` used to refuse any status but `active`/`in_progress` and
     point the operator at `relay mark active`. Now launching *is* the
     readiness decision, so we run that activation here. The core `mark_active`
     mutates `ticket` in place — status → active, a bare-string `workflow:`
-    frozen, and `step:` seeded (re-seeded to step 1 for a re-activated `done`
-    ticket whose step was cleared by `mark done`) — so the later
-    `mark_in_progress` flip fires off the same object.
+    frozen, and `step:` seeded — so the later `mark_in_progress` flip fires off
+    the same object. (A `done` ticket never reaches here: launch refuses it
+    earlier rather than restart a finished workflow.)
 
     Fails loud, leaving the ticket untouched, when activation can't legally
     happen: the ticket has no workflow to advance, its `workflow:` ref can't

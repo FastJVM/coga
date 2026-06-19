@@ -1265,11 +1265,12 @@ def test_launch_auto_activates_draft_and_paused(
     assert f"activated ({prior} → active) — auto on launch" in log
 
 
-def test_launch_auto_activates_done_and_reseeds_step(
+def test_launch_refuses_done_ticket(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A done ticket had its `step:` cleared by `mark done`; re-activating on
-    launch restarts the frozen workflow from step 1."""
+    """Launching a `done` ticket must not restart its frozen workflow:
+    re-activating would re-seed `step: 1` without re-resolving `assignee` and
+    wedge the ticket. Launch refuses loud and leaves the ticket untouched."""
     from relay.ticket import Ticket
 
     ref = _create_chain_task(active_task, mode="interactive")
@@ -1279,16 +1280,21 @@ def test_launch_auto_activates_done_and_reseeds_step(
     t.frontmatter["status"] = "done"
     t.frontmatter.pop("step", None)  # mark done clears the step
     t.write(ticket_md)
+    before = ticket_md.read_text()
 
     calls = _launch_single_spawn(monkeypatch)
 
     result = CliRunner().invoke(app, ["launch", slug])
-    assert result.exit_code == 0, result.output
-    assert len(calls) == 1
+    assert result.exit_code == 2, result.output
+    combined = result.output + (result.stderr or "")
+    assert "is done" in combined
+    assert "relay mark active" in combined
+    assert calls == []  # no agent spawned
 
     after = Ticket.read(ticket_md)
-    assert after.status == "in_progress"
-    assert after.step == "1 (implement)"
+    assert after.status == "done"
+    assert after.step is None
+    assert ticket_md.read_text() == before  # ticket file untouched
 
 
 def test_launch_auto_activate_bails_without_workflow(
