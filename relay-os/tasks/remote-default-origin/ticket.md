@@ -1,6 +1,6 @@
 ---
 title: remote-default-origin
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach
