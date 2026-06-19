@@ -19,6 +19,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from relay.config import Config
+from relay.github_source import github_owner_repo
 from relay.skill import Skill
 
 
@@ -573,22 +574,7 @@ def _translate_gh_skill_error(args: Sequence[str], stderr: str) -> str | None:
 
 
 def _github_owner_repo(source: str) -> str | None:
-    if "://" not in source and source.count("/") == 1:
-        return source
-    for prefix in ("https://github.com/", "http://github.com/"):
-        if source.startswith(prefix):
-            path = source[len(prefix) :]
-            break
-    else:
-        if source.startswith("git@github.com:"):
-            path = source[len("git@github.com:") :]
-        else:
-            return None
-    parts = path.split("/")
-    if len(parts) < 2:
-        return None
-    owner, repo = parts[0], parts[1]
-    return f"{owner}/{repo.removesuffix('.git')}"
+    return github_owner_repo(source)
 
 
 def ensure_gh_skill(*, runner: Runner | None = None) -> None:

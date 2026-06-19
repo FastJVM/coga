@@ -291,6 +291,190 @@ def fake_managed_skill_sync(monkeypatch: pytest.MonkeyPatch):
     return state
 
 
+def test_clone_upstream_uses_relay_repo_url_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_url = "git@github.com:FastJVM/relay.git"
+    commands: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        command = list(cmd)
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setenv("RELAY_REPO_URL", repo_url)
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    update_cmd.clone_upstream(tmp_path / "repo")
+
+    assert commands == [
+        ["git", "clone", "--depth=1", repo_url, str(tmp_path / "repo")]
+    ]
+
+
+def test_clone_upstream_strips_pip_git_prefix_from_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    commands: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        command = list(cmd)
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setenv(
+        "RELAY_REPO_URL", "git+ssh://git@github.com/FastJVM/relay.git"
+    )
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    update_cmd.clone_upstream(tmp_path / "repo")
+
+    assert commands == [
+        [
+            "git",
+            "clone",
+            "--depth=1",
+            "ssh://git@github.com/FastJVM/relay.git",
+            str(tmp_path / "repo"),
+        ]
+    ]
+
+
+def test_clone_upstream_redacts_credentialed_url_in_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo_url = "https://relay:TOKEN@github.com/FastJVM/relay.git"
+    commands: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        command = list(cmd)
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setenv("RELAY_REPO_URL", repo_url)
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    update_cmd.clone_upstream(tmp_path / "repo")
+
+    assert commands == [
+        ["git", "clone", "--depth=1", repo_url, str(tmp_path / "repo")]
+    ]
+    captured = capsys.readouterr()
+    assert "https://github.com/FastJVM/relay.git" in captured.out
+    assert "TOKEN" not in captured.out
+    assert "relay:TOKEN" not in captured.out
+
+
+def test_resolve_relay_repo_url_detects_matching_ssh_remote(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo_url = "git@github.com:FastJVM/relay.git"
+    commands: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        command = list(cmd)
+        commands.append(command)
+        if command[-1] == "upstream":
+            return subprocess.CompletedProcess(command, 2, stdout="", stderr="missing")
+        if command[-1] == "origin":
+            return subprocess.CompletedProcess(
+                command, 0, stdout=f"{repo_url}\n", stderr=""
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.delenv("RELAY_REPO_URL", raising=False)
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    assert update_cmd.resolve_relay_repo_url(cwd=tmp_path) == repo_url
+    assert commands == [
+        ["git", "-C", str(tmp_path), "remote", "get-url", "upstream"],
+        ["git", "-C", str(tmp_path), "remote", "get-url", "origin"],
+    ]
+
+
+def test_resolve_relay_repo_url_prefers_matching_ssh_remote_over_https(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    https_url = "https://github.com/FastJVM/relay.git"
+    ssh_url = "git@github.com:FastJVM/relay.git"
+    commands: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        command = list(cmd)
+        commands.append(command)
+        if command[-1] == "upstream":
+            return subprocess.CompletedProcess(
+                command, 0, stdout=f"{https_url}\n", stderr=""
+            )
+        if command[-1] == "origin":
+            return subprocess.CompletedProcess(command, 0, stdout=f"{ssh_url}\n", stderr="")
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.delenv("RELAY_REPO_URL", raising=False)
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    assert update_cmd.resolve_relay_repo_url(cwd=tmp_path) == ssh_url
+    assert commands == [
+        ["git", "-C", str(tmp_path), "remote", "get-url", "upstream"],
+        ["git", "-C", str(tmp_path), "remote", "get-url", "origin"],
+    ]
+
+
+def test_write_pin_records_resolved_ssh_repo_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    relay_os = tmp_path / "relay-os"
+    repo_url = "git@github.com:FastJVM/relay.git"
+    monkeypatch.setenv("RELAY_REPO_URL", repo_url)
+
+    update_cmd.write_pin(relay_os, FAKE_SHA)
+
+    assert (relay_os / ".relay" / "RELAY_PIN").read_text().splitlines() == [
+        repo_url,
+        FAKE_SHA,
+    ]
+
+
+def test_write_pin_redacts_credentialed_repo_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    relay_os = tmp_path / "relay-os"
+    monkeypatch.setenv(
+        "RELAY_REPO_URL", "https://relay:TOKEN@github.com/FastJVM/relay.git"
+    )
+
+    update_cmd.write_pin(relay_os, FAKE_SHA)
+
+    assert (relay_os / ".relay" / "RELAY_PIN").read_text().splitlines() == [
+        "https://github.com/FastJVM/relay.git",
+        FAKE_SHA,
+    ]
+
+
+def test_relay_pip_git_source_converts_scp_ssh_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RELAY_REPO_URL", "git@github.com:FastJVM/relay.git")
+
+    assert (
+        update_cmd.relay_pip_git_source()
+        == "git+ssh://git@github.com/FastJVM/relay.git"
+    )
+
+
+def test_relay_pip_git_source_redacts_credentialed_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "RELAY_REPO_URL", "https://relay:TOKEN@github.com/FastJVM/relay.git"
+    )
+
+    assert (
+        update_cmd.relay_pip_git_source()
+        == "git+https://github.com/FastJVM/relay.git"
+    )
+
+
 # --- fresh init ---------------------------------------------------------------
 
 
@@ -2343,7 +2527,12 @@ def test_update_all_continues_past_a_failing_repo(
 
     swept: list[Path] = []
 
-    def flaky_refresh(relay_os: Path, clone_dir: Path) -> init_cmd._UpdateResult:
+    def flaky_refresh(
+        relay_os: Path,
+        clone_dir: Path,
+        *,
+        repo_url: str | None = None,
+    ) -> init_cmd._UpdateResult:
         swept.append(relay_os)
         if relay_os == repo_a:
             raise RuntimeError("boom")

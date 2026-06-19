@@ -23,7 +23,6 @@ import typer
 
 from relay.agent_skills import refresh_agent_skill_view
 from relay.commands.update import (
-    RELAY_REPO_URL,
     _refresh_relay_gitignore,
     clone_upstream,
     copy_fresh_templates,
@@ -35,6 +34,8 @@ from relay.commands.update import (
     refresh_cli,
     refresh_gitignored_mirrors,
     refresh_templates,
+    relay_pip_git_source,
+    resolve_relay_repo_url,
     running_cli_location,
     upgrade_global_cli,
     upstream_sha,
@@ -326,7 +327,8 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     target.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="relay-init-") as tmp:
-        clone_dir = clone_upstream(Path(tmp) / "repo")
+        repo_url = resolve_relay_repo_url()
+        clone_dir = clone_upstream(Path(tmp) / "repo", repo_url=repo_url)
         template_root = packaged_template_root()
         copy_fresh_templates(template_root, relay_os)
         # `.gitignore` shipped verbatim by copytree; wrap it in the
@@ -348,7 +350,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     managed_skills = _install_managed_skills_or_exit(relay_os)
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
-    write_pin(relay_os, sha)
+    write_pin(relay_os, sha, repo_url=repo_url)
 
     local_toml = relay_os / "relay.local.toml"
     local_toml.write_text(render_local_toml(name))
@@ -508,7 +510,12 @@ class _UpdateResult:
     managed_skills: ManagedSkillSummary
 
 
-def _refresh_one(relay_os: Path, clone_dir: Path) -> _UpdateResult:
+def _refresh_one(
+    relay_os: Path,
+    clone_dir: Path,
+    *,
+    repo_url: str | None = None,
+) -> _UpdateResult:
     """Apply one repo's `--update` refresh from an already-cloned upstream.
 
     The mutating half of `relay init --update`, factored out so the
@@ -538,7 +545,7 @@ def _refresh_one(relay_os: Path, clone_dir: Path) -> _UpdateResult:
         managed_skills = reconcile_managed_skills(relay_os)
     install_venv(relay_os)
     write_bin_wrapper(relay_os / ".relay" / "bin")
-    write_pin(relay_os, sha)
+    write_pin(relay_os, sha, repo_url=repo_url)
     wired_agents, blocked_agents = _link_skills_for_agents(relay_os.parent, relay_os)
     hook_removed = _remove_post_merge_hook(relay_os.parent, relay_os)
     host_gitignore_changed = ensure_host_gitignore(relay_os.parent)
@@ -562,9 +569,10 @@ def _refresh_one(relay_os: Path, clone_dir: Path) -> _UpdateResult:
 def _do_update() -> None:
     relay_os = find_repo_root()
     with tempfile.TemporaryDirectory(prefix="relay-init-update-") as tmp:
-        clone_dir = clone_upstream(Path(tmp) / "repo")
+        repo_url = resolve_relay_repo_url(relay_os=relay_os)
+        clone_dir = clone_upstream(Path(tmp) / "repo", repo_url=repo_url)
         try:
-            result = _refresh_one(relay_os, clone_dir)
+            result = _refresh_one(relay_os, clone_dir, repo_url=repo_url)
         except ManagedSkillError as exc:
             typer.secho(str(exc), fg=typer.colors.RED, err=True)
             sys.exit(2)
@@ -572,7 +580,7 @@ def _do_update() -> None:
     _print_update_result(relay_os, result)
     cli_kind, cli_venv = running_cli_location(relay_os)
     cli_status, cli_detail = upgrade_global_cli(cli_kind)
-    _print_global_cli_status(cli_status, cli_detail, cli_venv)
+    _print_global_cli_status(cli_status, cli_detail, cli_venv, relay_os=relay_os)
 
 
 def _print_update_result(relay_os: Path, result: _UpdateResult) -> None:
@@ -691,11 +699,12 @@ def _do_update_all(scan_root: Path) -> None:
     updated: list[Path] = []
     failed: list[tuple[str, str]] = []
     with tempfile.TemporaryDirectory(prefix="relay-init-update-all-") as tmp:
-        clone_dir = clone_upstream(Path(tmp) / "repo")
+        repo_url = resolve_relay_repo_url(relay_os=repos[0], cwd=root)
+        clone_dir = clone_upstream(Path(tmp) / "repo", repo_url=repo_url)
         for relay_os in repos:
             label = _repo_label(relay_os, root)
             try:
-                result = _refresh_one(relay_os, clone_dir)
+                result = _refresh_one(relay_os, clone_dir, repo_url=repo_url)
             except Exception as exc:  # noqa: BLE001 — one repo must not abort the sweep
                 typer.secho(f"  ✗ {label} — {exc}", fg=typer.colors.RED)
                 failed.append((label, str(exc)))
@@ -728,13 +737,19 @@ def _do_update_all(scan_root: Path) -> None:
     if updated:
         cli_kind, cli_venv = running_cli_location(updated[0])
         cli_status, cli_detail = upgrade_global_cli(cli_kind)
-        _print_global_cli_status(cli_status, cli_detail, cli_venv)
+        _print_global_cli_status(cli_status, cli_detail, cli_venv, relay_os=updated[0])
 
     if failed:
         sys.exit(1)
 
 
-def _print_global_cli_status(status: str, detail: str | None, venv: Path) -> None:
+def _print_global_cli_status(
+    status: str,
+    detail: str | None,
+    venv: Path,
+    *,
+    relay_os: Path | None = None,
+) -> None:
     """Surface what `--update` did (or didn't) about the running `relay` itself.
 
     `init --update` always refreshes the vendored copy in `.relay/`, but the
@@ -775,7 +790,7 @@ def _print_global_cli_status(status: str, detail: str | None, venv: Path) -> Non
         f"installed it — e.g.\n"
         f"  pipx upgrade relay\n"
         f"  cd <your relay source clone> && git pull && pip install -e .\n"
-        f"  pip install --upgrade git+{RELAY_REPO_URL}",
+        f"  pip install --upgrade {relay_pip_git_source(relay_os=relay_os)}",
         fg=typer.colors.YELLOW,
     )
 
