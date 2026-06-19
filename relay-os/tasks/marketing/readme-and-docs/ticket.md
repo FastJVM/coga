@@ -40,7 +40,7 @@ An editorial pass over Relay's two public-facing docs — `README.md` and
 `docs/vision.md`. Two goals: (1) the new-user **Getting Started** section in the
 README — the shortest path from nothing to a running agent (install the CLI,
 create a project, `relay init --user`, `relay build`, `relay launch`); and (2)
-fix the concrete stale/wrong items in the Context below and tighten readability,
+fix the concrete stale/wrong items below and tighten readability,
 without changing what Relay *is* or re-pitching it. Scope is exactly these two
 files — `docs/design.md`, `market-thesis.md`, `competition/*` are out of scope.
 **Win:** a newcomer follows Getting Started start-to-finish to a launchable
@@ -48,51 +48,82 @@ ticket, and both files are correct and consistent with `relay/principles`.
 
 ## Context
 
-Preserve Relay's voice and canonical claims — `relay/principles` is canon when
-the README/vision narrative diverges from it; this corrects drift, it does not
-re-pitch.
-
-**Getting Started (new README section)**
-- The flow to teach (fresh-directory path): install the CLI (`git clone` source
-  + `pip install -e .`), then `mkdir` a new dir + `git init`, `relay init --user
-  <name>`, `relay build` (one scripted question + agent-led chat → first batch of
-  draft tickets), `relay launch <slug>`. Ground every command in real behavior
-  (`relay --help`, `relay/architecture`) — don't invent.
-- Intended shape (pending Nicolas): one `## Getting Started` section that
-  *replaces* the separate `## Install` — not two install sections. Install's
-  reference nuance (vendored `.relay/` copy, the multi-repo "one relay-os/ per
-  repo" operator pattern) either folds in or moves to a trimmed reference below.
+- Preserve Relay's voice and canonical claims — `relay/principles` is canon when
+  the README/vision narrative diverges from it; this corrects drift, it does not
+  re-pitch.
+- Ground every command description in real behavior (`relay --help`, the
+  `relay/architecture` context) — don't invent. The Getting Started happy path
+  was run end-to-end on a throwaway repo and works as written.
 - Onboarding enablers (shipped): `relay build` (replaced the relay-setup
   interview), the `relay setup` → `relay build` rename, `relay init --user`, init
-  auto-seeding the onboarding ticket + surfacing `relay build`, `relay launch`
-  activating a draft. Still open: `relay ticket` create-and-build
-  (`marketing/relay-ticket-creates`); `relay init` does **not** `git init` an
-  empty dir — silent skip (`marketing/relay-init-git-inits-a-fresh-dir`).
+  auto-seeding the onboarding ticket + surfacing `relay build`, and `relay launch`
+  activating a draft. Still open (`marketing/relay-ticket-creates`): `relay ticket`
+  gains create-or-edit (create a ticket and author it, or edit an existing one)
+  while `relay create` stays as the quick-stub path. So the README describes
+  today's behavior — `relay create` makes a draft stub; `relay ticket` runs the
+  guided authoring.
+- Sibling CLI-bug tickets (out of scope here — document current behavior, don't
+  fix the code): `marketing/relay-init-git-inits-a-fresh-dir` (init's silent
+  no-git skip) and `marketing/quiet-relay-init-managed-skill-failures` (noisy
+  optional-skill failures on older `gh`).
 
-**README.md — objective fixes**
-- Missing reference entries for `relay digest` and `relay validate` (the Commands
-  section claims "one entry per command"; these two have none).
-- No License section — repo is AGPL-3.0 (`LICENSE`); README never states it.
-- Install copy (Nicolas's review): use a placeholder path, not hardcoded
-  `~/work/admin`/`~/work/code`; drop the `pip install -e .` "puts relay on your
-  PATH" gloss (engineers know editable installs); keep "not on PyPI yet" but
-  state it plainly. Bug: current `relay init <path>` examples omit the
-  now-required `--user` and error as written.
+## Acceptance Criteria
 
-**docs/vision.md — objective fixes**
-- Wrong repo URL (~line 14): `github.com/relay-dev/relay` → `github.com/FastJVM/relay`.
-- Stale "six-command CLI" claim (~line 22; actual ~18). Reframe non-numerically
-  ("a small CLI"). **Edit line 22 surgically** — "six" recurs innocently
-  elsewhere ("six months"); do NOT find-replace "six".
-- Unfilled `[FILL IN WITH REAL NUMBERS]` placeholder (~line 246). Owner figure
-  (2026-06-08): ~**3x more productive** (PR throughput / task units / cost), but
-  the data is confidential and hard to extract precisely. Write as an honest
-  *directional* claim — not a fabricated metrics table; be upfront that exact
-  figures aren't published. Reuse the team-composition framing already in the
-  doc; don't invent precise metrics.
+- A newcomer copy-pastes Getting Started top-to-bottom and reaches a launchable
+  ticket — every command correct, including `--user`. (Flow verified end-to-end.)
+- One source of install truth in the README — no duplicated install commands.
+- `relay digest` and `relay validate` each have a reference entry; the README
+  states the license (AGPL-3.0).
+- `## External CLI Tools` accurately describes the `gh` / `gh skill` requirement
+  (available in recent `gh` as a preview) — no "once those commands land," and no
+  stale "hand-edit `user =` / run `relay ticket` first" steps.
+- `docs/vision.md`: correct repo URL, no "six-command" claim, no `[FILL IN]`
+  placeholder.
+- Nothing re-pitches the product; voice stays consistent with `relay/principles`.
+- Lands as a PR.
 
-**Editorial (judgment)**
-- Tighten the dense ~35-line README intro; fix any other stale flags/cross-refs
-  found while editing. Keep the principles-driven framing. Out of scope:
-  splitting the CLI reference into a separate file (cuts against "one obvious
-  file") — README stays the single reference.
+## Proposed Shape
+
+**README.md — top-of-file structure:**
+1. `# Relay` + intro — tightened (the dense ~35-line intro trimmed, framing intact).
+2. **`## Getting Started`** (new) — fresh-directory happy path: install once
+   (`git clone` source + `pip install -e .`), then per project `mkdir` + `git
+   init` + `relay init --user <name>` + `relay build` + `relay launch <slug>`;
+   a short "what you end up with" + pointers (`relay chat`, `relay ticket`,
+   `relay status`, `relay --help`).
+3. Install handling — Getting Started *replaces* the standalone `## Install`; the
+   operator-only nuance (vendored `.relay/` copy, multi-repo "one relay-os/ per
+   repo") folds in as a short note or trims to a reference block (see Open Questions).
+4. `## External CLI Tools` — delete the stale first-steps lines (hand-edit
+   `user =`, `relay ticket "First task"`); fix the `gh skill` line to say it's
+   available in recent `gh` as a preview, and that managed skills are optional
+   (a fresh init on older `gh` just skips them).
+5. `## Commands` — add `### relay digest` and `### relay validate` (with flags) in
+   the one-screen-per-command style.
+6. **`## License`** (new) — AGPL-3.0.
+
+**docs/vision.md — surgical fixes:**
+7. Repo URL (~L14): `relay-dev/relay` → `FastJVM/relay`.
+8. "six-command CLI" (~L22) → non-numeric ("a small CLI"); edit that line only —
+   "six" recurs innocently elsewhere ("six months"), so don't find-replace it.
+9. `[FILL IN WITH REAL NUMBERS]` (~L246) → honest directional **~3x** (PR
+   throughput / task units / cost); no fabricated metrics table; be upfront exact
+   figures aren't published; reuse the team-composition framing already in the doc.
+
+## Out of Scope
+
+- `docs/design.md`, `docs/market-thesis.md`, `docs/competition/*`.
+- Splitting the CLI reference into a separate file (cuts against "one obvious file").
+- Code fixes for the silent no-git skip and the noisy skill failures — their own
+  tickets; here we only document current behavior accurately.
+- Changing `relay ticket` / `relay create` behavior — that's
+  `marketing/relay-ticket-creates`; this pass documents today's behavior.
+- The one-line installer.
+
+## Open Questions
+
+- Does Getting Started fully replace `## Install`, or sit above a trimmed Install
+  reference — and where does the operator nuance (vendored copy, multi-repo) live?
+- Final phrasing of the ~3x claim (owner call).
+- Should the README pre-empt the "optional skills skipped" noise, or leave that
+  entirely to `quiet-relay-init-managed-skill-failures`? (Lean: CLI ticket's job.)
