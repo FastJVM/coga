@@ -4,6 +4,10 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: remote-default-origin
 worktree: ../relay-remote-default-origin
+pr: https://github.com/FastJVM/relay/pull/406
+
+- Pushed branch to origin and opened PR #406. `gh pr checks 406` reports no CI
+  checks configured for this repo, so there is no green/red gate to wait on.
 
 ## Findings
 
