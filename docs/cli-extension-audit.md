@@ -1,13 +1,14 @@
 # CLI extension mechanisms — audit
 
-Ticket 1 of the `cli-alias-line/` line. This is the verified reference that
-tickets 2 (`add-recurring-launch-aliases`) and 3 (`propose-declarative-shim-mechanism`)
+The foundational audit of the `cli-extension-model/` line. This is the verified
+reference the other tickets in the line (`add-recurring-launch-aliases`,
+`propose-declarative-shim-mechanism`, `design-external-script-service-mechanism`)
 consume — so its classification has to be right, not assumed.
 
 **Home: `docs/` (evidence), paired with a context (contract).** This doc is the
-verb-by-verb *evidence* — design/audit rationale for the alias-line work, not a
-rule an agent follows at launch. The durable *rule* it produced — the four-tier
-extension model — lives as the `relay/extension-model` context
+verb-by-verb *evidence* — design/audit rationale for the cli-extension-model work,
+not a rule an agent follows at launch. The durable *rule* it produced — the
+three-homes extension model — lives as the `relay/extension-model` context
 (`relay-os/contexts/relay/extension-model/SKILL.md`), authored project-local
 (sibling to `relay/architecture`/`relay/codebase`), so no bundled-battery
 dual-copy sync is incurred. The split mirrors `docs/vision.md` (rationale) vs
@@ -170,48 +171,60 @@ pure-passthrough set for aliasing is exactly the two named above.
 The flat "alias-able? yes/no" framing above is too coarse — it hides that
 "needs logic" does **not** imply "needs a hand-written built-in." Logic can live
 as skills in a workflow (`autoclose-merged/sweep` and `digest/post` already
-prove command-grade logic runs fine as `mode: script` steps). The real surface
-is a four-tier spectrum, ordered by machinery required — reach for the lowest
-tier that can express the behavior:
+prove command-grade logic runs fine as `mode: script` steps). The refined
+conclusion: the surface collapses to **three homes for logic, plus sugar**.
 
-1. **Pure alias** — argv rewrite, no hook on either side, can't create a ticket.
-2. **Declarative shim** — `arg → create-draft-with-workflow → launch`. The one
-   thing an alias can't do: materialize a ticket from a CLI argument. *Does not
-   exist yet* — it's what ticket 3 proposes.
-3. **Workflow** — logic on an existing ticket as script/interactive/mixed steps.
-   Deterministic pre/post work → script steps; agent-facing process →
-   interactive steps.
-4. **Built-in** — irreducible Python: acts before a ticket exists, runs outside
-   the model, or needs atomicity the workflow machinery can't give.
+1. **Kernel** — small tested Python that can't be anything else.
+2. **Tickets / workflows** — *stateful, reviewable* work as skills / `mode: script`
+   steps on a ticket.
+3. **External scripts / tools** — *stateless, parameterized* invocations. Two kinds:
+   an **external tool** Relay shells out to (`gh`, `op`, `git` — exists, no design),
+   and a **Relay-authored external script / service** that lives outside both kernel
+   and tickets — a *design target* (no mechanism today; sibling of the tier-2 shim).
+4. **Aliases** are not a home — just argv sugar pointing at one of the three.
 
-The tier isn't a matter of taste — it falls out of **determinism × statefulness
-× when-it-runs**. *When* relative to a ticket (before it exists / on it / after
-an agent exits), whether the work is *deterministic* (script-safe) or
-*judgment-bearing* (must be an agent step — never relocate deterministic logic
-*into* an agent step), and whether it needs *cross-cutting state or atomicity*
-(tier 4).
+**The home falls out of the shape, not taste** — four questions: is it a fixed
+argv rewrite (alias)? is it a stateless parameterized call (command/external)? is
+it stateful reviewable work (ticket)? is it regress/bootstrap-locked or a
+mid-flight trust hook (kernel)?
 
-**Most current built-ins are fused tiers, not irreducible kernel.** `relay
-ticket` is the worked example: its authoring conversation is a tier-3
-interactive step (the `bootstrap/ticket` shim already), its post-exit validate +
-git-sync is a tier-3 script step (same shape as the autoclose sweep), and only
-its `arg → draft` bootstrapping (`ticket.py:99-127`) is irreducible — a tier-2
-residue. When tier 2 exists, `ticket` collapses to a shim + a mixed workflow
-with zero hand-written command logic. `project` and `retire` share that residue.
+**The kernel is `launch` and its dependency closure** — not a taxonomy. It is
+`launch`/compose plus everything `launch` calls or depends on mid-flight (the
+`mark`/`bump` state-writes, secret injection, skill verify-at-compose (not yet
+built), notify) and the `create` primitive + fresh `init` that must precede a
+launch. The test for any
+command: does `launch` call it *while running* (kernel), or does a human/cron call
+it *to start* a launch (movable)? Nothing else is kernel.
 
-**The floor — what genuinely can't be a ticket:** pre-ticket bootstrapping
-(the tier-2 residue, until tier 2 exists), repo scaffolding (`init`), read-only
-diagnostics/rendering (`status`/`show`/`validate` — principle 6 forbids them
-mutating), and the kernel chokepoints themselves (`launch`/compose, `bump`,
-`mark`, secrets, git, notify). Adopt the microkernel as far as the ticket model
-reaches; keep a small built-in floor for the rest.
+**Most current built-ins are not kernel — they're fused or already external.**
+`automerge`/`digest`/`delete` already run as a sweep skill / post step /
+delete-task skill. `relay ticket` is the worked fused case: its authoring
+conversation is a workflow interactive step (the `bootstrap/ticket` shim already),
+its post-exit validate + git-sync is a script step (same shape as the autoclose
+sweep), and only its `arg → draft` head (`ticket.py:99-127`) is irreducible — the
+tier-2 residue. When the tier-2 shim exists, `ticket` collapses to a shim + a mixed
+workflow with zero hand-written command logic. `project` and `retire` share that
+residue.
 
-**Guardrail for ticket 3:** the tier-2 shim mechanism earns its place only while
-it expresses the single fixed shape `arg → draft+workflow → launch`. The moment
-it grows conditionals or computed args it becomes a mini-DSL in `relay.toml` — a
-worse Typer, trading a legible built-in for an opaque config language against the
-legibility non-negotiable. Branching logic belongs in a tier-3 skill, not shim
-config.
+**Ticket vs. command is decided by statefulness, not parameters.** Both can take
+arguments; the question is whether the operation is a stateful reviewable unit of
+work (`retire` → a retire task) or a stateless one-shot (`skill install`,
+`secret get`, `show` → a command). Parameters are legal on a ticket *only when
+materialized into its files at creation* (`arg → draft`); transient launch-time
+params are forbidden because they break "the prompt is a pure function of the
+files on disk" and are the seed of a config DSL.
+
+**Trust boundaries straddle kernel and external** — acquire outside, verify
+inside. `gh skill` and `op`/`env` acquire; compose-verify and launch-inject are
+the kernel hooks. So `skill install`/`secret get` are external/command; only the
+verify/inject hooks are kernel. Secret *values* never flow through the legible
+ticket/prompt/git machinery.
+
+**Guardrails:** (1) *No worse Typer* — no transient launch params, and the tier-2
+shim stays the single fixed shape `arg → draft+workflow → launch`; conditionals or
+computed args make it an illegible `relay.toml` DSL. (2) *No inversion* —
+relocating logic out of the kernel moves the substance unchanged (tested
+`mode: script` Python), never rewrites a deterministic check as agent judgment.
 
 The ratified rule lives in the `relay/extension-model` context; this section is
 the audit's path to it.
