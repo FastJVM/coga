@@ -1,6 +1,6 @@
 ---
 title: Launch must not re-activate a done ticket
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
