@@ -1,14 +1,14 @@
 ---
 title: Audit CLI extension mechanisms
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: claude
 contexts:
-  - relay/codebase
-  - relay/architecture
+- relay/codebase
+- relay/architecture
 skills: []
 workflow:
   name: direct/body
