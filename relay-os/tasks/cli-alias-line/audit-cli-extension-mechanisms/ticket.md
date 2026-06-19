@@ -1,6 +1,6 @@
 ---
 title: Audit CLI extension mechanisms
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -18,7 +18,6 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
-step: 1 (execute)
 ---
 
 ## Description
