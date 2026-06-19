@@ -1,14 +1,14 @@
 ---
 title: Propose declarative shim mechanism
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: claude
 contexts:
-  - relay/architecture
-  - relay/codebase
+- relay/architecture
+- relay/codebase
 skills: []
 workflow:
   name: direct/body
