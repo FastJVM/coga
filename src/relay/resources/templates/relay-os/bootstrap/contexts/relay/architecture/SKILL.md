@@ -182,9 +182,10 @@ task; the invariant holds for machine-authored tasks too.
   owns the `draft`/`active`/`paused`/`done` transitions; `relay launch`
   flips an `active` ticket to `in_progress` when it spawns the agent, and —
   since launching is itself the readiness signal — also performs the
-  `mark active` step inline for a ticket that is still `draft`/`paused`/`done`
-  before that flip. `bump` ignores `status:` entirely (it owns `step:`,
-  not `status:`).
+  `mark active` step inline for a ticket that is still `draft` or `paused`
+  before that flip. A `done` ticket is finished: launch refuses it and leaves
+  it untouched rather than restarting its workflow. `bump` ignores `status:`
+  entirely (it owns `step:`, not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `relay bump`. Only moves when
   status is `in_progress`. Bare `relay bump` advances one step; a human
@@ -196,8 +197,8 @@ statuses directly via `relay mark`. `relay bump` refuses them.
 
 The split is deliberate: each command owns its writes. `relay create`
 authors a draft, `relay mark` flips status across the lifecycle,
-`relay bump` moves steps, and `relay launch` spawns the agent — bringing the
-ticket to `active` first if it isn't already (reusing `relay mark active`),
+`relay bump` moves steps, and `relay launch` spawns the agent — bringing a
+`draft` or `paused` ticket to `active` first (reusing `relay mark active`),
 then flipping `active → in_progress` as it does. `launch` is the one command
 that touches both planes.
 
@@ -277,15 +278,15 @@ returns the assembled prompt verbatim with no defusal step.
 There is no filesystem mutex. The ticket's `status` (`draft`, `active`,
 `in_progress`, `paused`, `done`) is the signal that someone is — or
 isn't — working on a task. `relay launch` accepts an `active` or
-`in_progress` ticket directly, and treats a launch of any other status as
-the readiness decision itself: a `draft` / `paused` / `done` ticket is run
-through `relay mark active` inline before the agent starts (re-activating a
-`done` ticket restarts its workflow at step 1). A workflow-less or
+`in_progress` ticket directly, and treats a launch of `draft` or `paused` as
+the readiness decision itself: the ticket is run through `relay mark active`
+inline before the agent starts. A `done` ticket is refused and left untouched;
+launching a finished ticket must not restart its workflow. A workflow-less or
 required-extension-incomplete ticket still can't be activated, so those
-launches fail loud with the same remedy `mark active` gives. The failure
-mode of two divergent workers (two blackboard edits,
-two PR branches) is visible and recoverable in git; the cost of a hard
-mutex (stale lock files, `--force` flags, orphan-lock cleanup) is not.
+launches fail loud with the same remedy `mark active` gives. The failure mode
+of two divergent workers (two blackboard edits, two PR branches) is visible
+and recoverable in git; the cost of a hard mutex (stale lock files, `--force`
+flags, orphan-lock cleanup) is not.
 
 ## Identity and capability boundaries
 
