@@ -3,6 +3,12 @@
 ## Dev
 branch: drop-debug-all
 worktree: ../relay-drop-debug-all
+pr: https://github.com/FastJVM/relay/pull/411
+
+## Open PR — DONE
+- Pushed `drop-debug-all`, opened PR #411 against `main`.
+- Auth verified (`gh auth status` OK, https remote).
+- No CI configured on this repo (`gh pr checks` reports none) — nothing to gate on.
 
 
 ## Goal
@@ -113,3 +119,20 @@ as the bare sweep.
 The dirty `relay-os/recurring/*/log.md` + `digest/blackboard.md` are leak
 evidence; discard separately with `git checkout -- relay-os/recurring/`. Not
 part of this branch.
+
+## Peer Review — DONE (codex)
+- Review command: `codex review --base main` from `/home/n/Code/relay-drop-debug-all`.
+- Finding fixed: `--all` sorted forced launches using stale local status before
+  reconciling existing task state with the control branch. In a stale checkout,
+  a local `done` task whose control copy is `in_progress` could be ordered after
+  fresh work and never resume if an earlier task stopped the sweep.
+- Fix: scan-time `--all` reconciliation now refreshes existing task status
+  read-only from the control branch before `scan.forced` sorts; actual task
+  restore/sync still happens in `_prepare_forced_launch` only when that task is
+  reached. Added
+  `test_recurring_all_reconciles_existing_tasks_before_launch_order`.
+- Commit: `d143f69 peer-review: apply review findings`.
+- Verification:
+  - `PYTHONPATH=src python -m pytest tests/test_recurring.py::test_recurring_all_restores_clean_stale_existing_task_from_control tests/test_recurring.py::test_recurring_all_snapshot_does_not_block_control_restore tests/test_recurring.py::test_recurring_all_reconciles_existing_tasks_before_launch_order -q -p no:cacheprovider` — 3 passed.
+  - `PYTHONPATH=src python -m pytest tests/test_recurring.py tests/test_notification_messages.py tests/test_digest.py tests/test_git.py -q -p no:cacheprovider` — 140 passed.
+  - `PYTHONPATH=src python -m pytest -q -p no:cacheprovider` — 809 passed, 1 skipped, 2 failed; the failures are the known pre-existing `tests/test_autoclose_sweep.py` live/package `autoclose-merged/blackboard.md` drift (`last_serviced_period: 2026-06-17` in live only).
