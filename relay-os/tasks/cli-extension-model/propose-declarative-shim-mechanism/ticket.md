@@ -1,5 +1,5 @@
 ---
-title: Propose declarative shim mechanism
+title: Design the tier-2 shim (arg→draft → launch)
 status: active
 mode: interactive
 owner: nick
@@ -23,8 +23,10 @@ step: 1 (execute)
 
 ## Description
 
-**Ticket 3 of 3 in `cli-alias-line/`. Depends on
-`audit-cli-extension-mechanisms` — its conclusion is this proposal's evidence.**
+**Part of `cli-extension-model/` — the `→ ticket` design ticket (the tier-2
+shim). Depends on `audit-cli-extension-mechanisms` — its conclusion is this
+proposal's evidence. Sibling: `design-external-script-service-mechanism` (the
+`→ external` design). Keep the two narrow and distinct.**
 
 The audit's expected conclusion is that *most* CLI verbs can't be aliases,
 because an alias is a pure argv rewrite with no pre/post hook. That sets up the

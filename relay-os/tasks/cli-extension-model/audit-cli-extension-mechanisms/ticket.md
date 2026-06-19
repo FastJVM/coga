@@ -22,8 +22,8 @@ secrets: null
 
 ## Description
 
-**Ticket 1 of 3 in `cli-alias-line/`. Run this first — tickets 2 and 3 both
-consume its output.**
+**The foundational ticket in `cli-extension-model/`. Run this first — the other
+tickets in the line consume its output.**
 
 Audit Relay's three CLI extension mechanisms and classify every command so
 it's clear which ones could be cheap aliases and which must stay built-ins:
