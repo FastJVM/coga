@@ -19,7 +19,13 @@ from pathlib import Path
 
 import typer
 
-from relay.github_source import git_clone_source, pip_git_source, same_github_repo
+from relay.github_source import (
+    git_clone_source,
+    is_ssh_git_source,
+    pip_git_source,
+    redacted_git_source,
+    same_github_repo,
+)
 
 
 RELAY_REPO_URL = "https://github.com/FastJVM/relay"
@@ -123,16 +129,18 @@ def resolve_relay_repo_url(
 
 def clone_upstream(into: Path, *, repo_url: str | None = None) -> Path:
     """Shallow-clone the relay repo into `into`. Exit on failure. Return the path."""
-    url = repo_url or resolve_relay_repo_url()
-    typer.echo(f"Cloning {url} (shallow)…")
+    url = git_clone_source(repo_url or resolve_relay_repo_url())
+    safe_url = redacted_git_source(url)
+    typer.echo(f"Cloning {safe_url} (shallow)…")
     result = subprocess.run(
         ["git", "clone", "--depth=1", url, str(into)],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
+        stderr = result.stderr.replace(url, safe_url)
         typer.secho(
-            f"git clone failed:\n{result.stderr}",
+            f"git clone failed:\n{stderr}",
             fg=typer.colors.RED,
             err=True,
         )
@@ -169,7 +177,7 @@ def write_pin(
     pin = relay_os / ".relay" / "RELAY_PIN"
     pin.parent.mkdir(parents=True, exist_ok=True)
     url = repo_url or resolve_relay_repo_url(relay_os=relay_os)
-    pin.write_text(f"{url}\n{sha}\n")
+    pin.write_text(f"{redacted_git_source(url)}\n{sha}\n")
     return pin
 
 
@@ -196,11 +204,15 @@ def read_pin(relay_os: Path) -> str | None:
 
 
 def _detect_matching_relay_remote(cwd: Path) -> str | None:
+    matches: list[str] = []
     for remote in RELAY_REMOTE_NAMES:
         url = _git_remote_url(cwd, remote)
         if url and same_github_repo(url, RELAY_REPO_URL):
+            matches.append(url)
+    for url in matches:
+        if is_ssh_git_source(url):
             return url
-    return None
+    return matches[0] if matches else None
 
 
 def _git_remote_url(cwd: Path, remote: str) -> str | None:
@@ -218,7 +230,9 @@ def _git_remote_url(cwd: Path, remote: str) -> str | None:
 
 
 def relay_pip_git_source(*, relay_os: Path | None = None) -> str:
-    return pip_git_source(resolve_relay_repo_url(relay_os=relay_os))
+    return pip_git_source(
+        redacted_git_source(resolve_relay_repo_url(relay_os=relay_os))
+    )
 
 
 def refresh_cli(clone_dir: Path, relay_os: Path) -> None:

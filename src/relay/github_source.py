@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 
 def github_owner_repo(source: str) -> str | None:
@@ -38,6 +38,16 @@ def same_github_repo(left: str, right: str) -> bool:
     return bool(left_repo and right_repo and left_repo.lower() == right_repo.lower())
 
 
+def is_ssh_git_source(source: str) -> bool:
+    """True when ``source`` names an SSH-style git source."""
+    value = git_clone_source(source)
+    if value.startswith("git@"):
+        return True
+    if "://" not in value:
+        return False
+    return urlparse(value).scheme == "ssh"
+
+
 def pip_git_source(source: str) -> str:
     """Return a pip-compatible git requirement source for ``source``."""
     value = source.strip()
@@ -54,6 +64,28 @@ def git_clone_source(source: str) -> str:
     if value.startswith("git+"):
         return value[len("git+") :]
     return value
+
+
+def redacted_git_source(source: str) -> str:
+    """Return ``source`` without credential-bearing URL userinfo."""
+    value = git_clone_source(source)
+    if "://" not in value:
+        return value
+    parsed = urlparse(value)
+    if not parsed.hostname:
+        return value
+    strip_user = parsed.scheme in {"http", "https"} and parsed.username is not None
+    strip_password = parsed.password is not None
+    if not strip_user and not strip_password:
+        return value
+
+    host = parsed.hostname
+    if parsed.port is not None:
+        host = f"{host}:{parsed.port}"
+    userinfo = ""
+    if strip_password and not strip_user and parsed.username is not None:
+        userinfo = f"{parsed.username}@"
+    return urlunparse(parsed._replace(netloc=f"{userinfo}{host}"))
 
 
 def _owner_repo_from_path(path: str) -> str | None:
