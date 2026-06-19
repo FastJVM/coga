@@ -27,6 +27,7 @@ from relay.commands import status as status_cmd
 from relay.commands import skill as skill_cmd
 from relay.commands import ticket as ticket_cmd
 from relay.commands import bump as bump_cmd
+from relay.commands import uninstall as uninstall_cmd
 from relay.commands import validate as validate_cmd
 from relay.commands.update import read_pin
 from relay.config import ConfigError, find_repo_root, load_config
@@ -72,6 +73,7 @@ def _root(
 
 
 app.command("init")(init_cmd.init)
+app.command("uninstall")(uninstall_cmd.uninstall)
 app.command("create")(create_cmd.create)
 app.command("draft")(create_cmd.draft)
 app.command("ticket")(ticket_cmd.ticket)
@@ -98,7 +100,7 @@ app.add_typer(secret_cmd.app, name="secret")
 # real commands.
 _BUILTIN_COMMANDS = frozenset(
     {
-        "init", "create", "launch", "status", "show", "bump",
+        "init", "uninstall", "create", "launch", "status", "show", "bump",
         "automerge", "delete", "draft", "retire", "panic", "slack", "digest",
         "skill", "mark", "recurring", "ticket", "project", "validate", "secret",
     }
@@ -215,7 +217,9 @@ def main() -> None:
     # since repairing exactly that is often why it's invoked. A stale CLI plus
     # a migrated `relay.toml` would otherwise deadlock: the update that fixes
     # the CLI can't run because the stale CLI rejects the new config first.
-    init_invoked = len(sys.argv) > 1 and sys.argv[1] == "init"
+    # `uninstall` shares this leniency: a broken/legacy config is itself a
+    # reason to remove Relay, so it must not be blocked by config load failure.
+    init_invoked = len(sys.argv) > 1 and sys.argv[1] in ("init", "uninstall")
     try:
         find_repo_root()
         cfg = load_config()
@@ -225,7 +229,7 @@ def main() -> None:
             cfg = None
         elif init_invoked:
             typer.secho(
-                f"Note: ignoring config error so `init` can run — {msg}",
+                f"Note: ignoring config error so `{sys.argv[1]}` can run — {msg}",
                 fg=typer.colors.YELLOW,
                 err=True,
             )

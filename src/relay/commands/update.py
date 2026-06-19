@@ -378,6 +378,44 @@ def ensure_host_gitignore(target: Path) -> bool:
     return True
 
 
+def remove_host_gitignore(target: Path) -> bool:
+    """Strip the relay-managed block from `<target>/.gitignore`. Inverse of
+    `ensure_host_gitignore`.
+
+    Removes only the marker-fenced region (and a single trailing blank line left
+    behind), leaving every user-authored line intact. Idempotent: returns False
+    when there's no `.gitignore` or no managed block to remove. Never raises.
+    """
+    gi = target / ".gitignore"
+    if not gi.is_file():
+        return False
+    existing = gi.read_text()
+
+    begin = existing.find(HOST_GITIGNORE_BEGIN)
+    if begin == -1:
+        return False
+    end = existing.find(HOST_GITIGNORE_END, begin)
+    if end == -1:
+        # Truncated block (no end marker) — drop from the begin marker on.
+        new = existing[:begin]
+    else:
+        end += len(HOST_GITIGNORE_END)
+        if end < len(existing) and existing[end] == "\n":
+            end += 1
+        new = existing[:begin] + existing[end:]
+
+    # Collapse the blank-line gap `ensure_host_gitignore` inserted before the
+    # block so removing it doesn't leave a trailing run of newlines.
+    new = new.rstrip("\n")
+    if new:
+        new += "\n"
+
+    if new == existing:
+        return False
+    gi.write_text(new)
+    return True
+
+
 def write_bin_wrapper(bin_dir: Path) -> None:
     """Drop `bin/relay` — a relative symlink to the venv's `relay` console script.
 
