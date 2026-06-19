@@ -2,7 +2,7 @@
 
 The foundational audit of the `cli-extension-model/` line. This is the verified
 reference the other tickets in the line (`add-recurring-launch-aliases`,
-`propose-declarative-shim-mechanism`, `design-external-script-service-mechanism`)
+`move-command-logic-to-tickets`, `design-external-script-service-mechanism`)
 consume — so its classification has to be right, not assumed.
 
 **Home: `docs/` (evidence), paired with a context (contract).** This doc is the

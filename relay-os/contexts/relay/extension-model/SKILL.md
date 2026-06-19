@@ -183,23 +183,25 @@ actively fights the capability boundary.
 Most of this is already at its floor: the kernel is small, the movable
 deterministic logic (`automerge`/`digest`/`delete`) is already a skill or script
 step, and the rest is movable-by-choice. There is no system-wide rewrite waiting —
-there is a *sequenced* externalization with **three move-types**, justified by
-hackability (principle 1: more logic lives as editable `relay-os/` files) and
-dogfooding (Relay's own operations exercise the script-step model):
+there is a *sequenced* externalization, organized into **two passes by direction
+of movement**, justified by hackability (principle 1: more logic lives as editable
+`relay-os/` files) and dogfooding (Relay's own operations exercise the script-step
+model):
 
-1. **→ ticket / workflow** — mechanism *exists* (`mode: script` steps, the Dream
-   pattern). The read views (`status`/`show`/`recurring list`/`skill status`) and
-   `recurring` scan move here as stateless script shims / Dream-shaped tasks.
-2. **→ ticket via the tier-2 shim** — mechanism *to be designed*
-   (`cli-extension-model/propose-declarative-shim-mechanism`). Collapses the
-   `arg → draft` heads of `ticket`/`project`/`retire`.
-3. **→ external script / service** — mechanism *to be designed* (the surface for
-   Relay-authored stateless capabilities, e.g. the skill installer as a `gh`
-   extension).
+- **Pass 1 — what stays *core*, what goes *external*** (design;
+  `cli-extension-model/design-external-script-service-mechanism`). Fixes the kernel
+  boundary — and closes the not-yet-built verify-at-compose hook — and designs the
+  external script/service surface. One decision, because the trust-straddle ties
+  "stays kernel" to "becomes an external script."
+- **Pass 2 — what goes *into tickets*** (execution;
+  `cli-extension-model/move-command-logic-to-tickets`). Moves the read views
+  (`status`/`show`/`recurring list`/`skill status`) → stateless script shims and
+  `recurring` scan → a Dream-shaped task (neither needs a new mechanism), and
+  collapses the `arg → draft` heads of `ticket`/`project`/`retire` onto the
+  **tier-2 shim** built there (its one new mechanism).
 
-Moves 2 and 3 are sibling design targets; move 1 can proceed independently. Each
-respects the carve-outs: the secret/state-write kernel does not move, and
-externalized logic stays tested Python.
+Each pass respects the carve-outs: the secret/state-write kernel does not move, and
+externalized logic stays tested Python (the no-inversion guardrail).
 
 ## What this context does NOT cover
 
