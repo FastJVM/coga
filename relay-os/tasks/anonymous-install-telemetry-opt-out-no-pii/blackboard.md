@@ -10,43 +10,33 @@ The blackboard is a notepad to be written to often as the human and agent works 
   it before any write). No geo derived. This is the strongest no-PII story; we
   accept losing any geo signal.
 
-### Payload (the complete wire format — this exact list goes in the docs)
+### Payload — FINAL (trimmed in review 2026-06-19)
+It's a PM tool to read product-market fit: how many real installs, are they
+used, are they still active. Exactly three fields, nothing else on the wire:
 ```json
 {
-  "schema_version": 1,
-  "event": "ping",
-  "install_id": "<uuid4, generated once, stored locally>",
-  "relay_version": "0.2.0",
-  "os": "linux",
-  "arch": "arm64",
-  "python_version": "3.11",
-  "ci": false,
+  "instance_id": "<uuid4, generated once, stored locally>",
   "tickets_total": 12,
-  "tickets_done": 5,
-  "tickets_active_30d": 3
+  "last_run": "2026-06-19"
 }
 ```
 
 Field decisions:
-- **Core (presence):** install_id, relay_version, os, event, schema_version.
-- **System (nick to confirm at review-design):** arch, python_version (major.minor),
-  ci (bool, detected from CI env vars). My recommendation = include all three.
-- **Usage (engagement) — nick explicitly asked for these:**
-  - tickets_total, tickets_done, tickets_active_30d (touched in last 30 days).
-  - **Exact integers, NOT buckets.** Nick's call: it's opt-out + disclosed so the
-    beacon is consented; buckets add code complexity for little gain.
-  - Derived purely by counting ticket.md files + reading `status` frontmatter +
-    mtime. No slugs, no titles, no body content, ever.
+- **instance_id** — random uuid4, per install, machine-local. Counts distinct
+  installs. Not derived from anything.
+- **tickets_total** — exact int, count of ticket.md files only. No status, no
+  content. Answers "is it used?"
+- **last_run** — UTC date (YYYY-MM-DD) of most recent run. Answers "still
+  active?" Carried in payload so the endpoint stores only these 3 fields and
+  needs no server-side timestamps.
+
+**CUT in review (nick):** relay_version, os, arch, python_version, ci, event,
+schema_version, tickets_done, tickets_active_30d. Earlier draft had all these;
+nick trimmed to the minimum the PMF question needs. ("we only agreed on ticket
+total + last run + some kind of unique id per instance.")
+
 - **Hard NO (no-PII line):** repo name/path, git remote, cwd, username/hostname,
   ticket content/slugs/titles, command names/args, IP/geo, fine-grained timestamps.
-
-### Engagement-telemetry note (principle tension)
-Adding ticket counts moves the ping from *presence* to *engagement* telemetry
-(watching an install's usage grow over time via the persistent install_id). This
-is a bigger lean against principle 5 than the core ping. Nick (owner) made the
-call consciously; mitigations (opt-out + loud disclosure + documented payload +
-no content) hold. If those mitigations can't be kept, fall back to PyPI/GitHub
-estimate per ticket.
 
 ### Behavior (from ticket, confirmed)
 - On by default (opt-out). Loud first-run disclosure. One-line disable: config
@@ -75,7 +65,14 @@ estimate per ticket.
 ### Status
 - [x] Spec written into ticket.md (Description / Acceptance Criteria / Proposed
       Shape / Out of Scope).
-- [ ] relay bump (after nick eyeballs the spec — interactive).
+- [x] Spec-review PR (design only, no code) opened for GitHub review:
+      https://github.com/FastJVM/relay/pull/408
+      - Review-only: base `design-spec-base` (pre-spec commit), head
+        `telemetry-design-spec` (= spec commit 4504e07). Don't merge; delete
+        both branches after review.
+      - NB: relay git-sync already committed+pushed the spec to origin/main on
+        activation, so the PR base is pinned to surface the diff.
+- [ ] relay bump (after nick reviews the spec — interactive).
 
 ## Open Questions (for review-design / owner)
 
@@ -84,12 +81,12 @@ estimate per ticket.
    prod URL the client ships with? Client is built against a configurable URL;
    the actual deploy needs cloud access — owner-driven. Until a URL exists, the
    client default URL is a placeholder.
-2. **Confirm the three system fields.** arch, python_version (major.minor), ci —
-   recommended IN. Last chance to trim before implement.
-3. **"Active install" definition (analytics side).** Distinct install_id seen in
-   last N days — what N? (Default proposal: 30.) Separate from the client-side
-   `tickets_active_30d` window. Dashboard work, out of scope to build but the
-   definition should be agreed.
+2. **RESOLVED — payload fields.** Trimmed in review to exactly instance_id,
+   tickets_total, last_run. All system fields (version/os/arch/python/ci) and
+   the extra ticket counts (done, active_30d) are cut.
+3. **"Active install" definition (analytics side).** Distinct instance_id with a
+   last_run in the last N days — what N? (Default proposal: 30.) Dashboard work,
+   out of scope to build but the definition should be agreed.
 4. **PyPI/GitHub cross-check.** Worth doing as a cheap no-infra sanity check on
    the ping numbers? Tracked as a separate idea, not built here.
 5. **Disclosure surface.** First-run stderr disclosure is specified. Also in
