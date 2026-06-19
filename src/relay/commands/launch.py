@@ -1,11 +1,12 @@
 """`relay launch` — compose context and start work on a task.
 
-Launching an `active` task moves it to `in_progress`. A draft / paused / done
-ticket is activated inline first — typing `relay launch` is the readiness
-signal, so launch performs the `relay mark active` step itself rather than
-refusing. (A workflow-less or required-extension-incomplete ticket still
-can't be activated, so those fail loud with the same remedy `mark active`
-gives.) An already-`in_progress` ticket resumes without another status flip.
+Launching an `active` task moves it to `in_progress`. A draft / paused ticket
+is activated inline first — typing `relay launch` is the readiness signal, so
+launch performs the `relay mark active` step itself rather than refusing. (A
+workflow-less or required-extension-incomplete ticket still can't be activated,
+so those fail loud with the same remedy `mark active` gives.) An
+already-`in_progress` ticket resumes without another status flip. A `done`
+ticket is refused and left untouched.
 
 Bootstrap shims are stateless re-entry points (no status, no log of state
 changes) — launch is the only way to run a skill against one.
@@ -222,13 +223,13 @@ def launch(
     # workflow. Re-activating would re-seed `step: 1` without re-resolving
     # `assignee` (which still holds the final step's resolved human owner),
     # crashing the agent-type lookup and leaving the ticket wedged
-    # (`active, step 1, assignee=<human>`). Reopening is the deliberate
-    # `relay mark active` path, so refuse loud with that hint. Draft/paused
+    # (`active, step 1, assignee=<human>`). Refuse loud; reopening a finished
+    # ticket is a deliberate workflow decision outside launch. Draft/paused
     # still activate inline below.
     if not is_bootstrap and isinstance(ref, TaskRef) and ticket.status == "done":
         _bail(
             f"Cannot launch {ref.id_slug}: it is done; nothing to launch. "
-            f"Run `relay mark active {ref.id_slug}` to reopen it, or launch a "
+            "Reopen it deliberately before launching again, or launch a "
             "different ticket."
         )
 

@@ -1288,7 +1288,7 @@ def test_launch_refuses_done_ticket(
     assert result.exit_code == 2, result.output
     combined = result.output + (result.stderr or "")
     assert "is done" in combined
-    assert "relay mark active" in combined
+    assert "Reopen it deliberately" in combined
     assert calls == []  # no agent spawned
 
     after = Ticket.read(ticket_md)
