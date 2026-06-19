@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
 
+from relay import cli as relay_cli
 from relay.cli import app
 from relay.commands import uninstall as uninstall_cmd
 from relay.commands.init import AGENT_GUIDE_TEMPLATE
@@ -143,7 +145,7 @@ def test_uninstall_without_purge_prints_pip_command(
     assert "uninstall relay-os" in result.output
 
 
-def test_uninstall_purge_runs_pipx(
+def test_uninstall_purge_runs_pipx_for_pipx_install(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _seed_footprint(tmp_path, monkeypatch)
@@ -157,13 +159,38 @@ def test_uninstall_purge_runs_pipx(
     monkeypatch.setattr(uninstall_cmd.shutil, "which", lambda name: "/usr/bin/pipx")
     monkeypatch.setattr(uninstall_cmd.subprocess, "run", fake_run)
     monkeypatch.setattr(
-        uninstall_cmd, "running_cli_location", lambda relay_os: ("other", Path("/x"))
+        uninstall_cmd, "running_cli_location", lambda relay_os: ("pipx", Path("/x"))
     )
 
     result = CliRunner().invoke(app, ["uninstall", "--yes", "--purge"])
     assert result.exit_code == 0, result.output
     assert calls == [["/usr/bin/pipx", "uninstall", "relay-os"]]
     assert "Uninstalled `relay-os` via pipx" in result.output
+
+
+def test_uninstall_purge_runs_pip_for_other_install(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_footprint(tmp_path, monkeypatch)
+
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, *args, **kwargs):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(uninstall_cmd.sys, "executable", "/venv/bin/python")
+    monkeypatch.setattr(uninstall_cmd.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        uninstall_cmd, "running_cli_location", lambda relay_os: ("other", Path("/x"))
+    )
+
+    result = CliRunner().invoke(app, ["uninstall", "--yes", "--purge"])
+    assert result.exit_code == 0, result.output
+    assert calls == [
+        ["/venv/bin/python", "-m", "pip", "uninstall", "-y", "relay-os"]
+    ]
+    assert "Uninstalled `relay-os` via pip" in result.output
 
 
 def test_uninstall_purge_skips_global_package_when_running_vendored(
@@ -186,6 +213,39 @@ def test_uninstall_purge_skips_global_package_when_running_vendored(
     assert result.exit_code == 0, result.output
     assert calls == []
     assert "no global package to uninstall" in result.output
+
+
+def test_uninstall_errors_if_relay_os_remains(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = _seed_footprint(tmp_path, monkeypatch)
+
+    monkeypatch.setattr(uninstall_cmd.shutil, "rmtree", lambda path: None)
+
+    result = CliRunner().invoke(app, ["uninstall", "--yes"])
+    assert result.exit_code == 2
+    assert "path still exists" in result.output
+    assert (target / "relay-os").is_dir()
+    assert "Relay uninstalled" not in result.output
+
+
+def test_main_uninstall_ignores_legacy_uninstall_alias(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = _seed_footprint(tmp_path, monkeypatch)
+    (target / "relay-os" / "relay.local.toml").write_text('user = "me"\n')
+    (target / "relay-os" / "relay.toml").write_text(
+        'version = 1\n[aliases]\nuninstall = "status"\n'
+    )
+    monkeypatch.setattr(sys, "argv", ["relay", "uninstall", "--yes"])
+
+    with pytest.raises(SystemExit) as exc:
+        relay_cli.main()
+
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert "ignoring legacy alias 'uninstall'" in captured.err
+    assert not (target / "relay-os").exists()
 
 
 def test_uninstall_outside_repo_errors(

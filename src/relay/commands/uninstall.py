@@ -189,7 +189,14 @@ def _print_plan(target: Path, relay_os: Path, plan: _Plan, purge: bool) -> None:
 
 def _execute_plan(plan: _Plan) -> None:
     if plan.relay_os:
-        shutil.rmtree(plan.relay_os, ignore_errors=True)
+        try:
+            shutil.rmtree(plan.relay_os)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            _bail(f"Failed to remove {plan.relay_os}: {exc}")
+        if plan.relay_os.exists():
+            _bail(f"Failed to remove {plan.relay_os}: path still exists")
         typer.echo(f"Removed {plan.relay_os}/")
 
     for link in plan.skill_links:
@@ -259,8 +266,16 @@ def _handle_package(purge: bool, relay_os: Path) -> None:
         )
         return
 
-    pipx = shutil.which("pipx")
-    if pipx is not None:
+    if kind == "pipx":
+        pipx = shutil.which("pipx")
+        if pipx is None:
+            typer.secho(
+                f"Couldn't find pipx on PATH. Remove the global package by hand:\n"
+                f"    pipx uninstall {RELAY_PIPX_PACKAGE}\n"
+                f"(installed however you set Relay up — see {RELAY_REPO_URL}).",
+                fg=typer.colors.YELLOW,
+            )
+            return
         typer.echo(f"Uninstalling global package (pipx uninstall {RELAY_PIPX_PACKAGE})…")
         result = subprocess.run(
             [pipx, "uninstall", RELAY_PIPX_PACKAGE],
@@ -278,10 +293,22 @@ def _handle_package(purge: bool, relay_os: Path) -> None:
         )
         return
 
+    typer.echo(
+        f"Uninstalling global package ({sys.executable} -m pip uninstall -y "
+        f"{RELAY_PIPX_PACKAGE})…"
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "uninstall", "-y", RELAY_PIPX_PACKAGE],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        typer.echo(f"Uninstalled `{RELAY_PIPX_PACKAGE}` via pip.")
+        return
     typer.secho(
-        f"Couldn't find pipx on PATH. Remove the global package by hand:\n"
-        f"    pip uninstall {RELAY_PIPX_PACKAGE}\n"
-        f"(installed however you set Relay up — see {RELAY_REPO_URL}).",
+        f"pip uninstall failed — remove it by hand:\n"
+        f"    {sys.executable} -m pip uninstall {RELAY_PIPX_PACKAGE}\n"
+        f"{(result.stderr or result.stdout).strip()}",
         fg=typer.colors.YELLOW,
     )
 

@@ -212,6 +212,7 @@ def _restore_default_sigpipe() -> None:
 def main() -> None:
     """Console-script entry point. Loads config, registers aliases, dispatches."""
     _restore_default_sigpipe()
+    invoked_command = sys.argv[1] if len(sys.argv) > 1 else None
     # `relay init` (fresh or `--update`) is the create/recovery command — it
     # must run even when the current config is missing, legacy, or broken,
     # since repairing exactly that is often why it's invoked. A stale CLI plus
@@ -219,7 +220,7 @@ def main() -> None:
     # the CLI can't run because the stale CLI rejects the new config first.
     # `uninstall` shares this leniency: a broken/legacy config is itself a
     # reason to remove Relay, so it must not be blocked by config load failure.
-    init_invoked = len(sys.argv) > 1 and sys.argv[1] in ("init", "uninstall")
+    init_invoked = invoked_command in ("init", "uninstall")
     try:
         find_repo_root()
         cfg = load_config()
@@ -237,6 +238,17 @@ def main() -> None:
         else:
             typer.secho(msg, fg=typer.colors.RED, err=True)
             sys.exit(2)
+
+    if invoked_command == "uninstall":
+        if cfg and "uninstall" in cfg.aliases:
+            print(
+                "relay: ignoring legacy alias 'uninstall' from relay.toml "
+                "('uninstall' is now a built-in command — remove the line "
+                "under [aliases]).",
+                file=sys.stderr,
+            )
+        app()
+        return
 
     user_aliases = cfg.aliases if cfg else {}
     aliases = {**_DEFAULT_ALIASES, **user_aliases}
