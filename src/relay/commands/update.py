@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from importlib.resources import files
 from importlib.resources.abc import Traversable
+import os
 import shutil
 import subprocess
 import sys
@@ -18,8 +19,12 @@ from pathlib import Path
 
 import typer
 
+from relay.github_source import git_clone_source, pip_git_source, same_github_repo
+
 
 RELAY_REPO_URL = "https://github.com/FastJVM/relay"
+RELAY_REPO_URL_ENV = "RELAY_REPO_URL"
+RELAY_REMOTE_NAMES = ("upstream", "origin")
 TEMPLATE_SUBPATH = Path("src/relay/resources/templates/relay-os")
 CLI_SRC_SUBPATH = Path("src/relay")
 TEMPLATE_RESOURCE_PACKAGE = "relay.resources"
@@ -100,11 +105,28 @@ _LEGACY_RELAY_GITIGNORE_ENTRIES: set[str] = {
 }
 
 
-def clone_upstream(into: Path) -> Path:
+def resolve_relay_repo_url(
+    *,
+    relay_os: Path | None = None,
+    cwd: Path | None = None,
+) -> str:
+    """Return the Relay upstream URL respecting the operator's git transport."""
+    env_url = os.environ.get(RELAY_REPO_URL_ENV, "").strip()
+    if env_url:
+        return git_clone_source(env_url)
+    remote_url = _detect_matching_relay_remote(cwd or Path.cwd())
+    if remote_url:
+        return remote_url
+    pinned_url = read_pin_url(relay_os) if relay_os is not None else None
+    return git_clone_source(pinned_url) if pinned_url else RELAY_REPO_URL
+
+
+def clone_upstream(into: Path, *, repo_url: str | None = None) -> Path:
     """Shallow-clone the relay repo into `into`. Exit on failure. Return the path."""
-    typer.echo(f"Cloning {RELAY_REPO_URL} (shallow)…")
+    url = repo_url or resolve_relay_repo_url()
+    typer.echo(f"Cloning {url} (shallow)…")
     result = subprocess.run(
-        ["git", "clone", "--depth=1", RELAY_REPO_URL, str(into)],
+        ["git", "clone", "--depth=1", url, str(into)],
         capture_output=True,
         text=True,
     )
@@ -131,7 +153,12 @@ def upstream_sha(clone_dir: Path) -> str | None:
     return sha or None
 
 
-def write_pin(relay_os: Path, sha: str | None) -> Path | None:
+def write_pin(
+    relay_os: Path,
+    sha: str | None,
+    *,
+    repo_url: str | None = None,
+) -> Path | None:
     """Record the upstream commit `relay-os/.relay/` was vendored from.
 
     Skips the write if `sha` is None (clone-without-git in tests, mostly).
@@ -141,8 +168,20 @@ def write_pin(relay_os: Path, sha: str | None) -> Path | None:
         return None
     pin = relay_os / ".relay" / "RELAY_PIN"
     pin.parent.mkdir(parents=True, exist_ok=True)
-    pin.write_text(f"{RELAY_REPO_URL}\n{sha}\n")
+    url = repo_url or resolve_relay_repo_url(relay_os=relay_os)
+    pin.write_text(f"{url}\n{sha}\n")
     return pin
+
+
+def read_pin_url(relay_os: Path) -> str | None:
+    """Return the pinned upstream URL from `.relay/RELAY_PIN`, or None."""
+    pin = relay_os / ".relay" / "RELAY_PIN"
+    if not pin.is_file():
+        return None
+    lines = [line.strip() for line in pin.read_text().splitlines() if line.strip()]
+    if len(lines) < 2:
+        return None
+    return lines[0]
 
 
 def read_pin(relay_os: Path) -> str | None:
@@ -154,6 +193,32 @@ def read_pin(relay_os: Path) -> str | None:
     if len(lines) < 2:
         return None
     return lines[1]
+
+
+def _detect_matching_relay_remote(cwd: Path) -> str | None:
+    for remote in RELAY_REMOTE_NAMES:
+        url = _git_remote_url(cwd, remote)
+        if url and same_github_repo(url, RELAY_REPO_URL):
+            return url
+    return None
+
+
+def _git_remote_url(cwd: Path, remote: str) -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(cwd), "remote", "get-url", remote],
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def relay_pip_git_source(*, relay_os: Path | None = None) -> str:
+    return pip_git_source(resolve_relay_repo_url(relay_os=relay_os))
 
 
 def refresh_cli(clone_dir: Path, relay_os: Path) -> None:

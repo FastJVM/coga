@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 
 from relay.cli import app
 from relay.config import load_config
+from relay.github_source import github_owner_repo
 from relay.skill import Skill
 from relay.skill_manager import (
     GH_SKILL_REQUIRED,
@@ -135,6 +136,21 @@ def test_github_install_delegates_to_gh_skill(
             str(cfg.repo_root / "skills"),
         ],
     ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "google/agents-cli",
+        "https://github.com/google/agents-cli",
+        "https://github.com/google/agents-cli.git",
+        "git@github.com:google/agents-cli.git",
+        "ssh://git@github.com/google/agents-cli.git",
+        "git+ssh://git@github.com/google/agents-cli.git",
+    ],
+)
+def test_github_owner_repo_normalizes_common_transports(source: str) -> None:
+    assert github_owner_repo(source) == "google/agents-cli"
 
 
 def test_update_all_delegates_github_backed_skills_to_gh_skill(
@@ -655,6 +671,37 @@ def test_install_github_multi_skill_repo_translates_gh_error(
     assert "relay skill install https://github.com/google/agents-cli <skill>" in message
     assert "gh api repos/google/agents-cli/contents/skills" in message
     assert "Usage:" not in message
+
+
+def test_install_github_multi_skill_repo_translates_ssh_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+
+    def multi_skill_runner(args, cwd=None):
+        command = list(args)
+        if command == ["gh", "skill", "--help"]:
+            return _completed(command, stdout="gh skill help")
+        return _completed(
+            command,
+            returncode=1,
+            stderr=(
+                "Using ref v0.1.3 (f73062ca)\n"
+                "must specify a skill name when not running interactively\n"
+            ),
+        )
+
+    with pytest.raises(SkillManagerError) as exc:
+        install_github_skill(
+            cfg,
+            "git@github.com:google/agents-cli.git",
+            runner=multi_skill_runner,
+        )
+
+    message = str(exc.value)
+    assert "git@github.com:google/agents-cli.git" in message
+    assert "relay skill install git@github.com:google/agents-cli.git <skill>" in message
+    assert "gh api repos/google/agents-cli/contents/skills" in message
 
 
 def test_install_local_multi_skill_dir_translates_gh_error(
