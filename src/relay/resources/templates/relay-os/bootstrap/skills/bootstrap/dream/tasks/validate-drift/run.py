@@ -462,6 +462,7 @@ def commit_and_push_fixes(
     cwd: Path,
     fixes: list[ValidationFix],
     message: str,
+    remote: str = "origin",
     allow_main_push: bool = False,
 ) -> str | None:
     if not fixes:
@@ -506,7 +507,7 @@ def commit_and_push_fixes(
     if upstream.returncode == 0:
         _run_git(["push"], cwd=git_root)
     else:
-        _run_git(["push", "-u", "origin", "HEAD"], cwd=git_root)
+        _run_git(["push", "-u", remote, "HEAD"], cwd=git_root)
     return f"committed and pushed `{branch}`"
 
 
@@ -574,6 +575,7 @@ def main(argv: list[str] | None = None) -> int:
     fix = not args.no_fix
 
     try:
+        cfg: Config | None = None
         payload, command = run_validate_json(
             cwd=args.cwd,
             fix=fix,
@@ -587,10 +589,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.commit_and_push:
             if not fix:
                 raise RuntimeError("--commit-and-push requires the fix pass")
+            cfg = load_worker_config(args.cwd)
             git_result = commit_and_push_fixes(
                 cwd=args.cwd or Path.cwd(),
                 fixes=fixes,
                 message=args.commit_message,
+                remote=cfg.git_remote,
                 allow_main_push=args.allow_main_push,
             )
         report = render_blackboard_report(
@@ -606,7 +610,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             sys.stdout.write(report)
         if args.post_slack:
-            cfg = load_worker_config(args.cwd)
+            if cfg is None:
+                cfg = load_worker_config(args.cwd)
             slack_task = task_slug or infer_task_slug_from_blackboard(cfg, blackboard)
             if slack_task:
                 post_slack_summary(

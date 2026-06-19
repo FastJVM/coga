@@ -242,3 +242,101 @@ def test_commit_and_push_refuses_main_branch(tmp_path: Path) -> None:
             ],
             message="Dream: repair validation drift",
         )
+
+
+def test_commit_and_push_uses_configured_remote_without_upstream(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fixed = tmp_path / "relay-os" / "tasks" / "x" / "log.md"
+    fixed.parent.mkdir(parents=True)
+    fixed.write_text("")
+    commands: list[list[str]] = []
+
+    def fake_run_git(args, *, cwd):
+        command = ["git", *args]
+        commands.append(command)
+        if args == ["rev-parse", "--show-toplevel"]:
+            return f"{tmp_path}\n"
+        if args == ["branch", "--show-current"]:
+            return "repair-branch\n"
+        return ""
+
+    def fake_run(args, **kwargs):
+        command = list(args)
+        commands.append(command)
+        if command == ["git", "diff", "--cached", "--quiet"]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        if command == [
+            "git",
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{u}",
+        ]:
+            return subprocess.CompletedProcess(
+                command, 128, stdout="", stderr="no upstream"
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    monkeypatch.setattr(validate_drift, "_run_git", fake_run_git)
+    monkeypatch.setattr(validate_drift.subprocess, "run", fake_run)
+
+    result = commit_and_push_fixes(
+        cwd=tmp_path,
+        fixes=[
+            ValidationFix(
+                kind="missing-file",
+                task="x",
+                message="created log.md",
+                path=str(fixed),
+            )
+        ],
+        message="Dream: repair validation drift",
+        remote="upstream",
+    )
+
+    assert result == "committed and pushed `repair-branch`"
+    assert ["git", "push", "-u", "upstream", "HEAD"] in commands
+    assert not any(
+        command[:1] == ["git"] and "origin" in command for command in commands
+    )
+
+
+def test_commit_and_push_main_passes_configured_remote(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict[str, object] = {}
+
+    class Cfg:
+        git_remote = "upstream"
+
+    def fake_run_validate_json(**kwargs):
+        return (
+            {
+                "fixes": [
+                    {
+                        "kind": "missing-file",
+                        "task": "x",
+                        "message": "created log.md",
+                        "path": "relay-os/tasks/x/log.md",
+                    }
+                ],
+                "issues": [],
+            },
+            ["relay", "validate", "--json", "--fix"],
+        )
+
+    def fake_commit_and_push_fixes(**kwargs):
+        captured.update(kwargs)
+        return "committed and pushed `repair-branch`"
+
+    monkeypatch.setattr(validate_drift, "run_validate_json", fake_run_validate_json)
+    monkeypatch.setattr(validate_drift, "load_worker_config", lambda cwd: Cfg())
+    monkeypatch.setattr(
+        validate_drift, "commit_and_push_fixes", fake_commit_and_push_fixes
+    )
+
+    result = validate_drift.main(["--cwd", str(tmp_path), "--commit-and-push"])
+
+    assert result == 0
+    assert captured["remote"] == "upstream"
