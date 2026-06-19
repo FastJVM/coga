@@ -18,7 +18,7 @@ secrets: null
 silently skips committing `relay-os/` — no error, no warning — leaving a
 git-backed tool in a half-set-up, untracked state. It should `git init` a
 fresh/non-repo target (or fail loud per principle 6), closing the silent skip.
-Surfaced by the fresh-directory onboarding path (`marketing/readme-getting-started`).
+Surfaced by the fresh-directory onboarding path (`marketing/readme-and-docs`).
 
 ## Context
 
