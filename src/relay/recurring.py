@@ -129,6 +129,7 @@ class DueTask:
     last_fire: datetime
     created: bool
     status: str
+    period_key: str = ""
 
     @property
     def launchable(self) -> bool:
@@ -291,6 +292,7 @@ def scan_due(
                     template=template.name,
                     ref=None,
                     last_fire=last_fire,
+                    period_key=period_key,
                     created=False,
                     status="done",
                 )
@@ -301,6 +303,7 @@ def scan_due(
             outcome = create_template(
                 cfg, template, now, allow_interactive=allow_interactive
             )
+            ticket = read_ticket(outcome.ref)
         except RecurringError as exc:
             # Don't let one bad template block the rest. Stderr keeps an
             # interactive `relay recurring` honest; the command also posts a
@@ -309,12 +312,12 @@ def scan_due(
             errors.append((path.name, str(exc)))
             continue
 
-        ticket = read_ticket(outcome.ref)
         tasks.append(
             DueTask(
                 template=template.name,
                 ref=outcome.ref,
                 last_fire=last_fire,
+                period_key=period_key,
                 created=outcome.created,
                 status=ticket.status,
             )
@@ -560,11 +563,7 @@ def _create_at_slug(
     # current values into the period task. `relay mark done` later diffs this
     # baseline against the live parent blackboard to catch a run that finished
     # without advancing a declared key (a stale cursor → duplicate next firing).
-    state_keys = template.frontmatter.get("state_keys") or []
-    if state_keys:
-        write_snapshot(
-            out_ref.path, template.name, template.blackboard_path, list(state_keys)
-        )
+    _write_state_snapshot(template, out_ref)
 
     return CreateOutcome(ref=out_ref, created=True)
 
@@ -582,6 +581,14 @@ def _advance_serviced_period(
     _record_run(template, outcome, period_key, now)
 
 
+def _write_state_snapshot(template: Template, ref: TaskRef) -> None:
+    state_keys = template.frontmatter.get("state_keys") or []
+    if state_keys:
+        write_snapshot(
+            ref.path, template.name, template.blackboard_path, list(state_keys)
+        )
+
+
 def _record_run(
     template: Template, outcome: CreateOutcome, period_key: str, now: datetime
 ) -> None:
@@ -597,8 +604,9 @@ def _record_run(
     # existing log does not end with a newline.
     sep = "" if not existing or existing.endswith("\n") else "\n"
     stamp = now.strftime("%Y-%m-%d %H:%M")
+    verb = "created" if outcome.created else "reused"
     log.write_text(
-        f"{existing}{sep}{stamp} [system] created "
+        f"{existing}{sep}{stamp} [system] {verb} "
         f"{outcome.ref.id_slug} for {period_key}\n"
     )
 
