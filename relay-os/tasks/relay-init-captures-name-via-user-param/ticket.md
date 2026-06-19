@@ -1,6 +1,6 @@
 ---
 title: relay init captures name via --user param
-status: in_progress
+status: done
 mode: interactive
 owner: zach
 human: zach
@@ -30,7 +30,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 5 (review)
 ---
 
 ## Description
