@@ -3,3 +3,5 @@
 2026-06-18 21:08 [human:nick] started (active → in_progress) via relay launch
 2026-06-18 21:08 [human:nick] launched in interactive mode (assignee=nick, launch_assignee=claude, agent=claude)
 2026-06-18 21:14 [agent:nick] advanced to step 2 (peer-review) → assigned to codex
+2026-06-18 21:14 [human:nick] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-19 10:37 [agent:codex] advanced to step 3 (open-pr) → assigned to claude

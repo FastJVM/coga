@@ -39,3 +39,27 @@ worktree: ../relay-remote-default-origin
   (expected `2026-06-11`, got `2026-06-17`). Unrelated to this change; not
   masked, just noted.
 - Note: repo needs Python 3.11+ (`tomllib`); use `python3.12` here.
+
+## Peer Review
+
+- Ran required `codex review --base main` from `../relay-remote-default-origin`.
+  First sandboxed run failed before review with read-only app-server init; reran
+  outside the sandbox and Codex reported no actionable regressions.
+- During the review sweep, found one additional hardcoded push in the packaged
+  Dream `validate-drift` helper:
+  `src/relay/resources/templates/relay-os/bootstrap/skills/bootstrap/dream/tasks/validate-drift/run.py`
+  used `git push -u origin HEAD` when setting upstream for a repair branch.
+- Applied peer-review fix in commit `c2d1617`:
+  `commit_and_push_fixes` now accepts `remote: str = "origin"`, and the script
+  passes `load_worker_config(...).git_remote` for `--commit-and-push`.
+- Added coverage in `tests/test_dream_validate_drift.py` for the no-upstream
+  fallback push using `upstream`, plus `main()` wiring from config.
+
+## Peer Review Test Status
+
+- `PYTHONDONTWRITEBYTECODE=1 python3.12 -m pytest -p no:cacheprovider tests/test_skill_manager.py tests/test_dream_validate_drift.py`
+  -> 42 passed.
+- `PYTHONDONTWRITEBYTECODE=1 python3.12 -m pytest -p no:cacheprovider`
+  -> 809 passed, 1 skipped, **2 failed** in `tests/test_autoclose_sweep.py`.
+  Same unrelated autoclose `last_serviced_period` drift as the implementation
+  handoff (`expected 2026-06-11`, got existing `2026-06-17`).
