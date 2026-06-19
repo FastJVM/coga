@@ -762,6 +762,86 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
     assert ["git", "checkout", "main"] in commands
 
 
+def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    relay_os = _repo(tmp_path, monkeypatch)
+    config_path = relay_os / "relay.toml"
+    config_path.write_text(config_path.read_text() + '\n[git]\nremote = "upstream"\n')
+    cfg = load_config(relay_os)
+    summary = SkillUpdateSummary(
+        results=[
+            SkillResult(
+                name="tools/example",
+                source_type="url",
+                status="updated",
+                message="updated from URL source",
+                changed=True,
+            )
+        ]
+    )
+    commands: list[list[str]] = []
+
+    def runner(args, cwd=None):
+        command = list(args)
+        commands.append(command)
+        if command == ["relay", "validate", "--json"]:
+            return _completed(command, stdout='{"issues":[]}\n')
+        if command == ["git", "diff", "--name-only", "--diff-filter=U"]:
+            return _completed(command)
+        if command == ["git", "branch", "--show-current"]:
+            return _completed(command, stdout="main\n")
+        if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
+            return _completed(command)
+        if command[:3] == ["git", "add", "--"]:
+            return _completed(command)
+        if command[:4] == ["git", "diff", "--cached", "--quiet"]:
+            return _completed(command, returncode=1)
+        if command == ["git", "commit", "-m", "Update Relay-managed skills"]:
+            return _completed(command)
+        if command[:4] == ["gh", "pr", "list", "--head"]:
+            return _completed(command, stdout="")
+        if command == [
+            "git",
+            "push",
+            "--force-with-lease",
+            "-u",
+            "upstream",
+            "relay/skill-update",
+        ]:
+            return _completed(command, stdout="")
+        if command[:4] == ["gh", "pr", "create", "--draft"]:
+            return _completed(
+                command, stdout="https://github.com/FastJVM/relay/pull/143\n"
+            )
+        if command == ["git", "checkout", "main"]:
+            return _completed(command)
+        raise AssertionError(f"unexpected command: {command}")
+
+    result = run_skill_update_pr_flow(
+        cfg,
+        summary,
+        title="Update Relay-managed skills",
+        verification_commands=["relay validate --json"],
+        runner=runner,
+    )
+
+    assert result.pr_url == "https://github.com/FastJVM/relay/pull/143"
+    # The configured `[git].remote` flows through to the push, not a hardcoded
+    # `origin` — the whole point of the ticket.
+    assert [
+        "git",
+        "push",
+        "--force-with-lease",
+        "-u",
+        "upstream",
+        "relay/skill-update",
+    ] in commands
+    assert not any(
+        command[:1] == ["git"] and "origin" in command for command in commands
+    )
+
+
 def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
