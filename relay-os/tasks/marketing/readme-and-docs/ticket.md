@@ -11,18 +11,27 @@ contexts:
 - relay/principles
 skills: []
 workflow:
-  name: autonomy/assist-only
+  name: code/design-then-implement
   steps:
-  - name: agent-produces
-    skills: []
+  - name: design
+    skills:
+    - code/design
     assignee: agent
-  - name: human-owns-and-finishes
+  - name: review-design
     skills: []
-    assignee: human
-  - name: report-to-relay
-    skills: []
+    assignee: owner
+  - name: implement
+    skills:
+    - code/implement
     assignee: agent
-step: 1 (agent-produces)
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
+step: "1 (design)"
 ---
 
 ## Description
