@@ -130,8 +130,12 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert r.exit_code == 0
     assert "checked DNS resolver logs" in (ref2["path"] / "log.md").read_text()
 
-    # 5. Status shows every task in the repo, including the one that's done.
+    # 5. Status hides done tasks by default; --all includes them.
     r = runner.invoke(app, ["status"])
+    assert r.exit_code == 0
+    assert ref["slug"] not in r.output  # done — hidden by default
+    assert ref2["slug"] in r.output
+    r = runner.invoke(app, ["status", "--all"])
     assert r.exit_code == 0
     assert ref["slug"] in r.output
     assert ref2["slug"] in r.output

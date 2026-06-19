@@ -1033,19 +1033,21 @@ def test_validate_warns_for_large_blackboard(repo: Path) -> None:
     assert "large-blackboard" in result.output
 
 
-def test_status_shows_done_tasks(repo: Path) -> None:
+def test_status_shows_done_tasks_with_all(repo: Path) -> None:
     slug, task_path = _make_task(repo)
     # Mark done directly
     t = Ticket.read(task_path / "ticket.md")
     t.frontmatter["status"] = "done"
     t.write(task_path / "ticket.md")
     runner = CliRunner()
-    result = runner.invoke(app, ["status"])
+    # Done is hidden by default; --all reveals it.
+    assert slug not in runner.invoke(app, ["status"]).output
+    result = runner.invoke(app, ["status", "--all"])
     assert result.exit_code == 0, result.output
     assert slug in result.output
 
 
-def test_status_hide_done_omits_done_tasks_without_deleting(repo: Path) -> None:
+def test_status_hides_done_by_default_without_deleting(repo: Path) -> None:
     cfg = load_config(repo)
     active = create_task(
         cfg=cfg, title="Active", workflow_name="code", contexts=[],
@@ -1059,16 +1061,18 @@ def test_status_hide_done_omits_done_tasks_without_deleting(repo: Path) -> None:
     )
     runner = CliRunner()
 
-    result = runner.invoke(app, ["status", "--hide-done", "--order-by", "slug"])
+    result = runner.invoke(app, ["status", "--order-by", "slug"])
 
     assert result.exit_code == 0, result.output
     assert active["slug"] in result.output
     assert done["slug"] not in result.output
     assert "1 task  ·  1 active" in result.output
+    # Hidden, not deleted — the dir survives and a hint points at --all.
     assert done["path"].is_dir()
+    assert "1 done task hidden — use --all to show" in result.output
 
 
-def test_status_no_done_alias_omits_done_tasks(repo: Path) -> None:
+def test_status_all_includes_done_tasks(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Finished", workflow_name="code", contexts=[],
@@ -1076,10 +1080,10 @@ def test_status_no_done_alias_omits_done_tasks(repo: Path) -> None:
         watchers=[], status="done", slug_override="finished-task",
     )
 
-    result = CliRunner().invoke(app, ["status", "--no-done"])
+    result = CliRunner().invoke(app, ["status", "--all"])
 
     assert result.exit_code == 0, result.output
-    assert "finished-task" not in result.output
+    assert "finished-task" in result.output
 
 
 # --- status --order-by / --reverse / updated column ---------------------------
