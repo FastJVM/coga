@@ -76,6 +76,39 @@ What that closure contains, and why each is there:
 That is the whole kernel. No other user-facing command is in it — everything a
 user or cron calls *to start* a launch is movable.
 
+## The external script / service home
+
+The third home is the least obvious, because its mechanism does not exist yet — it
+is a **design target** (`cli-extension-model/design-external-script-service-mechanism`).
+The concept is fixed even though the runner is not.
+
+An **external script / service** is a *Relay-authored* stateless capability that
+lives outside **both** the kernel and the ticket model. It earns its own home by
+elimination:
+
+- **Not kernel** — `launch` never calls it mid-flight; it is not regress/bootstrap
+  and not a trust hook.
+- **Not a ticket** — it is stateless and parameterized with nothing to review;
+  wrapping it in a task is pure ceremony (a dir, status lifecycle, log, broadcast).
+- **Not merely an external tool** — Relay authored it. It often *wraps* an external
+  tool (the skill installer wraps `gh skill`), but the wrapper is Relay's.
+
+Two flavors, weighted by Relay's local-first stance (principles 3 and 5):
+
+- **External script** — the common case: a small Relay-authored program that runs
+  locally — shells out, mutates files, prints. The skill installer is the exemplar,
+  and the idiomatic packaging is often a thin wrapper on a CLI the operator already
+  has (e.g. a `gh` extension), not a new Python surface.
+- **External service** — rare and gated: an out-of-process or hosted crossing.
+  Relay stays classical and local-first; v1 has at most one hosted crossing (the
+  anonymous telemetry sink — see `relay/architecture`). Prefer a local script unless
+  a requirement genuinely needs a hosted endpoint.
+
+Until the mechanism lands, these capabilities live as built-in commands or
+`mode: script` steps. This context fixes the *home and its boundary*; the
+*mechanism* (how such a script is declared, dispatched, and verified) is left to
+the design ticket — deliberately, so we do not pre-build a worse Typer.
+
 ## Ticket vs. command: statefulness decides
 
 Both can be parameterized, so the parameter is not the discriminator — **state is**.
