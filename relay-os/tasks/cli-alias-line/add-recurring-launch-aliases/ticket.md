@@ -1,13 +1,13 @@
 ---
 title: Add recurring-launch aliases
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: claude
 contexts:
-  - relay/codebase
+- relay/codebase
 skills: []
 workflow:
   name: code/with-review
