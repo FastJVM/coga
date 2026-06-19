@@ -394,7 +394,12 @@ def run_skill_update_pr_flow(
             )
         body = render_update_pr_body(summary)
         summary.pr_url = open_or_update_pr(
-            title, body, branch=branch, runner=runner, cwd=git_cwd
+            title,
+            body,
+            branch=branch,
+            remote=cfg.git_remote,
+            runner=runner,
+            cwd=git_cwd,
         )
     finally:
         # Return the checkout to where the caller left it. A Dream run launches
@@ -605,6 +610,7 @@ def open_or_update_pr(
     body: str,
     *,
     branch: str | None = None,
+    remote: str = "origin",
     runner: Runner | None = None,
     cwd: Path | None = None,
 ) -> str:
@@ -620,7 +626,7 @@ def open_or_update_pr(
         body_file = fh.name
     try:
         pushed = (runner or run_subprocess)(
-            ["git", "push", "--force-with-lease", "-u", "origin", branch],
+            ["git", "push", "--force-with-lease", "-u", remote, branch],
             cwd,
         )
         if pushed.returncode != 0:
