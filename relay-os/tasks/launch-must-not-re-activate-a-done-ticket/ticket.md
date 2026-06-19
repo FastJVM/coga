@@ -1,6 +1,6 @@
 ---
 title: Launch must not re-activate a done ticket
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -29,7 +29,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
