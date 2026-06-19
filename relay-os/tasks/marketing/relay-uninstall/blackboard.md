@@ -4,6 +4,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: relay-uninstall
 worktree: /home/n/Code/codex/relay-uninstall
+pr: https://github.com/FastJVM/relay/pull/407
 
 ## Goal
 
@@ -53,8 +54,18 @@ Done on branch `relay-uninstall`:
   `ensure_host_gitignore`).
 - Registered `uninstall` in `cli.py` (command + `_BUILTIN_COMMANDS`), and made
   `main()` tolerate a broken config for `uninstall` like it does for `init`.
-- `tests/test_uninstall.py` — 8 tests, all pass (CliRunner, mirrors test_init).
+- `tests/test_uninstall.py` — 9 tests, all pass (CliRunner, mirrors test_init).
+- Follow-up fix in this session: `--purge` now uses the same vendored/global
+  CLI-location decision during execution that the printed plan already used, so
+  running the repo's vendored `relay` does not accidentally invoke pipx.
+- Durable docs/context updated in this session: README command reference and
+  packaged `relay/cli` context now document `relay uninstall`.
 - Smoke: `relay uninstall --help` renders; config-leniency note fires.
+- Final feature commit: `8e10f6c` on branch `relay-uninstall`.
+- Final verification in this session:
+  `python3.12 -m pytest tests/test_uninstall.py -q` (9 passed),
+  `PYTHONPATH=src python3.12 -m relay.cli uninstall --help`, and
+  `git diff --check main...HEAD`.
 
 Test note: full suite has 2 pre-existing failures in `test_autoclose_sweep.py`
 (date-dependent — hardcoded 2026-06-11 vs today). Confirmed they fail on the
@@ -69,3 +80,32 @@ Env note: system python is 3.9 (no tomllib); ran tests with `python3.12`.
   writes when missing (never overwrites), so there's no data loss on install —
   but a backup-on-install would let init refresh a stale relay-owned guide
   without clobbering edits. Separate ticket; not touched here.
+
+## Peer Review
+
+Native review: `codex review --base main` from
+`/home/n/Code/codex/relay-uninstall`. The sandboxed attempt failed with the
+known read-only app-server initialization error, then succeeded when rerun
+outside the sandbox.
+
+Must-fix findings applied:
+- `--purge` now branches on `running_cli_location`: pipx installs use
+  `pipx uninstall relay-os`, non-pipx installs use the running interpreter's
+  `python -m pip uninstall -y relay-os`, and vendored installs skip global
+  removal.
+- `relay-os/` removal no longer uses `ignore_errors=True`; uninstall exits loud
+  if the directory cannot be removed or still exists after removal.
+- Direct `relay uninstall` now bypasses alias validation/registration, with a
+  notice for a legacy `[aliases] uninstall = ...`, so the new built-in cannot
+  be blocked by a pre-existing uninstall alias.
+
+Peer-review fix commit: `13ce897` (`peer-review: apply uninstall fixes`).
+
+Verification after peer-review fixes:
+- `python3.12 -m pytest tests/test_uninstall.py -q` → 12 passed.
+- `python3.12 -m pytest -p no:cacheprovider` → 818 passed, 1 skipped, 2 failed
+  in `tests/test_autoclose_sweep.py` from existing autoclose live/packaged
+  blackboard drift (`last_serviced_period: 2026-06-17` vs expected/package
+  state); unrelated to uninstall.
+- `PYTHONPATH=src python3.12 -m relay.cli uninstall --help` renders.
+- `git diff --check main...HEAD` clean.
