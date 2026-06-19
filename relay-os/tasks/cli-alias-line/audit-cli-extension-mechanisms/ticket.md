@@ -1,6 +1,6 @@
 ---
 title: Audit CLI extension mechanisms
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
