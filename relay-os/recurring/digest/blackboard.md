@@ -36,3 +36,4 @@ posted: yes
 
 {"ts":"2026-06-18T14:53","project":"relay","kind":"done","detail":"→ done (script)","ticket":"dream-debug-validate-drift","owner":"nick"}
 {"ts":"2026-06-18T15:13","project":"relay","kind":"done","detail":"→ done (script)","ticket":"dream-debug-cleanup-orphan-markers","owner":"nick"}
+{"ts":"2026-06-19T18:04","project":"relay","kind":"done","detail":"nick finished: review → done ✅","ticket":"first-run-works-without-slack-configured","owner":"nick"}
