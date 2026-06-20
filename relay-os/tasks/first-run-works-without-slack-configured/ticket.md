@@ -1,6 +1,6 @@
 ---
 title: First run works without Slack configured
-status: in_progress
+status: done
 mode: interactive
 owner: nick
 human: nick
@@ -34,7 +34,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 5 (review)
 ---
 
 ## Description
