@@ -1,6 +1,6 @@
 ---
 title: improve prompt for relay launch
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
