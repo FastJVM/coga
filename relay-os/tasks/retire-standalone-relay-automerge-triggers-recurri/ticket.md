@@ -1,11 +1,11 @@
 ---
 title: Retire standalone relay automerge triggers — recurring sweep is sole trigger
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - relay/sync
 - relay/recurring
@@ -27,7 +27,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
