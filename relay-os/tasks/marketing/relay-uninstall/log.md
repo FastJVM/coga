@@ -10,3 +10,4 @@
 2026-06-19 11:17 [git] sync failed: `git add -- relay-os/tasks/marketing/relay-uninstall` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
 2026-06-19 11:17 [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-19 11:18 [agent:claude] advanced to step 4 (review) → assigned to zach — PR opened: https://github.com/FastJVM/relay/pull/407
+2026-06-19 15:13 [human:nick] auto-bumped on merge of PR #407 → done

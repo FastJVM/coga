@@ -32,7 +32,7 @@ step: 1 (implement)
 
 ## Description
 
-**Ticket 2 of 3 in `cli-alias-line/`. Depends on
+**Part of `cli-extension-model/`. Depends on
 `audit-cli-extension-mechanisms` — do that first; it justifies exactly which
 aliases ship here.**
 

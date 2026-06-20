@@ -345,6 +345,7 @@ def test_recurring_create_is_silent(
                 template="weekly",
                 ref=TaskRef(slug=slug, path=path),
                 last_fire=datetime(2026, 6, 9),
+                period_key="2026-W24",
                 created=True,
                 status="active",
             )

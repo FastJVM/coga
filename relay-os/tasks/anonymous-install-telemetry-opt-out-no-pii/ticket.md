@@ -1,11 +1,11 @@
 ---
 title: Anonymous install telemetry (opt-out, no PII)
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts: []
 skills: []
 workflow:
@@ -29,118 +29,126 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (design)
+step: 2 (review-design)
 ---
 
 ## Description
 
-Give us a count of **active installs** so we can tell whether anyone is
-actually running Relay after launch, plus a coarse read on whether an install
-is actually *used* (tickets created/done) vs. installed-and-idle. Strictly no
-PII.
+A **PM signal to gauge product-market fit** after launch: how many real
+installs exist, whether they're actually used (any tickets in the repo), and
+whether they're still active (recent run). Strictly no PII.
 
-Shape: a single anonymized **opt-out** ping sent to a GCP serverless endpoint
-that we own and operate.
+Shape: a single anonymized **opt-out** ping, sent once a day by a **recurring
+task** to a tiny **GCP relay** that forwards it to our internal Slack.
 
-- **On by default** (opt-out), with a loud first-run disclosure and a one-line
-  disable (config flag **and** env var). The exact payload and the disable
-  instructions are documented, and a `relay telemetry` command prints the exact
-  payload that would be sent so a human or agent can read it before trusting it.
-- Sends **only** the fields enumerated in Proposed Shape below. Nothing that
-  identifies a user, repo, path, cwd, hostname, git remote, ticket content,
-  slug, or title.
-- Fires **at most once per day per install** — enough to estimate "active," not
-  a background reporter. Never blocks or slows a `relay` command (fire-and-forget
-  in a detached process).
-- **Fail silent-for-the-user but never wrong:** a telemetry failure must not
-  break or slow any `relay` command, and must not be swallowed in a way that
-  hides a real bug — it is logged to a machine-local telemetry log, never
-  crashes the command.
+- **Mechanism: a recurring task, not a CLI hook.** A daily `mode: script`
+  recurring task (`relay-os/recurring/telemetry/`) builds the payload and sends
+  it — modeled on the existing `digest` recurring task. The recurring system +
+  `period_state` give "once per day" and idempotency for free; nothing hooks
+  `main()`, nothing runs on every command.
+- **Destination: GCP relay → internal Slack (no datastore).** The client POSTs
+  the three fields to a small GCP function; the function drops the client IP and
+  posts a one-line message to our internal Slack channel. At ~100 users the
+  channel *is* the dataset (eyeball / count distinct instance IDs) — no
+  BigQuery, no dashboard. The Slack webhook stays server-side in GCP, never in
+  the shipped client.
+- **On by default** (opt-out), with disclosure and a one-line disable (config
+  flag **and** env var). The payload + disable are documented, and `relay
+  telemetry show` prints the exact payload without sending it.
+- Sends **only** the three fields documented below. Nothing that identifies a
+  user, repo, path, cwd, hostname, git remote, ticket content, slug, or title.
+- **Fail silent-for-the-user but never wrong:** the ping runs inside the
+  recurring task, so it never touches a foreground `relay` command; a failure is
+  recorded in the recurring task's own `log.md`/blackboard (never swallowed) and
+  never crashes anything.
 
 ### What is sent (the complete wire payload)
 
-This exact list is the documented payload — there is nothing else on the wire:
+This is a **PM signal to gauge product-market fit**: how many real installs
+exist, whether they're used, and whether they're still active. That needs
+exactly three fields — this is the complete payload, nothing else on the wire:
 
 ```json
 {
-  "schema_version": 1,
-  "event": "ping",
-  "install_id": "<uuid4, generated once, stored in machine-local state>",
-  "relay_version": "0.2.0",
-  "os": "linux",
-  "arch": "arm64",
-  "python_version": "3.11",
-  "ci": false,
+  "instance_id": "<uuid4, generated once, stored in machine-local state>",
   "tickets_total": 12,
-  "tickets_done": 5,
-  "tickets_active_30d": 3
+  "last_run": "2026-06-19"
 }
 ```
 
-- `install_id` — random UUIDv4, generated once and stored in machine-local
-  state (not in the repo). The only join key; not derived from anything.
-- `relay_version` — `importlib.metadata.version("relay-os")`.
-- `os` — coarse platform (`linux` / `darwin` / `windows`) from `platform.system()`.
-- `arch` — `arm64` / `x86_64` etc. from `platform.machine()`.
-- `python_version` — major.minor only (e.g. `3.11`).
-- `ci` — bool, true when standard CI env vars are present (`CI`, etc.).
-- `tickets_total` / `tickets_done` / `tickets_active_30d` — **exact integer
-  counts** derived only from counting `ticket.md` files and reading their
-  `status` frontmatter + last-activity timestamp. No slugs, titles, or content.
-  `tickets_active_30d` = tickets whose `log.md` last activity is within 30 days.
+- `instance_id` — random UUIDv4, generated once and stored in machine-local
+  state (not in the repo). The only join key; lets us count distinct installs.
+  Not derived from anything — no machine, user, or repo identity.
+- `tickets_total` — exact integer count of tickets in the repo, derived only by
+  counting `ticket.md` files. No status, slugs, titles, or content. Answers
+  "is this install actually used?"
+- `last_run` — the date (`YYYY-MM-DD`, UTC) of the most recent `relay` run.
+  Coarse day granularity, no finer timestamp. Answers "is this install still
+  active?"
 
-Counts are exact (not bucketed): the beacon is consented opt-out telemetry, and
-bucketing adds code for little gain (owner decision — see blackboard).
+No version, OS, arch, Python, CI, or per-status/recency ticket breakdown — all
+explicitly cut in review as more than the PMF question needs (owner decision —
+see blackboard). Carrying `last_run` in the payload means the endpoint can store
+exactly these three fields and needs no server-side timestamps to derive
+activity.
 
-### Endpoint (GCP serverless, owned by us)
+### Endpoint (GCP relay → internal Slack)
 
-- A small Cloud Run / Cloud Function (gen2) service that accepts `POST` of the
-  JSON above and returns `204`. The client ignores the body.
-- **Drops the client IP at the edge** — the service must not log or persist the
-  source IP, and derives no geo. (Owner decision: strongest no-PII story; we
-  accept losing any geo signal.)
-- Persists one row per accepted ping: the payload fields plus a server-side
-  `received_date` at **day** granularity (no finer timestamp, no IP). The sink
-  (e.g. BigQuery) dedups by `(install_id, received_date)` so an occasional
-  double-send is harmless.
+- A small Cloud Function (gen2) that accepts `POST` of the JSON above and returns
+  `204`. The client ignores the body.
+- **Drops the client IP at the edge** — the function reads no IP header, and a
+  Cloud Logging exclusion filter keeps `remoteIp` out of the request logs.
+  (Owner decision: strongest no-PII story.)
+- **Forwards each ping to internal Slack** — posts a one-line message
+  (`ping: instance=… tickets=… last_run=…`) to a channel via an incoming webhook
+  held server-side as a GCP secret. No BigQuery, no other storage; the Slack
+  channel is the record. A double-send is just a harmless duplicate line.
 - Endpoint URL is a constant in the client, overridable via env
-  (`RELAY_TELEMETRY_URL`) so it can be pointed at a test sink.
+  (`RELAY_TELEMETRY_URL`) so it can be pointed at a test relay.
 
 ## Acceptance Criteria
 
-- [ ] A `relay` invocation sends **at most one** ping per UTC day per install,
-      gated by a machine-local timestamp file; subsequent same-day invocations
-      send nothing.
-- [ ] The ping is **fire-and-forget**: it runs in a detached process and the
-      foreground `relay` command returns without waiting on the network. A slow
-      or unreachable endpoint adds no measurable latency to any command.
-- [ ] The wire payload contains **exactly** the fields listed above and nothing
-      else. A test asserts the serialized payload key set.
+- [ ] A daily `mode: script` recurring task (`relay-os/recurring/telemetry/`)
+      builds and sends the ping; `period_state` ensures one send per scheduled
+      period. No telemetry code runs in the `relay` foreground dispatch path.
+- [ ] The wire payload contains **exactly** `instance_id`, `tickets_total`,
+      `last_run` and nothing else. A test asserts the serialized payload key set.
 - [ ] No field is derived from repo path, cwd, hostname, username, git remote,
       ticket slug/title, or ticket body. A test asserts none of these leak.
 - [ ] Telemetry is **on by default**. Setting `[telemetry] enabled = false` in
       `relay.toml`/`relay.local.toml`, OR `RELAY_TELEMETRY=0`, OR the standard
-      `DO_NOT_TRACK=1`, disables it. Env overrides config; either disable path
-      results in zero network calls.
-- [ ] On the **first run** of an install (no `install_id` yet), a loud,
-      one-time disclosure is printed to stderr: that telemetry is on, exactly
-      what is sent, and how to disable it. Subsequent runs are silent.
-- [ ] `relay telemetry` prints current status (enabled/disabled + why), the
-      `install_id`, the endpoint URL, and the **exact payload** that would be
+      `DO_NOT_TRACK=1`, makes the recurring send a no-op. Env overrides config;
+      either disable path results in zero network calls.
+- [ ] Disclosure: `relay init`/onboarding output and the docs state plainly that
+      telemetry is on, exactly what is sent, and how to disable it.
+- [ ] `relay telemetry show` prints current status (enabled/disabled + why), the
+      `instance_id`, the endpoint URL, and the **exact payload** that would be
       sent — without sending it.
-- [ ] A telemetry failure (network error, non-2xx, exception) never raises into
-      the command, never prints a scary error to the user, and is recorded in a
-      machine-local telemetry log so a real bug is not silently swallowed.
-- [ ] `install_id` persists across repos and across commands (stored in
-      machine-local state, generated once).
+- [ ] A send failure (network error, non-2xx, exception) is recorded in the
+      recurring task's `log.md`/blackboard and never crashes the run — but is not
+      silently swallowed.
+- [ ] `instance_id` persists across repos and runs (stored in machine-local
+      state, generated once).
 - [ ] Tests do not emit real pings (the test suite stubs the sender / forces
       telemetry off), mirroring the existing `_stub_slack` autouse pattern.
 - [ ] Docs (README / a telemetry doc + the relevant `relay/` context) state the
       exact payload, the default-on behavior, and every disable mechanism.
+- [ ] The GCP function accepts the 3-field POST, ignores any extra key, posts a
+      one-line message to internal Slack, and returns `204` even on malformed
+      input (logging the error server-side).
+- [ ] The function never persists the client IP — it reads no IP header and a
+      Cloud Logging exclusion filter on its request logs is part of `deploy.sh`.
+- [ ] `deploy.sh` is idempotent, parameterized by `PROJECT_ID`/`REGION` + the
+      Slack webhook secret, and prints the function URL to pin into the client.
 
 ## Proposed Shape
 
-New module **`src/relay/telemetry.py`** holding the client. Order of work:
+Two deliverables, both built and committed in this ticket: the **Relay client**
+(recurring task + sender in `src/relay/`) and the **GCP relay**
+(`telemetry-endpoint/`). The only step left to the owner is running the deploy
+with real cloud credentials and pinning the resulting URL into the client.
+
+### Part A — Relay client (recurring task + sender)
 
 1. **Config flag** — in `src/relay/config.py`, add `telemetry_enabled: bool =
    True` to the `Config` dataclass (lines ~115–150) and a
@@ -149,73 +157,110 @@ New module **`src/relay/telemetry.py`** holding the client. Order of work:
    (line ~222). Reads `[telemetry] enabled`, default `True`, local overrides
    shared.
 
-2. **Machine-local state** — add a `machine_state_dir()` helper (in `paths.py`
-   or `telemetry.py`) returning `$XDG_STATE_HOME/relay` (default
-   `~/.local/state/relay`). Files:
-   - `install_id` — UUIDv4, created on first read if absent (atomic write via
-     `atomicio`).
-   - `telemetry-last-ping` — stores the last-ping UTC date string.
-   - `telemetry.log` — append-only failure log.
+2. **Machine-local instance id** — add a `machine_state_dir()` helper (in
+   `paths.py` or `telemetry.py`) returning `$XDG_STATE_HOME/relay` (default
+   `~/.local/state/relay`) and an `instance_id` file: a UUIDv4 created on first
+   read if absent (atomic write via `atomicio`), persisting across repos. No
+   throttle/last-ping file — the recurring period owns cadence.
 
-3. **Payload builder** — `build_payload(cfg) -> dict` in `telemetry.py`:
-   - version via `importlib.metadata.version("relay-os")`;
-   - `os`/`arch`/`python_version` via `platform`;
-   - `ci` from env;
-   - counts via `tasks.list_tasks(cfg)` + `ticket.Ticket.read().status` +
-     `logfile.last_activity()` for the 30-day window.
+3. **`src/relay/telemetry.py`** —
+   - `build_payload(cfg) -> dict` returning exactly `{instance_id,
+     tickets_total, last_run}`: `instance_id` from the id file; `tickets_total`
+     = `len(tasks.list_tasks(cfg))` (count of `ticket.md` files — no status, no
+     content); `last_run` = today's UTC date `YYYY-MM-DD`.
+   - `telemetry_disabled(cfg) -> bool`: true if `DO_NOT_TRACK` truthy, or
+     `RELAY_TELEMETRY` falsy, else `not cfg.telemetry_enabled`. Env beats config.
+   - `send(cfg)`: no-op if disabled; else `requests.post(TELEMETRY_URL,
+     json=build_payload(cfg), timeout=…)` (mirroring `notification/slack.py`
+     ~94–121). Returns a result the caller logs; never invoked from foreground
+     dispatch.
+   - `TELEMETRY_URL` constant, overridable via `RELAY_TELEMETRY_URL`, set to the
+     URL printed by Part B's deploy.
 
-4. **Disable resolution** — `telemetry_disabled(cfg) -> bool`: true if
-   `DO_NOT_TRACK` truthy, or `RELAY_TELEMETRY` falsy, else `not
-   cfg.telemetry_enabled`. Env beats config.
+4. **`relay telemetry` command** — new `src/relay/commands/telemetry.py`,
+   registered in `cli.py`, with two subcommands:
+   - `show` — read-only: prints status (enabled/disabled + deciding source),
+     `instance_id`, endpoint URL, and `json.dumps(build_payload(cfg), indent=2)`.
+     Sends nothing.
+   - `send` — calls `telemetry.send(cfg)`; this is what the recurring task runs.
 
-5. **Throttle + first-run disclosure** — `maybe_ping(cfg)` called once at the
-   top of `main()` in `cli.py` (~line 210, before dispatch):
-   - if disabled → return;
-   - ensure `install_id` exists; if it was just created, print the loud
-     first-run disclosure to stderr;
-   - read `telemetry-last-ping`; if it equals today's UTC date → return;
-   - atomically write today's date to `telemetry-last-ping` (optimistic gate),
-     then spawn the detached sender. Wrapped in a broad `try/except` that logs
-     to `telemetry.log` and never raises.
+5. **Recurring task** `relay-os/recurring/telemetry/` — mirror
+   `relay-os/recurring/digest/`: `ticket.md` with a daily `schedule` (cron),
+   `mode: script`, and `workflow: telemetry/send` whose single step references a
+   new skill `relay/telemetry/send` whose `script:` runs `relay telemetry send`.
+   Add the workflow file (`workflows/telemetry/send.md`) and the skill
+   (`skills/relay/telemetry/send/SKILL.md`). `period_state` provides
+   once-per-period + idempotency; failures land in the task's own
+   `log.md`/blackboard, exactly like `digest`.
 
-6. **Detached sender** — hidden CLI subcommand `relay _telemetry-send` that
-   reads the JSON payload from stdin and `requests.post(url, json=..., timeout)`
-   (mirroring `notification/slack.py` lines ~94–121). `maybe_ping` spawns it
-   with `subprocess.Popen(..., start_new_session=True)`, stdio to devnull, and
-   does **not** wait. The subcommand logs failures to `telemetry.log`; it is
-   hidden from `--help` and excluded from alias/builtin handling.
+6. **Disclosure + docs/contexts** — state plainly in `relay init`/onboarding
+   output and the README/telemetry doc that telemetry is on, exactly what is
+   sent, and how to disable it. Update the relevant `relay-os/contexts/relay/`
+   context (principles/architecture) to record the phone-home and its
+   mitigations. Keep the live `relay-os/` copy and the packaged
+   `src/relay/resources/templates/relay-os/` copy in sync — the recurring task,
+   workflow, and skill ship in the template too.
 
-7. **`relay telemetry` command** — new command in `src/relay/commands/` that
-   prints status (enabled/disabled + the deciding source), `install_id`,
-   endpoint URL, and `json.dumps(build_payload(cfg), indent=2)` — read-only,
-   sends nothing.
+7. **Tests** — `tests/test_telemetry.py`: config default/override, env disable
+   precedence (`RELAY_TELEMETRY`, `DO_NOT_TRACK`), exact payload key set, no-PII
+   assertion, `tickets_total` correctness against a seeded repo, `last_run` date
+   format, and `send` is a no-op when disabled. Stub the sender (extend the
+   `_stub_slack`-style autouse fixture) so no test emits a real ping.
 
-8. **Tests** — `tests/test_telemetry.py`: config default/override, env disable
-   precedence (`RELAY_TELEMETRY`, `DO_NOT_TRACK`), exact payload key set,
-   no-PII assertion, once-per-day gating, first-run disclosure fires once,
-   counts correctness against a seeded repo. Add an autouse fixture (or extend
-   conftest) so no test emits a real ping.
+### Part B — GCP relay (`telemetry-endpoint/`, new top-level dir)
 
-9. **Docs/contexts** — document the payload + disable in README and a telemetry
-   doc; update the relevant `relay-os/contexts/relay/` context (principles /
-   architecture) to record that Relay phones home by default and how that
-   respects the legibility mitigations. Keep the live `relay-os/` copy and the
-   packaged `src/relay/resources/templates/relay-os/` copy in sync.
+A tiny, inspectable function we own. Everything except the credentialed deploy
+run is delivered in this ticket.
+
+8. **Function** — `telemetry-endpoint/main.py`: one HTTP handler (Cloud
+   Functions gen2). On `POST /`:
+   - Parse JSON and **accept only** `instance_id` (str, uuid4 shape),
+     `tickets_total` (int ≥ 0), `last_run` (`YYYY-MM-DD`). Any other key is
+     ignored — never forwarded (belt-and-suspenders on the no-PII line).
+   - Post a one-line message to internal Slack
+     (`ping: instance=… tickets=… last_run=…`) via an incoming webhook read from
+     a server-side secret/env var. Return `204` (empty body). On malformed input
+     or a Slack error, still return `204` but log server-side.
+   - **Never reads `X-Forwarded-For` / client IP** and persists nothing else.
+   - `requirements.txt`: `functions-framework` + `requests`.
+
+9. **IP drop at the edge** — Cloud Functions request access logs include
+   `httpRequest.remoteIp` by default. Add a **Cloud Logging exclusion filter**
+   on the function's request logs (in `deploy.sh`) so `remoteIp` is never
+   persisted, and confirm the handler reads no IP header. The load-bearing
+   no-PII control — documented as such in the endpoint README.
+
+10. **Deploy** — `telemetry-endpoint/deploy.sh`: idempotent `gcloud` commands —
+    deploy the function `--allow-unauthenticated` (random installs POST without
+    creds) with the Slack webhook wired as a secret/env var, apply the
+    log-exclusion filter, and print the function URL (which becomes the client's
+    `TELEMETRY_URL`). Parameterized by `PROJECT_ID` / `REGION` / webhook secret.
+
+11. **Endpoint README** — `telemetry-endpoint/README.md`: what the function does,
+    the 3-field contract, the IP-drop control, the Slack relay, how to deploy,
+    and the abuse/cost posture (the function is the only holder of the webhook;
+    optional Cloud Armor rate-limit noted, not required for v1).
 
 ## Out of Scope
 
-- **Provisioning the GCP project/IAM and deploying the service.** This ticket
-  builds the client against a configurable endpoint URL and specifies the
-  endpoint contract; standing up the actual Cloud Run service, its IP-drop
-  config, and the BigQuery sink is owner-driven infra (needs cloud access) —
-  see Open Questions.
-- **The analytics/dashboard side** — defining and computing "active installs"
-  (distinct `install_id` in last N days) from the stored rows.
+- **The credentialed deploy run itself.** The function code, deploy script, and
+  IP-drop config are all delivered here; the owner runs `deploy.sh` against a
+  real GCP project (needs cloud credentials, a chosen `PROJECT_ID`, and the
+  internal Slack webhook) and pins the printed URL into the client. See Open
+  Questions.
+- **A datastore / dashboard.** At ~100 users the internal Slack channel is the
+  record — counting distinct `instance_id`s / recent `last_run`s is done by
+  eye/search. BigQuery and any "active installs" dashboard are deferred.
+- **Installs that never run the `relay recurring` sweep.** Telemetry rides the
+  recurring system, so an install that never services its recurring tasks sends
+  nothing — an accepted coverage limitation (see Open Questions).
 - **PyPI/GitHub download cross-check** — a cheap no-infra complement, tracked
   as a separate idea (Open Questions), not built here.
 - **Per-event/usage telemetry beyond the single daily ping** (no command-name
   tracking, no timing, no error reporting).
-- **Bucketing the counts** — explicitly decided against (exact ints).
+- **Extra payload fields** — version, OS, arch, Python, CI, and per-status /
+  recency ticket breakdowns were all considered and **cut in review**; the
+  payload is the three fields above and nothing more.
 
 ## Context
 

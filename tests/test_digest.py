@@ -193,46 +193,6 @@ def test_notify_rejects_lifecycle_kinds(repo: Path) -> None:
         )
 
 
-def test_notify_skips_debug_task_neither_spools_nor_posts(
-    repo: Path, captured_posts: list[dict]
-) -> None:
-    """A `recurring --all` debug task's events never reach the spool or Slack.
-
-    Debug runs are disposable scratch; their state changes are recorded in the
-    task's own log.md, not broadcast. With the digest installed, a debug-slug
-    event must leave the spool empty and post nothing.
-    """
-    bb = _install_digest(repo)
-    cfg = load_config()
-    notification.notify(
-        cfg,
-        "🎉 debug done",
-        kind="done",
-        detail="claude finished → done ✅",
-        ticket="weekly-summary-dbg-20260606T204523",
-        owner="nick",
-    )
-    assert captured_posts == []
-    assert spool.read_records(bb) == []
-
-
-def test_notify_skips_debug_task_even_without_digest(
-    repo: Path, captured_posts: list[dict]
-) -> None:
-    """The debug skip also suppresses the live-post fallback when no digest is
-    installed — otherwise a debug outcome would post straight to Slack."""
-    cfg = load_config()
-    notification.notify(
-        cfg,
-        "🎉 debug done",
-        kind="done",
-        detail="→ done",
-        ticket="dream-cleanup-orphan-markers-child-of-dream-dbg-20",
-        owner="nick",
-    )
-    assert captured_posts == []
-
-
 def test_post_always_posts_even_with_digest_installed(
     repo: Path, captured_posts: list[dict]
 ) -> None:

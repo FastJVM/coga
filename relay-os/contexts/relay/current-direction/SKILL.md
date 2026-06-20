@@ -25,11 +25,13 @@ Last updated: 2026-06-13.
   human-parked. A missing task dir plus `last_serviced_period >= current
   period_key` means this period already ran.
 
-- **Debug `--all` runs remain top-level scratch for now.** They keep the
-  `<name>-dbg-<timestamp>` shape, are outside the `recurring/` directory, and stay
-  excluded from recurring dedup/resume. The earlier plan to remove the debug
-  machinery is not part of the task-directory cut; do not conflate real recurring
-  task identity with debug scratch cleanup.
+- **`relay recurring --all` is a forced real run, not a debug sandbox.** The
+  old `<name>-dbg-<timestamp>` scratch machinery (slug-based Slack/git
+  suppression, orphan reaping, fold-back-to-template-log) is gone. `--all` now
+  get-or-creates and launches each template's real `recurring/<name>` task,
+  bypassing only the schedule and the status filter — every other effect (Slack,
+  spool drain, git sync, `last_serviced_period` advance) is identical to a bare
+  sweep.
 
 ## Open rename (workflow → playbook)
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import subprocess
@@ -19,23 +20,25 @@ from relay.commands.launch import _interactive_stdio_has_tty
 from relay.config import Config, ConfigError, load_config
 from relay.logfile import append_log
 from relay.recurring import (
+    DueTask,
     DueScan,
     RecurringError,
+    Template,
     TemplateStatus,
-    is_debug_slug,
     list_templates,
     merge_last_serviced_period_text,
     read_last_serviced_period,
     recurring_dir,
     create_named,
-    scan_debug,
     scan_due,
+    set_last_serviced_period_text,
+    write_last_serviced_period,
 )
-from relay.mark import mark_paused
-from relay.paths import tasks_dir
+from relay.period_state import SNAPSHOT_FILE, parse_keys
+from relay.mark import mark_active, mark_paused
 from relay.notification import notify
 from relay.tasks import TaskRef, list_tasks, read_ticket
-from relay.ticket import TicketError
+from relay.ticket import Ticket, TicketError
 from relay.validate import TaskValidationError
 
 # Default idle-timeout backstop (seconds) the sweep arms on the interactive
@@ -67,12 +70,13 @@ def main(
     all_: bool = typer.Option(
         False,
         "--all",
-        help="Debug: ignore the schedule and status filter — create a fresh "
-        "throwaway run of EVERY template and launch them all, regardless of "
-        "whether this period already ran. Real period tasks are left "
-        "untouched; each throwaway run's outcome is appended to its template's "
-        "log.md and the scratch dir is removed when it finishes, so nothing "
-        "lingers in `relay status`.",
+        help="Force a real, full run of EVERY template: bypass the schedule "
+        "and the already-serviced/done/paused status filter, then get-or-create "
+        "and launch each template's real `recurring/<name>` task. Identical to a "
+        "bare `relay recurring` (real Slack, spool drain, git sync, "
+        "`last_serviced_period` advance) — just forced. A template that already "
+        "ran this period is re-launched (relay launch re-activates a finished "
+        "ticket).",
     ),
 ) -> None:
     """Scan every recurring template and launch any due tasks, sequentially.
@@ -89,10 +93,12 @@ def main(
     template produces one run, not a backlog. It does not install or manage
     system cron; nothing runs unless you invoke it.
 
-    `--all` is the debug escape hatch: it creates a fresh, isolated
-    throwaway run of every template and launches them all, bypassing both the
-    schedule and the "already ran this period" skip. Use it to exercise the
-    launch path without waiting for a schedule or disturbing real period state.
+    `--all` forces a real, full run: the only difference from the bare sweep is
+    that it ignores the schedule and the status filter, so every template is
+    launched — including ones already serviced this period (re-launched) and
+    `done`/`paused` ones (`relay launch` re-activates them). Everything else —
+    Slack, the digest spool, git task-state sync, the `last_serviced_period`
+    high-water advance — is identical to a normal run.
 
     `relay recurring launch <name>` force-runs one named template now.
     """
@@ -105,21 +111,24 @@ def main(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
 
-    # Take over on relaunch: clear any debug scratch a crashed prior sweep left
-    # behind before doing anything else. Runs for both the bare sweep and `--all`.
-    _reap_debug_orphans(cfg)
+    scan = scan_due(
+        cfg, allow_interactive=_interactive_stdio_has_tty(), force=all_
+    )
+    _broadcast_scan(
+        cfg,
+        scan,
+        respect_handled_period=not all_,
+        sync_existing=all_,
+    )
+    _print_table(scan, force=all_)
 
-    if all_:
-        _launch_all_debug(cfg)
-        return
-
-    scan = scan_due(cfg, allow_interactive=_interactive_stdio_has_tty())
-    _broadcast_scan(cfg, scan)
-    _print_table(scan)
-
-    due = scan.due
+    # `--all` force-launches every materialized task regardless of status;
+    # the bare sweep launches only the launchable (active/in_progress) ones.
+    due = scan.forced if all_ else scan.due
     if not due:
-        typer.echo("No recurring tasks due.")
+        typer.echo(
+            "No recurring templates to launch." if all_ else "No recurring tasks due."
+        )
         return
 
     mode_override = "interactive" if interactive else None
@@ -128,13 +137,16 @@ def main(
     # agent can't block the tasks behind it.
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
     max_session = None if interactive else _recurring_max_session(cfg)
-    typer.echo(f"\nLaunching {len(due)} due task(s) sequentially...\n")
+    label = "task(s)" if all_ else "due task(s)"
+    typer.echo(f"\nLaunching {len(due)} {label} sequentially...\n")
     from relay.commands.launch import launch as launch_cmd
 
     for i, task in enumerate(due, 1):
         typer.secho(
             f"[{i}/{len(due)}] {task.ref.id_slug}", fg=typer.colors.CYAN, bold=True
         )
+        if all_:
+            _prepare_forced_launch(cfg, task)
         # Sequential by design: each launch blocks until the agent session
         # exits before the next begins. `scan_due` filters out templates that
         # cannot run in the current stdio context (interactive with no TTY), and
@@ -153,173 +165,6 @@ def main(
         )
         _stop_if_unfinished_after_launch(
             cfg, task.ref, interactive=interactive, timed_out=(kind == "timeout")
-        )
-
-
-def _launch_all_debug(cfg) -> None:
-    """Create and launch a fresh throwaway run of every template (`--all`).
-
-    Debug-only. The runs are disposable scratch, not real recurring work: they
-    never broadcast to Slack or commit task state (`git.sync_task_state`
-    suppresses the `-dbg-<digit>` slug, so nothing they do reaches git history),
-    and the sweep never bails on an unfinished run (the human is driving).
-    `_finalize_debug_run` rmtrees each run as it completes; `_reap_debug_orphans`
-    (run at sweep start) clears any dir a crashed earlier sweep left behind.
-    Script templates run as scripts; everything else launches interactively so
-    there is a live console to watch.
-    """
-    scan = scan_debug(cfg, allow_interactive=_interactive_stdio_has_tty())
-    _print_table(scan)
-    for name, msg in scan.errors:
-        typer.secho(f"  skipped {name}: {msg}", fg=typer.colors.YELLOW, err=True)
-
-    runs = scan.tasks
-    if not runs:
-        typer.echo("No recurring templates to launch.")
-        return
-
-    for task in runs:
-        typer.echo(f"Created {task.ref.id_slug} (debug)")
-
-    typer.echo(f"\nLaunching {len(runs)} debug run(s) sequentially...\n")
-    from relay.commands.launch import launch as launch_cmd
-
-    # Arm the supervisor liveness backstops so one stuck interactive REPL can't
-    # block the rest of the debug sweep.
-    idle_timeout = _recurring_idle_timeout(cfg)
-    max_session = _recurring_max_session(cfg)
-
-    for i, task in enumerate(runs, 1):
-        typer.secho(
-            f"[{i}/{len(runs)}] {task.ref.id_slug}", fg=typer.colors.CYAN, bold=True
-        )
-        ticket = read_ticket(task.ref)
-        # Force interactive so there's a live console — except script tickets,
-        # which compose no agent prompt and reject a mode override.
-        mode_override = None if ticket.mode == "script" else "interactive"
-        launch_cmd(
-            task.ref.slug,
-            agent_override=None,
-            prompt_report=False,
-            no_verify=False,
-            mode_override=mode_override,
-            idle_timeout=idle_timeout,
-            max_session=max_session,
-            return_timeout=True,
-        )
-        # A debug run has no persistent identity: record its outcome on the
-        # template's own log.md (never composed into any prompt — see
-        # compose_prompt, which only loads blackboard.md), then remove the
-        # throwaway scratch dir so it never pollutes `relay status`.
-        _finalize_debug_run(cfg, task)
-
-
-def _read_debug_outcome(scratch) -> tuple[str, bool]:
-    """Best-effort `(status, panicked)` for a debug run's scratch dir.
-
-    Reads the ticket status and scans the blackboard for a `relay panic`
-    marker, swallowing any error — the dir may be half-written or already
-    gone. `relay panic` leaves the ticket `in_progress` and writes the marker
-    to the blackboard, so the two signals together distinguish a panic from a
-    plain unfinished run. Shared by `_finalize_debug_run` (clean completion)
-    and `_reap_debug_orphans` (crashed-sweep cleanup) so both fold the same
-    outcome vocabulary into the template log.
-    """
-    try:
-        status = read_ticket(TaskRef(slug=scratch.name, path=scratch)).status
-    except Exception:  # dir already gone / unreadable — nothing to fold back
-        status = "unknown"
-    panicked = False
-    bb = scratch / "blackboard.md"
-    if bb.is_file():
-        try:
-            panicked = "PANIC" in bb.read_text()
-        except OSError:
-            pass
-    return status, panicked
-
-
-def _finalize_debug_run(cfg: Config, task) -> None:
-    """Fold a `--all` debug run back into the template log and delete its dir.
-
-    Read the post-run ticket status (and a panic line, if any) *before*
-    removing the scratch dir, append a one-line outcome to the recurring
-    template's `log.md`, then `rmtree` the disposable task directory. The
-    template log is an audit trail only — it is never part of prompt
-    composition, so it can grow without bloating any agent's context.
-    """
-    scratch = task.ref.path
-    status, panicked = _read_debug_outcome(scratch)
-
-    if status == "done":
-        outcome = "completed → done"
-    elif panicked:
-        outcome = "panicked (ended in_progress) — see prior session logs"
-    else:
-        outcome = f"ended {status!r} without `relay mark done`"
-
-    template_dir = recurring_dir(cfg) / task.template
-    if template_dir.is_dir():
-        append_log(template_dir, "system", f"debug run {task.ref.slug}: {outcome}")
-
-    shutil.rmtree(scratch, ignore_errors=True)
-    typer.secho(
-        f"  {task.ref.id_slug}: {outcome} — scratch dir removed, "
-        f"logged to recurring/{task.template}/log.md",
-        fg=typer.colors.BRIGHT_BLACK,
-    )
-
-
-def _reap_debug_orphans(cfg: Config) -> None:
-    """Remove `*-dbg-*` scratch dirs a crashed prior `--all` sweep left behind.
-
-    A `relay recurring --all` debug run is disposable scratch (see
-    `create_debug_run`); `_finalize_debug_run` rmtrees it when the run
-    completes. If the sweep dies mid-run (laptop sleep, SSH drop) that cleanup
-    never fires and the scratch dir is orphaned. Because debug runs never commit
-    task state (`git.sync_task_state` suppresses the `-dbg-<digit>` slug), the
-    orphan lives only in the working tree — there is nothing to uncommit, so
-    reaping is a log-then-`rmtree`.
-
-    Run at the start of every `relay recurring` (bare or `--all`): the sweep is a
-    foreground command with no concurrent peer, so a `-dbg-<digit>` dir present
-    when it starts cannot belong to a live run — it is always a dead sweep's
-    litter. This is the "relay takes over and cleans up on relaunch" guarantee,
-    the debug-run analogue of resuming an orphaned `in_progress` period task.
-
-    Before deleting each orphan, fold its outcome into the originating
-    template's `log.md` — which period it was and how it ended — so a crashed
-    sweep's run is recorded, not silently erased. This mirrors the audit trail
-    `_finalize_debug_run` writes on a clean completion; the template is the
-    slug up to its `-dbg-<stamp>` infix.
-    """
-    tasks_root = tasks_dir(cfg)
-    if not tasks_root.is_dir():
-        return
-    reaped: list[str] = []
-    # Top-level scan only: debug runs are always created as direct
-    # children of `tasks/` (see `create_debug_run`), never inside a
-    # sub-directory.
-    for entry in sorted(tasks_root.iterdir()):
-        if entry.is_dir() and is_debug_slug(entry.name):
-            status, panicked = _read_debug_outcome(entry)
-            ended = "panicked" if panicked else f"ended {status!r}"
-            template = entry.name.rsplit("-dbg-", 1)[0]
-            template_dir = recurring_dir(cfg) / template
-            if template_dir.is_dir():
-                append_log(
-                    template_dir,
-                    "system",
-                    f"orphaned debug run {entry.name} reaped: {ended} "
-                    "(prior sweep died before cleanup)",
-                )
-            shutil.rmtree(entry, ignore_errors=True)
-            reaped.append(entry.name)
-    if reaped:
-        typer.secho(
-            f"Reaped {len(reaped)} orphaned debug run(s) from a prior sweep: "
-            f"{', '.join(reaped)}",
-            fg=typer.colors.BRIGHT_BLACK,
         )
 
 
@@ -511,6 +356,12 @@ def _sync_recurring_create(
     ref: TaskRef,
     *,
     respect_handled_period: bool = True,
+    respect_existing_task: bool = True,
+    restore_existing_control_task: bool = False,
+    overwrite_dirty_control_task: bool = False,
+    force_period_key: str | None = None,
+    force_snapshot_is_fresh: bool = False,
+    force_record_period: bool = False,
 ) -> bool:
     """Sync the period task and high-water line that make deletion idempotent."""
     template_dir = recurring_dir(cfg) / template_name
@@ -526,12 +377,20 @@ def _sync_recurring_create(
     template_log = template_dir / "log.md"
     template_blackboard = template_dir / "blackboard.md"
     original_log = template_log.read_text() if template_log.is_file() else ""
-    local_log = _without_debug_log_entries(original_log)
+    local_log = original_log
     original_blackboard = (
         template_blackboard.read_text() if template_blackboard.is_file() else ""
     )
     local_blackboard = original_blackboard
     period_key = read_last_serviced_period(template_blackboard)
+    state_keys: list[str] = []
+    if force_period_key is not None:
+        try:
+            template = Template.load(template_dir)
+        except RecurringError:
+            template = None
+        if template is not None:
+            state_keys = list(template.frontmatter.get("state_keys") or [])
     restore_log = original_log
     restore_blackboard = original_blackboard
     created_on_control = True
@@ -553,6 +412,13 @@ def _sync_recurring_create(
             period_key=period_key,
             message=message,
             respect_handled_period=respect_handled_period,
+            respect_existing_task=respect_existing_task,
+            restore_existing_control_task=restore_existing_control_task,
+            overwrite_dirty_control_task=overwrite_dirty_control_task,
+            force_period_key=force_period_key,
+            force_snapshot_is_fresh=force_snapshot_is_fresh,
+            force_record_period=force_record_period,
+            state_keys=state_keys,
         )
     finally:
         template_log.write_text(restore_log)
@@ -574,6 +440,13 @@ def _sync_recurring_create_paths(
     period_key: str | None,
     message: str,
     respect_handled_period: bool,
+    respect_existing_task: bool,
+    restore_existing_control_task: bool,
+    overwrite_dirty_control_task: bool,
+    force_period_key: str | None,
+    force_snapshot_is_fresh: bool,
+    force_record_period: bool,
+    state_keys: list[str],
 ) -> tuple[str, str, bool]:
     """Sync create paths while merging recurring log/history state."""
     if not cfg.git_enabled:
@@ -601,6 +474,38 @@ def _sync_recurring_create_paths(
             return original_log, original_blackboard, True
         base = _rev_parse(root, "FETCH_HEAD")
         task_rel = _relative_to_root(root, anchor_path)
+        restored_control_task = False
+        restored_snapshot: str | None = None
+        if restore_existing_control_task:
+            restored_control_task, restored_snapshot = _restore_control_task_if_present(
+                root,
+                base,
+                task_rel,
+                preserve_local_changes=not overwrite_dirty_control_task,
+            )
+            if restored_control_task and force_period_key is not None:
+                local_log, local_blackboard, period_key = (
+                    _reconcile_forced_period_after_control_restore(
+                        root,
+                        base,
+                        task_rel=task_rel,
+                        log_rel=log_rel,
+                        blackboard_rel=blackboard_rel,
+                        template_log=template_log,
+                        template_blackboard=template_blackboard,
+                        task_id_slug=_task_id_slug_from_rel(task_rel),
+                        force_period_key=force_period_key,
+                        snapshot_text_is_fresh=force_snapshot_is_fresh,
+                        snapshot_text=restored_snapshot,
+                        snapshot_blackboard_text=local_blackboard,
+                        record_period=force_record_period,
+                        state_keys=state_keys,
+                    )
+                )
+                original_log = local_log
+                original_blackboard = local_blackboard
+                if not force_record_period:
+                    return local_log, local_blackboard, False
         if _control_already_has_period(
             root,
             base,
@@ -608,12 +513,13 @@ def _sync_recurring_create_paths(
             task_rel,
             period_key=period_key,
             include_ledger=respect_handled_period,
+            include_task=respect_existing_task,
         ):
             if branch == cfg.git_control_branch:
                 _restore_selected_paths_from_ref(root, "HEAD", rels)
                 _rebase_checked_out_branch_onto(root, base)
                 return (
-                    _control_log_with_local_debug(root, "HEAD", log_rel, original_log),
+                    _control_log(root, "HEAD", log_rel),
                     _control_blackboard_with_local_period(
                         root, "HEAD", blackboard_rel, original_blackboard
                     ),
@@ -623,14 +529,14 @@ def _sync_recurring_create_paths(
             if branch != "HEAD":
                 git._commit_paths(root, rels, message)
                 return (
-                    _control_log_with_local_debug(root, "HEAD", log_rel, original_log),
+                    _control_log(root, "HEAD", log_rel),
                     _control_blackboard_with_local_period(
                         root, "HEAD", blackboard_rel, original_blackboard
                     ),
                     False,
                 )
             return (
-                _control_log_with_local_debug(root, base, log_rel, original_log),
+                _control_log(root, base, log_rel),
                 _control_blackboard_with_local_period(
                     root, base, blackboard_rel, original_blackboard
                 ),
@@ -658,6 +564,13 @@ def _sync_recurring_create_paths(
                 period_key=period_key,
                 message=message,
                 respect_handled_period=respect_handled_period,
+                respect_existing_task=respect_existing_task,
+                restore_existing_control_task=restore_existing_control_task,
+                overwrite_dirty_control_task=overwrite_dirty_control_task,
+                force_period_key=force_period_key,
+                force_snapshot_is_fresh=force_snapshot_is_fresh,
+                force_record_period=force_record_period,
+                state_keys=state_keys,
             )
 
         committed_log = template_log.read_text()
@@ -686,20 +599,27 @@ def _sync_recurring_create_paths(
             period_key=period_key,
             message=message,
             respect_handled_period=respect_handled_period,
+            respect_existing_task=respect_existing_task,
+            restore_existing_control_task=restore_existing_control_task,
+            overwrite_dirty_control_task=overwrite_dirty_control_task,
+            force_period_key=force_period_key,
+            force_snapshot_is_fresh=force_snapshot_is_fresh,
+            force_record_period=force_record_period,
+            state_keys=state_keys,
         )
         if already_handled:
             _restore_selected_paths_from_ref(root, landed, rels)
             if branch != "HEAD":
                 git._commit_paths(root, rels, message)
                 return (
-                    _control_log_with_local_debug(root, "HEAD", log_rel, original_log),
+                    _control_log(root, "HEAD", log_rel),
                     _control_blackboard_with_local_period(
                         root, "HEAD", blackboard_rel, original_blackboard
                     ),
                     False,
                 )
             return (
-                _control_log_with_local_debug(root, landed, log_rel, original_log),
+                _control_log(root, landed, log_rel),
                 _control_blackboard_with_local_period(
                     root, landed, blackboard_rel, original_blackboard
                 ),
@@ -716,26 +636,10 @@ def _sync_recurring_create_paths(
         return original_log, original_blackboard, True
 
 
-def _without_debug_log_entries(text: str) -> str:
-    """Return log text without local-only `relay recurring --all` debug lines."""
-    return "".join(
-        line for line in text.splitlines(keepends=True) if not is_debug_slug(line)
-    )
-
-
-def _debug_log_entries(text: str) -> str:
-    """Return only local-only `relay recurring --all` debug lines."""
-    return "".join(
-        line for line in text.splitlines(keepends=True) if is_debug_slug(line)
-    )
-
-
-def _control_log_with_local_debug(
-    root: Path, ref: str, log_rel: str, original_log: str
-) -> str:
-    return _merge_log_entries(
-        _show_path(root, ref, log_rel), _debug_log_entries(original_log)
-    )
+def _control_log(root: Path, ref: str, log_rel: str) -> str:
+    """The recurring template `log.md` as committed on `ref` (control branch),
+    normalized through the append-only merge."""
+    return _merge_log_entries(_show_path(root, ref, log_rel))
 
 
 def _control_blackboard_with_local_period(
@@ -785,6 +689,13 @@ def _land_recurring_create_on_control_branch(
     period_key: str | None,
     message: str,
     respect_handled_period: bool,
+    respect_existing_task: bool,
+    restore_existing_control_task: bool,
+    overwrite_dirty_control_task: bool,
+    force_period_key: str | None,
+    force_snapshot_is_fresh: bool,
+    force_record_period: bool,
+    state_keys: list[str],
 ) -> tuple[str, bool]:
     remote = cfg.git_remote
     branch = cfg.git_control_branch
@@ -792,6 +703,34 @@ def _land_recurring_create_on_control_branch(
     for _ in range(git._MAX_SYNC_ATTEMPTS):
         _fetch_control_branch(cfg, root)
         base = _rev_parse(root, "FETCH_HEAD")
+        restored_control_task = False
+        restored_snapshot: str | None = None
+        if restore_existing_control_task:
+            restored_control_task, restored_snapshot = _restore_control_task_if_present(
+                root,
+                base,
+                task_rel,
+                preserve_local_changes=not overwrite_dirty_control_task,
+            )
+            if restored_control_task and force_period_key is not None:
+                local_log, local_blackboard, period_key = (
+                    _reconcile_forced_period_after_control_restore(
+                        root,
+                        base,
+                        task_rel=task_rel,
+                        log_rel=log_rel,
+                        blackboard_rel=blackboard_rel,
+                        template_log=template_log,
+                        template_blackboard=template_blackboard,
+                        task_id_slug=_task_id_slug_from_rel(task_rel),
+                        force_period_key=force_period_key,
+                        snapshot_text_is_fresh=force_snapshot_is_fresh,
+                        snapshot_text=restored_snapshot,
+                        snapshot_blackboard_text=local_blackboard,
+                        record_period=force_record_period,
+                        state_keys=state_keys,
+                    )
+                )
         if _control_already_has_period(
             root,
             base,
@@ -799,6 +738,7 @@ def _land_recurring_create_on_control_branch(
             task_rel,
             period_key=period_key,
             include_ledger=respect_handled_period,
+            include_task=respect_existing_task,
         ):
             return base, True
         _write_merged_log_for_ref(root, template_log, log_rel, base, local_log)
@@ -844,6 +784,13 @@ def _sync_recurring_create_on_checked_out_control_branch(
     period_key: str | None,
     message: str,
     respect_handled_period: bool,
+    respect_existing_task: bool,
+    restore_existing_control_task: bool,
+    overwrite_dirty_control_task: bool,
+    force_period_key: str | None,
+    force_snapshot_is_fresh: bool,
+    force_record_period: bool,
+    state_keys: list[str],
 ) -> tuple[str, str, bool]:
     landed, already_handled = _land_recurring_create_on_control_branch(
         cfg,
@@ -860,13 +807,20 @@ def _sync_recurring_create_on_checked_out_control_branch(
         period_key=period_key,
         message=message,
         respect_handled_period=respect_handled_period,
+        respect_existing_task=respect_existing_task,
+        restore_existing_control_task=restore_existing_control_task,
+        overwrite_dirty_control_task=overwrite_dirty_control_task,
+        force_period_key=force_period_key,
+        force_snapshot_is_fresh=force_snapshot_is_fresh,
+        force_record_period=force_record_period,
+        state_keys=state_keys,
     )
     if already_handled:
         _restore_selected_paths_from_ref(root, "HEAD", rels)
         _rebase_checked_out_branch_onto(root, landed)
         git._push_control_branch(cfg, root)
         return (
-            _control_log_with_local_debug(root, "HEAD", log_rel, original_log),
+            _control_log(root, "HEAD", log_rel),
             _control_blackboard_with_local_period(
                 root, "HEAD", blackboard_rel, original_blackboard
             ),
@@ -901,8 +855,9 @@ def _control_already_has_period(
     *,
     period_key: str | None,
     include_ledger: bool = True,
+    include_task: bool = True,
 ) -> bool:
-    if _ref_has_path(root, ref, task_rel):
+    if include_task and _ref_has_path(root, ref, task_rel):
         return True
     if not include_ledger or period_key is None:
         return False
@@ -923,6 +878,133 @@ def _restore_selected_paths_from_ref(root: Path, ref: str, rels: list[str]) -> N
             shutil.rmtree(path)
         elif path.exists():
             path.unlink()
+
+
+def _restore_control_task_if_present(
+    root: Path, ref: str, task_rel: str, *, preserve_local_changes: bool
+) -> tuple[bool, str | None]:
+    if not _ref_has_path(root, ref, task_rel):
+        return False, None
+    if preserve_local_changes and _path_has_local_changes(root, task_rel):
+        return False, None
+    snapshot = root / task_rel / ".state-snapshot.json"
+    snapshot_text = snapshot.read_text() if snapshot.is_file() else None
+    _restore_selected_paths_from_ref(root, ref, [task_rel])
+    return True, snapshot_text
+
+
+def _path_has_local_changes(root: Path, rel: str) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain", "--", rel],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    lines = [line for line in result.stdout.splitlines() if line.strip()]
+    return any(not _is_generated_snapshot_status(line, rel) for line in lines)
+
+
+def _is_generated_snapshot_status(line: str, rel: str) -> bool:
+    snapshot_rel = f"{Path(rel).as_posix().rstrip('/')}/.state-snapshot.json"
+    path = line[3:].strip()
+    if " -> " in path:
+        path = path.rsplit(" -> ", 1)[1]
+    return path == snapshot_rel
+
+
+def _reconcile_forced_period_after_control_restore(
+    root: Path,
+    ref: str,
+    *,
+    task_rel: str,
+    log_rel: str,
+    blackboard_rel: str,
+    template_log: Path,
+    template_blackboard: Path,
+    task_id_slug: str,
+    force_period_key: str,
+    snapshot_text_is_fresh: bool,
+    snapshot_text: str | None,
+    snapshot_blackboard_text: str,
+    record_period: bool,
+    state_keys: list[str],
+) -> tuple[str, str, str | None]:
+    """Recompute forced-run bookkeeping after local task state is current."""
+    control_log = _show_path(root, ref, log_rel)
+    control_blackboard = _show_path(root, ref, blackboard_rel)
+    if not record_period:
+        template_log.write_text(control_log)
+        template_blackboard.write_text(
+            _local_blackboard_with_control_period(
+                snapshot_blackboard_text, control_blackboard
+            )
+        )
+        return (
+            control_log,
+            template_blackboard.read_text() if template_blackboard.is_file() else "",
+            read_last_serviced_period(template_blackboard),
+        )
+
+    template_log.write_text(control_log)
+    template_blackboard.write_text(control_blackboard)
+    current = read_last_serviced_period(template_blackboard)
+    if current is None or current < force_period_key:
+        write_last_serviced_period(template_blackboard, force_period_key)
+        _append_forced_reused_log(template_log, task_id_slug, force_period_key)
+
+    snapshot = root / task_rel / SNAPSHOT_FILE
+    if snapshot_text is not None and snapshot_text_is_fresh:
+        snapshot.write_text(snapshot_text)
+    elif state_keys:
+        _write_snapshot_from_text(
+            root / task_rel,
+            Path(task_id_slug).name,
+            snapshot_blackboard_text,
+            state_keys,
+        )
+
+    return (
+        template_log.read_text() if template_log.is_file() else "",
+        template_blackboard.read_text() if template_blackboard.is_file() else "",
+        read_last_serviced_period(template_blackboard),
+    )
+
+
+def _append_forced_reused_log(
+    template_log: Path, task_id_slug: str, period_key: str
+) -> None:
+    existing = template_log.read_text() if template_log.is_file() else ""
+    needle = f"reused {task_id_slug} for {period_key}"
+    if needle in existing:
+        return
+    sep = "" if not existing or existing.endswith("\n") else "\n"
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    template_log.write_text(f"{existing}{sep}{stamp} [system] {needle}\n")
+
+
+def _local_blackboard_with_control_period(
+    local_blackboard: str, control_blackboard: str
+) -> str:
+    period = _last_serviced_period_from_text(control_blackboard)
+    if period is None:
+        return local_blackboard
+    return set_last_serviced_period_text(local_blackboard, period)
+
+
+def _write_snapshot_from_text(
+    task_dir: Path, parent: str, blackboard_text: str, state_keys: list[str]
+) -> None:
+    keys = parse_keys(blackboard_text, list(state_keys))
+    payload = {"parent": parent, "keys": keys}
+    (task_dir / SNAPSHOT_FILE).write_text(json.dumps(payload, indent=2) + "\n")
+
+
+def _task_id_slug_from_rel(rel: str) -> str:
+    parts = Path(rel).parts
+    if "tasks" not in parts:
+        return Path(rel).name
+    i = len(parts) - 1 - list(reversed(parts)).index("tasks")
+    return "/".join(parts[i + 1 :])
 
 
 def _ref_has_path(root: Path, ref: str, rel: str) -> bool:
@@ -965,7 +1047,7 @@ def _write_merged_log_for_ref(
 ) -> None:
     control_log = _show_path(root, ref, log_rel)
     template_log.write_text(
-        _merge_log_entries(_without_debug_log_entries(control_log), local_log)
+        _merge_log_entries(control_log, local_log)
     )
 
 
@@ -986,6 +1068,10 @@ def _read_control_last_serviced_period(
     root: Path, ref: str, blackboard_rel: str
 ) -> str | None:
     text = _show_path(root, ref, blackboard_rel)
+    return _last_serviced_period_from_text(text)
+
+
+def _last_serviced_period_from_text(text: str) -> str | None:
     if not text:
         return None
     tmp = merge_last_serviced_period_text("", text)
@@ -1200,12 +1286,127 @@ def _recurring_max_session(cfg) -> float | None:
     return cfg.launch_max_session
 
 
-def _broadcast_scan(cfg, scan: DueScan) -> None:
-    """Post Slack lines for newly created tasks and skipped templates."""
+def _prepare_forced_launch(cfg: Config, task: DueTask) -> None:
+    """Record a forced rerun only once the sweep reaches this task.
+
+    `relay recurring --all` includes existing `done`/`paused` period tasks.
+    Those tasks must not advance the parent high-water during scan: a prior
+    task might stop the sequential sweep first. Once we reach the task, flip it
+    back to `active`, then record the forced period and sync the real task.
+    If the later launch preflight fails, the task is at least live for a future
+    normal sweep instead of being silently skipped as already serviced.
+    """
+    if task.ref is None:
+        return
+
+    if not (task.ref.path / "ticket.md").is_file():
+        outcome = create_named(cfg, task.template)
+        task.ref = outcome.ref
+        task.created = outcome.created
+
+    if not task.created:
+        _sync_recurring_create(
+            cfg,
+            task.template,
+            task.ref,
+            respect_handled_period=False,
+            respect_existing_task=False,
+            restore_existing_control_task=True,
+            overwrite_dirty_control_task=False,
+            force_period_key=task.period_key,
+            force_snapshot_is_fresh=False,
+            force_record_period=False,
+        )
+
+    ticket = read_ticket(task.ref)
+    task.status = ticket.status
+    if not task.created and ticket.status in {"active", "in_progress"}:
+        return
+
+    if ticket.status not in {"active", "in_progress"}:
+        prior = ticket.status
+        mark_active(
+            cfg,
+            task.ref,
+            ticket,
+            actor=f"human:{cfg.current_user}",
+            log_message=f"activated ({prior} → active) for forced recurring run",
+            echo=f"{task.ref.id_slug}: active (forced recurring run)",
+        )
+        task.status = "active"
+    _record_forced_period_locally(cfg, task)
+    _sync_recurring_create(
+        cfg,
+        task.template,
+        task.ref,
+        respect_handled_period=False,
+        respect_existing_task=False,
+        restore_existing_control_task=False,
+        overwrite_dirty_control_task=False,
+    )
+
+
+def _record_forced_period_locally(cfg: Config, task: DueTask) -> None:
+    if task.ref is None or not task.period_key:
+        return
+
+    template_dir = recurring_dir(cfg) / task.template
+    template = Template.load(template_dir)
+    blackboard_text = (
+        template.blackboard_path.read_text()
+        if template.blackboard_path.is_file()
+        else ""
+    )
+    state_keys = list(template.frontmatter.get("state_keys") or [])
+    if state_keys:
+        _write_snapshot_from_text(
+            task.ref.path,
+            template.name,
+            blackboard_text,
+            state_keys,
+        )
+
+    current = read_last_serviced_period(template.blackboard_path)
+    if current is not None and current >= task.period_key:
+        return
+    write_last_serviced_period(template.blackboard_path, task.period_key)
+    _append_forced_reused_log(template.log_path, task.ref.id_slug, task.period_key)
+
+
+def _broadcast_scan(
+    cfg,
+    scan: DueScan,
+    *,
+    respect_handled_period: bool = True,
+    sync_existing: bool = False,
+) -> None:
+    """Post Slack lines for newly created tasks and skipped templates.
+
+    In `--all` mode, also refresh existing task status from the control branch
+    before the launch list is sorted. A stale local `done` copy may be an
+    `in_progress` orphan on control, and resume-first ordering depends on the
+    current status. The actual restore/sync still happens when the launch loop
+    reaches that task, so an unreached task is not mutated during the scan.
+    """
     for task in list(scan.tasks):
         if not task.created:
+            if sync_existing:
+                _refresh_forced_status_from_control(cfg, task)
             continue
-        created_on_control = _sync_recurring_create(cfg, task.template, task.ref)
+        if task.ref is None:
+            continue
+        created_on_control = _sync_recurring_create(
+            cfg,
+            task.template,
+            task.ref,
+            respect_handled_period=respect_handled_period,
+            respect_existing_task=not sync_existing,
+            restore_existing_control_task=sync_existing,
+            overwrite_dirty_control_task=sync_existing and task.created,
+            force_period_key=task.period_key if sync_existing else None,
+            force_snapshot_is_fresh=False,
+            force_record_period=False,
+        )
         if not (task.ref.path / "ticket.md").is_file():
             scan.tasks.remove(task)
             typer.secho(
@@ -1216,7 +1417,9 @@ def _broadcast_scan(cfg, scan: DueScan) -> None:
             continue
         ticket = read_ticket(task.ref)
         task.status = ticket.status
-        if created_on_control:
+        if sync_existing and not created_on_control:
+            task.created = False
+        if task.created and created_on_control:
             typer.echo(f"Created {task.ref.id_slug}")
 
     if scan.errors:
@@ -1228,11 +1431,37 @@ def _broadcast_scan(cfg, scan: DueScan) -> None:
             cfg,
             f"⚠️ recurring scan skipped {n} template{plural}\n{bullets}",
             kind="recurring-error",
-            detail=f"⚠️ recurring scan skipped {n} template{plural}: {inline}",
+                detail=f"⚠️ recurring scan skipped {n} template{plural}: {inline}",
         )
 
 
-def _print_table(scan: DueScan) -> None:
+def _refresh_forced_status_from_control(cfg: Config, task: DueTask) -> None:
+    """Best-effort read-only status refresh for `--all` launch ordering."""
+    if task.ref is None or not cfg.git_enabled:
+        return
+    root = _git_toplevel(task.ref.path)
+    if root is None:
+        return
+    task_rel = _relative_to_root(root, task.ref.path)
+    if _path_has_local_changes(root, task_rel):
+        return
+    try:
+        _fetch_control_branch(cfg, root)
+        base = _rev_parse(root, "FETCH_HEAD")
+    except git.GitError as exc:
+        sys.stderr.write(f"[git] forced status refresh skipped: {exc}\n")
+        return
+    text = _show_path(root, base, f"{task_rel}/ticket.md")
+    if not text:
+        return
+    try:
+        ticket = Ticket.parse(text)
+    except TicketError:
+        return
+    task.status = ticket.status
+
+
+def _print_table(scan: DueScan, *, force: bool = False) -> None:
     """Print a one-line-per-template scan summary."""
     if not scan.tasks and not scan.errors:
         return
@@ -1251,7 +1480,7 @@ def _print_table(scan: DueScan) -> None:
             # An orphaned `in_progress` period task from a dead sweep — relaunch
             # resumes its current step rather than starting a fresh run.
             action = typer.style("→ resume", fg=typer.colors.YELLOW)
-        elif task.launchable:
+        elif task.launchable or force:
             action = typer.style("→ launch", fg=typer.colors.GREEN)
         else:
             action = typer.style(

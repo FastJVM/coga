@@ -80,12 +80,6 @@ def _sync_done_state(
         git.sync_task_state(cfg, ref.path, message=message)
         return
 
-    from relay.recurring import is_debug_slug
-
-    if is_debug_slug(ref.slug):
-        git.sync_task_state(cfg, ref.path, message=message)
-        return
-
     paths = [ref.path]
     parent_blackboard = recurring_dir(cfg) / snapshot.parent / "blackboard.md"
     if parent_blackboard.parent.is_dir():
@@ -106,8 +100,7 @@ def _warn_if_state_not_advanced(
     the creator snapshots their values into the period task. If a declared
     key still equals that snapshot when the run finishes, the run did the work
     but never recorded its high-water mark — the next firing will redo the same
-    range. Warn locally and broadcast an FYI (suppressed for throwaway `-dbg-`
-    runs, which never reach Slack).
+    range. Warn locally and broadcast an FYI.
 
     No-op for any task without a snapshot — i.e. every non-recurring task. This
     is advisory only: it runs after the transition has already committed, and a
@@ -127,10 +120,6 @@ def _warn_if_state_not_advanced(
         f"finishing (or record an explicit skip)."
     )
 
-    from relay.recurring import is_debug_slug
-
-    if is_debug_slug(ref.slug):
-        return
     try:
         post(
             cfg,

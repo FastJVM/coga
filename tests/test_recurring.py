@@ -9,15 +9,14 @@ from types import SimpleNamespace
 import pytest
 from typer.testing import CliRunner
 
+from relay import git as relay_git
 from relay.commands import recurring as recurring_cmd
 from relay.cli import app
 from relay.config import load_config
 from relay.paths import tasks_dir
 from relay.recurring import (
-    is_debug_slug,
     read_last_serviced_period,
     create_named,
-    scan_debug,
     scan_due,
 )
 from relay.tasks import list_tasks
@@ -112,6 +111,16 @@ def _seed_period_task_context(company: Path) -> None:
 def _allow_interactive_recurring(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "relay.commands.recurring._interactive_stdio_has_tty", lambda: True
+    )
+
+
+def _finish_period_task(relay_os: Path, slug: str) -> None:
+    ticket_path = relay_os / "tasks" / slug / "ticket.md"
+    ticket = Ticket.read(ticket_path)
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ticket_path)
+    relay_git.sync_task_state(
+        load_config(relay_os), ticket_path.parent, message=f"Ticket: {slug} — done"
     )
 
 
@@ -275,6 +284,8 @@ def test_create_preserves_non_description_template_sections(repo: Path) -> None:
         mode: script
         assignee: claude
         owner: marc
+        state_keys:
+        - cursor
         ---
 
         ## Description
@@ -512,47 +523,6 @@ def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
     # Resumed digest orphan first; Dream still last.
     assert order[0] == "digest"
     assert order[-1] == "dream"
-
-
-def test_is_debug_slug() -> None:
-    """Debug runs (and their children) match; ordinary names don't."""
-    # `recurring --all` throwaway run and a child task embedding its slug.
-    assert is_debug_slug("weekly-summary-dbg-20260606T204523")
-    assert is_debug_slug("dream-cleanup-orphan-markers-child-of-dream-dbg-20")
-    # A digit must follow `-dbg-`, so an ordinary hyphenated name is spared.
-    assert not is_debug_slug("fix-dbg-output")
-    assert not is_debug_slug("add-retry-to-webhook")
-    assert not is_debug_slug("weekly-summary-2026-W17")
-
-
-def test_reap_debug_orphans_removes_only_debug_dirs(repo: Path) -> None:
-    """`_reap_debug_orphans` clears `*-dbg-*` scratch a crashed sweep left behind,
-    sparing real tasks and `_template` — the "take over on relaunch" guarantee."""
-    from relay.commands.recurring import _reap_debug_orphans
-
-    cfg = load_config(repo)
-    tasks_root = tasks_dir(cfg)
-    tasks_root.mkdir(parents=True, exist_ok=True)
-
-    def _mk(slug: str) -> Path:
-        d = tasks_root / slug
-        d.mkdir(parents=True)
-        (d / "ticket.md").write_text("---\ntitle: x\n---\n\nbody\n")
-        return d
-
-    orphan = _mk("digest-dbg-20260607T084314")
-    other_orphan = _mk("weekly-summary-dbg-20260606T222205")
-    child_orphan = _mk("dream-cleanup-child-of-dream-dbg-20260607T084314")
-    real = _mk("add-retry-to-webhook")
-    template = _mk("_template")
-
-    _reap_debug_orphans(cfg)
-
-    assert not orphan.exists()
-    assert not other_orphan.exists()
-    assert not child_orphan.exists()
-    assert real.exists()  # real tasks untouched
-    assert template.exists()  # `_template` is spared
 
 
 def test_scan_due_recognizes_blackboard_high_water(repo: Path) -> None:
@@ -942,7 +912,7 @@ def test_recurring_launch_syncs_period_task_and_high_water(
         Run the weekly check.
         """,
     )
-    _write(relay_os / "recurring" / "weekly-check" / "blackboard.md", "state\n")
+    _write(relay_os / "recurring" / "weekly-check" / "blackboard.md", "cursor: old\n")
     _write(relay_os / "recurring" / "weekly-check" / "log.md", "")
     git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
@@ -965,55 +935,6 @@ def test_recurring_launch_syncs_period_task_and_high_water(
     assert "last_serviced_period: 2026-W24" in blackboard
     ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
     assert f"created {ref.id_slug}" in ledger
-
-
-def test_recurring_launch_syncs_ledger_without_debug_log_entries(
-    git_repo, monkeypatch
-) -> None:
-    """`--all` debug audit lines stay local when the next real create syncs."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
-    _write_recurring(
-        relay_os,
-        "weekly-check",
-        """
-        ---
-        schedule: "0 9 * * 1"
-        title: "Weekly check"
-        mode: interactive
-        assignee: claude
-        owner: marc
-        ---
-
-        ## Description
-
-        Run the weekly check.
-        """,
-    )
-    _write(relay_os / "recurring" / "weekly-check" / "blackboard.md", "state\n")
-    log = relay_os / "recurring" / "weekly-check" / "log.md"
-    _write(log, "")
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
-    git_repo.git("commit", "-m", "seed recurring template")
-    git_repo.git("push", "origin", "main")
-
-    debug_line = (
-        "2026-06-08 10:00 [system] debug run "
-        "weekly-check-dbg-20260608T100000: completed → done\n"
-    )
-    log.write_text(debug_line)
-
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
-    result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
-
-    assert result.exit_code == 0, result.output
-    cfg = load_config(relay_os)
-    ref = list_tasks(cfg)[0]
-    ledger_rel = "relay-os/recurring/weekly-check/log.md"
-    ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
-    assert f"created {ref.id_slug}" in ledger
-    assert "-dbg-" not in ledger
-    assert debug_line in log.read_text()
 
 
 def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
@@ -1928,12 +1849,13 @@ def test_recurring_launch_and_scan_converge(dream_repo: Path) -> None:
     assert len(list_tasks(cfg)) == 1
 
 
-# --- relay recurring --all (debug) --------------------------------------------
+# --- relay recurring --all (forced full run) ----------------------------------
 
 
-def test_scan_debug_creates_fresh_isolated_run(repo: Path) -> None:
-    """`--all` creates a throwaway run per template, even when the real
-    current-period task already exists and is past `active`."""
+def test_scan_due_force_reruns_already_done_period(repo: Path) -> None:
+    """`--all` (`force=True`) surfaces the real `recurring/<name>` task for
+    launch even after it ran and moved to `done` — no `-dbg-` scratch run, and
+    the real task is reused, not duplicated."""
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)
 
@@ -1947,29 +1869,753 @@ def test_scan_debug_creates_fresh_isolated_run(repo: Path) -> None:
     ticket_path.write_text(t.render())
     assert scan_due(cfg, now=now).due == []  # nothing launchable normally
 
-    debug = scan_debug(cfg, now=now)
-    assert debug.errors == []
-    assert len(debug.tasks) == 1
-    run = debug.tasks[0]
-    # Fresh, isolated slug — never the real period slug.
-    assert run.ref.id_slug != period_slug
-    assert "-dbg-" in run.ref.id_slug
-    assert run.launchable is True  # creates straight to `active`
-    assert Ticket.read(run.ref.path / "ticket.md").title.startswith("[debug]")
+    forced = scan_due(cfg, now=now, force=True)
+    assert forced.errors == []
+    assert len(forced.tasks) == 1
+    run = forced.tasks[0]
+    # The real period task is reused — same slug, no `-dbg-` scratch.
+    assert run.ref.id_slug == period_slug
+    assert "-dbg-" not in run.ref.id_slug
+    # `forced` includes the `done` task (relay launch re-activates it); the
+    # status-filtered `due` list still skips it.
+    assert run.status == "done"
+    assert forced.forced == [run]
+    assert forced.due == []
+    # No second task dir created — the real run is reused, not cloned.
+    assert len(list_tasks(cfg)) == 1
 
-    # Real period task untouched, two task dirs now on disk.
-    assert Ticket.read(ticket_path).status == "done"
-    assert len(list_tasks(cfg)) == 2
+
+def test_scan_due_force_defers_existing_done_period_until_launch(
+    repo: Path,
+) -> None:
+    """Scan only discovers finished tasks; launch records the forced rerun."""
+    _write_recurring(
+        repo,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly deliverability check"
+        mode: interactive
+        assignee: claude
+        owner: marc
+        state_keys:
+        - cursor
+        ---
+
+        ## Description
+
+        Run the full deliverability diagnostic suite.
+        """,
+    )
+    _write(repo / "recurring" / "weekly-check" / "blackboard.md", "cursor: old\n")
+    cfg = load_config(repo)
+
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    ref = first.tasks[0].ref
+    ticket_path = ref.path / "ticket.md"
+    t = Ticket.read(ticket_path)
+    t.frontmatter["status"] = "done"
+    ticket_path.write_text(t.render())
+    _write(repo / "recurring" / "weekly-check" / "blackboard.md", "cursor: new\n")
+
+    forced = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0), force=True)
+
+    assert forced.forced[0].ref == ref
+    assert (
+        read_last_serviced_period(repo / "recurring" / "weekly-check" / "blackboard.md")
+        is None
+    )
+    assert '"cursor": "old"' in (ref.path / ".state-snapshot.json").read_text()
+    log = (repo / "recurring" / "weekly-check" / "log.md").read_text()
+    assert "reused recurring/weekly-check for 2026-W18" not in log
+    assert "created recurring/weekly-check for 2026-W18" not in log
 
 
-def test_scan_debug_does_not_advance_period_high_water(repo: Path) -> None:
-    """A debug run must not advance the template's serviced-period high-water."""
+def test_scan_due_force_does_not_advance_live_prior_period_task(
+    repo: Path,
+) -> None:
+    """A force scan relaunches live work without marking a newer period done."""
+    _write_recurring(
+        repo,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly deliverability check"
+        mode: interactive
+        assignee: claude
+        owner: marc
+        state_keys:
+        - cursor
+        ---
+
+        ## Description
+
+        Run the full deliverability diagnostic suite.
+        """,
+    )
+    _write(repo / "recurring" / "weekly-check" / "blackboard.md", "cursor: old\n")
+    cfg = load_config(repo)
+
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    ref = first.tasks[0].ref
+    (repo / "recurring" / "weekly-check" / "blackboard.md").write_text(
+        "cursor: new\n\nlast_serviced_period: 2026-W17\n"
+    )
+
+    forced = scan_due(cfg, now=datetime(2026, 4, 29, 10, 0, 0), force=True)
+
+    assert forced.forced[0].ref == ref
+    assert forced.forced[0].status == "active"
+    assert read_last_serviced_period(
+        repo / "recurring" / "weekly-check" / "blackboard.md"
+    ) == "2026-W17"
+    log = (repo / "recurring" / "weekly-check" / "log.md").read_text()
+    assert "reused recurring/weekly-check for 2026-W18" not in log
+    assert '"cursor": "old"' in (ref.path / ".state-snapshot.json").read_text()
+
+
+def test_scan_due_force_recreates_serviced_deleted_period(repo: Path) -> None:
+    """`--all` bypasses the `last_serviced_period` high-water: a period that
+    already ran and had its task dir deleted is re-created as a real run."""
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)
-    scan_debug(cfg, now=now)
-    ledger = repo / "recurring" / "weekly-check" / "blackboard.md"
-    if ledger.is_file():
-        assert "-dbg-" not in ledger.read_text()
+
+    # First real run, then delete the task dir (as Dream's retro pass would).
+    first = scan_due(cfg, now=now)
+    shutil.rmtree(first.tasks[0].ref.path)
+
+    # Normal sweep skips it — already serviced and the dir is gone.
+    skipped = scan_due(cfg, now=now)
+    assert skipped.tasks[0].ref is None
+    assert skipped.due == []
+
+    # Force re-creates the real period task instead.
+    forced = scan_due(cfg, now=now, force=True)
+    assert len(forced.forced) == 1
+    run = forced.forced[0]
+    assert run.ref is not None
+    assert "-dbg-" not in run.ref.id_slug
+    assert run.status == "active"
+    log = (repo / "recurring" / "weekly-check" / "log.md").read_text()
+    assert log.count("created recurring/weekly-check for 2026-W17") == 1
+
+
+def test_recurring_all_syncs_forced_recreated_period_on_control_branch(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--all` must not let the control high-water discard a forced recreate."""
+    relay_os = git_repo.relay_os
+    _seed_period_task_context(relay_os)
+    _write_recurring(
+        relay_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        mode: script
+        assignee: claude
+        owner: marc
+        state_keys:
+        - cursor
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _write(relay_os / "recurring" / "weekly-check" / "blackboard.md", "cursor: old\n")
+    _write(relay_os / "recurring" / "weekly-check" / "log.md", "")
+    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    cfg = load_config(relay_os)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    ref = first.tasks[0].ref
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", ref)
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+    git_repo.git("add", f"relay-os/tasks/{ref.id_slug}")
+    git_repo.git("commit", "-m", "complete recurring period")
+    git_repo.git("rm", "-r", f"relay-os/tasks/{ref.id_slug}")
+    git_repo.git("commit", "-m", "delete completed recurring period")
+    git_repo.git("push", "origin", "main")
+
+    launched: list[str] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        path = relay_os / "tasks" / slug / "ticket.md"
+        ticket = Ticket.read(path)
+        ticket.frontmatter["status"] = "done"
+        ticket.write(path)
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
+    monkeypatch.chdir(relay_os)
+
+    result = CliRunner().invoke(app, ["recurring", "--all"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == [ref.id_slug]
+    assert (relay_os / "tasks" / ref.id_slug / "ticket.md").is_file()
+    assert git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
+
+
+def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A forced stale local create must not overwrite a newer control task."""
+    relay_os = git_repo.relay_os
+    _seed_period_task_context(relay_os)
+    _write_recurring(
+        relay_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        mode: script
+        assignee: claude
+        owner: marc
+        state_keys:
+        - cursor
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _write(relay_os / "recurring" / "weekly-check" / "blackboard.md", "cursor: old\n")
+    _write(relay_os / "recurring" / "weekly-check" / "log.md", "")
+    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    stale_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    cfg = load_config(relay_os)
+    remote = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
+    ticket = Ticket.read(remote.ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(remote.ref.path / "ticket.md")
+    (remote.ref.path / "blackboard.md").write_text("remote done state\n")
+    git_repo.git("add", f"relay-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("commit", "-m", "complete recurring period")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("reset", "--hard", stale_head)
+
+    launched: list[str] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        _finish_period_task(relay_os, slug)
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
+    monkeypatch.chdir(relay_os)
+
+    result = CliRunner().invoke(app, ["recurring", "--all"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == [remote.ref.id_slug]
+    assert (remote.ref.path / "blackboard.md").read_text() == "remote done state\n"
+    assert Ticket.read(remote.ref.path / "ticket.md").status == "done"
+    remote_blackboard = git_repo.git(
+        "show",
+        f"main:relay-os/tasks/{remote.ref.id_slug}/blackboard.md",
+        cwd=git_repo.origin,
+    )
+    assert remote_blackboard == "remote done state\n"
+    control_blackboard = git_repo.git(
+        "show",
+        "main:relay-os/recurring/weekly-check/blackboard.md",
+        cwd=git_repo.origin,
+    )
+    assert "last_serviced_period: 2026-W18" in control_blackboard
+
+
+def test_recurring_all_restores_clean_stale_existing_task_from_control(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A clean local task dir may be stale; force mode should use control."""
+    relay_os = git_repo.relay_os
+    _seed_period_task_context(relay_os)
+    _write_recurring(
+        relay_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        mode: script
+        assignee: claude
+        owner: marc
+        state_keys:
+        - cursor
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _write(relay_os / "recurring" / "weekly-check" / "blackboard.md", "cursor: old\n")
+    _write(relay_os / "recurring" / "weekly-check" / "log.md", "")
+    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    cfg = load_config(relay_os)
+    stale = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", stale.ref)
+    stale_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    ticket = Ticket.read(stale.ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(stale.ref.path / "ticket.md")
+    (stale.ref.path / "blackboard.md").write_text("remote newer state\n")
+    git_repo.git("add", f"relay-os/tasks/{stale.ref.id_slug}")
+    git_repo.git("commit", "-m", "complete recurring period remotely")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("reset", "--hard", stale_head)
+    (relay_os / "recurring" / "weekly-check" / "blackboard.md").write_text(
+        "cursor: new\n\nlast_serviced_period: 2026-W17\n"
+    )
+
+    launched: list[str] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        _finish_period_task(relay_os, slug)
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
+    monkeypatch.chdir(relay_os)
+
+    result = CliRunner().invoke(app, ["recurring", "--all"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == [stale.ref.id_slug]
+    assert (stale.ref.path / "blackboard.md").read_text() == "remote newer state\n"
+    assert "status: done" in (stale.ref.path / "ticket.md").read_text()
+    remote_blackboard = git_repo.git(
+        "show",
+        f"main:relay-os/tasks/{stale.ref.id_slug}/blackboard.md",
+        cwd=git_repo.origin,
+    )
+    assert remote_blackboard == "remote newer state\n"
+    control_blackboard = git_repo.git(
+        "show",
+        "main:relay-os/recurring/weekly-check/blackboard.md",
+        cwd=git_repo.origin,
+    )
+    assert "last_serviced_period: 2026-W18" in control_blackboard
+    assert '"cursor": "new"' in (stale.ref.path / ".state-snapshot.json").read_text()
+
+
+def test_recurring_all_preserves_existing_local_task_state_during_force_sync(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Force-syncing an existing local task must not replace unsynced state."""
+    relay_os = git_repo.relay_os
+    _seed_period_task_context(relay_os)
+    _write_recurring(
+        relay_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _write(relay_os / "recurring" / "weekly-check" / "blackboard.md", "state\n")
+    _write(relay_os / "recurring" / "weekly-check" / "log.md", "")
+    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    cfg = load_config(relay_os)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", first.ref)
+    (first.ref.path / "blackboard.md").write_text("local unsynced state\n")
+
+    launched: list[str] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:
+        launched.append(slug)
+        assert (first.ref.path / "blackboard.md").read_text() == (
+            "local unsynced state\n"
+        )
+        ticket = Ticket.read(first.ref.path / "ticket.md")
+        ticket.frontmatter["status"] = "done"
+        ticket.write(first.ref.path / "ticket.md")
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
+    monkeypatch.chdir(relay_os)
+
+    result = CliRunner().invoke(app, ["recurring", "--all"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == [first.ref.id_slug]
+    assert (first.ref.path / "blackboard.md").read_text() == "local unsynced state\n"
+
+
+def test_recurring_all_snapshot_does_not_block_control_restore(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A generated state snapshot is not a local edit worth preserving."""
+    relay_os = git_repo.relay_os
+    _seed_period_task_context(relay_os)
+    _write_recurring(
+        relay_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        mode: script
+        assignee: claude
+        owner: marc
+        state_keys:
+        - cursor
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _write(relay_os / "recurring" / "weekly-check" / "blackboard.md", "cursor: old\n")
+    _write(relay_os / "recurring" / "weekly-check" / "log.md", "")
+    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    cfg = load_config(relay_os)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", first.ref)
+    ticket = Ticket.read(first.ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(first.ref.path / "ticket.md")
+    (first.ref.path / "blackboard.md").write_text("local stale done state\n")
+    git_repo.git("add", f"relay-os/tasks/{first.ref.id_slug}")
+    git_repo.git("commit", "-m", "local done period")
+    git_repo.git("push", "origin", "main")
+    stale_done_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    (first.ref.path / "blackboard.md").write_text("remote newer done state\n")
+    git_repo.git("add", f"relay-os/tasks/{first.ref.id_slug}")
+    git_repo.git("commit", "-m", "remote newer done state")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("reset", "--hard", stale_done_head)
+    (relay_os / "recurring" / "weekly-check" / "blackboard.md").write_text(
+        "cursor: new\n\nlast_serviced_period: 2026-W17\n"
+    )
+
+    launched: list[str] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        _finish_period_task(relay_os, slug)
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
+    monkeypatch.chdir(relay_os)
+
+    result = CliRunner().invoke(app, ["recurring", "--all"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == [first.ref.id_slug]
+    assert (first.ref.path / "blackboard.md").read_text() == "remote newer done state\n"
+    remote_blackboard = git_repo.git(
+        "show",
+        f"main:relay-os/tasks/{first.ref.id_slug}/blackboard.md",
+        cwd=git_repo.origin,
+    )
+    assert remote_blackboard == "remote newer done state\n"
+    assert '"cursor": "new"' in (first.ref.path / ".state-snapshot.json").read_text()
+
+
+def test_recurring_all_does_not_mark_new_period_for_control_live_task(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale checkout must resume control's live task without W18 high-water."""
+    relay_os = git_repo.relay_os
+    _seed_period_task_context(relay_os)
+    _write_recurring(
+        relay_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _write(relay_os / "recurring" / "weekly-check" / "blackboard.md", "state\n")
+    _write(relay_os / "recurring" / "weekly-check" / "log.md", "")
+    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+    stale_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    cfg = load_config(relay_os)
+    remote = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
+    ticket = Ticket.read(remote.ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.write(remote.ref.path / "ticket.md")
+    (remote.ref.path / "blackboard.md").write_text("remote live state\n")
+    git_repo.git("add", f"relay-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("commit", "-m", "remote live period")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("reset", "--hard", stale_head)
+
+    launched: list[str] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:
+        launched.append(slug)
+        assert (remote.ref.path / "blackboard.md").read_text() == "remote live state\n"
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
+    monkeypatch.chdir(relay_os)
+
+    result = CliRunner().invoke(app, ["recurring", "--all"])
+
+    assert result.exit_code == 1, result.output
+    assert launched == [remote.ref.id_slug]
+    control_blackboard = git_repo.git(
+        "show",
+        "main:relay-os/recurring/weekly-check/blackboard.md",
+        cwd=git_repo.origin,
+    )
+    assert "last_serviced_period: 2026-W17" in control_blackboard
+    assert "last_serviced_period: 2026-W18" not in control_blackboard
+
+
+def test_recurring_all_reconciles_existing_tasks_before_launch_order(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A control-branch orphan must resume before stale local fresh work."""
+    relay_os = git_repo.relay_os
+    _seed_period_task_context(relay_os)
+    for name in ("aaa-first", "zzz-live"):
+        _write_recurring(
+            relay_os,
+            name,
+            f"""
+            ---
+            schedule: "0 9 * * 1"
+            title: "{name}"
+            mode: script
+            assignee: claude
+            owner: marc
+            ---
+
+            ## Description
+
+            Run {name}.
+            """,
+        )
+        _write(relay_os / "recurring" / name / "blackboard.md", "state\n")
+        _write(relay_os / "recurring" / name / "log.md", "")
+    git_repo.git("add", "relay-os/contexts", "relay-os/recurring")
+    git_repo.git("commit", "-m", "seed recurring templates")
+    git_repo.git("push", "origin", "main")
+
+    cfg = load_config(relay_os)
+    first_scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    for task in first_scan.tasks:
+        assert task.ref is not None
+        recurring_cmd._sync_recurring_create(cfg, task.template, task.ref)
+    live = next(task for task in first_scan.tasks if task.template == "zzz-live")
+    assert live.ref is not None
+
+    ticket = Ticket.read(live.ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(live.ref.path / "ticket.md")
+    git_repo.git("add", f"relay-os/tasks/{live.ref.id_slug}")
+    git_repo.git("commit", "-m", "local done live task")
+    git_repo.git("push", "origin", "main")
+    stale_done_head = git_repo.git("rev-parse", "HEAD").strip()
+
+    ticket = Ticket.read(live.ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.write(live.ref.path / "ticket.md")
+    (live.ref.path / "blackboard.md").write_text("remote live state\n")
+    git_repo.git("add", f"relay-os/tasks/{live.ref.id_slug}")
+    git_repo.git("commit", "-m", "remote live task")
+    git_repo.git("push", "origin", "main")
+    git_repo.git("reset", "--hard", stale_done_head)
+
+    launched: list[str] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:
+        launched.append(slug)
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
+    monkeypatch.chdir(relay_os)
+
+    result = CliRunner().invoke(app, ["recurring", "--all"])
+
+    assert result.exit_code == 1, result.output
+    assert launched == [live.ref.id_slug]
+    assert (live.ref.path / "blackboard.md").read_text() == "remote live state\n"
+    assert "recurring launch returned with status='in_progress'" in result.output
+
+
+def test_recurring_all_does_not_service_unreached_existing_task(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A forced done task is serviced only once the launch loop reaches it."""
+    _write_recurring(
+        repo,
+        "aaa-first",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "First check"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run first.
+        """,
+    )
+    _write_recurring(
+        repo,
+        "zzz-second",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Second check"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run second.
+        """,
+    )
+    cfg = load_config(repo)
+    second = create_named(cfg, "zzz-second", now=datetime(2026, 4, 22, 10, 0, 0))
+    ticket = Ticket.read(second.ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.frontmatter.pop("step", None)
+    ticket.write(second.ref.path / "ticket.md")
+
+    launched: list[str] = []
+
+    def stop_after_first(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        raise RuntimeError("stop sweep before second template")
+
+    monkeypatch.setattr("relay.commands.launch.launch", stop_after_first)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
+    monkeypatch.chdir(repo)
+
+    result = CliRunner().invoke(app, ["recurring", "--all"])
+
+    assert result.exit_code == 1
+    assert launched == ["recurring/aaa-first"]
+    assert read_last_serviced_period(
+        repo / "recurring" / "zzz-second" / "blackboard.md"
+    ) == "2026-W17"
+    assert Ticket.read(second.ref.path / "ticket.md").status == "done"
+
+
+def test_recurring_all_syncs_forced_existing_period_state(
+    git_repo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A forced relaunch of an existing task still syncs parent period state."""
+    relay_os = git_repo.relay_os
+    _seed_period_task_context(relay_os)
+    _write_recurring(
+        relay_os,
+        "weekly-check",
+        """
+        ---
+        schedule: "0 9 * * 1"
+        title: "Weekly check"
+        mode: script
+        assignee: claude
+        owner: marc
+        ---
+
+        ## Description
+
+        Run the weekly check.
+        """,
+    )
+    _write(relay_os / "recurring" / "weekly-check" / "blackboard.md", "state\n")
+    _write(relay_os / "recurring" / "weekly-check" / "log.md", "")
+    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("commit", "-m", "seed recurring template")
+    git_repo.git("push", "origin", "main")
+
+    cfg = load_config(relay_os)
+    first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
+    ref = first.tasks[0].ref
+    recurring_cmd._sync_recurring_create(cfg, "weekly-check", ref)
+    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket.frontmatter["status"] = "done"
+    ticket.write(ref.path / "ticket.md")
+    git_repo.git("add", f"relay-os/tasks/{ref.id_slug}")
+    git_repo.git("commit", "-m", "complete recurring period")
+    git_repo.git("push", "origin", "main")
+
+    launched: list[str] = []
+
+    def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        launched.append(slug)
+        _finish_period_task(relay_os, slug)
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
+    monkeypatch.chdir(relay_os)
+
+    result = CliRunner().invoke(app, ["recurring", "--all"])
+
+    assert result.exit_code == 0, result.output
+    assert launched == [ref.id_slug]
+    assert "skip (done)" not in result.output
+    assert "→ launch" in result.output
+    control_blackboard = git_repo.git(
+        "show",
+        "main:relay-os/recurring/weekly-check/blackboard.md",
+        cwd=git_repo.origin,
+    )
+    assert "last_serviced_period: 2026-W18" in control_blackboard
 
 
 def test_recurring_all_launches_every_template(
@@ -1986,14 +2632,14 @@ def test_recurring_all_launches_every_template(
 
     assert result.exit_code == 0, result.output
     assert len(launched) == 1
-    dbg_slug = launched[0]
-    assert "-dbg-" in dbg_slug
-    # The throwaway run is folded back into the template log and its scratch
-    # dir removed, so nothing lingers in `relay status`.
-    assert "scratch dir removed" in result.output
-    assert not (repo / "tasks" / dbg_slug).exists()
-    template_log = (repo / "recurring" / "weekly-check" / "log.md").read_text()
-    assert f"debug run {dbg_slug}" in template_log
+    slug = launched[0]
+    # The REAL period task is launched — not a `-dbg-` scratch run, and no
+    # fold-back-to-template-log / scratch-removal step runs.
+    assert slug == "recurring/weekly-check"
+    assert "-dbg-" not in slug
+    assert "scratch dir removed" not in result.output
+    assert (repo / "tasks" / "recurring" / "weekly-check" / "ticket.md").is_file()
+    assert not any("-dbg-" in p.name for p in (repo / "tasks").iterdir())
 
 
 def test_recurring_all_skips_interactive_template_without_tty(
