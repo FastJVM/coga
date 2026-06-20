@@ -176,10 +176,16 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
     assert "Run `bump` as the *last* thing in the current step" in prompt
     assert "After bumping, exit cleanly" in prompt
     assert "One step, one session" in prompt
-    assert "respawns the next agent step" in prompt
-    assert "clean prompt scope" in prompt
     assert "API/manual sessions don't chain" in prompt
     assert "relay mark done" in prompt
+    assert "Never stop silently" in prompt
+    # Supervisor respawn/teardown mechanics are reference the agent can't act
+    # on; they live in relay/architecture now (loaded only when a ticket
+    # attaches it), not in every base prompt. This ticket has no contexts, so
+    # those phrases are absent here.
+    assert "How the supervisor chains steps is in `relay/architecture`" in prompt
+    assert "respawns the next agent step" not in prompt
+    assert "clean prompt scope" not in prompt
     # Old continue-in-same-session rule must be gone.
     assert "After bumping, inspect the new state" not in prompt
     assert "continue that next step in this same session" not in prompt

@@ -218,10 +218,12 @@ that touches both planes.
   the ticket and either spawns a fresh REPL for the next workflow step (whenever
   it is an *agent's* turn — relaunching the next agent's CLI, so it rotates
   e.g. claude → codex → claude across a peer-review workflow) or returns
-  control to the caller (the next step hands off to an owner/human, status
-  flipped to `done`/`paused`, or no progress made). The discriminator is
-  agent-vs-human, not same-vs-changed assignee. Cross-ticket chaining is
-  `relay recurring --interactive`.
+  control to the caller (the next step hands off to an owner/human or has no
+  skill, the status flipped to `done`/`paused`, the agent panicked or exited
+  non-zero, or no progress was made). The discriminator is agent-vs-human, not
+  same-vs-changed assignee. Each respawn gives the next step a clean prompt
+  scope, with no carryover reasoning from the previous skill. Cross-ticket
+  chaining is `relay recurring --interactive`.
 - **`auto`** — one-shot autonomous run. Same composed prompt, no
   human input. **Note: `mode: auto` launches are currently temporarily
   disabled** — `relay launch` refuses them
