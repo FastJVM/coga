@@ -83,3 +83,67 @@ I have everything I need to ground the critique. The grep confirms `extra_local`
 3. **Packaged-template sync.** Per CLAUDE.md, loader changes don't touch `relay-os/` contexts, but the implementer should confirm no shipped `relay.toml`/`relay.local.toml` template under `src/relay/resources/` trips the new check.
 
 **Bottom line:** Ticket is launch-ready. Description and decisions are clear, the allowlist contents are accurate and complete against the loader, the `extra_local` retirement is verified-safe, and scope is one coherent unit. The only things to surface to the reviewer are (1) the genuine behavior change for local `version`/`default_status`/`launch`, and (2) that top-level-only matching won't catch the nested-section misspelling the title alludes to.
+
+## Dev
+
+branch: config-fail-loud-unknown-sections
+worktree: /home/n/Code/relay-config-fail-loud
+
+### Implementation plan (claude, 2026-06-19)
+
+Single helper `_reject_unknown_keys(table, allowed, label)` raising ConfigError
+naming the unknown key(s) + listing allowed. Called per fixed-schema table:
+
+- Top-level **shared** (in load_config, AFTER the dedicated `assignees` raise so
+  its tailored message wins): allowed = version, default_status, agents,
+  notification, slack, git, launch, ticket, aliases.
+- Top-level **local** (in load_config): allowed = user, secrets, agents,
+  notification, slack, git.
+- `[agents.<name>]` shared (in `_parse_agents`, AFTER the dedicated
+  skip_permissions/_argv raise so that message wins): allowed = cli, auto, file,
+  mode, name_flag, discussion.
+- `[notification]` shared+local: allowed = channels, slack.
+- `[notification.slack]` + legacy `[slack]`, shared+local: webhook, enabled,
+  gifs, users.
+- `[git]` shared+local: enabled, remote, control_branch.
+- `[launch]` shared (in `_parse_launch`): idle_timeout, max_session.
+- `[ticket]` shared (in `_parse_ticket_fields`): fields.
+
+Helper is a no-op on non-dicts so existing "must be a table" type errors still
+fire from their dedicated spots. Free-form maps (aliases, secrets, gifs values,
+users values) keep their keys open.
+
+Retire dead `extra_local` field (written 132/275/291, never read).
+
+Verified: relay-os/, example/relay-os/, and both templates use only allowed
+keys → nothing hard-fails on next command.
+
+### Implemented + tested (claude, 2026-06-19)
+
+Done on branch `config-fail-loud-unknown-sections`, commit 2671fc4.
+
+What changed in `src/relay/config.py`:
+- Added `_reject_unknown_keys(table, allowed, label)` (no-op on non-dicts so the
+  existing "must be a table" type errors still fire) + per-table allowed-key
+  frozensets.
+- `_reject_unknown_sections(shared, local)` validates top-level keys of both
+  files plus the cross-file `[notification]` / `[notification.slack]` / legacy
+  `[slack]` / `[git]` tables. Called from load_config AFTER the dedicated
+  `[assignees]` raise.
+- `_parse_agents` rejects unknown shared agent keys AFTER the dedicated
+  skip_permissions* raise (both tailored messages preserved).
+- `_parse_launch` / `_parse_ticket_fields` reject `[launch]` / `[ticket]` keys.
+- Removed dead `extra_local` field + its population.
+
+Tests: added 15 cases in tests/test_config.py — one accept-all-known-keys case,
+reject cases at every level (incl. the `[notification.slak]` footgun, local-only
+`default_status`, cross-file local `[git]`), free-form-maps-stay-open,
+assignees-message-beats-generic, and extra_local-retired.
+
+Verification (python3.12 — repo needs 3.11+, default python is 3.9):
+- `python -m pytest` → 837 passed, 1 skipped.
+- `relay validate --json` in example/relay-os → ok_count 1, no issues.
+- Loaded nick's live relay-os config under new code → loads, user=nick,
+  extra_local attr gone.
+
+No push / no PR (that's code/open-pr). Worktree clean.
