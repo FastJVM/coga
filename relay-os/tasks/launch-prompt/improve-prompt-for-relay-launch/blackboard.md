@@ -1,5 +1,84 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+- branch: `trim-launch-prompt`
+- worktree: `/home/n/Code/claude/relay-trim-prompt`
+- Implement step done 2026-06-19. Committed, not pushed (open-pr is a later step).
+
+## Implement results (2026-06-19)
+
+**Files changed (worktree):**
+- `src/relay/resources/prompt.md` — restructured: leads with a 4-point **The
+  loop** (read blackboard → do work + write blackboard → run `bump` last then
+  stop / `mark done` on final step → never stop silently/panic). Deduped the
+  bump / exit-cleanly / don't-go-backward / mark-done rules to one
+  authoritative statement each under **Finishing a step**. Trimmed Files,
+  Panic, FYIs, YAML sections. Shrank **What you don't do** to only the two
+  items not implied elsewhere (don't `relay launch` from inside; don't touch
+  `relay.toml`/`.local.toml`). Folded the standalone Blackboard section into
+  the loop.
+- `src/relay/resources/prompt-interactive.md` — trimmed to mode-deltas: kept
+  "present human always gets a real response / don't go mute on `done`",
+  "discuss before code", "surface tradeoffs". Dropped restatements of the base
+  ("still write to the blackboard", "exit cleanly") and the
+  "notifications are still live" bullet (base FYI section already covers
+  broadcast discipline). Folded "it's OK to sit and wait" into "Ask when
+  uncertain".
+- `src/relay/resources/prompt-auto.md` — **unchanged** (already lean and
+  genuinely auto-specific).
+- `relay-os/contexts/relay/architecture/SKILL.md` **and** its packaged twin
+  `src/relay/resources/templates/relay-os/bootstrap/contexts/relay/architecture/SKILL.md`
+  — relocation target (item 2). The supervisor respawn/teardown mechanics were
+  already in architecture's interactive bullet; I augmented it to preserve the
+  two details the base prompt carried that architecture didn't yet state
+  explicitly: the extra stop conditions (no-skill step, panic/non-zero exit)
+  and the "clean prompt scope, no carryover reasoning from the previous skill"
+  rationale. Edited BOTH copies identically (the edited region was identical in
+  both; pre-existing `scaffold`/`create` + auto-disabled-note divergences left
+  untouched). Human-only `bump --to`/`--backward` flag mechanics were already
+  in architecture (lines ~192-193), so the base prompt now just says "the human
+  decides whether to rewind" without re-teaching flags.
+- `tests/test_compose.py::test_base_prompt_teaches_exit_after_bump` — updated.
+  It pinned `"respawns the next agent step"` and `"clean prompt scope"` as
+  present in the BASE prompt; both are now relocated to architecture (which
+  this test's ticket does not attach, contexts=[]), so I assert they are
+  ABSENT and instead assert the new core-loop essentials (`Never stop
+  silently`, the `relay/architecture` pointer). Kept the still-true pins.
+
+**Measurement (per-file; base prompt is inlined every launch):**
+| file | bytes | ~tokens | lines |
+|---|---|---|---|
+| prompt.md | 7781 → 6036 (−1745) | 1945 → 1509 (−436, −22%) | 160 → 126 |
+| prompt-interactive.md | 1925 → 1470 (−455) | 481 → 367 (−114, −24%) | 39 → 31 |
+| prompt-auto.md | 2096 → 2096 (0) | 524 → 524 (0) | 45 |
+
+Net per **interactive** launch ≈ −550 tokens; per **auto** launch ≈ −436
+tokens. (Only the base prompt + overlays changed, so the composed-prompt delta
+equals the per-file delta exactly.)
+
+**Rule-coverage hand-diff (no load-bearing rule dropped):** verified each rule
+from the old prompt survives — frontmatter edit perms + no-hand-edit of
+status/step/workflow, don't-write-log.md, bump-advances-one-step/can't-skip,
+exit-cleanly/one-step-one-session, API-manual-don't-chain + don't-launch-from-
+inside, don't-go-backward→panic, don't-edit-workflow-snapshot, mark-done-on-
+final/no-workflow + never-set-status-done-by-hand, panic conditions + write-
+blocker-first + --reason-specific, FYIs (bump --message vs slack, not for
+blockers, one line), YAML discipline, don't-touch-relay.toml. The only content
+*removed* from the base prompt is the supervisor mechanics → relocated to
+architecture (augmented so nothing is lost).
+
+**Relocation soundness (item 2 caveat):** architecture is loaded only when a
+ticket attaches `relay/architecture`. That's fine — the supervisor mechanics
+are explanatory reference an agent can't act on; the *actionable* part
+(bump-last, then stop) stays in the base prompt's loop. Relay-internals tickets
+(like this one) attach `relay/architecture`, so the reference is present where
+it matters.
+
+**Verification run:** full `pytest` = 822 passed, 1 skipped. `relay validate
+--json` against `example/` = ok_count 1, 0 issues. (Tests run via the pinned
+`.relay/.venv` with `PYTHONPATH` shadowing to the worktree `src` — relay is not
+installed in the default python.)
+
 ## Status
 Draft, filled 2026-06-19. T1 of a two-ticket split (both under
 `relay-os/tasks/launch-prompt/`). Workflow `code/with-review`, assignee claude.
