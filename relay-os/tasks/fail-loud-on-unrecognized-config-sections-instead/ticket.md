@@ -1,7 +1,7 @@
 ---
 title: Fail loud on unrecognized config sections instead of silently treating webhook
   as absent
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
