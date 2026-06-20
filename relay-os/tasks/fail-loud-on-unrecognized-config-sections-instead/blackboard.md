@@ -88,6 +88,7 @@ I have everything I need to ground the critique. The grep confirms `extra_local`
 
 branch: config-fail-loud-unknown-sections
 worktree: /home/n/Code/relay-config-fail-loud
+pr: https://github.com/FastJVM/relay/pull/418
 
 ### Implementation plan (claude, 2026-06-19)
 
@@ -179,3 +180,11 @@ Verification:
   non-zero because Slack DNS failed in the sandbox before git sync/done-marker
   cleanup. The auto-written Slack failure log line contained the webhook URL;
   it was redacted before committing task state.
+
+### Open PR (claude, 2026-06-19)
+
+- Auth probed: `gh auth status` ok (nicktoper), remote = FastJVM/relay (https).
+- Pushed `config-fail-loud-unknown-sections`; opened PR #418
+  (https://github.com/FastJVM/relay/pull/418). No prior draft existed.
+- CI: `gh pr checks 418` → "no checks reported" (repo has no CI workflows on
+  this branch) — nothing to wait on. Bumping to human review.
