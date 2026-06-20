@@ -5,7 +5,7 @@ mode: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts:
 - marketing/positioning
 - relay/principles
@@ -31,7 +31,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (design)
+step: 2 (review-design)
 ---
 
 ## Description
@@ -71,9 +71,15 @@ ticket, and both files are correct and consistent with `relay/principles`.
 
 - A newcomer copy-pastes Getting Started top-to-bottom and reaches a launchable
   ticket — every command correct, including `--user`. (Flow verified end-to-end.)
-- One source of install truth in the README — no duplicated install commands.
+- One source of install truth in the README — no duplicated install commands;
+  `## Development` references Getting Started for install and keeps only the
+  dev-only commands (`python -m pytest`, `relay validate`).
+- A one-line cross-reference distinguishes the Getting Started first-run path
+  (`relay build`) from `relay ticket` (ongoing authoring); the existing
+  `## Task lifecycle` and `relay ticket` boot-sequence sections are not rewritten.
 - `relay digest` and `relay validate` each have a reference entry; the README
-  states the license (AGPL-3.0).
+  states the license as `AGPL-3.0-or-later` (matching `pyproject.toml` and
+  `docs/vision.md`).
 - `## External CLI Tools` accurately describes the `gh` / `gh skill` requirement
   (available in recent `gh` as a preview) — no "once those commands land," and no
   stale "hand-edit `user =` / run `relay ticket` first" steps.
@@ -91,11 +97,20 @@ ticket, and both files are correct and consistent with `relay/principles`.
    (`git clone` source + `pip install -e .`), then per project `mkdir` + `git
    init` + `relay init --user <name>` + `relay build` + `relay launch <slug>`;
    a short "what you end up with" + pointers (`relay chat`, `relay ticket`,
-   `relay status`, `relay --help`).
+   `relay status`, `relay --help`). Include a one-line cross-reference
+   distinguishing this first-run greenfield path (`relay build` → onboarding
+   chat → a batch of draft tickets) from `relay ticket` (ongoing task
+   authoring), so the existing `## Task lifecycle` normal path and the
+   `relay ticket` "usual boot sequence" stay un-rewritten but a newcomer knows
+   which path is which.
 3. Install handling — Getting Started *replaces* the standalone `## Install`
    outright. The operator-only nuance (vendored `.relay/` copy, "one relay-os/
    per repo" / global-vs-vendored) moves to a new short `## Operating notes`
-   block (~4-5 lines) below Getting Started.
+   block (~4-5 lines) below Getting Started. Also de-duplicate `## Development`:
+   drop its own `git clone` + `pip install -e .` lines, point back to Getting
+   Started for install, and keep only the dev-only commands (`python -m pytest`,
+   `relay validate --json`, `relay validate --fix`). Net: exactly one install
+   source in the file.
 4. `## External CLI Tools` — delete the stale first-steps lines (hand-edit
    `user =`, `relay ticket "First task"`); fix the `gh skill` line to say it's
    available in recent `gh` as a preview, and that managed skills are optional
@@ -132,3 +147,11 @@ ticket, and both files are correct and consistent with `relay/principles`.
   the `[FILL IN]` line is removed, with no number replacing it.
 - The README does not touch the "optional skills skipped" noise — that's left to
   `quiet-relay-init-managed-skill-failures`.
+- Install de-duplication includes `## Development`: it references Getting Started
+  rather than repeating `git clone` + `pip install -e .`, so there is one install
+  source. (Decided with zach 2026-06-20, design step.)
+- The new onboarding narratives are not consolidated — Getting Started is
+  additive and gets a single cross-reference line vs. `relay ticket`; the
+  existing `## Task lifecycle` and `relay ticket` boot sequence are left intact.
+  (Decided with zach 2026-06-20, design step.)
+- License string is the precise SPDX `AGPL-3.0-or-later`, not a bare `AGPL-3.0`.
