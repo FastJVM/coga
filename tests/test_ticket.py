@@ -177,15 +177,22 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
     assert cmd[1] == "--append-system-prompt"
     assert "Relay task — investigate-retries" in cmd[2]
     assert "Skill: bootstrap/ticket" in cmd[2]
+    # Greet-first: the composed prompt still rides as system context
+    # (`--append-system-prompt`), and a trailing positional "Begin" gives the
+    # agent its first user turn so it opens the conversation itself. Scoped to
+    # `relay ticket` — `build_agent_command` never appends it on its own (see
+    # test_launch.py discussion-template tests), so `relay chat` stays silent.
+    assert cmd[-1] == "Begin"
 
 
-def test_ticket_appends_discussion_kickoff_for_greet_first(
+def test_ticket_greet_first_kickoff_works_for_codex(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A `relay ticket` session is greet-first: when the agent configures
-    `discussion_kickoff`, it rides as the trailing first-user-turn token so the
-    agent opens the conversation itself."""
+    """The greet-first "Begin" kickoff is agent-agnostic. For codex it lands as
+    the positional `[PROMPT]` (codex's first user turn) after the
+    developer-instructions system context, so `relay ticket --agent codex`
+    opens the conversation too — not only claude."""
     _write(
         repo / "relay.toml",
         """
@@ -199,8 +206,12 @@ def test_ticket_appends_discussion_kickoff_for_greet_first(
         auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
-        discussion = "--append-system-prompt {prompt}"
-        discussion_kickoff = "Begin"
+        [agents.codex]
+        cli = "codex"
+        auto = "exec"
+        file = "AGENTS.md"
+        mode = "local"
+        discussion = "-c developer_instructions={prompt}"
 
         """,
     )
@@ -221,14 +232,17 @@ def test_ticket_appends_discussion_kickoff_for_greet_first(
     monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr("relay.commands.ticket.subprocess.run", fake_run)
 
-    result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
+    result = CliRunner().invoke(app, ["ticket", "Investigate retries", "--agent", "codex"])
     assert result.exit_code == 0, result.output
 
     cmd = captured["cmd"]
-    assert cmd[0] == "claude"
-    assert cmd[1] == "--append-system-prompt"
-    assert "Skill: bootstrap/ticket" in cmd[2]
-    # The kickoff token is the trailing positional first user turn.
+    assert cmd[0] == "codex"
+    # Prompt rides as codex developer-instructions (system context)...
+    assert any(
+        isinstance(a, str) and a.startswith("developer_instructions=# Relay task")
+        for a in cmd
+    )
+    # ...and "Begin" is the trailing positional — codex's first user turn.
     assert cmd[-1] == "Begin"
 
 

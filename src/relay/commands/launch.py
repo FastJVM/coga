@@ -589,7 +589,6 @@ def build_agent_command(
     *,
     name: str = "",
     discussion: bool = False,
-    kickoff: bool = False,
     skip_permissions_argv: tuple[str, ...] = (),
 ) -> list[str]:
     """Build the argv for spawning the agent.
@@ -617,14 +616,6 @@ def build_agent_command(
     opens with no user message, letting the human's first ask set the session
     title. Uses configured `agent.discussion`, then built-in templates for
     known `claude` / `codex` CLIs, then falls back to positional.
-
-    `kickoff=True` (set only on the `relay ticket` authoring path) appends the
-    agent's `discussion_kickoff` token after the discussion argv so the agent
-    opens the conversation itself (greet-first) — e.g. `Begin` becomes claude's
-    or codex's first positional user message. Other discussion launches (e.g.
-    `relay chat`) leave it off, so they keep opening silently and the human
-    speaks first. A no-op unless `discussion=True` and the agent configures
-    `discussion_kickoff`.
     """
     discussion_template = _discussion_template(agent) if discussion else ""
     if discussion_template and mode == "interactive":
@@ -632,8 +623,6 @@ def build_agent_command(
             tok.replace("{prompt}", prompt)
             for tok in shlex.split(discussion_template)
         ]
-        if kickoff and agent.discussion_kickoff:
-            tokens.extend(shlex.split(agent.discussion_kickoff))
         return [agent.cli, *tokens]
     name_args: list[str] = []
     if name and agent.name_flag:

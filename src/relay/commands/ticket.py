@@ -164,12 +164,16 @@ def _run_authoring_session(
     except ComposeError as exc:
         _bail(str(exc))
     prompt_file = write_prompt_file(prompt, ref)
-    # `kickoff=True`: a `relay ticket` session is greet-first — the agent opens
-    # the conversation (see the `discussion_kickoff` token in relay.toml). Other
-    # discussion launches (e.g. `relay chat`) omit it and stay silent.
-    cmd = build_agent_command(
-        agent, "interactive", prompt, discussion=True, kickoff=True
-    )
+    cmd = build_agent_command(agent, "interactive", prompt, discussion=True)
+    # Greet-first: append a positional "Begin" so the agent gets a first user
+    # turn to speak into and opens the conversation itself (with the launch-shape
+    # greeting from the bootstrap/ticket SKILL.md Step 1), instead of riding the
+    # composed prompt as silent system context and waiting for the human. This
+    # is agent-agnostic: for claude it follows `--append-system-prompt {prompt}`,
+    # for codex it lands as the positional `[PROMPT]` — both treat it as the
+    # first user message. Scoped to `relay ticket`; other discussion launches
+    # (e.g. `relay chat`) go through `relay launch` and stay silent.
+    cmd.append("Begin")
     typer.echo(
         "Ticket: command: "
         f"{_format_agent_command_for_console(cmd, prompt)}"

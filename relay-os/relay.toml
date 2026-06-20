@@ -22,23 +22,15 @@ mode = "local"
 name_flag = "-n"
 # `discussion` rides the composed prompt as system context for discussion
 # sessions (`relay chat`, `relay ticket`) so the human's first ask becomes
-# the session title instead of a 20KB Relay prompt. `discussion_kickoff` is
-# appended only on the `relay ticket` authoring path: it gives the agent a
-# first user turn so it opens the conversation itself (greet-first). Other
-# discussion launches (e.g. `relay chat`) omit it and stay silent so the human
-# speaks first.
-discussion = '--append-system-prompt {prompt}'
-discussion_kickoff = "Begin"
+# the session title instead of a 20KB Relay prompt.
+discussion = "--append-system-prompt {prompt}"
 
 [agents.codex]
 cli = "codex"
 auto = "exec"
 file = "AGENTS.md"
 mode = "local"
-# codex takes the kickoff as its positional `[PROMPT]` (first user turn), so
-# `relay ticket` is greet-first for codex too.
 discussion = "-c developer_instructions={prompt}"
-discussion_kickoff = "Begin"
 
 # --- Notification channels ---
 # Relay's notification system is the team sync point. Slack is the first
