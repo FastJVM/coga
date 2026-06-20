@@ -97,3 +97,28 @@ out of scope for this removal.
 The materialized `relay-os/bootstrap/` tree is gitignored (rebuilt by
 `relay init --update`), so its draft references were edited in the packaged
 `src/relay/resources/templates/...` source of truth, not the live copies.
+
+## Peer review (codex, 2026-06-20)
+
+Ran `codex review --base main` from `/Users/zach2179/Desktop/relay-remove-draft`.
+The review reported two findings:
+
+- P2: `relay-os/contexts/relay/current-direction/SKILL.md` says raw create
+  posts `✨`, while implementation/tests/sync context currently describe raw
+  create as silent. Human clarified during review: **`relay create` does post
+  to Slack**. I did not apply the review's proposed contract change to call it
+  silent; treat the underlying doc/test/code mismatch as pre-existing drift /
+  follow-up outside this removal.
+- P3: packaged `_template/ticket.md` was updated, but the live
+  `relay-os/tasks/_template/ticket.md` still mentioned `relay draft`. Fixed.
+
+Additional review sweep found live `relay-os/tasks/marketing/README.md` still
+using `relay draft` in current instructions for moving new marketing tickets.
+Fixed that to `relay create`.
+
+### Peer-review verification
+
+- Applied fixes in feature worktree and committed:
+  `755111ad peer-review: apply review findings`.
+- `python -m pytest` from `/Users/zach2179/Desktop/relay-remove-draft` →
+  **820 passed, 1 skipped**.
