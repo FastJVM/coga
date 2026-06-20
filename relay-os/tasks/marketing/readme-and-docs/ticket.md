@@ -1,6 +1,6 @@
 ---
 title: README + vision.md editorial pass
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach
@@ -31,7 +31,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: "1 (design)"
+step: 2 (review-design)
 ---
 
 ## Description
@@ -71,14 +71,21 @@ ticket, and both files are correct and consistent with `relay/principles`.
 
 - A newcomer copy-pastes Getting Started top-to-bottom and reaches a launchable
   ticket — every command correct, including `--user`. (Flow verified end-to-end.)
-- One source of install truth in the README — no duplicated install commands.
+- One source of install truth in the README — no duplicated install commands;
+  `## Development` references Getting Started for install and keeps only the
+  dev-only commands (`python -m pytest`, `relay validate`).
+- A one-line cross-reference distinguishes the Getting Started first-run path
+  (`relay build`) from `relay ticket` (ongoing authoring); the existing
+  `## Task lifecycle` and `relay ticket` boot-sequence sections are not rewritten.
 - `relay digest` and `relay validate` each have a reference entry; the README
-  states the license (AGPL-3.0).
+  states the license as `AGPL-3.0-or-later` (matching `pyproject.toml` and
+  `docs/vision.md`).
 - `## External CLI Tools` accurately describes the `gh` / `gh skill` requirement
   (available in recent `gh` as a preview) — no "once those commands land," and no
   stale "hand-edit `user =` / run `relay ticket` first" steps.
 - `docs/vision.md`: correct repo URL, no "six-command" claim, no `[FILL IN]`
-  placeholder.
+  placeholder, and no quantified-improvement claim (the ~3x idea is dropped as
+  inventor's bias).
 - Nothing re-pitches the product; voice stays consistent with `relay/principles`.
 - Lands as a PR.
 
@@ -90,10 +97,20 @@ ticket, and both files are correct and consistent with `relay/principles`.
    (`git clone` source + `pip install -e .`), then per project `mkdir` + `git
    init` + `relay init --user <name>` + `relay build` + `relay launch <slug>`;
    a short "what you end up with" + pointers (`relay chat`, `relay ticket`,
-   `relay status`, `relay --help`).
-3. Install handling — Getting Started *replaces* the standalone `## Install`; the
-   operator-only nuance (vendored `.relay/` copy, multi-repo "one relay-os/ per
-   repo") folds in as a short note or trims to a reference block (see Open Questions).
+   `relay status`, `relay --help`). Include a one-line cross-reference
+   distinguishing this first-run greenfield path (`relay build` → onboarding
+   chat → a batch of draft tickets) from `relay ticket` (ongoing task
+   authoring), so the existing `## Task lifecycle` normal path and the
+   `relay ticket` "usual boot sequence" stay un-rewritten but a newcomer knows
+   which path is which.
+3. Install handling — Getting Started *replaces* the standalone `## Install`
+   outright. The operator-only nuance (vendored `.relay/` copy, "one relay-os/
+   per repo" / global-vs-vendored) moves to a new short `## Operating notes`
+   block (~4-5 lines) below Getting Started. Also de-duplicate `## Development`:
+   drop its own `git clone` + `pip install -e .` lines, point back to Getting
+   Started for install, and keep only the dev-only commands (`python -m pytest`,
+   `relay validate --json`, `relay validate --fix`). Net: exactly one install
+   source in the file.
 4. `## External CLI Tools` — delete the stale first-steps lines (hand-edit
    `user =`, `relay ticket "First task"`); fix the `gh skill` line to say it's
    available in recent `gh` as a preview, and that managed skills are optional
@@ -106,9 +123,10 @@ ticket, and both files are correct and consistent with `relay/principles`.
 7. Repo URL (~L14): `relay-dev/relay` → `FastJVM/relay`.
 8. "six-command CLI" (~L22) → non-numeric ("a small CLI"); edit that line only —
    "six" recurs innocently elsewhere ("six months"), so don't find-replace it.
-9. `[FILL IN WITH REAL NUMBERS]` (~L246) → honest directional **~3x** (PR
-   throughput / task units / cost); no fabricated metrics table; be upfront exact
-   figures aren't published; reuse the team-composition framing already in the doc.
+9. `[FILL IN WITH REAL NUMBERS]` (~L246) → remove the quantified-improvement
+   claim entirely (flagged as inventor's bias). Delete the `[FILL IN]` line and
+   the surrounding metric claim; no number, directional or otherwise. Keep the
+   team-composition framing already in the doc.
 
 ## Out of Scope
 
@@ -120,10 +138,20 @@ ticket, and both files are correct and consistent with `relay/principles`.
   `marketing/relay-ticket-creates`; this pass documents today's behavior.
 - The one-line installer.
 
-## Open Questions
+## Decisions
 
-- Does Getting Started fully replace `## Install`, or sit above a trimmed Install
-  reference — and where does the operator nuance (vendored copy, multi-repo) live?
-- Final phrasing of the ~3x claim (owner call).
-- Should the README pre-empt the "optional skills skipped" noise, or leave that
-  entirely to `quiet-relay-init-managed-skill-failures`? (Lean: CLI ticket's job.)
+- Getting Started fully replaces `## Install`. The operator nuance (vendored
+  `.relay/` copy, one-`relay-os`-per-repo / global-vs-vendored) lives in a short
+  `## Operating notes` block below Getting Started.
+- The ~3x / quantified-improvement claim is dropped entirely (inventor's bias) —
+  the `[FILL IN]` line is removed, with no number replacing it.
+- The README does not touch the "optional skills skipped" noise — that's left to
+  `quiet-relay-init-managed-skill-failures`.
+- Install de-duplication includes `## Development`: it references Getting Started
+  rather than repeating `git clone` + `pip install -e .`, so there is one install
+  source. (Decided with zach 2026-06-20, design step.)
+- The new onboarding narratives are not consolidated — Getting Started is
+  additive and gets a single cross-reference line vs. `relay ticket`; the
+  existing `## Task lifecycle` and `relay ticket` boot sequence are left intact.
+  (Decided with zach 2026-06-20, design step.)
+- License string is the precise SPDX `AGPL-3.0-or-later`, not a bare `AGPL-3.0`.

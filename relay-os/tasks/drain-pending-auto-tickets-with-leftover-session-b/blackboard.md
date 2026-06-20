@@ -1,5 +1,105 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Pre-launch decisions with Nick (2026-06-20)
+
+Three design inputs locked before launching the design step (full text now in
+ticket.md `## Context` → "Decisions locked with Nick"):
+
+1. Budget: read remaining usage from the **server** per agent type
+   (Anthropic/OpenAI), not CLI `/usage` scraping. Design must *prove the
+   endpoint works* (go/no-go) and confirm it's the subscription usage window,
+   not per-minute rate-limit headers. Unreadable → skip drain for that agent.
+2. Threshold: a **`relay.toml` config key** (min % remaining, optional max
+   cap), not hardcoded. Design names key + default + re-probe cadence.
+3. Ordering: **oldest-first by first `log.md` timestamp** via a new
+   `first_activity()` helper (mirror of `last_activity()`). Committed content
+   → survives clone (file mtime does not). Bonus consistency add:
+   `relay status --order-by created` on the same helper.
+
+## Open Questions (for review-design / Nick)
+
+1. **`drain_enabled` default.** Spec sets it to `false` (opt-in) so existing
+   repos see no behavior change until they flip it on. The feature's whole
+   point is "just drain after the sweep", which argues for `true`. Picked the
+   conservative default — confirm or flip.
+2. **`drain_min_remaining_percent` default = 20.0.** Pure heuristic (ticket
+   cost varies wildly). Applied to BOTH the 5h and weekly windows. Sane
+   starting value? Want a max-tickets cap default too (currently 0 =
+   unlimited)?
+3. **Codex throwaway cost.** Priming codex costs one tiny `codex exec` per
+   drain (~17k input tokens, mostly cached; 27 output) and only fires if a
+   codex-assigned auto ticket exists. Acceptable, or prefer skipping codex
+   entirely until a real endpoint exists?
+4. **Summary channel.** Spec posts a live `post()` one-liner. Alternative: spool
+   into the daily digest (`notify`). Live was chosen for immediacy on an
+   unattended cron run — confirm.
+5. **Config location.** `[recurring.drain]` chosen (the drain is a recurring-
+   sweep tail). Alternatives: top-level `[drain]` or fold into `[launch]`.
+
+## Budget-probe go/no-go (2026-06-20, design step) — REAL probes run
+
+Decision #1 required a real endpoint probe, not docs. Done. Results:
+
+### Claude — GO (clean, fresh, free) ✅
+- Endpoint: `GET https://api.anthropic.com/api/oauth/usage`
+- Auth: `Authorization: Bearer <token>` is the ONLY required header
+  (verified: token-only → HTTP 200; beta header not needed; no auth → 429).
+- Token source (Linux/headless): `~/.claude/.credentials.json` →
+  `.claudeAiOauth.accessToken` (also carries `.subscriptionType` = "max",
+  `.expiresAt`, `.scopes`). NOTE macOS stores creds in Keychain, not this
+  file — cron target is Linux so file path is the realistic one; note the
+  caveat for the implementer.
+- Body confirms the SUBSCRIPTION USAGE WINDOW (not per-minute rate headers):
+  `five_hour.utilization` (e.g. 2.0 = percent used) + `resets_at`;
+  `seven_day.utilization` (4.0) + `resets_at`; plus a structured `limits[]`
+  array (`kind`: session/weekly_all/weekly_scoped, `percent`, `severity`,
+  `resets_at`, `is_active`). remaining% = 100 − utilization.
+
+### Codex — NO clean standalone GET ⚠️ (skip-or-stale)
+- ChatGPT-backend GETs are Cloudflare-blocked: `chatgpt.com/backend-api/
+  codex/usage|rate_limits|account|me` all → HTTP 403 (HTML bot page), with
+  and without codex client headers.
+- `api.openai.com/v1/me` → 200 but identity only, NO window/usage data.
+- Codex auth: `~/.codex/auth.json` (auth_mode="chatgpt", `.tokens.access_token`,
+  `.tokens.account_id`).
+- Codex DOES expose the identical window data, but only as a `rate_limits`
+  snapshot **attached to a `responses` API call**, persisted into
+  `~/.codex/sessions/<Y>/<M>/<D>/rollout-*.jsonl`. Structure verified:
+  `{primary:{used_percent,window_minutes:300,resets_at}, secondary:
+  {used_percent,window_minutes:10080,resets_at}, plan_type:"pro"}`.
+  → primary = 5h window, secondary = weekly window. Same family as Claude.
+- Consequence: the only no-extra-cost codex read is the LAST persisted
+  rollout snapshot — which is only as fresh as the last codex run (could be
+  hours/days stale). There is no free fresh probe. Per decision #1's
+  "unreadable → conservatively skip", codex's branch is either (a) read the
+  newest rollout snapshot iff within a freshness bound, else skip; or
+  (b) skip codex drains entirely for v1. ← surfaced to Nick as the one fork.
+
+### Implication for the interface
+One `UsageProbe` interface, one impl per agent type. Claude impl is the
+live GET. Codex impl is the rollout-snapshot read (or a no-op skip). Probe
+must fail SOFT (any error/timeout/unreadable → treat as "no budget signal"
+→ skip that agent's drain), never crash the sweep.
+
+### Nick's call (2026-06-20): codex = "fire one throwaway at beginning"
+Chose option 3, minimized to a SINGLE priming probe. VERIFIED it works:
+- `codex exec --json -s read-only --skip-git-repo-check "Reply with exactly:
+  ok" </dev/null` → exit 0, replied "ok", usage 16952 input / 27 output
+  tokens (cached 4992) — tiny cost against the window.
+- Immediately after, newest `~/.codex/sessions/<Y>/<M>/<D>/rollout-*.jsonl`
+  (13s old) carried a FRESH `rate_limits`: primary{used_percent 1.0,
+  window_minutes 300}, secondary{used_percent 6.0, window_minutes 10080},
+  plan_type "pro". `resets_at` = unix epoch seconds.
+- GOTCHAS for implementer: (1) MUST redirect stdin `</dev/null` or codex
+  blocks on "Reading additional input from stdin..."; (2) the `--json`
+  experimental event stream does NOT include rate_limits — read it from the
+  rollout file, not stdout; (3) read-only sandbox + --skip-git-repo-check
+  keeps the throwaway safe/contained.
+- Mechanism: prime codex ONCE per drain (lazily, only if codex-eligible
+  tickets exist), then read newest rollout snapshot. After the first codex
+  drain launch, the snapshot self-refreshes (each codex launch rewrites it),
+  so per-ticket re-reads stay fresh for free.
+
 ## Bootstrap interview notes (2026-06-11)
 
 - Origin: Nick's one-liner — after a recurring launch sweep, if auto tickets

@@ -1,6 +1,6 @@
 ---
 title: relay-ticket-creates
-status: done
+status: in_progress
 mode: interactive
 owner: zach
 human: zach
@@ -29,6 +29,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
+step: 2 (review-design)
 ---
 
 ## Description

@@ -234,3 +234,26 @@ three "scaffold"/"scaffolded" uses in the **new Step 1** to "create" — amended
 into the same commit (now `6fe191c1`). Two pre-existing "scaffold" mentions
 elsewhere in the file (frontmatter description, Step 7 extension-fields line)
 left untouched — not part of this change. Test still green.
+
+### Review revision (PR #417, per Nico, 2026-06-20)
+Nico's review superseded the Payload A/B approach above. Two comments:
+- *relay.toml:26 — "that won't work (you start all prompt not only ticket)"*:
+  the `"Begin"` kickoff was folded into the shared `[agents.claude].discussion`
+  arg, which `relay chat` / `relay project` also consume — so every discussion
+  session greeted, not just `relay ticket`.
+- *SKILL.md Step 1 — "Your relay.toml opening turn has already prompted you to
+  speak first. what is that?"*: opaque reference to relay.toml internals.
+
+Revised mechanism (commit `3f6a6287`, branch `greet-first-ticket`):
+- New per-agent `discussion_kickoff` key (config.py). `claude.discussion` is back
+  to `--append-system-prompt {prompt}` (no inline `"Begin"`); the kickoff token
+  is appended only on the `relay ticket` path via
+  `build_agent_command(..., kickoff=True)` (ticket.py). chat/project stay silent.
+- **Resolves Open Question 2** ("Codex kickoff"): `codex [OPTIONS] [PROMPT]`
+  *does* take a positional initial prompt, so `discussion_kickoff = "Begin"` is
+  set on `[agents.codex]` too — ticket authoring is now greet-first for codex.
+- Step 1 reworded to "This session is greet-first: open the conversation
+  yourself…" with no relay.toml reference.
+- `python -m pytest` → 830 passed, 1 skipped. Live greeting smoke confirmed by
+  zach in an isolated sandbox: `relay ticket` greets first for both claude and
+  codex; `relay chat --agent codex` stays silent.

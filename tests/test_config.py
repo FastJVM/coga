@@ -341,6 +341,287 @@ def test_legacy_assignees_table_rejected(tmp_path: Path) -> None:
         load_config(tmp_path)
 
 
+# --- unknown-key rejection (fail loud on stray/misspelled config) -------------
+
+
+def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A config exercising every known key at every fixed-schema level loads
+    cleanly — the allowlists must not reject anything legitimate."""
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/xxx")
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        mode = "local"
+        name_flag = "-n"
+        discussion = "--append-system-prompt {prompt}"
+
+        [notification]
+        channels = ["slack"]
+
+        [notification.slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+        enabled = true
+
+        [notification.slack.gifs]
+        done = ["https://example.test/a.gif"]
+
+        [notification.slack.users]
+        marc = "U01ABC234"
+
+        [git]
+        enabled = true
+        remote = "origin"
+        control_branch = "main"
+
+        [launch]
+        idle_timeout = 600
+        max_session = 3600
+
+        [ticket.fields.docket]
+        description = "USPTO docket number"
+
+        [aliases]
+        chat = "launch bootstrap/orient"
+        """,
+    )
+    _write(
+        tmp_path / "relay.local.toml",
+        """
+        user = "marc"
+
+        [secrets]
+        stripe_key = "env:STRIPE_SECRET_KEY"
+
+        [agents.claude]
+        skip_permissions = "auto"
+        skip_permissions_argv = "--dangerously-skip-permissions"
+
+        [git]
+        enabled = false
+        """,
+    )
+    cfg = load_config(tmp_path)
+    assert cfg.current_user == "marc"
+    assert cfg.git_enabled is False  # local override wins
+    assert cfg.agent_type("claude").skip_permissions == "auto"
+
+
+def test_unknown_top_level_shared_section_rejected(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text() + "\n[notifcation]\nchannels = []\n"
+    )
+    with pytest.raises(ConfigError, match=r"relay.toml has unknown key\(s\) \['notifcation'\]"):
+        load_config(repo)
+
+
+def test_unknown_top_level_local_section_rejected(repo: Path) -> None:
+    _write(
+        repo / "relay.local.toml",
+        """
+        user = "marc"
+        verison = 1
+        """,
+    )
+    with pytest.raises(ConfigError, match=r"relay.local.toml has unknown key\(s\) \['verison'\]"):
+        load_config(repo)
+
+
+def test_local_ignored_shared_only_key_rejected(repo: Path) -> None:
+    """`version` / `default_status` / `launch` are read only from shared; a stray
+    copy in relay.local.toml is silently ignored today, which is the footgun.
+    Reject it."""
+    _write(
+        repo / "relay.local.toml",
+        """
+        user = "marc"
+        default_status = "active"
+        """,
+    )
+    with pytest.raises(ConfigError, match=r"relay.local.toml has unknown key\(s\) \['default_status'\]"):
+        load_config(repo)
+
+
+def test_unknown_agent_key_rejected(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text() + 'clii = "claude"\n'
+    )
+    with pytest.raises(ConfigError, match=r"\[agents.claude\] has unknown key\(s\) \['clii'\]"):
+        load_config(repo)
+
+
+def test_unknown_notification_subkey_rejected(repo: Path) -> None:
+    """The title footgun: `[notification.slak]` is a stray key in `[notification]`
+    that would silently shadow the real Slack config — now it fails loud."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + '\n[notification.slak]\nwebhook = "env:SLACK_WEBHOOK_URL"\n'
+    )
+    with pytest.raises(
+        ConfigError,
+        match=r"\[notification\] in relay.toml has unknown key\(s\) \['slak'\]",
+    ):
+        load_config(repo)
+
+
+def test_unknown_notification_slack_key_rejected(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+
+        [notification.slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+        webhok = "env:NOPE"
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    with pytest.raises(
+        ConfigError,
+        match=r"\[notification.slack\] in relay.toml has unknown key\(s\) \['webhok'\]",
+    ):
+        load_config(tmp_path)
+
+
+def test_unknown_legacy_slack_key_rejected(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text() + '\n[slack]\nwebhok = "env:NOPE"\n'
+    )
+    with pytest.raises(
+        ConfigError, match=r"\[slack\] in relay.toml has unknown key\(s\) \['webhok'\]"
+    ):
+        load_config(repo)
+
+
+def test_unknown_git_key_rejected_shared(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text() + '\n[git]\nremot = "origin"\n'
+    )
+    with pytest.raises(
+        ConfigError, match=r"\[git\] in relay.toml has unknown key\(s\) \['remot'\]"
+    ):
+        load_config(repo)
+
+
+def test_unknown_git_key_rejected_local(repo: Path) -> None:
+    _write(
+        repo / "relay.local.toml",
+        """
+        user = "marc"
+
+        [git]
+        enable = false
+        """,
+    )
+    with pytest.raises(
+        ConfigError, match=r"\[git\] in relay.local.toml has unknown key\(s\) \['enable'\]"
+    ):
+        load_config(repo)
+
+
+@pytest.mark.parametrize("key", ["remote", "control_branch"])
+def test_shared_only_git_keys_rejected_local(repo: Path, key: str) -> None:
+    _write(
+        repo / "relay.local.toml",
+        f"""
+        user = "marc"
+
+        [git]
+        {key} = "upstream"
+        """,
+    )
+    with pytest.raises(
+        ConfigError,
+        match=rf"\[git\] in relay.local.toml has unknown key\(s\) \['{key}'\]",
+    ):
+        load_config(repo)
+
+
+def test_unknown_launch_key_rejected(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text() + "\n[launch]\nidle_timout = 600\n"
+    )
+    with pytest.raises(
+        ConfigError, match=r"\[launch\] has unknown key\(s\) \['idle_timout'\]"
+    ):
+        load_config(repo)
+
+
+def test_unknown_ticket_key_rejected(repo: Path) -> None:
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text() + "\n[ticket]\nfeilds = {}\n"
+    )
+    with pytest.raises(
+        ConfigError, match=r"\[ticket\] has unknown key\(s\) \['feilds'\]"
+    ):
+        load_config(repo)
+
+
+def test_free_form_maps_keep_arbitrary_keys(repo: Path) -> None:
+    """Free-form maps (secrets, slack gifs/users, aliases) map user-chosen names
+    to values — their keys are data and must NOT be rejected."""
+    (repo / "relay.toml").write_text(
+        (repo / "relay.toml").read_text()
+        + (
+            "\n[notification.slack.gifs]\n"
+            'anything_goes = ["https://example.test/x.gif"]\n'
+            "\n[notification.slack.users]\n"
+            'whoever = "U0XXXXXXX"\n'
+        )
+    )
+    _write(
+        repo / "relay.local.toml",
+        """
+        user = "marc"
+
+        [secrets]
+        some_made_up_name = "literal"
+        """,
+    )
+    cfg = load_config(repo)
+    assert cfg.slack_gifs["anything_goes"] == ["https://example.test/x.gif"]
+    assert cfg.slack_users["whoever"] == "U0XXXXXXX"
+    assert cfg.secrets["some_made_up_name"].value == "literal"
+
+
+def test_assignees_dedicated_message_beats_generic(tmp_path: Path) -> None:
+    """`[assignees]` is a known-but-rejected key: its tailored migration message
+    must win over the generic unknown-key check."""
+    _write(
+        tmp_path / "relay.toml",
+        """
+        version = 1
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+
+        [assignees.marc]
+        agents = {"claude" = "claude"}
+        """,
+    )
+    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    with pytest.raises(ConfigError, match=r"\[assignees\] is no longer supported"):
+        load_config(tmp_path)
+
+
+def test_extra_local_field_retired(repo: Path) -> None:
+    """The dead `extra_local` field (written, never read) is gone."""
+    cfg = load_config(repo)
+    assert not hasattr(cfg, "extra_local")
+
+
 def test_missing_user(tmp_path: Path) -> None:
     _write(
         tmp_path / "relay.toml",
