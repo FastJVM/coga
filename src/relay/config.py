@@ -129,7 +129,6 @@ class Config:
     slack_users: dict[str, str] = field(default_factory=dict)
     aliases: dict[str, str] = field(default_factory=dict)
     ticket_fields: dict[str, TicketField] = field(default_factory=dict)
-    extra_local: dict[str, object] = field(default_factory=dict)
     # Git sync — the git analogue of Slack. `git_enabled` follows the same
     # local-overrides-shared resolution as `slack_enabled`; `git_remote` /
     # `git_control_branch` come from shared `[git]`. See `relay.git`.
@@ -229,14 +228,18 @@ def load_config(repo_root: Path | None = None) -> Config:
     if version != 1:
         raise ConfigError(f"Unsupported relay.toml version: {version!r} (expected 1)")
 
-    default_status = shared.get("default_status", "draft")
-    agents = _parse_agents(shared.get("agents", {}), local.get("agents", {}))
+    # `assignees` carries a dedicated migration message, so its raise must beat
+    # the generic top-level unknown-key check below (which omits it).
     if "assignees" in shared:
         raise ConfigError(
             "[assignees] is no longer supported in relay.toml. Remove the "
             "[assignees.*] tables — ticket `assignee:` now names an agent "
             "type (e.g. `claude`) or a human directly. See docs/spec.md."
         )
+    _reject_unknown_sections(shared, local)
+
+    default_status = shared.get("default_status", "draft")
+    agents = _parse_agents(shared.get("agents", {}), local.get("agents", {}))
     notification_channels = _resolve_notification_channels(
         shared.get("notification"),
         local.get("notification"),
@@ -272,8 +275,6 @@ def load_config(repo_root: Path | None = None) -> Config:
 
     secrets = _resolve_secrets(local.get("secrets", {}))
 
-    extra_local = {k: v for k, v in local.items() if k not in {"user", "secrets"}}
-
     return Config(
         repo_root=root,
         current_user=current_user,
@@ -288,7 +289,6 @@ def load_config(repo_root: Path | None = None) -> Config:
         secrets=secrets,
         aliases=aliases,
         ticket_fields=ticket_fields,
-        extra_local=extra_local,
         git_enabled=git_enabled,
         git_remote=git_remote,
         git_control_branch=git_control_branch,
@@ -306,6 +306,116 @@ def _read_toml(path: Path) -> dict:
         raise ConfigError(f"Missing config file: {path}")
     with path.open("rb") as f:
         return tomllib.load(f)
+
+
+def _reject_unknown_keys(table: object, allowed: frozenset[str], label: str) -> None:
+    """Fail loud on any key in `table` outside `allowed`.
+
+    The fail-loud guard for every fixed-schema config table: a misspelled or
+    stray key (a top-level `[notifcation]` section, a `[notification.slak]`
+    sub-table, an `[agents.claude].clii` typo) raises `ConfigError` naming the
+    offender and listing the valid keys, instead of `.get(...)` silently
+    treating the real section as absent (the Slack-goes-dark footgun).
+
+    A no-op on non-dicts, so the dedicated "must be a table" type errors keep
+    firing from their own call sites. Free-form maps — `[aliases]`, `[secrets]`,
+    `[notification.slack.gifs]`, `[notification.slack.users]` — do **not** call
+    this: their keys are user-chosen data, not schema.
+    """
+    if not isinstance(table, dict):
+        return
+    unknown = sorted(set(table) - allowed)
+    if unknown:
+        raise ConfigError(
+            f"{label} has unknown key(s) {unknown}. "
+            f"Allowed: {sorted(allowed)}."
+        )
+
+
+# Fixed-schema tables — every key not listed is rejected at load time. Free-form
+# maps (aliases, secrets, slack gifs/users) are deliberately absent; their keys
+# are data. Top-level keys that carry a dedicated migration error (`assignees`
+# in shared; `skip_permissions*` in a shared `[agents.<name>]`) are omitted here
+# so their tailored raise fires before the generic check.
+_ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
+    "version",
+    "default_status",
+    "agents",
+    "notification",
+    "slack",
+    "git",
+    "launch",
+    "ticket",
+    "aliases",
+})
+_ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
+    "user",
+    "secrets",
+    "agents",
+    "notification",
+    "slack",
+    "git",
+})
+_ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
+    "cli",
+    "auto",
+    "file",
+    "mode",
+    "name_flag",
+    "discussion",
+})
+_ALLOWED_NOTIFICATION_KEYS: frozenset[str] = frozenset({"channels", "slack"})
+_ALLOWED_SLACK_KEYS: frozenset[str] = frozenset({
+    "webhook",
+    "enabled",
+    "gifs",
+    "users",
+})
+_ALLOWED_SHARED_GIT_KEYS: frozenset[str] = frozenset({
+    "enabled",
+    "remote",
+    "control_branch",
+})
+# Only `enabled` is machine-local. `remote` and `control_branch` are shared
+# repo policy and `_parse_git` intentionally reads them only from relay.toml.
+_ALLOWED_LOCAL_GIT_KEYS: frozenset[str] = frozenset({"enabled"})
+_ALLOWED_LAUNCH_KEYS: frozenset[str] = frozenset({"idle_timeout", "max_session"})
+_ALLOWED_TICKET_KEYS: frozenset[str] = frozenset({"fields"})
+
+
+def _reject_unknown_sections(shared: dict, local: dict) -> None:
+    """Reject unknown keys in the top-level and cross-file fixed-schema tables.
+
+    Covers what isn't validated inside a single dedicated parser: the top-level
+    sections of both files, plus the `[notification]` / `[notification.slack]` /
+    legacy `[slack]` / `[git]` tables, each of which may appear in *both*
+    `relay.toml` and `relay.local.toml`. The per-table parsers
+    (`_parse_agents`, `_parse_launch`, `_parse_ticket_fields`) reject their own
+    nested keys, so they aren't repeated here.
+
+    `_notification_slack_table` is reused to reach the nested `slack` sub-table;
+    it raises the existing "must be a table" error for a non-dict, so the type
+    contract is unchanged.
+    """
+    _reject_unknown_keys(shared, _ALLOWED_SHARED_SECTIONS, "relay.toml")
+    _reject_unknown_keys(local, _ALLOWED_LOCAL_SECTIONS, "relay.local.toml")
+    for source, table in (("relay.toml", shared), ("relay.local.toml", local)):
+        notification = table.get("notification")
+        _reject_unknown_keys(
+            notification, _ALLOWED_NOTIFICATION_KEYS, f"[notification] in {source}"
+        )
+        _reject_unknown_keys(
+            _notification_slack_table(notification, f"[notification] in {source}"),
+            _ALLOWED_SLACK_KEYS,
+            f"[notification.slack] in {source}",
+        )
+        _reject_unknown_keys(table.get("slack"), _ALLOWED_SLACK_KEYS, f"[slack] in {source}")
+    _reject_unknown_keys(
+        shared.get("git"), _ALLOWED_SHARED_GIT_KEYS, "[git] in relay.toml"
+    )
+    _reject_unknown_keys(
+        local.get("git"), _ALLOWED_LOCAL_GIT_KEYS, "[git] in relay.local.toml"
+    )
 
 
 _LOCAL_AGENT_OVERRIDE_KEYS: frozenset[str] = frozenset({
@@ -330,6 +440,9 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
                     "must not be committed to shared relay.toml. Move it to a "
                     f"partial [agents.{name}] table in relay.local.toml."
                 )
+        # Generic unknown-key reject runs after the dedicated skip-policy raise
+        # above so that machine-local-policy message is preserved.
+        _reject_unknown_keys(data, _ALLOWED_AGENT_KEYS, f"[agents.{name}]")
         discussion = data.get("discussion", "")
         if not isinstance(discussion, str):
             raise ConfigError(
@@ -450,6 +563,7 @@ def _parse_ticket_fields(raw: dict | None) -> dict[str, TicketField]:
         raise ConfigError(
             f"[ticket] must be a table (got {type(raw).__name__})"
         )
+    _reject_unknown_keys(raw, _ALLOWED_TICKET_KEYS, "[ticket]")
     fields_raw = raw.get("fields")
     if fields_raw is None:
         return {}
@@ -918,6 +1032,7 @@ def _parse_launch(shared: dict | None) -> tuple[float | None, bool, float | None
         return None, False, None
     if not isinstance(shared, dict):
         raise ConfigError(f"[launch] must be a table (got {type(shared).__name__})")
+    _reject_unknown_keys(shared, _ALLOWED_LAUNCH_KEYS, "[launch]")
 
     def _seconds(key: str) -> float | None:
         if key not in shared:
