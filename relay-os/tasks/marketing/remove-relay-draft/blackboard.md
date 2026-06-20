@@ -56,6 +56,18 @@ NOT touched: historical `relay-os/tasks/**` tickets/blackboards (records);
 ## Dev
 branch: remove-relay-draft
 worktree: /Users/zach2179/Desktop/relay-remove-draft
+pr: https://github.com/FastJVM/relay/pull/419
+
+## Open-PR step (2026-06-20)
+
+Pushed `remove-relay-draft` to origin and opened PR #419 against `main`.
+- Auth probe: `gh auth status` OK (lilfedor, `repo` scope); remote is
+  `https://github.com/FastJVM/relay.git` over https.
+- CI: `gh pr checks 419` → "no checks reported" — this repo has no CI workflows
+  wired, so there's nothing to be green. PR is OPEN + MERGEABLE.
+- Verification already on record from the implement step (820 passed, 1 skipped;
+  `relay draft` exits 2, `relay create` works).
+- Bumped to the human merge-review step.
 
 ## What changed (implement step — committed, not pushed)
 
