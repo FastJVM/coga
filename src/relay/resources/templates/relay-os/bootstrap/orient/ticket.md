@@ -30,7 +30,7 @@ What the agent should do once oriented:
   (architecture, principles, cli). For deeper reference, `README.md`
   has more narrative; `docs/spec.md` has the config / frontmatter / error
   contracts.
-- Wait for the human to direct. Don't `relay draft` or `relay ticket` of your own
+- Wait for the human to direct. Don't `relay create` or `relay ticket` of your own
   initiative.
 - If asked for a triage view, run `relay status` and summarize.
 

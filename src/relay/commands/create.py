@@ -1,4 +1,4 @@
-"""Raw draft-ticket creating for `relay draft` / legacy `relay create`.
+"""Raw draft-ticket creating for `relay create`.
 
 Leaves the new ticket as `draft`. Does not post to Slack and does not launch
 an agent. For guided authoring use `relay ticket`; to start work, mark the
@@ -21,27 +21,6 @@ from relay.config import ConfigError, load_config
 from relay.create import create_task
 
 
-def draft(
-    title: str = typer.Argument(..., help="Short human title for the new ticket."),
-    mode: str = typer.Option(
-        "interactive",
-        "--mode",
-        help="Ticket mode: interactive, auto, or script.",
-    ),
-    workflow: str | None = typer.Option(
-        None,
-        "--workflow",
-        help=(
-            "Workflow name (path under relay-os/workflows/) to attach. "
-            "Optional, but a workflow-less draft can't be activated until "
-            "one is added."
-        ),
-    ),
-) -> None:
-    """Create a new draft ticket."""
-    create_draft(title=title, mode=mode, workflow=workflow)
-
-
 def create(
     title: str = typer.Argument(..., help="Short human title for the new ticket."),
     mode: str = typer.Option(
@@ -59,7 +38,7 @@ def create(
         ),
     ),
 ) -> None:
-    """Compatibility spelling for `relay draft`."""
+    """Create a new raw draft ticket."""
     create_draft(title=title, mode=mode, workflow=workflow)
 
 

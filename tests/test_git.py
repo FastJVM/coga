@@ -473,8 +473,8 @@ def test_sync_nonfatal_on_push_failure(git_repo, capsys):
 # --- CLI integration through real git ------------------------------------------
 
 
-def test_cli_draft_then_activate_sync_to_origin(git_repo):
-    result = runner.invoke(app, ["draft", "Demo task", "--workflow", "code"])
+def test_cli_create_then_activate_sync_to_origin(git_repo):
+    result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     assert result.exit_code == 0, result.output
     slug = result.output.split(":", 1)[0].strip()
 
@@ -488,7 +488,7 @@ def test_cli_draft_then_activate_sync_to_origin(git_repo):
 
 
 def test_cli_bump_syncs_step_to_origin(git_repo):
-    result = runner.invoke(app, ["draft", "Demo task", "--workflow", "code"])
+    result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = result.output.split(":", 1)[0].strip()
     runner.invoke(app, ["mark", "active", slug])
 
@@ -516,7 +516,7 @@ def test_cli_bump_syncs_step_to_origin(git_repo):
 
 def test_cli_panic_syncs_blocker_to_origin(git_repo):
     """`relay panic` lands the blocker (blackboard + log) on origin/main."""
-    result = runner.invoke(app, ["draft", "Demo task", "--workflow", "code"])
+    result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = result.output.split(":", 1)[0].strip()
 
     panicked = runner.invoke(
@@ -542,7 +542,7 @@ def test_cli_panic_from_feature_branch_leaves_code_untouched(git_repo):
     worktree must NOT be swept into the commit (the whole reason C scopes
     strictly to the task dir).
     """
-    result = runner.invoke(app, ["draft", "Demo task", "--workflow", "code"])
+    result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = result.output.split(":", 1)[0].strip()
     git_repo.checkout_branch("feature/x")
 
@@ -635,7 +635,7 @@ def _fake_authoring_agent(monkeypatch, *, on_run=None) -> None:
 def test_cli_ticket_authoring_syncs_edits_to_origin(git_repo, monkeypatch):
     """The agent's external edits to ticket.md are committed + pushed by relay."""
     _seed_ticket_bootstrap(git_repo.relay_os)
-    result = runner.invoke(app, ["draft", "Demo task", "--workflow", "code"])
+    result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = result.output.split(":", 1)[0].strip()
     task_dir = git_repo.relay_os / "tasks" / slug
 
@@ -701,7 +701,7 @@ def test_cli_ticket_authoring_records_session_without_ticket_edits(git_repo, mon
     `test_sync_noop_when_nothing_changed`.)
     """
     _seed_ticket_bootstrap(git_repo.relay_os)
-    result = runner.invoke(app, ["draft", "Demo task", "--workflow", "code"])
+    result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = result.output.split(":", 1)[0].strip()
 
     _fake_authoring_agent(monkeypatch, on_run=None)  # agent edits nothing
@@ -748,7 +748,7 @@ def test_cli_delete_syncs_removal_to_origin(git_repo):
     deletion commit, not an orphaned working-tree change.
     """
     _install_delete_skill(git_repo.relay_os)
-    created = runner.invoke(app, ["draft", "Demo task", "--workflow", "code"])
+    created = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = created.output.split(":", 1)[0].strip()
     assert git_repo.origin_tracks(f"relay-os/tasks/{slug}/ticket.md")
 

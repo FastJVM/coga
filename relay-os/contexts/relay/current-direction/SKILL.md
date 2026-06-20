@@ -176,11 +176,11 @@ Last updated: 2026-06-13.
   `chat = "launch bootstrap/orient"`. Validated at config load:
   alias names can't collide with built-ins; first token of expansion
   must be a known built-in.
-- **`relay draft` and `relay ticket` split raw creating from guided
-  authoring.** `relay draft` creates a raw draft and posts `✨`;
-  `relay create` remains a compatibility spelling. `relay ticket`
-  runs the `bootstrap/ticket` interview against a new or existing
-  draft/active/paused ticket. Aliases stay positional-pass-through only.
+- **`relay create` and `relay ticket` split raw creating from guided
+  authoring.** `relay create` creates a raw draft and posts `✨`.
+  `relay ticket` runs the `bootstrap/ticket` interview against a new or
+  existing draft/active/paused ticket. Aliases stay positional-pass-through
+  only.
 - **Aliases print their expansion to stderr.** `relay chat` prints
   `→ relay launch bootstrap/orient` before dispatching, so the
   indirection is visible. Users learn the long form by using the short
@@ -210,7 +210,7 @@ ones that affect implementation:
   creator. It scans templates, creates the current period's task for
   each, and launches the due ones sequentially — current period only, no
   backlog of missed periods. `scripts/cron.sh` calls it directly rather than
-  going through `relay draft` / `create_task()`.
+  going through `relay create` / `create_task()`.
 - **Control plane and data plane are fully split.** `draft` is unapproved,
   `active` is approved/queued, and `in_progress` is launched work. `relay
   launch` owns the `active` → `in_progress` start transition; `relay bump`

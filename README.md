@@ -177,7 +177,7 @@ draft -> active -> in_progress -> done
 ```
 
 - `draft` is unapproved work. Use `relay ticket "<title>"` for the guided
-  authoring interview, or `relay draft "<title>"` when you only want the raw
+  authoring interview, or `relay create "<title>"` when you only want the raw
   files.
 - `active` is approved and queued. Humans can still refine active tickets with
   `relay ticket <slug>` before work starts.
@@ -196,9 +196,9 @@ relay launch add-retry
 relay mark done add-retry
 ```
 
-For old scripts or muscle memory, `relay create "<title>"` still works as a
-compatibility spelling for `relay draft "<title>"`; it does not run the
-authoring interview.
+`relay create "<title>"` is the raw-create path: it writes the draft files
+without running the authoring interview. (It replaces the former `relay draft`,
+which has been removed — update old scripts and muscle memory accordingly.)
 
 ## Commands
 
@@ -260,7 +260,7 @@ matching project-level skill convention yet — point them at
 non-directory in the way (e.g. an empty `.codex` sentinel file from an older
 setup), it skips that agent and prints what to clear.
 
-### `relay draft "<title>"`
+### `relay create "<title>"`
 
 Create a new raw `draft` ticket under `relay-os/tasks/<slug>/` (slug
 derived from the title). Does **not** spawn an agent
@@ -270,12 +270,9 @@ description still need to be filled in. If the slug already exists, the new
 task gets `-2`, `-3`, … appended.
 
 ```sh
-relay draft "Add retry to webhook handler"
-relay draft "Nightly cleanup" --mode auto
+relay create "Add retry to webhook handler"
+relay create "Nightly cleanup" --mode auto
 ```
-
-`relay create "<title>"` remains as a compatibility spelling for this raw
-draft operation.
 
 ### `relay ticket [<title-or-slug>] [--agent <type>]`
 

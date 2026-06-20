@@ -128,7 +128,7 @@ Each declaration accepts four keys: `description` (required string),
 
 Three mechanisms honor the spec:
 
-- `relay draft` / `relay ticket` write every declared field into the new
+- `relay create` / `relay ticket` write every declared field into the new
   ticket below the `# --- extensions ---` marker, seeded with the
   declared default (or `""`).
 - `relay validate` enforces the schema — declared-but-missing fails
@@ -144,7 +144,7 @@ prompt by virtue of being on the ticket.
 
 ## Workflow gated at activation, not draft time
 
-`relay draft` (and its compatibility spelling `relay create`) take an
+`relay create` takes an
 *optional* `--workflow <name>`. A workflow-less draft is a valid authoring
 state — drafting captures intent before its shape is settled.
 

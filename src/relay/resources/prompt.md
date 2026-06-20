@@ -23,7 +23,7 @@ of reconstructing it from the slug. Each task directory contains:
 - `blackboard.md` — shared workspace for you and the human. Write here often.
   Read here first when picking up after a blocker or relaunch.
 - `log.md` — append-only audit trail. **Do not write to this file.** CLI
-  commands (`relay draft`, `relay ticket`, `relay mark`, `relay launch`,
+  commands (`relay create`, `relay ticket`, `relay mark`, `relay launch`,
   `relay bump`, `relay panic`) are the only writers.
   Write observations in the blackboard instead.
 
