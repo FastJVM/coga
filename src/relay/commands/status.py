@@ -75,11 +75,11 @@ def status(
     reverse: bool = typer.Option(
         False, "--reverse", "-r", help="Reverse sort order."
     ),
-    hide_done: bool = typer.Option(
+    show_all: bool = typer.Option(
         False,
-        "--hide-done",
-        "--no-done",
-        help="Omit tasks whose status is `done` from the listing.",
+        "--all",
+        "-a",
+        help="Include tasks whose status is `done` (hidden by default).",
     ),
 ) -> None:
     """Show tasks in the repo."""
@@ -111,12 +111,14 @@ def status(
     narrow = console.width < NARROW_WIDTH
 
     rows = []
+    hidden_done = 0
     for ref in refs:
         try:
             ticket = read_ticket(ref)
         except TicketError:
             continue
-        if hide_done and ticket.status == "done":
+        if not show_all and ticket.status == "done":
+            hidden_done += 1
             continue
         rows.append({
             "slug": ref.id_slug,
@@ -150,13 +152,13 @@ def status(
             # mistaken for "no tasks anywhere". --no-recurse means "directly
             # in it", so spell that out too.
             where = f"directly in {directory}" if no_recurse else f"in {directory}"
-            typer.echo(f"(no tasks {where})")
+            typer.echo(f"(no tasks {where}){_done_hint(hidden_done)}")
         elif no_recurse:
             # Top-level slice is empty, but nested tasks may still exist —
             # don't claim "no tasks" outright.
-            typer.echo("(no top-level tasks)")
+            typer.echo(f"(no top-level tasks){_done_hint(hidden_done)}")
         else:
-            typer.echo("(no tasks)")
+            typer.echo(f"(no tasks){_done_hint(hidden_done)}")
         return
 
     now = datetime.now()
@@ -177,6 +179,16 @@ def status(
         console.print("Recurring", style="bold")
         console.print(_build_table(recurring_rows, narrow, now))
         console.print(_summary_line(recurring_rows), style="dim")
+    if hidden_done:
+        console.print(_done_hint(hidden_done).lstrip(), style="dim")
+
+
+def _done_hint(hidden_done: int) -> str:
+    """Trailing note pointing at --all when done tasks were filtered out."""
+    if not hidden_done:
+        return ""
+    noun = "done task" if hidden_done == 1 else "done tasks"
+    return f"  ({hidden_done} {noun} hidden — use --all to show)"
 
 
 def _build_table(rows: list[dict], narrow: bool, now: datetime) -> Table:

@@ -539,14 +539,14 @@ Verify the flags against your installed CLIs before enabling.
 
 ### `relay status`
 
-Show every task in the repo — `draft`, `active`, `in_progress`, `paused`, and `done`.
-One line per task. Bootstrap shims have no status and don't appear. Add
-`--hide-done` (or `--no-done`) to omit finished tickets from the view without
-deleting them.
+Show the live tasks in the repo — `draft`, `active`, `in_progress`, and `paused`.
+One line per task. Bootstrap shims have no status and don't appear. `done`
+tickets are hidden by default (the listing ends with a `(N done tasks hidden —
+use --all to show)` note); add `--all` (`-a`) to include them.
 
 ```sh
 relay status
-relay status --hide-done
+relay status --all
 ```
 
 ### `relay show <slug>`

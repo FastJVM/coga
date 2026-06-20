@@ -253,10 +253,11 @@ guardrail and task-to-task comparison, not exact provider billing.
 
 ## relay status
 
-List every task in the repo — `draft`, `active`, `in_progress`, `paused`,
-and `done`. Bootstrap shims have no status and don't appear here. Pipe through
-`grep` for ad-hoc slicing of any column. Use `--hide-done` (alias:
-`--no-done`) to omit finished tickets from the view without deleting them.
+List the live tasks in the repo — `draft`, `active`, `in_progress`, and
+`paused`. `done` tasks are hidden by default; pass `--all` (`-a`) to include
+them. Bootstrap shims have no status and don't appear here. Pipe through
+`grep` for ad-hoc slicing of any column. When done tasks are hidden the
+output ends with a `(N done tasks hidden — use --all to show)` note.
 
 An optional positional argument and the `--no-recurse` flag are two orthogonal
 axes — *which* directory, and *how deep*. Tasks are directories (a `ticket.md`
