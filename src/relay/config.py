@@ -81,6 +81,15 @@ class AgentType:
     # token `{prompt}` is replaced with the composed prompt. Empty string lets
     # launch use its built-in defaults for known CLIs, then positional fallback.
     discussion: str = ""
+    # Optional positional "first user turn" token appended to the discussion
+    # argv to make the agent open the conversation itself (greet-first) instead
+    # of waiting for the human. Applied ONLY on the `relay ticket` authoring
+    # path (`build_agent_command(..., kickoff=True)`); `relay chat` and `relay
+    # project` leave it off so the human's first ask still names the session.
+    # Parsed via `shlex.split` and appended after the discussion template — e.g.
+    # `"Begin"` lands as claude's (positional after `--append-system-prompt`) or
+    # codex's (positional `[PROMPT]`) first user message. Empty = no kickoff.
+    discussion_kickoff: str = ""
     # Machine-local permission-skip policy — settable ONLY from a partial
     # `[agents.<name>]` table in `relay.local.toml` (shared `relay.toml`
     # carrying either key fails config load, so a dangerous default can never
@@ -336,6 +345,12 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
                 f"agents.{name}.discussion must be a string "
                 f"(got {type(discussion).__name__})"
             )
+        discussion_kickoff = data.get("discussion_kickoff", "")
+        if not isinstance(discussion_kickoff, str):
+            raise ConfigError(
+                f"agents.{name}.discussion_kickoff must be a string "
+                f"(got {type(discussion_kickoff).__name__})"
+            )
         local_data = (local_raw or {}).get(name, {})
         skip_permissions, skip_permissions_argv = _parse_local_skip_policy(
             name, local_data
@@ -348,6 +363,7 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
             mode=data.get("mode", "local"),
             name_flag=data.get("name_flag", ""),
             discussion=discussion,
+            discussion_kickoff=discussion_kickoff,
             skip_permissions=skip_permissions,
             skip_permissions_argv=skip_permissions_argv,
         )

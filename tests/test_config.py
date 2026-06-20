@@ -109,6 +109,27 @@ def test_agent_discussion_template_must_be_string(repo: Path) -> None:
         load_config(repo)
 
 
+def test_agent_discussion_kickoff(repo: Path) -> None:
+    text = (repo / "relay.toml").read_text()
+    (repo / "relay.toml").write_text(text + 'discussion_kickoff = "Begin"\n')
+    cfg = load_config(repo)
+    assert cfg.agent_type("claude").discussion_kickoff == "Begin"
+
+
+def test_agent_discussion_kickoff_defaults_empty(repo: Path) -> None:
+    cfg = load_config(repo)
+    assert cfg.agent_type("claude").discussion_kickoff == ""
+
+
+def test_agent_discussion_kickoff_must_be_string(repo: Path) -> None:
+    text = (repo / "relay.toml").read_text()
+    (repo / "relay.toml").write_text(text + "discussion_kickoff = 42\n")
+    with pytest.raises(
+        ConfigError, match="agents.claude.discussion_kickoff must be a string"
+    ):
+        load_config(repo)
+
+
 def test_agent_skip_policy_defaults_off(repo: Path) -> None:
     cfg = load_config(repo)
     agent = cfg.agent_type("claude")

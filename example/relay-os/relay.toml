@@ -15,14 +15,21 @@ mode = "local"
 # `claude -n <name>` sets the session display name shown in the /resume
 # picker, the prompt box, and the terminal title.
 name_flag = "-n"
-discussion = '--append-system-prompt {prompt} "Begin"'
+# `discussion_kickoff` is appended only on the `relay ticket` path so the agent
+# opens the conversation itself (greet-first); `relay chat` / `relay project`
+# omit it and stay silent.
+discussion = '--append-system-prompt {prompt}'
+discussion_kickoff = "Begin"
 
 [agents.codex]
 cli = "codex"
 auto = "exec"
 file = "AGENTS.md"
 mode = "local"
+# codex takes the kickoff as its positional `[PROMPT]`, so ticket authoring is
+# greet-first for codex too.
 discussion = "-c developer_instructions={prompt}"
+discussion_kickoff = "Begin"
 
 # --- Notification channels ---
 

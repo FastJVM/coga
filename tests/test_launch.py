@@ -49,6 +49,7 @@ def _agent(
     auto: str,
     name_flag: str = "",
     discussion: str = "",
+    discussion_kickoff: str = "",
     skip_permissions: str = "",
     skip_permissions_argv: tuple[str, ...] = (),
 ) -> AgentType:
@@ -60,6 +61,7 @@ def _agent(
         mode="local",
         name_flag=name_flag,
         discussion=discussion,
+        discussion_kickoff=discussion_kickoff,
         skip_permissions=skip_permissions,
         skip_permissions_argv=skip_permissions_argv,
     )
@@ -154,6 +156,73 @@ def test_build_command_discussion_uses_template_for_codex() -> None:
         discussion=True,
     )
     assert cmd == ["my-cli", "-c", "developer_instructions=orient body"]
+
+
+def test_build_command_kickoff_appends_token_for_claude() -> None:
+    """`relay ticket` is greet-first: with kickoff=True the kickoff token rides
+    after the discussion argv as claude's first positional (user) turn."""
+    agent = _agent(
+        "-p",
+        discussion="--append-system-prompt {prompt}",
+        discussion_kickoff="Begin",
+    )
+    cmd = build_agent_command(
+        agent,
+        mode="interactive",
+        prompt="orient body",
+        discussion=True,
+        kickoff=True,
+    )
+    assert cmd == ["my-cli", "--append-system-prompt", "orient body", "Begin"]
+
+
+def test_build_command_kickoff_appends_token_for_codex() -> None:
+    """codex takes the kickoff as its positional `[PROMPT]`, so ticket
+    authoring is greet-first for codex too."""
+    agent = _agent(
+        "exec",
+        discussion="-c developer_instructions={prompt}",
+        discussion_kickoff="Begin",
+    )
+    cmd = build_agent_command(
+        agent,
+        mode="interactive",
+        prompt="orient body",
+        discussion=True,
+        kickoff=True,
+    )
+    assert cmd == ["my-cli", "-c", "developer_instructions=orient body", "Begin"]
+
+
+def test_build_command_kickoff_off_keeps_session_silent() -> None:
+    """`relay chat` / `relay project` pass discussion=True but kickoff=False:
+    the configured kickoff token must NOT be appended, so the agent waits for
+    the human to speak first (their ask names the session)."""
+    agent = _agent(
+        "-p",
+        discussion="--append-system-prompt {prompt}",
+        discussion_kickoff="Begin",
+    )
+    cmd = build_agent_command(
+        agent,
+        mode="interactive",
+        prompt="orient body",
+        discussion=True,
+    )
+    assert cmd == ["my-cli", "--append-system-prompt", "orient body"]
+
+
+def test_build_command_kickoff_noop_when_unconfigured() -> None:
+    """kickoff=True is harmless when the agent declares no discussion_kickoff."""
+    agent = _agent("-p", discussion="--append-system-prompt {prompt}")
+    cmd = build_agent_command(
+        agent,
+        mode="interactive",
+        prompt="orient body",
+        discussion=True,
+        kickoff=True,
+    )
+    assert cmd == ["my-cli", "--append-system-prompt", "orient body"]
 
 
 def test_build_command_discussion_uses_default_template_for_claude_cli() -> None:

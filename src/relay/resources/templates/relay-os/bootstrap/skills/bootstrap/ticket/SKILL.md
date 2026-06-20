@@ -36,10 +36,10 @@ Match this shape exactly. Don't invent fields the template doesn't define
 
 ## Step 1 — Identify the launch shape and open with the matching greeting
 
-Your relay.toml opening turn has already prompted you to speak first. Your
-**first reply** must greet the human in the way that matches how this skill was
-launched. Read the prompt header and ticket body to tell which of these you're
-in:
+This session is greet-first: open the conversation yourself rather than waiting
+for the human to type first. Your **first reply** must greet the human in the
+way that matches how this skill was launched. Read the prompt header and ticket
+body to tell which of these you're in:
 
 - **Empty interview** — the header id-slug is `bootstrap/ticket`, there is **no
 `Status:` line**, and the Description is the "Persistent launch shim" text.
