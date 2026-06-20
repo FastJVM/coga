@@ -147,3 +147,35 @@ Verification (python3.12 — repo needs 3.11+, default python is 3.9):
   extra_local attr gone.
 
 No push / no PR (that's code/open-pr). Worktree clean.
+
+### Peer review (codex, 2026-06-20)
+
+Native review:
+- `codex review --base main` first failed inside the sandbox with the known
+  read-only app-server initialization error, then succeeded when rerun with
+  escalation.
+- Finding: local `[git].remote` / `[git].control_branch` were accepted by the
+  new allowlist but still ignored by `load_config` (`_parse_git` only reads
+  shared `[git]`). This preserved a silent local-config misconfiguration path.
+
+Fix applied in feature worktree `/home/n/Code/relay-config-fail-loud`:
+- Split git allowlists: shared `[git]` accepts `enabled`, `remote`,
+  `control_branch`; local `[git]` accepts only `enabled`.
+- Added regression coverage that local `[git].remote` and
+  `[git].control_branch` now fail loud.
+- Committed as `3b3821c` (`peer-review: apply review findings`).
+
+Verification:
+- `python -m pytest tests/test_config.py -q` -> 71 passed (pytest cache warning
+  only: feature worktree `.pytest_cache` is read-only).
+- `python -m pytest` -> 839 passed, 1 skipped (same pytest cache warning).
+- `PYTHONPATH=/home/n/Code/relay-config-fail-loud/src python -m relay.cli validate --json --task fail-loud-on-unrecognized-config-sections-instead`
+  from the primary checkout -> ok_count 1, no issues.
+- Repo-wide `relay validate --json` with the same `PYTHONPATH` still fails on
+  unrelated existing task-state drift (missing-step errors on other tasks and
+  unknown-assignee warnings); this ticket validates cleanly.
+- `relay bump ... --message "Peer review fix committed: 3b3821c; tests passed."`
+  advanced the ticket to step 3 (`open-pr`) assigned to `claude`, then exited
+  non-zero because Slack DNS failed in the sandbox before git sync/done-marker
+  cleanup. The auto-written Slack failure log line contained the webhook URL;
+  it was redacted before committing task state.
