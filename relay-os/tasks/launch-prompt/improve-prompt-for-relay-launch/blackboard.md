@@ -3,7 +3,12 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 - branch: `trim-launch-prompt`
 - worktree: `/home/n/Code/claude/relay-trim-prompt`
+- pr: https://github.com/FastJVM/relay/pull/416
 - Implement step done 2026-06-19. Committed, not pushed (open-pr is a later step).
+- open-pr step done 2026-06-20. Pushed `trim-launch-prompt`; opened PR #416.
+  `gh auth status` OK (nicktoper, repo+workflow scopes). No CI configured on
+  this repo (`gh pr checks` → "no checks reported"), so there is no green-CI
+  signal to wait on — human review is the next gate.
 
 ## Implement results (2026-06-19)
 
@@ -78,6 +83,37 @@ it matters.
 --json` against `example/` = ok_count 1, 0 issues. (Tests run via the pinned
 `.relay/.venv` with `PYTHONPATH` shadowing to the worktree `src` — relay is not
 installed in the default python.)
+
+## Peer review (Codex, 2026-06-20 UTC)
+
+Native review run: `codex review --base main` from
+`/home/n/Code/claude/relay-trim-prompt`. The first in-sandbox attempt failed
+with the known app-server read-only filesystem error, then the same command ran
+outside the sandbox and reported one P2 must-fix:
+
+- The relocated architecture wording said the interactive supervisor returns to
+  the caller when the next step has no skill. Current launch/bump behavior
+  chains whenever the next assignee is a configured agent, including skill-less
+  agent steps, so that line was inaccurate.
+
+Fix applied and committed on `trim-launch-prompt`:
+
+- `ab1fb2d peer-review: apply review finding`
+- Removed the false no-skill stop condition from both
+  `relay-os/contexts/relay/architecture/SKILL.md` and the packaged twin under
+  `src/relay/resources/templates/relay-os/bootstrap/contexts/relay/architecture/SKILL.md`.
+
+Verification after the fix:
+
+- `python -m pytest` from the feature worktree: 822 passed, 1 skipped. Pytest
+  also warned that it could not write `.pytest_cache` because this sandbox sees
+  that sibling worktree as read-only; test execution itself passed.
+- `git diff --check`: clean.
+- `relay validate --task launch-prompt/improve-prompt-for-relay-launch --json`
+  from the primary checkout: ok_count 1, no issues.
+- Repo-wide `relay validate --json` from the primary checkout still has
+  unrelated pre-existing task-state errors/warnings (missing-step, unknown
+  assignee, stuck-in-progress), so it is not a clean PR signal.
 
 ## Status
 Draft, filled 2026-06-19. T1 of a two-ticket split (both under
