@@ -45,3 +45,39 @@ Confirmed real / accurate:
    rewrite those sections. Folded into AC + Proposed Shape item 2.
 
 No open questions remain. Spec is ready for `review-design`.
+
+## Clean-room test of Getting Started (2026-06-20)
+
+Ran the Getting Started happy path in an isolated clean-room (fresh `git clone`
++ a brand-new venv + `pip install -e .`, then a fresh `git init` project with a
+throwaway local remote — never the real GitHub/Slack). Reusable harness lives at
+`/tmp/relay-cleanroom/` (`setup.sh` rebuilds the install layer; `reset.sh` wipes
+the project back to pristine for another run). Install (`relay 0.2.0`),
+`relay init --user`, and the `build`/`launch` wiring (`--prompt-report`) all pass.
+Four findings surfaced — flagged by whether they're in-scope **doc** edits or
+sibling-ticket **code** bugs:
+
+1. **`git init` → `master`, but relay syncs to `main` (highest impact).** Step 2's
+   plain `git init` makes a `master` branch (machine default); `[git].control_branch`
+   defaults to `main`, so every mutating command fails its sync but still exits 0:
+   `relay create … → [git] sync failed: 'git fetch origin main' (exit 128): couldn't
+   find remote ref main`. Work stays local, never reaches the remote — easy to miss.
+   Dents the AC ("newcomer reaches a launchable ticket"). **Doc:** change step 2 to
+   `git init -b main`. **Code (sibling):** relay should detect the repo's branch.
+2. **`relay init` prints 5 managed-skill failures.** `Managed skills: failed=5,
+   installed=7`; all 404 against `FastJVM/relay-skills` (repo doesn't resolve), e.g.
+   `relay/gmail`, `relay/google-calendar`, `browser/playwright`. Fires for everyone,
+   not just "older gh". **Doc:** the new `## External CLI Tools` line ("a fresh
+   `relay init` on an older `gh` just skips them with a warning") misattributes the
+   cause and undersells the noise — retarget it. **Code:** `quiet-relay-init-managed-skill-failures`.
+3. **A `browser-automation` draft ships in the templates.** Every fresh init seeds
+   it (+ browser contexts + a workflow) under `resources/templates/relay-os/tasks/`,
+   so `relay status` shows a ticket the newcomer never authored — before `build`
+   even runs. Muddies "launch your first ticket — which slug?". **Doc (optional):**
+   "What you end up with" implies the drafts come from `relay build`. **Code:** remove
+   the example from templates.
+4. **`relay --version` errors inside the cloned source repo (low).** Natural
+   post-install check while still `cd`'d in `relay/`: `'user' is missing from
+   …/relay.local.toml` (a gitignored file that isn't there). Works from any
+   non-`relay-os/` dir. Happy path dodges it (step 2 moves away). Minor; likely no
+   doc change.
