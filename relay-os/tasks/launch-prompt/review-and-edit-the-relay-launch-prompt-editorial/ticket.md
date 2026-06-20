@@ -1,17 +1,29 @@
 ---
 title: review and edit the relay launch prompt (editorial pass)
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: nick
 contexts:
-  - relay/architecture
-  - relay/principles
+- relay/architecture
+- relay/principles
 skills: []
-workflow: autonomy/assist-only
+workflow:
+  name: autonomy/assist-only
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: human
+  - name: report-to-relay
+    skills: []
+    assignee: agent
 secrets: null
+step: 1 (agent-produces)
 ---
 
 ## Description
