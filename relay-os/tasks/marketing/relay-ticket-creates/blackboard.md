@@ -133,3 +133,127 @@ comments — do not whole-file sync). Leave `[agents.codex]` alone everywhere.
    into the gitignored `relay-os/.relay/` install to exercise the real `relay
    ticket` flow before/after, without committing them. Worth doing, or rely on
    the e2e `example/` fixture path?
+
+# Implement step — log (2026-06-19)
+
+All three Open Questions above are resolved by the ticket's **Out of Scope**
+section — built-in fallback (Q1), codex kickoff (Q2), and `.relay/` commits (Q3)
+are all explicitly excluded. Implementing exactly Payload A + Payload B.
+
+## Dev
+
+- branch: `greet-first-ticket`
+- worktree: `/Users/zach2179/Desktop/relay-greet-first-ticket`
+- pr: https://github.com/FastJVM/relay/pull/417
+
+### open-pr step (2026-06-19)
+Pushed `greet-first-ticket` → `origin` and opened PR #417 against `main`
+(`gh auth status` clean — `lilfedor`, `repo`+`workflow` scopes). PR title is the
+descriptive commit subject ("Make `relay ticket` discussion sessions greet-first")
+rather than the bare slug; body carries `Closes ticket: marketing/relay-ticket-creates`,
+summary, and test plan. **CI:** `gh pr checks 417` → "no checks reported" — this
+repo has no CI workflow on the branch, so there is nothing to go green/red; the
+local `python -m pytest` run (822 passed, 1 skipped) is the verification of record.
+
+### Changes applied
+- Payload A — replace Step 1 of `bootstrap/ticket` SKILL.md (header through the
+  line before `## Step 2`). See premise correction below.
+- Payload B — `[agents.claude].discussion` → `'--append-system-prompt {prompt} "Begin"'`
+  in all three copies: packaged template, `relay-os/relay.toml`,
+  `example/relay-os/relay.toml`. `[agents.codex]` left untouched everywhere.
+
+### ⚠ Premise correction — `relay-os/bootstrap/` is gitignored (BLOCKER on Payload A)
+
+The ticket Acceptance Criteria treat
+`relay-os/bootstrap/skills/bootstrap/ticket/SKILL.md` as a committable second
+"source copy" that must land byte-identical in the diff. It is **not** committable:
+
+- `relay-os/.gitignore` ignores `bootstrap/` — comment: *"Single relay-vendored
+  umbrella. Everything inside is upstream-managed and overwritten on every
+  `relay init --update` — your edits will be lost."*
+- `git ls-files relay-os/bootstrap/` → 0 tracked files. The path is absent from
+  the feature worktree (worktrees only carry tracked files), which is why the
+  worktree read failed.
+- It's the same class of artifact as `relay-os/.relay/`, which the ticket's last
+  AC already excludes from the diff. The design caught `.relay/` but missed that
+  `relay-os/bootstrap/` is the same kind of vendored install.
+
+So the **single committable source of truth** for the bootstrap/ticket skill is
+the packaged template `src/relay/resources/templates/relay-os/bootstrap/skills/bootstrap/ticket/SKILL.md`.
+The `relay-os/bootstrap/...` copy is regenerated from that template by
+`relay init --update`; hand-editing it is throwaway (overwritten on update) and
+never enters git.
+
+By contrast, Payload B's three `relay.toml` copies are **all tracked**
+(`relay-os/relay.toml`, `example/relay-os/relay.toml`, packaged template), so
+Payload B is unaffected — apply as written.
+
+**Resolution (zach confirmed 2026-06-19):** commit Payload A to the packaged
+template only; the local install refreshes via `relay init --update`. Behavior
+and PR-visibility unchanged — the only difference is Payload A lands in one
+tracked file instead of two (the second was never git-tracked).
+
+### What actually landed (committed on branch `greet-first-ticket`)
+
+4 tracked files changed:
+- `src/relay/resources/templates/relay-os/bootstrap/skills/bootstrap/ticket/SKILL.md`
+  — Payload A (Step 1 rewrite). **This is the single committable source copy**;
+  `tests/test_bootstrap_ticket_skill_template.py` reads exactly this path,
+  confirming it's the suite's source of truth.
+- `relay-os/relay.toml`, `example/relay-os/relay.toml`,
+  `src/relay/resources/templates/relay-os/relay.toml` — Payload B (`"Begin"`
+  kickoff). `[agents.codex]` untouched in all three.
+- `tests/test_bootstrap_ticket_skill_template.py` — updated two content-guard
+  assertions that pinned the old Step 1 wording (`relay draft "<title>"` line +
+  `relay ticket <slug> launched you against`) to the new Step 1 equivalents
+  (the `relay create` note + the bare-`relay ticket` new/existing greeting).
+
+### Verification
+- `python -m pytest` → **822 passed, 1 skipped** (the 1 pre-existing failure was
+  the stale content-guard above; now updated).
+- All three `relay.toml` parse as valid TOML (`tomllib`); `claude.discussion`
+  carries `"Begin"`, `codex.discussion` unchanged.
+- `shlex.split('--append-system-prompt <prompt> "Begin"')` →
+  `['--append-system-prompt', '<prompt>', 'Begin']` — `Begin` is the first
+  positional (claude's first user turn). Mechanism confirmed.
+- `git diff` carries no `.relay/` paths.
+
+### Not done in this step (human/interactive)
+- **Live greeting smoke** (AC: `relay ticket "<title>"` / bare `relay ticket` /
+  `relay ticket <slug>` open with their greetings). This spawns an interactive
+  `claude` session and can't be driven headlessly from inside this agent session
+  (base prompt forbids launching another agent session from here). Mechanism is
+  verified above; the greeting text itself is zach's validated `relay-ticket-test`
+  prototype. Live confirm is a human check — best run by zach, or at review.
+- Refreshing this repo's local `relay-os/bootstrap/` install — happens via
+  `relay init --update` after merge; out of the committed diff by design.
+
+### Wording follow-up (zach, 2026-06-19)
+Per zach's standing preference (boss dislikes "scaffold" in prose), swapped the
+three "scaffold"/"scaffolded" uses in the **new Step 1** to "create" — amended
+into the same commit (now `6fe191c1`). Two pre-existing "scaffold" mentions
+elsewhere in the file (frontmatter description, Step 7 extension-fields line)
+left untouched — not part of this change. Test still green.
+
+### Review revision (PR #417, per Nico, 2026-06-20)
+Nico's review superseded the Payload A/B approach above. Two comments:
+- *relay.toml:26 — "that won't work (you start all prompt not only ticket)"*:
+  the `"Begin"` kickoff was folded into the shared `[agents.claude].discussion`
+  arg, which `relay chat` / `relay project` also consume — so every discussion
+  session greeted, not just `relay ticket`.
+- *SKILL.md Step 1 — "Your relay.toml opening turn has already prompted you to
+  speak first. what is that?"*: opaque reference to relay.toml internals.
+
+Revised mechanism (commit `3f6a6287`, branch `greet-first-ticket`):
+- New per-agent `discussion_kickoff` key (config.py). `claude.discussion` is back
+  to `--append-system-prompt {prompt}` (no inline `"Begin"`); the kickoff token
+  is appended only on the `relay ticket` path via
+  `build_agent_command(..., kickoff=True)` (ticket.py). chat/project stay silent.
+- **Resolves Open Question 2** ("Codex kickoff"): `codex [OPTIONS] [PROMPT]`
+  *does* take a positional initial prompt, so `discussion_kickoff = "Begin"` is
+  set on `[agents.codex]` too — ticket authoring is now greet-first for codex.
+- Step 1 reworded to "This session is greet-first: open the conversation
+  yourself…" with no relay.toml reference.
+- `python -m pytest` → 830 passed, 1 skipped. Live greeting smoke confirmed by
+  zach in an isolated sandbox: `relay ticket` greets first for both claude and
+  codex; `relay chat --agent codex` stays silent.
