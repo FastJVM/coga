@@ -1,6 +1,6 @@
 ---
 title: Drain pending auto tickets with leftover session budget after recurring sweep
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
@@ -32,6 +32,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
+step: 1 (design)
 ---
 
 ## Description
@@ -74,7 +75,8 @@ probe.
   `notify()`.)
 - "Oldest first" needs a concrete ordering source — frontmatter has no
   created-date field, so git history, directory mtime, and slug order all
-  differ. Design step picks one and says why.
+  differ. Design step picks one and says why. (See locked decision below —
+  preference is the first `log.md` timestamp.)
 - Other open points for the design step: the threshold that counts as enough
   budget to start a ticket (a crude heuristic like ">X% of window remains"
   is acceptable), whether usage is re-probed between drained launches, and
@@ -83,3 +85,33 @@ probe.
 - Out of scope: any priority/ordering system beyond oldest-first, draining
   `mode: interactive` tickets, and resuming orphaned `in_progress` ordinary
   tickets (period-task orphan handling stays as is).
+
+### Decisions locked with Nick (2026-06-20) — design refines, does not re-open
+
+1. **Budget signal — read from the server, per agent type.** Prefer reading
+   remaining usage from the agent's API server (Anthropic for `claude`,
+   OpenAI for `codex`) over scraping CLI `/usage` output, since a server read
+   is more stable headless. Design must *verify the mechanism actually works*
+   (a real go/no-go probe of the endpoint, not just documentation) before
+   writing the design, and must confirm the signal reflects the subscription
+   **usage window** (the 5h/weekly budget) rather than only per-minute API
+   rate-limit headers. The probe is an interface with one implementation per
+   configured agent type. If usage can't be read for an agent type →
+   conservatively skip the drain for that agent. If no stable read exists at
+   all, come back with the documented fallbacks (time-box / fixed N cap /
+   skip).
+2. **Threshold — a `relay.toml` config key.** The "enough budget to start a
+   ticket" threshold is tunable config (e.g. minimum % of window remaining,
+   optional max-tickets-per-drain cap), not a hardcoded constant. Design names
+   the exact key(s) and default(s) and says whether usage is re-probed
+   between launches.
+3. **Ordering — oldest-first by creation = first `log.md` timestamp.** Add a
+   `first_activity()` helper mirroring the existing `last_activity()` in
+   `src/relay/logfile.py` (first parseable `YYYY-MM-DD HH:MM` line = the
+   draft/create entry). This is committed content, so it survives `git clone`
+   / checkout — unlike file mtime, which resets on checkout and would collapse
+   to "all equal" on the cron machine. `relay status` already orders by
+   `last_activity` (committed), so this stays in the same robust family.
+   Consistency add: expose `relay status --order-by created` backed by the
+   same `first_activity()` helper so a human can inspect the exact order the
+   drain will service tickets in.

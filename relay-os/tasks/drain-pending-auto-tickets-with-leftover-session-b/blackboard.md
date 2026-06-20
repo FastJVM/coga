@@ -1,5 +1,21 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Pre-launch decisions with Nick (2026-06-20)
+
+Three design inputs locked before launching the design step (full text now in
+ticket.md `## Context` → "Decisions locked with Nick"):
+
+1. Budget: read remaining usage from the **server** per agent type
+   (Anthropic/OpenAI), not CLI `/usage` scraping. Design must *prove the
+   endpoint works* (go/no-go) and confirm it's the subscription usage window,
+   not per-minute rate-limit headers. Unreadable → skip drain for that agent.
+2. Threshold: a **`relay.toml` config key** (min % remaining, optional max
+   cap), not hardcoded. Design names key + default + re-probe cadence.
+3. Ordering: **oldest-first by first `log.md` timestamp** via a new
+   `first_activity()` helper (mirror of `last_activity()`). Committed content
+   → survives clone (file mtime does not). Bonus consistency add:
+   `relay status --order-by created` on the same helper.
+
 ## Bootstrap interview notes (2026-06-11)
 
 - Origin: Nick's one-liner — after a recurring launch sweep, if auto tickets
