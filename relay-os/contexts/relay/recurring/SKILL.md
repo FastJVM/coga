@@ -45,11 +45,7 @@ scanner skips it. That is how the starter templates ship without firing.
   stale leftover under `tasks/recurring/<name>/` is resumed before any new
   period work for that template; there is only one instantiated path per
   template. If a non-interactive launched task
-  returns still unfinished, the sweep stops before the next due task. Before
-  creating anything, the sweep also reaps leftover `*-dbg-*` debug scratch
-  from a crashed `relay recurring --all` run — debug runs never commit task
-  state, so this is a plain delete; it is the disposable-run analogue of the
-  orphan-resume above.
+  returns still unfinished, the sweep stops before the next due task.
 - `relay recurring launch <name>` — creates one named recurring task now,
   ignoring its schedule. `<name>` is the directory name.
 
@@ -136,8 +132,7 @@ itself mid-run: it marks itself `done` and stops, and the **next** Dream run's
 retro pass cleans up the previous done Dream task — exactly like every other
 done recurring period task. For real done recurring period tickets, there is no
 self-delete and no recurring-command deletion; Dream-acting-on-`done` is the
-only cleanup path. `relay recurring --all` debug scratch is still reaped by the
-recurring command until the sibling redesign removes that debug path.
+only cleanup path.
 
 ## Gotchas
 

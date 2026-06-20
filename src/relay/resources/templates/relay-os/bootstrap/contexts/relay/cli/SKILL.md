@@ -498,20 +498,18 @@ for that run from an attended TTY, even ones whose template says `mode: auto`
 — the debug knob for stepping through a recurring run by hand. It threads
 `relay launch --mode interactive` through and rewrites no ticket files.
 
-`relay recurring --all` is the heavier debug escape hatch: it bypasses both
-the schedule and the status filter. For every template it scaffolds a *fresh,
-isolated* throwaway run under a top-level `<template>-dbg-<timestamp>` slug and
-launches them all sequentially — regardless of whether this period's real task
-already exists or has run. The real period tasks and their
-`last_serviced_period` high-water marks are left untouched, and the runs launch
-interactively (script templates run as scripts) so there is a live
-console to watch. Debug runs are disposable scratch tasks: the `-dbg-<digit>`
-slug keeps them out of both Slack and git history (`sync_task_state` suppresses
-it, so a debug run never commits task state), each run's scratch dir is removed
-when it finishes, and any dir a crashed sweep left behind is reaped at the start
-of the next `relay recurring` (bare or `--all`) — no manual `relay delete`
-needed. Use it to exercise the launch path without waiting for a schedule or
-disturbing real recurring state.
+`relay recurring --all` **forces a real, full run of every template**. It is
+*not* a sandbox: the only difference from a bare `relay recurring` is that it
+ignores the schedule and the status filter that skips already-serviced / done /
+paused templates this period. For every template it get-or-creates the real
+`recurring/<name>` period task and launches it — even one that already ran this
+period (`relay launch` re-activates a `done`/`paused` ticket, restarting its
+workflow at step 1). Everything else is identical to a normal run: real Slack,
+real digest-spool drain, real git task-state sync, and the real
+`last_serviced_period` high-water advance. There are no `-dbg-` scratch dirs, no
+slug-based suppression, no orphan reaping, and no fold-back-to-template-log
+step. Use it to force this period's work to re-run without waiting for the
+schedule.
 
 **`mode: auto` templates are temporarily skipped** with a stderr line and
 a Slack scan-error summary. The auto-launch path produces no live console
@@ -600,8 +598,8 @@ only; they don't accept their own flags.
 - Launching every due recurring task → `relay recurring`.
 - Inspecting recurring templates + schedules + instantiated tasks (read-only)
   → `relay recurring list`.
-- Debug-launching every template now, isolated from real state →
-  `relay recurring --all`.
+- Forcing a real full run of every template now (ignore schedule + status
+  filter) → `relay recurring --all`.
 - Launching one named recurring task now → `relay recurring launch <name>`.
 - Starting or resuming agent work on a task → `relay launch <slug>`.
 - Other bootstrap shim → `relay launch bootstrap/<name>`.

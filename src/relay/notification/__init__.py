@@ -116,19 +116,6 @@ def notify(
             f"notification.notify only accepts digest outcome kinds: {allowed}"
         )
 
-    # A `relay recurring --all` debug run (and any child it spawns) is
-    # disposable scratch that must never reach notifications or the digest
-    # spool —
-    # `--all` is documented not to broadcast. The state change is still in the
-    # task's own `log.md` (every command appends there before calling notify),
-    # so dropping it here loses no audit trail, only the noise. Deferred import
-    # keeps notification ↔ config ↔ recurring free of an import cycle.
-    if ticket is not None:
-        from relay.recurring import is_debug_slug
-
-        if is_debug_slug(ticket):
-            return
-
     spool_path = digest_spool_path(cfg)
     if spool_path is None:
         post(
