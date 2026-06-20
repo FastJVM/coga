@@ -195,9 +195,9 @@ def test_build_command_kickoff_appends_token_for_codex() -> None:
 
 
 def test_build_command_kickoff_off_keeps_session_silent() -> None:
-    """`relay chat` / `relay project` pass discussion=True but kickoff=False:
-    the configured kickoff token must NOT be appended, so the agent waits for
-    the human to speak first (their ask names the session)."""
+    """Non-ticket discussion launches (e.g. `relay chat`) pass discussion=True
+    but kickoff=False: the configured kickoff token must NOT be appended, so the
+    agent waits for the human to speak first (their ask names the session)."""
     agent = _agent(
         "-p",
         discussion="--append-system-prompt {prompt}",

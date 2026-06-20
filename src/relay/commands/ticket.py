@@ -166,7 +166,7 @@ def _run_authoring_session(
     prompt_file = write_prompt_file(prompt, ref)
     # `kickoff=True`: a `relay ticket` session is greet-first — the agent opens
     # the conversation (see the `discussion_kickoff` token in relay.toml). Other
-    # discussion launches (`relay chat`, `relay project`) omit it and stay silent.
+    # discussion launches (e.g. `relay chat`) omit it and stay silent.
     cmd = build_agent_command(
         agent, "interactive", prompt, discussion=True, kickoff=True
     )

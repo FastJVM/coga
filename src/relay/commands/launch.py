@@ -621,9 +621,10 @@ def build_agent_command(
     `kickoff=True` (set only on the `relay ticket` authoring path) appends the
     agent's `discussion_kickoff` token after the discussion argv so the agent
     opens the conversation itself (greet-first) — e.g. `Begin` becomes claude's
-    or codex's first positional user message. `relay chat` / `relay project`
-    leave it off, so they keep opening silently and the human speaks first. A
-    no-op unless `discussion=True` and the agent configures `discussion_kickoff`.
+    or codex's first positional user message. Other discussion launches (e.g.
+    `relay chat`) leave it off, so they keep opening silently and the human
+    speaks first. A no-op unless `discussion=True` and the agent configures
+    `discussion_kickoff`.
     """
     discussion_template = _discussion_template(agent) if discussion else ""
     if discussion_template and mode == "interactive":

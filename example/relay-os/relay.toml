@@ -16,8 +16,8 @@ mode = "local"
 # picker, the prompt box, and the terminal title.
 name_flag = "-n"
 # `discussion_kickoff` is appended only on the `relay ticket` path so the agent
-# opens the conversation itself (greet-first); `relay chat` / `relay project`
-# omit it and stay silent.
+# opens the conversation itself (greet-first); other discussion launches
+# (e.g. `relay chat`) omit it and stay silent.
 discussion = '--append-system-prompt {prompt}'
 discussion_kickoff = "Begin"
 

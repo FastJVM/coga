@@ -84,8 +84,8 @@ class AgentType:
     # Optional positional "first user turn" token appended to the discussion
     # argv to make the agent open the conversation itself (greet-first) instead
     # of waiting for the human. Applied ONLY on the `relay ticket` authoring
-    # path (`build_agent_command(..., kickoff=True)`); `relay chat` and `relay
-    # project` leave it off so the human's first ask still names the session.
+    # path (`build_agent_command(..., kickoff=True)`); other discussion launches
+    # (e.g. `relay chat`) leave it off so the human's first ask names the session.
     # Parsed via `shlex.split` and appended after the discussion template — e.g.
     # `"Begin"` lands as claude's (positional after `--append-system-prompt`) or
     # codex's (positional `[PROMPT]`) first user message. Empty = no kickoff.
