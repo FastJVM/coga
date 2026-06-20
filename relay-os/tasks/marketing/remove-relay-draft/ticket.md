@@ -1,15 +1,32 @@
 ---
 title: Remove the relay draft command
-status: draft
+status: active
 mode: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: zach
+assignee: claude
 contexts: []
 skills: []
-workflow: null
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
+step: 1 (implement)
 ---
 
 ## Description
