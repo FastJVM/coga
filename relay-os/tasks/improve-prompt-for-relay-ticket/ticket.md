@@ -5,7 +5,7 @@ mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: zach
 contexts: []
 skills: []
 workflow: null
