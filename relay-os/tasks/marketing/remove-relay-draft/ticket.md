@@ -1,6 +1,6 @@
 ---
 title: Remove the relay draft command
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach
