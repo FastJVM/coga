@@ -1,6 +1,6 @@
 ---
 title: Drain pending auto tickets with leftover session budget after recurring sweep
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
