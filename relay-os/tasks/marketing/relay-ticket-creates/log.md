@@ -11,3 +11,5 @@
 2026-06-19 22:14 [human:zach] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-19 22:16 [agent:claude] advanced to step 5 (review) → assigned to zach — PR opened: https://github.com/FastJVM/relay/pull/417
 2026-06-19 22:22 [human:zach] task done
+2026-06-20 13:56 [human:zach] reopened (done → in_progress) for follow-up changes; rewinding to review-design
+2026-06-20 13:56 [human:zach] rewound to step 2 (review-design)
