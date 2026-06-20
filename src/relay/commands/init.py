@@ -358,7 +358,6 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     bin_dir = relay_os / ".relay" / "bin"
     shim = _try_install_shim(bin_dir / "relay")
     wired_agents, blocked_agents = _link_skills_for_agents(target, relay_os)
-    hook_removed = _remove_post_merge_hook(target, relay_os)
     host_gitignore_changed = ensure_host_gitignore(target)
     written_guides = _write_agent_guides(target)
     commit_sha = _git_commit_relay_os(
@@ -387,7 +386,6 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             f"Remove or convert it, then rerun `relay init --update`.",
             fg=typer.colors.YELLOW,
         )
-    _print_post_merge_status(hook_removed)
     if host_gitignore_changed:
         typer.echo(f"Updated {target / '.gitignore'} (relay-managed block).")
     if written_guides:
@@ -503,7 +501,6 @@ class _UpdateResult:
     pruned: list[str]
     wired_agents: list[str]
     blocked_agents: list[tuple[str, Path]]
-    hook_removed: bool
     host_gitignore_changed: bool
     written_guides: list[str]
     retrofitted: list[str]
@@ -547,7 +544,6 @@ def _refresh_one(
     write_bin_wrapper(relay_os / ".relay" / "bin")
     write_pin(relay_os, sha, repo_url=repo_url)
     wired_agents, blocked_agents = _link_skills_for_agents(relay_os.parent, relay_os)
-    hook_removed = _remove_post_merge_hook(relay_os.parent, relay_os)
     host_gitignore_changed = ensure_host_gitignore(relay_os.parent)
     written_guides = _write_agent_guides(relay_os.parent)
     retrofitted = _run_retrofits(relay_os)
@@ -558,7 +554,6 @@ def _refresh_one(
         pruned=pruned,
         wired_agents=wired_agents,
         blocked_agents=blocked_agents,
-        hook_removed=hook_removed,
         host_gitignore_changed=host_gitignore_changed,
         written_guides=written_guides,
         retrofitted=retrofitted,
@@ -598,7 +593,6 @@ def _print_update_result(relay_os: Path, result: _UpdateResult) -> None:
             f"Remove or convert it, then rerun this command.",
             fg=typer.colors.YELLOW,
         )
-    _print_post_merge_status(result.hook_removed)
     if result.copied:
         typer.echo(f"Refreshed {len(result.copied)} template file(s):")
         for rel in result.copied:
@@ -861,58 +855,6 @@ def _link_skills_for_agents(
     return wired, blocked
 
 
-def _find_git_dir(start: Path) -> Path | None:
-    """Walk up from `start` looking for a `.git` directory. Worktrees
-    (where `.git` is a file) and bare repos aren't supported here — the
-    hook cleanup just no-ops.
-    """
-    cur = start.resolve()
-    for candidate in [cur, *cur.parents]:
-        gd = candidate / ".git"
-        if gd.is_dir():
-            return gd
-    return None
-
-
-def _remove_post_merge_hook(host_repo: Path, relay_os: Path) -> bool:
-    """Remove a stale `<host>/.git/hooks/post-merge` symlink left by an older
-    Relay that installed the auto-bump-on-merge hook.
-
-    Relay no longer ships or installs a post-merge hook — merged tickets now
-    auto-close via the `autoclose-merged` recurring sweep, the sole trigger.
-    Older installs symlinked `.git/hooks/post-merge`
-    → `relay-os/bootstrap/hooks/post-merge`; pre-bootstrap installs used
-    `relay-os/hooks/post-merge`. `relay init --update` prunes both owned
-    targets, so the symlink may be dangling by the time we see it. Clean it
-    up — but only when it still points at a Relay-owned hook target, never a
-    user's own post-merge hook.
-
-    Returns True iff we removed our symlink. Idempotent. Never raises.
-    """
-    git_dir = _find_git_dir(host_repo)
-    if git_dir is None:
-        return False
-    link = git_dir / "hooks" / "post-merge"
-    if not link.is_symlink():
-        # A regular file is a user's own hook; nothing to remove.
-        return False
-    relay_hook_targets = {
-        (relay_os / "bootstrap" / "hooks" / "post-merge").resolve(),
-        (relay_os / "hooks" / "post-merge").resolve(),
-    }
-    try:
-        target = link.resolve(strict=False)
-    except OSError:
-        return False
-    if target not in relay_hook_targets:
-        return False
-    try:
-        link.unlink()
-    except OSError:
-        return False
-    return True
-
-
 def _run_retrofits(relay_os: Path) -> list[str]:
     """Best-effort migrations on existing tickets. Skip silently if config can't load."""
     try:
@@ -920,15 +862,6 @@ def _run_retrofits(relay_os: Path) -> list[str]:
     except ConfigError:
         return []
     return backfill_role_fields(cfg)
-
-
-def _print_post_merge_status(removed: bool) -> None:
-    if removed:
-        typer.echo(
-            "Removed obsolete post-merge auto-bump hook "
-            "(merged tickets now auto-close via the daily recurring sweep)."
-        )
-    # Nothing to remove — silent.
 
 
 def _try_install_shim(wrapper: Path) -> Path | None:

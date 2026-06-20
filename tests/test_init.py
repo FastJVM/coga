@@ -1838,109 +1838,6 @@ def test_init_skips_host_gitignore_when_not_git_repo(
     assert not (target / ".gitignore").exists()
 
 
-# --- post-merge hook removal --------------------------------------------------
-#
-# Relay no longer installs a post-merge automerge hook. Older installs left a
-# `.git/hooks/post-merge` symlink → `relay-os/bootstrap/hooks/post-merge`; older
-# pre-bootstrap installs used `relay-os/hooks/post-merge`. `_remove_post_merge_hook`
-# cleans up those stale links on init/update. It must never touch a user's own
-# post-merge hook.
-
-
-def _make_relay_hook_symlink(
-    target: Path,
-    relay_os: Path,
-    *,
-    dangling: bool,
-    legacy_root: bool = False,
-) -> Path:
-    """Recreate the symlink an older Relay installed. If `dangling`, leave the
-    target absent (the post-update/prune state)."""
-    hooks_dir = target / ".git" / "hooks"
-    hooks_dir.mkdir(parents=True)
-    if legacy_root:
-        src = relay_os / "hooks" / "post-merge"
-    else:
-        src = relay_os / "bootstrap" / "hooks" / "post-merge"
-    if not dangling:
-        src.parent.mkdir(parents=True, exist_ok=True)
-        src.write_text("#!/bin/sh\nrelay automerge || true\n")
-    link = hooks_dir / "post-merge"
-    link.symlink_to(src)
-    return link
-
-
-def test_remove_post_merge_hook_removes_dangling_relay_symlink(tmp_path: Path) -> None:
-    target = tmp_path / "company"
-    relay_os = target / "relay-os"
-    link = _make_relay_hook_symlink(target, relay_os, dangling=True)
-
-    assert init_cmd._remove_post_merge_hook(target, relay_os) is True
-    assert not link.exists() and not link.is_symlink()
-
-
-def test_remove_post_merge_hook_removes_live_relay_symlink(tmp_path: Path) -> None:
-    target = tmp_path / "company"
-    relay_os = target / "relay-os"
-    link = _make_relay_hook_symlink(target, relay_os, dangling=False)
-
-    assert init_cmd._remove_post_merge_hook(target, relay_os) is True
-    assert not link.is_symlink()
-
-
-def test_remove_post_merge_hook_removes_legacy_root_symlink(tmp_path: Path) -> None:
-    target = tmp_path / "company"
-    relay_os = target / "relay-os"
-    link = _make_relay_hook_symlink(
-        target, relay_os, dangling=True, legacy_root=True
-    )
-
-    assert init_cmd._remove_post_merge_hook(target, relay_os) is True
-    assert not link.exists() and not link.is_symlink()
-
-
-def test_remove_post_merge_hook_leaves_user_hook(tmp_path: Path) -> None:
-    target = tmp_path / "company"
-    relay_os = target / "relay-os"
-    hooks_dir = target / ".git" / "hooks"
-    hooks_dir.mkdir(parents=True)
-    user_hook = hooks_dir / "post-merge"
-    user_hook.write_text("#!/bin/sh\necho user-owned\n")
-    user_hook.chmod(0o755)
-
-    assert init_cmd._remove_post_merge_hook(target, relay_os) is False
-    assert user_hook.read_text() == "#!/bin/sh\necho user-owned\n"
-
-
-def test_remove_post_merge_hook_leaves_foreign_symlink(tmp_path: Path) -> None:
-    target = tmp_path / "company"
-    relay_os = target / "relay-os"
-    hooks_dir = target / ".git" / "hooks"
-    hooks_dir.mkdir(parents=True)
-    elsewhere = tmp_path / "their-hook.sh"
-    elsewhere.write_text("#!/bin/sh\n")
-    link = hooks_dir / "post-merge"
-    link.symlink_to(elsewhere)
-
-    assert init_cmd._remove_post_merge_hook(target, relay_os) is False
-    assert link.is_symlink()
-
-
-def test_remove_post_merge_hook_noop_without_git_repo(tmp_path: Path) -> None:
-    target = tmp_path / "company"
-    target.mkdir()
-    assert init_cmd._remove_post_merge_hook(target, target / "relay-os") is False
-
-
-def test_remove_post_merge_hook_is_idempotent(tmp_path: Path) -> None:
-    target = tmp_path / "company"
-    relay_os = target / "relay-os"
-    _make_relay_hook_symlink(target, relay_os, dangling=True)
-
-    assert init_cmd._remove_post_merge_hook(target, relay_os) is True
-    assert init_cmd._remove_post_merge_hook(target, relay_os) is False
-
-
 def test_ensure_host_gitignore_is_idempotent(tmp_path: Path) -> None:
     target = tmp_path / "company"
     target.mkdir()
@@ -2543,7 +2440,6 @@ def test_update_all_continues_past_a_failing_repo(
             pruned=[],
             wired_agents=[],
             blocked_agents=[],
-            hook_removed=False,
             host_gitignore_changed=False,
             written_guides=[],
             retrofitted=[],
