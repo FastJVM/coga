@@ -18,3 +18,4 @@ relay-os/recurring/relay-dev-update/blackboard.md: needs merge
 relay-os/recurring/relay-dev-update/log.md: needs merge
 2026-06-18 16:34 [human:nick] activated (draft → active)
 2026-06-19 17:47 [human:nick] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-19 18:16 [agent:claude] advanced to step 2 (peer-review) → assigned to codex
