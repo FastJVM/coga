@@ -21,7 +21,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay import automerge as am
+from relay import autoclose as am
 from relay import spool
 from relay.cli import app
 from relay.config import load_config
@@ -280,7 +280,7 @@ def test_automerge_links_pr_and_shows_prev_to_done(
     monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
     posts = _capture(monkeypatch)
 
-    count = am.auto_bump_merged(load_config(repo), quiet=True)
+    count = am.sweep_merged(load_config(repo), quiet=True)
     assert count == 1
     assert _body(posts, "🎉") == (
         f"🎉 *{slug}* \"Work\": merge → done — <{url}|PR #7> merged"
@@ -295,7 +295,7 @@ def test_automerge_workflowless_collapses_and_links(
     monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
     posts = _capture(monkeypatch)
 
-    count = am.auto_bump_merged(load_config(repo), quiet=True)
+    count = am.sweep_merged(load_config(repo), quiet=True)
     assert count == 1
     assert _body(posts, "🎉") == (
         f"🎉 *{slug}* \"Work\" finished — <{url}|PR #9> merged"
@@ -312,7 +312,7 @@ def test_automerge_digest_preserves_transition_and_pr_link(
     digest_blackboard = repo / "recurring" / "digest" / "blackboard.md"
     _write(digest_blackboard, "## Spool (pending)\n")
 
-    count = am.auto_bump_merged(load_config(repo), quiet=True)
+    count = am.sweep_merged(load_config(repo), quiet=True)
 
     assert count == 1
     assert posts == []

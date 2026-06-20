@@ -52,7 +52,7 @@ def test_autoclose_script_calls_shared_sweep_loudly(monkeypatch, capsys) -> None
         calls.append((cfg_arg, quiet))
         return 0
 
-    monkeypatch.setattr(autoclose, "auto_bump_merged", fake_sweep)
+    monkeypatch.setattr(autoclose, "sweep_merged", fake_sweep)
 
     assert autoclose.main() == 0
     assert calls == [(cfg, False)]
@@ -65,7 +65,7 @@ def test_autoclose_script_surfaces_gh_error(monkeypatch, capsys) -> None:
     def boom(*args, **kwargs):
         raise autoclose.GhError("gh: not authenticated")
 
-    monkeypatch.setattr(autoclose, "auto_bump_merged", boom)
+    monkeypatch.setattr(autoclose, "sweep_merged", boom)
 
     assert autoclose.main() == 2
     assert "gh: not authenticated" in capsys.readouterr().err

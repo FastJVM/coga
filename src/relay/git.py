@@ -39,7 +39,7 @@ fired, so the supervisor never relaunched the next step, and launch's own
 means surface the miss (stderr + log), not crash. "Not a git repo" stays a
 soft no-op (single stderr line). The git opt-out is `[git].enabled`.
 
-Subprocess usage mirrors `automerge.py` (`gh` shell-out): no third-party git
+Subprocess usage mirrors `autoclose.py` (`gh` shell-out): no third-party git
 binding, just `subprocess.run` with `check=False` and explicit error handling.
 """
 

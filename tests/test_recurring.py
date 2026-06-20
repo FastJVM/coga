@@ -2682,7 +2682,6 @@ def test_recurring_launch_invokes_launch(
         task: str,
         agent_override: str | None,
         prompt_report: bool,
-        no_verify: bool,
         mode_override: str | None = None,
         return_timeout: bool = False,
     ) -> None:

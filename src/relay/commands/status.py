@@ -100,7 +100,7 @@ def status(
     # `status` is strictly read-only: it never hits the network or mutates
     # ticket state as a side effect of rendering (principle 6, fail loud,
     # names `status`/`show`/`validate` as forbidden mutators). Catching up
-    # merged PRs is the job of `relay automerge`, run explicitly.
+    # merged PRs is the job of the `autoclose-merged` recurring sweep.
     refs = list_tasks(cfg)
     try:
         refs = filter_tasks_under(refs, directory, cfg, recurse=not no_recurse)

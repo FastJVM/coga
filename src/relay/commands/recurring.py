@@ -157,7 +157,6 @@ def main(
             task.ref.id_slug,
             agent_override=None,
             prompt_report=False,
-            no_verify=False,
             mode_override=mode_override,
             idle_timeout=idle_timeout,
             max_session=max_session,
@@ -344,7 +343,6 @@ def _launch_created(ref: TaskRef, *, mode_override: str | None = None) -> None:
         ref.id_slug,
         agent_override=None,
         prompt_report=False,
-        no_verify=False,
         mode_override=mode_override,
         return_timeout=False,
     )

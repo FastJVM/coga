@@ -129,7 +129,6 @@ def retire(
         slug,
         agent_override=None,
         prompt_report=False,
-        no_verify=False,
         mode_override=None,
     )
 

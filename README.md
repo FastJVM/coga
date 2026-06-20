@@ -93,8 +93,8 @@ human-installed command line tools:
 - `git` — required. Relay stores state in the current git repo and uses normal
   working-tree diffs as the review surface.
 - `python` 3.11+ — required for the Relay CLI and the vendored `.relay/` copy.
-- `gh` — required for GitHub-backed PR workflows such as opening PRs,
-  checking merged PRs, and automerge. Run `gh auth login` before relying on
+- `gh` — required for GitHub-backed PR workflows such as opening PRs and the
+  merged-ticket autoclose sweep. Run `gh auth login` before relying on
   those paths.
 - `gh` 2.90.0+ with `gh skill` — required for Relay-managed skill install and
   update workflows once those commands land. Older `gh` versions should fail
@@ -586,22 +586,19 @@ relay bump add-retry --message "PR: https://example/142"
 relay mark done add-retry                    # finish (on final step, or no workflow)
 ```
 
-### `relay automerge`
+### Auto-closing merged tickets
 
-Walk active/in-progress tickets, find ones on their final workflow step (or with no
-workflow) whose blackboard `## Dev` section names a merged PR, and
-auto-bump them to `done`. Looks the PR up via `gh pr view`. Posts to
-Slack with a distinct `auto-bumped on merge of PR #<N>` line.
+The `autoclose-merged` recurring sweep walks active/in-progress tickets,
+finds ones on their final workflow step (or with no workflow) whose
+blackboard `## Dev` section names a merged PR, and auto-bumps them to
+`done`. It looks the PR up via `gh pr view` and posts to Slack with a
+distinct `auto-bumped on merge of PR #<N>` line.
 
-`relay automerge` is explicit-only — run it by hand to catch the long
-tail. It is no longer wired into any implicit trigger: `relay status` does
-**not** trigger automerge (it stays a strictly read-only view — no
-network, no state mutation as a side effect of rendering), and there is no
-post-merge git hook. No `gh`? The explicit command surfaces the error.
-
-```sh
-relay automerge   # one-shot. Safe to run by hand.
-```
+This daily sweep is the **sole** trigger. There is no manual `automerge`
+command and no post-merge git hook, and `relay status` does **not** trigger
+it (status stays a strictly read-only view — no network, no state mutation
+as a side effect of rendering). Tradeoff: a ticket merged today auto-closes
+on the next sweep (≤24h). To close one immediately, run `relay mark done`.
 
 ### `relay delete <slug>`
 

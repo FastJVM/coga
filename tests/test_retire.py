@@ -181,7 +181,6 @@ def test_retire_launches_after_create(
         task: str,
         agent_override: str | None,
         prompt_report: bool,
-        no_verify: bool,
         mode_override: str | None = None,
     ) -> None:
         ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
@@ -191,7 +190,6 @@ def test_retire_launches_after_create(
                 "task": task,
                 "agent_override": agent_override,
                 "prompt_report": prompt_report,
-                "no_verify": no_verify,
                 "mode_override": mode_override,
             }
         )
@@ -215,7 +213,6 @@ def test_retire_launches_after_create(
             "task": "retire-fix-retry-logic",
             "agent_override": None,
             "prompt_report": False,
-            "no_verify": False,
             "mode_override": None,
         }
     ]

@@ -4,7 +4,7 @@ schedule_comment: "Every day at 8am - close merged final-step tickets before the
 title: "Autoclose merged tickets"
 # `mode: script` runs the sweep directly with no agent: the workflow's one
 # step references the `relay/autoclose/sweep` skill, whose `script:` calls
-# `relay.automerge.auto_bump_merged`. No `claude -p` / `codex exec`
+# `relay.autoclose.sweep_merged`. No `claude -p` / `codex exec`
 # buffering, so it is safe under the temporary mode=auto recurring freeze.
 mode: script
 workflow: autoclose-merged/sweep
@@ -26,8 +26,8 @@ which:
 4. leaves non-final-step tickets alone as suspicious, and
 5. marks final-step or workflow-less tickets `done` when the PR is merged.
 
-The sweep uses the same `relay.automerge.auto_bump_merged` function as the
-manual `relay automerge` command. This recurring task only changes when the
+This sweep is the sole trigger for auto-closing merged tickets — there is
+no manual `automerge` command. The recurring task only changes when the
 sweep runs; it does not change which tickets are safe to close.
 
 Done events produced by the sweep go through `relay mark done`, so they are
