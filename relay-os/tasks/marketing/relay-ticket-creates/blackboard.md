@@ -144,6 +144,16 @@ are all explicitly excluded. Implementing exactly Payload A + Payload B.
 
 - branch: `greet-first-ticket`
 - worktree: `/Users/zach2179/Desktop/relay-greet-first-ticket`
+- pr: https://github.com/FastJVM/relay/pull/417
+
+### open-pr step (2026-06-19)
+Pushed `greet-first-ticket` → `origin` and opened PR #417 against `main`
+(`gh auth status` clean — `lilfedor`, `repo`+`workflow` scopes). PR title is the
+descriptive commit subject ("Make `relay ticket` discussion sessions greet-first")
+rather than the bare slug; body carries `Closes ticket: marketing/relay-ticket-creates`,
+summary, and test plan. **CI:** `gh pr checks 417` → "no checks reported" — this
+repo has no CI workflow on the branch, so there is nothing to go green/red; the
+local `python -m pytest` run (822 passed, 1 skipped) is the verification of record.
 
 ### Changes applied
 - Payload A — replace Step 1 of `bootstrap/ticket` SKILL.md (header through the
