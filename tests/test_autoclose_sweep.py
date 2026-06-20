@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import shutil
 import sys
 from datetime import datetime
@@ -70,36 +71,71 @@ def test_autoclose_script_surfaces_gh_error(monkeypatch, capsys) -> None:
     assert "gh: not authenticated" in capsys.readouterr().err
 
 
+def _strip_runtime_state(text: str) -> str:
+    """Drop the lines a real recurring run mutates into the live copy.
+
+    This repo dogfoods relay, so the live `autoclose-merged` template — which
+    doubles as the canonical source mirrored into the packaged templates — gets
+    serviced by real `relay recurring` runs. `sync_task_state` then commits that
+    runtime state: a `last_serviced_period:` line in the blackboard and
+    timestamped `[system] ...` entries in the log. Those are legitimate run
+    artifacts, not template drift, so strip them before comparing — what must
+    stay in sync is the static template content.
+    """
+    out = []
+    for line in text.splitlines(keepends=True):
+        stripped = line.lstrip()
+        if stripped.startswith("last_serviced_period:"):
+            continue
+        if re.match(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2} \[", stripped):
+            continue
+        out.append(line)
+    return "".join(out).rstrip("\n")
+
+
 def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
+    # (live, packaged, tolerant): tolerant pairs are the files a real recurring
+    # run mutates (blackboard's serviced-period line, the log's entries); only
+    # their static template content is compared. Everything else is byte-exact.
     pairs = [
         (
             LIVE_RELAY_OS / "recurring" / "autoclose-merged" / "ticket.md",
             PACKAGED_RELAY_OS / "recurring" / "autoclose-merged" / "ticket.md",
+            False,
         ),
         (
             LIVE_RELAY_OS / "recurring" / "autoclose-merged" / "blackboard.md",
             PACKAGED_RELAY_OS / "recurring" / "autoclose-merged" / "blackboard.md",
+            True,
         ),
         (
             LIVE_RELAY_OS / "recurring" / "autoclose-merged" / "log.md",
             PACKAGED_RELAY_OS / "recurring" / "autoclose-merged" / "log.md",
+            True,
         ),
         (
             LIVE_RELAY_OS / "workflows" / "autoclose-merged" / "sweep.md",
             PACKAGED_RELAY_OS / "workflows" / "autoclose-merged" / "sweep.md",
+            False,
         ),
         (
             LIVE_RELAY_OS / "skills" / "relay" / "autoclose" / "sweep" / "SKILL.md",
             PACKAGED_SKILL / "SKILL.md",
+            False,
         ),
         (
             LIVE_RELAY_OS / "skills" / "relay" / "autoclose" / "sweep" / "run.py",
             PACKAGED_SKILL / "run.py",
+            False,
         ),
     ]
 
-    for live, packaged in pairs:
-        assert live.read_text() == packaged.read_text()
+    for live, packaged, tolerant in pairs:
+        live_text, packaged_text = live.read_text(), packaged.read_text()
+        if tolerant:
+            live_text = _strip_runtime_state(live_text)
+            packaged_text = _strip_runtime_state(packaged_text)
+        assert live_text == packaged_text, live
 
 
 def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> None:
@@ -134,6 +170,12 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
         LIVE_RELAY_OS / "recurring" / "autoclose-merged",
         relay_os / "recurring" / "autoclose-merged",
     )
+    # The live template doubles as the canonical source but is serviced by real
+    # `relay recurring` runs in this repo, so its committed blackboard may carry
+    # a stale `last_serviced_period:`. Strip it so this test controls its own
+    # starting period regardless of dogfooding drift.
+    copied_bb = relay_os / "recurring" / "autoclose-merged" / "blackboard.md"
+    copied_bb.write_text(_strip_runtime_state(copied_bb.read_text()) + "\n")
     shutil.copytree(
         LIVE_RELAY_OS / "workflows" / "autoclose-merged",
         relay_os / "workflows" / "autoclose-merged",
