@@ -31,7 +31,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (design)
+step: 3 (implement)
 ---
 
 ## Description
@@ -96,9 +96,11 @@ solving it:
    timestamp and tagged by ref; delete the old `blackboard.md` / `log.md`.
    Bootstrap shims (`ticket.md` only, no blackboard, no log) are left as-is.
 7. **Docs** — rewrite every place that teaches the three-file model:
-   `relay/architecture`, the base prompt, `relay/cli`, README, `docs/spec.md`,
+   `relay/architecture`, the base prompt, `relay/cli`, README, `docs/design.md`,
    and the `code/*` skills that name `blackboard.md`/`log.md`. Ship in the same
-   PR as the behavior change.
+   PR as the behavior change. In this checkout the broad design doc is
+   `docs/design.md` (there is no `docs/spec.md`); update any generated/live
+   `relay/cli` context copy that exists.
 
 ### Shape decision: one ticket, not siblings
 
@@ -116,9 +118,10 @@ ticket already requires behavior + docs in the same PR). See
 
 ## Acceptance Criteria
 
-- [ ] A task is a directory containing exactly one `ticket.md`; no
+- [ ] A task's canonical mutable state is in its `ticket.md` only; no
   `blackboard.md` or `log.md` exists under `tasks/` or `recurring/` after
-  migration.
+  migration. Existing auxiliary dotfiles such as `.state-snapshot.json` keep
+  their current meaning.
 - [ ] `ticket.md` for a task has: frontmatter, a body region, a single
   `<!-- relay:blackboard -->` fence, and a blackboard region. A bootstrap shim
   has frontmatter + body and no fence.
@@ -136,11 +139,14 @@ ticket already requires behavior + docs in the same PR). See
   `relay status` ordering by last activity is unchanged.
 - [ ] Recurring `last_serviced_period` / state-keys and `automerge`'s
   `## Dev` PR-URL scan read from the blackboard region of the one file.
+- [ ] Blackboard-only writes splice the post-fence region and leave the
+  frontmatter/body region byte-for-byte unchanged; commands that intentionally
+  mutate frontmatter keep using the existing ticket writer path.
 - [ ] The one-shot migration is idempotent (re-running is a no-op) and
   fail-loud (a dir it can't safely fold errors instead of guessing); the
   seeded `example/` repo and `_template` are migrated.
 - [ ] Docs in `relay/architecture`, base prompt, `relay/cli`, README,
-  `docs/spec.md`, and affected `code/*` skills no longer describe a
+  `docs/design.md`, and affected `code/*` skills no longer describe a
   per-task `log.md` / three-file model.
 - [ ] `python -m pytest` and `relay validate --json` pass.
 
@@ -148,13 +154,18 @@ ticket already requires behavior + docs in the same PR). See
 
 **New module `src/relay/task_file.py`** (the single legible seam):
 - `BLACKBOARD_FENCE = "<!-- relay:blackboard -->"`.
-- `read_task_file(path) -> TaskFile(frontmatter: dict, body: str,
-  blackboard: str | None)` — `Ticket.parse` for the frontmatter/body split
-  (reuse `ticket.py:52` `_FM_RE`), then split the body on the fence. Exactly
-  zero fences → shim shape (`blackboard=None`) only for `BootstrapRef`,
-  else error; one fence → `(body, blackboard)`; more than one → error.
-- Blackboard-region writers (`append_to_section`, `append_blocker`) rewrite
-  only the post-fence region, preserving frontmatter + body byte-for-byte.
+- `read_task_file(path, *, blackboard_required: bool) -> TaskFile(frontmatter:
+  dict, body: str, blackboard: str | None)` — reuse `Ticket.parse` for the
+  frontmatter/body split, then split the body on the fence. Exactly zero fences
+  is allowed only when the caller says `blackboard_required=False` (bootstrap
+  shims); zero fences for normal tasks or recurring templates is an error; one
+  fence → `(body, blackboard)`; more than one → error.
+- `write_task_file(path, task_file)` or narrower helpers preserve the exact
+  pre-fence text when rewriting only the blackboard region. Do not use parsed
+  frontmatter as an excuse to re-render YAML during a blackboard append; the
+  frontmatter-mutating commands can keep their current `Ticket.write` path.
+  Blackboard-region writers (`append_to_section`, `append_blocker`, recurring
+  state updates) rewrite only the post-fence region.
 
 **Global log — rewrite `src/relay/logfile.py`:**
 - `append_log(cfg, task_ref, actor, message)` → appends
