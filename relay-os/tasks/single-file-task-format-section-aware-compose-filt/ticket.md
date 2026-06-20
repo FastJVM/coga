@@ -1,14 +1,14 @@
 ---
 title: Single-file task format + section-aware compose filter
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: claude
 contexts:
-  - relay/architecture
-  - relay/codebase
+- relay/architecture
+- relay/codebase
 skills: []
 workflow:
   name: code/design-then-implement
@@ -36,54 +36,176 @@ step: 1 (design)
 
 ## Description
 
-Replace the three-file-per-task layout (`ticket.md` + `blackboard.md` +
-`log.md`) with a **single file per task** that holds frontmatter plus
-delimited sections, and add a **section-aware compose filter** so the prompt
-composer loads only the working sections and never the append-only audit
-history.
+Collapse the three-file-per-task layout (`ticket.md` + `blackboard.md` +
+`log.md`) into **one file per task** (`ticket.md` = frontmatter + body +
+blackboard) and move the append-only audit trail out of the task directory
+entirely into **one global, union-merged log** (`relay-os/log.md`). A
+**section-aware compose reader** then loads only frontmatter + body +
+blackboard and never touches the log.
 
-Today the three-file split encodes the composition boundary for free: compose
-does a plain read of `blackboard.md` and simply never reads `log.md`, so the
-unbounded audit trail never enters a prompt. Merging into one file removes that
-free boundary — the composer must now parse the file and pull only the working
-sections, skipping the (still unbounded) log section **without loading it into
-memory or the prompt**. That section-aware reader is the crux of this work.
+### Revised owner decision (supersedes the original framing)
 
-Scope:
+The ticket originally recorded the log staying *inside* the per-task file as
+an unbounded section that compose would stream/seek past. In design (interactive
+session, 2026-06-19) the owner **reversed** that: the log is no longer
+per-ticket at all. It becomes a single repo-level `relay-os/log.md`, each line
+tagged with its task ref, with `merge=union` git semantics so concurrent
+appends across branches merge cleanly.
 
-1. **Format** — define the single-file layout: YAML frontmatter, the body
-   sections (`## Description`, `## Context`), the working/blackboard section,
-   and the append-only audit/log section, each with stable, machine-findable
-   delimiters the filter can split on.
-2. **Compose filter** — `compose.py` reads only frontmatter + body + working
-   section; the audit section is excluded. The reader must be able to skip the
-   audit section cheaply even as it grows large (stream/seek to the section,
-   don't read-then-discard).
-3. **Writers** — every command that writes ticket/blackboard/log today
-   (`draft`, `bump`, `mark`, `launch`-time transitions, `panic`, `slack`,
-   recurring/retire creating) moves to section-scoped writes/appends in the
-   one file.
-4. **Reads / surfaces** — `relay show`, `validate`, and task discovery read the
-   new format.
-5. **Migration** — a one-shot migration for all existing task directories
-   (~96) and recurring/bootstrap dirs into the new format. Bootstrap shims have
-   no blackboard/log, so handle their reduced shape.
-6. **Docs** — rewrite every place that teaches the three-file model:
-   `relay/architecture` (primitives, prompt composition, "log never composed"),
-   the base prompt, `relay/cli`, README, and `docs/spec.md`. Behavior change
-   and its context must land in the same PR.
+This is strictly more legible and it *dissolves the original crux* rather than
+solving it:
 
-Accepted tradeoff (owner decision): the audit history now lives inside the
-composed file, so the filter — not a separate file — is what keeps it out of
-the prompt. This trades the "dumbest legible version" (read one file, ignore
-another) for a section parser; the design step must keep that parser legible
-and fail-loud (a malformed/unsplittable file must error, never silently drop
-the working section).
+- The per-task file is now always small and bounded (frontmatter + body +
+  blackboard), so compose goes back to the "dumbest legible version" — read the
+  small task file, ignore the log. **No stream/seek-past-an-unbounded-section
+  parser is needed**, because the unbounded thing is no longer in the file
+  compose opens.
+- The section reader still exists (it splits body from blackboard so each lands
+  in the right prompt layer) but only ever parses a small bounded file, so the
+  fail-loud requirement is cheap to honor.
+- The unbounded growth now lives in one file compose never reads, and
+  `merge=union` fixes the per-task-log merge-conflict problem the old layout
+  had.
 
-**Likely splits into siblings.** Treat format-definition+migration, the
-compose filter, the writer migration, and the docs rewrite as candidate
-sibling tickets if the design step shows they're separable. Settle the shape in
-design/review-design before touching the migration.
+### Scope
+
+1. **Format** — one `ticket.md` per task: YAML frontmatter, the body sections
+   (`## Description`, `## Context`, plus spec sections), then a single
+   machine-findable fence `<!-- relay:blackboard -->` followed by the freeform
+   blackboard region. Exactly two regions after frontmatter (body above the
+   fence, blackboard below); the log is *not* a region.
+2. **Global log** — `relay-os/log.md`, append-only, one per repo. Each line
+   `YYYY-MM-DD HH:MM [<task-ref>] [<actor>] <message>` so per-task history is
+   reconstructable by filtering on the ref. `.gitattributes` marks it
+   `merge=union` (live repo + packaged template).
+3. **Compose reader** — a `read_task_file()` helper splits frontmatter / body /
+   blackboard; compose feeds Description→task-description layer,
+   Context→inline-context layer, blackboard→blackboard layer. Fail-loud on a
+   task ticket missing the fence; never silently fold blackboard into body or
+   vice versa.
+4. **Writers** — every `append_log` caller moves to the global log; every
+   blackboard writer (`append_to_section`, `append_blocker`, recurring
+   `last_serviced_period`, size-warning) operates on the blackboard region of
+   the one file. Scaffolding (`create.py`) writes one file, not three.
+5. **Reads / surfaces** — `relay show` (per-task history from the global log),
+   `status` (`last_activity` from the global log), `validate`, `automerge`
+   (PR-URL scan), `period_state` (recurring state-keys) read the new format.
+6. **Migration** — one-shot, idempotent, fail-loud: fold each task's
+   `blackboard.md` into its `ticket.md` under the fence; union all `log.md`
+   lines (task + recurring template) into `relay-os/log.md` sorted by
+   timestamp and tagged by ref; delete the old `blackboard.md` / `log.md`.
+   Bootstrap shims (`ticket.md` only, no blackboard, no log) are left as-is.
+7. **Docs** — rewrite every place that teaches the three-file model:
+   `relay/architecture`, the base prompt, `relay/cli`, README, `docs/spec.md`,
+   and the `code/*` skills that name `blackboard.md`/`log.md`. Ship in the same
+   PR as the behavior change.
+
+### Shape decision: one ticket, not siblings
+
+The ticket speculated this might split into sibling tickets (format+migration /
+compose / writers / docs). **It does not.** The cutover is atomic: the on-disk
+format and *every* reader and writer that touches it (~12 modules) must change
+together, or the repo is broken between commits — there is no intermediate
+state where half the tasks are migrated and both the old and new readers work.
+The alternative (an expand→migrate→contract dual-format compatibility layer)
+buys reviewable increments at the cost of throwaway dual-format code, and is not
+worth it for a one-shot migration inside a single repo with no external
+consumers of the on-disk format. So: one ticket, one PR, docs included (the
+ticket already requires behavior + docs in the same PR). See
+`## Open Questions` on the blackboard for the owner to confirm this call.
+
+## Acceptance Criteria
+
+- [ ] A task is a directory containing exactly one `ticket.md`; no
+  `blackboard.md` or `log.md` exists under `tasks/` or `recurring/` after
+  migration.
+- [ ] `ticket.md` for a task has: frontmatter, a body region, a single
+  `<!-- relay:blackboard -->` fence, and a blackboard region. A bootstrap shim
+  has frontmatter + body and no fence.
+- [ ] `relay-os/log.md` exists, is append-only, and every line carries
+  `YYYY-MM-DD HH:MM [<task-ref>] [<actor>] <message>`. `.gitattributes` marks
+  it `merge=union` in both the live repo and the packaged template tree.
+- [ ] `read_task_file()` returns `(frontmatter, body, blackboard)` and raises a
+  clear error on a task ticket with no/duplicate fence — it never silently
+  drops or merges a region. Covered by a unit test for the malformed case.
+- [ ] Composed prompt is byte-identical in content to the pre-change prompt for
+  a representative migrated task (same Description, Context, blackboard layers;
+  log absent as before). A compose test asserts the log never appears.
+- [ ] Every former `append_log` call site writes a correctly-tagged line to the
+  global log; `relay show <task>` reconstructs that task's history from it;
+  `relay status` ordering by last activity is unchanged.
+- [ ] Recurring `last_serviced_period` / state-keys and `automerge`'s
+  `## Dev` PR-URL scan read from the blackboard region of the one file.
+- [ ] The one-shot migration is idempotent (re-running is a no-op) and
+  fail-loud (a dir it can't safely fold errors instead of guessing); the
+  seeded `example/` repo and `_template` are migrated.
+- [ ] Docs in `relay/architecture`, base prompt, `relay/cli`, README,
+  `docs/spec.md`, and affected `code/*` skills no longer describe a
+  per-task `log.md` / three-file model.
+- [ ] `python -m pytest` and `relay validate --json` pass.
+
+## Proposed Shape
+
+**New module `src/relay/task_file.py`** (the single legible seam):
+- `BLACKBOARD_FENCE = "<!-- relay:blackboard -->"`.
+- `read_task_file(path) -> TaskFile(frontmatter: dict, body: str,
+  blackboard: str | None)` — `Ticket.parse` for the frontmatter/body split
+  (reuse `ticket.py:52` `_FM_RE`), then split the body on the fence. Exactly
+  zero fences → shim shape (`blackboard=None`) only for `BootstrapRef`,
+  else error; one fence → `(body, blackboard)`; more than one → error.
+- Blackboard-region writers (`append_to_section`, `append_blocker`) rewrite
+  only the post-fence region, preserving frontmatter + body byte-for-byte.
+
+**Global log — rewrite `src/relay/logfile.py`:**
+- `append_log(cfg, task_ref, actor, message)` → appends
+  `… [<task_ref.id_slug>] [<actor>] <message>` to `relay-os/log.md` in
+  `O_APPEND` mode. Resolve the global-log path via a `paths.py` helper.
+- `last_activity(cfg, task_ref)` and a single-pass `last_activity_map(cfg)`
+  (one scan of the global log → `{ref: datetime}`) for `status.py`, so status
+  doesn't re-read the whole log per task.
+- `history_for(cfg, task_ref) -> list[str]` for `relay show`.
+
+**Compose — `src/relay/compose.py`:** replace the `blackboard.md` read
+(`224-229`) and the two `_extract_section` calls (`208`, `235`) with
+`read_task_file()`; map body→Description/Context, blackboard→layer 7. Net
+simplification.
+
+**Writers (mechanical, once the helpers exist):** `create.py` (scaffold one
+file + fence; first global-log line), `bump.py`, `mark.py`, `panic.py`,
+`slack.py`, `launch.py`, `launch_script.py`, `project.py`, `git.py`,
+`notification/slack.py`, `recurring.py` (`_record_run` → global log;
+template `last_serviced_period`/state in the blackboard region),
+`validate.py` (safe-fixes + idle detection from global log),
+`blackboard.py` (region-scoped), `automerge.py`, `period_state.py`,
+`commands/show.py` (history from global log), `commands/status.py`
+(`last_activity_map`).
+
+**Migration — throwaway one-shot script (NOT a shipped `relay` subcommand;
+owner decision — run once on this repo, then delete):** for each
+`tasks/**/ticket.md` and
+`recurring/*/ticket.md`: append `\n<fence>\n` + `blackboard.md` body to
+`ticket.md`; collect `log.md` lines, re-tag with the ref. Union all collected
+lines across all tasks, sort by the `YYYY-MM-DD HH:MM` prefix (stable on ties),
+write `relay-os/log.md`. Delete the old `blackboard.md`/`log.md`. Skip
+bootstrap shims. Idempotent: detect an already-migrated file (fence present /
+no `blackboard.md`) and no-op. Migrate `example/` and `_template` too.
+
+**`.gitattributes`:** add `relay-os/log.md merge=union` to the live repo and
+`src/relay/resources/templates/relay-os/.gitattributes`.
+
+## Out of Scope
+
+- Changing the canonical frontmatter schema or any field semantics
+  (`status`/`step` stay CLI-owned; hand-edits to frontmatter/body stay safe).
+- Per-team or per-subtree logs — decided: exactly one `relay-os/log.md` per
+  repo.
+- Changing blackboard freeform semantics (agents still invent headings inside
+  the blackboard region).
+- A general dual-format / backward-compat reader — the migration is a single
+  atomic cutover, not a long-lived compatibility window.
+- Re-enabling `mode: auto`, recurring scheduling changes, or any behavior not
+  required by the format change.
+- A `relay log` query UI beyond what `relay show` already renders.
 
 ## Context
 
