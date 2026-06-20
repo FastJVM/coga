@@ -41,7 +41,7 @@ retrofit.py, launch.py `--mode` validator).
 
 Scope B+C (unblock unattended execution + capture/notify machinery + recurring
 opt-in) split into the follow-up draft
-`unblock-unattended-execution-mode-autonomy-auto` (depends on this). Remote/cloud
+`2-unblock-unattended-execution-mode-autonomy-auto` (depends on this). Remote/cloud
 dispatch remains a third, later ticket.
 
 ## Evaluator review

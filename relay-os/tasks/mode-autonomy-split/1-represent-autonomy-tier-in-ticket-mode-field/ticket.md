@@ -35,7 +35,7 @@ Split the conflated `mode` field into two orthogonal fields, and hard-migrate th
 whole repo to the new vocabulary. **This ticket is the representation +
 migration only — it preserves current launch behavior.** Actually unblocking
 unattended execution is the follow-up
-`unblock-unattended-execution-mode-autonomy-auto`.
+`2-unblock-unattended-execution-mode-autonomy-auto`.
 
 Today `mode` is a single enum (`interactive` / `auto` / `script`) that conflates
 two independent questions. Factor it into a clean 2×2:
@@ -119,7 +119,7 @@ in the PR; the validator accepts only the new values after migration. Single
 vocabulary, per Relay's legibility principle.
 
 **Out of scope:** unblocking unattended execution / output capture / recurring
-opt-in (→ `unblock-unattended-execution-mode-autonomy-auto`); remote/cloud
+opt-in (→ `2-unblock-unattended-execution-mode-autonomy-auto`); remote/cloud
 dispatch (a later "when mature" ticket).
 
 ## Approach

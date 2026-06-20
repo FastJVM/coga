@@ -33,13 +33,13 @@ step: 1 (implement)
 ## Description
 
 Make `autonomy: auto` actually runnable. This is the follow-up to
-`represent-autonomy-tier-in-ticket-mode-field`, which splits `mode` into
+`1-represent-autonomy-tier-in-ticket-mode-field`, which splits `mode` into
 `mode: agent|script` + `autonomy: interactive|auto` and migrates the repo, but
 deliberately **preserves** the blocks on unattended execution. This ticket
 removes those blocks and builds the machinery that makes an unattended run
 observable — so recurring/scheduled tickets can run with no human.
 
-Depends on `represent-autonomy-tier-in-ticket-mode-field` landing first (the
+Depends on `1-represent-autonomy-tier-in-ticket-mode-field` landing first (the
 two-field vocabulary must exist).
 
 Scope:
@@ -73,7 +73,7 @@ unobservable. The justification for unblocking is that recurring/scheduled runs
 have no live watcher anyway — their observability bar is "output landed in the
 log + Slack notify on done/fail," which the capture path above provides.
 
-See `represent-autonomy-tier-in-ticket-mode-field/blackboard.md` (## Evaluator
+See `1-represent-autonomy-tier-in-ticket-mode-field/blackboard.md` (## Evaluator
 review) for the analysis that motivated splitting this out — especially the note
 that the agent-side output-capture + done-notification path is novel engineering
 with no existing machinery, which is why it's its own ticket.
