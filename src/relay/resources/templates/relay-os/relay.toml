@@ -24,7 +24,7 @@ name_flag = "-n"
 # `discussion` rides the composed prompt as system context for discussion
 # sessions (`relay chat`, `relay ticket`) so the human's first ask becomes
 # the session title instead of a 20KB Relay prompt.
-discussion = "--append-system-prompt {prompt}"
+discussion = '--append-system-prompt {prompt} "Begin"'
 
 [agents.codex]
 cli = "codex"
