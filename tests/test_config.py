@@ -530,6 +530,24 @@ def test_unknown_git_key_rejected_local(repo: Path) -> None:
         load_config(repo)
 
 
+@pytest.mark.parametrize("key", ["remote", "control_branch"])
+def test_shared_only_git_keys_rejected_local(repo: Path, key: str) -> None:
+    _write(
+        repo / "relay.local.toml",
+        f"""
+        user = "marc"
+
+        [git]
+        {key} = "upstream"
+        """,
+    )
+    with pytest.raises(
+        ConfigError,
+        match=rf"\[git\] in relay.local.toml has unknown key\(s\) \['{key}'\]",
+    ):
+        load_config(repo)
+
+
 def test_unknown_launch_key_rejected(repo: Path) -> None:
     (repo / "relay.toml").write_text(
         (repo / "relay.toml").read_text() + "\n[launch]\nidle_timout = 600\n"

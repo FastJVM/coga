@@ -371,7 +371,14 @@ _ALLOWED_SLACK_KEYS: frozenset[str] = frozenset({
     "gifs",
     "users",
 })
-_ALLOWED_GIT_KEYS: frozenset[str] = frozenset({"enabled", "remote", "control_branch"})
+_ALLOWED_SHARED_GIT_KEYS: frozenset[str] = frozenset({
+    "enabled",
+    "remote",
+    "control_branch",
+})
+# Only `enabled` is machine-local. `remote` and `control_branch` are shared
+# repo policy and `_parse_git` intentionally reads them only from relay.toml.
+_ALLOWED_LOCAL_GIT_KEYS: frozenset[str] = frozenset({"enabled"})
 _ALLOWED_LAUNCH_KEYS: frozenset[str] = frozenset({"idle_timeout", "max_session"})
 _ALLOWED_TICKET_KEYS: frozenset[str] = frozenset({"fields"})
 
@@ -403,7 +410,12 @@ def _reject_unknown_sections(shared: dict, local: dict) -> None:
             f"[notification.slack] in {source}",
         )
         _reject_unknown_keys(table.get("slack"), _ALLOWED_SLACK_KEYS, f"[slack] in {source}")
-        _reject_unknown_keys(table.get("git"), _ALLOWED_GIT_KEYS, f"[git] in {source}")
+    _reject_unknown_keys(
+        shared.get("git"), _ALLOWED_SHARED_GIT_KEYS, "[git] in relay.toml"
+    )
+    _reject_unknown_keys(
+        local.get("git"), _ALLOWED_LOCAL_GIT_KEYS, "[git] in relay.local.toml"
+    )
 
 
 _LOCAL_AGENT_OVERRIDE_KEYS: frozenset[str] = frozenset({
