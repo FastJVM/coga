@@ -1,6 +1,6 @@
 ---
 title: Single-file task format + section-aware compose filter
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
