@@ -876,10 +876,11 @@ def _find_git_dir(start: Path) -> Path | None:
 
 def _remove_post_merge_hook(host_repo: Path, relay_os: Path) -> bool:
     """Remove a stale `<host>/.git/hooks/post-merge` symlink left by an older
-    Relay that installed the automerge hook.
+    Relay that installed the auto-bump-on-merge hook.
 
-    Relay no longer ships or installs a post-merge hook (automerge is an
-    explicit-only surface). Older installs symlinked `.git/hooks/post-merge`
+    Relay no longer ships or installs a post-merge hook — merged tickets now
+    auto-close via the `autoclose-merged` recurring sweep, the sole trigger.
+    Older installs symlinked `.git/hooks/post-merge`
     → `relay-os/bootstrap/hooks/post-merge`; pre-bootstrap installs used
     `relay-os/hooks/post-merge`. `relay init --update` prunes both owned
     targets, so the symlink may be dangling by the time we see it. Clean it
@@ -925,7 +926,7 @@ def _print_post_merge_status(removed: bool) -> None:
     if removed:
         typer.echo(
             "Removed obsolete post-merge auto-bump hook "
-            "(automerge is explicit-only now — run `relay automerge`)."
+            "(merged tickets now auto-close via the daily recurring sweep)."
         )
     # Nothing to remove — silent.
 

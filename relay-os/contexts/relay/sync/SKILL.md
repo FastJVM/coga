@@ -46,9 +46,10 @@ Outcome digest surface — spooled into the daily digest (live fallback below):
 
 - `relay mark done` — done tickets, including manual/script-mode completions
   that have no PR number.
-- `relay automerge` (explicit-only; never `relay status`, which is
+- the `autoclose-merged` recurring sweep (never `relay status`, which is
   read-only) — auto-bumps active/in-progress
-  tickets to `done` when their blackboard `## Dev` PR has merged.
+  tickets to `done` when their blackboard `## Dev` PR has merged. This daily
+  sweep is the sole trigger; there is no manual `automerge` command.
 - `relay recurring` — only the end-of-run summary when templates failed to
   parse (`recurring-error`).
 
@@ -174,14 +175,14 @@ new string:
 - **PR references are Slack links**: `<{url}|PR #{N}>`, never plain `PR #N`
   (plain text doesn't link in incoming-webhook posts).
 - Message strings are built **at the call sites** (`commands/*.py`,
-  `automerge.py`) — `advance_step`/`mark_done` receive finished `slack_text`,
+  `autoclose.py`) — `advance_step`/`mark_done` receive finished `slack_text`,
   and `post()`/`notify()` never reformat. `tests/test_notification_messages.py`
   snapshots the formats; extend it when a string changes.
 - **Keep the live text and the digest detail in step.** A call site that uses
   `notify` posts the live string only as a fallback; the spooled record's
   `detail` line must carry the same transition and PR link, or digest users
-  see a poorer message than live users (automerge regressed exactly this way
-  once).
+  see a poorer message than live users (the merged-PR auto-close regressed
+  exactly this way once).
 
 ## Notification implementation pointers
 
@@ -227,7 +228,7 @@ new string:
   `commands/bump.py` when `--message` is present, and
   `commands/launch.py` / `mark.mark_in_progress` (active → in_progress
   session start). Outcome callers (`notify`): `mark.mark_done` (including
-  automerge and script-mode completion) and `commands/recurring.py`'s error
+  the autoclose sweep and script-mode completion) and `commands/recurring.py`'s error
   summary. Both paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands
   in the task's `log.md`.
@@ -290,7 +291,7 @@ Current surface:
 - `relay mark active`, launch-time `active → in_progress`, `relay mark paused`,
   and `relay mark done`.
 - `relay bump`.
-- `relay automerge`, through the shared `mark_done` finalizer.
+- the `autoclose-merged` sweep, through the shared `mark_done` finalizer.
 - `relay recurring` and `relay retire` creates.
 - `relay panic` — the blocker written to the blackboard + log, synced before
   the teardown signal so the commit lands while the process still owns itself.

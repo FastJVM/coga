@@ -9,7 +9,6 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
 import typer
 
-from relay.commands import automerge as automerge_cmd
 from relay.commands import create as create_cmd
 from relay.commands import delete as delete_cmd
 from relay.commands import digest as digest_cmd
@@ -82,7 +81,6 @@ app.command("launch")(launch_cmd.launch)
 app.command("status")(status_cmd.status)
 app.command("show")(show_cmd.show)
 app.command("bump")(bump_cmd.bump)
-app.command("automerge")(automerge_cmd.automerge)
 app.command("delete")(delete_cmd.delete)
 app.command("retire")(retire_cmd.retire)
 app.command("panic")(panic_cmd.panic)
@@ -101,7 +99,7 @@ app.add_typer(secret_cmd.app, name="secret")
 _BUILTIN_COMMANDS = frozenset(
     {
         "init", "uninstall", "create", "launch", "status", "show", "bump",
-        "automerge", "delete", "draft", "retire", "panic", "slack", "digest",
+        "delete", "draft", "retire", "panic", "slack", "digest",
         "skill", "mark", "recurring", "ticket", "project", "validate", "secret",
     }
 )

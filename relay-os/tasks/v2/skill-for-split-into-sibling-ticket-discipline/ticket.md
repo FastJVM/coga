@@ -33,7 +33,8 @@ step: 1 (implement)
 Surfaced by Dream W22 Phase 2 knowledge scan (G9).
 
 The done `move-automerge-out-of-relay-status` ticket and its sibling
-`remove-the-post-merge-automerge-git-hook` (still draft) show a repeated
+`remove-the-post-merge-automerge-git-hook` (since subsumed by the
+standalone-automerge retirement) show a repeated
 discipline: when a design grows beyond one PR's worth, the agent splits it
 into ≥2 sibling tickets and records the split in the blackboard under a
 `## Split` heading, cross-linking the siblings.

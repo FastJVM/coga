@@ -6,7 +6,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay import automerge as am
+from relay import autoclose as am
 from relay.cli import app
 from relay.config import load_config
 from relay.create import create_task
@@ -176,7 +176,7 @@ def _stub_pr_state(monkeypatch: pytest.MonkeyPatch, mapping: dict[str, str]) -> 
     return calls
 
 
-def test_auto_bump_merged_bumps_final_step_with_merged_pr(
+def test_sweep_merged_bumps_final_step_with_merged_pr(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, path = _make_task(
@@ -185,7 +185,7 @@ def test_auto_bump_merged_bumps_final_step_with_merged_pr(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/7": "MERGED"})
 
     cfg = load_config(repo)
-    count = am.auto_bump_merged(cfg, quiet=True)
+    count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 1
     t = Ticket.read(path / "ticket.md")
@@ -194,7 +194,7 @@ def test_auto_bump_merged_bumps_final_step_with_merged_pr(
     assert "auto-bumped on merge of PR #7" in log
 
 
-def test_auto_bump_merged_skips_non_final_step(
+def test_sweep_merged_skips_non_final_step(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Default creates at step 1 (implement) of a 2-step workflow.
@@ -202,14 +202,14 @@ def test_auto_bump_merged_skips_non_final_step(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/8": "MERGED"})
 
     cfg = load_config(repo)
-    count = am.auto_bump_merged(cfg, quiet=True)
+    count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 0
     t = Ticket.read(path / "ticket.md")
     assert t.status == "active"
 
 
-def test_auto_bump_merged_no_workflow_marks_done(
+def test_sweep_merged_no_workflow_marks_done(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, path = _make_task(
@@ -218,14 +218,14 @@ def test_auto_bump_merged_no_workflow_marks_done(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/9": "MERGED"})
 
     cfg = load_config(repo)
-    count = am.auto_bump_merged(cfg, quiet=True)
+    count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 1
     t = Ticket.read(path / "ticket.md")
     assert t.status == "done"
 
 
-def test_auto_bump_merged_skips_open_pr(
+def test_sweep_merged_skips_open_pr(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, path = _make_task(
@@ -234,27 +234,27 @@ def test_auto_bump_merged_skips_open_pr(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/10": "OPEN"})
 
     cfg = load_config(repo)
-    count = am.auto_bump_merged(cfg, quiet=True)
+    count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 0
     t = Ticket.read(path / "ticket.md")
     assert t.status == "active"
 
 
-def test_auto_bump_merged_skips_ticket_without_pr(
+def test_sweep_merged_skips_ticket_without_pr(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, path = _make_task(repo, on_final=True)  # no pr_url
     calls = _stub_pr_state(monkeypatch, {})
 
     cfg = load_config(repo)
-    count = am.auto_bump_merged(cfg, quiet=True)
+    count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 0
     assert calls == []  # pr_state never called
 
 
-def test_auto_bump_merged_skips_already_done(
+def test_sweep_merged_skips_already_done(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, path = _make_task(
@@ -263,14 +263,14 @@ def test_auto_bump_merged_skips_already_done(
     calls = _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/11": "MERGED"})
 
     cfg = load_config(repo)
-    count = am.auto_bump_merged(cfg, quiet=True)
+    count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 0
     # `done` filtered before any gh call.
     assert calls == []
 
 
-def test_auto_bump_merged_idempotent(
+def test_sweep_merged_idempotent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, path = _make_task(
@@ -279,14 +279,14 @@ def test_auto_bump_merged_idempotent(
     _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/12": "MERGED"})
 
     cfg = load_config(repo)
-    first = am.auto_bump_merged(cfg, quiet=True)
-    second = am.auto_bump_merged(cfg, quiet=True)
+    first = am.sweep_merged(cfg, quiet=True)
+    second = am.sweep_merged(cfg, quiet=True)
 
     assert first == 1
     assert second == 0
 
 
-def test_auto_bump_merged_quiet_swallows_gh_error(
+def test_sweep_merged_quiet_swallows_gh_error(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, path = _make_task(
@@ -299,14 +299,14 @@ def test_auto_bump_merged_quiet_swallows_gh_error(
     monkeypatch.setattr(am, "pr_state", boom)
 
     cfg = load_config(repo)
-    count = am.auto_bump_merged(cfg, quiet=True)
+    count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 0
     t = Ticket.read(path / "ticket.md")
     assert t.status == "active"
 
 
-def test_auto_bump_merged_loud_raises_gh_error(
+def test_sweep_merged_loud_raises_gh_error(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, path = _make_task(
@@ -320,61 +320,18 @@ def test_auto_bump_merged_loud_raises_gh_error(
 
     cfg = load_config(repo)
     with pytest.raises(am.GhError):
-        am.auto_bump_merged(cfg, quiet=False)
+        am.sweep_merged(cfg, quiet=False)
 
 
-# --- CLI commands -------------------------------------------------------------
-
-
-def test_relay_automerge_command_bumps(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slug, path = _make_task(
-        repo, on_final=True, pr_url="https://github.com/o/r/pull/20"
-    )
-    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/20": "MERGED"})
-
-    runner = CliRunner()
-    result = runner.invoke(app, ["automerge"])
-    assert result.exit_code == 0, result.output
-    assert "PR #20" in result.output
-    assert Ticket.read(path / "ticket.md").status == "done"
-
-
-def test_relay_automerge_no_op_message(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _make_task(repo, on_final=True)  # no PR
-    runner = CliRunner()
-    result = runner.invoke(app, ["automerge"])
-    assert result.exit_code == 0, result.output
-    assert "no tickets bumped" in result.output
-
-
-def test_relay_automerge_surfaces_gh_error(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _make_task(
-        repo, on_final=True, pr_url="https://github.com/o/r/pull/30"
-    )
-
-    def boom(url: str) -> str:
-        raise am.GhError("gh: not authenticated")
-
-    monkeypatch.setattr(am, "pr_state", boom)
-
-    runner = CliRunner()
-    result = runner.invoke(app, ["automerge"])
-    assert result.exit_code == 2, result.output
-    assert "not authenticated" in result.output
+# --- status stays read-only --------------------------------------------------
 
 
 def test_relay_status_does_not_auto_bump(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # `status` is read-only: a merged PR on a final-step ticket must NOT be
-    # bumped as a side effect of rendering. Catching up is `relay automerge`'s
-    # job (principle 6, fail loud — `status` never mutates state).
+    # bumped as a side effect of rendering. Catching up is the autoclose
+    # sweep's job (principle 6, fail loud — `status` never mutates state).
     slug, path = _make_task(
         repo, on_final=True, pr_url="https://github.com/o/r/pull/40"
     )
@@ -406,115 +363,3 @@ def test_relay_status_never_calls_gh(
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0, result.output
     assert Ticket.read(path / "ticket.md").status == "active"
-
-
-# --- single-ticket helper (auto_bump_one) -------------------------------------
-
-
-def _ref_for(repo: Path, slug: str):
-    from relay.tasks import resolve_task
-    cfg = load_config(repo)
-    return resolve_task(cfg, slug)
-
-
-def test_auto_bump_one_bumps_when_pr_merged_on_final_step(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slug, path = _make_task(
-        repo, on_final=True, pr_url="https://github.com/o/r/pull/100"
-    )
-    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/100": "MERGED"})
-
-    cfg = load_config(repo)
-    ref = _ref_for(repo, slug)
-    assert am.auto_bump_one(cfg, ref, quiet=True) is True
-    assert Ticket.read(path / "ticket.md").status == "done"
-
-
-def test_auto_bump_one_no_workflow_marks_done(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slug, path = _make_task(
-        repo, workflow=None, pr_url="https://github.com/o/r/pull/101"
-    )
-    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/101": "MERGED"})
-
-    cfg = load_config(repo)
-    ref = _ref_for(repo, slug)
-    assert am.auto_bump_one(cfg, ref, quiet=True) is True
-    assert Ticket.read(path / "ticket.md").status == "done"
-
-
-def test_auto_bump_one_skips_non_final_step(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slug, path = _make_task(repo, pr_url="https://github.com/o/r/pull/102")
-    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/102": "MERGED"})
-
-    cfg = load_config(repo)
-    ref = _ref_for(repo, slug)
-    assert am.auto_bump_one(cfg, ref, quiet=True) is False
-    assert Ticket.read(path / "ticket.md").status == "active"
-
-
-def test_auto_bump_one_skips_open_pr(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slug, path = _make_task(
-        repo, on_final=True, pr_url="https://github.com/o/r/pull/103"
-    )
-    _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/103": "OPEN"})
-
-    cfg = load_config(repo)
-    ref = _ref_for(repo, slug)
-    assert am.auto_bump_one(cfg, ref, quiet=True) is False
-    assert Ticket.read(path / "ticket.md").status == "active"
-
-
-def test_auto_bump_one_skips_when_no_pr_link(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slug, _ = _make_task(repo, on_final=True)  # no pr_url
-    calls = _stub_pr_state(monkeypatch, {})
-
-    cfg = load_config(repo)
-    ref = _ref_for(repo, slug)
-    assert am.auto_bump_one(cfg, ref, quiet=True) is False
-    assert calls == []  # no gh lookup at all
-
-
-def test_auto_bump_one_skips_already_done(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slug, _ = _make_task(
-        repo, on_final=True, status="done",
-        pr_url="https://github.com/o/r/pull/104",
-    )
-    calls = _stub_pr_state(monkeypatch, {"https://github.com/o/r/pull/104": "MERGED"})
-
-    cfg = load_config(repo)
-    ref = _ref_for(repo, slug)
-    assert am.auto_bump_one(cfg, ref, quiet=True) is False
-    assert calls == []
-
-
-def test_auto_bump_one_always_raises_gh_error(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Single-ticket caller decides how to handle gh failures, so the
-    helper always raises — quiet only affects stdout echo."""
-    slug, _ = _make_task(
-        repo, on_final=True, pr_url="https://github.com/o/r/pull/105"
-    )
-
-    def boom(url: str) -> str:
-        raise am.GhError("gh missing")
-
-    monkeypatch.setattr(am, "pr_state", boom)
-
-    cfg = load_config(repo)
-    ref = _ref_for(repo, slug)
-    with pytest.raises(am.GhError):
-        am.auto_bump_one(cfg, ref, quiet=True)
-    with pytest.raises(am.GhError):
-        am.auto_bump_one(cfg, ref, quiet=False)

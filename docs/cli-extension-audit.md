@@ -65,11 +65,11 @@ space; no top-level verb is a hidden passthrough.
 | `create` / `draft` | built-in | No | Scaffolds a `draft` ticket dir + posts `✨` to Slack + post-write validate. |
 | `ticket` | built-in | No | **Canonical proof.** Drafts-on-fly, validates after agent exits, git-syncs, TTY guard. |
 | `project` | built-in | No | Interview → scaffold many drafts → post-validate; TTY guard. |
-| `launch` | built-in | No | Prompt composition, freshness/merge auto-bump check, supervisor loop, status flip. |
+| `launch` | built-in | No | Prompt composition, supervisor loop, status flip. |
 | `status` | built-in | No | Reads tree + renders tables. Logic, not a passthrough to another command. |
 | `show` | built-in | No | Reads + Rich-renders ticket/blackboard/log. |
 | `bump` | built-in | No | Advances `step:`, appends `log.md`, post-write validate. |
-| `automerge` | built-in | No | `gh pr view` per ticket + conditional bump + distinct Slack line. (See gotcha.) |
+| `automerge` | ~~built-in~~ retired | — | Removed; merged-ticket auto-close is now solely the `autoclose-merged` recurring sweep (`relay/autoclose/sweep` skill → `relay.autoclose.sweep_merged`). (See gotcha.) |
 | `delete` | built-in | No | Resolves slug → runs `bootstrap/delete-task` skill with injected env. Thin, but resolves + executes a script. |
 | `retire` | built-in | No | Scaffolds a one-shot `retire-<slug>` task straight to `active` + launches it. |
 | `panic` | built-in | No | Writes blackboard marker + Slack + non-zero exit. |
@@ -143,15 +143,14 @@ pure-passthrough set for aliasing is exactly the two named above.
 
 ## Gotchas
 
-- **`autoclose` (sweep) vs `automerge` (manual) — and they share a module.**
-  `relay automerge` (built-in) and the `autoclose-merged` recurring sweep are
-  closely related, not unrelated: the sweep step's skill `relay/autoclose/sweep`
-  calls `relay.automerge.auto_bump_merged`, and the built-in `relay automerge`
-  is the manual surface over the same `relay.automerge` module. Both bump
-  final-step / workflow-less tickets whose linked PR has merged — one on a
-  schedule, one by hand. The names are one keystroke apart and easy to confuse.
-  Ticket 2 should pick the `autoclose-merged` short-alias spelling
-  deliberately (e.g. `autoclose`) with this proximity in mind.
+- **Merged-ticket auto-close has a single surface now.** The standalone
+  `relay automerge` command has been retired: the `autoclose-merged` recurring
+  sweep is the sole trigger. Its skill `relay/autoclose/sweep` calls
+  `relay.autoclose.sweep_merged` (renamed from `relay.automerge.auto_bump_merged`),
+  which bumps final-step / workflow-less tickets whose linked PR has merged.
+  Historical note: this used to be two surfaces (a manual command and the
+  sweep) over the same module, one keystroke apart and easy to confuse — that
+  ambiguity is what the retirement removed.
 
 - **`bootstrap/import` and `bootstrap/delete-task` are *skills*, not launch
   shims.** Neither has a `ticket.md`, so neither is a `resolve_bootstrap`
@@ -237,8 +236,8 @@ the audit's path to it.
 - Command registration: `src/relay/cli.py:74-93`.
 - `relay ticket` promotion rationale: `src/relay/commands/ticket.py`.
 - digest consumer: `src/relay/commands/digest.py`.
-- autoclose sweep ↔ automerge module: `relay-os/workflows/autoclose-merged/sweep.md`,
-  `relay.automerge.auto_bump_merged`.
+- autoclose sweep + module: `relay-os/workflows/autoclose-merged/sweep.md`,
+  `relay.autoclose.sweep_merged`.
 - Shims: `relay-os/bootstrap/{orient,project,ticket}/ticket.md`.
 - Recurring templates: `relay-os/recurring/{autoclose-merged,digest,dream,skill-update}/`.
 - Alias test coverage (not `relay validate`): `tests/test_aliases.py`.

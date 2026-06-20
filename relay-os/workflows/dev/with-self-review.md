@@ -44,10 +44,11 @@ the human-judgment gate.
 This is an owner-controlled gate. If an agent is launched or asked to
 assist during this step, it may inspect the PR, run verification, prepare
 or push explicitly requested fixes, and report a recommendation. It must
-not merge the PR, delete the branch, run `relay automerge`, run
+not merge the PR, delete the branch, run
 `relay mark done`, or otherwise advance/close the task unless the human
 explicitly says to do that for this PR.
 
 The human owner decides whether to edit, request changes, push fixes, or
-merge. After the human merges, run `relay automerge` explicitly (or rely
-on a later `relay launch` freshness check) to mark the task `done`.
+merge. After the human merges, the `autoclose-merged` recurring sweep
+marks the task `done` on its next run (≤24h); to close it immediately,
+run `relay mark done`.

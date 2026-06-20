@@ -1,4 +1,4 @@
-"""Status transitions — the shared core of `relay mark` and `relay automerge`.
+"""Status transitions — the shared core of `relay mark` and the autoclose sweep.
 
 These finalizers mutate ticket frontmatter, append a `log.md` line, and echo
 the local outcome. Done outcomes still enter Slack through the digest path;

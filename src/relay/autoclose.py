@@ -1,4 +1,4 @@
-"""Auto-bump started tickets whose linked PR has merged.
+"""Auto-close started tickets whose linked PR has merged.
 
 Scope: tickets whose `## Dev` blackboard section names a PR, where the PR
 is merged on GitHub, and where the ticket is on its final workflow step
@@ -9,11 +9,12 @@ The PR link convention lives in the `dev/code` context: a `pr:` line
 under `## Dev` on the blackboard. We parse it directly; relay-the-CLI
 treats the blackboard as plain text on purpose.
 
-Two callers:
-  - `relay automerge` (explicit manual invocation) — uses
-    `auto_bump_merged` to sweep all active/in-progress tickets.
-  - `relay launch <slug>` (pre-launch freshness check) — uses
-    `auto_bump_one` to check just the ticket about to be launched.
+One caller: the `autoclose-merged` recurring sweep skill, which runs
+`sweep_merged` on a schedule to finish tickets whose PR merged out of
+band. That daily sweep is the *sole* trigger for auto-closing merged
+tickets — there is intentionally no manual command and no launch-time or
+status-time side effect. Accepted tradeoff: a ticket merged today won't
+auto-close until the next sweep (≤24h lag).
 
 `relay status` deliberately does NOT call this — it is a read-only view
 (principle 6, fail loud, forbids `status`/`show`/`validate` from mutating
@@ -158,15 +159,14 @@ def _try_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool) -> bool:
     return True
 
 
-def auto_bump_merged(cfg: Config, *, quiet: bool = False) -> int:
+def sweep_merged(cfg: Config, *, quiet: bool = False) -> int:
     """Walk active/in-progress tickets; finish those whose linked PR has merged.
 
     Returns the count of bumped tickets.
 
     `quiet=True` suppresses stdout echoes and swallows `GhError` (gh
-    missing or unauthed). The explicit `relay automerge` command sets
-    `quiet=False` so a missing `gh` surfaces as a real failure; quiet callers
-    such as launch-time freshness checks decide how to warn and continue.
+    missing or unauthed). The recurring sweep skill sets `quiet=False` so a
+    missing `gh` surfaces as a real failure.
     """
     bumped = 0
     for ref in list_tasks(cfg):
@@ -175,27 +175,11 @@ def auto_bump_merged(cfg: Config, *, quiet: bool = False) -> int:
                 bumped += 1
         except GhError:
             if quiet:
-                # Quiet callers use this as a best-effort freshness check; the
-                # explicit `relay automerge` path will surface gh failures.
+                # Quiet callers use this as a best-effort check; the recurring
+                # sweep runs loud so gh failures surface.
                 return bumped
             raise
     return bumped
-
-
-def auto_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool = False) -> bool:
-    """Check a single ticket; bump to done iff its linked PR has merged.
-
-    Same gating as `auto_bump_merged`: ticket must be active/in-progress, on
-    its final workflow step (or have no workflow), and have a `pr:` line
-    under `## Dev` in the blackboard.
-
-    Always raises `GhError` if the `gh` lookup fails. Callers (e.g.
-    `relay launch`) decide whether to surface as a hard failure or
-    warn-and-continue.
-
-    Returns True iff the ticket was bumped to done.
-    """
-    return _try_bump_one(cfg, ref, quiet=quiet)
 
 
 def _read_pr_url(task_path: Path) -> str | None:
@@ -206,14 +190,13 @@ def _read_pr_url(task_path: Path) -> str | None:
         return parse_pr_url(bb.read_text())
     except OSError as exc:
         # A read error on a single blackboard shouldn't sink the scanner.
-        sys.stderr.write(f"[automerge] could not read {bb}: {exc}\n")
+        sys.stderr.write(f"[autoclose] could not read {bb}: {exc}\n")
         return None
 
 
 __all__ = [
     "GhError",
-    "auto_bump_merged",
-    "auto_bump_one",
+    "sweep_merged",
     "parse_pr_number",
     "parse_pr_url",
     "pr_state",

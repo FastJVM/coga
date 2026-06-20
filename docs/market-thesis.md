@@ -286,7 +286,7 @@ Three buckets, in priority order:
 **Bucket C — format bet not enforced / prompt hygiene (credibility polish).**
 - **no SKILL.md conformance validation** — `relay validate` checks only that refs resolve, never that the files conform to the format we bet on. *(ticket: `validate-skill-md-frontmatter…`)*
 - **raw frontmatter injected into prompts + no token budget.** *(tickets: `compose-strips-…-frontmatter`, `enforce-a-prompt-token-budget`)*
-- **drift**: `status.py:79` still side-effects automerge after the "move it out" change. *(ticket: `drift-status-still-calls-auto-bump…`)*
+- ~~**drift**: `status.py` still side-effects automerge after the "move it out" change.~~ *(resolved: `status` is read-only; merged-ticket auto-close is now the sole job of the `autoclose-merged` recurring sweep.)*
 
 **The one-line read of the 20%:** the substrate exists; what's missing is the **trust half** (unattended recurring with a watchdog, atomic writes, and working Slack/streaming so the loop is *felt*). That's why it feels like 80% — the classical *idea* is fully built and usable attended; the missing piece is everything that lets you *stop watching*, which is also everything that makes the taste land in the body instead of the head. Ship Buckets A and B and Relay crosses from "an excellent way to work with agents" to "the substrate that runs the company" — the thesis, delivered.
 
