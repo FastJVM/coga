@@ -197,8 +197,7 @@ relay mark done add-retry
 ```
 
 `relay create "<title>"` is the raw-create path: it writes the draft files
-without running the authoring interview. (It replaces the former `relay draft`,
-which has been removed — update old scripts and muscle memory accordingly.)
+without running the authoring interview.
 
 ## Commands
 
