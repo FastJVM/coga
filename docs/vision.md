@@ -11,7 +11,7 @@
 
 We run FastJVM, a two-person deeptech startup making the JVM faster — a field dominated by Oracle and Google. Pre-revenue, post-reset. Relay is the methodology and tooling we built to run the company after the reset, and it's how we plan to keep running it.
 
-This document describes what Relay is, why it works for us, and why it's hard to duplicate even though we're publishing it in full. Open source, AGPL-3.0-or-later: [github.com/relay-dev/relay](https://github.com/relay-dev/relay).
+This document describes what Relay is, why it works for us, and why it's hard to duplicate even though we're publishing it in full. Open source, AGPL-3.0-or-later: [github.com/FastJVM/relay](https://github.com/FastJVM/relay).
 
 ---
 
@@ -19,7 +19,7 @@ This document describes what Relay is, why it works for us, and why it's hard to
 
 Relay is not a product. It's how we run our company.
 
-The substrate is markdown files in a git repo. The tooling is a six-command CLI. The methodology is how we use both — what we automate, what we don't, how we encode knowledge, how we divide work between us and the agents.
+The substrate is markdown files in a git repo. The tooling is a small CLI. The methodology is how we use both — what we automate, what we don't, how we encode knowledge, how we divide work between us and the agents.
 
 Pirsig drew a line in *Zen and the Art of Motorcycle Maintenance* between two ways of relating to a machine. The romantic mode: you use it, it works or it doesn't, the inside is someone else's problem. The classical mode: you understand it, you maintain it, the inside is legible to you and you to it. Pirsig's claim — which has aged better than most of the book — is that the romantic mode produces alienation from your own tools, and the classical mode produces Quality: not just better outcomes, but a different relationship to the work.
 
@@ -107,7 +107,7 @@ This is what we mean when we say the methodology is a flywheel rather than a col
 
 Two consequences worth naming:
 
-**Context is the asset that appreciates.** Six months in, our context library is more valuable than the CLI, the scripts, the workflows, and the base prompt combined. Those are creating. The contexts are the encoded operating knowledge of a compiler company at month six, and they're only that good because we've corrected them hundreds of times in the flow of work. A competitor forking Relay gets nothing that matters. A competitor somehow acquiring our contexts gets years of expertise they'd have otherwise had to live through. The flywheel spins up slowly and the output is specific to the company that spun it.
+**Context is the asset that appreciates.** Six months in, our context library is more valuable than the CLI, the scripts, the workflows, and the base prompt combined. Those are replaceable. The contexts are the encoded operating knowledge of a compiler company at month six, and they're only that good because we've corrected them hundreds of times in the flow of work. A competitor forking Relay gets nothing that matters. A competitor somehow acquiring our contexts gets years of expertise they'd have otherwise had to live through. The flywheel spins up slowly and the output is specific to the company that spun it.
 
 **Marginal automation becomes worth doing.** Tasks that took four hours a month and would have taken thirty hours to automate used to not pencil out. At today's correction loop cost, those same tasks take three to five hours to automate, the automation stays sharp because the correction loop keeps it sharp, and the payback is weeks instead of years. A whole category of "just do it manually forever" tasks becomes worth building. This is what actually lets two people run the operational surface of a larger company.
 
@@ -155,7 +155,7 @@ The methodology describes itself using its own primitives. Two self-bootstrappin
 
 **REM** is repo/user-specific recurring maintenance. A REM task owns its own schedule, ticket scan, domain skills, output conventions, and review gates. Customer follow-ups, payment checks, deployment reviews, and repo-specific reports belong in REM, not in Dream.
 
-**Ticket authoring** is a skill that runs during task creation. Give it a title and description, it asks clarifying questions, proposes which contexts and workflows apply, and drafts or edits the ticket. `relay draft` is the raw create; `relay ticket` is the guided authoring path. We review before confirming. Most of our task creation goes through this — it's how new work gets slotted into the existing substrate without us having to remember what's there.
+**Ticket authoring** is a skill that runs during task creation. Give it a title and description, it asks clarifying questions, proposes which contexts and workflows apply, and drafts or edits the ticket. We review before confirming. Most of our task creation goes through this — it's how new work gets slotted into the existing substrate without us having to remember what's there.
 
 Hofstadter spent *Gödel, Escher, Bach* arguing that strange loops — systems that contain representations of themselves and can reason about their own structure — are where interesting things happen. Relay isn't intelligent in any Hofstadter sense, but the pattern is similar at a workaday level: the system's rules are files, the files can be read by the same agents the rules govern, and the agents can propose changes to the rules they're about to follow. Dream is Relay reasoning about Relay, using Relay. Create-suggest is Relay extending Relay, from within Relay.
 
@@ -243,7 +243,7 @@ Not defensible by normal tech moats. No patents, no network effects, no switchin
 
 ## Status
 
-[FILL IN WITH REAL NUMBERS: months into running FastJVM on Relay, count of recurring automations, domains they span, team composition, concrete outcome like "haven't missed a deliverable since the reset" or similar. This is the credibility anchor — readers will discount everything above if this section is vague or absent.]
+We've been running FastJVM on Relay since the reset — two founders and one senior engineer, with frontier agents carrying the recurring operational surface across code, research, and company operations. This is a report from inside the experiment, not a finished result: the methodology is holding so far, and the honest test is whether it still holds years from now. Ask us again then.
 
 ---
 
