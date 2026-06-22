@@ -1,6 +1,6 @@
 ---
 title: Add recurring-launch aliases
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
