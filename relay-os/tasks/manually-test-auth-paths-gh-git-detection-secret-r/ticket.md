@@ -1,14 +1,14 @@
 ---
 title: 'Manually test auth paths: gh/git detection, secret resolution, per-task injection'
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: claude
 contexts:
-  - relay/architecture
-  - relay/cli
+- relay/architecture
+- relay/cli
 skills: []
 workflow:
   name: autonomy/human-only
