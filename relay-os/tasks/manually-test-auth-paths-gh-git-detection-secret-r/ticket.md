@@ -5,7 +5,7 @@ mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts:
 - relay/architecture
 - relay/cli
@@ -23,7 +23,7 @@ workflow:
     skills: []
     assignee: agent
 secrets: null
-step: 1 (brief-and-hand-off)
+step: 2 (human-executes)
 ---
 
 ## Description
