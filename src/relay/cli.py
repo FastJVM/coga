@@ -122,10 +122,19 @@ _BUILTIN_COMMANDS = frozenset(
 # manual launch takes. As an alias it dispatches through normal `relay launch`
 # CLI parsing — so it requires an already-init'd repo and captures no name (both
 # now `relay init`'s job) and never hits the in-code `launch()` sentinel pitfall.
+#
+# `skill-update` and `autoclose` mirror `dream`: each is an ordinary recurring
+# task launched on demand, so the alias just expands to `recurring launch
+# <name>`. `autoclose` deliberately uses a short public verb whose target dir is
+# renamed (`autoclose-merged`) — it sweeps already-merged PRs and marks their
+# tasks done via the recurring sweep. There is no manual `automerge` command;
+# closing a single merged task by hand is `relay mark done`.
 _DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
     "build": "launch relay-build",
+    "skill-update": "recurring launch skill-update",
+    "autoclose": "recurring launch autoclose-merged",
 }
 
 
