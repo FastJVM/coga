@@ -1,6 +1,6 @@
 ---
 title: scratch secrets script
-status: in_progress
+status: done
 mode: script
 owner: nick
 human: nick
@@ -16,7 +16,6 @@ workflow:
     - test/secret-probe
     assignee: agent
 secrets: null
-step: 1 (probe)
 ---
 
 ## Description
