@@ -4,39 +4,88 @@ Most tools say *don't think* — delegate the work and forget it. Relay's bet is
 
 > ## Don't don't think. Think better.
 
-The substrate FastJVM uses to run the company: markdown files in a git repo, a
-small CLI on top, no database. It exists to make your judgment *sharper, not
-absent* — and to keep the system **yours**.
-
-Relay is an open-source, hackable **programming layer for agent work**: you turn
-intent into executable Markdown — tickets that compose context blocks, skills,
-workflows, and autonomy rules — and run them on the agents you already use:
+**Relay is git-backed Markdown + a small CLI that turns your intent into
+executable tickets and runs them on the coding agents you already use** —
 Claude Code and Codex today, or any CLI agent (Gemini CLI, Goose, OpenHands,
-Devin, your own) in a few lines of config. It is **not another autonomous agent**: it
-sits *above* your agents and coordinates them — across **code, research, and
-operations alike** (the same substrate runs a refactor, a research experiment,
-or a deadline-driven workflow).
+Devin, your own) in a few lines of config. **It is not another autonomous
+agent** — it sits *above* the agents you have and coordinates them across
+code, research, and operations alike.
 
-You author it by *talking*: `relay chat` drops you into an agent already
-oriented in your repo, and `relay ticket` runs a guided interview where the
-agent drafts the structured ticket and workflow while you supply the spec and
-the judgment. And unlike a flat `CLAUDE.md` — one file that *bloats* as you add
-to it, re-read whole on every prompt — Relay's prose is decomposed, scoped,
-versioned, and reused: your knowledge **compounds** instead of piling up.
+The difference you feel: your context and corrections **compound**. Instead of
+a flat `CLAUDE.md` that bloats and a session that forgets, Relay's prose is
+decomposed, scoped, versioned, and reused — and every correction lands as a
+pull request you merge, not a note that evaporates when the session ends. The
+agent acts; you judge what's worth doing and what was wrong, and grant autonomy
+one step at a time. It's all Markdown and Git on your disk — nothing hidden, no
+lock-in — so you always see *why* an agent did what it did.
 
-**What "think better" means.** Relay is simple on purpose — Markdown, scripts,
-and Git, nothing hidden — because you can only think clearly about what you can
-read. You stay in control: the agent acts, you judge what's worth doing and what
-was wrong, and you grant autonomy one step at a time. Everything is inspectable,
-so you always see *why* an agent did what it did; and your context, skills, and
-corrections compound through pull requests you merge, instead of evaporating each
-session. It runs on your disk, in your Git, driving the agents you already pay
-for. The point isn't a tool that thinks *for* you — it's one that makes your own
-thinking sharper, reusable, and legible.
+It's the substrate FastJVM uses to run the company. **Try it now ↓** — then read
+[the principles](#principles) for why it's shaped this way.
+
+## Getting Started
+
+**1. Install the CLI (once).**
+
+```sh
+git clone https://github.com/FastJVM/relay
+cd relay
+python -m pip install -e .
+```
+
+That puts `relay` on your PATH against the source. Keep it current later with a
+periodic `git pull && pip install -e .`.
+
+**2. Set up a project.** One `relay-os/` per repo — the repo *is* the project.
+For a fresh project:
+
+```sh
+mkdir ~/work/myproject && cd ~/work/myproject
+git init
+relay init --user "<your name>"        # creates relay-os/ and records you as the owner
+```
+
+`--user` is required on a fresh init; it stamps who owns the work and seeds a
+`relay-build` onboarding ticket.
+
+**3. Bootstrap with `relay build`.**
+
+```sh
+relay build
+```
+
+`relay build` opens an onboarding chat: it asks one question, talks through what
+you're building, writes a product-vision context, and drafts a starter batch of
+tickets.
+
+**4. Launch your first ticket.**
+
+```sh
+relay status                 # see the drafted tickets
+relay launch <slug>          # activate + start work on one
+```
+
+**What you end up with:** a `relay-os/` in your repo, a product-vision context,
+a handful of draft tickets, and one of them in progress with an agent.
+
+From there:
+
+- `relay chat` — drop into an agent already oriented in your repo, no ticket.
+- `relay create <new-slug>` — create a placeholder ticket you can come back to later.
+- `relay ticket` — create a new ticket or edit an existing one and immediately begin authoring.
+- `relay ticket <new-slug>` — create a new task and begin ticket authoring.
+- `relay ticket <existing-slug>` — begin editing an existing ticket.
+- `relay status` — every task and its state.
+- `relay --help` — the full command surface.
+
+> **First run vs. ongoing authoring.** `relay build` is the one-time greenfield
+> path (onboarding chat → a batch of draft tickets). Day-to-day you author tasks
+> one at a time — `relay ticket` for guided authoring, `relay create` for a
+> quick stub — see **Task lifecycle** and **`relay ticket`** below.
+
+## Principles
 
 Everything in Relay is a **consequence** of that one idea, and every consequence
-has a **receipt** — the feature that proves it. Read the principles first; the
-features are downstream.
+has a **receipt** — the feature that proves it.
 
 | Principle | What it means | The feature that proves it |
 |---|---|---|
@@ -50,40 +99,26 @@ features are downstream.
 The full canon is [`relay-os/contexts/relay/principles/SKILL.md`](relay-os/contexts/relay/principles/SKILL.md);
 the *why* essay is [`docs/vision.md`](docs/vision.md); the market/strategy
 read is [`docs/market-thesis.md`](docs/market-thesis.md). The rest of this
-README is the **reference** for the features above — install, layout, and a
-one-screen entry per CLI command.
+README is the **reference** for the features above — layout, task lifecycle, and
+a one-screen entry per CLI command.
 
-## Install
+## Operating notes
 
-Not yet on PyPI. Bootstrap from the source repo:
+A few things worth knowing once you run more than one project:
 
-```sh
-git clone https://github.com/FastJVM/relay
-cd relay
-python -m pip install -e .
-```
+- **One `relay-os/` per repo.** The repo is the project, so run `relay init` in
+  each operational repo.
 
-That puts `relay` on your PATH against the source. Once it's there, the
-normal flow is to **`relay init` each operational repo** — one `relay-os/`
-per repo, since the repo *is* the project:
+- **Vendored CLI.** Each `relay init` also vendors a self-contained copy of the
+  CLI into that repo's `relay-os/.relay/` (its own venv) — there for bootstrap
+  (a fresh clone runs without `pip install`) and as a known-good copy agents can
+  target. Refresh it with `relay init --update`.
 
-```sh
-relay init ~/work/admin                # creates ~/work/admin/relay-os/
-relay init ~/work/code                 # ditto for the code repo
-```
-
-Each `relay init` also vendors a self-contained copy of the CLI into that
-repo's `relay-os/.relay/` (with its own venv). It exists for two things:
-**bootstrap** — a fresh contributor who clones the repo can run it without
-`pip install`-ing anything — and as a known-good copy that agents can
-target. Refresh it later with `relay init --update`.
-
-Day-to-day, your *global* `relay` is what runs. We deliberately don't
-auto-activate the vendored copy per-repo (no PATH munging, no rbenv-style
-re-exec): with multiple operational repos that quickly turns into a mess of
-"which `.relay/.venv/bin/relay` won the PATH race?". The tradeoff is that
-relay assumes everyone keeps their global install reasonably current — a
-periodic `git pull && pip install -e .` in the source repo is enough.
+- **Your global `relay` runs day-to-day.** Relay deliberately doesn't
+  auto-activate the vendored copy per-repo (no PATH munging, no rbenv-style
+  re-exec) — with several repos that turns into a "which `.relay/.venv/bin/relay`
+  won the PATH race?" mess. The tradeoff: keep your global install reasonably
+  current with that periodic `git pull && pip install -e .`.
 
 ## External CLI Tools
 
@@ -96,9 +131,10 @@ human-installed command line tools:
 - `gh` — required for GitHub-backed PR workflows such as opening PRs and the
   merged-ticket autoclose sweep. Run `gh auth login` before relying on
   those paths.
-- `gh` 2.90.0+ with `gh skill` — required for Relay-managed skill install and
-  update workflows once those commands land. Older `gh` versions should fail
-  loud with an upgrade hint.
+- `gh` 2.90.0+ with `gh skill` — used by Relay-managed skill install/update.
+  `gh skill` ships as a public preview in recent `gh`. Managed skills are
+  optional: a fresh `relay init` on an older `gh` just skips them with a warning
+  instead of failing.
 
 ### Git/GitHub auth readiness
 
@@ -109,9 +145,9 @@ standard tools you already have. PR and git-sync paths need:
   (default `origin`), not a hardcoded `origin` — if yours is named differently,
   set that key in `relay.toml`.
 - Push access to that remote through your normal git setup. Transport is your
-  choice: for SSH, keep your key loaded in `ssh-agent` (`ssh-add -l`) and
-  authorized on GitHub; for HTTPS, let a git credential helper hold valid
-  credentials. Relay never reads `GITHUB_TOKEN` or stores a PAT.
+  choice:
+- For SSH, keep your key loaded in `ssh-agent` (`ssh-add -l`) and authorized on GitHub.
+- For HTTPS, let a git credential helper hold valid credentials. Relay never reads `GITHUB_TOKEN` or stores a PAT.
 - `gh` installed and authenticated for the same GitHub host as the remote:
   run `gh auth login` once, or `gh auth login --hostname <host>` for GitHub
   Enterprise.
@@ -129,14 +165,6 @@ hint (set/fix the remote, load your SSH key or credential helper, run
 `gh auth login`) instead of a surprise at PR time. Like `--check-slack`, it is
 the only thing that makes `relay validate` touch the network; plain
 `relay validate`, `relay status`, and `relay show` stay offline and read-only.
-
-After init, edit the freshly-written `relay-os/relay.toml` to declare your
-agent types, and set `user = "<you>"` in `relay-os/relay.local.toml`.
-Then draft your first ticket:
-
-```sh
-relay ticket "First task"
-```
 
 Multi-surface companies (e.g. an admin repo + a code repo) run multiple
 relay-os/ side by side — coordinate them by giving each repo a
@@ -178,7 +206,8 @@ draft -> active -> in_progress -> done
 
 - `draft` is unapproved work. Use `relay ticket "<title>"` for the guided
   authoring interview, or `relay create "<title>"` when you only want the raw
-  files.
+  files. You can also run `relay ticket "<new-slug>"` to create a ticket and
+  begin authoring, or `relay ticket "<existing-slug>"` to edit a ticket.
 - `active` is approved and queued. Humans can still refine active tickets with
   `relay ticket <slug>` before work starts.
 - `in_progress` is launched work. `relay launch <slug>` moves an active ticket
@@ -190,29 +219,33 @@ draft -> active -> in_progress -> done
 The normal path for a new ticket is:
 
 ```sh
+# Opens a guided authoring chat — the agent greets first and writes the draft.
 relay ticket "Add retry to webhook handler"
-relay launch add-retry
-# agent works, writes blackboard, and bumps workflow steps
-relay mark done add-retry
-```
 
-`relay create "<title>"` is the raw-create path: it writes the draft files
-without running the authoring interview.
+# After you finish authoring and exit, start the work:
+relay launch add-retry-to-webhook-handler
+
+# The agent works, writes the blackboard, and bumps workflow steps.
+relay mark done add-retry-to-webhook-handler   # finish on the final step
+```
 
 ## Commands
 
-### `relay init [PATH] [--update] [--all]`
+### `relay init [PATH] [--user <name>] [--update] [--all]`
 
-Create `relay-os/` inside `PATH` (default: `.`). Copies templates from the
-installed Relay package, vendors the CLI into `.relay/`, creates a
-self-contained venv, writes a starter `relay.local.toml`, and — if `PATH` is a
-git repo — auto-stages and commits the new create (push is left to you).
+Create `relay-os/` inside `PATH` (default: the current dir). A fresh init
+requires `--user <name>` (the name tickets and agents refer to you by). Copies
+templates from the installed Relay package, vendors the CLI into `.relay/`,
+creates a self-contained venv, writes a starter `relay.local.toml`, and — if
+`PATH` is a git repo — auto-stages and commits the new create (push is left to
+you).
 
 ```sh
-relay init mycompany           # fresh create; refuses if relay-os/ exists
-relay init --update            # refresh .relay/ + package templates in current repo
-                               # (never touches your relay.toml, rules.md, custom skills, etc.)
-relay init --update --all ~/work   # sweep: refresh every relay repo under ~/work
+relay init --user marc             # fresh init in the current dir (PATH defaults to .)
+relay init mycompany --user marc   # or: create + init a new mycompany/ dir
+relay init --update                # refresh .relay/ + package templates in current repo
+                                   # (never touches your relay.toml, rules.md, custom skills, etc.)
+relay init --update --all ~/code   # sweep: refresh every relay repo under ~/code
 ```
 
 Because each repo vendors its own batteries, picking up a new Relay release
@@ -277,13 +310,13 @@ relay create "Nightly cleanup" --mode auto
 
 Run the guided ticket-authoring skill. This is the normal path when you want
 Relay to ask clarifying questions, choose a workflow/context/assignee shape,
-and edit the ticket before work starts.
+and create or edit the ticket before work starts.
 
 ```sh
-relay ticket                                  # ask for title, then fill a draft
-relay ticket "Add retry to webhook handler"  # create draft, then interview
-relay ticket add-retry                        # edit existing ticket (any status)
-relay ticket add-retry --agent codex          # choose authoring agent
+relay ticket                                  # no target — agent greets and asks: new ticket, or edit an existing one?
+relay ticket "Add retry to webhook handler"   # new draft, then a guided authoring chat (agent greets first)
+relay ticket add-retry                        # edit an existing ticket (any status)
+relay ticket add-retry --agent codex          # same, but pick the authoring agent
 ```
 
 `relay ticket` edits a ticket at any lifecycle status. Editing leaves the
@@ -326,8 +359,10 @@ retire tasks create straight to `active`, but they are *not* workflow-less:
 a template that declares no workflow, and every retire task, creates with
 the one-step `direct/body` workflow that runs the ticket body directly.)
 
-`relay launch` owns the `active` → `in_progress` start transition. `relay
-bump` no longer marks final-step tickets done.
+`relay launch` owns the `active` → `in_progress` start transition, and
+activates a `draft` inline as it starts — so `relay mark active` is **not** a
+required pre-launch step. Reach for it only to approve or queue a ticket you
+don't want to launch yet. `relay bump` no longer marks final-step tickets done.
 
 `--message` piggy-backs an FYI onto the state-transition Slack
 broadcast — one post instead of two.
@@ -457,7 +492,7 @@ gives. Launching an active ticket then marks it `in_progress`; launching an
 already-`in_progress` ticket resumes it.
 
 ```sh
-relay launch add-retry-to-webhook-handler          # full slug
+relay launch add-retry-to-webhook-handler           # full slug
 relay launch add-retry                              # any unique prefix works
 relay launch add-retry --agent codex                # one-off agent override
 relay launch add-retry --mode interactive           # debug: run an auto ticket interactively
@@ -725,6 +760,38 @@ nothing crashes. Treat this as an exit from the sync loop, not a
 default — once you're working with another person, turn it back on. (If you
 never opted in, you don't need this — a fresh repo posts nothing already.)
 
+### `relay digest`
+
+Post the spooled outcome events — `done` tickets and other merged commits — to
+the notification channel, then advance the digest state so the same events
+aren't posted twice. This is the batch counterpart to the urgent events that
+post immediately: outcome events spool here and go out together (a recurring
+`digest` template drives it on a schedule).
+
+```sh
+relay digest                    # post the spool; stay silent if it's empty (default)
+relay digest --announce-empty   # post a one-line "nothing to report" note instead
+```
+
+### `relay validate`
+
+Static diagnostic for the repo and config: it checks task files, frontmatter
+schema, workflow refs, and config, and exits non-zero if anything is an error.
+Read-only and offline by default — the two `--check-*` probes are the only
+options that touch the network.
+
+```sh
+relay validate                       # validate the whole repo
+relay validate --json                # machine-readable output
+relay validate --task add-retry      # validate one task (skips Slack + idle checks)
+relay validate --fix                 # conservative safe repairs (missing blackboard.md/log.md)
+relay validate --check-slack         # probe the Slack webhook
+relay validate --check-github        # probe git/GitHub auth readiness
+```
+
+`--idle-hours` and `--max-blackboard-kb` tune the thresholds for the idle-task
+and blackboard-bloat warnings.
+
 ### `relay --version`
 
 Print the relay package version, plus — when run from inside a `relay-os/` —
@@ -767,10 +834,9 @@ Rules, checked at config load — fail loud, not silent:
 
 ## Development
 
+Install from source as in [Getting Started](#getting-started), then:
+
 ```sh
-git clone https://github.com/FastJVM/relay
-cd relay
-python -m pip install -e .
 python -m pytest                    # run the test suite
 relay validate --json               # validate the bundled example/ fixture
 relay validate --fix                # repair missing blackboard.md/log.md only
@@ -778,3 +844,7 @@ relay validate --fix                # repair missing blackboard.md/log.md only
 
 The dogfood relay-os/ for this very repo lives at `relay-os/`. Tasks tracked
 under `relay-os/tasks/` are real — they're how we drive work on relay itself.
+
+## License
+
+Relay is open source under AGPL-3.0-or-later. See [`LICENSE`](LICENSE).
