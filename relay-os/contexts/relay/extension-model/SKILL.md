@@ -28,10 +28,12 @@ Aliases are not a fourth home — they are argv sugar pointing at one of the thr
      reuse the OS the operator knows). No mechanism to design.
    - **External script / service** — a *Relay-authored* stateless capability that
      lives outside both the kernel and the ticket model. This home has **no
-     mechanism yet**: today a stateless Relay operation can only be a built-in
-     command or a `mode: script` ticket step. A first-class surface for it (a `gh`-
-     style extension, a separate package/service, or a `relay-os/scripts/` target
-     `launch` can call) is a **design target** — the sibling of the tier-2 shim.
+     implementation yet**: today a stateless Relay operation can only be a
+     built-in command or a `mode: script` ticket step. A first-class surface for
+     it (a `gh`-style extension, a separate package/service, or a
+     `relay-os/scripts/` target `launch` can call) is the sibling of the tier-2
+     shim. The mechanism design now lives in
+     `docs/cli-extension-external-surface.md`.
 
 ## The decision rule
 
@@ -78,9 +80,9 @@ user or cron calls *to start* a launch is movable.
 
 ## The external script / service home
 
-The third home is the least obvious, because its mechanism does not exist yet — it
-is a **design target** (`cli-extension-model/design-external-script-service-mechanism`).
-The concept is fixed even though the runner is not.
+The third home is the least obvious, because its mechanism is designed but not
+implemented yet (`docs/cli-extension-external-surface.md`). The concept is fixed
+even though the runner is not.
 
 An **external script / service** is a *Relay-authored* stateless capability that
 lives outside **both** the kernel and the ticket model. It earns its own home by
@@ -106,8 +108,9 @@ Two flavors, weighted by Relay's local-first stance (principles 3 and 5):
 
 Until the mechanism lands, these capabilities live as built-in commands or
 `mode: script` steps. This context fixes the *home and its boundary*; the
-*mechanism* (how such a script is declared, dispatched, and verified) is left to
-the design ticket — deliberately, so we do not pre-build a worse Typer.
+mechanism design is `docs/cli-extension-external-surface.md` — deliberately a
+docs-level implementation contract, so the launch contract does not pre-build a
+worse Typer.
 
 ## Ticket vs. command: statefulness decides
 
