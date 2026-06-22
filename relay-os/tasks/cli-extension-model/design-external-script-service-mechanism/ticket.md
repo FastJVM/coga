@@ -1,6 +1,6 @@
 ---
 title: Design the core boundary + external-script surface
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
