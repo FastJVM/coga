@@ -5,7 +5,7 @@ mode: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: nick
 contexts:
 - relay/codebase
 skills: []
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 4 (review)
 ---
 
 ## Description

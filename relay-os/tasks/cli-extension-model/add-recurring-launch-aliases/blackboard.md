@@ -3,6 +3,8 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: add-recurring-aliases
 worktree: ../relay-add-recurring-aliases
+pr: https://github.com/FastJVM/relay/pull/421
+ci: no checks configured on this repo (`gh pr checks 421` → "no checks reported")
 
 ## Plan / notes
 - Add two default aliases to `_DEFAULT_ALIASES` in `src/relay/cli.py`:
@@ -32,3 +34,11 @@ task done). In the actual code there is NO `automerge` command — it's not in
 status.py:103 and the autoclose-merged ticket which says "no manual automerge
 command"). I wrote the clarifying comment accurately rather than referencing a
 command that doesn't exist.
+
+## Peer review
+- Ran `codex review --base main` from `../relay-add-recurring-aliases` after the
+  sandboxed attempt failed with the known read-only app-server error. Review
+  found no correctness issues and no must-fix findings.
+- No code changes were made during peer review.
+- Verification: `env PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/home/n/Code/codex/relay-add-recurring-aliases/src python3.12 -m pytest -p no:cacheprovider`
+  passed: 842 passed, 1 skipped.
