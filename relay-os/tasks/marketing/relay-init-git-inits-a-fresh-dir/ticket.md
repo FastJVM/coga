@@ -5,7 +5,7 @@ mode: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: zach
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -52,4 +52,14 @@ fresh-directory onboarding path (`marketing/readme-and-docs`).
 - The README's documented path runs `git init` before `relay init`
   (`README.md:42-44`), so this fires only when the user skips that step — the fix
   is a fail-loud guardrail, not a change to the happy path.
+- **Decision (with zach): fail loud = hard error / non-zero exit, not a
+  warning.** A warning that still exits 0 reads as advisory and is a
+  failure-that-returns-success, which principle 6 forbids; the non-zero exit is
+  what makes running `git init` non-optional. The message names the missing git
+  repo and tells the user to run `git init` here, then re-run `relay init`.
+- Note: `relay init` writes `relay-os/` to disk *before* `_git_commit_relay_os`
+  runs, so a hard error at the commit step leaves `relay-os/` on disk (harmless —
+  re-running after `git init` commits it). Checking git-repo-ness earlier, so a
+  failed run leaves nothing behind, is optional and at the implementing agent's
+  discretion.
 
