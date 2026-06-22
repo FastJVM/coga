@@ -1,6 +1,6 @@
 ---
 title: scratch secrets script
-status: draft
+status: active
 mode: script
 owner: nick
 human: nick
