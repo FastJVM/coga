@@ -4,3 +4,5 @@
 2026-06-22 11:02 [human:zach] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-22 11:06 [human:zach] activated (draft → active)
 2026-06-22 11:33 [human:zach] started (active → in_progress) via relay launch
+2026-06-22 11:33 [human:zach] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-22 12:32 [agent:claude] advanced to step 2 (self-qa)
