@@ -1,6 +1,6 @@
 ---
 title: relay init git-inits a fresh dir
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach

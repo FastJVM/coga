@@ -3,3 +3,4 @@
   master-vs-main default-branch call is yours. Likely one combined fix — want to own it, or should I implement under your design call?
 2026-06-22 11:02 [human:zach] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-22 11:06 [human:zach] activated (draft → active)
+2026-06-22 11:33 [human:zach] started (active → in_progress) via relay launch
