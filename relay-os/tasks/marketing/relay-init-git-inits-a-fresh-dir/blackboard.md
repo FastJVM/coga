@@ -3,6 +3,23 @@ branch: init-requires-git-repo
 worktree: ../relay-init-requires-git
 pr: (not yet — opens in code/open-pr step)
 commit: b1634512  "Fail loud when `relay init` target is not a git repo"
+commit: 1055a13d  "self-qa: share `_is_git_repo` predicate between init guard and commit step"
+
+## Self-QA
+Ran `/code-review` (default effort) and `/simplify` against the branch diff vs main.
+- `/code-review`: no findings. Verified the guard handles `.git` as file or dir,
+  is placed before any disk writes / clone / venv, doesn't touch the
+  `--update`/`--all` paths, and that the bare-`.git` `_make_git_repo` test helper
+  is safe (`_git_commit_relay_os` swallows the resulting git error; `.git` is in
+  `_INIT_IGNORE` so it doesn't flip `_repo_is_empty`). No stale docs beyond the
+  README already fixed.
+- `/simplify`: one fix applied — the new guard's `(target/".git").exists()` was
+  byte-identical to the skip condition in `_git_commit_relay_os`, and the guard's
+  correctness depends on the two matching. Extracted a shared `_is_git_repo(target)`
+  predicate so both reference one definition and can't drift. Reviewed reuse /
+  simplification / efficiency / altitude; nothing else worth changing.
+- Tests: full `python -m pytest` = 838 passed, 1 pre-existing skip. No
+  `relay validate` needed (init-time guardrail, validation behavior unchanged).
 
 ## Implemented (code committed, not pushed)
 - `src/relay/commands/init.py`: precondition in `_do_init` after `--user`

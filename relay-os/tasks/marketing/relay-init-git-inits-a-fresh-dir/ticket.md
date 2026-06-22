@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (self-qa)
+step: 3 (pr)
 ---
 
 ## Description
