@@ -4,12 +4,12 @@ Resolves the "must resolve before building" items flagged in `relay-spec-updated
 
 ---
 
-## `relay draft` / `relay ticket` — CLI + behavior
+## `relay create` / `relay ticket` — CLI + behavior
 
 ### CLI
 
 ```
-relay draft "<title>" [--mode interactive|auto|script]
+relay create "<title>" [--mode interactive|auto|script]
 relay ticket [<title-or-slug>] [--agent <type>]
 
 Options
@@ -36,9 +36,8 @@ Deduplicated silently, order preserved (first occurrence wins). If any context r
 
 ### Raw creating and guided authoring are separate
 
-`relay draft` is intentionally mechanical — it creates the directory and
-writes the raw default frontmatter. `relay create` remains a compatibility
-spelling for that raw operation.
+`relay create` is intentionally mechanical — it creates the directory and
+writes the raw default frontmatter.
 
 The judgment about *which* workflow / contexts / assignee fit is in the
 `bootstrap/ticket` skill (`relay-os/bootstrap/skills/bootstrap/ticket/SKILL.md`,
@@ -56,7 +55,7 @@ inline `## Context` body; repeated narrow needs should become smaller focused
 contexts. Reusable process knowledge stays in workflow step `skill:` refs.
 
 There's no `--suggest` flag. If you want the authoring flow, run `relay
-ticket`. If you just want bytes on disk, call `relay draft`.
+ticket`. If you just want bytes on disk, call `relay create`.
 
 ### Skills at creation time
 

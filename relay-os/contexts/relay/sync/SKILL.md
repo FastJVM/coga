@@ -55,7 +55,7 @@ Outcome digest surface — spooled into the daily digest (live fallback below):
 
 Silent lifecycle surface — no notification post, no spool record:
 
-- `relay draft` / `relay create` and `relay ticket "<title>"'s raw draft
+- `relay create` and `relay ticket "<title>"'s raw draft
   creation.
 - `relay mark active` and `relay mark paused`.
 - `relay bump` with no `--message`.
@@ -287,7 +287,7 @@ in a sub-directory) and push it after the live notification post, so
 
 Current surface:
 
-- `relay draft` / `relay create` raw creates.
+- `relay create` raw creates.
 - `relay mark active`, launch-time `active → in_progress`, `relay mark paused`,
   and `relay mark done`.
 - `relay bump`.

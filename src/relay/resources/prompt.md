@@ -40,7 +40,7 @@ Each task directory has:
 - `blackboard.md` — the shared, free-form workspace described in the loop
   above. Write here often; read here first.
 - `log.md` — append-only audit trail. **Don't write to it** — the CLI
-  commands (`relay draft`, `ticket`, `mark`, `launch`, `bump`, `panic`) are
+  commands (`relay create`, `ticket`, `mark`, `launch`, `bump`, `panic`) are
   its only writers. Put observations in the blackboard instead.
 
 ## Finishing a step

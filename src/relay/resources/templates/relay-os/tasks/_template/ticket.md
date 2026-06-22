@@ -15,7 +15,7 @@ workflow: null
 secrets: null
 # --- extensions ---
 # Repo-declared fields (see `[ticket.fields.<name>]` in relay.toml) are
-# injected by `relay draft` / `relay ticket` below this marker. No
+# injected by `relay create` / `relay ticket` below this marker. No
 # extensions configured → nothing here, marker is harmless.
 ---
 

@@ -74,7 +74,6 @@ def _root(
 app.command("init")(init_cmd.init)
 app.command("uninstall")(uninstall_cmd.uninstall)
 app.command("create")(create_cmd.create)
-app.command("draft")(create_cmd.draft)
 app.command("ticket")(ticket_cmd.ticket)
 app.command("project")(project_cmd.project)
 app.command("launch")(launch_cmd.launch)
@@ -99,7 +98,7 @@ app.add_typer(secret_cmd.app, name="secret")
 _BUILTIN_COMMANDS = frozenset(
     {
         "init", "uninstall", "create", "launch", "status", "show", "bump",
-        "delete", "draft", "retire", "panic", "slack", "digest",
+        "delete", "retire", "panic", "slack", "digest",
         "skill", "mark", "recurring", "ticket", "project", "validate", "secret",
     }
 )

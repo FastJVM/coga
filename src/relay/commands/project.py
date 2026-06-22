@@ -5,7 +5,7 @@ Thin launcher, mirroring `relay ticket`: it runs the `bootstrap/project` skill
 in an interactive agent session. The four-question interview and the
 review-before-create protocol live in the skill, not here, so they can't
 drift from code. The agent creates the ordered drafts during the session via
-`relay draft` (each of which syncs itself); this command validates whatever
+`relay create` (each of which syncs itself); this command validates whatever
 drafts the session produced and reports them before handing back.
 """
 
@@ -129,7 +129,7 @@ def project(
 def _report_new_drafts(cfg, before: set[str]) -> None:
     """List the drafts the session created and fail loud on any schema break.
 
-    Each `relay draft` already synced itself during the session, so we don't
+    Each `relay create` already synced itself during the session, so we don't
     re-sync here — we surface the new set and validate it while the human is
     still at the terminal and can fix breakage before launch.
     """
