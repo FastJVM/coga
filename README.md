@@ -204,10 +204,12 @@ authoring interview.
 
 ### `relay init [PATH] [--update] [--all]`
 
-Create `relay-os/` inside `PATH` (default: `.`). Copies templates from the
-installed Relay package, vendors the CLI into `.relay/`, creates a
-self-contained venv, writes a starter `relay.local.toml`, and — if `PATH` is a
-git repo — auto-stages and commits the new create (push is left to you).
+Create `relay-os/` inside `PATH` (default: `.`). `PATH` must already be a git
+repo — relay is git-backed, so init commits the new create into your repo; run
+`git init` there first if it isn't one. Copies templates from the installed
+Relay package, vendors the CLI into `.relay/`, creates a self-contained venv,
+writes a starter `relay.local.toml`, and auto-stages and commits the new create
+(push is left to you).
 
 ```sh
 relay init mycompany           # fresh create; refuses if relay-os/ exists

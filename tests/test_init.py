@@ -57,6 +57,19 @@ EXPECTED_FILES = {
 }
 
 
+def _make_git_repo(target: Path) -> Path:
+    """Mark `target` as a git repo so it clears init's git-repo precondition.
+
+    `relay init` refuses to write relay-os/ into a non-git dir, so tests that
+    exercise a successful init must look like a repo. A bare `.git` dir is enough
+    for the filesystem-level check — no real `git init` is needed for tests that
+    don't assert the commit itself (those still init + configure git by hand).
+    """
+    target.mkdir(parents=True, exist_ok=True)
+    (target / ".git").mkdir(exist_ok=True)
+    return target
+
+
 def _seed_fake_clone(clone_dir: Path) -> None:
     """Mimic the layout of the real repo: templates + CLI source."""
     templates = clone_dir / update_cmd.TEMPLATE_SUBPATH
@@ -481,8 +494,7 @@ def test_relay_pip_git_source_redacts_credentialed_url(
 def test_init_into_empty_dir(
     tmp_path: Path, fake_clone, fake_venv, fake_managed_skill_sync
 ) -> None:
-    target = tmp_path / "company"
-    target.mkdir()
+    target = _make_git_repo(tmp_path / "company")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -561,7 +573,7 @@ def test_init_reports_installed_managed_skills(
     fake_managed_skill_sync,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    target = tmp_path / "company"
+    target = _make_git_repo(tmp_path / "company")
 
     def fake_install(relay_os: Path) -> ManagedSkillSummary:
         fake_managed_skill_sync.install_calls.append(relay_os)
@@ -596,7 +608,7 @@ def test_init_reports_installed_managed_skills(
 def test_init_fails_loud_when_required_managed_skill_fails(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    target = tmp_path / "company"
+    target = _make_git_repo(tmp_path / "company")
 
     def fail_required(_: Path) -> ManagedSkillSummary:
         raise ManagedSkillError(
@@ -615,7 +627,7 @@ def test_init_fails_loud_when_required_managed_skill_fails(
 def test_init_vendors_cli_and_links_wrapper_to_venv(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    target = tmp_path / "company"
+    target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
@@ -640,7 +652,7 @@ def test_init_vendors_cli_and_links_wrapper_to_venv(
 def test_init_writes_captured_user_name_to_local_toml(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    target = tmp_path / "company"
+    target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
@@ -693,7 +705,7 @@ def test_init_installs_shim_when_local_bin_on_path(
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setenv("PATH", f"{local_bin}:/usr/bin")
 
-    target = tmp_path / "company"
+    target = _make_git_repo(tmp_path / "company")
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
@@ -717,7 +729,7 @@ def test_init_skips_shim_when_target_exists(
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.setenv("PATH", f"{local_bin}:/usr/bin")
 
-    target = tmp_path / "company"
+    target = _make_git_repo(tmp_path / "company")
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
@@ -730,8 +742,7 @@ def test_init_skips_shim_when_target_exists(
 
 
 def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_clone, fake_venv) -> None:
-    target = tmp_path / "existing-repo"
-    target.mkdir()
+    target = _make_git_repo(tmp_path / "existing-repo")
     (target / "README.md").write_text("hi")
     (target / "src").mkdir()
 
@@ -751,13 +762,20 @@ def test_init_refuses_existing_relay_os(tmp_path: Path, fake_clone, fake_venv) -
     assert "use `relay init --update`" in result.output
 
 
-def test_init_creates_missing_dir(tmp_path: Path, fake_clone, fake_venv) -> None:
+def test_init_into_missing_dir_errors_not_git_repo(
+    tmp_path: Path, fake_clone, fake_venv
+) -> None:
+    """A target that doesn't exist can't be a git repo, so init fails loud
+    instead of auto-creating the dir and silently skipping the commit. Nothing
+    is written — the dir stays absent."""
     target = tmp_path / "fresh"
     assert not target.exists()
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-    assert (target / "relay-os" / "relay.toml").is_file()
+    assert result.exit_code == 2
+    assert "not a git repository" in result.output
+    assert "git init" in result.output
+    assert not target.exists()
 
 
 # --- init build ticket ----------------------------------------------------------
@@ -770,8 +788,7 @@ def test_init_ships_build_ticket_template(
     it verbatim — no prompts, no creating code — and the onboarding chat happens
     at first launch as the workflow's first step. The `--user` name is stamped
     over the `new-user` placeholder so it never ships live."""
-    target = tmp_path / "company"
-    target.mkdir()
+    target = _make_git_repo(tmp_path / "company")
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
@@ -798,8 +815,7 @@ def test_init_stamps_new_user_out_of_every_delivered_ticket(
     """No delivered ticket carries the `new-user` placeholder after a fresh
     init — the `--user` name is stamped over it everywhere, including the
     `browser-automation` draft that ships on every repo."""
-    target = tmp_path / "company"
-    target.mkdir()
+    target = _make_git_repo(tmp_path / "company")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "marc"])
     assert result.exit_code == 0, result.output
@@ -818,8 +834,7 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
 ) -> None:
     """An empty repo keeps the onboarding ticket and the next-steps coax
     points the user at the onboarding command."""
-    target = tmp_path / "company"
-    target.mkdir()
+    target = _make_git_repo(tmp_path / "company")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
@@ -837,8 +852,7 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     """A filled repo (any pre-existing user file) drops the onboarding ticket
     and the next-steps coax points the user at `relay ticket`.
     browser-automation is not gated, so it still ships (stamped)."""
-    target = tmp_path / "existing-repo"
-    target.mkdir()
+    target = _make_git_repo(tmp_path / "existing-repo")
     (target / "README.md").write_text("hi")
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
@@ -1486,15 +1500,21 @@ def test_init_commits_relay_os_when_target_is_git_repo(
     assert not any("/_template" in p for p in tracked)
 
 
-def test_init_skips_commit_when_target_is_not_git_repo(
+def test_init_fails_loud_when_target_is_not_git_repo(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """relay is git-backed: a non-git target is a hard error (not a silent
+    skip), and nothing is written to disk — the user runs `git init` here and
+    re-runs."""
     target = tmp_path / "company"
+    target.mkdir()  # exists, but is not a git repo
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-    assert "Committed relay-os/" not in result.output
+    assert result.exit_code == 2
+    assert "not a git repository" in result.output
+    assert "git init" in result.output
+    assert not (target / "relay-os").exists()
 
 
 # --- skill discovery wiring ---------------------------------------------------
@@ -1503,7 +1523,7 @@ def test_init_skips_commit_when_target_is_not_git_repo(
 def test_init_links_skills_into_agent_dirs(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    target = tmp_path / "company"
+    target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
@@ -1521,8 +1541,7 @@ def test_init_links_skills_into_agent_dirs(
 def test_init_skips_skill_link_when_agent_marker_is_a_file(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    target = tmp_path / "company"
-    target.mkdir()
+    target = _make_git_repo(tmp_path / "company")
     sentinel = target / ".codex"
     sentinel.write_text("")  # mimic the empty-file Codex marker
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
@@ -1638,7 +1657,7 @@ def test_link_skills_for_agents_replaces_old_raw_skills_link(tmp_path: Path) -> 
 def test_init_writes_agent_guides(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    target = tmp_path / "company"
+    target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
@@ -1659,8 +1678,7 @@ def test_init_writes_agent_guides(
 def test_init_preserves_existing_agent_guides(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    target = tmp_path / "company"
-    target.mkdir()
+    target = _make_git_repo(tmp_path / "company")
     (target / "CLAUDE.md").write_text("# my hand-written guide\n")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
@@ -1733,7 +1751,7 @@ def test_init_commits_agent_guides_in_git_repo(
 def test_init_writes_pin_file(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    target = tmp_path / "company"
+    target = _make_git_repo(tmp_path / "company")
     monkeypatch.setenv("PATH", "")
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
@@ -1825,17 +1843,6 @@ def test_init_appends_to_existing_host_gitignore(
     assert "dist/" in host_gi
     assert update_cmd.HOST_GITIGNORE_BEGIN in host_gi
     assert ".claude/skills/relay" in host_gi
-
-
-def test_init_skips_host_gitignore_when_not_git_repo(
-    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    target = tmp_path / "company"
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-
-    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
-    assert result.exit_code == 0, result.output
-    assert not (target / ".gitignore").exists()
 
 
 def test_ensure_host_gitignore_is_idempotent(tmp_path: Path) -> None:

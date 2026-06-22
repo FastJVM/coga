@@ -324,6 +324,22 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # invocation leaves nothing on disk.
     name = _require_user_name(user)
 
+    # Relay is git-backed: `relay init` commits relay-os/ into the host repo.
+    # If the target isn't a git repo, fail loud (principle 6) instead of writing
+    # relay-os/ and silently skipping the commit further down. We don't run
+    # `git init` ourselves — the user does, which keeps branch naming in their
+    # hands. Checked here, before any writes, so a bad invocation leaves nothing
+    # behind and we fail before the slow clone/venv.
+    if not (target / ".git").exists():
+        typer.secho(
+            f"{target} is not a git repository — relay is git-backed and "
+            f"`relay init` commits relay-os/ into your repo.\n"
+            f"Run `git init` in {target} first, then re-run `relay init`.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
     target.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="relay-init-") as tmp:
