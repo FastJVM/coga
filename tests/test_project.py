@@ -107,7 +107,7 @@ def _allow_launch(
 
 
 def _create_drafts(*titles: str):  # type: ignore[no-untyped-def]
-    """Stand in for the agent calling `relay draft` per step during the session."""
+    """Stand in for the agent calling `relay create` per step during the session."""
 
     def _run() -> None:
         cfg = load_config()

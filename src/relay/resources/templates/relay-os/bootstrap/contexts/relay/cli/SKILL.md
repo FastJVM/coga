@@ -62,15 +62,15 @@ repo, and capturing your name is `relay init`'s job, not `build`'s. There is no
 separate `relay setup` command — initialize the repo with `relay init`, then run
 `relay build`.
 
-## relay draft "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
+## relay create "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
 
 Scaffold a new raw `draft` ticket and post `✨` when a notification channel
 is selected (a fresh repo selects none, so this is silent out of the box).
-Does not launch an agent. Step one of the boot path: `draft` → edit the body / workflow /
-contexts as needed → `relay launch <slug>`. Launch activates a draft inline;
-use `relay mark active <slug>` only when you want to approve/queue without
-launching. `relay create` is a compatibility spelling for `relay draft` —
-identical behavior, no guided interview.
+Does not launch an agent. Step one of the boot path: `relay create` → edit the
+body / workflow / contexts as needed → `relay launch <slug>`. Launch activates
+a draft inline; use `relay mark active <slug>` only when you want to
+approve/queue without launching. This is the raw-create path — no guided
+interview.
 
 `--workflow <name>` (path under `relay-os/workflows/`) is optional *in
 draft only*. A workflow-less draft is a valid authoring state; the workflow
@@ -117,7 +117,7 @@ Plan a whole project into an ordered set of `draft` tickets. Runs the
 `bootstrap/project` skill in an interactive session: it interviews the human
 (outcome → prior art → constraints → dependencies & sign-off, one question at
 a time), proposes the ordered ticket list for the human to prune/reorder, then
-scaffolds the surviving set with `relay draft` — one launchable step per
+scaffolds the surviving set with `relay create` — one launchable step per
 ticket. Where `relay ticket` authors one ticket, `relay project` decomposes a
 project into many.
 
@@ -587,7 +587,7 @@ only; they don't accept their own flags.
 
 ## Pick which command
 
-- Scaffolding a raw new draft → `relay draft "<title>"`.
+- Scaffolding a raw new draft → `relay create "<title>"`.
 - Guided ticket authoring → `relay ticket` or `relay ticket "<title-or-slug>"`.
 - Starting a draft's work → `relay launch <slug>` (activates inline).
 - Approving/queueing without launching → `relay mark active <slug>`.

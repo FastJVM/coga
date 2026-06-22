@@ -567,39 +567,7 @@ def test_recurring_posts_error_summary(
     assert not any(str(repo_with_shim) in m for m in slack_msgs)
 
 
-# --- `relay draft` / legacy `relay create` CLI --------------------------------
-
-
-def test_cli_draft_creates_draft_silently(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """`relay draft "<title>"` creates a raw draft ticket without Slack noise."""
-    monkeypatch.chdir(repo)
-    posts: list[str] = []
-
-    def _capture(url, json=None, timeout=None):
-        posts.append(json["text"])
-        class R:
-            status_code = 200
-            text = "ok"
-        return R()
-
-    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
-
-    runner = CliRunner()
-    result = runner.invoke(
-        app, ["draft", "Investigate retries", "--workflow", "code/with-review"]
-    )
-    assert result.exit_code == 0, result.output
-
-    task_dir = repo / "tasks" / "investigate-retries"
-    assert task_dir.is_dir()
-    t = Ticket.read(task_dir / "ticket.md")
-    assert t.title == "Investigate retries"
-    assert t.status == "draft"
-    assert t.mode == "interactive"
-
-    assert posts == []
+# --- `relay create` CLI ------------------------------------------------------
 
 
 def test_cli_create_creates_draft_silently(
@@ -714,18 +682,6 @@ def test_cli_create_allows_no_workflow(
     t = Ticket.read(repo / "tasks" / "no-workflow" / "ticket.md")
     assert t.workflow is None
     assert t.status == "draft"
-
-
-def test_cli_draft_allows_no_workflow(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """`relay draft` also allows a workflow-less draft."""
-    monkeypatch.chdir(repo)
-    runner = CliRunner()
-    result = runner.invoke(app, ["draft", "Still no workflow"])
-    assert result.exit_code == 0, result.output
-    t = Ticket.read(repo / "tasks" / "still-no-workflow" / "ticket.md")
-    assert t.workflow is None
 
 
 def test_create_draft_without_workflow(
