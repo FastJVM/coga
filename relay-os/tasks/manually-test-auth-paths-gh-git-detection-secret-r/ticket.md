@@ -1,6 +1,6 @@
 ---
 title: 'Manually test auth paths: gh/git detection, secret resolution, per-task injection'
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
