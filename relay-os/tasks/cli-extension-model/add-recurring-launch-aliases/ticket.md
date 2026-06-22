@@ -2,10 +2,10 @@
 title: Add recurring-launch aliases
 status: in_progress
 mode: interactive
-owner: nick
-human: nick
+owner: zach
+human: zach
 agent: claude
-assignee: nick
+assignee: zach
 contexts:
 - relay/codebase
 skills: []

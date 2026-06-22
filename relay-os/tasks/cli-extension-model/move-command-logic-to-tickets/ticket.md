@@ -2,8 +2,8 @@
 title: Move command logic into tickets
 status: active
 mode: interactive
-owner: nick
-human: nick
+owner: zach
+human: zach
 agent: claude
 assignee: claude
 contexts:
