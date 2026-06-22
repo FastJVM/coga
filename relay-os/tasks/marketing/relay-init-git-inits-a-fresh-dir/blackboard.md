@@ -1,7 +1,8 @@
 ## Dev
 branch: init-requires-git-repo
 worktree: ../relay-init-requires-git
-pr: (not yet — opens in code/open-pr step)
+pr: https://github.com/FastJVM/relay/pull/422
+ci: no checks configured on this repo (`gh pr checks` reports none) — nothing to wait on
 commit: b1634512  "Fail loud when `relay init` target is not a git repo"
 commit: 1055a13d  "self-qa: share `_is_git_repo` predicate between init guard and commit step"
 
