@@ -1,53 +1,68 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Tier-2 shim design — working draft (2026-06-23, zach + claude orientation session)
+## Tier-2 shim design (2026-06-23, zach + claude) — restating Nico's ticket spec
 
-**Goal:** collapse the `arg → draft → launch` heads of `ticket`/`project`/`retire`
-onto one declarative tier-2 shim, retiring bespoke `commands/ticket.py` (~320 lines).
-Per `relay/extension-model` this is Pass 2's one new mechanism.
+The "committed design" the Done= asks for. This ELABORATES Nico's sketch in the
+ticket body; it does not change it. Scope here is the GENERIC `arg → create-draft
+→ launch` mechanism only. Greet-first / the spawn-consolidation is a separate,
+nick-owned ticket (see "Relationship" below), not part of this design.
 
-**The shim (example: `relay ticket`):**
+### 1. The shim's declarative schema (Nico's sketch, verbatim)
 ```toml
 [shims.ticket]
-launch = "bootstrap/ticket"              # authoring entry/skill to run
-                                         # (rename to bootstrap/ticket-authoring = separate deferred follow-up)
-draft_if_missing = true                  # arg not an existing ticket? create_draft from it
-validate_after = true                    # re-validate the ticket after the session
-sync = ["tasks", "contexts", "skills"]   # git-commit changed files
+launch = "bootstrap/ticket"
+draft_if_missing = true
+validate_after = true
+sync = ["tasks", "contexts", "skills"]
 require_tty = true
-kickoff = "Begin"                        # first-turn token -> agent greets first
 ```
+Each field = one tested `ticket.py` behavior the shim must express:
+- `launch` — the authoring entry to launch.
+- `draft_if_missing` — `create_draft(arg)` when arg isn't an existing ticket.
+- `validate_after` — post-session `validate_task_dir` + the draft-must-have-a-workflow gate.
+- `sync` — snapshot/diff/git-sync of tasks/contexts/skills.
+- `require_tty` — the interactive-TTY check.
 
-**Three shapes, distinguished from FILE STATE (no transient param):**
-- no arg -> bare (compose the shim itself).
-- arg = existing slug -> existing (compose that ticket; body already filled).
-- arg != slug -> new (create_draft, compose it; body empty).
-The greeting reads "which ticket am I on + is the body empty" — all files-on-disk.
+### 2. Dispatch — the cli.py around-hook
+`cli.py main()` rewrites argv BEFORE Typer today — there is no after-hook. The
+shim needs a real **around-hook**: for a shim-name command, resolve arg →
+(draft_if_missing) → launch → validate_after + sync. This is the ONE new
+mechanism Pass 2 builds.
 
-**ticket.py -> new home:** resolve/draft/validate/sync Python -> the shim runner
-(moved UNCHANGED — no-inversion); `cmd.append("Begin")` -> `kickoff` field;
-shape-specific greeting -> the authoring skill (composed on every authoring launch).
+### 3. Which commands migrate
+`ticket`, then `project`, then `retire` — the three fused heads whose shape is
+`arg → create-draft → launch`.
 
-**Constraints (from extension-model):** fixed shape only (no `relay.toml`
-conditionals/computed args — no-worse-Typer); params only if materialized into
-files (shape is READ from files, never stamped as a transient launch param);
-shim leans on kernel `create` + `launch` (both certified kernel by Pass 1).
+### 4. What stays bespoke (OPEN — enumerate before building)
+The shim expresses only the fixed `arg → draft → launch` shape. Anything beyond
+that stays as shared-runner Python or a tier-3 skill:
+- `project`'s multi-ticket decomposition and `retire`'s retro are agent/skill
+  work (tier-3 skills the shim launches), not declarative.
+- Edge behaviors of `ticket.py` to place: the caution-status heads-up (editing
+  an in_progress/done ticket), the workflow gate, the create-or-edit resolve.
+- TODO: walk `ticket.py` / `project.py` / `retire.py` and tag each behavior as
+  field | shared-runner-Python | tier-3-skill.
 
-**The one new mechanism to build:** a `[shims.*]` config schema + a dispatch
-**around-hook** in `cli.py` (today `main()` only rewrites argv *before* Typer —
-there is no after-hook; the shim adds one). Everything else is moving existing
-tested Python into it.
+### 5. Order (Nico's)
+- **First (no new mechanism needed):** reads → stateless script shims
+  (status / show / recurring list / skill status); `recurring` scan → Dream-shaped task.
+- **Last (gated on the shim):** the fused heads — `ticket`, then `project` / `retire`.
 
-**Migration order:** `ticket` first (= PR 417 greet-first, delivered cleanly +
-deletes `ticket.py`) -> then `project`, `retire`. Plus the no-mechanism moves
-(reads -> script shims; `recurring` -> Dream-task) per the ticket body.
+### Guardrails (from relay/extension-model)
+- **No inversion** — relocate the tested Python UNCHANGED into the shim runner /
+  script steps; never rewrite a deterministic check as agent judgment.
+- **No worse Typer** — keep the single fixed shape `arg → draft → launch`; no
+  conditionals / computed args / validation in `relay.toml`.
 
-### Open questions
-1. **Greeting home — confirm with Nico.** The mechanics put the shape-specific
-   greeting in the authoring SKILL (composed on every authoring launch), not the
-   shim's `ticket.md` — because for new/existing the launch target is the *user's*
-   ticket, so the shim body isn't composed. Does this match his "in the ticket.md"
-   framing?
-2. **Milestone.** Stop at this committed design (ticket "done" per its own
-   "Done = a committed design"), or green-light building the shim + migrating
-   `ticket` (which delivers greet-first / PR 417)?
+### Relationship to greet-first / the launch mechanism (IMPORTANT — coordinate w/ Nico)
+Greet-first (the `Begin` kickoff + the shape-specific greeting) is NOT part of this
+generic shim. It lives in the nick-owned ticket
+`finish-relay-ticket-greet-first-land-pr-417` ("Consolidate agent-triggering into
+one launch mechanism, greet-first as an option"), which **supersedes PR #417**.
+That ticket fixes a deeper issue: `ticket.py` / `project.py` hand-roll their OWN
+copy of the `relay launch` spawn sequence instead of routing through it.
+
+Coordination: the shim's `launch` step should route through that ONE consolidated
+launch path, not re-fork the spawn. So the `ticket`-head migration (step 3 above)
+intersects Nico's consolidation — both touch how `relay ticket` triggers the
+agent. Coordinate with him before migrating `ticket`.
