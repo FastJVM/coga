@@ -40,7 +40,7 @@ Four ways this skill runs:
 
 - **Empty interview** — `relay ticket` or `relay launch bootstrap/ticket`
   with no target. You're inside the stateless shim. Ask the human for a
-  one-line title, run `relay draft "<title>"`, then edit the new draft
+  one-line title, run `relay create "<title>"`, then edit the new draft
   directly in this same session.
 - **New-title launch** — `relay ticket "<title>"` already scaffolded a draft
   and launched you against it. The current task has a `title:`, `status:
@@ -51,7 +51,7 @@ Four ways this skill runs:
   text and frontmatter; ask only for the missing or ambiguous pieces. For an
   `in_progress` or `done` ticket, be aware you are revising one already in
   flight or finished — confirm intent if the change looks substantive.
-- **Raw draft** — `relay draft "<title>"` only creates bytes on disk and does
+- **Raw draft** — `relay create "<title>"` only creates bytes on disk and does
   not run this skill. If the human expected the interview, tell them to run
   `relay ticket <slug>`.
 

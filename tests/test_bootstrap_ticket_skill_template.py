@@ -28,7 +28,7 @@ def test_bootstrap_ticket_context_selection_is_prompt_payload() -> None:
     assert "create or propose a smaller\n  focused context" in text
     assert "Select them through the workflow's step\n  `skill:` refs" in text
     assert "If only a specific fact is needed, put\n   it in `## Context`" in text
-    assert "`relay draft \"<title>\"` only creates bytes on disk" in text
+    assert "`relay create \"<title>\"` only creates bytes on disk" in text
     assert "`relay ticket <slug>` launched you against" in text
 
 

@@ -92,7 +92,7 @@ list.**
 For each surviving ticket, in order, run:
 
 ```
-relay draft "<title>"
+relay create "<title>"
 ```
 
 Then edit the new draft's `ticket.md` directly:

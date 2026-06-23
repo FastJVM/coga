@@ -74,7 +74,6 @@ def _root(
 app.command("init")(init_cmd.init)
 app.command("uninstall")(uninstall_cmd.uninstall)
 app.command("create")(create_cmd.create)
-app.command("draft")(create_cmd.draft)
 app.command("ticket")(ticket_cmd.ticket)
 app.command("project")(project_cmd.project)
 app.command("launch")(launch_cmd.launch)
@@ -99,7 +98,7 @@ app.add_typer(secret_cmd.app, name="secret")
 _BUILTIN_COMMANDS = frozenset(
     {
         "init", "uninstall", "create", "launch", "status", "show", "bump",
-        "delete", "draft", "retire", "panic", "slack", "digest",
+        "delete", "retire", "panic", "slack", "digest",
         "skill", "mark", "recurring", "ticket", "project", "validate", "secret",
     }
 )
@@ -122,10 +121,19 @@ _BUILTIN_COMMANDS = frozenset(
 # manual launch takes. As an alias it dispatches through normal `relay launch`
 # CLI parsing — so it requires an already-init'd repo and captures no name (both
 # now `relay init`'s job) and never hits the in-code `launch()` sentinel pitfall.
+#
+# `skill-update` and `autoclose` mirror `dream`: each is an ordinary recurring
+# task launched on demand, so the alias just expands to `recurring launch
+# <name>`. `autoclose` deliberately uses a short public verb whose target dir is
+# renamed (`autoclose-merged`) — it sweeps already-merged PRs and marks their
+# tasks done via the recurring sweep. There is no manual `automerge` command;
+# closing a single merged task by hand is `relay mark done`.
 _DEFAULT_ALIASES: dict[str, str] = {
     "chat": "launch bootstrap/orient",
     "dream": "recurring launch dream",
     "build": "launch relay-build",
+    "skill-update": "recurring launch skill-update",
+    "autoclose": "recurring launch autoclose-merged",
 }
 
 

@@ -1,9 +1,9 @@
 ---
 title: Design the core boundary + external-script surface
-status: in_progress
+status: done
 mode: interactive
-owner: nick
-human: nick
+owner: zach
+human: zach
 agent: claude
 assignee: claude
 contexts:
@@ -19,7 +19,6 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
-step: 1 (execute)
 ---
 
 ## Description

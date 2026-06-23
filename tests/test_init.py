@@ -544,7 +544,7 @@ def test_packaged_template_first_run_works_without_slack(
     Reads the real packaged template (the file `relay init` ships, not a fake
     fixture) into a repo with `SLACK_WEBHOOK_URL` unset, then proves the
     first-run posture: it selects no notification channels, `post()` is
-    suppressed instead of crash-loud, and a first `relay draft` succeeds.
+    suppressed instead of crash-loud, and a first `relay create` succeeds.
     """
     repo = tmp_path / "relay-os"
     repo.mkdir()
@@ -561,7 +561,7 @@ def test_packaged_template_first_run_works_without_slack(
     post(cfg, "first run, no slack")
 
     monkeypatch.chdir(repo)
-    result = CliRunner().invoke(app, ["draft", "First task"])
+    result = CliRunner().invoke(app, ["create", "First task"])
     assert result.exit_code == 0, result.output
     assert "[notification.slack].webhook" not in result.output
 

@@ -229,7 +229,7 @@ workflow step are loaded too.
 
 - `relay status` — triage view of all tasks
 - `relay ticket "<title>"` — guided task authoring
-- `relay draft "<title>"` — raw draft create
+- `relay create "<title>"` — raw draft create
 - `relay dream` — run the Relay cleanup pass now
 - `relay mark active <slug>` — activate a draft without launching it (launch activates inline on its own)
 - `relay launch <slug>` — start or resume a task (any unique prefix works)
