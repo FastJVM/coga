@@ -13,19 +13,16 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import sys
 
 import typer
 
 from relay.commands.launch import (
-    _format_agent_command_for_console,
     _interactive_stdio_has_tty,
-    build_agent_command,
+    spawn_agent_session,
 )
-from relay.compose import ComposeError, compose_prompt, write_prompt_file
+from relay.compose import ComposeError
 from relay.config import ConfigError, load_config
-from relay.logfile import append_log
 from relay.tasks import (
     TaskNotFoundError,
     list_tasks,
@@ -83,45 +80,40 @@ def project(
         _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
 
     typer.echo(f"Project: planning with {launch_assignee} -> {agent.name}")
+    before = {r.id_slug for r in list_tasks(cfg)}
+
+    # Project planning routes through the same single-shot spawn as launch and
+    # ticket authoring, but without the launch supervisor chain or Relay secret
+    # injection: it plans work, it does not run task work.
     try:
-        prompt = compose_prompt(cfg, ref, shim_ticket)
+        session = spawn_agent_session(
+            cfg,
+            ref,
+            shim_ticket,
+            agent,
+            "interactive",
+            env=os.environ.copy(),
+            actor=f"human:{cfg.current_user}",
+            log_message=(
+                "project planning launched "
+                f"(assignee={launch_assignee}, agent={agent.name})"
+            ),
+            discussion=True,
+            prompt_suffix=f"\n\n## Project seed\n\n{seed}\n" if seed else "",
+            label="Project",
+        )
     except ComposeError as exc:
         _bail(str(exc))
-    if seed:
-        prompt = f"{prompt}\n\n## Project seed\n\n{seed}\n"
-    prompt_file = write_prompt_file(prompt, ref)
-    cmd = build_agent_command(agent, "interactive", prompt, discussion=True)
-    typer.echo(
-        "Project: command: " + _format_agent_command_for_console(cmd, prompt)
-    )
-
-    before = {r.id_slug for r in list_tasks(cfg)}
-    append_log(
-        ref.path,
-        f"human:{cfg.current_user}",
-        f"project planning launched (assignee={launch_assignee}, agent={agent.name})",
-    )
-
-    # Project planning does not run task work, so it receives no secrets:
-    # secrets flow through the `relay launch` chokepoint only (least privilege).
-    env = os.environ.copy()
-    try:
-        result = subprocess.run(cmd, env=env, check=False)
     except FileNotFoundError:
         _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
-    finally:
-        try:
-            prompt_file.unlink()
-        except FileNotFoundError:
-            pass
 
-    if result.returncode != 0:
+    if session.exit_code != 0:
         typer.secho(
-            f"Agent exited with code {result.returncode}.",
+            f"Agent exited with code {session.exit_code}.",
             fg=typer.colors.YELLOW,
             err=True,
         )
-        sys.exit(result.returncode)
+        sys.exit(session.exit_code)
 
     _report_new_drafts(cfg, before)
 

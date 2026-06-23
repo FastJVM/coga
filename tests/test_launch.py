@@ -13,6 +13,7 @@ from relay.create import create_task
 from relay.commands.launch import (
     _skip_permissions_argv_for_launch,
     build_agent_command,
+    spawn_agent_session,
 )
 from relay.config import AgentType, ConfigError, load_config
 from relay.repl_supervisor import _TIMEOUT_EXIT_CODE, ReplOutcome
@@ -210,6 +211,151 @@ def test_build_command_discussion_ignored_in_auto_mode() -> None:
         discussion=True,
     )
     assert cmd == ["my-cli", "-p", "orient body"]
+
+
+# --- unit: shared single-shot spawn -------------------------------------------
+
+
+def _ticket() -> Ticket:
+    return Ticket(
+        frontmatter={
+            "title": "Spawn test",
+            "mode": "interactive",
+            "status": "active",
+            "assignee": "claude",
+        },
+        body="",
+    )
+
+
+def test_spawn_agent_session_appends_kickoff_for_claude(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = TaskRef(slug="draft-ticket", path=tmp_path / "draft-ticket")
+    ref.path.mkdir()
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr(
+        "relay.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, mode_override=None: "# Relay task\nbody",
+    )
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+
+    result = spawn_agent_session(
+        object(),
+        ref,
+        _ticket(),
+        AgentType(
+            name="claude",
+            cli="claude",
+            auto="-p",
+            file="CLAUDE.md",
+            mode="local",
+            discussion="--append-system-prompt {prompt}",
+        ),
+        "interactive",
+        env={},
+        actor="human:marc",
+        log_message="launched",
+        discussion=True,
+        kickoff="Begin",
+    )
+
+    assert result.exit_code == 0
+    assert calls == [["claude", "--append-system-prompt", "# Relay task\nbody", "Begin"]]
+    assert "launched" in (ref.path / "log.md").read_text()
+
+
+def test_spawn_agent_session_appends_kickoff_for_codex(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = TaskRef(slug="draft-ticket", path=tmp_path / "draft-ticket")
+    ref.path.mkdir()
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr(
+        "relay.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, mode_override=None: "# Relay task\nbody",
+    )
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+
+    spawn_agent_session(
+        object(),
+        ref,
+        _ticket(),
+        AgentType(
+            name="codex",
+            cli="codex",
+            auto="exec",
+            file="AGENTS.md",
+            mode="local",
+            discussion="-c developer_instructions={prompt}",
+        ),
+        "interactive",
+        env={},
+        actor="human:marc",
+        log_message="launched",
+        discussion=True,
+        kickoff="Begin",
+    )
+
+    assert calls == [["codex", "-c", "developer_instructions=# Relay task\nbody", "Begin"]]
+
+
+def test_spawn_agent_session_without_kickoff_stays_silent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = BootstrapRef(name="orient", path=tmp_path / "bootstrap" / "orient")
+    ref.path.mkdir(parents=True)
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr(
+        "relay.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, mode_override=None: "# Relay task\nbody",
+    )
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+
+    spawn_agent_session(
+        object(),
+        ref,
+        _ticket(),
+        AgentType(
+            name="claude",
+            cli="claude",
+            auto="-p",
+            file="CLAUDE.md",
+            mode="local",
+            discussion="--append-system-prompt {prompt}",
+        ),
+        "interactive",
+        env={},
+        actor="human:marc",
+        log_message="launched",
+        discussion=True,
+    )
+
+    assert calls == [["claude", "--append-system-prompt", "# Relay task\nbody"]]
 
 
 # --- unit: permission-skip argv -------------------------------------------------

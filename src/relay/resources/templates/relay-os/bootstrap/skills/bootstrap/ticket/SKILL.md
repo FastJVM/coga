@@ -34,26 +34,54 @@ tradeoff explicit (it can't be activated yet).
 Match this shape exactly. Don't invent fields the template doesn't define
 (see "YAML discipline" in the base prompt).
 
-## Step 1 — Detect launch shape
+## Step 1 — Identify the launch shape and open with the matching greeting
 
-Four ways this skill runs:
+This session is greet-first: open the conversation yourself rather than waiting
+for the human to type first. Your **first reply** must greet the human in the
+way that matches how this skill was launched. Read the prompt header and ticket
+body to tell which of these you're in:
 
-- **Empty interview** — `relay ticket` or `relay launch bootstrap/ticket`
-  with no target. You're inside the stateless shim. Ask the human for a
-  one-line title, run `relay create "<title>"`, then edit the new draft
-  directly in this same session.
-- **New-title launch** — `relay ticket "<title>"` already scaffolded a draft
-  and launched you against it. The current task has a `title:`, `status:
-  draft`, and usually an empty `## Description` / `## Context` body.
-- **Existing-ticket edit** — `relay ticket <slug>` launched you against an
-  existing task at any status (`draft`, `active`, `in_progress`, `paused`, or
-  `done`). Editing leaves the status unchanged. Preserve existing useful body
-  text and frontmatter; ask only for the missing or ambiguous pieces. For an
-  `in_progress` or `done` ticket, be aware you are revising one already in
-  flight or finished — confirm intent if the change looks substantive.
-- **Raw draft** — `relay create "<title>"` only creates bytes on disk and does
-  not run this skill. If the human expected the interview, tell them to run
-  `relay ticket <slug>`.
+- **Empty interview** — the header id-slug is `bootstrap/ticket`, there is **no
+`Status:` line**, and the Description is the "Persistent launch shim" text.
+You're inside the stateless shim with no target. Open with:
+> "You ran `relay ticket` without naming a ticket, so: are you starting a
+> **new** ticket, or editing an **existing** one?"
+Keep the greeting command-light: refer to it as `relay ticket`, not the
+underlying `relay launch bootstrap/ticket` plumbing, and don't name the
+`relay create` command when you describe the New path — "I'll create the
+draft" carries the point. `relay status` is the exception: it's a genuinely
+useful hint, so do offer it by name.
+  - New → ask for a one-line title, then create the draft (run `relay create
+    "<title>"` under the hood — don't surface the command to the human) and edit
+    it directly in this same session.
+  - Existing → ask which slug (offer `relay status` to list them), then read and
+    edit that ticket's files directly — or tell them `relay ticket <slug>`
+    re-launches you straight onto it.
+
+- **New-title launch** — a real `tasks/<slug>` with `Status: draft` and an empty
+`## Description` / `## Context` body. `relay ticket "<title>"` already
+created this draft and launched you against it. Open with:
+> "Your `<slug>` ticket has been created (draft). What should it do, and why?
+> I'll turn your answer into the ticket."
+
+- **Existing-ticket edit** — a real `tasks/<slug>` whose body already has
+content, at any status (`draft`, `active`, `in_progress`, `paused`, or
+`done`). You're revising an existing ticket; editing leaves its status
+unchanged. Open with:
+> "You're editing `<slug>` (status: `<status>`). What would you like to change?"
+
+  Preserve existing useful body text and frontmatter; ask only about the parts
+  they want to change. For an `in_progress` or `done` ticket, note you are
+  revising one already in flight or finished — confirm intent if the change
+  looks substantive.
+
+New-title and existing-*draft* tickets both show `Status: draft`; an **empty**
+`## Description`/`## Context` body means new, a **filled** body means existing.
+If it's genuinely ambiguous, just ask which one they meant.
+
+Note: `relay create "<title>"` (the replacement for the deprecated `relay
+draft`) only writes the draft bytes to disk and does **not** run this skill. If
+the human expected the interview, point them at `relay ticket <slug>`.
 
 ## Step 2 — Survey what's available
 
