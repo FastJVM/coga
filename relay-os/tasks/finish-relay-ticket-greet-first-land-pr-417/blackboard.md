@@ -1,5 +1,66 @@
 # Bootstrap notes
 
+## Dev
+branch: agent-session-options
+worktree: /home/n/Code/codex/relay-agent-session-options
+pr: https://github.com/FastJVM/relay/pull/423
+
+## Open-PR notes (2026-06-23, claude)
+
+- Pushed `agent-session-options` to origin.
+- Opened PR #423 (consolidate agent-triggering into one spawn path).
+- Closed PR #417 as superseded (greeting text carried into #423).
+- No CI checks configured on this repo ("no checks reported on the branch"),
+  so nothing to wait on. Local suite was green (847 passed, 1 skipped) per
+  Implement/Peer-review notes.
+
+## Implement notes (2026-06-23, codex)
+
+Implemented on branch `agent-session-options`.
+
+Shape:
+- Added a shared single-shot `spawn_agent_session(...)` path in `launch.py` for
+  compose -> temp prompt write -> command build -> log -> spawn -> cleanup.
+- Kept the `relay launch` supervisor chain in `launch.py`; it now wraps the
+  single-shot helper per step. Agent rotation / respawn / stop decisions did
+  not move into the shared helper.
+- Routed `relay ticket` and `relay project` through the helper, deleting their
+  inline write/build/subprocess/cleanup copies.
+- `relay ticket` opts into `kickoff="Begin"`; `relay project`, `relay chat`, and
+  normal `relay launch` do not.
+- Authoring/planning still pass `os.environ.copy()` and do not receive Relay
+  secret injection; `relay launch` still passes its launch env.
+- Carried over PR #417's bootstrap/ticket Step 1 greet-first wording into the
+  packaged bootstrap ticket skill template. The fresh worktree does not
+  materialize ignored `relay-os/bootstrap/`, so the committed source of truth is
+  `src/relay/resources/templates/relay-os/bootstrap/skills/bootstrap/ticket/SKILL.md`.
+
+Verification:
+- `PYTHONPATH=/home/n/Code/codex/relay-agent-session-options/src PYTHONDONTWRITEBYTECODE=1 python -m pytest tests/test_ticket.py tests/test_launch.py tests/test_project.py tests/test_git.py tests/test_bootstrap_ticket_skill_template.py -p no:cacheprovider` -> 115 passed.
+- `PYTHONPATH=/home/n/Code/codex/relay-agent-session-options/src PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider` -> 846 passed, 1 skipped.
+- `git diff --check` -> clean.
+- `PYTHONPATH=/home/n/Code/codex/relay/src PYTHONDONTWRITEBYTECODE=1 python -m relay.cli validate --task finish-relay-ticket-greet-first-land-pr-417 --json` -> ok_count 1, no issues.
+
+Follow-up for `code/open-pr`: close PR #417 as superseded when opening this PR.
+
+## Peer review notes (2026-06-23, codex)
+
+Native review:
+- Ran `codex review --base main` from `/home/n/Code/codex/relay-agent-session-options`.
+- Initial sandboxed run failed with the known read-only app-server init error; reran with approval.
+- Finding: `bootstrap/ticket` skill text promised greet-first for direct `relay launch bootstrap/ticket`, but that path did not pass `kickoff="Begin"`.
+
+Fix:
+- Added a bootstrap-only kickoff helper so `relay launch bootstrap/ticket` also appends `Begin`.
+- Kept `bootstrap/orient` / `relay chat` and normal task launches silent.
+- Added launch tests covering direct `bootstrap/ticket` kickoff for claude/codex and `bootstrap/orient` no-kickoff.
+- Committed on feature branch: `b4ad03e peer-review: align bootstrap ticket kickoff`.
+
+Verification:
+- `PYTHONPATH=/home/n/Code/codex/relay-agent-session-options/src PYTHONDONTWRITEBYTECODE=1 python -m pytest tests/test_launch.py -p no:cacheprovider` -> 65 passed.
+- `PYTHONPATH=/home/n/Code/codex/relay-agent-session-options/src PYTHONDONTWRITEBYTECODE=1 python -m pytest -p no:cacheprovider` -> 847 passed, 1 skipped.
+- `git diff --check` -> clean.
+
 ## Scope pivot (2026-06-22, nick + claude)
 
 Ticket reframed during authoring. Original framing was "finish/land PR #417
