@@ -275,6 +275,16 @@ def main() -> None:
         typer.secho(f"→ relay {' '.join(full)}", fg=typer.colors.BLUE, err=True)
         sys.argv = [sys.argv[0]] + full
 
+    # Tier-2 shim around-hook (`relay/extension-model`, Pass 2): a
+    # `[shims.<name>]` command resolves its arg -> (creates a draft) -> launches
+    # -> validates/syncs, in Python, instead of going through Typer. It runs
+    # after alias expansion and *before* `app()` because the post-launch "after"
+    # (validate/sync) can't trail `app()` — Typer exits.
+    if cfg and len(sys.argv) > 1 and sys.argv[1] in cfg.shims:
+        from relay.commands.shim import run_shim
+
+        raise SystemExit(run_shim(cfg, cfg.shims[sys.argv[1]], sys.argv[2:]))
+
     app()
 
 
