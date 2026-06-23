@@ -112,6 +112,25 @@ class TicketField:
 
 
 @dataclass(frozen=True)
+class Shim:
+    """A tier-2 shim: a declarative `arg -> create-draft -> launch` command.
+
+    Declared in `relay.toml` under `[shims.<name>]`. Lets a command-shaped
+    capability (e.g. `relay ticket`) be config + a markdown launch target
+    instead of bespoke Python (`relay/extension-model`). Held to a single
+    fixed shape — only these keys, no conditionals — so the config can't grow
+    into an illegible DSL ("no worse Typer").
+    """
+
+    name: str
+    launch: str
+    draft_if_missing: bool = False
+    validate_after: bool = False
+    sync: tuple[str, ...] = ()
+    require_tty: bool = False
+
+
+@dataclass(frozen=True)
 class Config:
     repo_root: Path
     current_user: str
@@ -129,6 +148,7 @@ class Config:
     slack_users: dict[str, str] = field(default_factory=dict)
     aliases: dict[str, str] = field(default_factory=dict)
     ticket_fields: dict[str, TicketField] = field(default_factory=dict)
+    shims: dict[str, Shim] = field(default_factory=dict)
     # Git sync — the git analogue of Slack. `git_enabled` follows the same
     # local-overrides-shared resolution as `slack_enabled`; `git_remote` /
     # `git_control_branch` come from shared `[git]`. See `relay.git`.
@@ -260,6 +280,7 @@ def load_config(repo_root: Path | None = None) -> Config:
     )
     aliases = _parse_aliases(shared.get("aliases", {}))
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
+    shims = _parse_shims(shared.get("shims"))
     git_enabled = _resolve_git_enabled(shared.get("git"), local.get("git"))
     git_remote, git_control_branch = _parse_git(shared.get("git"))
     launch_idle_timeout, launch_idle_timeout_present, launch_max_session = (
@@ -289,6 +310,7 @@ def load_config(repo_root: Path | None = None) -> Config:
         secrets=secrets,
         aliases=aliases,
         ticket_fields=ticket_fields,
+        shims=shims,
         git_enabled=git_enabled,
         git_remote=git_remote,
         git_control_branch=git_control_branch,
@@ -347,6 +369,7 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "launch",
     "ticket",
     "aliases",
+    "shims",
 })
 _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "user",
@@ -381,6 +404,9 @@ _ALLOWED_SHARED_GIT_KEYS: frozenset[str] = frozenset({
 _ALLOWED_LOCAL_GIT_KEYS: frozenset[str] = frozenset({"enabled"})
 _ALLOWED_LAUNCH_KEYS: frozenset[str] = frozenset({"idle_timeout", "max_session"})
 _ALLOWED_TICKET_KEYS: frozenset[str] = frozenset({"fields"})
+_ALLOWED_SHIM_KEYS: frozenset[str] = frozenset(
+    {"launch", "draft_if_missing", "validate_after", "sync", "require_tty"}
+)
 
 
 def _reject_unknown_sections(shared: dict, local: dict) -> None:
@@ -639,6 +665,62 @@ def _parse_ticket_fields(raw: dict | None) -> dict[str, TicketField]:
             required=required,
         )
     return out
+
+
+def _parse_shims(raw: dict | None) -> dict[str, Shim]:
+    """Parse `[shims.<name>]` tables into `Shim` records.
+
+    Each shim is the single fixed shape `arg -> create-draft -> launch`; the
+    strict key-check is what keeps the config a form, not a DSL ("no worse
+    Typer", `relay/extension-model`).
+    """
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ConfigError(f"[shims] must be a table (got {type(raw).__name__})")
+
+    out: dict[str, Shim] = {}
+    for name, data in raw.items():
+        if not isinstance(data, dict):
+            raise ConfigError(
+                f"[shims.{name}] must be a table (got {type(data).__name__})"
+            )
+        bad_keys = sorted(set(data) - _ALLOWED_SHIM_KEYS)
+        if bad_keys:
+            raise ConfigError(
+                f"[shims.{name}] has unsupported keys {bad_keys}. "
+                f"Allowed: {sorted(_ALLOWED_SHIM_KEYS)}. Branching logic belongs "
+                "in a skill, not shim config (no worse Typer)."
+            )
+        launch = data.get("launch")
+        if not isinstance(launch, str) or not launch.strip():
+            raise ConfigError(
+                f"[shims.{name}].launch must be a non-empty string "
+                "(the launch target the shim runs)"
+            )
+        sync_raw = data.get("sync", [])
+        if not isinstance(sync_raw, list) or not all(
+            isinstance(x, str) for x in sync_raw
+        ):
+            raise ConfigError(f"[shims.{name}].sync must be a list of strings")
+        out[name] = Shim(
+            name=name,
+            launch=launch,
+            draft_if_missing=_shim_bool(data, name, "draft_if_missing"),
+            validate_after=_shim_bool(data, name, "validate_after"),
+            sync=tuple(sync_raw),
+            require_tty=_shim_bool(data, name, "require_tty"),
+        )
+    return out
+
+
+def _shim_bool(data: dict, name: str, key: str) -> bool:
+    val = data.get(key, False)
+    if not isinstance(val, bool):
+        raise ConfigError(
+            f"[shims.{name}].{key} must be a boolean (got {type(val).__name__})"
+        )
+    return val
 
 
 def _parse_aliases(raw: dict) -> dict[str, str]:
