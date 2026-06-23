@@ -185,9 +185,6 @@ directly. Script launches inject task metadata env vars including
 - `relay launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
   spawning an agent.
-- `relay launch <slug> --no-verify` — skip the pre-launch freshness check
-  (below). For offline runs, or when you know the ticket is stale and want
-  to launch anyway.
 - `relay launch <slug> --mode <interactive|auto>` — override the ticket's
   `mode:` for this launch only. The debug knob for stepping through a
   `mode: auto` ticket in an attended terminal. Ephemeral: the ticket file is
@@ -204,14 +201,15 @@ agent's optional `discussion = "...{prompt}..."` override. In interactive mode
 the Relay prompt is context and the first human ask can name the session.
 Other task launches keep passing the composed prompt positionally.
 
-Before composing the prompt, `launch` verifies the ticket is still where
-disk says it is: for an `active`/`in_progress` ticket on its final step (or
-with no workflow) that names a merged PR under `## Dev`, it auto-bumps to
-done first. If the bump finished the ticket it prints a line and exits 0
-without spawning an agent. A missing or unauthed `gh` is a loud warning
-(with a `gh auth login` hint), not a hard failure — the launch continues
-unverified. Bootstrap shims, `--prompt-report`, and `--no-verify` skip the
-check entirely.
+`launch` does not probe `gh` or verify PR state before composing the prompt.
+Auto-bumping a ticket whose final-step PR has merged is the job of
+`relay automerge` / the `autoclose-merged` recurring sweep — the sole automerge
+trigger — never launch. Launch's only network touch is the git ticket-state
+sync that rides the `active → in_progress` flip, and that runs
+non-interactively (`GIT_TERMINAL_PROMPT=0`, SSH `BatchMode=yes`): a
+credential-less push (e.g. `gh` logged out against an HTTPS remote) fails loud
+as a reported sync-miss instead of hanging on a credential prompt, and the
+launch still proceeds because the on-disk markdown is the source of truth.
 
 Agent type comes from the ticket's `assignee` directly — it names an
 `[agents.<type>]` block in `relay.toml`. Human assignees aren't
