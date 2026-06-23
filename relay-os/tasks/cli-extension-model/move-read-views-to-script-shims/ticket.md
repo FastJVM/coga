@@ -28,6 +28,19 @@ independent of the tier-2 shim (PR #425) and #423. Per the *no-inversion*
 guardrail the render Python relocates **unchanged** into a `mode: script` step;
 only its home changes. Start with one read as a proof, then the rest.
 
+## Decision (Nico, 2026-06-23)
+
+Reads **do** move to tickets-as-scripts (`mode: script`) — Nico chose
+"minimize core" over `extension-model`'s "reads stay commands" rule.
+Consequences:
+1. `extension-model` now **contradicts** this — it says reads are commands and
+   "wrapping these in a task buys nothing." It needs updating to match, or the
+   ratified context disagrees with the build (flag to Nico).
+2. The **crux below still stands** — Nico set the *direction*, not the
+   *mechanism*: a `mode: script` ticket can't take a transient `<slug>` arg.
+3. `relay show` likely **stays** as a thin command entry that *launches* the
+   script render — the command isn't removed (per zach), the render moves.
+
 ## Context
 
 Understand these before touching code, in order:
