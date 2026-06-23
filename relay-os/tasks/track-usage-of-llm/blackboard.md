@@ -1,5 +1,54 @@
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Workflow swapped: design-then-implement → code/with-review (2026-06-23, nick)
+
+nick reviewed the spec at the design step (inline, replacing the `review-design`
+owner gate) and chose `code/with-review` for the remaining work — gains a codex
+peer-review of the implementation that design-then-implement lacked. Frozen
+snapshot in ticket.md rewritten to: implement (claude) → peer-review (codex,
+other-agent) → open-pr (claude) → review (owner). `step` reset to `1 (implement)`.
+Design output is preserved in the ticket body. `relay validate --json` clean.
+nick will review/edit the ticket directly, then `relay launch` to start implement.
+
+## Design rev 2 — code-grounded gaps fixed + 2 questions resolved (2026-06-23, claude)
+
+Re-read launch.py / recurring.py / update.py before finalizing. Found and fixed
+in the spec:
+
+1. **`mode: auto` is frozen** (`recurring.py:_effective_mode`,
+   `launch.py:~242`). The refresh-sweep's recommended `mode: auto` was dead on
+   arrival — digest already documents the `mode: script` workaround. Moot now
+   (refresh split out, below).
+2. **Vendoring/packaging was entirely absent.** A shipped recurring +
+   workflow + skill needs `VENDORED_*` wiring in `update.py` + `git add -f` +
+   packaging tests, or existing repos break on `relay init --update`. Moot now
+   (split out).
+3. **Capture must be gated to agent sessions.** Dropping `capture_session` in
+   the `finally` unconditionally would write a spurious `usage_status:unknown`
+   record on every `mode: script` launch (Dream/autoclose/digest/skill-update)
+   and on `FileNotFoundError` spawn failures. Spec now gates to
+   `mode in {interactive, auto}` and skips spawn failures. Confirmed the
+   `finally` runs before both the timeout and non-zero `sys.exit` early
+   returns, so the "burned tokens then died" case is still captured.
+4. **`--session-id` wiring** (resolved Q below).
+5. Smaller: `step` parsed to bare name from `"N (name)"`, read from
+   start-of-iteration ticket; non-claude/codex cli → usage-unknown not crash.
+
+### Two open questions — RESOLVED (2026-06-23, nick)
+
+- **Refresh-sweep scope → SPLIT to a follow-up ticket.** This ticket is now
+  the usage primitive only (capture + store + `relay usage`). The whole
+  `refresh-hardcoded-data` recurring + `maintenance/refresh` workflow/skill +
+  vendoring + packaging tests becomes its own ticket; the seeded "verify
+  usage.py parsers" chore carries to it. This deletes gaps #1 and #2 from this
+  ticket entirely. Out of Scope updated.
+- **session-id wiring → configured `session_id_flag`.** Add per-agent
+  `session_id_flag` to `relay.toml [agents.*]` (claude → `--session-id`, codex
+  unset), mirroring `name_flag`, keeping `build_agent_command` provider-agnostic.
+  Loop mints `uuid4`, passes flag+uuid into `build_agent_command` and the same
+  uuid into `capture_session`. Adds config-schema surface → update config
+  loader + `example/` fixture + a test. Proposed Shape updated.
+
 ## Open Questions — RESOLVED (2026-06-11, nick)
 
 All six open questions answered. Spec updated to match.

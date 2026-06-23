@@ -11,19 +11,15 @@ contexts:
 - relay/architecture
 skills: []
 workflow:
-  name: code/design-then-implement
+  name: code/with-review
   steps:
-  - name: design
-    skills:
-    - code/design
-    assignee: agent
-  - name: review-design
-    skills: []
-    assignee: owner
   - name: implement
     skills:
     - code/implement
     assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
   - name: open-pr
     skills:
     - code/open-pr
@@ -31,7 +27,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (design)
+step: 1 (implement)
 ---
 
 ## Description
@@ -74,21 +70,32 @@ follow-up ticket if a dollar view is ever wanted.
 
 - A new module `src/relay/usage.py` holds all parsing and rollup logic.
   `launch.py` and `commands/usage.py` stay thin (call into it).
-- After every `relay launch` *session* (one per `while True:` loop iteration
-  in `launch.py`, not one per launch invocation), exactly one JSONL record is
-  appended to the launched task's own `blackboard.md`, under a `## Usage`
-  heading (created if absent). **There is no `relay-os/usage/` directory and no
-  dedicated ledger file** — the task blackboards are the store.
-  - Records are written for chained steps too (implement → peer-review →
+- After every `relay launch` **agent session** (one per `while True:` loop
+  iteration in `launch.py` that actually spawns an agent CLI, not one per
+  launch invocation), exactly one JSONL record is appended to the launched
+  task's own `blackboard.md`, under a `## Usage` heading (created if absent).
+  **There is no `relay-os/usage/` directory and no dedicated ledger file** —
+  the task blackboards are the store.
+  - **Only agent launches are recorded.** `mode: script` iterations (the loop
+    runs a skill via `subprocess.run`, no claude/codex transcript — Dream
+    workers, autoclose, digest, skill-update) write **no** record. A spawn that
+    never started (the `FileNotFoundError` CLI-not-found path) writes no record
+    either. "Session ran, transcript missing" is the only `usage_status:
+    "unknown"` case; "no session ran" produces nothing.
+  - Records are written for chained agent steps too (implement → peer-review →
     open-pr), each carrying its own `slug`, `step`, `agent`, `cli`, `model`.
   - A session that burned tokens and then exited non-zero is still recorded
-    (capture runs in a `finally`, before launch.py's `sys.exit(exit_code)`).
+    (capture runs in the `finally` around the subprocess call, which executes
+    before launch.py's `sys.exit(exit_code)` non-zero/timeout early returns).
   - Capture never raises into the launch path: any failure to find/parse a
     transcript appends a record with `usage_status: "unknown"` (tokens null),
     not an exception. A launch with **no task blackboard** (stateless bootstrap
     shims) is skipped silently — a known, accepted gap (see Out of Scope).
   - Append is safe: capture runs after the session subprocess has exited, so it
     never races the agent's own writes to that blackboard.
+  - `step` is recorded as the bare step **name** (parsed out of the ticket's
+    `"N (name)"` form), read from the start-of-iteration ticket — i.e. the step
+    the agent just ran, not the one it bumped to mid-session.
 - Each record is a single self-describing JSON object on one line, with a
   `schema` version field and the shape pinned in Proposed Shape below. It
   carries `title` and `slug` so a record is attributable even though its
@@ -101,17 +108,6 @@ follow-up ticket if a dollar view is ever wanted.
   `--json` emits the same data as a structured object for downstream consumers;
   `--since` / `--until` / `--task` filter the rows. It is the only code path
   that reads usage back. No dollar cost is computed or shown.
-- A new recurring task `relay-os/recurring/refresh-hardcoded-data/` ships as
-  part of this ticket: a twice-a-year sweep whose `blackboard.md` carries a
-  `## Refresh` addendum (a checklist of hardcoded-data chores). When it fires
-  it surfaces the addendum entries (one Slack reminder) so hardcoded data
-  doesn't silently rot. This ticket seeds the addendum with a **real first
-  entry**: "verify the Claude + Codex transcript parsers in `usage.py` still
-  match the live `~/.claude` / `~/.codex` formats" — the parsers hardcode
-  transcript paths and JSONL field names that drift when the CLIs update.
-  Future tickets that hardcode data append one line here instead of each
-  spawning their own recurring task. `relay validate --json` passes with it
-  present.
 - No transcript is matched by file mtime alone. Claude uses a minted session
   id; Codex uses a before/after new-file diff scoped by `cwd` (see Proposed
   Shape). Neither double-counts a resumed/append-only transcript, and an
@@ -143,7 +139,9 @@ follow-up ticket if a dollar view is ever wanted.
   `claude`/`codex`). `pre_existing` is the snapshot of session files captured
   before spawn (used by the codex matcher; see capture hook). A genuinely
   unfindable/unparseable transcript returns usage-unknown — that is the only
-  unknown path for either provider.
+  unknown path for either provider. Dispatch is by `agent.cli` name; a
+  configured agent whose cli is neither `claude` nor `codex` returns
+  usage-unknown rather than crashing (no provider parser).
 - Claude parser: resolve the transcript path
   `~/.claude/projects/<cwd-hash>/<session-id>.jsonl` where `<cwd-hash>` is the
   cwd with `/` and `.` replaced by `-` (verified against the live layout).
@@ -185,10 +183,17 @@ follow-up ticket if a dollar view is ever wanted.
 Two deterministic strategies, one per provider, both behind the seam — never
 assume every CLI behaves alike:
 
-- **Claude** accepts `--session-id <uuid>`. In `build_agent_command`
-  (launch.py), for the claude provider mint a `uuid4` per session and pass
-  `--session-id <that>`, returning it to the loop so capture reads exactly that
-  transcript file.
+- **Claude** accepts `--session-id <uuid>`. Wire this through config, not a
+  cli-name branch (matching how `name_flag` already works — `build_agent_command`
+  stays provider-agnostic): add a per-agent `session_id_flag` to
+  `relay.toml [agents.*]` (`claude` → `"--session-id"`, codex leaves it unset).
+  The `while True:` loop mints a fresh `uuid4` per iteration; when the step's
+  agent has a `session_id_flag`, it passes `(session_id_flag, uuid)` into
+  `build_agent_command` (inserted alongside the existing name/​skip argv) **and**
+  hands the same uuid to `capture_session`, so capture reads exactly that
+  transcript file. An agent with no `session_id_flag` mints nothing and relies on
+  its own matcher (codex's new-file diff). Touches the `[agents.*]` config schema,
+  so update the config loader, the `example/` fixture, and add a test.
 - **Codex** has no such flag, so capture snapshots the set of existing
   `~/.codex/sessions/**/rollout-*.jsonl` paths *before* spawning and passes it
   as `pre_existing`; the parser takes the new file with a matching `cwd`. (A
@@ -203,17 +208,24 @@ assume every CLI behaves alike:
   match key: the minted `session_id` (claude), or the `pre_existing` snapshot
   of `~/.codex/sessions/**/rollout-*.jsonl` paths (codex). Snapshotting is a
   cheap `glob` and only done for the provider being launched.
-- Wrap the subprocess call's existing `try/finally` so that in the `finally`
-  — after `_cleanup_prompt()`, before the `sys.exit(exit_code)` non-zero
-  early return — it calls a single thin helper
+- The subprocess call already sits in a `try/…/finally` (the `finally`
+  currently runs `_cleanup_prompt()`). Add the capture call there, next to
+  `_cleanup_prompt()` — this `finally` executes before every downstream exit
+  path (the timeout `sys.exit`/`return "timeout"` and the non-zero
+  `sys.exit(exit_code)` both come after it), so a session that burned tokens
+  then died is still captured. It calls a single thin helper
   `usage.capture_session(...)` with the task's `blackboard` path, `title`,
   `slug`, `step` name, `agent`, `cli`, `provider`, `session_id`/`pre_existing`,
   `window_start`, `window_end=now`. The helper parses the transcript, builds the
   record, and appends one line under `## Usage` in that blackboard, swallowing
-  all exceptions (log to stderr) so capture can never break a launch. If no
-  blackboard path is available (stateless bootstrap shim), it no-ops.
-- One record per loop iteration ⇒ chained steps and agent rotations each get
-  their own entry, all appended to the same task blackboard.
+  all exceptions (log to stderr) so capture can never break a launch.
+- **Capture only for agent sessions.** Gate the call so it fires only when this
+  iteration spawned an agent CLI (`mode in {interactive, auto}`), never for
+  `mode: script` iterations (no transcript exists) and never on the
+  `FileNotFoundError` spawn-failure path (no session ran). If no blackboard path
+  is available (stateless bootstrap shim), it no-ops.
+- One record per agent loop iteration ⇒ chained steps and agent rotations each
+  get their own entry, all appended to the same task blackboard.
 
 **New command `src/relay/commands/usage.py`** registered in `cli.py` as
 `relay usage`. Thin Typer entrypoint: options `--by`
@@ -222,42 +234,32 @@ assume every CLI behaves alike:
 calls `usage.rollup`, prints a table (human; the four token categories + total)
 or `json.dumps` (machine). No parsing logic in the command.
 
-**Recurring refresh-sweep (`relay-os/recurring/refresh-hardcoded-data/`).**
-A new recurring task, modeled on the existing `digest` task (which already uses
-its own `blackboard.md` `## Spool` section as the data surface its run reads).
-Three files per the recurring `_template`:
-
-- `ticket.md` — `schedule: "0 9 1 1,7 *"` (9am on Jan 1 and Jul 1 — twice a
-  year), `schedule_comment` saying so. The run reads this task's own
-  `blackboard.md` `## Refresh` section and posts one Slack reminder
-  enumerating each chore that's due, so nothing hardcoded rots unnoticed.
-- `blackboard.md` — carries a `## Refresh` addendum: a checklist where each
-  entry is one hardcoded-data chore (`<file>` — what to verify — cadence).
-  Seeded with one real entry: `src/relay/usage.py` — confirm the Claude and
-  Codex transcript paths + JSONL field names still match the live formats.
-  Future tickets append a line here.
-- `log.md` — append-only run history (seed empty, like other recurring tasks).
-
-Mode/workflow is an open design question (see blackboard): the lightest option
-is `mode: auto` plus a tiny one-step `maintenance/refresh` workflow+skill that
-reads the `## Refresh` section and posts a `relay slack` FYI — no new `relay`
-subcommand. Recommend that over a `mode: script` command surface.
-
 **Order of work:** (1) `usage.py` record + rollup + **both** parsers (Claude
 per-message sum; Codex last-cumulative), with unit tests on synthetic
 transcript fixtures for each, plus `append_record`/`load_records` round-trip
 through a `## Usage` blackboard section. (2) `relay usage` command + tests.
-(3) launch.py capture hook + per-provider matching (claude session-id minting;
-codex pre-spawn rollout snapshot), appending to the task blackboard. (4) the
-`refresh-hardcoded-data` recurring task (+ its `maintenance/refresh`
-workflow/skill if that route is chosen). (5) `relay validate --json`, update
-`example/` only if task/layout semantics change (they should not).
+(3) launch.py capture hook (gated to agent sessions) + per-provider matching
+(claude `session_id_flag` minting; codex pre-spawn rollout snapshot), appending
+to the task blackboard; add `session_id_flag` to the `[agents.*]` config schema +
+`example/` fixture. (4) `relay validate --json`, update `example/` only if
+task/layout semantics change (they should not).
 
 ## Out of Scope
 
 - Dollar cost / pricing — no price table, no `cost_usd`, no cost math. The team
   is on a subscription; tokens are the metric. A dollar view is a follow-up
   ticket if ever wanted.
+- **The `refresh-hardcoded-data` recurring sweep — split to a follow-up ticket.**
+  Shipping it means a recurring template + a `maintenance/refresh` workflow +
+  a `mode: script` skill that posts the Slack reminder (`mode: auto` is
+  temporarily frozen, so the digest `mode: script` pattern is the only viable
+  shape) + `update.py` vendoring wiring (`VENDORED_RECURRING_TEMPLATES`,
+  `VENDORED_WORKFLOW_TEMPLATES`, `VENDORED_SKILL_TEMPLATES`) + packaging tests —
+  a full shipped battery. Kept out so this ticket stays the usage primitive.
+  The seeded first chore ("verify the Claude + Codex transcript parsers in
+  `usage.py` still match the live `~/.claude` / `~/.codex` formats" — the
+  parsers hardcode transcript paths and JSONL field names that drift on CLI
+  updates) carries to that follow-up.
 - Budget caps, "remaining" tokens, and any enforcement — consumer tickets
   (`autoroute-agent-based-on-remaining-usage`, the free-token launcher).
 - Autorouting decisions and the opportunistic "launch when tokens are free"
