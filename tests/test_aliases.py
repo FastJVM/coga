@@ -189,6 +189,45 @@ def test_default_build_alias_dispatches_without_user_aliases_section(
     assert captured["argv"] == ["relay", "launch", "relay-build"]
 
 
+def test_recurring_launch_aliases_are_defaults() -> None:
+    """`skill-update` and `autoclose` are default recurring-launch aliases, not
+    built-in commands."""
+    assert _DEFAULT_ALIASES["skill-update"] == "recurring launch skill-update"
+    assert _DEFAULT_ALIASES["autoclose"] == "recurring launch autoclose-merged"
+    assert "skill-update" not in _BUILTIN_COMMANDS
+    assert "autoclose" not in _BUILTIN_COMMANDS
+
+
+@pytest.mark.parametrize(
+    ("alias", "expanded"),
+    [
+        ("skill-update", ["recurring", "launch", "skill-update"]),
+        ("autoclose", ["recurring", "launch", "autoclose-merged"]),
+    ],
+)
+def test_default_recurring_alias_dispatches_without_user_aliases_section(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    alias: str,
+    expanded: list[str],
+) -> None:
+    """A repo whose `relay.toml` has no `[aliases]` still routes the recurring
+    launch aliases to `recurring launch <name>`."""
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr("sys.argv", ["relay", alias])
+    monkeypatch.setattr("relay.cli._register_alias_placeholder", lambda *_: None)
+
+    captured: dict[str, list[str]] = {}
+
+    def fake_app() -> None:
+        import sys
+        captured["argv"] = list(sys.argv)
+
+    monkeypatch.setattr("relay.cli.app", fake_app)
+    main()
+    assert captured["argv"] == ["relay", *expanded]
+
+
 def test_user_alias_overrides_default(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
