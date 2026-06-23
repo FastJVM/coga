@@ -7,3 +7,4 @@
 2026-06-11 16:00 [human:nick] activated (paused → active)
 2026-06-11 16:00 [human:nick] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-23 15:50 [human:nick] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-23 16:35 [human:nick] started (active → in_progress) via relay launch
