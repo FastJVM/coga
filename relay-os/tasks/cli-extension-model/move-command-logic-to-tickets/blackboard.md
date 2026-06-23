@@ -54,15 +54,18 @@ that stays as shared-runner Python or a tier-3 skill:
 - **No worse Typer** — keep the single fixed shape `arg → draft → launch`; no
   conditionals / computed args / validation in `relay.toml`.
 
-### Relationship to greet-first / the launch mechanism (IMPORTANT — coordinate w/ Nico)
+### Relationship to greet-first / the launch mechanism
 Greet-first (the `Begin` kickoff + the shape-specific greeting) is NOT part of this
-generic shim. It lives in the nick-owned ticket
-`finish-relay-ticket-greet-first-land-pr-417` ("Consolidate agent-triggering into
-one launch mechanism, greet-first as an option"), which **supersedes PR #417**.
-That ticket fixes a deeper issue: `ticket.py` / `project.py` hand-roll their OWN
-copy of the `relay launch` spawn sequence instead of routing through it.
+generic shim. It lives in `finish-relay-ticket-greet-first-land-pr-417`
+("Consolidate agent-triggering into one launch mechanism, greet-first as an
+option"), which **supersedes PR #417** and fixes a deeper issue: `ticket.py` /
+`project.py` hand-roll their OWN copy of the `relay launch` spawn sequence instead
+of routing through it.
 
-Coordination: the shim's `launch` step should route through that ONE consolidated
-launch path, not re-fork the spawn. So the `ticket`-head migration (step 3 above)
-intersects Nico's consolidation — both touch how `relay ticket` triggers the
-agent. Coordinate with him before migrating `ticket`.
+Ownership + sequencing: zach took over BOTH greet-first tickets
+(`finish-...-417` and `marketing/relay-ticket-creates`) from nick on 2026-06-23
+(nick hadn't started). **This shim is built FIRST** — it provides the structure
+the greet-first work builds on; greet-first then layers the kickoff/greeting as an
+option on the consolidated launch path. So: shim first -> greet-first second, both
+zach-owned. (The shim's `launch` step should route through that one consolidated
+path, not re-fork the spawn.)

@@ -2,10 +2,10 @@
 title: Consolidate agent-triggering into one launch mechanism (greet-first as an option)
 status: in_progress
 mode: interactive
-owner: nick
-human: nick
+owner: zach
+human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts:
 - relay/architecture
 - relay/codebase
