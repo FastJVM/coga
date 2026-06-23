@@ -1589,6 +1589,46 @@ def test_launch_discussion_bootstrap_uses_discussion_template(
     assert cmd[0] == "claude"
     assert cmd[1] == "--append-system-prompt"
     assert "Skill: bootstrap/ticket" in cmd[2]
+    assert cmd[3] == "Begin"
+
+
+def test_launch_orient_bootstrap_stays_silent(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write(
+        bootstrap_repo / "bootstrap" / "orient" / "ticket.md",
+        """
+        ---
+        title: Chat
+        mode: interactive
+        assignee: claude
+        ---
+
+        ## Description
+
+        Persistent launch shim for a discussion session.
+        """,
+    )
+    captured: dict[str, object] = {}
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        captured["cmd"] = cmd
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "bootstrap/orient"])
+    assert result.exit_code == 0, result.output
+
+    cmd = captured["cmd"]
+    assert isinstance(cmd, list)
+    assert cmd[-1] != "Begin"
 
 
 def test_launch_regular_task_does_not_use_discussion_template(
@@ -1655,6 +1695,7 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
     assert cmd[0] == "codex"
     assert cmd[1] == "-c"
     assert "Skill: bootstrap/ticket" in _prompt_arg(cmd)
+    assert cmd[-1] == "Begin"
 
     log = (bootstrap_repo / "bootstrap" / "ticket" / "log.md").read_text()
     assert "assignee=codex, agent=codex" in log

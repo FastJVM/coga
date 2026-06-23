@@ -408,6 +408,7 @@ def launch(
                 mode_override=mode_override,
                 name=ticket.title or "",
                 discussion=_is_discussion_bootstrap(ref),
+                kickoff=_bootstrap_kickoff(ref),
                 skip_permissions_argv=skip_permissions_argv,
                 idle_timeout=idle_timeout,
                 max_session=max_session,
@@ -709,6 +710,12 @@ def _skip_permissions_argv_for_launch(
 
 def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
     return isinstance(ref, BootstrapRef) and ref.id_slug in DISCUSSION_BOOTSTRAP_SHIMS
+
+
+def _bootstrap_kickoff(ref: TaskRef | BootstrapRef) -> str | None:
+    if isinstance(ref, BootstrapRef) and ref.id_slug == "bootstrap/ticket":
+        return "Begin"
+    return None
 
 
 def _discussion_template(agent) -> str:
