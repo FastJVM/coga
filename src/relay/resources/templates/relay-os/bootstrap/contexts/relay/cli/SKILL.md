@@ -201,15 +201,25 @@ agent's optional `discussion = "...{prompt}..."` override. In interactive mode
 the Relay prompt is context and the first human ask can name the session.
 Other task launches keep passing the composed prompt positionally.
 
-`launch` does not probe `gh` or verify PR state before composing the prompt.
-Auto-bumping a ticket whose final-step PR has merged is the job of
-`relay automerge` / the `autoclose-merged` recurring sweep — the sole automerge
-trigger — never launch. Launch's only network touch is the git ticket-state
-sync that rides the `active → in_progress` flip, and that runs
-non-interactively (`GIT_TERMINAL_PROMPT=0`, SSH `BatchMode=yes`): a
-credential-less push (e.g. `gh` logged out against an HTTPS remote) fails loud
-as a reported sync-miss instead of hanging on a credential prompt, and the
-launch still proceeds because the on-disk markdown is the source of truth.
+`launch` does not probe `gh` for PR state before composing the prompt —
+auto-bumping a ticket whose final-step PR has merged is the job of
+`relay automerge` / the `autoclose-merged` recurring sweep, never launch. It
+does, though, **pre-flight git push access**: before flipping status or
+spawning the agent, it runs a non-interactive `git push --dry-run` against the
+configured remote (the same probe as `relay validate --check-github`) and
+refuses the launch if push auth is broken. Relay drives the whole session
+through git/gh (branch push, `gh pr create`, every `relay bump` syncs ticket
+state), so a dead remote means a run guaranteed to fail at ship time — fail
+loud at the door, not after a long run. The gate self-skips for bootstrap
+shims, `[git].enabled = false`, and non-git checkouts.
+
+All of relay's git subprocesses run non-interactively (`GIT_TERMINAL_PROMPT=0`,
+SSH `BatchMode=yes`), so a credential-less remote fails fast instead of hanging
+on a prompt. Note the asymmetry: the launch-entry gate is **fatal** (refuse to
+start), but a mid-workflow ticket-state sync miss (`relay bump` / `mark`) stays
+**non-fatal** — reported to stderr + `log.md`, then continue — because the
+on-disk markdown is the source of truth and aborting there would stall the
+supervised chain.
 
 Agent type comes from the ticket's `assignee` directly — it names an
 `[agents.<type>]` block in `relay.toml`. Human assignees aren't

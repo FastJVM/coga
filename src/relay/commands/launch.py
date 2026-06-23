@@ -40,6 +40,7 @@ from relay.config import (
     SecretError,
     load_config,
 )
+from relay.github_preflight import check_git_auth, check_git_remote
 from relay.logfile import append_log
 from relay.mark import (
     RequiredExtensionMissing,
@@ -298,6 +299,15 @@ def launch(
         env = build_launch_env(cfg, ticket.secrets)
     except SecretError as exc:
         _bail(str(exc))
+
+    # Refuse to start an agent session when git push access is broken. Relay
+    # drives the whole session through git/gh (branch push, `gh pr create`,
+    # every `relay bump` syncs ticket state), so a dead remote means an
+    # often-long run guaranteed to fail at ship time. Fail loud at the door
+    # rather than discover it at PR time — same as the other pre-flip
+    # preflights above. Pre-flip, so a refused launch never posts a "started"
+    # broadcast or flips status.
+    _preflight_push_auth(cfg, ref, is_bootstrap=is_bootstrap)
 
     if isinstance(ref, TaskRef) and ticket.status == "active":
         try:
@@ -580,6 +590,40 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         )
     except TaskValidationError as exc:
         _bail(str(exc))
+
+
+def _preflight_push_auth(
+    cfg: Config, ref: TaskRef | BootstrapRef, *, is_bootstrap: bool
+) -> None:
+    """Refuse to launch when git push access to the configured remote is broken.
+
+    Relay runs the whole session through git/gh, so a dead remote means a run
+    guaranteed to fail at ship time; catch it at the door. The probe is the
+    same non-interactive `git push --dry-run` `relay validate --check-github`
+    uses (so a logged-out HTTPS remote fails fast, not on a prompt).
+
+    Self-skips when there is nothing to push to or no sync configured:
+    bootstrap shims (stateless, no PR), `[git].enabled = false`, and any
+    checkout where the configured remote does not resolve (not a git repo / no
+    remote) — which is also why the non-git launch test fixtures are
+    unaffected. Only a *configured, reachable-but-unauthenticated* remote bails.
+    """
+    if is_bootstrap or not cfg.git_enabled:
+        return
+    if not check_git_remote(cfg.git_remote).ok:
+        # No git repo / remote unconfigured → the sync layer soft-no-ops, so
+        # there is no push to gate.
+        return
+    auth = check_git_auth(cfg.git_remote)
+    if not auth.ok:
+        _bail(
+            f"Cannot launch {ref.id_slug}: git push access to "
+            f"{cfg.git_remote!r} is unavailable, and relay drives the session "
+            "through git/gh (branch push, `gh pr create`, `relay bump` ticket "
+            f"sync) — it would fail at ship time. {auth.detail} "
+            "Fix auth and retry, or set `[git].enabled = false` to run without "
+            "git sync."
+        )
 
 
 def build_agent_command(
