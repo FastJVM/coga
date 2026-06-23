@@ -277,6 +277,15 @@ and there is no Relay-invented vocabulary to learn:
   rather than printing a silently empty list. A *known* directory that
   currently holds no tasks is not an error — it prints `(no tasks in <dir>)`.
 
+`relay status --dirs` (`-d`) flips the listing to the *directories* themselves
+instead of the tasks: it prints every plain (non-task) directory under `tasks/`,
+one path per line, and nothing else. It honors both axes — a `<dir>` argument
+lists the sub-directories below that directory (the directory itself is the
+query, not a result), and `--no-recurse` keeps only the immediate level. An
+unknown `<dir>` fails loud the same way; an empty result prints a `(no
+directories ...)` note. This is the read-only counterpart to the `mkdir` /
+`mv` / `rm` you'd use to manage them.
+
 There is no command to create, rename, or delete one of these directories —
 they are plain directories, so you manage them with the shell: `mkdir
 relay-os/tasks/<dir>` to make one (`mkdir -p` to nest), `mv` a task directory
