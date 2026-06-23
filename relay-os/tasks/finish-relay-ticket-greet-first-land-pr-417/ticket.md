@@ -1,18 +1,35 @@
 ---
 title: Consolidate agent-triggering into one launch mechanism (greet-first as an option)
-status: draft
+status: active
 mode: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: claude
 contexts:
-  - relay/architecture
-  - relay/codebase
-  - relay/extension-model
+- relay/architecture
+- relay/codebase
+- relay/extension-model
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
+step: 1 (implement)
 ---
 
 ## Description
