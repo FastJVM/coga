@@ -1,6 +1,6 @@
 ---
 title: Consolidate agent-triggering into one launch mechanism (greet-first as an option)
-status: active
+status: in_progress
 mode: interactive
 owner: nick
 human: nick
