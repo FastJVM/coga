@@ -2454,3 +2454,82 @@ def test_update_all_continues_past_a_failing_repo(
     assert swept == sorted([repo_a, repo_b])  # both attempted despite the failure
     assert "boom" in result.output
     assert "Updated 1 of 2 repo(s)." in result.output
+
+
+# --- external dependency check --------------------------------------------------
+#
+# `relay init` fails loud when a required external CLI (`git`/`gh`/`op`) is not
+# on PATH. Captured before the autouse `_stub_init_dep_check` fixture replaces
+# the module attribute, so these tests exercise the real implementation.
+_real_dep_check = init_cmd._check_external_dependencies
+
+
+def _which_missing(missing: set[str]):
+    """A `shutil.which` stand-in that reports `missing` tools as absent."""
+    return lambda name: None if name in missing else f"/usr/bin/{name}"
+
+
+def test_dep_check_passes_when_all_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("relay.commands.init.shutil.which", _which_missing(set()))
+    _real_dep_check()  # must not raise
+
+
+def test_dep_check_ignores_missing_op(
+    monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`op` is not required at init (it's enforced at launch when a ticket
+    actually needs an `op://` secret), so a missing `op` must not crash init."""
+    monkeypatch.setattr("relay.commands.init.shutil.which", _which_missing({"op"}))
+    _real_dep_check()  # must not raise
+
+
+def test_dep_check_crashes_on_missing_gh(
+    monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    monkeypatch.setattr("relay.commands.init.shutil.which", _which_missing({"gh"}))
+    with pytest.raises(SystemExit) as exc:
+        _real_dep_check()
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert "gh" in err and "cli.github.com" in err
+    assert "op" not in err  # the optional tool isn't dragged into the crash
+
+
+def test_dep_check_crashes_on_missing_git(
+    monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    monkeypatch.setattr("relay.commands.init.shutil.which", _which_missing({"git"}))
+    with pytest.raises(SystemExit) as exc:
+        _real_dep_check()
+    assert exc.value.code == 2
+    assert "git" in capsys.readouterr().err
+
+
+def test_dep_check_reports_all_required_missing_together(
+    monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    monkeypatch.setattr(
+        "relay.commands.init.shutil.which", _which_missing({"git", "gh", "op"})
+    )
+    with pytest.raises(SystemExit):
+        _real_dep_check()
+    err = capsys.readouterr().err
+    # Both required-at-init tools are reported; the optional `op` is omitted.
+    assert "git" in err and "gh" in err
+    assert "op" not in err
+
+
+def test_init_bails_before_scaffolding_when_required_dep_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing required dep (gh) stops `relay init` before it writes anything."""
+    # Restore the real check (autouse no-ops it), then make `gh` absent.
+    monkeypatch.setattr(init_cmd, "_check_external_dependencies", _real_dep_check)
+    monkeypatch.setattr("relay.commands.init.shutil.which", _which_missing({"gh"}))
+
+    target = tmp_path / "fresh"
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+
+    assert result.exit_code == 2
+    assert "gh" in result.output
+    assert not (target / "relay-os").exists()  # bailed before scaffolding

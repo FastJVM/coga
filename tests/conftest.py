@@ -55,6 +55,21 @@ def _isolate_home(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _stub_init_dep_check(monkeypatch):
+    """No-op `relay init`'s external-CLI dependency check by default.
+
+    `relay init` hard-fails when `git`/`gh`/`op` are not on PATH, but CI and dev
+    machines may legitimately lack `op` (or `gh`). Default the check to a no-op
+    so init-invoking tests run anywhere; the dedicated dependency tests call the
+    real `_check_external_dependencies` with `shutil.which` mocked."""
+    monkeypatch.setattr(
+        "relay.commands.init._check_external_dependencies",
+        lambda: None,
+        raising=False,
+    )
+
+
+@pytest.fixture(autouse=True)
 def _stub_slack(monkeypatch):
     """Default-on Slack so commands don't crash on `$SLACK_WEBHOOK_URL` unset.
 
