@@ -217,3 +217,131 @@ spool as a producer/consumer queue on a blackboard) and `src/relay/git.py`,
 <!-- relay:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Plan / findings (implement step, claude)
+
+### Code map (confirmed)
+- `relay.spool` callers: `commands/digest.py`, `notification/__init__.py`, tests
+  only. (`usage.py` has its *own* unrelated `append_record` — out of scope.)
+- `spool.py`: `append_record` (EOF-insert), `read_records` (all), `drain`
+  (rewrites whole `## Spool (pending)` section to empty — **the root cause**).
+- `digest.py::run_digest`: `read_records` → decide post → `post` → `drain`.
+  `done_pr_numbers(records)` suppresses git-scan commits already in Done records.
+- `git.py::_rebase_onto_remote` (same-branch push retry): `rebase --autostash`;
+  on failure `rebase --abort` then raise. The abort can fail to re-apply the
+  autostash (pop conflicts on the overlapping spool), leaving markers + an
+  orphan stash. Only runs on the **same-branch** (HEAD==control) path.
+- `logfile.append_log` writes ONLY to the repo-global `relay-os/log.md` (there
+  is no per-task log.md). It is already `merge=union`. So AC4's "logs its trace
+  into a ticket log.md" = the global union-merged log, tagged with the digest
+  ref — benign. The substantive half of AC4 is the no-markers/no-orphan-stash
+  guarantee in `_rebase_onto_remote`.
+- `.gitattributes` currently: `/log.md merge=union` (top-level only — nested
+  recurring-template `log.md` not covered).
+
+### Planned API reshape (spool.py)
+- `append_record`: stamp a random hex `id` if absent; still EOF-only.
+- add `read_unconsumed(path)`: records physically **after** the anchor
+  (record whose id == `consumed_through`); all records if no watermark.
+- `drain(path)`: becomes watermark-advance + prefix-trim — set
+  `consumed_through` to the newest record's id, delete every record above it,
+  keep the newest as the **anchor**; returns the consumed records. (zero-arg;
+  the peek→drain loss window is identical to today's read→drain, fine for a
+  single daily consumer.)
+- `read_records` stays (all records) for compat.
+- `digest.py`: `read_unconsumed` for the post decision + `done_pr_numbers`;
+  `drain` after a successful post; dedup before render (see open Q2).
+- watermark = `consumed_through: <id>` line in a fixed slot under the heading.
+  Lazy — absent watermark ⇒ everything unconsumed, so existing live spools and
+  the shipped template need no migration/seeding.
+
+### `_rebase_onto_remote` hardening (planned)
+Replace implicit `--autostash` with an explicit, reversible stash dance: stash
+iff dirty (tracked only, never untracked); rebase; on rebase failure → abort +
+restore-to-ORIG_HEAD + pop (clean, since stash came from ORIG_HEAD's tree);
+on a conflicted pop after a *successful* rebase → discard partial pop, reset
+--hard ORIG_HEAD, pop there (clean), raise. Net: never a conflicted tree, never
+an orphan stash; dirty changes preserved; sync miss surfaced (stderr + global
+union log) per the existing non-fatal failure model.
+
+### Decisions (nick, 2026-06-24)
+- **Q1 → dedicated spool file.** Spool moves to `recurring/digest/spool.md`;
+  `.gitattributes` gets `**/log.md merge=union` + `**/spool.md merge=union`.
+  `### Digest State` (last_commit/range/posted) **stays in ticket.md**.
+  Union on the whole spool.md is safe: static header identical → no dup; record
+  lines append-only → union keeps both (the two-producer backstop); the mutable
+  `consumed_through:` line has a single writer normally → no conflicting hunk →
+  union not invoked → preserved (reader tolerates dup watermark = last wins).
+- **Q2 → content tuple + id.** Dedup on `(project, kind, ticket, detail)` to
+  collapse cross-clone same-event dupes; plus exact-`id` for union line dups.
+
+### Implementation surface (both copies per CLAUDE.md)
+1. `spool.py` reshape (id stamp, read_unconsumed, watermark drain; reads the
+   file directly, not a blackboard region).
+2. `commands/digest.py`: read_unconsumed + dedup + drain; thread `state_path`
+   (ticket.md) separately from `spool_path` (spool.md).
+3. `notification/__init__.py`: `digest_spool_path` → spool.md; add
+   `digest_state_path` → ticket.md; add `dedupe_records`.
+4. `.gitattributes` ×3 (relay-os, example/relay-os, templates/relay-os).
+5. `recurring/digest/` × (live, template, example): add `spool.md`, drop the
+   `## Spool (pending)` section from `ticket.md`, refresh prose.
+6. `relay/sync` SKILL.md (+ shipped copy): land the ticket's Context block.
+7. `git.py::_rebase_onto_remote` hardening + tests.
+
+## Dev
+
+branch: spool-merge-by-construction
+worktree: /home/n/Code/claude/relay-spool-merge
+commit: 2f982cb3 (one logical change, working tree clean)
+
+## Implementation status (implement step done)
+
+All ACs met; `887 passed, 1 skipped` (full suite) + `relay validate` on the
+example fixture clean. Per-AC:
+- [x] `append_record` tail-only + id-stamped; `drain` = watermark-advance +
+  prefix-trim, always leaves newest as anchor. (`spool.py`)
+- [x] Regression: `test_drain_vs_append_merge_without_conflict` drives a real
+  `git merge-file` 3-way of a drained side vs an appended side → clean merge,
+  no markers, consumed records not resurrected, anchor not re-posted. Stash/
+  marker hardening covered by
+  `test_sync_control_branch_unpoppable_dirty_change_leaves_no_markers_or_stash`.
+- [x] De-dup by content tuple: `test_dedupe_collapses_same_event_from_two_clones`
+  + `test_run_digest_posts_a_duplicated_event_once`.
+- [x] `_rebase_onto_remote` hardened (explicit reversible stash dance); never
+  leaves markers/stash. The trace lands only in the repo-global, union-merged
+  `relay-os/log.md` (there is no per-task log.md) — that's the fail-loud
+  contract, kept.
+- [x] Stale "one process at a time" comment removed (whole `spool.py` docstring
+  rewritten to the merge-by-construction contract).
+- [x] `relay/sync` context block landed in the SAME commit (live + template
+  copy; template also absorbed prior automerge→autoclose drift).
+- [ ] Follow-up tickets — NOT yet filed (filing pushes drafts to origin); see
+  specs below, holding for nick's go-ahead.
+
+### Decisions made during impl (beyond Q1/Q2)
+- Union backstop can't be a `.gitattributes` entry on a mid-ticket section, so
+  the dedicated `spool.md` file is what makes union viable (Q1). Union on the
+  whole spool.md is safe (static header identical; record lines append-only;
+  single-writer watermark → no conflicting hunk).
+- `spool.md` vendored in `update.py` (`VENDORED_RECURRING_TEMPLATES`) so repos
+  predating it gain the file on `relay init --update`; wholesale-overwrite
+  matches the existing digest-ticket refresh (resets daily-ephemeral records,
+  acceptable).
+- `### Digest State` stays in `ticket.md`; threaded as a separate `state_path`
+  in `digest.py`.
+
+### Follow-up ticket specs (file on nick's ok — AC7)
+1. **Per-agent `git worktree` isolation in `launch.py`** — intra-clone race: a
+   recurring sweep and an agent's `relay mark`/`bump` both `rebase --autostash`
+   one shared working tree. Distinct from this spool fix; harness behavior.
+2. **Retire the duplicate clone / one control-writer** — operational: stop the
+   second clone's recurring run (`~/Code/relay`) so only one process writes
+   state to the shared origin.
+
+### Migration / live-state note for nick
+- Live `relay-os/recurring/digest/ticket.md` is dirty in your main working
+  tree; this PR removes its `## Spool (pending)` section, so a `git pull` will
+  conflict there — resolve by keeping the ticket.md frontmatter/Digest State and
+  moving any pending records into the new `spool.md`. The 2 pending records
+  currently in your working copy are daily-ephemeral; worst case they miss one
+  digest. Shipped `spool.md` starts empty (header + empty `consumed_through:`).
