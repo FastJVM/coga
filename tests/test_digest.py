@@ -251,6 +251,50 @@ def test_notify_spools_when_digest_installed(
     )
 
 
+def test_notify_migrates_legacy_digest_ticket_spool(
+    repo: Path, captured_posts: list[dict]
+) -> None:
+    digest = repo / "recurring" / "digest"
+    _write(
+        digest / "ticket.md",
+        """
+        ## Description
+
+        <!-- relay:blackboard -->
+
+        Digest state.
+
+        ### Digest State
+
+        last_commit:
+        range:
+        posted:
+
+        ## Spool (pending)
+
+        {"ts":"2026-06-18T14:53","project":"relay","kind":"done","detail":"old done","ticket":"old","owner":"nick"}
+        """,
+    )
+
+    cfg = load_config()
+    notification.notify(
+        cfg,
+        "🎉 live text",
+        kind="done",
+        detail="new done",
+        ticket="new",
+        owner="nick",
+    )
+
+    migrated = digest / "spool.md"
+    assert captured_posts == []
+    assert migrated.is_file()
+    records = spool.read_unconsumed(migrated)
+    assert [rec["ticket"] for rec in records] == ["old", "new"]
+    assert all(rec["id"] for rec in records)
+    assert "## Spool (pending)" in (digest / "ticket.md").read_text()
+
+
 def test_notify_rejects_lifecycle_kinds(repo: Path) -> None:
     cfg = load_config()
     with pytest.raises(ValueError, match="outcome kinds"):

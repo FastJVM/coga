@@ -1,6 +1,6 @@
 ---
 name: relay/patterns
-description: Reusable Relay design patterns built from the core primitives. Currently the spool — a blackboard used as a durable producer/consumer queue. Attach when designing a feature that collects events as they happen and acts on them periodically.
+description: Reusable Relay design patterns built from the core primitives. Currently the spool — a human-visible, git-backed producer/consumer queue. Attach when designing a feature that collects events as they happen and acts on them periodically.
 ---
 
 # Relay patterns
@@ -10,25 +10,24 @@ enough to be worth naming, so a new feature reaches for the established shape
 instead of re-deriving it — or worse, inventing a hidden `.queue` dotfile that
 breaks Relay's no-hidden-state rule.
 
-## The spool — a blackboard as a producer/consumer queue
+## The spool — a human-visible producer/consumer queue
 
 Reach for this when something needs to **collect events as they happen and act
 on them periodically**: many writers record events the moment they fire, and
-one scheduled reader drains the accumulated records, acts, and empties them.
-The blackboard *is* the queue.
+one scheduled reader consumes the accumulated records. The spool is an ordinary,
+git-tracked markdown file, not a hidden service or dotfile.
 
 ```
-producer  ──append(record)──▶  recurring/<job>/ticket.md (blackboard region)  ──drain()──▶  consumer
- (many, at event time)           ## Spool (pending)              (one, scheduled)
+producer  ──append(record)──▶  recurring/<job>/spool.md  ──drain()──▶  consumer
+ (many, at event time)           ## Spool (pending)          (one, scheduled)
 ```
 
 Why a spool rather than a bespoke queue:
 
-- **No hidden state.** The queue is an ordinary, git-tracked, human-readable
-  the blackboard region of `ticket.md` — openable mid-flight, never a dotfile or opaque store.
+- **No hidden state.** The queue is a real, git-tracked, human-readable file —
+  openable mid-flight, never a dotfile or opaque store.
 - **No reliance on git history.** Events are captured the moment they fire, so
-  nothing depends on scanning `git log` (too slow on a busy task repo) to
-  reconstruct what happened.
+  nothing depends on scanning `git log` to reconstruct what happened.
 - **Survives task deletion.** Because the record lands at event time, work
   that's done-and-deleted before the consumer runs is already accounted for.
 - **Reuses existing machinery.** The consumer is just a `recurring/` ticket;
@@ -38,70 +37,72 @@ Why a spool rather than a bespoke queue:
 ## The `## Spool (pending)` convention
 
 Records are **JSONL** — one self-describing JSON object per line, under a
-`## Spool (pending)` heading in the blackboard. JSONL (not a markdown table or
-delimited line) because a free-text field can then hold arbitrary characters —
-pipes, arrows, emoji — with no escaping, and each line stands alone. Every
-record carries enough to be grouped and rendered without re-reading source
-state (e.g. the Slack digest's records carry `ts`, `project`, `kind`, `detail`,
-and optionally `ticket`, `owner`, `watchers`).
+`## Spool (pending)` heading. JSONL (not a markdown table or delimited line)
+because a free-text field can then hold arbitrary characters — pipes, arrows,
+emoji — with no escaping, and each line stands alone. Every record carries
+enough to be grouped and rendered without re-reading source state (e.g. the
+Slack digest's records carry `id`, `ts`, `project`, `kind`, `detail`, and
+optionally `ticket`, `owner`, `watchers`).
 
-The section lives in a real blackboard, so it can share the file with other
-content. The drain rewrites **only** the spool section and ignores any
-non-JSON line it finds there — that line is preserved, not drained. The
-recurring creator also owns a single `last_serviced_period` high-water line
-in the template blackboard; spool drains must preserve it. The JSON-only drain
-is still defensive against any stray non-record line.
+A spool file also carries a fixed `consumed_through: <id>` watermark line under
+the heading. The watermark names the newest record the consumer has already
+handled. Consumer-specific state that is not part of the producer queue (for
+example the digest git high-water mark) belongs in the recurring ticket's
+blackboard, not in the union-merged spool file.
 
 ## The primitive — `relay.spool`
 
 Don't hand-roll the JSONL parsing. `src/relay/spool.py` is the shared,
-Slack-agnostic helper:
+notification-agnostic helper:
 
-- `append_record(path, record)` — append one record; creates the file and the
-  `## Spool (pending)` section if absent.
-- `read_records(path)` — return pending records without modifying the file.
-- `drain(path)` — return every pending record in append order, then clear them
-  from the section. An absent file or empty spool yields `[]` and touches
-  nothing — so the consumer is **idempotent**: a quiet period, or a second run
-  the same period, is a silent no-op.
+- `append_record(path, record)` — stamp a unique `id` when absent and append
+  one record at the bottom of the section; creates the file section if absent.
+- `read_records(path)` — return every JSONL record without modifying the file.
+- `read_unconsumed(path)` — return records physically after the anchor named by
+  `consumed_through`; with no matching anchor, every record is unconsumed.
+- `drain(path)` — return newly consumed records, advance `consumed_through` to
+  the newest record, trim the consumed prefix, and keep the newest record in
+  place as an anchor. An absent file, empty spool, or already-consumed spool
+  yields `[]` and touches nothing.
 
 ## The consumer is a recurring ticket
 
 Wire the consumer as a `recurring/<job>/` ticket (see `relay/recurring`):
 
-- The spool lives on the **recurring template's persistent blackboard**
-  (the blackboard region of `relay-os/recurring/<job>/ticket.md`), which carries across runs — not
-  the fresh per-period task blackboard, which is gone next period.
-- A script step runs a skill whose `script:` drains the spool, acts on
-  the records, and exits. The daily Slack digest is the canonical instance:
-  see `relay/sync` → "The daily digest — a blackboard producer/consumer", with
-  `relay digest` as the consumer.
+- The spool lives next to the recurring template as
+  `relay-os/recurring/<job>/spool.md`, so it carries across runs — not in the
+  fresh per-period task, which is gone next period.
+- A script step runs a skill whose `script:` reads unconsumed records, acts on
+  them, drains the spool, and exits. The daily Slack digest is the canonical
+  instance: see `relay/sync` → "The daily digest — a blackboard
+  producer/consumer", with `relay digest` as the consumer.
 
 ## Durability and concurrency
 
 `append_record` and `drain` are whole-file read-modify-write through
 `atomicio.atomic_write_text`. That rename-based write buys **crash-safety**: a
 reader always sees the old or the new complete file, and a crash mid-write
-can't truncate the blackboard. It is **not** a lock — two processes appending
-at once would both read the same original and the later rename would clobber
-the earlier append (a lost record).
+can't truncate the spool. It is **not** a lock.
 
-What keeps the spool correct today is Relay's single-process model: **one
-`relay` CLI process runs at a time**, so appends and drains are already
-serialized and never overlap (consistent with `relay/architecture`'s
-no-mutex / "status is the signal" design — same reasoning as the git-sync
-compare-and-swap being the serialization point). Atomic write covers the only
-remaining risk, a crash.
+Relay allows multiple processes and multiple clones to race on state-plane
+writes. The spool stays correct by shape, not by process serialization:
 
-If a future use needs genuinely concurrent producers, or a consumer that must
-hold off appends across its read-and-empty, that requires the mutual-exclusion
-primitive tracked in the `file-locking-for-concurrent-task-mutation` ticket,
-which does not exist yet. Until then, the spool relies on serialization, not a
-lock — do not document or design it as lock-guarded.
+- Producers append only at the bottom, never touching the watermark or existing
+  records.
+- The consumer drains by deleting only a consumed top prefix, advancing the
+  watermark, and keeping the newest record as an untouched anchor.
+- `**/spool.md merge=union` handles the pure append-vs-append case by keeping
+  both added record lines.
+
+That gives git disjoint hunks for drain-vs-append (top delete vs bottom append,
+separated by the anchor) and union-only semantics for append-vs-append, where
+there is nothing to resurrect. If a future use needs stronger mutual exclusion,
+add an explicit primitive; do not treat atomic file replacement as a lock.
 
 ## What this context does NOT cover
 
-- The primitives this composes (blackboard, recurring tasks, single-process
-  model) — see `relay/architecture` and `relay/recurring`.
-- The Slack digest's specific records, grouping, and posting — see `relay/sync`.
-- File locking — does not exist; see the draft ticket named above.
+- The primitives this composes (recurring tasks, status, git sync) — see
+  `relay/architecture` and `relay/recurring`.
+- The Slack digest's specific records, grouping, posting, and git scan — see
+  `relay/sync`.
+- File locking — does not exist; this pattern is merge-by-construction.

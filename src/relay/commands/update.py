@@ -83,8 +83,8 @@ VENDORED_RECURRING_TEMPLATES: tuple[str, ...] = (
     "recurring/autoclose-merged/ticket.md",
     "recurring/digest/ticket.md",
     # The digest spool moved out of the ticket into its own `merge=union` file;
-    # vendored so repos predating it gain `spool.md` on `--update` (without it
-    # `digest_spool_path` is None and the digest silently degrades to live posts).
+    # vendored so repos predating it gain `spool.md` on `--update` (the runtime
+    # path also lazily migrates an older installed digest ticket on first use).
     "recurring/digest/spool.md",
     "recurring/dream/ticket.md",
     "recurring/skill-update/ticket.md",
