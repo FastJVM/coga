@@ -64,6 +64,25 @@ def test_load_basic(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert not hasattr(cfg, "secrets")
 
 
+def test_missing_local_toml_still_loads(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Even with no relay.local.toml at all, load_config defaults the user."""
+    (repo / "relay.local.toml").unlink()
+    monkeypatch.setenv("USER", "dora")
+    assert load_config(repo).current_user == "dora"
+
+
+def test_current_os_user_prefers_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    from relay.config import _current_os_user
+
+    monkeypatch.setenv("USER", "ada")
+    assert _current_os_user() == "ada"
+    monkeypatch.delenv("USER", raising=False)
+    monkeypatch.setenv("LOGNAME", "lin")
+    assert _current_os_user() == "lin"
+
+
 def test_secrets_table_in_local_toml_rejected(repo: Path) -> None:
     """The central `[secrets]` catalog was removed; a stray `[secrets]` table in
     relay.local.toml now fails config load loud rather than being silently
@@ -641,7 +660,10 @@ def test_extra_local_field_retired(repo: Path) -> None:
     assert not hasattr(cfg, "extra_local")
 
 
-def test_missing_user(tmp_path: Path) -> None:
+def test_missing_user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A missing `user` is no longer fatal — it defaults to $USER, so a fresh
+    clone runs `--help` / read-only / write commands without editing
+    relay.local.toml first."""
     _write(
         tmp_path / "relay.toml",
         """
@@ -653,8 +675,8 @@ def test_missing_user(tmp_path: Path) -> None:
         """,
     )
     _write(tmp_path / "relay.local.toml", "")
-    with pytest.raises(ConfigError, match="user` is missing"):
-        load_config(tmp_path)
+    monkeypatch.setenv("USER", "greg")
+    assert load_config(tmp_path).current_user == "greg"
 
 
 def test_find_repo_root(repo: Path) -> None:
