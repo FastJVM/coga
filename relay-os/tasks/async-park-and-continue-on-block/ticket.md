@@ -1,7 +1,8 @@
 ---
+slug: async-park-and-continue-on-block
 title: Async park-and-continue on block
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -71,3 +72,7 @@ and let the sweep continue + resume statelessly," **not** "keep trying after a
 panic." Read `relay/architecture` on stateless sessions and the recurring
 sweep's sequential, one-live-task-per-template behavior before changing the
 sweep loop (`src/relay/commands/recurring.py`).
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

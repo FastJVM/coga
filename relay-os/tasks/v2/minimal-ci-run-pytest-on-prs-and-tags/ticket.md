@@ -1,7 +1,8 @@
 ---
+slug: v2/minimal-ci-run-pytest-on-prs-and-tags
 title: 'Minimal CI: run pytest on PRs and tags'
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -54,3 +55,7 @@ Scope (keep it minimal):
 RC release-gate item (see `relay/roadmap`). Gives the release tag a green-checks
 guarantee and protects every later Wave PR. Pairs with `one-line-install` (the
 publish path) and the testing expectations in `relay/codebase`.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

@@ -1,7 +1,8 @@
 ---
+slug: mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto
 title: 'Unblock unattended execution (mode/autonomy: auto)'
 status: active
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -77,3 +78,7 @@ See `1-represent-autonomy-tier-in-ticket-mode-field/blackboard.md` (## Evaluator
 review) for the analysis that motivated splitting this out — especially the note
 that the agent-side output-capture + done-notification path is novel engineering
 with no existing machinery, which is why it's its own ticket.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

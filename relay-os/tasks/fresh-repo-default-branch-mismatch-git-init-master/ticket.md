@@ -1,7 +1,8 @@
 ---
+slug: fresh-repo-default-branch-mismatch-git-init-master
 title: 'Fresh-repo default branch mismatch: git init master vs control_branch main'
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -31,3 +32,7 @@ The non-fatal-by-design swallow is at `src/relay/git.py:148-159` (failure model
 in the module docstring, `git.py:29-40`), which is why it exits 0 and is easy to
 miss. Left to Nick to pick the direction (detect the actual default branch,
 warn at init, document it, etc.).
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

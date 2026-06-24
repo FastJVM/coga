@@ -1,7 +1,8 @@
 ---
+slug: v2/remote-stale-command-line-toosl
 title: remote stale command line toosl
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -17,3 +18,6 @@ workflow: null
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

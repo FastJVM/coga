@@ -1,7 +1,8 @@
 ---
+slug: v2/use-slack-as-a-sync-channel-for-tickets
 title: Use Slack as a sync channel for tickets
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -72,3 +73,7 @@ multi-machine story today).
   (especially threading and retry).
 - Probably wants a small spike doc before any code lands — pick one of
   the three shapes above (or a fourth) before designing the schema.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

@@ -1,7 +1,8 @@
 ---
+slug: nightly-auto-drain-run-for-ready-tickets
 title: Nightly auto-drain run for ready tickets
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -77,3 +78,7 @@ auto-mode streaming — if that hasn't shipped, scope this to `mode: script`
 drains or hold. Relay's no-implicit-cron stance (see `relay/cli`,
 `relay/architecture`) is intentional: the scheduling half is "wire `cron.sh`
 into *your* scheduler," not "Relay starts running on a timer."
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

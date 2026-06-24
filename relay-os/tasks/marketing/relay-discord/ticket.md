@@ -1,7 +1,8 @@
 ---
+slug: marketing/relay-discord
 title: relay-discord
 status: active
-mode: interactive
+autonomy: interactive
 owner: zach
 human: zach
 agent: claude
@@ -37,3 +38,6 @@ prerequisite for the other two.
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

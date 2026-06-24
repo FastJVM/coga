@@ -21,7 +21,7 @@ Aliases are not a fourth home — they are argv sugar pointing at one of the thr
 
 1. **Kernel** — small, tested Python that cannot be anything else (below).
 2. **Tickets / workflows** — *stateful, reviewable* work, expressed as skills and
-   `mode: script` steps running on a ticket.
+   script steps running on a ticket.
 3. **External scripts / tools** — *stateless, parameterized* invocations. Two kinds:
    - **External tool** — an existing third-party CLI Relay shells out to (`gh`, `op`,
      `git`). Exists already; Relay calls it and verifies its output (principle 3,
@@ -29,7 +29,7 @@ Aliases are not a fourth home — they are argv sugar pointing at one of the thr
    - **External script / service** — a *Relay-authored* stateless capability that
      lives outside both the kernel and the ticket model. This home has **no
      implementation yet**: today a stateless Relay operation can only be a
-     built-in command or a `mode: script` ticket step. A first-class surface for
+     built-in command or a script step on a ticket. A first-class surface for
      it (a `gh`-style extension, a separate package/service, or a
      `relay-os/scripts/` target `launch` can call) is the sibling of the tier-2
      shim. The mechanism design now lives in
@@ -107,7 +107,7 @@ Two flavors, weighted by Relay's local-first stance (principles 3 and 5):
   a requirement genuinely needs a hosted endpoint.
 
 Until the mechanism lands, these capabilities live as built-in commands or
-`mode: script` steps. This context fixes the *home and its boundary*; the
+script steps. This context fixes the *home and its boundary*; the
 mechanism design is `docs/cli-extension-external-surface.md` — deliberately a
 docs-level implementation contract, so the launch contract does not pre-build a
 worse Typer.
@@ -168,7 +168,7 @@ actively fights the capability boundary.
   Typer worse and in TOML — an illegible config DSL that violates the legibility
   non-negotiable (`relay/principles`). Branching logic belongs in a tier-3 skill.
 - **No inversion.** Relocating logic out of the kernel must move the *substance
-  unchanged* — `mode: script` Python with its tests intact — never rewrite a
+  unchanged* — script-step Python with its tests intact — never rewrite a
   deterministic check as agent judgment because it now lives "in a skill." Change
   *where it lives and who can edit it*, not *what executes it*.
 

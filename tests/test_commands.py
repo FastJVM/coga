@@ -10,8 +10,21 @@ from typer.testing import CliRunner
 from relay.cli import app
 from relay.create import create_task
 from relay.config import load_config
+from relay.logfile import task_log_lines
+from relay.paths import log_path
+from relay.taskfile import join_task_body, read_blackboard
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
+
+
+def _log_text(repo: Path, ref: str) -> str:
+    """The repo-global log filtered to one task ref, joined back into text.
+
+    The single-file format moves per-task history into one repo-global
+    `relay-os/log.md`; a task's history is the subset of lines tagged with its
+    ref. Tests that used to read `tasks/<slug>/log.md` read this instead.
+    """
+    return "\n".join(task_log_lines(load_config(repo), ref))
 
 
 # Source of the bundled `bootstrap/delete-task` skill — `relay delete` and a
@@ -81,7 +94,7 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "in_p
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status=status,
     )
     return ref["slug"], ref["path"]
@@ -97,9 +110,10 @@ def _write_workflow_less_task(
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
+        slug: {slug}
         title: Work
         status: {status}
-        mode: interactive
+        autonomy: interactive
         owner: marc
         human: marc
         agent: claude
@@ -110,9 +124,11 @@ def _write_workflow_less_task(
         ---
 
         ## Description
+
+        <!-- relay:blackboard -->
+
+        # Blackboard
     """).lstrip())
-    (task_dir / "blackboard.md").write_text("# Blackboard\n")
-    (task_dir / "log.md").write_text("")
     return slug, task_dir
 
 
@@ -128,7 +144,7 @@ def test_bump_advances(repo: Path) -> None:
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.path / "ticket.md")
     assert t.step == "2 (pr)"
-    assert "advanced to step 2" in (ref.path / "log.md").read_text()
+    assert "advanced to step 2" in _log_text(repo, slug)
 
 
 def test_bump_rewinds_by_number(repo: Path) -> None:
@@ -142,7 +158,7 @@ def test_bump_rewinds_by_number(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     t = Ticket.read(task_path / "ticket.md")
     assert t.step == "1 (implement)"
-    log = (task_path / "log.md").read_text()
+    log = _log_text(repo, slug)
     assert "rewound to step 1 (implement)" in log
 
 
@@ -157,7 +173,7 @@ def test_bump_backward_rewinds_one_step(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     t = Ticket.read(task_path / "ticket.md")
     assert t.step == "2 (pr)"
-    assert "rewound to step 2 (pr)" in (task_path / "log.md").read_text()
+    assert "rewound to step 2 (pr)" in _log_text(repo, slug)
 
 
 def test_bump_rewind_rejects_invalid_current_step(repo: Path) -> None:
@@ -265,7 +281,7 @@ def test_bump_supervised_prints_chain_hint_on_agent_rotation(repo: Path) -> None
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
-        contexts=[], mode="interactive",
+        contexts=[], autonomy="interactive",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -342,10 +358,10 @@ def test_panic_writes_blocker(repo: Path) -> None:
     result = runner.invoke(app, ["panic", "--task", slug, "--reason", "unclear ceiling for 429 backoff"])
     # Panic exits non-zero so a parent process can detect agent distress.
     assert result.exit_code == 1, result.output
-    blackboard = (task_path / "blackboard.md").read_text()
+    blackboard = read_blackboard(task_path / "ticket.md")
     assert "unclear ceiling for 429 backoff" in blackboard
     assert "## Blockers" in blackboard
-    assert "panic:" in (task_path / "log.md").read_text()
+    assert "panic:" in _log_text(repo, slug)
 
 
 # --- delete -------------------------------------------------------------------
@@ -409,7 +425,7 @@ def test_delete_skill_runs_as_script_step(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Throwaway", workflow_name="delete-self",
-        contexts=[], mode="script", owner="marc", assignee="claude",
+        contexts=[], autonomy="auto", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     task_path = ref["path"]
@@ -463,7 +479,7 @@ def test_script_mode_marks_done_after_final_step(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Daily flush", workflow_name="flush-once",
-        contexts=[], mode="script", owner="marc", assignee="claude",
+        contexts=[], autonomy="auto", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     task_path = ref["path"]
@@ -501,7 +517,7 @@ def test_script_mode_advances_to_next_step(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Two stage", workflow_name="flush-twice",
-        contexts=[], mode="script", owner="marc", assignee="claude",
+        contexts=[], autonomy="auto", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     task_path = ref["path"]
@@ -522,7 +538,7 @@ def test_slack_logs(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["slack", "--task", slug, "--message", "opened PR #142"])
     assert result.exit_code == 0
-    assert "slack: opened PR #142" in (task_path / "log.md").read_text()
+    assert "slack: opened PR #142" in _log_text(repo, slug)
 
 
 # --- bump --message -----------------------------------------------------------
@@ -536,7 +552,7 @@ def test_bump_message_appended_to_log(repo: Path) -> None:
         ["bump", slug, "--message", "PR opened: https://example/142"],
     )
     assert result.exit_code == 0, result.output
-    log = (task_path / "log.md").read_text()
+    log = _log_text(repo, slug)
     assert "advanced to step 2 (pr) — PR opened: https://example/142" in log
 
 
@@ -547,7 +563,7 @@ def test_mark_done_message_on_no_workflow(repo: Path) -> None:
         app, ["mark", "done", slug, "--message", "talked to marc, scope ok"]
     )
     assert result.exit_code == 0, result.output
-    log = (task_path / "log.md").read_text()
+    log = _log_text(repo, slug)
     assert "task done — talked to marc, scope ok" in log
 
 
@@ -560,7 +576,7 @@ def test_mark_done_message_on_final_step(repo: Path) -> None:
         app, ["mark", "done", slug, "--message", "shipped to prod"]
     )
     assert result.exit_code == 0, result.output
-    log = (task_path / "log.md").read_text()
+    log = _log_text(repo, slug)
     assert "task done — shipped to prod" in log
 
 
@@ -599,7 +615,7 @@ def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="review",
-        contexts=[], mode="interactive",
+        contexts=[], autonomy="interactive",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -618,7 +634,7 @@ def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
     t = Ticket.read(task_path / "ticket.md")
     assert t.step == "2 (review)"
     assert t.assignee == "marc"
-    log = (task_path / "log.md").read_text()
+    log = _log_text(repo, slug)
     assert "→ assigned to marc" in log
 
     # Bump into step 3 (assignee: owner) → ticket.assignee = ticket.owner.
@@ -626,7 +642,7 @@ def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     t = Ticket.read(task_path / "ticket.md")
     assert t.assignee == "marc"  # owner == marc, no change → no handoff line
-    log = (task_path / "log.md").read_text()
+    log = _log_text(repo, slug)
     # Only one handoff line so far (the human→owner step is a no-op handoff).
     assert log.count("→ assigned to") == 1
 
@@ -639,7 +655,7 @@ def test_bump_no_assignee_declared_leaves_assignee_unchanged(repo: Path) -> None
     assert result.exit_code == 0, result.output
     t = Ticket.read(task_path / "ticket.md")
     assert t.assignee == "claude"  # unchanged
-    log = (task_path / "log.md").read_text()
+    log = _log_text(repo, slug)
     assert "→ assigned to" not in log
 
 
@@ -648,7 +664,7 @@ def test_bump_role_token_with_missing_field_fails_loud(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="review",
-        contexts=[], mode="interactive",
+        contexts=[], autonomy="interactive",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -707,7 +723,7 @@ def test_other_agent_resolves_to_the_peer_on_bump(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
-        contexts=[], mode="interactive",
+        contexts=[], autonomy="interactive",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -726,7 +742,7 @@ def test_other_agent_resolves_to_the_peer_on_bump(repo: Path) -> None:
     t = Ticket.read(task_path / "ticket.md")
     assert t.step == "2 (peer-review)"
     assert t.assignee == "codex"
-    assert "→ assigned to codex" in (task_path / "log.md").read_text()
+    assert "→ assigned to codex" in _log_text(repo, slug)
 
 
 def test_bump_rewind_resolves_target_step_assignee(repo: Path) -> None:
@@ -735,7 +751,7 @@ def test_bump_rewind_resolves_target_step_assignee(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
-        contexts=[], mode="interactive",
+        contexts=[], autonomy="interactive",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -754,7 +770,7 @@ def test_bump_rewind_resolves_target_step_assignee(repo: Path) -> None:
     t = Ticket.read(task_path / "ticket.md")
     assert t.step == "1 (implement)"
     assert t.assignee == "claude"
-    log = (task_path / "log.md").read_text()
+    log = _log_text(repo, slug)
     assert "rewound to step 1 (implement) → assigned to claude" in log
 
 
@@ -766,7 +782,7 @@ def test_other_agent_flips_with_the_coder(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
-        contexts=[], mode="interactive",
+        contexts=[], autonomy="interactive",
         owner="marc", assignee="codex",
         human="marc", agent="codex",
         watchers=[], status="in_progress",
@@ -795,7 +811,7 @@ def test_other_agent_step_one_resolves_at_create_time(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="peer-first",
-        contexts=[], mode="interactive",
+        contexts=[], autonomy="interactive",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -810,7 +826,7 @@ def test_other_agent_fails_loud_without_exactly_two_agents(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="peer",
-        contexts=[], mode="interactive",
+        contexts=[], autonomy="interactive",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -832,9 +848,10 @@ def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
     (legacy / "ticket.md").write_text(dedent(
         """
         ---
+        slug: legacy
         title: Legacy
         status: in_progress
-        mode: interactive
+        autonomy: interactive
         owner: marc
         human: marc
         agent: claude
@@ -843,10 +860,10 @@ def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
         skills: []
         workflow: code
         ---
+
+        <!-- relay:blackboard -->
         """
     ).lstrip())
-    (legacy / "blackboard.md").write_text("")
-    (legacy / "log.md").write_text("")
 
     runner = CliRunner()
     result = runner.invoke(app, ["bump", "legacy"])
@@ -862,7 +879,7 @@ def test_bump_handoff_appears_in_slack_text(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="review",
-        contexts=[], mode="interactive",
+        contexts=[], autonomy="interactive",
         owner="marc", assignee="claude",
         human="marc", agent="claude",
         watchers=[], status="in_progress",
@@ -878,16 +895,22 @@ def test_bump_handoff_appears_in_slack_text(repo: Path) -> None:
 
 
 def test_show_prints_ticket_blackboard_and_log(repo: Path) -> None:
+    from relay.logfile import append_log
+    from relay.taskfile import upsert_blackboard
+
     slug, task_path = _make_task(repo)
-    (task_path / "blackboard.md").write_text("# Plan\n\nfigure it out\n")
-    (task_path / "log.md").write_text("created task\n")
+    # Blackboard now lives inside ticket.md; history lives in the global log.
+    upsert_blackboard(task_path / "ticket.md", "# Plan\n\nfigure it out\n")
+    append_log(load_config(repo), slug, "system", "created task")
     runner = CliRunner()
     result = runner.invoke(app, ["show", slug])
     assert result.exit_code == 0, result.output
+    # The single-file ticket section, the blackboard content folded into it,
+    # and the reconstructed log history all show.
     assert "ticket.md" in result.output
-    assert "blackboard.md" in result.output
-    assert "log.md" in result.output
+    assert "log" in result.output
     assert "figure it out" in result.output
+    assert "created task" in result.output
 
 
 def test_show_resolves_prefix(repo: Path) -> None:
@@ -899,14 +922,19 @@ def test_show_resolves_prefix(repo: Path) -> None:
 
 
 def test_show_handles_missing_blackboard_and_log(repo: Path) -> None:
+    from relay.taskfile import replace_blackboard
+
     slug, task_path = _make_task(repo)
-    (task_path / "blackboard.md").unlink(missing_ok=True)
-    (task_path / "log.md").unlink(missing_ok=True)
+    # Empty the blackboard region and drop the global log entirely, so the task
+    # has no blackboard content and no reconstructable history.
+    replace_blackboard(task_path / "ticket.md", "")
+    log_path(load_config(repo)).unlink(missing_ok=True)
     runner = CliRunner()
     result = runner.invoke(app, ["show", slug])
     assert result.exit_code == 0, result.output
-    assert "no blackboard.md" in result.output
-    assert "no log.md" in result.output
+    # Ticket still renders; the log section reports no reconstructable history.
+    assert "ticket.md" in result.output
+    assert "no log entries" in result.output
 
 
 def test_show_unknown_task_exits_nonzero(repo: Path) -> None:
@@ -932,7 +960,7 @@ def test_status_narrow_terminal_keeps_each_task_on_one_line(
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="anything", workflow_name="code",
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="t1",
     )
     monkeypatch.setenv("COLUMNS", "60")
@@ -950,12 +978,12 @@ def test_status_splits_recurring_into_own_table(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Normal", workflow_name="code", contexts=[],
-        mode="interactive", owner="marc", assignee="claude",
+        autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="normal-task",
     )
     create_task(
         cfg=cfg, title="Recurring", workflow_name="code", contexts=[],
-        mode="interactive", owner="marc", assignee="claude",
+        autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="recurring/foo",
     )
     result = CliRunner().invoke(app, ["status"])
@@ -974,7 +1002,7 @@ def test_status_does_not_show_title_column(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="A distinctive ticket title", workflow_name="code",
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="t1",
     )
     runner = CliRunner()
@@ -1008,8 +1036,16 @@ def test_validate_json_emits_payload(repo: Path) -> None:
 
 
 def test_validate_fix_json_repairs_missing_workspace_file(repo: Path) -> None:
+    from relay.taskfile import fence_count
+
     _, task_path = _make_task(repo)
-    (task_path / "blackboard.md").unlink()
+    # Single-file equivalent of a missing workspace file: a ticket.md whose
+    # blackboard fence is gone. The safe fix re-appends the fence + region.
+    ticket_path = task_path / "ticket.md"
+    text = ticket_path.read_text()
+    above, _, _ = text.partition("\n<!-- relay:blackboard -->")
+    ticket_path.write_text(above + "\n")
+    assert fence_count(ticket_path.read_text()) == 0
 
     runner = CliRunner()
     result = runner.invoke(app, ["validate", "--fix", "--json"])
@@ -1017,14 +1053,18 @@ def test_validate_fix_json_repairs_missing_workspace_file(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     import json
     payload = json.loads(result.output)
-    assert payload["fixes"][0]["message"] == "created blackboard.md"
+    assert payload["fixes"][0]["message"] == "added blackboard fence + region"
     assert payload["issues"] == []
-    assert (task_path / "blackboard.md").is_file()
+    assert fence_count(ticket_path.read_text()) == 1
 
 
 def test_validate_warns_for_large_blackboard(repo: Path) -> None:
+    from relay.taskfile import replace_blackboard
+
     _, task_path = _make_task(repo)
-    (task_path / "blackboard.md").write_text("x" * 2048)
+    # The blackboard region now lives inside ticket.md; inflate it there. The
+    # region keeps its leading newlines so the fence stays on its own line.
+    replace_blackboard(task_path / "ticket.md", "\n\n" + "x" * 2048 + "\n")
 
     runner = CliRunner()
     result = runner.invoke(app, ["validate", "--max-blackboard-kb", "1"])
@@ -1051,12 +1091,12 @@ def test_status_hides_done_by_default_without_deleting(repo: Path) -> None:
     cfg = load_config(repo)
     active = create_task(
         cfg=cfg, title="Active", workflow_name="code", contexts=[],
-        mode="interactive", owner="marc", assignee="claude",
+        autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="active-task",
     )
     done = create_task(
         cfg=cfg, title="Finished", workflow_name="code", contexts=[],
-        mode="interactive", owner="marc", assignee="claude",
+        autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="done", slug_override="finished-task",
     )
     runner = CliRunner()
@@ -1076,7 +1116,7 @@ def test_status_all_includes_done_tasks(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Finished", workflow_name="code", contexts=[],
-        mode="interactive", owner="marc", assignee="claude",
+        autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="done", slug_override="finished-task",
     )
 
@@ -1089,9 +1129,17 @@ def test_status_all_includes_done_tasks(repo: Path) -> None:
 # --- status --order-by / --reverse / updated column ---------------------------
 
 
-def _set_log_timestamp(task_path: Path, when: str) -> None:
-    """Overwrite task's log.md with a single line at the given timestamp."""
-    (task_path / "log.md").write_text(f"{when} [system] backdated\n")
+def _set_log_timestamp(repo: Path, slug: str, when: str) -> None:
+    """Append one line for `slug` to the repo-global log at the given timestamp.
+
+    Activity time now comes from the last line tagged with the task's ref in
+    `relay-os/log.md`. Appending after the `created` line makes this the task's
+    most-recent line, so it drives the `updated` column / ordering.
+    """
+    path = log_path(load_config(repo))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as f:
+        f.write(f"{when} [{slug}] [system] backdated\n")
 
 
 def test_status_includes_updated_column(repo: Path) -> None:
@@ -1106,16 +1154,16 @@ def test_status_default_orders_by_updated_desc(repo: Path) -> None:
     cfg = load_config(repo)
     older = create_task(
         cfg=cfg, title="older", workflow_name="code",
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="aaa-old",
     )
     newer = create_task(
         cfg=cfg, title="newer", workflow_name="code",
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="zzz-new",
     )
-    _set_log_timestamp(older["path"], "2026-01-01 09:00")
-    _set_log_timestamp(newer["path"], "2026-04-30 17:00")
+    _set_log_timestamp(repo, older["slug"], "2026-01-01 09:00")
+    _set_log_timestamp(repo, newer["slug"], "2026-04-30 17:00")
 
     runner = CliRunner()
     result = runner.invoke(app, ["status"])
@@ -1130,7 +1178,7 @@ def test_status_order_by_slug_is_alphabetical(repo: Path) -> None:
     for slug in ("zeta", "alpha", "mu"):
         create_task(
             cfg=cfg, title=slug, workflow_name="code",
-            contexts=[], mode="interactive", owner="marc", assignee="claude",
+            contexts=[], autonomy="interactive", owner="marc", assignee="claude",
             watchers=[], status="active", slug_override=slug,
         )
     runner = CliRunner()
@@ -1147,7 +1195,7 @@ def test_status_reverse_flips_order(repo: Path) -> None:
     for slug in ("alpha", "zeta"):
         create_task(
             cfg=cfg, title=slug, workflow_name="code",
-            contexts=[], mode="interactive", owner="marc", assignee="claude",
+            contexts=[], autonomy="interactive", owner="marc", assignee="claude",
             watchers=[], status="active", slug_override=slug,
         )
     runner = CliRunner()
@@ -1167,16 +1215,25 @@ def test_status_tasks_without_log_sort_to_end(repo: Path) -> None:
     cfg = load_config(repo)
     has_log = create_task(
         cfg=cfg, title="logged", workflow_name="code",
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="zzz-logged",
     )
     no_log = create_task(
         cfg=cfg, title="no log", workflow_name="code",
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="active", slug_override="aaa-nolog",
     )
-    _set_log_timestamp(has_log["path"], "2026-04-30 17:00")
-    (no_log["path"] / "log.md").unlink()
+    _set_log_timestamp(repo, has_log["slug"], "2026-04-30 17:00")
+    # Strip every global-log line tagged for the no-log task, so it has no
+    # reconstructable activity at all (the single-file analogue of a missing
+    # per-task log.md).
+    path = log_path(cfg)
+    kept = [
+        line
+        for line in path.read_text().splitlines()
+        if f"[{no_log['slug']}]" not in line
+    ]
+    path.write_text("\n".join(kept) + ("\n" if kept else ""))
 
     runner = CliRunner()
     # Default order (updated desc) — logged task on top, no-log task at bottom.

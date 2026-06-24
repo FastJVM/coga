@@ -92,7 +92,7 @@ has a **receipt** — the feature that proves it.
 | **1. Hackable** | change anything, directly — no plugin fence | edit any markdown under `relay-os/` → next `relay launch` uses it; the ~2-min correction loop (edit → commit → fixed) |
 | **2. Agents do, humans think** | offload everything mechanizable; humans spend attention on judgment | no webUI — the CLI + files are the whole surface; modes (`interactive`/`auto` vs `script`) and per-step `assignee` route each step to agent, script, or human |
 | **3. Obvious** | boring, standard, immediately understandable | the substrate is just markdown + Python + `SKILL.md` (the Claude Code / Codex format); no DB, no DSL |
-| **4. Memory via PR** | thinking compounds, human-gated, never opaque | **Dream** reads execution history and opens *proposal PRs* — propose, human disposes; `blackboard.md` = working memory, `contexts/` = long-term |
+| **4. Memory via PR** | thinking compounds, human-gated, never opaque | **Dream** reads execution history and opens *proposal PRs* — propose, human disposes; the blackboard region (in `ticket.md`) = working memory, `contexts/` = long-term |
 | **5. Yours** | own the substrate, swap the vendors | git-backed markdown, local, no cloud; `claude` ↔ `codex` interchangeable; `SKILL.md` is an open standard |
 | **6. Fail loud** | surface every failure | missing context/skill → raise; `relay validate` errors; failures never swallowed; `relay panic` hands back to a human |
 
@@ -185,7 +185,8 @@ mycompany/
     ├── contexts/               # reusable domain knowledge
     ├── workflows/              # multi-step recipes
     ├── recurring/              # cron-like recurring task templates
-    ├── tasks/                  # one dir per task (named by slug): ticket.md, blackboard.md, log.md
+    ├── log.md                  # repo-global append-only audit log (merge=union)
+    ├── tasks/                  # one dir per task (named by slug): a single ticket.md (body + blackboard region)
     ├── bootstrap/              # persistent launch shims (e.g. bootstrap/ticket)
     └── .relay/                 # vendored CLI + venv (gitignored)
         ├── src/relay/          # CLI source
@@ -389,7 +390,7 @@ Only the current period is considered; `relay recurring` never chases missed
 periods, so a template runs at most once per period no matter how long since
 the last invocation. Dedup after a completed run is deleted comes from
 `last_serviced_period >= current period_key` in the template blackboard. The
-template `log.md` stays append-only human history; it is not parsed for dedup.
+the repo-global `relay-os/log.md` stays append-only human history; it is not parsed for dedup.
 
 Recurring creating goes through `create_task()` in `relay.create`
 directly with the template's full frontmatter. Recurring tasks are created
@@ -582,7 +583,7 @@ relay status --all
 
 ### `relay show <slug>`
 
-Print a task's `ticket.md`, `blackboard.md`, and `log.md` to the
+Print a task's `ticket.md` (body + blackboard region) and its history from the repo-global `relay-os/log.md` to the
 terminal, rendered as markdown. Same prefix matching as `bump`/`launch`.
 Bootstrap shims show only `ticket.md`. For grep/pipe use, read the
 files directly — `show` is for human eyes.
@@ -743,7 +744,7 @@ the same URL locally; `relay.local.toml` may override
 Run `relay validate --check-slack` to probe the webhook (POSTs an
 empty-text payload that Slack rejects without posting to the channel)
 so a dead URL surfaces at config time, not at first `bump`. Failures
-during runtime posts also append a line to the task's `log.md` so
+during runtime posts also append a line (tagged by task ref) to the repo-global `relay-os/log.md` so
 daemon / cron / launched-script runs leave a recoverable trace.
 
 **Temporarily silence a repo that already opted in (solo dev / CI / dry
@@ -784,7 +785,7 @@ options that touch the network.
 relay validate                       # validate the whole repo
 relay validate --json                # machine-readable output
 relay validate --task add-retry      # validate one task (skips Slack + idle checks)
-relay validate --fix                 # conservative safe repairs (missing blackboard.md/log.md)
+relay validate --fix                 # conservative safe repairs (add a missing blackboard fence)
 relay validate --check-slack         # probe the Slack webhook
 relay validate --check-github        # probe git/GitHub auth readiness
 ```
@@ -839,7 +840,7 @@ Install from source as in [Getting Started](#getting-started), then:
 ```sh
 python -m pytest                    # run the test suite
 relay validate --json               # validate the bundled example/ fixture
-relay validate --fix                # repair missing blackboard.md/log.md only
+relay validate --fix                # add a missing blackboard fence only
 ```
 
 The dogfood relay-os/ for this very repo lives at `relay-os/`. Tasks tracked

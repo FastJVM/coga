@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 from relay.cli import app
 from relay.config import load_config
 from relay.create import create_task
+from relay.taskfile import read_blackboard
 from relay.tasks import list_tasks
 
 
@@ -88,7 +89,7 @@ def test_validate_drift_runs_as_script_skill(repo: Path) -> None:
         title="Validate Drift",
         workflow_name="validate-drift",
         contexts=[],
-        mode="script",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -99,7 +100,9 @@ def test_validate_drift_runs_as_script_skill(repo: Path) -> None:
 
     assert result.exit_code == 0, result.output
     ref = list_tasks(cfg)[0]
-    blackboard = (ref.path / "blackboard.md").read_text()
+    # Single-file format: a script worker's RELAY_TASK_BLACKBOARD is its own
+    # ticket.md, so its appended notes land in that ticket's blackboard region.
+    blackboard = read_blackboard(ref.path / "ticket.md")
     assert "## Dream Skill: validate-drift" in blackboard
     assert "Task: `validate-drift`" in blackboard
 
@@ -111,13 +114,19 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
         "cleanup-orphan-markers",
         "bootstrap/dream/tasks/cleanup-orphan-markers",
     )
+    # A genuine cleanup-eligible orphan: a `status: done` ticket whose blackboard
+    # region (below the `<!-- relay:blackboard -->` fence in ticket.md) carries a
+    # `## Retro` marker recording a knowledge-PR processing pass (NOT
+    # `no-new-durable-knowledge`). Single-file v2: the cleanup worker reads the
+    # marker from the ticket.md blackboard region, not a sibling blackboard.md.
     _write(
         repo / "tasks" / "processed-ticket" / "ticket.md",
         """
         ---
+        slug: processed-ticket
         title: Processed Ticket
         status: done
-        mode: interactive
+        autonomy: interactive
         owner: marc
         assignee: marc
         ---
@@ -125,11 +134,9 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
         ## Description
 
         Already processed.
-        """,
-    )
-    _write(
-        repo / "tasks" / "processed-ticket" / "blackboard.md",
-        """
+
+        <!-- relay:blackboard -->
+
         Notes.
 
         ## Retro
@@ -139,7 +146,6 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
         result: knowledge-pr
         """,
     )
-    _write(repo / "tasks" / "processed-ticket" / "log.md", "")
 
     cfg = load_config(repo)
     create_task(
@@ -147,7 +153,7 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
         title="Cleanup Orphan Markers",
         workflow_name="cleanup-orphan-markers",
         contexts=[],
-        mode="script",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -158,7 +164,7 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
 
     assert result.exit_code == 0, result.output
     refs = {ref.slug: ref for ref in list_tasks(cfg)}
-    blackboard = (refs["cleanup-orphan-markers"].path / "blackboard.md").read_text()
+    blackboard = read_blackboard(refs["cleanup-orphan-markers"].path / "ticket.md")
     assert "## Dream Skill: cleanup-orphan-markers" in blackboard
     assert "Result: human-needed." in blackboard
     assert "Required delete skill is missing" in blackboard
@@ -177,9 +183,10 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
         repo / "tasks" / "processed-ticket" / "ticket.md",
         """
         ---
+        slug: processed-ticket
         title: Processed Ticket
         status: done
-        mode: interactive
+        autonomy: interactive
         owner: marc
         assignee: marc
         ---
@@ -187,11 +194,9 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
         ## Description
 
         Already processed.
-        """,
-    )
-    _write(
-        repo / "tasks" / "processed-ticket" / "blackboard.md",
-        """
+
+        <!-- relay:blackboard -->
+
         Notes.
 
         ## Retro
@@ -201,7 +206,6 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
         result: no-new-durable-knowledge
         """,
     )
-    _write(repo / "tasks" / "processed-ticket" / "log.md", "")
 
     cfg = load_config(repo)
     create_task(
@@ -209,7 +213,7 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
         title="Cleanup Orphan Markers",
         workflow_name="cleanup-orphan-markers",
         contexts=[],
-        mode="script",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -220,7 +224,7 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
 
     assert result.exit_code == 0, result.output
     refs = {ref.slug: ref for ref in list_tasks(cfg)}
-    blackboard = (refs["cleanup-orphan-markers"].path / "blackboard.md").read_text()
+    blackboard = read_blackboard(refs["cleanup-orphan-markers"].path / "ticket.md")
     assert "## Dream Skill: cleanup-orphan-markers" in blackboard
     assert "Result: no-op." in blackboard
     assert "cleanup-eligible processed done tickets" in blackboard
@@ -243,9 +247,10 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> Non
         repo / "tasks" / "documents-the-marker" / "ticket.md",
         """
         ---
+        slug: documents-the-marker
         title: Documents The Marker
         status: done
-        mode: interactive
+        autonomy: interactive
         owner: marc
         assignee: marc
         ---
@@ -253,11 +258,9 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> Non
         ## Description
 
         Built the marker-detection skill.
-        """,
-    )
-    _write(
-        repo / "tasks" / "documents-the-marker" / "blackboard.md",
-        """
+
+        <!-- relay:blackboard -->
+
         Notes on the design.
 
         It scans exact `status: done` task directories for a `## Retro` block
@@ -265,7 +268,6 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> Non
         exist it gates deletion through the public delete skill.
         """,
     )
-    _write(repo / "tasks" / "documents-the-marker" / "log.md", "")
 
     cfg = load_config(repo)
     create_task(
@@ -273,7 +275,7 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> Non
         title="Cleanup Orphan Markers",
         workflow_name="cleanup-orphan-markers",
         contexts=[],
-        mode="script",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -284,7 +286,7 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> Non
 
     assert result.exit_code == 0, result.output
     refs = {ref.slug: ref for ref in list_tasks(cfg)}
-    blackboard = (refs["cleanup-orphan-markers"].path / "blackboard.md").read_text()
+    blackboard = read_blackboard(refs["cleanup-orphan-markers"].path / "ticket.md")
     assert "## Dream Skill: cleanup-orphan-markers" in blackboard
     assert "Result: no-op." in blackboard
     assert "`documents-the-marker`" not in blackboard

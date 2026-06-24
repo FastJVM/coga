@@ -1,7 +1,8 @@
 ---
+slug: v2/document-contexts-as-prompt-payload-not-tags-princ
 title: Document contexts-as-prompt-payload-not-tags principle
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -56,3 +57,6 @@ Draft outline:
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

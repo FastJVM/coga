@@ -31,6 +31,7 @@ from pathlib import Path
 
 from relay.mark import mark_done
 from relay.config import Config
+from relay.taskfile import TaskFileError, read_blackboard
 from relay.tasks import TaskRef, list_tasks, read_ticket
 from relay.ticket import Ticket, TicketError
 
@@ -114,7 +115,7 @@ def _try_bump_one(cfg: Config, ref: TaskRef, *, quiet: bool) -> bool:
     if not _candidate(ticket):
         return False
 
-    url = _read_pr_url(ref.path)
+    url = _read_pr_url(ref.ticket_path)
     if not url:
         return False
 
@@ -182,15 +183,15 @@ def sweep_merged(cfg: Config, *, quiet: bool = False) -> int:
     return bumped
 
 
-def _read_pr_url(task_path: Path) -> str | None:
-    bb = task_path / "blackboard.md"
-    if not bb.is_file():
+def _read_pr_url(ticket: Path) -> str | None:
+    if not ticket.is_file():
         return None
     try:
-        return parse_pr_url(bb.read_text())
-    except OSError as exc:
-        # A read error on a single blackboard shouldn't sink the scanner.
-        sys.stderr.write(f"[autoclose] could not read {bb}: {exc}\n")
+        # The `## Dev` PR link lives in the blackboard region below the fence.
+        return parse_pr_url(read_blackboard(ticket, blackboard_required=False))
+    except (OSError, TaskFileError) as exc:
+        # A read error on a single ticket shouldn't sink the scanner.
+        sys.stderr.write(f"[autoclose] could not read {ticket}: {exc}\n")
         return None
 
 

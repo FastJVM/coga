@@ -6,8 +6,8 @@ script: run.py
 
 # Delete Task
 
-Remove a Relay task directory — `ticket.md`, `blackboard.md`, `log.md`, and the
-directory itself — from the working tree. Recovery is via `git restore`; git
+Remove a Relay task — its `ticket.md` (and, in directory form, the task
+directory and any siblings) — from the working tree. Recovery is via `git restore`; git
 history is the audit trail, so deletion posts no Slack broadcast.
 
 This is the single implementation of task deletion. `relay delete <slug>`

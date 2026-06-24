@@ -1,7 +1,8 @@
 ---
+slug: v2/document-parent-orchestrates-child-script-tasks-pa
 title: Document parent-orchestrates-child-script-tasks pattern in relay/patterns
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -56,3 +57,7 @@ Design judgment needed on where it lives (`relay/patterns` vs
 and whether the live + packaged copies both carry it.
 
 ## Context
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

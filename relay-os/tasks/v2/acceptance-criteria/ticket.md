@@ -1,7 +1,8 @@
 ---
+slug: v2/acceptance-criteria
 title: acceptance-criteria
 status: active
-mode: interactive
+autonomy: interactive
 owner: zach
 human: zach
 agent: claude
@@ -40,3 +41,6 @@ Possibly have a way to set acceptance criteria on relay create (ie relay create 
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

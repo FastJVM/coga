@@ -1,7 +1,8 @@
 ---
+slug: auto/triage-inbound-email
 title: Triage inbound email
 status: draft
-mode: interactive
+autonomy: interactive
 owner: marc
 human: marc
 agent: claude
@@ -40,3 +41,10 @@ directory is organizational only.
 Group a task by moving its directory under `tasks/<group>/` with
 `git mv`. Slugs must stay unique across all groups — `relay validate`
 reports a duplicate leaf name as an error.
+
+<!-- relay:blackboard -->
+
+# Triage inbound email
+
+The blackboard is a notepad to be written to often as the human and agent
+works through a task.

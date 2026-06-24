@@ -1,7 +1,8 @@
 ---
+slug: v2/debug-surface-for-recurring-tasks-streamed-output
 title: 'Debug surface for recurring tasks: streamed output + step-through'
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -103,3 +104,7 @@ This is a `design-then-implement` ticket: settle the surface before coding.
 Depends on `enforce-mode-auto-for-recurring-templates` landing first so the
 problem space is well-defined (no live recurring templates running
 `interactive` to muddy the design).
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

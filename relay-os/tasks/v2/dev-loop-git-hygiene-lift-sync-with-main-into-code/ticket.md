@@ -1,8 +1,9 @@
 ---
+slug: v2/dev-loop-git-hygiene-lift-sync-with-main-into-code
 title: 'Dev-loop git hygiene: lift sync-with-main into code/open-pr + add recurring
   merged-branch cleanup'
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -101,3 +102,7 @@ context. Key files:
   references for the new cleanup template.
 - `relay.toml` `[git]` table — `control_branch` (default `main`) is the
   base to test "merged into" against; don't hardcode `main`.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

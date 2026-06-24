@@ -1,7 +1,8 @@
 ---
+slug: v2/exclude-dev-tree-agent-skill-symlink-views-from-th
 title: Exclude dev-tree agent-skill symlink views from the wheel build
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -58,3 +59,6 @@ the build model this builds on.
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

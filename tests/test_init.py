@@ -48,8 +48,10 @@ EXPECTED_FILES = {
     "relay-os/recurring/skill-update/ticket.md",
     "relay-os/tasks/_template/ticket.md",
     "relay-os/tasks/relay-build/ticket.md",
-    "relay-os/tasks/relay-build/blackboard.md",
-    "relay-os/tasks/relay-build/log.md",
+    # Single-file format: the repo-global audit log + its union-merge attribute
+    # ship at the relay-os root; tasks no longer carry per-dir blackboard.md/log.md.
+    "relay-os/log.md",
+    "relay-os/.gitattributes",
     "relay-os/workflows/autoclose-merged/sweep.md",
     "relay-os/workflows/direct/body.md",
     "relay-os/workflows/skill-update/run.md",
@@ -202,9 +204,15 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         "## Context\n"
         "\n"
         "Empty until the `gather-and-spec` step runs at first launch.\n"
+        "\n"
+        "<!-- relay:blackboard -->\n"
+        "\n"
+        "notepad\n"
     )
-    (templates / "tasks" / "relay-build" / "blackboard.md").write_text("notepad\n")
-    (templates / "tasks" / "relay-build" / "log.md").write_text("created\n")
+    # Single-file format: the audit log + its union-merge attribute ship at the
+    # relay-os root, not as per-task siblings.
+    (templates / "log.md").write_text("")
+    (templates / ".gitattributes").write_text("/log.md merge=union\n")
     (templates / "workflows" / "autoclose-merged").mkdir(
         parents=True, exist_ok=True
     )
@@ -785,8 +793,13 @@ def test_init_ships_build_ticket_template(
     assert "owner: tester" in text
     assert "human: tester" in text
     assert "new-user" not in text
-    assert (task_dir / "blackboard.md").is_file()
-    assert (task_dir / "log.md").is_file()
+    # Single-file format: the blackboard rides inside ticket.md behind one
+    # fence; no per-task blackboard.md / log.md siblings.
+    from relay.taskfile import fence_count
+
+    assert fence_count(text) == 1
+    assert not (task_dir / "blackboard.md").exists()
+    assert not (task_dir / "log.md").exists()
     # Bare init on an empty repo points at `relay build` (the alias that
     # launches this ticket) rather than at a manual launch.
     assert "Run `relay build`" in result.output

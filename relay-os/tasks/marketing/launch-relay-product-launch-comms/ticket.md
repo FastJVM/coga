@@ -1,7 +1,8 @@
 ---
+slug: marketing/launch-relay-product-launch-comms
 title: Launch Relay — product launch comms
 status: active
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -44,3 +45,6 @@ firm up):
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

@@ -14,8 +14,10 @@ from croniter import CroniterError, croniter
 
 from relay.create import create_task
 from relay.config import Config
-from relay.paths import recurring_dir
+from relay.logfile import append_log
+from relay.paths import recurring_dir, resolve_skill_path, resolve_workflow_path
 from relay.period_state import write_snapshot
+from relay.taskfile import read_blackboard, upsert_blackboard
 from relay.tasks import TaskRef, list_tasks, read_ticket
 
 
@@ -28,9 +30,10 @@ class RecurringError(Exception):
 class Template:
     """A recurring task — a ticket-format directory under `recurring/<name>/`.
 
-    `ticket.md` carries the schedule and run body; `blackboard.md` persists
-    across runs for forward state, including the `last_serviced_period`
-    high-water mark. `log.md` is append-only human history.
+    `ticket.md` carries the schedule and run body; its blackboard region
+    (below the fence) persists across runs for forward state, including the
+    `last_serviced_period` high-water mark. Append-only history goes to the
+    repo-global `relay-os/log.md`, tagged `recurring/<name>`.
     """
 
     path: Path  # the recurring task directory
@@ -67,23 +70,16 @@ class Template:
         return self.frontmatter["schedule"]
 
     @property
-    def blackboard_path(self) -> Path:
-        """Persistent working state, composed into each run's prompt (layer 7).
+    def ticket_path(self) -> Path:
+        """The template's single-file `ticket.md`.
 
-        Kept small on purpose: the blackboard carries only forward state the
-        next run actually reads, while append-only history lives in `log_path`
-        (never composed).
+        Its blackboard region (below the `<!-- relay:blackboard -->` fence)
+        holds the persistent working state composed into each run's prompt —
+        notably the `last_serviced_period` high-water mark. Append-only period
+        history no longer lives beside the template; it goes to the repo-global
+        log (see `_record_run`), which is never composed.
         """
-        return self.path / "blackboard.md"
-
-    @property
-    def log_path(self) -> Path:
-        """Append-only period history (see `_record_run`).
-
-        Never a prompt-composition layer, so it can grow without bloating any
-        run's context.
-        """
-        return self.path / "log.md"
+        return self.path / "ticket.md"
 
 
 @dataclass
@@ -120,8 +116,9 @@ class DueTask:
     used to report "ready" vs "overdue" and to order launches.
 
     `ref` is `None` when the period was already serviced earlier and the task
-    directory has since been removed. The template's `blackboard.md` carries
-    the `last_serviced_period` high-water mark used for that decision.
+    directory has since been removed. The template's `ticket.md` blackboard
+    region carries the `last_serviced_period` high-water mark used for that
+    decision.
     """
 
     template: str
@@ -351,8 +348,6 @@ def create_template(
     allow_interactive: bool = True,
 ) -> CreateOutcome:
     """Create one recurring template for `now`'s firing. Idempotent."""
-    effective_mode = _effective_mode(template, allow_interactive=allow_interactive)
-
     last_fire = _last_firing(template.schedule, now)
     period_key = _period_key(template.schedule, last_fire)
     target_slug = _recurring_slug(template.name)
@@ -362,6 +357,10 @@ def create_template(
     # it (resume) instead of creating a competing new period. A stuck run
     # therefore defers the next period until it reaches `done`/`paused`; that
     # is deliberate — finish the in-flight run before piling another on.
+    #
+    # The autonomy ban is evaluated *after* the resume short-circuits: resuming
+    # an existing task must not be blocked by it (only a fresh create launches a
+    # would-be agent run that the ban guards against).
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
         return CreateOutcome(ref=live, created=False)
@@ -370,14 +369,17 @@ def create_template(
     if existing is not None:
         return CreateOutcome(ref=existing, created=False)
 
+    effective_autonomy = _effective_autonomy(
+        cfg, template, allow_interactive=allow_interactive
+    )
     outcome = _create_at_slug(
         cfg,
         template,
         target_slug=target_slug,
-        effective_mode=effective_mode,
+        effective_autonomy=effective_autonomy,
         title=_extract_title(template),
     )
-    _advance_serviced_period(template, period_key, outcome, now)
+    _advance_serviced_period(cfg, template, period_key, outcome, now)
     return outcome
 
 
@@ -477,29 +479,67 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
     return out
 
 
-def _effective_mode(template: Template, *, allow_interactive: bool = True) -> str:
-    """Resolve a template's launch mode, enforcing the temporary auto ban.
+def _is_script_template(cfg: Config, template: Template) -> bool:
+    """True when this template's run is a *script* (not an agent), so the
+    auto/TTY agent ban does not apply.
 
-    Temporary policy: refuse `mode: auto` recurring tasks. `claude -p` and
-    `codex exec` buffer until completion, so scheduled runs would sit silently
-    — worse than skipping. Lift when streaming lands. Templates can opt back in
-    by setting `mode: script` (or `mode: interactive` if they can run from a
-    TTY).
+    Deduced exactly as launch deduces it (`is_script_launch`): a ticket-owned
+    `script:`, or a workflow step whose single skill carries a `script:` entry.
+    This replaces the old `mode: script` signal, which v2 dropped.
     """
-    effective_mode = template.frontmatter.get("mode", "auto")
-    if effective_mode == "auto":
+    if template.frontmatter.get("script"):
+        return True
+    from relay.skill import Skill
+    from relay.workflow import Workflow, WorkflowError
+
+    wf = template.frontmatter.get("workflow")
+    steps: list[Any] | None = None
+    if isinstance(wf, dict):
+        steps = wf.get("steps") if isinstance(wf.get("steps"), list) else None
+    elif isinstance(wf, str) and wf.strip():
+        try:
+            steps = [{"skills": s.skills} for s in Workflow.load(resolve_workflow_path(cfg, wf)).steps]
+        except WorkflowError:
+            steps = None
+    for step in steps or []:
+        skills = (step.get("skills") if isinstance(step, dict) else None) or []
+        if len(skills) == 1:
+            sp = resolve_skill_path(cfg, skills[0])
+            if sp is not None and Skill.load(sp).script:
+                return True
+    return False
+
+
+def _effective_autonomy(
+    cfg: Config, template: Template, *, allow_interactive: bool = True
+) -> str:
+    """Resolve a template's launch autonomy, enforcing the temporary auto ban.
+
+    Templates default to `auto` (a scheduled job runs unattended), but that is
+    temporarily refused: `claude -p` and `codex exec` buffer until completion,
+    so scheduled agent runs would sit silently — worse than skipping. Lift when
+    streaming lands. A template that runs a script **bypasses this entirely** (a
+    script produces live output); the ban only applies to agent runs. Templates
+    opt out of the ban by setting `autonomy: interactive` (if they can run from a
+    TTY) or by being a script template (a `script:` field / a workflow step whose
+    skill has a `script:` — deduced here exactly as launch deduces it).
+    """
+    effective_autonomy = template.frontmatter.get("autonomy", "auto")
+    if _is_script_template(cfg, template):
+        return effective_autonomy  # script run — the agent-only bans don't apply
+    if effective_autonomy == "auto":
         raise RecurringError(
-            "mode=auto is temporarily disabled (auto runs produce no live "
-            "console output). Set `mode: script` or `mode: interactive` "
-            "to re-enable."
+            "autonomy=auto is temporarily disabled (auto runs produce no live "
+            "console output). Set `autonomy: interactive`, or make it a script "
+            "template, to re-enable."
         )
-    if effective_mode == "interactive" and not allow_interactive:
+    if effective_autonomy == "interactive" and not allow_interactive:
         raise RecurringError(
-            "mode=interactive requires a TTY (stdin and stdout must both be "
+            "autonomy=interactive requires a TTY (stdin and stdout must both be "
             "terminals). Run `relay recurring --interactive` from a real shell, "
-            "or change the template to mode: script."
+            "or make the template a script template."
         )
-    return effective_mode
+    return effective_autonomy
 
 
 def _create_at_slug(
@@ -507,7 +547,7 @@ def _create_at_slug(
     template: Template,
     *,
     target_slug: str,
-    effective_mode: str,
+    effective_autonomy: str,
     title: str,
 ) -> CreateOutcome:
     """Create one recurring task at an explicit slug. Shared by period and
@@ -542,13 +582,16 @@ def _create_at_slug(
         # workflow so it is activatable, bumpable, and valid like any task.
         workflow_name=template.frontmatter.get("workflow") or "direct/body",
         contexts=contexts,
-        mode=effective_mode,
+        autonomy=effective_autonomy,
         owner=template.frontmatter.get("owner"),
         assignee=assignee,
         watchers=list(template.frontmatter.get("watchers") or []),
         status="active",
         slug_override=target_slug,
         secrets=template.frontmatter.get("secrets"),
+        # A template's own `script:` (inline or a sibling file) carries through to
+        # the period task; whether it runs as a script is then deduced at launch.
+        script=template.frontmatter.get("script"),
         # Carry the template body verbatim so sections beyond `## Description`
         # (notably `## Script config`, which sets a script step's mode/sync)
         # reach the period task instead of being dropped at create time.
@@ -572,42 +615,38 @@ def _create_at_slug(
 
 
 def _advance_serviced_period(
-    template: Template, period_key: str, outcome: CreateOutcome, now: datetime
+    cfg: Config, template: Template, period_key: str, outcome: CreateOutcome, now: datetime
 ) -> None:
-    current = read_last_serviced_period(template.blackboard_path)
+    current = read_last_serviced_period(template.ticket_path)
     if current is not None and current >= period_key:
         return
-    write_last_serviced_period(template.blackboard_path, period_key)
-    _record_run(template, outcome, period_key, now)
+    write_last_serviced_period(template.ticket_path, period_key)
+    _record_run(cfg, template, outcome, period_key)
 
 
 def _write_state_snapshot(template: Template, ref: TaskRef) -> None:
     state_keys = template.frontmatter.get("state_keys") or []
     if state_keys:
         write_snapshot(
-            ref.path, template.name, template.blackboard_path, list(state_keys)
+            ref.path, template.name, template.ticket_path, list(state_keys)
         )
 
 
 def _record_run(
-    template: Template, outcome: CreateOutcome, period_key: str, now: datetime
+    cfg: Config, template: Template, outcome: CreateOutcome, period_key: str
 ) -> None:
-    """Append a period-history line to the template's persistent `log.md`.
+    """Append a period-history line to the repo-global log.
 
-    The load-bearing high-water mark lives in the template blackboard. The log
-    remains append-only human history and is deliberately never composed into a
-    run prompt.
+    The load-bearing high-water mark lives in the template blackboard region.
+    The history line is tagged `recurring/<name>` so it is reconstructable, and
+    lands in the global log (never composed into a run prompt).
     """
-    log = template.log_path
-    existing = log.read_text() if log.is_file() else ""
-    # Make sure the appended line lands on its own line, even when the
-    # existing log does not end with a newline.
-    sep = "" if not existing or existing.endswith("\n") else "\n"
-    stamp = now.strftime("%Y-%m-%d %H:%M")
     verb = "created" if outcome.created else "reused"
-    log.write_text(
-        f"{existing}{sep}{stamp} [system] {verb} "
-        f"{outcome.ref.id_slug} for {period_key}\n"
+    append_log(
+        cfg,
+        _recurring_slug(template.name),
+        "system",
+        f"{verb} {outcome.ref.id_slug} for {period_key}",
     )
 
 
@@ -693,20 +732,28 @@ def _live_task_for_template(cfg: Config, template_name: str) -> TaskRef | None:
 
 
 def _period_already_serviced(template: Template, period_key: str) -> bool:
-    last_serviced = read_last_serviced_period(template.blackboard_path)
+    last_serviced = read_last_serviced_period(template.ticket_path)
     return last_serviced is not None and last_serviced >= period_key
 
 
-def read_last_serviced_period(blackboard_path: Path) -> str | None:
-    if not blackboard_path.is_file():
+def read_last_serviced_period(ticket_path: Path) -> str | None:
+    """Read the `last_serviced_period` high-water mark from a template's
+    `ticket.md` blackboard region."""
+    if not ticket_path.is_file():
         return None
-    return _read_last_serviced_period_text(blackboard_path.read_text())
+    region = read_blackboard(ticket_path, blackboard_required=False)
+    return _read_last_serviced_period_text(region)
 
 
-def write_last_serviced_period(blackboard_path: Path, period_key: str) -> None:
-    existing = blackboard_path.read_text() if blackboard_path.is_file() else ""
-    blackboard_path.parent.mkdir(parents=True, exist_ok=True)
-    blackboard_path.write_text(set_last_serviced_period_text(existing, period_key))
+def write_last_serviced_period(ticket_path: Path, period_key: str) -> None:
+    """Set the high-water mark in a template's `ticket.md` blackboard region,
+    leaving the frontmatter and body above the fence untouched."""
+    region = (
+        read_blackboard(ticket_path, blackboard_required=False)
+        if ticket_path.is_file()
+        else ""
+    )
+    upsert_blackboard(ticket_path, set_last_serviced_period_text(region, period_key))
 
 
 def merge_last_serviced_period_text(base_text: str, incoming_text: str) -> str:

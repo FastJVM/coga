@@ -16,6 +16,7 @@ from relay.commands.launch import (
 )
 from relay.config import AgentType, ConfigError, load_config
 from relay.repl_supervisor import _TIMEOUT_EXIT_CODE, ReplOutcome
+from relay.taskfile import read_blackboard, upsert_blackboard
 from relay.tasks import BootstrapRef, TaskRef, list_tasks
 from relay.ticket import Ticket
 
@@ -23,6 +24,11 @@ from relay.ticket import Ticket
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
+
+
+def _read_log(repo: Path) -> str:
+    """The repo-global audit log (`relay-os/log.md`)."""
+    return (repo / "log.md").read_text()
 
 
 def _capture_slack(sink: list[str], json_payload):
@@ -347,7 +353,7 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     cfg = load_config(company)
     create_task(
         cfg=cfg, title="Fix retry logic",
-        workflow_name="direct/body", contexts=[], mode="interactive",
+        workflow_name="direct/body", contexts=[], autonomy="interactive",
         owner="marc", assignee="claude", watchers=[], status="active",
     )
     return company
@@ -421,7 +427,7 @@ def _create_chain_task(active_task: Path, *, mode: str = "interactive") -> dict[
         title="Chain work",
         workflow_name="chain",
         contexts=[],
-        mode=mode,
+        autonomy=mode,
         owner="marc",
         human="marc",
         agent="claude",
@@ -461,7 +467,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     ref = list_tasks(cfg)[0]
     ticket = Ticket.read(ref.path / "ticket.md")
     assert ticket.status == "in_progress"
-    log = (ref.path / "log.md").read_text()
+    log = _read_log(active_task)
     assert "started (active → in_progress) via relay launch" in log
     assert "launched in interactive mode" in log
 
@@ -503,7 +509,7 @@ def test_launch_fails_loud_on_unset_declared_secret(
     assert calls == []
     ticket = Ticket.read(ref.path / "ticket.md")
     assert ticket.status == "active"
-    log = (ref.path / "log.md").read_text()
+    log = _read_log(active_task)
     assert "started (active" not in log
 
 
@@ -812,7 +818,7 @@ def test_launch_in_progress_resumes_without_status_transition(
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
-    log = (ref.path / "log.md").read_text()
+    log = _read_log(active_task)
     assert "started (active → in_progress) via relay launch" not in log
 
 
@@ -834,7 +840,7 @@ def test_launch_interactive_without_tty_fails_before_lock(
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
     assert result.exit_code == 2
-    assert "Cannot launch 'fix-retry-logic': mode=interactive requires a TTY" in (
+    assert "Cannot launch 'fix-retry-logic': autonomy=interactive requires a TTY" in (
         result.output + (result.stderr or "")
     )
     assert not called
@@ -925,7 +931,7 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
         title="Chain work",
         workflow_name="chain",
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         human="marc",
         agent="claude",
@@ -992,7 +998,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
         title="Handoff work",
         workflow_name="handoff",
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         human="marc",
         agent="claude",
@@ -1059,7 +1065,7 @@ def test_launch_harness_stops_on_agent_panic(
     assert result.exit_code == 1, result.output
     assert len(calls) == 1
     assert "Agent exited with code 1" in (result.output + (result.stderr or ""))
-    assert "test panic" in (Path(ref["path"]) / "blackboard.md").read_text()
+    assert "test panic" in read_blackboard(Path(ref["path"]) / "ticket.md")
 
 
 def _launch_single_spawn(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
@@ -1106,7 +1112,7 @@ def test_launch_auto_activates_draft_and_paused(
     after = Ticket.read(ticket_md)
     assert after.status == "in_progress"
     assert after.step == "1 (implement)"
-    log = (Path(ref["path"]) / "log.md").read_text()
+    log = _read_log(active_task)
     assert f"activated ({prior} → active) — auto on launch" in log
 
 
@@ -1185,7 +1191,7 @@ def test_launch_warns_for_large_blackboard(
 ) -> None:
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    (ref.path / "blackboard.md").write_text("x" * (33 * 1024))
+    upsert_blackboard(ref.path / "ticket.md", "\n\n" + "x" * (33 * 1024) + "\n")
     _allow_interactive_tty(monkeypatch)
 
     class _Result:
@@ -1203,7 +1209,7 @@ def test_launch_warns_for_large_blackboard(
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
-    assert "blackboard.md is" in (result.output + (result.stderr or ""))
+    assert "blackboard region is" in (result.output + (result.stderr or ""))
 
 
 def test_launch_prompt_report_prints_layers_without_launching(
@@ -1241,7 +1247,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
         title="Measure prompt scope",
         workflow_name="code/measure",
         contexts=["email/payment-flow"],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         human="marc",
         agent="claude",
@@ -1269,7 +1275,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
     from relay.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
     assert ticket.status == "draft"
-    assert "launched in interactive mode" not in (Path(ref["path"]) / "log.md").read_text()
+    assert "launched in interactive mode" not in _read_log(active_task)
 
 
 # --- bootstrap shims -----------------------------------------------------------
@@ -1302,7 +1308,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Create a new ticket
-        mode: interactive
+        autonomy: interactive
         skills:
           - bootstrap/ticket
         assignee: claude
@@ -1391,8 +1397,8 @@ def test_launch_bootstrap_skips_status_and_lock(
     # Header still uses the bootstrap/<name> id_slug.
     assert "bootstrap/ticket" in prompt
 
-    # log.md was created and recorded the launch.
-    log = (bootstrap_repo / "bootstrap" / "ticket" / "log.md").read_text()
+    # The repo-global log recorded the launch.
+    log = _read_log(bootstrap_repo)
     assert "launched in interactive mode" in log
 
 
@@ -1510,7 +1516,7 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
     assert cmd[1] == "-c"
     assert "Skill: bootstrap/ticket" in _prompt_arg(cmd)
 
-    log = (bootstrap_repo / "bootstrap" / "ticket" / "log.md").read_text()
+    log = _read_log(bootstrap_repo)
     assert "assignee=codex, agent=codex" in log
 
 
@@ -1544,7 +1550,7 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     ticket = Ticket.read(ref.path / "ticket.md")
     assert ticket.frontmatter["assignee"] == "claude"
 
-    log = (ref.path / "log.md").read_text()
+    log = _read_log(active_task)
     assert "assignee=claude, launch_assignee=codex, agent=codex" in log
 
 
@@ -1696,7 +1702,7 @@ def test_launch_interactive_rotates_across_agents(
     cfg = load_config(active_task)
     ref = create_task(
         cfg=cfg, title="Rotate work", workflow_name="rotate", contexts=[],
-        mode="interactive", owner="marc", human="marc", agent="claude",
+        autonomy="interactive", owner="marc", human="marc", agent="claude",
         assignee="claude", watchers=[], status="active",
     )
     slug = ref["slug"]
@@ -1759,7 +1765,7 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     cfg = load_config(active_task)
     ref = create_task(
         cfg=cfg, title="Rotate2 work", workflow_name="rotate2", contexts=[],
-        mode="interactive", owner="marc", human="marc", agent="claude",
+        autonomy="interactive", owner="marc", human="marc", agent="claude",
         assignee="claude", watchers=[], status="active",
     )
     slug = ref["slug"]

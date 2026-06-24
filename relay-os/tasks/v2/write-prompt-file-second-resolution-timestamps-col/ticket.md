@@ -1,7 +1,8 @@
 ---
+slug: v2/write-prompt-file-second-resolution-timestamps-col
 title: write_prompt_file second-resolution timestamps collide on same-second launches
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -32,3 +33,7 @@ covered by a test.
 ## Context
 
 Code: `src/relay/compose.py:242-253` (`write_prompt_file`).
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

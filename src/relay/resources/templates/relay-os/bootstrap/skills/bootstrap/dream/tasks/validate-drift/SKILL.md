@@ -26,7 +26,8 @@ It then classifies every validator issue into one of three buckets:
   `bootstrap/dream/tasks/validate-drift`
 - Inputs: `relay.toml`, `relay.local.toml`, task directories, workflow refs,
   context refs, skill refs, and optional Slack webhook reachability
-- May change: missing `blackboard.md` and `log.md` files only when `--fix` is
+- May change: a missing `<!-- relay:blackboard -->` fence + blackboard region
+  in a task's `ticket.md`, only when `--fix` is
   enabled by the script's default safe-repair pass; repaired files may be
   committed and pushed only from a non-main repair branch when
   `--commit-and-push` is passed manually
@@ -52,7 +53,7 @@ reference `bootstrap/dream/tasks/validate-drift`. Relay injects
 uses that metadata to append its result to the child task blackboard.
 
 The default safe-repair pass applies the same conservative repair set as
-`relay validate --fix`: create missing `blackboard.md` and `log.md` only. To
+`relay validate --fix`: append a missing blackboard fence + region to a `ticket.md` only. To
 publish those repairs from a Dream repair branch, run the script manually with
 `--commit-and-push`; it commits only repaired files and pushes the current
 branch, refusing `main`/`master` by default.

@@ -53,7 +53,8 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from relay.config import Config
-from relay.logfile import append_log
+from relay.logfile import append_log, ref_tag_for_path
+from relay.paths import log_path
 
 # Bounded retries when racing `refs/heads/<control>`: each loss is a refetch +
 # rebuild + repush, so a small ceiling is plenty under realistic contention
@@ -130,8 +131,21 @@ def sync_paths(
         rels = [_relative_to_root(root, path) for path in selected]
         branch = _current_branch(root)
 
+        # The repo-global `relay-os/log.md` is `merge=union`, so it must NOT
+        # ride the cross-branch overlay — an overlay replaces the file wholesale
+        # on the control tip, dropping log lines another branch appended
+        # concurrently. Instead it is folded into the *local* commit only and
+        # reaches the control branch the union-safe way: the same-branch push
+        # rebases (union-merging the log), or the feature branch's PR merges
+        # (union again). `local_rels` therefore carries the log; `rels` (the
+        # overlay set) never does.
+        log_rel = _relative_to_root(root, log_path(cfg))
+        local_rels = rels + [log_rel] if log_path(cfg).exists() else rels
+
         if branch == cfg.git_control_branch:
-            _sync_paths_on_control_branch(cfg, root, rels, message=message)
+            # On the control branch the commit+push *is* the union-safe path, so
+            # the log can ride along — a rejected push rebases and union-merges.
+            _sync_paths_on_control_branch(cfg, root, local_rels, message=message)
             return
 
         # Feature branch (or detached HEAD): commit on the current branch so
@@ -143,7 +157,7 @@ def sync_paths(
                 f"{cfg.git_control_branch!r} but not committed locally. ({message})\n"
             )
         else:
-            _commit_paths(root, rels, message)
+            _commit_paths(root, local_rels, message)
         _land_paths_on_control_branch(cfg, root, rels, message=message)
     except GitError as exc:
         # Non-fatal: surface loudly (stderr + log.md) but do NOT abort the
@@ -156,7 +170,7 @@ def sync_paths(
         # `emit_done_marker` fired, so the supervisor never relaunched the next
         # step). "Fail loud" here means make the miss visible, not crash.
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
-        append_log(anchor_path, "git", f"sync failed: {exc}")
+        append_log(cfg, ref_tag_for_path(cfg, anchor_path), "git", f"sync failed: {exc}")
 
 
 def _sync_on_control_branch(

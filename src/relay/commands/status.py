@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from relay.config import ConfigError, load_config
-from relay.logfile import last_activity
+from relay.logfile import last_activity_map
 from relay.tasks import (
     UnknownDirectoryError,
     filter_tasks_under,
@@ -26,7 +26,7 @@ from relay.ticket import TicketError
 # stays on a single line.
 NARROW_WIDTH = 100
 
-ORDER_BY_CHOICES = ("slug", "status", "owner", "assignee", "step", "mode", "updated")
+ORDER_BY_CHOICES = ("slug", "status", "owner", "assignee", "step", "autonomy", "updated")
 
 
 def _format_relative(then: datetime, now: datetime) -> str:
@@ -110,6 +110,10 @@ def status(
     console = Console()
     narrow = console.width < NARROW_WIDTH
 
+    # One pass over the global log builds every task's last-activity timestamp,
+    # instead of re-scanning a per-task log file for each row.
+    activity = last_activity_map(cfg)
+
     rows = []
     hidden_done = 0
     for ref in refs:
@@ -127,8 +131,8 @@ def status(
             "owner": ticket.owner or "-",
             "assignee": ticket.assignee or "-",
             "step": ticket.step or "-",
-            "mode": ticket.mode,
-            "updated_ts": last_activity(ref.path),
+            "autonomy": ticket.autonomy,
+            "updated_ts": activity.get(ref.id_slug),
         })
 
     # Default reading is "newest first" for date columns and alphabetical
@@ -199,11 +203,11 @@ def _build_table(rows: list[dict], narrow: bool, now: datetime) -> Table:
         # so Rich's balancer doesn't crop it. Everything else ellipsizes.
         max_slug = max((len(r["slug"]) for r in rows), default=0)
         table.add_column("slug", no_wrap=True, overflow="fold", min_width=max_slug)
-        for col in ("status", "owner", "assignee", "step", "mode", "updated"):
+        for col in ("status", "owner", "assignee", "step", "autonomy", "updated"):
             table.add_column(col, no_wrap=True, overflow="ellipsis")
     else:
         table.add_column("slug", no_wrap=True, overflow="fold")
-        for col in ("status", "owner", "assignee", "step", "mode", "updated"):
+        for col in ("status", "owner", "assignee", "step", "autonomy", "updated"):
             table.add_column(col)
 
     for r in rows:
@@ -211,7 +215,7 @@ def _build_table(rows: list[dict], narrow: bool, now: datetime) -> Table:
         updated = _format_relative(ts, now) if ts is not None else "-"
         table.add_row(
             r["slug"], r["status"], r["owner"], r["assignee"],
-            r["step"], r["mode"], updated,
+            r["step"], r["autonomy"], updated,
         )
     return table
 

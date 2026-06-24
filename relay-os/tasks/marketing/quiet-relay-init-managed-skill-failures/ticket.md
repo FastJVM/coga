@@ -1,7 +1,8 @@
 ---
+slug: marketing/quiet-relay-init-managed-skill-failures
 title: Quiet relay init managed-skill failures
 status: draft
-mode: interactive
+autonomy: interactive
 owner: zach
 human: zach
 agent: claude
@@ -33,3 +34,6 @@ hide the success."
 - Surfaced running the fresh-directory onboarding flow on `gh 2.88.1` (Homebrew):
   12/12 optional skills failed, each dumping `gh`'s full command list.
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

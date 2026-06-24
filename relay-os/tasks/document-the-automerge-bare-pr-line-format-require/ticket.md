@@ -1,7 +1,8 @@
 ---
+slug: document-the-automerge-bare-pr-line-format-require
 title: 'Document the automerge bare pr: line format requirement'
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -43,3 +44,6 @@ write the line in the form `automerge` actually parses.
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

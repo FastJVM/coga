@@ -1,7 +1,8 @@
 ---
+slug: v2/enforce-a-prompt-token-budget-in-compose
 title: Enforce a prompt token budget in compose
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -44,3 +45,7 @@ Code: `src/relay/compose.py` (`PromptComposition` 82-86, `estimate_tokens`
 `src/relay/validate.py:266-276` (blackboard-only size check today). Related:
 `measure-relay-prompt-scope-and-agent-precision` (measurement) and the compose-
 frontmatter ticket (eager inlining).
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

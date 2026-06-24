@@ -1,7 +1,8 @@
 ---
+slug: v2/document-design-pivot-in-blackboard-convention
 title: Document design-pivot-in-blackboard convention
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -57,3 +58,6 @@ Draft outline:
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

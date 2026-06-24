@@ -1,7 +1,8 @@
 ---
+slug: v2/validate-tickets-on-hand-edit-gap-outside-relay-co
 title: Validate tickets on hand-edit (gap outside relay commands)
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -77,3 +78,7 @@ triggers" stance are in `relay/architecture` and `relay/principles` (principle
 git hooks were deliberately removed). Respect that direction when choosing the
 mechanism. Validation logic lives in `src/relay/commands/validate.py`; the
 relay-command call sites that already validate are the model to follow.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

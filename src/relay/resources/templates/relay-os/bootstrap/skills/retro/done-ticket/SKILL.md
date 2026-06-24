@@ -30,7 +30,7 @@ PR, no `## Retro` marker, and no `## Pruned` bookkeeping. Recovery is via
 - Runs: `retro/done-ticket <task-slug> [<task-slug> ...]` after a human
   chooses one exact done ticket, or Dream passes every eligible done ticket in
   one run. The run partitions them into coherent PR batches itself.
-- Inputs: each source task's `ticket.md`, `blackboard.md`, and `log.md`, plus
+- Inputs: each source task's `ticket.md` (body + blackboard region) and its history in the repo-global `relay-os/log.md`, plus
   every local and bundled context/skill file under `relay-os/contexts/`,
   `relay-os/bootstrap/contexts/`, `relay-os/skills/`, and
   `relay-os/bootstrap/skills/`, loaded once per run before ticket-by-ticket
@@ -73,7 +73,7 @@ Do:
 - update or create a skill only when a ticket contains repeatable process
   knowledge that is not already covered;
 - for a knowledge-bearing source task, append or update exactly one `## Retro`
-  marker in its `blackboard.md` and delete its directory in the same knowledge
+  marker in its `ticket.md` blackboard region and delete its directory in the same knowledge
   PR;
 - for a no-durable-knowledge source task, delete its directory directly with
   `relay delete <slug>` — no marker, no PR;
@@ -134,7 +134,7 @@ in one run; the skill partitions them into coherent PR batches itself.
 Required files:
 
 - `<task-dir>/ticket.md` for each selected slug
-- `<task-dir>/blackboard.md` for each selected slug
+- the blackboard region of each selected slug's `ticket.md`
 - `<task-dir>/log.md` for each selected slug
 - `relay-os/contexts/**/SKILL.md`
 - `relay-os/bootstrap/contexts/**/SKILL.md`
@@ -162,7 +162,7 @@ within the per-PR hard limits below, or there is already an open PR adding a
    skill and whether the process is already covered.
 
 3. **Read ticket evidence one ticket at a time.**
-   For each selected slug, read `ticket.md`, `blackboard.md`, and `log.md`.
+   For each selected slug, read its `ticket.md` (body + blackboard region) and its lines in the repo-global `relay-os/log.md`.
    Extract candidate durable knowledge: domain facts, repo conventions, sharp
    gotchas, durable decisions, corrected assumptions, known failure modes, and
    boundaries future agents should inherit. Read the ticket files themselves —
@@ -222,7 +222,7 @@ within the per-PR hard limits below, or there is already an open PR adding a
 
 8. **Record the Retro markers for knowledge-bearing tickets.**
    For each source task that contributed new durable knowledge, append or update
-   exactly one `## Retro` section in its `blackboard.md`:
+   exactly one `## Retro` section in its `ticket.md` blackboard region:
 
    ```markdown
    ## Retro
@@ -284,7 +284,7 @@ Knowledge PR — use this shape:
 
 ## Source
 - Tickets: deleted `<task-dir>`, ...
-- Markers: PR history for each deleted `blackboard.md` records `## Retro`
+- Markers: PR history for each deleted ticket records its `## Retro`
   with `status: processed`.
 
 ## Classification

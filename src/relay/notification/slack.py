@@ -9,7 +9,7 @@ import requests
 import typer
 
 from relay.config import Config
-from relay.logfile import append_log
+from relay.logfile import append_log, ref_tag_for_path
 from relay.slack_response import classify_slack_response
 
 
@@ -88,7 +88,7 @@ class SlackChannel:
                 f"[slack] post failed: {message}. Message was: {full_message}\n"
             )
             if task_path is not None:
-                append_log(task_path, "slack", f"post failed: {log_detail}")
+                append_log(self.cfg, ref_tag_for_path(self.cfg, task_path), "slack", f"post failed: {log_detail}")
             raise typer.Exit(1)
 
         try:

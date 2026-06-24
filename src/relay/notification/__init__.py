@@ -12,10 +12,10 @@ Slack preserves the previous crash-loud/no-retry semantics.
 `notify` is the **outcome digest** path, not a generic lifecycle broadcaster.
 Only ticket outcomes (`done`) and recurring scan errors enter the daily digest.
 Routine lifecycle churn (draft, active, bump, paused, retire, recurring
-create) is intentionally silent: the task `log.md` remains the audit trail,
+create) is intentionally silent: the repo-global `relay-os/log.md` remains the audit trail,
 while notifications carry outcomes and urgent exceptions. When the daily-digest
 recurring ticket is installed (`recurring/digest/` exists), `notify` spools a
-structured record to that ticket's blackboard; when it is absent, those same
+structured record to that ticket's blackboard region; when it is absent, those same
 outcome/error events fall back to a live `post`.
 """
 
@@ -73,14 +73,16 @@ _SLACK_PR_LINK_RE = re.compile(r"<[^>|]+?\|PR #\d+>")
 
 
 def digest_spool_path(cfg: Config) -> Path | None:
-    """The digest ticket's spool blackboard, or None when it isn't installed.
+    """The digest ticket whose blackboard region holds the spool, or None when
+    it isn't installed.
 
-    The spool lives on the `recurring/digest/` ticket's own persistent
-    `blackboard.md` — a real, git-tracked, human-readable file (never a hidden
-    dotfile). Its presence is what routes outcome/error `notify` records into
-    the daily digest instead of posting them live.
+    The spool lives in the `recurring/digest/` template ticket's blackboard
+    region (the part of its `ticket.md` below the fence) — a real, git-tracked,
+    human-readable file (never a hidden dotfile). Its presence is what routes
+    outcome/error `notify` records into the daily digest instead of posting them
+    live. Returns the `ticket.md` path; `relay.spool` operates on its region.
     """
-    path = recurring_dir(cfg) / DIGEST_RECURRING_NAME / "blackboard.md"
+    path = recurring_dir(cfg) / DIGEST_RECURRING_NAME / "ticket.md"
     return path if path.is_file() else None
 
 

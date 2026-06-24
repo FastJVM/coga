@@ -1,7 +1,8 @@
 ---
+slug: v2/identify-blocking-issues
 title: identify-blocking-issues
 status: active
-mode: interactive
+autonomy: interactive
 owner: zach
 human: zach
 agent: claude
@@ -40,3 +41,6 @@ There could possibly be another field in the ticket labelled "dependencies" and 
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

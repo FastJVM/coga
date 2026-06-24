@@ -1,7 +1,8 @@
 ---
+slug: v2/file-locking-for-concurrent-task-mutation
 title: File locking for concurrent task mutation
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -50,3 +51,7 @@ Code: `src/relay/repl_supervisor.py:292` (only `fcntl` use, ioctl not lock),
 `src/relay/ticket.py` (non-atomic write), `src/relay/commands/launch.py`,
 `tests/test_launch.py:1017`. Pairs with `atomic-writes-for-ticket-log-and-done-
 marker-files`.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

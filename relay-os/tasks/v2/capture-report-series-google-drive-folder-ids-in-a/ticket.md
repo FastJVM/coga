@@ -1,7 +1,8 @@
 ---
+slug: v2/capture-report-series-google-drive-folder-ids-in-a
 title: Capture report-series Google Drive folder IDs in a context
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -55,3 +56,6 @@ reason to consider it; the decision is yours.
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

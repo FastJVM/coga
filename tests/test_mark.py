@@ -57,10 +57,15 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "draf
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status=status,
     )
     return ref["slug"], ref["path"]
+
+
+def _read_log(repo: Path) -> str:
+    """The repo-global audit log (`relay-os/log.md`)."""
+    return (repo / "log.md").read_text()
 
 
 # --- mark active --------------------------------------------------------------
@@ -73,7 +78,7 @@ def test_mark_active_from_draft(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     t = Ticket.read(task_path / "ticket.md")
     assert t.status == "active"
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "activated (draft → active)" in log
 
 
@@ -84,7 +89,7 @@ def test_mark_active_from_paused(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     t = Ticket.read(task_path / "ticket.md")
     assert t.status == "active"
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "activated (paused → active)" in log
 
 
@@ -221,7 +226,7 @@ def test_mark_paused_from_active(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     t = Ticket.read(task_path / "ticket.md")
     assert t.status == "paused"
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "paused (active → paused)" in log
 
 
@@ -266,7 +271,7 @@ def test_mark_done_from_active_clears_step(repo: Path) -> None:
     t = Ticket.read(task_path / "ticket.md")
     assert t.status == "done"
     assert t.step is None
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "task done" in log
 
 
@@ -305,7 +310,7 @@ def test_mark_active_message_appended(repo: Path) -> None:
         app, ["mark", "active", slug, "--message", "kicking off"]
     )
     assert result.exit_code == 0, result.output
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "activated (draft → active) — kicking off" in log
 
 
@@ -316,7 +321,7 @@ def test_mark_paused_message_appended(repo: Path) -> None:
         app, ["mark", "paused", slug, "--message", "blocked on review"]
     )
     assert result.exit_code == 0, result.output
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "paused (in_progress → paused) — blocked on review" in log
 
 
@@ -327,7 +332,7 @@ def test_mark_done_message_appended(repo: Path) -> None:
         app, ["mark", "done", slug, "--message", "shipped"]
     )
     assert result.exit_code == 0, result.output
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "task done — shipped" in log
 
 

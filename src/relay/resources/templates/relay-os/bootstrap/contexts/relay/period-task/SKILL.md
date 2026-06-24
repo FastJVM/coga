@@ -1,6 +1,6 @@
 ---
 name: relay/period-task
-description: For the agent running one firing of a recurring task. Persistent state lives in the parent recurring task's blackboard, not this period's blackboard. Auto-attached to every period task by the scaffolder.
+description: For the agent running one firing of a recurring task. Persistent state lives in the parent recurring task's blackboard region (its ticket.md, below the fence), not this period's blackboard. Auto-attached to every period task by the scaffolder.
 ---
 
 # You are a period task
@@ -8,8 +8,9 @@ description: For the agent running one firing of a recurring task. Persistent st
 You were scaffolded by `relay recurring` from a recurring task. Your
 task directory under `relay-os/tasks/recurring/<name>/` is the scratch space
 for this run. The path is stable for the template, but the directory is deleted
-after a completed run and recreated for a later period. Your own
-`blackboard.md` is gone with you when this run ends.
+after a completed run and recreated for a later period. Your own blackboard
+(the region of your `ticket.md`, below the `<!-- relay:blackboard -->` fence)
+is gone with you when this run ends.
 
 ## Your task ref names your parent
 
@@ -17,7 +18,8 @@ Your task ref is `recurring/<parent-name>`. The `recurring/` directory is the
 identity marker; the period is **not** encoded in the slug.
 
 Your parent recurring task lives at
-`relay-os/recurring/<parent-name>/`. Its `blackboard.md` persists across
+`relay-os/recurring/<parent-name>/`. Its blackboard region (in `ticket.md`,
+below the `<!-- relay:blackboard -->` fence) persists across
 every run. The scaffolder records the period currently being serviced there as
 `last_serviced_period: <period_key>`, where the bucket is `YYYY-MM-DD-HH`
 (hourly), `YYYY-MM-DD` (daily), `YYYY-Www` (weekly), or `YYYY-MM` (monthly).
@@ -28,13 +30,13 @@ not parse the period from your slug.
 
 If this run needs to remember anything for the next run — a
 last-processed commit SHA, a high-water mark, a cursor, a "posted /
-skipped" flag — read and write
-`relay-os/recurring/<parent-name>/blackboard.md`.
+skipped" flag — read and write the blackboard region (below the fence) of
+`relay-os/recurring/<parent-name>/ticket.md`.
 
 Every period-task run that carries state follows the same shape:
 
-1. At the start, read `relay-os/recurring/<parent-name>/blackboard.md`
-   to find the current `last_serviced_period` and where the previous run
+1. At the start, read the blackboard region of
+   `relay-os/recurring/<parent-name>/ticket.md` to find the current `last_serviced_period` and where the previous run
    stopped.
 2. Do this period's work.
 3. Before finishing, update that same file with whatever the next run
@@ -55,7 +57,7 @@ step) before finishing.
 
 ## Do not write last-run state to your own blackboard
 
-Your own `relay-os/tasks/recurring/<parent-name>/blackboard.md` is fresh for
+Your own blackboard (the region of `relay-os/tasks/recurring/<parent-name>/ticket.md`) is fresh for
 this run and gone after cleanup. Notes for yourself within this run are fine
 there; cross-run state is not — nothing in the instantiated task directory
 survives to the next firing.

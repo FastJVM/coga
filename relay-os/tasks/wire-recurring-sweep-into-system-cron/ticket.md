@@ -1,7 +1,8 @@
 ---
+slug: wire-recurring-sweep-into-system-cron
 title: Wire recurring sweep into system cron
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -55,3 +56,7 @@ template producing its expected output (e.g. a digest post) unattended.
   ticket scoped to *scheduling the sweep*; the budget-aware auto-drain loop is
   separate.
 - Related: `enforce-mode-auto-for-recurring-templates` (no-TTY safety).
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

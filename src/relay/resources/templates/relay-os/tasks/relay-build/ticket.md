@@ -1,7 +1,8 @@
 ---
+slug: relay-build
 title: relay-build
 status: active
-mode: interactive
+autonomy: interactive
 owner: new-user
 human: new-user
 agent: claude
@@ -32,3 +33,10 @@ repos only; no scan. Launching this ticket starts the chat.
 Empty until the `gather-and-spec` step runs at first launch — the agreed vision
 is written to `relay-os/contexts/product/vision/SKILL.md` and raw intake notes
 stay on the blackboard.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad for the human and agent to use while working
+through this task. For onboarding it holds the raw intake from the
+gather-and-spec chat — the working notes behind the vision, which stay here
+rather than in the durable `contexts/product/vision` doc.

@@ -17,6 +17,44 @@ def _write(path: Path, text: str) -> None:
     path.write_text(dedent(text).lstrip())
 
 
+def _write_script_task(repo: Path, *, slug: str, title: str) -> None:
+    """Write a workflow-less ticket whose own `script: inline` makes it a
+    script launch (deduced — `mode: script` is gone in v2). A script task
+    composes no agent prompt, so `--autonomy` can't override it."""
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    (task_dir / "ticket.md").write_text(dedent(f"""
+        ---
+        slug: {slug}
+        title: {title}
+        status: active
+        autonomy: interactive
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: claude
+        contexts: []
+        skills: []
+        workflow: null
+        script: inline
+        ---
+
+        ## Description
+
+        ## Script
+
+        ```bash
+        echo hi
+        ```
+
+        ## Context
+
+        <!-- relay:blackboard -->
+
+        # Blackboard
+    """).lstrip())
+
+
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     company = tmp_path / "relay-os"
@@ -42,7 +80,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_launch_auto_mode_is_blocked(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`mode: auto` launches are temporarily disabled.
+    """`autonomy: auto` launches are temporarily disabled.
 
     Auto runs (claude -p, codex exec) buffer stdout until completion, so an
     unattended launch sits without any live console signal. The block lives
@@ -52,7 +90,7 @@ def test_launch_auto_mode_is_blocked(
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Auto run", workflow_name="direct/body",
-        contexts=[], mode="auto", owner="marc", assignee="claude",
+        contexts=[], autonomy="auto", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
 
@@ -71,7 +109,7 @@ def test_launch_auto_mode_is_blocked(
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "auto-run"])
     assert result.exit_code == 2, result.output
-    assert "mode=auto is temporarily disabled" in result.output
+    assert "autonomy=auto is temporarily disabled" in result.output
     # No agent spawned, ticket still active.
     assert calls == []
     from relay.ticket import Ticket
@@ -82,30 +120,31 @@ def test_launch_auto_mode_is_blocked(
 def test_launch_mode_override_auto_is_blocked(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`--mode auto` is rejected just like a `mode: auto` ticket."""
+    """`--autonomy auto` is rejected just like an `autonomy: auto` ticket."""
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Interactive run", workflow_name="direct/body",
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
 
     result = CliRunner().invoke(
-        app, ["launch", "interactive-run", "--mode", "auto"]
+        app, ["launch", "interactive-run", "--autonomy", "auto"]
     )
     assert result.exit_code == 2
-    assert "mode=auto is temporarily disabled" in result.output
+    assert "autonomy=auto is temporarily disabled" in result.output
 
 
 def test_launch_mode_override_runs_auto_ticket_interactively(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay launch --mode interactive` runs a `mode: auto` ticket as an
-    interactive session — and leaves the ticket file's `mode:` untouched."""
+    """`relay launch --autonomy interactive` runs an `autonomy: auto` ticket as
+    an interactive session — and leaves the ticket file's `autonomy:`
+    untouched."""
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Auto run", workflow_name="direct/body",
-        contexts=[], mode="auto", owner="marc", assignee="claude",
+        contexts=[], autonomy="auto", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
 
@@ -126,51 +165,46 @@ def test_launch_mode_override_runs_auto_ticket_interactively(
     )
 
     runner = CliRunner()
-    result = runner.invoke(app, ["launch", "auto-run", "--mode", "interactive"])
+    result = runner.invoke(app, ["launch", "auto-run", "--autonomy", "interactive"])
     assert result.exit_code == 0, result.output
-    assert "mode overridden to 'interactive'" in result.output
+    assert "autonomy overridden to 'interactive'" in result.output
 
     # Interactive spawn: `claude <prompt>` — no `-p` auto flag.
     assert len(calls) == 1
     assert calls[0][0] == "claude"
     assert "-p" not in calls[0]
 
-    # The override is ephemeral — the ticket file still says `mode: auto`.
+    # The override is ephemeral — the ticket file still says `autonomy: auto`.
     from relay.ticket import Ticket
     ticket = Ticket.read(repo / "tasks" / "auto-run" / "ticket.md")
-    assert ticket.mode == "auto"
+    assert ticket.autonomy == "auto"
     assert ticket.status == "in_progress"
 
 
 def test_launch_mode_override_rejects_bad_value(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`--mode` only accepts interactive / auto."""
+    """`--autonomy` only accepts interactive / auto."""
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Auto run", workflow_name="direct/body",
-        contexts=[], mode="auto", owner="marc", assignee="claude",
+        contexts=[], autonomy="auto", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
 
-    result = CliRunner().invoke(app, ["launch", "auto-run", "--mode", "script"])
+    result = CliRunner().invoke(app, ["launch", "auto-run", "--autonomy", "script"])
     assert result.exit_code == 2
-    assert "--mode must be 'interactive' or 'auto'" in result.output
+    assert "--autonomy must be 'interactive' or 'auto'" in result.output
 
 
 def test_launch_mode_override_rejects_script_ticket(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A `mode: script` ticket has no agent prompt — `--mode` can't override it."""
-    cfg = load_config(repo)
-    create_task(
-        cfg=cfg, title="Script run", workflow_name="direct/body",
-        contexts=[], mode="script", owner="marc", assignee="claude",
-        watchers=[], status="active",
-    )
+    """A script ticket has no agent prompt — `--autonomy` can't override it."""
+    _write_script_task(repo, slug="script-run", title="Script run")
 
     result = CliRunner().invoke(
-        app, ["launch", "script-run", "--mode", "interactive"]
+        app, ["launch", "script-run", "--autonomy", "interactive"]
     )
     assert result.exit_code == 2
-    assert "not supported for script-mode tasks" in result.output
+    assert "not supported for script tasks" in result.output

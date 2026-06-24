@@ -16,7 +16,7 @@ Per-task primitives:
 - `validate_ticket_frontmatter(cfg, task_label, ticket)` — schema only.
 
 Checks (whole-repo):
-- Task dirs have ticket.md, blackboard.md, log.md.
+- Task dirs have a single ticket.md (with exactly one blackboard fence).
 - ticket.md parses as YAML frontmatter + body.
 - Frontmatter has the canonical key set with the right shapes.
 - contexts / skills / workflow step skills resolve to real files.
@@ -42,6 +42,8 @@ import requests
 
 from relay.blackboard import BLACKBOARD_WARN_BYTES, blackboard_size_warning, render_blackboard
 from relay.config import Config, ConfigError, load_config
+from relay.logfile import last_activity
+from relay.taskfile import BLACKBOARD_FENCE, fence_count
 from relay.period_state import read_snapshot, stale_keys
 from relay.paths import (
     context_resolution_paths,
@@ -61,13 +63,14 @@ from relay.ticket import Ticket, TicketError
 from relay.workflow import VALID_ASSIGNEE_ROLES
 
 VALID_STATUSES = {"draft", "active", "in_progress", "paused", "done"}
-VALID_MODES = {"interactive", "auto", "script"}
+VALID_AUTONOMY = {"interactive", "auto"}
 
 # Canonical ticket frontmatter schema.
 REQUIRED_TASK_KEYS: tuple[str, ...] = (
+    "slug",
     "title",
     "status",
-    "mode",
+    "autonomy",
     "owner",
     "human",
     "agent",
@@ -77,7 +80,9 @@ REQUIRED_TASK_KEYS: tuple[str, ...] = (
     "workflow",
 )
 # Optional keys that may appear in addition to the required set.
-OPTIONAL_TASK_KEYS: frozenset[str] = frozenset({"step", "watchers", "secrets"})
+OPTIONAL_TASK_KEYS: frozenset[str] = frozenset(
+    {"step", "watchers", "secrets", "script"}
+)
 _NON_EMPTY_STRING_KEYS: tuple[str, ...] = (
     "title",
     "owner",
@@ -285,18 +290,20 @@ def _check_one_task(
     out: list[Issue] = []
     task_label = ref.id_slug
 
-    # Required files
-    for fname in ("ticket.md", "blackboard.md", "log.md"):
-        if not (ref.path / fname).is_file():
-            out.append(Issue(
-                kind="missing-file",
-                task=task_label,
-                message=f"missing {fname}",
-                severity="error",
-            ))
+    # Required file — single-file format: just ticket.md (which carries the
+    # body and the blackboard region). The audit log is the repo-global
+    # relay-os/log.md, not a per-task file.
+    if not (ref.ticket_path).is_file():
+        out.append(Issue(
+            kind="missing-file",
+            task=task_label,
+            message="missing ticket.md",
+            severity="error",
+        ))
+        return out
 
     warning = blackboard_size_warning(
-        ref.path / "blackboard.md",
+        ref.ticket_path,
         max_bytes=max_blackboard_bytes,
     )
     if warning:
@@ -307,11 +314,8 @@ def _check_one_task(
             severity="warn",
         ))
 
-    if not (ref.path / "ticket.md").is_file():
-        return out
-
     try:
-        ticket = Ticket.read(ref.path / "ticket.md")
+        ticket = Ticket.read(ref.ticket_path)
     except TicketError as exc:
         out.append(Issue(
             kind="bad-frontmatter",
@@ -320,6 +324,20 @@ def _check_one_task(
             severity="error",
         ))
         return out
+
+    # Exactly one blackboard fence: the single-file format splits body from
+    # blackboard on it, so zero or many is a structural error.
+    fences = fence_count(ticket.body)
+    if fences != 1:
+        out.append(Issue(
+            kind="blackboard-fence",
+            task=task_label,
+            message=(
+                f"ticket.md must contain exactly one blackboard fence "
+                f"({BLACKBOARD_FENCE!r}); found {fences}"
+            ),
+            severity="error",
+        ))
 
     out.extend(_check_frontmatter_schema(cfg, task_label, ticket))
     out.extend(_check_secrets(cfg, task_label, ticket))
@@ -343,10 +361,13 @@ def _check_one_task(
     out.extend(_check_workflow_shape(task_label, ticket))
 
     if idle_hours != float("inf") and ticket.status == "in_progress":
-        log_path = ref.path / "log.md"
-        if log_path.is_file():
-            mtime = datetime.fromtimestamp(log_path.stat().st_mtime, tz=timezone.utc)
-            idle = now - mtime
+        # Idle time comes from this task's most recent line in the repo-global
+        # log (tagged by ref). Those timestamps are naive local time, so compare
+        # `now` in the same frame.
+        last = last_activity(cfg, ref.id_slug)
+        if last is not None:
+            now_local = now.astimezone().replace(tzinfo=None) if now.tzinfo else now
+            idle = now_local - last
             if idle > timedelta(hours=idle_hours):
                 out.append(Issue(
                     kind="stuck-in-progress",
@@ -470,13 +491,13 @@ def _check_frontmatter_schema(
                 severity="error",
             ))
 
-    if "mode" in fm:
-        mode = fm["mode"]
-        if not isinstance(mode, str) or mode not in VALID_MODES:
+    if "autonomy" in fm:
+        autonomy = fm["autonomy"]
+        if not isinstance(autonomy, str) or autonomy not in VALID_AUTONOMY:
             out.append(Issue(
-                kind="invalid-mode",
+                kind="invalid-autonomy",
                 task=task_label,
-                message=f"mode {mode!r} not in {sorted(VALID_MODES)}",
+                message=f"autonomy {autonomy!r} not in {sorted(VALID_AUTONOMY)}",
                 severity="error",
             ))
 
@@ -888,43 +909,44 @@ def apply_safe_fixes(cfg: Config, only: list[TaskRef] | None = None) -> list[Fix
     """Apply deterministic repairs that do not change task state.
 
     Current safe set:
-      - create missing `blackboard.md` from the default template
-      - create missing `log.md` as an empty append-only file
+      - append a missing blackboard fence + rendered region to a `ticket.md`
+        that lacks one (single-file format), so compose can split it.
 
-    Existing files are never rewritten, and `ticket.md` is never
-    reconstructed from inference.
+    The frontmatter and existing body are never rewritten, and `ticket.md` is
+    never reconstructed from inference.
     """
     fixes: list[Fix] = []
     targets = list(only) if only is not None else list_tasks(cfg)
     for ref in targets:
-        blackboard_path = ref.path / "blackboard.md"
-        if not blackboard_path.is_file():
-            title = ref.id_slug
-            try:
-                title = Ticket.read(ref.path / "ticket.md").title or ref.id_slug
-            except (TicketError, FileNotFoundError):
-                pass
-            blackboard_path.write_text(render_blackboard(title))
-            fixes.append(
-                Fix(
-                    kind="missing-file",
-                    task=ref.id_slug,
-                    message="created blackboard.md",
-                    path=str(blackboard_path),
-                )
+        ticket_path = ref.ticket_path
+        if not ticket_path.is_file():
+            continue
+        text = ticket_path.read_text()
+        if fence_count(text) >= 1:
+            continue
+        title = ref.id_slug
+        try:
+            title = Ticket.read(ticket_path).title or ref.id_slug
+        except (TicketError, FileNotFoundError):
+            pass
+        new = (
+            text.rstrip("\n")
+            + "\n\n"
+            + BLACKBOARD_FENCE
+            + "\n\n"
+            + render_blackboard(title).lstrip("\n")
+        )
+        if not new.endswith("\n"):
+            new += "\n"
+        ticket_path.write_text(new)
+        fixes.append(
+            Fix(
+                kind="blackboard-fence",
+                task=ref.id_slug,
+                message="added blackboard fence + region",
+                path=str(ticket_path),
             )
-
-        log_path = ref.path / "log.md"
-        if not log_path.is_file():
-            log_path.write_text("")
-            fixes.append(
-                Fix(
-                    kind="missing-file",
-                    task=ref.id_slug,
-                    message="created log.md",
-                    path=str(log_path),
-                )
-            )
+        )
 
     return fixes
 

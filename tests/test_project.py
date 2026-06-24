@@ -57,7 +57,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Plan a project into tickets
-        mode: interactive
+        autonomy: interactive
         skills:
           - bootstrap/project
         assignee: claude
@@ -117,7 +117,7 @@ def _create_drafts(*titles: str):  # type: ignore[no-untyped-def]
                 title=title,
                 workflow_name=None,
                 contexts=[],
-                mode="interactive",
+                autonomy="interactive",
                 owner=cfg.current_user,
                 assignee=None,
                 watchers=[],
@@ -138,9 +138,7 @@ def test_project_composes_skill_and_logs_launch(
 
     assert len(prompts) == 1
     assert "Skill: bootstrap/project" in prompts[0]
-    assert "project planning launched" in (
-        repo / "bootstrap" / "project" / "log.md"
-    ).read_text()
+    assert "project planning launched" in (repo / "log.md").read_text()
     # No drafts created → says so plainly rather than implying success.
     assert "no draft tickets were created" in result.output
 
@@ -197,17 +195,17 @@ def test_project_fails_loud_on_broken_draft(
             title="Broken step",
             workflow_name=None,
             contexts=[],
-            mode="interactive",
+            autonomy="interactive",
             owner=cfg.current_user,
             assignee=None,
             watchers=[],
             status="draft",
         )
-        # An invalid mode is a hard validation error — the session left a
+        # An invalid autonomy is a hard validation error — the session left a
         # malformed ticket and the command must surface it, not pass silently.
         path = result["path"] / "ticket.md"
         t = Ticket.read(path)
-        t.frontmatter["mode"] = "bogus"
+        t.frontmatter["autonomy"] = "bogus"
         t.write(path)
 
     prompts: list[str] = []

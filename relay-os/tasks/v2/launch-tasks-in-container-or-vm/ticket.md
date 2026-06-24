@@ -1,7 +1,8 @@
 ---
+slug: v2/launch-tasks-in-container-or-vm
 title: Launch tasks in a container or VM instead of locally
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -82,3 +83,7 @@ Two pressures pointing the same direction: recurring tasks (cron)
 and the token-budget idle-execution proposal both want a way to run
 work off the developer's machine. Worth designing once for both
 rather than bolting on twice.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

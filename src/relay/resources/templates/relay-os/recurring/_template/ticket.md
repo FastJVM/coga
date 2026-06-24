@@ -5,7 +5,7 @@ title: "Replace with the recurring task title"
 # Pick a mode: `script` runs a skill script directly with no agent;
 # `auto` is a one-shot headless agent run whose output is buffered to the
 # task log; `interactive` drops into a human terminal with live output.
-mode: script
+autonomy: auto
 workflow: namespace/your-workflow
 owner: replace-with-human-name
 assignee: replace-with-human-or-agent-nickname
@@ -32,3 +32,7 @@ non-underscore name.
 period's task when this template's schedule is due. Directories in
 `recurring/` whose name starts with `_` are skipped — that's how this
 template stays inert.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

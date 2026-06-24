@@ -1,8 +1,9 @@
 ---
+slug: v2/audit-rules-md-usage-across-relay-and-decide-wheth
 title: Audit rules.md usage across relay and decide whether to keep, gut, or remove
   it
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -81,3 +82,7 @@ touch `rules.md`; keep the concerns separate.
 - `src/relay/resources/templates/relay-os/rules.md` — packaged default.
 - `relay/principles` context — the filter for whether each rule earns its
   place.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

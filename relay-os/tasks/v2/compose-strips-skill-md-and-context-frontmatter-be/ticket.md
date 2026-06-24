@@ -1,7 +1,8 @@
 ---
+slug: v2/compose-strips-skill-md-and-context-frontmatter-be
 title: Compose strips SKILL.md and context frontmatter before injection
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -53,3 +54,7 @@ raw file-read errors surface a clear message naming the file.
 Code: `src/relay/compose.py` (`_skill_layers` ~279-296, `_step_layers`
 ~299-360, context loop 190-199), `src/relay/skill.py` (`Skill.load`,
 unused by compose today), `tests/test_compose.py`.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

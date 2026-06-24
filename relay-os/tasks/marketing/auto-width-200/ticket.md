@@ -1,7 +1,8 @@
 ---
+slug: marketing/auto-width-200
 title: auto-width-200
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: zach
 agent: claude
@@ -56,3 +57,6 @@ terminal's detected size — see Context for the root cause.
   forcing `width=200` unconditionally (which would hard-wrap narrow terminals
   and make that branch dead code).
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

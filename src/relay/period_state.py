@@ -28,6 +28,7 @@ from pathlib import Path
 
 from relay.config import Config
 from relay.paths import recurring_dir
+from relay.taskfile import read_blackboard
 
 # A dotfile, deliberately: it sits beside the three canonical task files
 # (ticket/blackboard/log) without being mistaken for one, and `relay validate`'s
@@ -74,15 +75,16 @@ def parse_keys(blackboard_text: str, keys: list[str]) -> dict[str, str | None]:
 
 
 def write_snapshot(
-    task_dir: Path, parent: str, blackboard_path: Path, state_keys: list[str]
+    task_dir: Path, parent: str, ticket_path: Path, state_keys: list[str]
 ) -> None:
     """Snapshot the parent blackboard's declared keys into the period task dir.
 
     Called from the recurring creator for any template that declares
-    `state_keys`. A no-op-safe write: a missing parent blackboard snapshots
-    every key as `None`.
+    `state_keys`. `ticket_path` is the parent template's `ticket.md`; the
+    declared keys are read from its blackboard region. A no-op-safe write: a
+    missing parent ticket snapshots every key as `None`.
     """
-    text = blackboard_path.read_text() if blackboard_path.is_file() else ""
+    text = read_blackboard(ticket_path, blackboard_required=False) if ticket_path.is_file() else ""
     keys = parse_keys(text, list(state_keys))
     payload = {"parent": parent, "keys": keys}
     (task_dir / SNAPSHOT_FILE).write_text(json.dumps(payload, indent=2) + "\n")
@@ -118,10 +120,10 @@ def stale_keys(cfg: Config, snapshot: StateSnapshot) -> list[str]:
     advancing that key. Returns the stale keys in their declared (snapshot)
     order; an empty list means every declared key moved (a healthy run).
     """
-    blackboard = recurring_dir(cfg) / snapshot.parent / "blackboard.md"
-    if not blackboard.parent.is_dir():
+    ticket = recurring_dir(cfg) / snapshot.parent / "ticket.md"
+    if not ticket.parent.is_dir():
         return []
-    text = blackboard.read_text() if blackboard.is_file() else ""
+    text = read_blackboard(ticket, blackboard_required=False) if ticket.is_file() else ""
     current = parse_keys(text, list(snapshot.keys))
     return [
         key

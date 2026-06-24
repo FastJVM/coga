@@ -1,7 +1,8 @@
 ---
+slug: prevent-autostash-spool-conflicts-on-control-branc
 title: Prevent autostash spool conflicts on control-branch sync
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -212,3 +213,7 @@ stashes). The fix here is to stop it recurring.
 See `relay/architecture` ("Status is the signal" — no filesystem mutex; the
 spool as a producer/consumer queue on a blackboard) and `src/relay/git.py`,
 `src/relay/spool.py`, `src/relay/notification/` (the spool writers).
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

@@ -1,7 +1,8 @@
 ---
+slug: v2/validate-skill-md-frontmatter-conformance-not-just
 title: Validate SKILL.md frontmatter conformance not just ref existence
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -47,3 +48,7 @@ Code: `src/relay/validate.py` (`_check_refs` 533-592, only existence today),
 `src/relay/skill.py` (`Skill.load`, the parser to reuse),
 `src/relay/skill_manager.py:882-886` (error currently swallowed). Bet stated in
 `relay-os/skills/_template/SKILL.md`.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

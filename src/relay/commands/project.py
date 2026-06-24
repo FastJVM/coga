@@ -97,7 +97,8 @@ def project(
 
     before = {r.id_slug for r in list_tasks(cfg)}
     append_log(
-        ref.path,
+        cfg,
+        ref.id_slug,
         f"human:{cfg.current_user}",
         f"project planning launched (assignee={launch_assignee}, agent={agent.name})",
     )

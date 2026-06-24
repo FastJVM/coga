@@ -1,7 +1,8 @@
 ---
+slug: v2/document-untrusted-tool-output-verify-through-grou
 title: Document untrusted-tool-output verify-through-ground-truth agent discipline
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -59,3 +60,6 @@ won't-do if judged not worth a durable context.
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

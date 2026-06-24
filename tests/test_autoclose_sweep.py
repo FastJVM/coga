@@ -99,18 +99,14 @@ def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
     # their static template content is compared. Everything else is byte-exact.
     pairs = [
         (
+            # Single-file format: the recurring template is one `ticket.md` whose
+            # blackboard region holds the `last_serviced_period:` high-water mark
+            # a real run mutates — so this pair is tolerant (the serviced-period
+            # line is stripped). The append-only log lives in the repo-global
+            # `relay-os/log.md`, not in this template, so there is no separate
+            # blackboard.md / log.md to keep in sync anymore.
             LIVE_RELAY_OS / "recurring" / "autoclose-merged" / "ticket.md",
             PACKAGED_RELAY_OS / "recurring" / "autoclose-merged" / "ticket.md",
-            False,
-        ),
-        (
-            LIVE_RELAY_OS / "recurring" / "autoclose-merged" / "blackboard.md",
-            PACKAGED_RELAY_OS / "recurring" / "autoclose-merged" / "blackboard.md",
-            True,
-        ),
-        (
-            LIVE_RELAY_OS / "recurring" / "autoclose-merged" / "log.md",
-            PACKAGED_RELAY_OS / "recurring" / "autoclose-merged" / "log.md",
             True,
         ),
         (
@@ -171,11 +167,13 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
         relay_os / "recurring" / "autoclose-merged",
     )
     # The live template doubles as the canonical source but is serviced by real
-    # `relay recurring` runs in this repo, so its committed blackboard may carry
-    # a stale `last_serviced_period:`. Strip it so this test controls its own
-    # starting period regardless of dogfooding drift.
-    copied_bb = relay_os / "recurring" / "autoclose-merged" / "blackboard.md"
-    copied_bb.write_text(_strip_runtime_state(copied_bb.read_text()) + "\n")
+    # `relay recurring` runs in this repo, so its committed `ticket.md`
+    # blackboard region may carry a stale `last_serviced_period:`. Strip it so
+    # this test controls its own starting period regardless of dogfooding drift.
+    # (Single-file format: the high-water mark lives in ticket.md, not a
+    # separate blackboard.md.)
+    copied_ticket = relay_os / "recurring" / "autoclose-merged" / "ticket.md"
+    copied_ticket.write_text(_strip_runtime_state(copied_ticket.read_text()) + "\n")
     shutil.copytree(
         LIVE_RELAY_OS / "workflows" / "autoclose-merged",
         relay_os / "workflows" / "autoclose-merged",
@@ -196,12 +194,21 @@ def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> No
     assert [(ref.directory, ref.slug, ref.id_slug) for ref in refs] == [
         ("recurring", "autoclose-merged", "recurring/autoclose-merged")
     ]
-    assert (
-        relay_os / "recurring" / "autoclose-merged" / "blackboard.md"
-    ).read_text().endswith("last_serviced_period: 2026-06-11\n")
+    # The high-water mark is written into the template's ticket.md blackboard
+    # region (single-file format), not a separate blackboard.md.
+    from relay.recurring import read_last_serviced_period
+
+    template_ticket = relay_os / "recurring" / "autoclose-merged" / "ticket.md"
+    assert read_last_serviced_period(template_ticket) == "2026-06-11"
 
     ticket = Ticket.read(refs[0].path / "ticket.md")
-    assert ticket.mode == "script"
+    # No `mode: script` anymore — script dispatch is deduced from the workflow
+    # step's script-backed skill. The template is `autonomy: auto`, and
+    # `is_script_launch` confirms the created task runs as a script, not an agent.
+    from relay.commands.launch_script import is_script_launch
+
+    assert ticket.autonomy == "auto"
+    assert is_script_launch(cfg, ticket) is True
     assert ticket.assignee == "claude"
     assert ticket.workflow["name"] == "autoclose-merged/sweep"
     assert ticket.workflow["steps"][0]["skills"] == ["relay/autoclose/sweep"]

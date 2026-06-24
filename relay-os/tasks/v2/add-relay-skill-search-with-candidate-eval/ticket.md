@@ -1,7 +1,8 @@
 ---
+slug: v2/add-relay-skill-search-with-candidate-eval
 title: Add relay skill search with candidate eval
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -128,3 +129,6 @@ Open design questions for the interview:
       network/`gh` call mocked (no live network in tests).
 - [ ] `python -m pytest` and `relay validate --json` are green.
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

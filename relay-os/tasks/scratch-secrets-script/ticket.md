@@ -1,7 +1,8 @@
 ---
+slug: scratch-secrets-script
 title: scratch secrets script
 status: done
-mode: script
+autonomy: auto
 owner: nick
 human: nick
 agent: claude
@@ -24,3 +25,6 @@ secrets: null
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

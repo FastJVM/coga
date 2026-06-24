@@ -10,6 +10,7 @@ from conftest import seed_direct_body_workflow
 from relay.cli import app
 from relay.config import load_config
 from relay.create import create_task
+from relay.logfile import task_log_lines
 from relay.ticket import Ticket
 
 
@@ -52,7 +53,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Create a new ticket
-        mode: interactive
+        autonomy: interactive
         skills:
           - bootstrap/ticket
         assignee: claude
@@ -123,7 +124,8 @@ def test_ticket_title_creates_draft_and_launches_authoring(
     assert ticket.status == "draft"
     assert ticket.title == "Investigate retries"
     assert ticket.skills == []
-    assert "ticket authoring launched" in (task_dir / "log.md").read_text()
+    log = "\n".join(task_log_lines(load_config(repo), "investigate-retries"))
+    assert "ticket authoring launched" in log
 
     assert len(prompts) == 1
     assert "Relay task — investigate-retries" in prompts[0]
@@ -207,7 +209,7 @@ def test_ticket_existing_active_task_is_editable_without_status_change(
         title="Queued work",
         workflow_name="direct/body",
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -236,7 +238,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
         title="Broken context",
         workflow_name="direct/body",
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -276,7 +278,7 @@ def test_ticket_edits_in_progress_task(
         title="Running work",
         workflow_name="direct/body",
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],

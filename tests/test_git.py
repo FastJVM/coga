@@ -43,6 +43,13 @@ def _cfg(repo_root: Path, **over) -> Config:
     return Config(**base)
 
 
+def _global_log(cfg: Config) -> str:
+    """Read the repo-global audit log (`relay-os/log.md`) where sync failures
+    are now recorded (the per-task `log.md` is gone in the single-file format)."""
+    log = cfg.repo_root / "log.md"
+    return log.read_text() if log.is_file() else ""
+
+
 def _task_dir(parent: Path, slug: str = "demo") -> Path:
     """Create a task directory with a ticket file, return its path."""
     path = parent / "tasks" / slug
@@ -297,7 +304,7 @@ def test_sync_feature_branch_nonfatal_on_push_failure(git_repo, capsys):
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
     assert "sync failed" in capsys.readouterr().err
-    assert "sync failed" in (task / "log.md").read_text()
+    assert "sync failed" in _global_log(cfg)
 
 
 def test_sync_detached_head_lands_without_local_commit(git_repo, capsys):
@@ -339,7 +346,7 @@ def test_sync_nonfatal_on_rev_parse_failure(tmp_path, monkeypatch, real_git, cap
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
     assert "sync failed" in capsys.readouterr().err
-    assert "sync failed" in (task / "log.md").read_text()
+    assert "sync failed" in _global_log(cfg)
 
 
 def test_sync_suppressed_when_disabled(tmp_path, capsys, real_git):
@@ -451,7 +458,7 @@ def test_sync_control_branch_nonfatal_on_rebase_conflict(git_repo, capsys):
 
     err = capsys.readouterr().err
     assert "sync failed" in err
-    assert "sync failed" in (task / "log.md").read_text()
+    assert "sync failed" in _global_log(cfg)
     # The repo is not left mid-rebase.
     assert not (git_repo.root / ".git" / "rebase-merge").exists()
     assert not (git_repo.root / ".git" / "rebase-apply").exists()
@@ -467,7 +474,7 @@ def test_sync_nonfatal_on_push_failure(git_repo, capsys):
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
     assert "sync failed" in capsys.readouterr().err
-    assert "sync failed" in (task / "log.md").read_text()
+    assert "sync failed" in _global_log(cfg)
 
 
 # --- CLI integration through real git ------------------------------------------
@@ -529,10 +536,12 @@ def test_cli_panic_syncs_blocker_to_origin(git_repo):
     assert any(
         s.startswith(f"Ticket: {slug} — panic") for s in git_repo.origin_subjects()
     )
-    blackboard = git_repo.git(
-        "show", f"main:relay-os/tasks/{slug}/blackboard.md", cwd=git_repo.origin
+    # The blocker is appended to the blackboard region of the single-file
+    # ticket.md (there is no separate blackboard.md anymore).
+    ticket = git_repo.git(
+        "show", f"main:relay-os/tasks/{slug}/ticket.md", cwd=git_repo.origin
     )
-    assert "retry ceiling unspecified" in blackboard
+    assert "retry ceiling unspecified" in ticket
 
 
 def test_cli_panic_from_feature_branch_leaves_code_untouched(git_repo):
@@ -713,8 +722,10 @@ def test_cli_ticket_authoring_records_session_without_ticket_edits(git_repo, mon
         s.startswith(f"Ticket: {slug} — authored")
         for s in git_repo.origin_subjects()
     )
+    # The authoring line lands in the repo-global `relay-os/log.md` now, which
+    # rides the same-branch commit+push on `main` to origin.
     log = git_repo.git(
-        "show", f"main:relay-os/tasks/{slug}/log.md", cwd=git_repo.origin
+        "show", "main:relay-os/log.md", cwd=git_repo.origin
     )
     assert "ticket authoring launched" in log
 

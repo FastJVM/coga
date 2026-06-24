@@ -1,7 +1,8 @@
 ---
+slug: v2/rename-workflow-primitive-to-playbook
 title: Rename workflow primitive to playbook
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -91,3 +92,6 @@ behavior — this is a pure rename, no semantic change.
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

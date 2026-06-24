@@ -26,7 +26,21 @@ from relay.period_state import (
     write_snapshot,
 )
 from relay.recurring import RecurringError, Template, scan_due
+from relay.taskfile import upsert_blackboard
 from relay.tasks import list_tasks
+
+
+def _set_parent_state(repo: Path, region: str) -> None:
+    """Set the dev-update template's blackboard region (below its fence).
+
+    Single-file format: the parent's declared state keys live in the blackboard
+    region of `recurring/dev-update/ticket.md`, not a sibling blackboard.md. The
+    region content starts on its own line after the fence, as every real
+    blackboard writer leaves it.
+    """
+    upsert_blackboard(
+        repo / "recurring" / "dev-update" / "ticket.md", "\n\n" + region.lstrip("\n")
+    )
 
 
 def _write(path: Path, text: str) -> None:
@@ -56,12 +70,16 @@ def test_parse_keys_takes_first_match() -> None:
 
 
 def test_snapshot_round_trip(tmp_path: Path) -> None:
-    parent_bb = tmp_path / "blackboard.md"
-    parent_bb.write_text("last_commit: AAA\nposted: yes\n")
+    # Single-file format: the parent's declared keys live in its `ticket.md`
+    # blackboard region (below the fence), which `write_snapshot` reads.
+    parent_ticket = tmp_path / "ticket.md"
+    parent_ticket.write_text(
+        "## Description\n\n<!-- relay:blackboard -->\n\nlast_commit: AAA\nposted: yes\n"
+    )
     task_dir = tmp_path / "task"
     task_dir.mkdir()
 
-    write_snapshot(task_dir, "relay-dev-update", parent_bb, ["last_commit"])
+    write_snapshot(task_dir, "relay-dev-update", parent_ticket, ["last_commit"])
 
     snap = read_snapshot(task_dir)
     assert snap == StateSnapshot(parent="relay-dev-update", keys={"last_commit": "AAA"})
@@ -128,7 +146,7 @@ def repo(tmp_path: Path) -> Path:
         ---
         schedule: "0 9 * * *"
         title: "Dev update"
-        mode: interactive
+        autonomy: interactive
         assignee: claude
         owner: marc
         state_keys:
@@ -138,11 +156,9 @@ def repo(tmp_path: Path) -> Path:
         ## Description
 
         Post the daily digest.
-        """,
-    )
-    _write(
-        company / "recurring" / "dev-update" / "blackboard.md",
-        """
+
+        <!-- relay:blackboard -->
+
         ### Dev Update State
 
         last_commit: AAA
@@ -160,9 +176,7 @@ def test_stale_keys_flags_unchanged(repo: Path) -> None:
 
 def test_stale_keys_clears_when_advanced(repo: Path) -> None:
     cfg = load_config(repo)
-    (repo / "recurring" / "dev-update" / "blackboard.md").write_text(
-        "### Dev Update State\n\nlast_commit: BBB\n"
-    )
+    _set_parent_state(repo, "### Dev Update State\n\nlast_commit: BBB\n")
     snap = StateSnapshot(parent="dev-update", keys={"last_commit": "AAA"})
     assert stale_keys(cfg, snap) == []
 
@@ -172,7 +186,7 @@ def test_stale_keys_flags_missing_or_blank_current_value(
     repo: Path, text: str
 ) -> None:
     cfg = load_config(repo)
-    (repo / "recurring" / "dev-update" / "blackboard.md").write_text(text)
+    _set_parent_state(repo, text)
     snap = StateSnapshot(parent="dev-update", keys={"last_commit": "AAA"})
     assert stale_keys(cfg, snap) == ["last_commit"]
 
@@ -180,7 +194,6 @@ def test_stale_keys_flags_missing_or_blank_current_value(
 def test_stale_keys_ignores_removed_parent(repo: Path) -> None:
     cfg = load_config(repo)
     parent = repo / "recurring" / "dev-update"
-    (parent / "blackboard.md").unlink()
     (parent / "ticket.md").unlink()
     parent.rmdir()
     snap = StateSnapshot(parent="dev-update", keys={"last_commit": "AAA"})
@@ -230,7 +243,7 @@ def test_create_without_state_keys_writes_no_snapshot(tmp_path: Path) -> None:
         ---
         schedule: "0 9 * * *"
         title: "Plain"
-        mode: interactive
+        autonomy: interactive
         assignee: claude
         owner: marc
         ---
@@ -266,7 +279,7 @@ def test_template_rejects_malformed_state_keys(
         ---
         schedule: "0 9 * * *"
         title: "Bad"
-        mode: interactive
+        autonomy: interactive
         assignee: claude
         owner: marc
         {state_keys_line}
@@ -304,9 +317,7 @@ def test_mark_done_quiet_when_cursor_advanced(repo: Path, monkeypatch) -> None:
     monkeypatch.chdir(repo)
     slug = _create_period(repo)
     # The run recorded a new high-water mark before finishing.
-    (repo / "recurring" / "dev-update" / "blackboard.md").write_text(
-        "### Dev Update State\n\nlast_commit: BBB\n"
-    )
+    _set_parent_state(repo, "### Dev Update State\n\nlast_commit: BBB\n")
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
     assert "did not advance" not in result.output
@@ -317,9 +328,7 @@ def test_mark_done_syncs_parent_blackboard_when_cursor_advanced(
 ) -> None:
     monkeypatch.chdir(repo)
     slug = _create_period(repo)
-    (repo / "recurring" / "dev-update" / "blackboard.md").write_text(
-        "### Dev Update State\n\nlast_commit: BBB\n"
-    )
+    _set_parent_state(repo, "### Dev Update State\n\nlast_commit: BBB\n")
 
     synced: list[tuple[Path, list[Path], str]] = []
 
@@ -336,9 +345,11 @@ def test_mark_done_syncs_parent_blackboard_when_cursor_advanced(
     assert result.exit_code == 0, result.output
 
     task_dir = repo / "tasks" / slug
-    parent_blackboard = repo / "recurring" / "dev-update" / "blackboard.md"
+    # Single-file format: the parent's working state lives in its ticket.md
+    # blackboard region, so that's the file mark done syncs.
+    parent_ticket = repo / "recurring" / "dev-update" / "ticket.md"
     assert synced == [
-        (task_dir, [task_dir, parent_blackboard], f"Ticket: {slug} — done")
+        (task_dir, [task_dir, parent_ticket], f"Ticket: {slug} — done")
     ]
 
 
@@ -379,9 +390,7 @@ def test_validate_flags_done_stuck_cursor(repo: Path, monkeypatch) -> None:
 def test_validate_quiet_when_cursor_advanced(repo: Path, monkeypatch) -> None:
     monkeypatch.chdir(repo)
     slug = _create_period(repo)
-    (repo / "recurring" / "dev-update" / "blackboard.md").write_text(
-        "### Dev Update State\n\nlast_commit: BBB\n"
-    )
+    _set_parent_state(repo, "### Dev Update State\n\nlast_commit: BBB\n")
     CliRunner().invoke(app, ["mark", "done", slug])
 
     from relay import validate as validate_mod

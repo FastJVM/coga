@@ -1,7 +1,8 @@
 ---
+slug: v2/issue-inbox-slack
 title: issue-inbox-slack
 status: active
-mode: interactive
+autonomy: interactive
 owner: zach
 human: zach
 agent: claude
@@ -36,3 +37,6 @@ Webhook-only; no Slack app, no buttons, no server.
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

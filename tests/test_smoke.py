@@ -22,6 +22,8 @@ from relay.cli import app
 from relay.create import create_task
 from relay.compose import compose_prompt
 from relay.config import load_config
+from relay.logfile import task_log_lines
+from relay.taskfile import fence_count, read_blackboard
 from relay.tasks import list_tasks, read_ticket
 from relay.validate import run as validate_run
 
@@ -61,15 +63,19 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         title="Fix retry logic",
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=["pierre"],
         status="in_progress",
     )
     task_path = ref["path"]
-    for name in ("ticket.md", "blackboard.md", "log.md"):
-        assert (task_path / name).is_file()
+    # Single-file format: one ticket.md (with a blackboard fence), no sibling
+    # blackboard.md / log.md.
+    assert (task_path / "ticket.md").is_file()
+    assert not (task_path / "blackboard.md").exists()
+    assert not (task_path / "log.md").exists()
+    assert fence_count((task_path / "ticket.md").read_text()) == 1
 
     # Discovery sees both the created top-level task and the seeded
     # fixture task nested one level inside the `tasks/auto/` directory.
@@ -100,8 +106,8 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert r.exit_code == 0, r.output
     assert read_ticket(task_ref).status == "done"
 
-    # Lifecycle shows up in log.md
-    log = (task_path / "log.md").read_text()
+    # Lifecycle shows up in the repo-global log, tagged with this task's ref.
+    log = "\n".join(task_log_lines(cfg, slug))
     assert "created" in log
     assert "advanced to step 2 (pr)" in log
     assert "task done" in log
@@ -109,7 +115,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # 4. Create a second task so we can exercise panic + slack without revival of the first.
     ref2 = create_task(
         cfg=cfg, title="Investigate slow DNS",
-        workflow_name="code/with-review", contexts=[], mode="interactive",
+        workflow_name="code/with-review", contexts=[], autonomy="interactive",
         owner="marc", assignee="claude", watchers=[], status="in_progress",
     )
     r = runner.invoke(app, [
@@ -118,7 +124,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "--reason", "need prod DNS access to reproduce",
     ])
     assert r.exit_code == 1, r.output
-    bb = (ref2["path"] / "blackboard.md").read_text()
+    bb = read_blackboard(ref2["path"] / "ticket.md")
     assert "need prod DNS access to reproduce" in bb
     assert "## Blockers" in bb
 
@@ -128,7 +134,8 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "--message", "checked DNS resolver logs, no answer",
     ])
     assert r.exit_code == 0
-    assert "checked DNS resolver logs" in (ref2["path"] / "log.md").read_text()
+    log2 = "\n".join(task_log_lines(cfg, ref2["slug"]))
+    assert "checked DNS resolver logs" in log2
 
     # 5. Status hides done tasks by default; --all includes them.
     r = runner.invoke(app, ["status"])

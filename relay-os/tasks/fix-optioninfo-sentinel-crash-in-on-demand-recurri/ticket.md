@@ -1,7 +1,8 @@
 ---
+slug: fix-optioninfo-sentinel-crash-in-on-demand-recurri
 title: Fix OptionInfo sentinel crash in on-demand recurring launchers
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -52,3 +53,6 @@ reported by a scan, not yet verified against current source.
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

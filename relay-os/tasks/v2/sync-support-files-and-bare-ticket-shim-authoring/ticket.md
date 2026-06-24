@@ -1,7 +1,8 @@
 ---
+slug: v2/sync-support-files-and-bare-ticket-shim-authoring
 title: Sync support files and bare-ticket-shim authoring edits across checkouts
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -34,3 +35,6 @@ step: 1 (implement)
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

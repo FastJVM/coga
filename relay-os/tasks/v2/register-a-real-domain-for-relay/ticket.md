@@ -1,7 +1,8 @@
 ---
+slug: v2/register-a-real-domain-for-relay
 title: Register a real domain for Relay
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -57,3 +58,6 @@ Wave 1 launch-gate item. Pairs tightly with `one-line-install`,
 `improve-readme-and-doc`, and the `marketing/launch-relay-product-launch-comms`
 copy — they all need a final URL to point at.
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

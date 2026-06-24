@@ -1,7 +1,8 @@
 ---
+slug: document-cross-machine-sandbox-dev-loop-friction-i
 title: Document cross-machine/sandbox dev-loop friction in relay/codebase
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -49,3 +50,6 @@ This is a doc task for a human to design and place the wording.
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

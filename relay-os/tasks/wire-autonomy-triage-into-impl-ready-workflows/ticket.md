@@ -1,7 +1,8 @@
 ---
+slug: wire-autonomy-triage-into-impl-ready-workflows
 title: Wire autonomy triage into impl-ready workflows
 status: in_progress
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -175,3 +176,128 @@ reading the context file (or via this ticket's attached `autonomy/triage`).
 This wiring is authoring-time and general; it is independent of
 `browser/build-automation`, whose 3-outcome failure-radius triage is a separate,
 narrower concern and is left untouched.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Design decisions (this session)
+
+- **Premise reversed: authoring-time, not impl-ready.** Owner (nick) decided
+  triage runs at `relay ticket` / `bootstrap/ticket`, reversing both the
+  predecessor (`automation-triage`) and the original draft of this ticket.
+  Rationale: tier == workflow, so triage must run *before* the workflow is
+  frozen; a step inside a `code/*` workflow runs too late to re-route. Full
+  reasoning is in the ticket Description.
+- **Surface area shrank.** No `code/*` / `dev/*` / `_template` *workflow* step
+  is added. The change is concentrated in the `bootstrap/ticket` skill (+ its
+  packaged mirror) plus an `## Autonomy` section on the task `_template`.
+
+## Open Questions — RESOLVED by owner (this session)
+
+1. **Advisory vs. mandatory tier→workflow mapping.** → **Advisory.** Tier informs
+   the step-3 recommendation; human can override. (A `human-verify` code task can
+   still use `code/with-review`.)
+2. **Where to record the tier.** → **In `mode`** (`autonomous` / `human` /
+   `human+ai`) — but that representation is **its own ticket** (filed below).
+   This ticket adds **no** `## Autonomy` field/section and does **not** edit the
+   task `_template`. The tier is expressed via the chosen workflow/assignees and
+   shown in the step-7 summary only.
+3. **`fully-automated` → mode?** → Triage may **suggest** an unattended mode
+   (`script`, or `auto` = script + `claude -p`); do not auto-set, do not encode
+   mode semantics here. Note: the predecessor ticket's "`mode: auto` is disabled"
+   claim is *not* carried forward — owner's taxonomy differs; mode is the other
+   ticket's job.
+4. **Evaluator checks the tier?** → No special instruction needed; the owner's
+   review already scrutinizes the classification.
+5. **Active-edit re-classification?** → **No need** — human edits handle it. No
+   special branch.
+
+No open questions remain blocking. The spec is fully specified.
+
+## Follow-up ticket (filed)
+
+Per owner: the structured representation of the tier in `mode` (autonomous /
+human / human+ai), reconciled with interactive/auto/script, is split out. Filed
+as a draft: `represent-autonomy-tier-in-ticket-mode-field` (needs a
+`bootstrap/ticket` interview to scope + pick a workflow before activation).
+
+## Note on ticket status
+
+This ticket is still `status: draft` (predecessor filed it as a draft). The
+design step ran against it anyway. The owner will need `relay mark active`
+before the implement step can run for real — flagging so it isn't a surprise at
+the review-design → implement boundary.
+
+**UPDATE (implement step):** Resolved — ticket is now `status: in_progress`,
+`step: 3 (implement)`. Owner activated it; the draft note above is stale.
+
+## Dev
+
+- branch: `wire-autonomy-triage-authoring`
+- worktree: `../relay-autonomy-triage-authoring`
+- pr: https://github.com/FastJVM/relay/pull/328
+
+## Implement step notes
+
+**Scope correction vs. stale design bullet.** The "Design decisions" bullet at
+the top says the change includes "an `## Autonomy` section on the task
+`_template`". That is contradicted by the resolved Open Questions (#2) and the
+final ticket Acceptance Criteria, which are authoritative: **no new field/section,
+no edit to the task `_template`.** Implementing to the ticket AC, not the stale
+bullet. The tier is expressed only via chosen workflow/assignees + the step-7
+summary.
+
+**Change is skill-text only.** Edit `bootstrap/ticket` SKILL.md (live + packaged
+mirror, kept byte-identical). No code path touched. Tests in `tests/test_ticket.py`
+use a synthetic fixture skill body (not the real shipped text) and assert only on
+the injection mechanism (`Skill: bootstrap/ticket` in the composed prompt), so
+**no test change is required** (per the ticket's own AC clause).
+
+**Edits made:**
+- Step 3 interview: inserted a new item 3 **Autonomy triage** (after Context,
+  before Workflow) that runs the 3-question test from
+  `relay-os/contexts/autonomy/triage/SKILL.md`, lands on a tier, captures a
+  one-line rationale per question, and documents the advisory tier→workflow
+  mapping. Renumbered Workflow→4, Contexts→5, Assignee→6, Extension→7.
+- Step 3 Workflow item: triage tier advises the recommendation, never overrides
+  an explicit human pick.
+- Step 7 summary: added an `Autonomy tier` block (tier + per-question rationale)
+  and noted it in the step intro.
+
+**Seed-sync reality (worth knowing for review/open-pr).** Both skill paths sit
+under upstream-managed `bootstrap/` trees, but their git status differs:
+- Packaged mirror `src/relay/resources/templates/relay-os/bootstrap/.../SKILL.md`
+  is **tracked** → this is the committed source of truth.
+- Live `relay-os/bootstrap/.../SKILL.md` is **gitignored** (seed-managed,
+  regenerated by `relay init --update`) → not committed, but I synced it
+  byte-identical in the working checkout so the running repo behaves now.
+`git add` of the packaged file prints an advisory "ignored" hint (the parent
+dir matches an ignore pattern) but still stages the tracked file — commit went
+through fine.
+
+**Verification (implement step):**
+- `python3.12 -m pytest` → **623 passed, 1 skipped** (pre-existing skip).
+  Note: repo `python` is 3.9 (no `tomllib`); use `python3.12` to run the suite.
+- `tests/test_ticket.py` → 7 passed.
+- `relay validate --json` → 2 errors, both **pre-existing & unrelated**
+  (`relay-additions-spec`, `split-context-to-doc-...` missing-step) — excluded
+  by the ticket AC. No new validation issues from this change.
+- Both skill copies byte-identical; worktree tree clean after commit.
+
+**Commit:** `453a435` on branch `wire-autonomy-triage-authoring`
+(worktree `../relay-autonomy-triage-authoring`). No push / no PR — that's the
+`code/open-pr` step next.
+
+## Review step — Codex 2026-06-16
+
+- PR #328 is already merged: https://github.com/FastJVM/relay/pull/328
+  (`453a435` merged via `44d1080` on 2026-06-10).
+- Reviewed the PR diff: one packaged `bootstrap/ticket` skill text change, no
+  code/workflow/template-skeleton/browser-triage changes. The diff matches the
+  final Acceptance Criteria and the implement-step scope correction.
+- Verified `origin/main` contains the autonomy-triage authoring text in the
+  packaged skill. No review findings.
+- Task-scoped validation: `relay validate --task
+  wire-autonomy-triage-into-impl-ready-workflows --json` -> `ok_count: 1`, no
+  issues.

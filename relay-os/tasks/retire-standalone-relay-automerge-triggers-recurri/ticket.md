@@ -1,7 +1,8 @@
 ---
+slug: retire-standalone-relay-automerge-triggers-recurri
 title: Retire standalone relay automerge triggers — recurring sweep is sole trigger
 status: in_progress
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -96,3 +97,21 @@ triggers remain to remove, plus dead artifacts to clean up:
       docstring no longer reference the command; live + packaged copies synced.
 - [ ] `drift-…-auto-bump-merged` (and hook draft) reconciled/closed.
 - [ ] `python -m pytest` green and `relay validate --json` clean.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: retire-standalone-automerge-triggers
+pr: https://github.com/FastJVM/relay/pull/414
+
+Implemented directly on the primary checkout (no worktree). Peer review
+(independent agent) came back clean — zero must-fix findings. Full suite
+829 passed / 1 skipped; `relay validate --json` clean (5 pre-existing
+unrelated `missing-step` errors).
+
+Open question for owner review: `_remove_post_merge_hook` migration was
+**kept** (only messaging updated), not dropped — it still prunes stale
+hooks off old installs. See PR description.

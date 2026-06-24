@@ -17,6 +17,7 @@ from relay.paths import (
     tasks_dir,
 )
 from relay.slugify import slugify
+from relay.taskfile import join_task_body, split_body
 from relay.tasks import TaskRef, list_tasks
 from relay.ticket import Ticket
 from relay.workflow import Workflow
@@ -28,7 +29,7 @@ def create_task(
     title: str,
     workflow_name: str | None,
     contexts: list[str],
-    mode: str,
+    autonomy: str,
     owner: str | None,
     assignee: str | None,
     watchers: list[str],
@@ -40,6 +41,7 @@ def create_task(
     description: str | None = None,
     body: str | None = None,
     secrets: Any = None,
+    script: Any = None,
     created_by: str = "human",
 ) -> dict[str, Any]:
     """Create a task directory. Returns dict with {slug, path}.
@@ -126,13 +128,19 @@ def create_task(
         raise ValueError(f"Task directory already exists: {task_dir}")
     task_dir.mkdir(parents=True)
 
+    # The TaskRef discovery will report for this new dir — its `id_slug` is the
+    # canonical task reference, recorded on the ticket as `slug:` so the file is
+    # self-describing.
+    created_ref = _task_ref_for_created_dir(slug, task_dir)
+
     # Canonical frontmatter order. Every key is always present so tasks have
     # a single legible shape on disk, even when contexts / skills / workflow
     # are empty.
     fm: dict[str, Any] = {
+        "slug": created_ref.id_slug,
         "title": title,
         "status": status,
-        "mode": mode,
+        "autonomy": autonomy,
         "owner": owner,
         "human": human,
         "agent": agent,
@@ -141,6 +149,7 @@ def create_task(
         "skills": list(skills),
         "workflow": wf.freeze() if wf else None,
         "secrets": secrets,
+        "script": script,
     }
     if wf and status != "done":
         first_step = wf.steps[0].name
@@ -160,22 +169,25 @@ def create_task(
         # beyond `## Description` survive into the period task — notably
         # `## Script config`, which drives a script step's mode/sync. Ensure
         # the canonical `## Context` section exists so the body shape stays
-        # uniform and compose can read inline task context.
-        ticket_body = body.rstrip() + "\n"
+        # uniform and compose can read inline task context. A template body may
+        # itself carry a blackboard fence + region; strip it so the period task
+        # starts from a fresh blackboard (the template's working state stays on
+        # the template, not copied into each run).
+        above, _ = split_body(body, blackboard_required=False)
+        ticket_body = above.rstrip() + "\n"
         if not re.search(r"(?m)^##\s+Context\s*$", ticket_body):
             ticket_body += "\n## Context\n\n"
     else:
         desc_body = (description or "").strip()
         ticket_body = f"## Description\n\n{desc_body}\n\n## Context\n\n"
-    Ticket(frontmatter=fm, body=ticket_body).write(task_dir / "ticket.md")
+    # One file per task: body + fence + blackboard, no sibling blackboard.md /
+    # log.md. The append-only history goes to the repo-global log.
+    full_body = join_task_body(ticket_body, render_blackboard(title))
+    Ticket(frontmatter=fm, body=full_body).write(task_dir / "ticket.md")
 
-    (task_dir / "blackboard.md").write_text(render_blackboard(title))
-
-    (task_dir / "log.md").write_text("")
     actor = f"{created_by}:{cfg.current_user}" if created_by == "human" else created_by
-    append_log(task_dir, actor, f"created (mode={mode}, status={status})")
+    append_log(cfg, created_ref.id_slug, actor, f"created (autonomy={autonomy}, status={status})")
 
-    created_ref = _task_ref_for_created_dir(slug, task_dir)
     issues = validate_task_dir(cfg, created_ref)
     errors = [i for i in issues if i.severity == "error"]
     if errors:

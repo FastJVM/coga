@@ -41,7 +41,7 @@ def panic(
     actor = f"agent:{ticket.assignee}" if ticket.assignee else f"human:{cfg.current_user}"
 
     append_blocker(ref.path, actor, reason)
-    append_log(ref.path, actor, f"panic: {reason}")
+    append_log(cfg, ref.id_slug, actor, f"panic: {reason}")
 
     owner = ticket.owner or cfg.current_user
     panicker = ticket.assignee or cfg.current_user

@@ -1,7 +1,8 @@
 ---
+slug: v2/gh-merge-requirement
 title: gh-merge-requirement
 status: active
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -46,3 +47,6 @@ Touches relay's own merge/PR mechanism (nick's domain). This is a problem
 statement, not a chosen solution — the `design` step should pin down what
 "automatically reviewable without merging" means before any implementation.
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

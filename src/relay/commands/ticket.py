@@ -103,7 +103,7 @@ def _resolve_or_create_target(cfg: Config, target: str) -> tuple[TaskRef, Ticket
         msg = str(exc)
         if msg.startswith("Ambiguous task ref"):
             _bail(msg)
-        result = create_draft(title=target, mode="interactive")
+        result = create_draft(title=target, autonomy="interactive")
         ref = TaskRef(slug=str(result["slug"]), path=cast(Path, result["path"]))
         typer.echo(f"{ref.id_slug}: launching guided ticket authoring")
         return ref, read_ticket(ref)
@@ -129,7 +129,7 @@ def _resolve_or_create_target(cfg: Config, target: str) -> tuple[TaskRef, Ticket
 
 def _authoring_ticket(ticket: Ticket) -> Ticket:
     fm = dict(ticket.frontmatter)
-    fm["mode"] = "interactive"
+    fm["autonomy"] = "interactive"
     fm["skills"] = [AUTHORING_SKILL]
     return Ticket(frontmatter=fm, body=ticket.body)
 
@@ -172,7 +172,8 @@ def _run_authoring_session(
     before_tasks = {task_ref.id_slug for task_ref in list_tasks(cfg)}
     before_authoring = _snapshot_authoring_files(cfg)
     append_log(
-        ref.path,
+        cfg,
+        ref.id_slug,
         f"human:{cfg.current_user}",
         f"ticket authoring launched (assignee={launch_assignee}, agent={agent.name})",
     )

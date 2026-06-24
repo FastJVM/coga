@@ -55,7 +55,7 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "The title should carry the new finding." in text
     assert "`New context: <finding>` or `New skill: <finding>`" in text
     assert "Tickets: deleted `<task-dir>`, ..." in text
-    assert "Markers: PR history for each deleted `blackboard.md` records `## Retro`" in text
+    assert "Markers: PR history for each deleted ticket records its `## Retro`" in text
     assert "`<PR title>. PR: <url>`" in text
 
 

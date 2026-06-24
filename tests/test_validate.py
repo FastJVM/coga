@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from pathlib import Path
 from textwrap import dedent
 
@@ -56,7 +55,7 @@ def test_clean_repo_has_no_issues(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=["email/payment-flow"], mode="interactive",
+        contexts=["email/payment-flow"], autonomy="interactive",
         owner="marc", assignee="claude", watchers=[], status="draft",
     )
     report = run(cfg)
@@ -71,9 +70,10 @@ def test_broken_skill_ref(repo: Path) -> None:
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent("""
         ---
+        slug: 001-x
         title: X
         status: active
-        mode: interactive
+        autonomy: interactive
         assignee: claude
         owner: marc
         workflow:
@@ -100,7 +100,7 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -116,7 +116,7 @@ def test_invalid_status(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -130,7 +130,7 @@ def test_invalid_status(repo: Path) -> None:
 def _draft_with_secrets(repo: Path, cfg, secrets_value) -> None:
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -198,67 +198,87 @@ def test_secrets_declared_and_set_is_clean(
     assert not [i for i in report.issues if "secret" in i.kind]
 
 
-def test_missing_file(repo: Path) -> None:
+def test_missing_blackboard_fence_is_error(repo: Path) -> None:
+    # Single-file format: ticket.md is the only required per-task file, and it
+    # must carry exactly one blackboard fence (the body/blackboard split). A
+    # fence-less ticket.md — the structural-integrity failure that replaces the
+    # old missing-blackboard.md check — is a `blackboard-fence` error.
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
-    (ref.path / "blackboard.md").unlink()
+    ticket_path = ref.path / "ticket.md"
+    ticket_path.write_text(
+        ticket_path.read_text().replace("<!-- relay:blackboard -->\n", "")
+    )
     report = run(cfg)
-    assert any(i.kind == "missing-file" and "blackboard" in i.message for i in report.issues)
+    assert any(
+        i.kind == "blackboard-fence" and i.severity == "error"
+        for i in report.issues
+    )
 
 
-def test_apply_safe_fixes_creates_missing_workspace_files(repo: Path) -> None:
+def test_apply_safe_fixes_adds_missing_blackboard_fence(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
-    (ref.path / "blackboard.md").unlink()
-    (ref.path / "log.md").unlink()
+    # Single-file format: strip the blackboard fence so the ticket.md is
+    # fence-less; the safe fix re-appends a fence + rendered region.
+    ticket_path = ref.path / "ticket.md"
+    ticket_path.write_text(
+        ticket_path.read_text().replace("<!-- relay:blackboard -->\n", "")
+    )
 
     fixes = apply_safe_fixes(cfg)
 
-    assert [fix.message for fix in fixes] == [
-        "created blackboard.md",
-        "created log.md",
-    ]
-    assert (ref.path / "blackboard.md").is_file()
-    assert (ref.path / "log.md").is_file()
-    assert (ref.path / "log.md").read_text() == ""
+    assert [fix.message for fix in fixes] == ["added blackboard fence + region"]
+    assert all(fix.kind == "blackboard-fence" for fix in fixes)
+    from relay.taskfile import fence_count
+    assert fence_count(ticket_path.read_text()) == 1
 
 
 def test_run_fix_repairs_before_reporting(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
-    (ref.path / "blackboard.md").unlink()
+    # Single-file format: strip the fence so the ticket.md is fence-less; the
+    # fix pass re-adds it before the issue scan runs.
+    ticket_path = ref.path / "ticket.md"
+    ticket_path.write_text(
+        ticket_path.read_text().replace("<!-- relay:blackboard -->\n", "")
+    )
 
     report = run(cfg, fix=True)
 
     assert len(report.fixes) == 1
-    assert report.fixes[0].message == "created blackboard.md"
-    assert not any(i.kind == "missing-file" for i in report.issues)
+    assert report.fixes[0].message == "added blackboard fence + region"
+    assert not any(i.kind == "blackboard-fence" for i in report.issues)
 
 
 def test_large_blackboard_warns(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
-    (ref.path / "blackboard.md").write_text("x" * 2048)
+    # Single-file format: the measured blackboard is the region below the fence
+    # in ticket.md, not a sibling blackboard.md. The region content starts on its
+    # own line after the fence (as every real blackboard writer leaves it).
+    from relay.taskfile import replace_blackboard
+    replace_blackboard(ref.path / "ticket.md", "\n\n" + "x" * 2048 + "\n")
 
     report = run(cfg, max_blackboard_bytes=1024)
     issue = next(i for i in report.issues if i.kind == "large-blackboard")
@@ -544,7 +564,7 @@ def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
@@ -555,7 +575,7 @@ def test_validate_flags_missing_declared_extension(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     # Add the declaration AFTER the ticket exists — simulates declaring a new
@@ -579,7 +599,7 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     # Now remove the declaration.
@@ -608,7 +628,7 @@ def test_validate_flags_enum_violation(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -637,7 +657,7 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
@@ -651,7 +671,7 @@ def test_workflow_less_draft_is_clean(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
@@ -668,18 +688,21 @@ def _write_workflow_less_task(repo: Path, slug: str, status: str) -> Path:
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
+        slug: {slug}
         title: X
         status: {status}
-        mode: interactive
+        autonomy: interactive
         owner: marc
         assignee: claude
         workflow: null
         ---
 
         ## Description
+
+        <!-- relay:blackboard -->
+
+        # Blackboard
     """).lstrip())
-    (task_dir / "blackboard.md").write_text("# Blackboard\n")
-    (task_dir / "log.md").write_text("")
     return task_dir
 
 
@@ -708,14 +731,19 @@ def test_stuck_in_progress_flagged(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status="in_progress",
     )
     ref = list_tasks(cfg)[0]
-    # Backdate log.md's mtime
-    old = time.time() - 100 * 3600  # 100 hours ago
-    import os
-    os.utime(ref.path / "log.md", (old, old))
+    # Single-file format: idle time derives from the task's most recent line in
+    # the repo-global log (tagged by ref), not a per-task log.md mtime. Seed a
+    # backdated activity line 100 hours ago.
+    from datetime import datetime, timedelta
+    from relay.paths import log_path
+    stamp = (datetime.now() - timedelta(hours=100)).strftime("%Y-%m-%d %H:%M")
+    log = log_path(cfg)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(f"{stamp} [{ref.id_slug}] [agent:claude] picked up\n")
     report = run(cfg, idle_hours=72.0)
     assert any(i.kind == "stuck-in-progress" for i in report.issues)
 
@@ -726,9 +754,10 @@ def _write_full_task(repo: Path, rel: str, title: str = "X") -> Path:
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
+        slug: {rel}
         title: {title}
         status: draft
-        mode: interactive
+        autonomy: interactive
         owner: marc
         human: marc
         agent: claude
@@ -739,9 +768,11 @@ def _write_full_task(repo: Path, rel: str, title: str = "X") -> Path:
         ---
 
         ## Description
+
+        <!-- relay:blackboard -->
+
+        # Blackboard
     """).lstrip())
-    (task_dir / "blackboard.md").write_text("# Blackboard\n")
-    (task_dir / "log.md").write_text("")
     return task_dir
 
 

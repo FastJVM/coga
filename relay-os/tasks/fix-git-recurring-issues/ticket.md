@@ -1,7 +1,8 @@
 ---
+slug: fix-git-recurring-issues
 title: Verify recurring high-water git race is fixed and regression-covered
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -44,3 +45,7 @@ Confirm, and only close once each is true:
   `tests/test_recurring.py::test_recurring_launch_does_not_resurrect_midflight_handled_period`.
 - Pairs with `wire-recurring-sweep-into-system-cron` and
   `fix-recurring-templates-not-instantiated`.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

@@ -1,7 +1,8 @@
 ---
+slug: v2/relay-design-repositories
 title: relay-design-repositories
 status: active
-mode: interactive
+autonomy: interactive
 owner: zach
 human: zach
 agent: claude
@@ -50,3 +51,6 @@ lean on: `relay init` already creates repos, and `bootstrap/ticket` already
 runs an interview-and-create flow; this is closer to the latter applied at
 repo scope.
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

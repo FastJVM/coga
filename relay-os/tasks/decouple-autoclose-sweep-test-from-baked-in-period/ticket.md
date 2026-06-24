@@ -1,7 +1,8 @@
 ---
+slug: decouple-autoclose-sweep-test-from-baked-in-period
 title: Decouple autoclose sweep test from baked-in period date
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -52,3 +53,6 @@ freeze the period. Human design judgment needed on the right approach.
 
 ## Context
 
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

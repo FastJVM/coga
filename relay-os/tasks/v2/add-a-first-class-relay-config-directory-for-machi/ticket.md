@@ -1,8 +1,9 @@
 ---
+slug: v2/add-a-first-class-relay-config-directory-for-machi
 title: Add a first-class relay config directory for machine-local config and secret
   files
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -69,3 +70,7 @@ cloud-specific auth logic (that lives in the consuming skill).
   `relay/architecture`, "Dream's known-skill contract" env list).
 - Relevant principle: "Markdown-first, git-backed, legible" and "Fail loud"
   (the gitignore guarantee) — see `relay/principles`.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

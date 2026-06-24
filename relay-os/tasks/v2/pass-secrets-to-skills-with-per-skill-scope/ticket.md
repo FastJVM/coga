@@ -1,7 +1,8 @@
 ---
+slug: v2/pass-secrets-to-skills-with-per-skill-scope
 title: Pass secrets to skills with per-skill scope
 status: draft
-mode: interactive
+autonomy: interactive
 owner: nick
 human: nick
 agent: claude
@@ -55,3 +56,7 @@ GitHub token; nothing else leaks.
 - `docs/spec.md:110-115` — current `[secrets]` example.
 - Today's contract is "skills see every secret"; this ticket changes
   that to "skills see only what they declare."
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

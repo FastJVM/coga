@@ -28,9 +28,10 @@ def _write_workflow_less_task(
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
+        slug: {slug}
         title: Work
         status: {status}
-        mode: interactive
+        autonomy: interactive
         owner: marc
         human: marc
         agent: claude
@@ -41,9 +42,11 @@ def _write_workflow_less_task(
         ---
 
         ## Description
+
+        <!-- relay:blackboard -->
+
+        # Blackboard
     """).lstrip())
-    (task_dir / "blackboard.md").write_text("# Blackboard\n")
-    (task_dir / "log.md").write_text("")
     return slug, task_dir
 
 
@@ -100,7 +103,7 @@ def _make_task(
     else:
         ref = create_task(
             cfg=cfg, title="Work", workflow_name=workflow,
-            contexts=[], mode="interactive", owner="marc", assignee="claude",
+            contexts=[], autonomy="interactive", owner="marc", assignee="claude",
             watchers=[], status=status,
         )
     path = ref["path"]
@@ -111,10 +114,12 @@ def _make_task(
         t.frontmatter["step"] = f"{last} ({steps[last - 1]['name']})"
         t.write(path / "ticket.md")
     if pr_url is not None:
-        bb = path / "blackboard.md"
-        bb.write_text(
-            bb.read_text().rstrip()
-            + f"\n\n## Dev\n\nbranch: foo\npr: {pr_url}\n"
+        from relay.taskfile import read_blackboard, replace_blackboard
+
+        ticket = path / "ticket.md"
+        bb = read_blackboard(ticket, blackboard_required=False).rstrip()
+        replace_blackboard(
+            ticket, bb + f"\n\n## Dev\n\nbranch: foo\npr: {pr_url}\n"
         )
     return ref["slug"], path
 
@@ -190,7 +195,9 @@ def test_sweep_merged_bumps_final_step_with_merged_pr(
     assert count == 1
     t = Ticket.read(path / "ticket.md")
     assert t.status == "done"
-    log = (path / "log.md").read_text()
+    from relay.logfile import task_log_lines
+
+    log = "\n".join(task_log_lines(cfg, slug))
     assert "auto-bumped on merge of PR #7" in log
 
 
