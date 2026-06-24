@@ -123,18 +123,33 @@ A few things worth knowing once you run more than one project:
 ## External CLI Tools
 
 `requirements.txt` is only for Python packages. Relay also shells out to a few
-human-installed command line tools:
+human-installed command line tools. The canonical list — name, purpose, and
+whether it's required — lives in [`src/relay/dependencies.py`](src/relay/dependencies.py),
+which is what `relay init` checks; this section mirrors it:
 
-- `git` — required. Relay stores state in the current git repo and uses normal
-  working-tree diffs as the review surface.
-- `python` 3.11+ — required for the Relay CLI and the vendored `.relay/` copy.
-- `gh` — required for GitHub-backed PR workflows such as opening PRs and the
-  merged-ticket autoclose sweep. Run `gh auth login` before relying on
-  those paths.
-- `gh` 2.90.0+ with `gh skill` — used by Relay-managed skill install/update.
-  `gh skill` ships as a public preview in recent `gh`. Managed skills are
-  optional: a fresh `relay init` on an older `gh` just skips them with a warning
-  instead of failing.
+- `git` — **required (checked at `relay init`)**. Relay stores state in the
+  current git repo, vendors its CLI via a clone, and uses working-tree diffs as
+  the review surface.
+- `python` 3.11+ — **required** for the Relay CLI and the vendored `.relay/` copy.
+- `gh` — **required (checked at `relay init`)** for GitHub PR workflows such as
+  opening PRs and the merged-ticket autoclose sweep. Run `gh auth login` once
+  installed.
+- `gh` 2.90.0+ with `gh skill` — **optional**, used by Relay-managed skill
+  install/update. `gh skill` ships as a public preview in recent `gh`; a fresh
+  `relay init` on an older `gh` skips managed skills with a warning rather than
+  failing.
+- `op` — the [1Password CLI](https://developer.1password.com/docs/cli/get-started/).
+  **Optional, checked at launch — not at init.** Needed only when a ticket's
+  `secrets:` entry has an `op://vault/item/field` reference: Relay resolves it
+  live with `op read` at launch / `relay secret get` (run `op signin` first),
+  failing loud naming the reference (never the value) if `op` is missing when an
+  `op://` secret is actually needed. Tickets that use only `env:VAR` references
+  never invoke it.
+
+So `relay init` **fails loud** (with install hints) if `git` or `gh` is missing,
+surfacing a broken setup up front rather than at PR time. `op` is deliberately
+left out of that check — forcing the 1Password CLI on everyone would be too
+much — and is enforced at the point a ticket actually needs it.
 
 ### Git/GitHub auth readiness
 

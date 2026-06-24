@@ -209,7 +209,7 @@ new string:
   Unknown channel names fail config load until their backend exists.
 - `[notification.slack].webhook` in `relay.toml` (or `relay.local.toml`) — the single
   source for the webhook URL. It is a bearer token, so the committed value
-  is an `env:SLACK_WEBHOOK_URL` reference, resolved like `[secrets]` via
+  is an `env:SLACK_WEBHOOK_URL` reference, resolved via
   `config._resolve_secret_value`. Legacy `[slack].webhook` and a bare exported
   `SLACK_WEBHOOK_URL` still resolve as deprecated compatibility fallbacks.
   A literal URL is accepted by the parser but must never be committed; use

@@ -453,25 +453,24 @@ Once Slack is selected it is fail-loud (see `relay/sync`): commands crash if
 `$SLACK_WEBHOOK_URL` is unset and the user hasn't opted out via
 `[notification.slack].enabled = false`.
 
-## relay secret get \<key>
+## relay secret get \<ref>
 
-Resolve one declared `[secrets]` key on demand and print its value to
-stdout — a human-facing query, not something agents call. It loads config,
-resolves exactly that key through the same shared path `relay launch` uses
-(no second resolver), and prints the value only because you explicitly asked.
-The value is never logged or posted.
+Resolve one secret **reference** on demand and print its value to stdout — a
+human-facing query, not something agents call. Secrets are declared inline on
+each ticket (there is no `[secrets]` catalog), so `get` takes the reference
+directly — `op://vault/item/field` (read live via `op read`) or `env:VAR` — and
+resolves it through the same shared path `relay launch` uses (no second
+resolver). It prints the value only because you explicitly asked; it is never
+logged or posted.
 
-`[secrets]` values may be literals, `env:VAR` indirections, or
-`op://vault/item/field` 1Password references. An `op://` reference is resolved
-live by passing it verbatim to `op read`; `env:`/`op://` resolution is deferred
-until the key is actually selected, so neither a config load nor `relay
-validate` ever prompts 1Password. Like launch, this fails loud (non-zero, no
-value printed) when the key is undeclared, an `env:VAR` is unset, or `op` is
-missing / not signed in / returns non-zero — error messages name the Relay
-secret key and reference, never the resolved value.
+Like launch, this fails loud (non-zero, no value printed) when the reference is
+a raw literal (nothing to resolve), an `env:VAR` is unset, or `op` is missing /
+not signed in / returns non-zero — error messages name the reference, never the
+resolved value.
 
-- `relay secret get stripe_key` — print the resolved value of the
-  `stripe_key` secret (reading 1Password if it is an `op://` reference).
+- `relay secret get op://Private/Stripe/api-key` — read and print that
+  1Password field.
+- `relay secret get env:STRIPE_KEY` — print the value of `$STRIPE_KEY`.
 
 ## relay dream
 

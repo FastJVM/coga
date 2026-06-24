@@ -20,46 +20,15 @@ class ConfigError(Exception):
 class SecretError(Exception):
     """A ticket's declared secret cannot be satisfied at launch time.
 
-    Raised by `select_launch_secrets` when a ticket declares a `secrets:` key
-    that is not in `[secrets]`, whose `env:VAR` indirection points at an unset
+    Raised by `select_launch_secrets` / `parse_inline_secrets` when a ticket's
+    `secrets:` entry is malformed, holds a raw literal value (which may not live
+    in a git-committed ticket), whose `env:VAR` indirection points at an unset
     env var, or whose `op://` reference cannot be resolved (the `op` CLI is
     missing or `op read` returns non-zero). `relay launch` turns this into a
     non-zero exit before any agent or script is spawned — the fail-loud
-    guarantee. Messages name the Relay secret key and reference, never the
+    guarantee. Messages name the Relay secret name and reference, never the
     resolved secret value.
     """
-
-
-@dataclass(frozen=True)
-class SecretValue:
-    """A resolved `[secrets]` entry that remembers where it came from.
-
-    `cfg.secrets` keeps these instead of bare strings so launch-time
-    enforcement and `relay validate` can tell an `env:VAR` reference whose var
-    is unset (`value is None`) apart from an empty literal (`value == ""`), and
-    can name the missing env var in errors. `raw` is the original `[secrets]`
-    value; `env_var` is the referenced variable name (None for a literal);
-    `op_ref` is the `op://vault/item/field` 1Password reference (None unless
-    op-indirected); `value` is the resolved string, or None iff env-indirected
-    and unset, **or** op-indirected (op values are resolved on demand at launch
-    / `relay secret get` time, never at config load — see `_resolve_secrets`).
-    """
-
-    raw: str
-    env_var: str | None
-    value: str | None
-    op_ref: str | None = None
-
-    @property
-    def missing(self) -> bool:
-        """True when this is an `env:VAR` reference whose var is unset.
-
-        An `op://` reference is **not** missing here — its `value` is None only
-        because resolution is deferred, not because anything is wrong. The
-        env-unset and op-deferred cases are kept distinct so legacy blanket
-        injection skips op references without trying to read them.
-        """
-        return self.env_var is not None and self.value is None
 
 
 @dataclass(frozen=True)
@@ -126,7 +95,6 @@ class Config:
     # `[notification.slack]`, legacy `[slack]`, or deprecated env fallback.
     slack_webhook: str | None
     slack_enabled: bool
-    secrets: dict[str, SecretValue]
     notification_channels: tuple[str, ...] = ("slack",)
     notification_deprecation_notes: tuple[str, ...] = ()
     slack_gifs: dict[str, list[str]] = field(default_factory=dict)
@@ -240,6 +208,18 @@ def load_config(repo_root: Path | None = None) -> Config:
             "[assignees.*] tables — ticket `assignee:` now names an agent "
             "type (e.g. `claude`) or a human directly. See docs/spec.md."
         )
+    # Tailored migration error before the generic unknown-section check, so a
+    # leftover `[secrets]` table gets the actionable "declare inline" message
+    # rather than a bare "unknown key" one.
+    if "secrets" in local:
+        raise ConfigError(
+            "[secrets] in relay.local.toml is no longer supported. Secrets are "
+            "now declared inline on each ticket's `secrets:` frontmatter as "
+            "`NAME: op://vault/item/field` or `NAME: env:VAR` entries (resolved "
+            "at launch / `relay secret get`), so there is no central catalog. "
+            "Move each key into the tickets that need it and delete the "
+            "[secrets] table."
+        )
     _reject_unknown_sections(shared, local)
 
     default_status = shared.get("default_status", "draft")
@@ -277,8 +257,6 @@ def load_config(repo_root: Path | None = None) -> Config:
             "Set it to your name, e.g. `user = \"marc\"`."
         )
 
-    secrets = _resolve_secrets(local.get("secrets", {}))
-
     return Config(
         repo_root=root,
         current_user=current_user,
@@ -290,7 +268,6 @@ def load_config(repo_root: Path | None = None) -> Config:
         notification_deprecation_notes=notification_deprecation_notes,
         slack_gifs=slack_gifs,
         slack_users=slack_users,
-        secrets=secrets,
         aliases=aliases,
         ticket_fields=ticket_fields,
         git_enabled=git_enabled,
@@ -354,7 +331,6 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
 })
 _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "user",
-    "secrets",
     "agents",
     "notification",
     "slack",
@@ -1065,47 +1041,76 @@ def _resolve_secret_value(value: str) -> str:
 
     A missing env var resolves to the empty string here. This is only used for
     `[notification.slack].webhook`, where an unset var collapsing to "" (then
-    `or None`) correctly means "no webhook configured". `[secrets]` does **not**
-    use this — it goes through `_resolve_secrets`, which keeps provenance so an
-    unset env var can fail loud at launch instead of being injected as "". The
-    notification layer also keeps a deprecated bare `SLACK_WEBHOOK_URL` fallback
-    for legacy repos.
+    `or None`) correctly means "no webhook configured". Ticket secrets do **not**
+    use this — they go through `select_launch_secrets`, which fails loud on an
+    unset env var at launch instead of injecting "". The notification layer also
+    keeps a deprecated bare `SLACK_WEBHOOK_URL` fallback for legacy repos.
     """
     if value.startswith("env:"):
         return os.environ.get(value[len("env:") :], "")
     return value
 
 
-def _resolve_secrets(raw: dict) -> dict[str, SecretValue]:
-    """Resolve `[secrets]` into `SecretValue`s, retaining provenance.
+def parse_inline_secrets(declared: object) -> list[tuple[str, str]]:
+    """Validate a ticket's inline `secrets:` and return `[(name, ref), ...]`.
 
-    Unlike a plain string map, this preserves the `env:VAR` reference and the
-    unset-vs-empty-literal distinction: an `env:VAR` whose var is unset resolves
-    to `value=None` (not `""`), so `relay launch` can fail loud naming the var
-    and `relay validate` can warn — neither of which is possible once the
-    reference is flattened away. Literals and set env vars carry their string.
+    Secrets are declared inline per-ticket — there is no `[secrets]` catalog.
+    Each entry is a single-key map binding an env-var name to an indirection
+    reference that is safe to commit to git: `op://vault/item/field` (resolved
+    live with `op read`) or `env:VAR` (read from the operator's environment).
 
-    An `op://vault/item/field` 1Password reference is recorded as `op_ref` with
-    `value=None` and is **not** resolved here: shelling out to `op read` at
-    config-load time would prompt 1Password on every command. Op references are
-    resolved on demand by `select_launch_secrets` — only when a ticket's
-    explicit `secrets:` list selects the key, or a human runs
-    `relay secret get`. Prefix dispatch lives here (the extension seam for new
-    providers is another explicit branch), not in a provider registry.
+    Three frontmatter shapes, kept distinct:
+
+    - `None` (absent / null) and `[]` → no secrets.
+    - a list of `{NAME: "op://…"|"env:VAR"}` single-key maps → those secrets.
+
+    Fails loud (`SecretError`) on a non-list, a non-single-key entry, a
+    duplicate name, a non-string name/ref, a bare-string entry (the removed
+    catalog-key form), or a **raw literal** value — a literal secret may not
+    live in a git-committed ticket; use `env:VAR` and export it locally.
+    Resolution is deferred: this never shells out to `op` or reads env values.
     """
-    out: dict[str, SecretValue] = {}
-    for key, value in raw.items():
-        if not isinstance(value, str):
-            raise ConfigError(f"secrets.{key} must be a string (got {type(value).__name__})")
-        if value.startswith("env:"):
-            env_var = value[len("env:") :]
-            resolved = os.environ.get(env_var)  # None when unset — kept distinct from ""
-            out[key] = SecretValue(raw=value, env_var=env_var, value=resolved)
-        elif value.startswith("op://"):
-            # Deferred: value stays None until resolved on demand. Never read here.
-            out[key] = SecretValue(raw=value, env_var=None, value=None, op_ref=value)
-        else:
-            out[key] = SecretValue(raw=value, env_var=None, value=value)
+    if declared is None:
+        return []
+    if not isinstance(declared, list):
+        raise SecretError(
+            "ticket `secrets:` must be null or a list of `NAME: <ref>` entries "
+            f"(got {type(declared).__name__})"
+        )
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for entry in declared:
+        if isinstance(entry, str):
+            raise SecretError(
+                f"ticket secret {entry!r} is a bare string; the [secrets] "
+                "catalog was removed. Declare it inline as "
+                "`NAME: op://vault/item/field` or `NAME: env:VAR`."
+            )
+        if not isinstance(entry, dict) or len(entry) != 1:
+            raise SecretError(
+                "ticket `secrets:` entries must each be a single-key map "
+                f"`NAME: <ref>` (got {entry!r})"
+            )
+        (name, ref), = entry.items()
+        if not isinstance(name, str) or not name:
+            raise SecretError(
+                f"ticket secret name must be a non-empty string (got {name!r})"
+            )
+        if name in seen:
+            raise SecretError(f"ticket declares secret {name!r} more than once")
+        seen.add(name)
+        if not isinstance(ref, str):
+            raise SecretError(
+                f"ticket secret {name!r} reference must be a string (got {ref!r})"
+            )
+        if not (ref.startswith("op://") or ref.startswith("env:")):
+            raise SecretError(
+                f"ticket secret {name!r} must reference `op://vault/item/field` "
+                f"or `env:VAR` — a literal value cannot live in a git-committed "
+                f"ticket (got {ref!r}). Use `env:VAR` and export the value "
+                "locally."
+            )
+        out.append((name, ref))
     return out
 
 
@@ -1143,58 +1148,29 @@ def _resolve_op_reference(key: str, ref: str) -> str:
 
 
 def select_launch_secrets(cfg: Config, declared: object) -> dict[str, str]:
-    """Build the env-var secret map a `relay launch` should inject.
+    """Resolve a ticket's inline `secrets:` into the `{name: value}` map to inject.
 
-    `declared` is the ticket's raw `secrets:` frontmatter value. Three cases
-    (absent and explicit `null` both arrive here as `None`):
-
-    - `None` (absent / null) → **legacy blanket**: every `[secrets]` entry that
-      resolves. Unset `env:VAR` secrets are skipped, never injected as "". An
-      `op://` reference has `value is None` (deferred) so it is skipped too —
-      blanket mode never prompts 1Password for every configured op secret. A
-      task that needs an op secret must declare that key explicitly.
-    - `[]` (explicit empty list) → **strict lockdown**: inject nothing.
-    - non-empty list → **least privilege**: inject only the listed keys; raise
-      `SecretError` (fail loud, no agent spawned) on any key not in `[secrets]`,
-      whose `env:VAR` points at an unset var, or whose `op://` reference cannot
-      be resolved. `op://` keys are resolved live here via `op read`.
-
-    `None` and `[]` must stay distinct — do not collapse with `declared or []`.
+    `declared` is the ticket's raw `secrets:` frontmatter value (`None`/`[]` →
+    no secrets; otherwise a list of `{NAME: ref}` maps — see
+    `parse_inline_secrets`). Each reference is resolved at this point, live:
+    `op://…` via `op read`, `env:VAR` from the operator's environment. Fails
+    loud (`SecretError`, no agent spawned) when `op` is missing/non-zero or a
+    referenced env var is unset. `cfg` is unused (kept for call-site stability
+    now that resolution is catalog-free); messages never name the value.
     """
-    if declared is None:
-        return {
-            key: sv.value
-            for key, sv in cfg.secrets.items()
-            if sv.value is not None
-        }
-    if not isinstance(declared, list):
-        raise SecretError(
-            f"ticket `secrets:` must be a list of secret keys "
-            f"(got {type(declared).__name__})"
-        )
-    if not declared:
-        return {}
     env: dict[str, str] = {}
-    for key in declared:
-        if not isinstance(key, str):
-            raise SecretError(
-                f"ticket `secrets:` entries must be strings (got {key!r})"
-            )
-        sv = cfg.secrets.get(key)
-        if sv is None:
-            raise SecretError(
-                f"ticket declares secret {key!r} but it is not defined in "
-                "[secrets] in relay.local.toml"
-            )
-        if sv.op_ref is not None:
-            env[key] = _resolve_op_reference(key, sv.op_ref)
-            continue
-        if sv.value is None:
-            raise SecretError(
-                f"ticket declares secret {key!r} but its env var "
-                f"{sv.env_var!r} is not set"
-            )
-        env[key] = sv.value
+    for name, ref in parse_inline_secrets(declared):
+        if ref.startswith("op://"):
+            env[name] = _resolve_op_reference(name, ref)
+        else:  # env:VAR — prefix guaranteed by parse_inline_secrets
+            var = ref[len("env:") :]
+            value = os.environ.get(var)
+            if value is None:
+                raise SecretError(
+                    f"ticket secret {name!r} references env var {var!r} but it "
+                    "is not set"
+                )
+            env[name] = value
     return env
 
 
@@ -1206,16 +1182,14 @@ def build_launch_env(
 ) -> dict[str, str]:
     """Build a child process env with Relay secrets scoped and source vars scrubbed.
 
-    Relay resolves `[secrets]` from operator env vars such as `env:STRIPE_KEY`,
-    but the spawned agent/script must only receive the scoped Relay secret keys
-    (for example `stripe_key`), not every raw source env var inherited from
-    `os.environ.copy()`. Scrub all configured source variables first, then add
-    back only `select_launch_secrets`' selected aliases.
+    The spawned agent/script receives only the ticket's scoped secret names (for
+    example `STRIPE_KEY=<value>`), never the raw source env vars an `env:VAR`
+    reference points at. Scrub each referenced source variable from the inherited
+    environment first, then add back only the resolved, scoped aliases.
     """
     env = dict(os.environ if base_env is None else base_env)
-    selected = select_launch_secrets(cfg, declared)
-    for sv in cfg.secrets.values():
-        if sv.env_var is not None:
-            env.pop(sv.env_var, None)
-    env.update(selected)
+    for _name, ref in parse_inline_secrets(declared):
+        if ref.startswith("env:"):
+            env.pop(ref[len("env:") :], None)
+    env.update(select_launch_secrets(cfg, declared))
     return env
