@@ -2813,9 +2813,13 @@ def test_recurring_launch_invokes_launch(
         agent_override: str | None,
         prompt_report: bool,
         autonomy_override: str | None = None,
+        idle_timeout: float | None = None,
+        max_session: float | None = None,
         return_timeout: bool = False,
     ) -> None:
         assert return_timeout is False
+        assert idle_timeout == 900.0
+        assert max_session is None
         ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
         assert ticket.status == "active"
         calls.append(task)
@@ -2827,6 +2831,33 @@ def test_recurring_launch_invokes_launch(
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
     assert calls == ["recurring/dream"]
+
+
+def test_recurring_launch_threads_configured_timeout_limits(
+    dream_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On-demand recurring launches pass concrete launch-limit values."""
+    relay_toml = dream_repo / "relay.toml"
+    relay_toml.write_text(
+        relay_toml.read_text() + "\n[launch]\nidle_timeout = 120\nmax_session = 3600\n"
+    )
+    seen: list[tuple[float | None, float | None, bool]] = []
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        seen.append(
+            (
+                kwargs.get("idle_timeout"),
+                kwargs.get("max_session"),
+                kwargs.get("return_timeout"),
+            )
+        )
+
+    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+
+    result = CliRunner().invoke(app, ["recurring", "launch", "dream"])
+
+    assert result.exit_code == 0, result.output
+    assert seen == [(120.0, 3600.0, False)]
 
 
 def test_recurring_launch_resumes_in_progress_orphan(
@@ -2887,11 +2918,13 @@ def test_recurring_launch_refuses_done_task(
 def test_recurring_launch_interactive_overrides_mode(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay recurring launch <name> --interactive` threads autonomy_override."""
-    seen: list[str | None] = []
+    """`--interactive` threads autonomy_override and leaves limits unarmed."""
+    seen: list[tuple[str | None, float | None, float | None]] = []
     monkeypatch.setattr(
         "relay.commands.launch.launch",
-        lambda task, **k: seen.append(k.get("autonomy_override")),
+        lambda task, **k: seen.append(
+            (k.get("autonomy_override"), k.get("idle_timeout"), k.get("max_session"))
+        ),
     )
 
     result = CliRunner().invoke(
@@ -2899,7 +2932,7 @@ def test_recurring_launch_interactive_overrides_mode(
     )
 
     assert result.exit_code == 0, result.output
-    assert seen == ["interactive"]
+    assert seen == [("interactive", None, None)]
 
 
 def test_bare_recurring_scans_and_launches_due(
