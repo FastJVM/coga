@@ -74,7 +74,7 @@ def test_parse_codex_rollout_takes_last_cumulative_usage(
     _write(
         new,
         f"""
-        {{"type":"session_meta","payload":{{"id":"codex-session","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
+        {{"type":"session_meta","payload":{{"id":"codex-session","timestamp":"2026-06-23T12:01:00Z","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
         {{"type":"turn_context","payload":{{"model":"gpt-5.4"}}}}
         {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":10,"cached_input_tokens":2,"output_tokens":3,"reasoning_output_tokens":1,"total_tokens":13}}}}}}}}
         {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":50,"cached_input_tokens":12,"output_tokens":13,"reasoning_output_tokens":5,"total_tokens":63}}}}}}}}
@@ -140,6 +140,44 @@ def test_parse_codex_rollout_ambiguous_cwd_matches_are_unknown(
     assert parsed.usage_status == "unknown"
     assert parsed.provider == "openai"
     assert parsed.session_id is None
+
+
+def test_parse_codex_rollout_ignores_matches_outside_launch_window(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    rollout = (
+        tmp_path
+        / ".codex"
+        / "sessions"
+        / "2026"
+        / "06"
+        / "23"
+        / "rollout-stale.jsonl"
+    )
+    _write(
+        rollout,
+        f"""
+        {{"type":"session_meta","payload":{{"id":"stale","timestamp":"2026-06-23T11:00:00Z","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
+        {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0,"total_tokens":2}}}}}}}}
+        """,
+    )
+    start, end = _window()
+
+    parsed = parse_session(
+        "codex",
+        cwd=cwd,
+        session_id=None,
+        pre_existing=set(),
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "unknown"
+    assert parsed.provider == "openai"
+    assert parsed.reason == f"codex rollout not found for cwd: {cwd.resolve()}"
 
 
 def test_append_and_load_records_from_usage_section(tmp_path: Path) -> None:

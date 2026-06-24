@@ -167,7 +167,12 @@ def parse_session(
             window_end=window_end,
         )
     if provider == "codex":
-        return _parse_codex_session(cwd=cwd, pre_existing=pre_existing or set())
+        return _parse_codex_session(
+            cwd=cwd,
+            pre_existing=pre_existing or set(),
+            window_start=window_start,
+            window_end=window_end,
+        )
     return ParsedUsage(
         provider="unknown",
         model=None,
@@ -386,15 +391,27 @@ def _parse_claude_session(
     )
 
 
-def _parse_codex_session(cwd: Path, pre_existing: set[Path]) -> ParsedUsage:
+def _parse_codex_session(
+    *,
+    cwd: Path,
+    pre_existing: set[Path],
+    window_start: datetime,
+    window_end: datetime,
+) -> ParsedUsage:
     candidates: list[Path] = []
     cwd_str = str(cwd.resolve())
     for path in set(_codex_rollout_paths()) - pre_existing:
         meta = _read_codex_session_meta(path)
         if meta is None:
             continue
-        if meta.get("cwd") == cwd_str:
-            candidates.append(path)
+        if meta.get("cwd") != cwd_str:
+            continue
+        started_at = _parse_ts(meta.get("timestamp"))
+        if started_at is not None and not _inside_window(
+            started_at, window_start=window_start, window_end=window_end
+        ):
+            continue
+        candidates.append(path)
     if not candidates:
         return _unknown("openai", reason=f"codex rollout not found for cwd: {cwd_str}")
     if len(candidates) > 1:
@@ -489,6 +506,9 @@ def _read_codex_session_meta(path: Path) -> dict[str, str] | None:
                     "id": str(payload.get("id") or ""),
                     "cwd": str(payload.get("cwd") or ""),
                     "model_provider": str(payload.get("model_provider") or ""),
+                    "timestamp": str(
+                        payload.get("timestamp") or obj.get("timestamp") or ""
+                    ),
                 }
     except (OSError, json.JSONDecodeError):
         return None
