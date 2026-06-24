@@ -29,6 +29,7 @@ from relay.commands import bump as bump_cmd
 from relay.commands import uninstall as uninstall_cmd
 from relay.commands import usage as usage_cmd
 from relay.commands import validate as validate_cmd
+from relay.commands import worktree as worktree_cmd
 from relay.commands.update import read_pin
 from relay.config import ConfigError, find_repo_root, load_config
 
@@ -92,6 +93,7 @@ app.add_typer(skill_cmd.app, name="skill")
 app.add_typer(mark_cmd.app, name="mark")
 app.add_typer(recurring_cmd.app, name="recurring")
 app.add_typer(secret_cmd.app, name="secret")
+app.add_typer(worktree_cmd.app, name="worktree")
 
 
 # Names of commands registered above. Used to validate that user-defined
@@ -102,6 +104,7 @@ _BUILTIN_COMMANDS = frozenset(
         "init", "uninstall", "create", "launch", "status", "show", "bump",
         "delete", "retire", "panic", "slack", "digest", "usage",
         "skill", "mark", "recurring", "ticket", "project", "validate", "secret",
+        "worktree",
     }
 )
 

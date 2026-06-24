@@ -20,13 +20,24 @@ link reads it directly.
 ## Checkout boundary
 
 Treat the primary repo checkout as the Relay control-plane checkout.
-Keep it on `main` when possible. Do code changes in a feature worktree
-outside the primary checkout, then return to the primary checkout for
-blackboard updates, `relay bump`, `relay slack`, and `relay panic`.
+Keep it on `main` when possible. Do code changes in a **dedicated git
+worktree** — run `relay worktree create <slug>`, which puts it at the
+deterministic path `<git-toplevel>/worktree/<slug>` on its own branch —
+then return to the primary checkout for blackboard updates, `relay bump`,
+`relay slack`, and `relay panic`. A worktree per task means concurrent
+tasks never collide on one working tree.
 
 This keeps task-state edits (`ticket.md`, plus the repo-global `relay-os/log.md`)
 from mixing with source changes on a feature branch. If task-state
 changes need to be committed, commit them separately from the code PR.
+
+`worktree/` is gitignored at the toplevel, so a worktree never shows up
+as untracked clutter in the control-plane checkout. **Hazard:** that same
+ignore means a `git clean -fdx` in the primary checkout would delete an
+in-flight worktree's uncommitted work — never `git clean -x` the
+control-plane checkout while a worktree is live. Tear a worktree down with
+`relay worktree remove <slug>`, which refuses a dirty tree and never uses
+`--force`.
 
 ## The `## Dev` blackboard section
 
@@ -45,9 +56,10 @@ When to write each:
 - **`branch:`** — the moment you create the branch. Don't wait until
   the PR is open. If you crash or hand off mid-step, the next agent
   needs to know which branch your work is on.
-- **`worktree:`** — the moment you create the feature worktree. Use a
-  path outside the primary checkout so it does not appear as an
-  untracked directory in the control-plane checkout.
+- **`worktree:`** — the moment you create the feature worktree. Run
+  `relay worktree create <slug>` to put it at the deterministic
+  `<git-toplevel>/worktree/<slug>` path (gitignored, so it stays out of
+  the control-plane checkout), and record that path here.
 - **`pr:`** — as soon as `gh pr create` returns the URL. One line,
   the full URL.
 

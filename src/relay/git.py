@@ -611,4 +611,91 @@ def _path_exists(root: Path, rel: str) -> bool:
     return path.exists()
 
 
-__all__ = ["GitError", "sync_paths", "sync_task_state"]
+# --- per-task feature worktrees ------------------------------------------------
+#
+# A dev task's code work happens in a dedicated git worktree at
+# `<git-toplevel>/worktree/<slug>` on its own branch, kept out of the
+# control-plane checkout so concurrent tasks never collide on one working tree.
+# See the `dev/code` context.
+
+WORKTREE_DIRNAME = "worktree"
+
+
+def worktree_path(toplevel: Path, slug: str) -> Path:
+    """Deterministic feature-worktree path for `slug`: <toplevel>/worktree/<slug>."""
+    return toplevel / WORKTREE_DIRNAME / slug
+
+
+def _branch_exists(root: Path, branch: str) -> bool:
+    try:
+        _run_git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}")
+        return True
+    except GitError:
+        return False
+
+
+def create_worktree(
+    start: Path, slug: str, *, base: str = "HEAD", branch: str | None = None
+) -> tuple[Path, str]:
+    """Create a feature worktree at ``<toplevel>/worktree/<slug>`` on its own branch.
+
+    ``start`` is any path inside the repo; the worktree is anchored to the git
+    toplevel (``git rev-parse --show-toplevel``), never ``cfg.repo_root`` (which
+    may be ``relay-os/``). The branch defaults to ``slug``; ``base`` is the new
+    branch's start-point.
+
+    Idempotent: if the worktree path already exists it is returned unchanged
+    instead of raising. Returns ``(path, branch)``.
+    """
+    top = _toplevel(start)
+    if top is None:
+        raise GitError(f"{start} is not inside a git repository")
+    path = worktree_path(top, slug)
+    if path.exists():
+        return path, _current_branch(path)
+    branch = branch or slug
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if _branch_exists(top, branch):
+        _run_git(top, "worktree", "add", str(path), branch)
+    else:
+        _run_git(top, "worktree", "add", "-b", branch, str(path), base)
+    return path, branch
+
+
+def remove_worktree(start: Path, slug: str) -> bool:
+    """Remove ``slug``'s feature worktree. Returns True if one was removed, False
+    if there was nothing to remove.
+
+    Safety contract: this NEVER passes ``--force``. Plain ``git worktree remove``
+    refuses a worktree with uncommitted or untracked work (raising ``GitError``)
+    — that refusal is exactly the guard we want, since ``--force`` is precisely
+    how real in-flight work gets deleted. The branch is left intact; its commits
+    live on regardless of the working directory.
+    """
+    top = _toplevel(start)
+    if top is None:
+        raise GitError(f"{start} is not inside a git repository")
+    path = worktree_path(top, slug)
+    if not path.exists():
+        return False
+    _run_git(top, "worktree", "remove", str(path))
+    return True
+
+
+def list_worktrees_text(start: Path) -> str:
+    """Raw ``git worktree list`` output for the repo containing ``start``."""
+    top = _toplevel(start)
+    if top is None:
+        raise GitError(f"{start} is not inside a git repository")
+    return _run_git(top, "worktree", "list")
+
+
+__all__ = [
+    "GitError",
+    "sync_paths",
+    "sync_task_state",
+    "worktree_path",
+    "create_worktree",
+    "remove_worktree",
+    "list_worktrees_text",
+]

@@ -35,6 +35,12 @@ uv.lock
 
 
 
+# Per-task feature worktrees (see the dev/code context + `relay worktree`).
+# Anchored to the git toplevel; kept ignored so the control-plane overlay
+# plumbing never carries an in-flight worktree, and a stray `git clean -x`
+# in the primary checkout can't reach committed worktree work.
+/worktree/
+
 # >>> relay-managed >>>
 # Managed by `relay init [--update]`. Don't edit between these markers —
 # they will be overwritten. Symlinks below are created by `relay init` so
