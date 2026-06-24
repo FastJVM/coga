@@ -234,3 +234,5 @@
 2026-06-24 14:19 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=codex, agent=codex)
 2026-06-24 14:19 [prevent-autostash-spool-conflicts-on-control-branc] [human:nick] activated (draft → active)
 2026-06-24 14:20 [prevent-autostash-spool-conflicts-on-control-branc] [agent:nick] advanced to step 2 (peer-review) → assigned to codex — implement done: spool merge-by-construction + rebase hardening; branch spool-merge-by-construction (worktree ../relay-spool-merge); full suite 887 passed
+2026-06-24 14:55 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-24 14:55 [retire-mark-active] [human:nick] task done
