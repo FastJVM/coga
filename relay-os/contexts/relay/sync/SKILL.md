@@ -24,11 +24,11 @@ out of notifications entirely:
   failure must never wait. This is the `notification.post` path.
 - **Outcome digest** — done tickets and recurring scan errors, collapsed into
   **one daily digest**. This is the `notification.notify` path: each outcome/error
-  appends a structured JSONL record to the `recurring/digest/` ticket's
-  blackboard (its `## Spool (pending)` section), and the digest recurring
-  ticket flushes the spool once a day via `relay digest` (drain → fetch
-  `origin/main` → render Done + Also merged → post one message → empty the
-  spool → record a git high-water mark).
+  appends a structured JSONL record to the dedicated `recurring/digest/spool.md`
+  file (its `## Spool (pending)` section), and the digest recurring
+  ticket flushes the spool once a day via `relay digest` (read unconsumed → fetch
+  `origin/main` → render Done + Also merged → post one message → drain (advance
+  the watermark + trim the consumed prefix) → record a git high-water mark).
 
 Live (urgent) surface — still posts immediately:
 
@@ -198,8 +198,8 @@ new string:
   owner=None, watchers=None, task_path=None, image_url=None)` — the
   **outcome digest** path. It accepts only `done` and `recurring-error`
   records. When `digest_spool_path(cfg)` is non-None (the
-  `recurring/digest/` ticket is installed), it appends a structured record to
-  the spool; otherwise it falls back to `post(slack_text, …)`. `kind` is the
+  `recurring/digest/spool.md` file is installed), it appends a structured record
+  to the spool; otherwise it falls back to `post(slack_text, …)`. `kind` is the
   event tag; `detail` is the digest one-liner.
 - `src/relay/notification/__init__.py::render_digest(cfg, records, *, date_label,
   also_merged=None)` — renders Done owner sections, an optional "Also merged
@@ -243,9 +243,8 @@ The digest collapses outcomes into one notification message a day. It is a
 mechanism:
 
 - **Producer.** `notification.notify` appends one JSONL record per outcome/error to the
-  `recurring/digest/` ticket's blackboard region (its `ticket.md`, below the
-  fence), under a `## Spool (pending)`
-  section. The record is self-describing — `ts`, `project`, `kind`, `detail`,
+  dedicated `recurring/digest/spool.md` file's `## Spool (pending)` section. The
+  record is self-describing — a unique `id`, `ts`, `project`, `kind`, `detail`,
   and (when present) `ticket`, `owner`, `watchers`. JSONL so `detail` can hold
   any text (arrows, pipes, emoji) with no escaping. Captured at event time, so
   a task deleted later the same day is already recorded.
@@ -257,26 +256,96 @@ mechanism:
   "Also merged"; remaining non-Relay-state commits render under "Also merged
   (no ticket)." Relay's own state-sync commits are filtered by subject:
   `Sync task state: …` and `Ticket: <slug> — <status>`.
-- **The spool is a real blackboard.** It is git-tracked, human-readable, never
-  a hidden dotfile — consistent with relay's no-hidden-state rule. It shares
-  the file with recurring template state such as `last_serviced_period`; the
-  flush parses only valid-JSON lines and rewrites only the spool section, so
-  other state is untouched.
+- **The spool is a real, dedicated file.** `recurring/digest/spool.md` is
+  git-tracked, human-readable, never a hidden dotfile — consistent with relay's
+  no-hidden-state rule. It is kept *separate* from the digest ticket and marked
+  `merge=union` (`.gitattributes`) so concurrent producer appends merge without
+  ever touching the ticket's YAML frontmatter. The git high-water mark
+  (`### Digest State`) lives in the ticket, not the spool, because it is
+  single-writer consumer state that must not ride union semantics.
 - **Consumer.** The `recurring/digest/` ticket (a script task, daily
   `schedule:`) fires through the normal `relay recurring` scan. Its one
   workflow step runs the `relay/digest/flush` skill, whose `script:` calls
-  `relay digest` → `commands/digest.run_digest`: read the spool, fetch/scan
-  git, render via `render_digest`, `post` one message, drain the spool, and
-  update `### Digest State`. Empty spool is not enough to skip posting; new
-  merged commits can still produce a digest. The command posts nothing only
-  when there are no Done records, no recurring errors, and no post-filter new
-  commits.
+  `relay digest` → `commands/digest.run_digest`: read the **unconsumed** records,
+  fetch/scan git, render via `render_digest`, `post` one message, **drain**
+  (advance the watermark + trim the consumed prefix), and update
+  `### Digest State`. Records are de-duped by content before rendering, so the
+  same event recorded by two clones posts once. Empty spool is not enough to
+  skip posting; new merged commits can still produce a digest. The command posts
+  nothing only when there are no Done records, no recurring errors, and no
+  post-filter new commits.
 - **The primitive.** `src/relay/spool.py::append_record(path, record)` /
-  `drain(path)` / `read_records(path)` operate on a blackboard's
-  `## Spool (pending)` JSONL section via `atomicio.atomic_write_text`. Relay
-  runs one CLI process at a time, so appends and drains are serialized by that
-  — no lock is introduced, consistent with the no-mutex model. The primitive
-  is deliberately notification-agnostic; the digest is its first caller.
+  `read_unconsumed(path)` / `drain(path)` / `read_records(path)` operate on the
+  spool file's `## Spool (pending)` JSONL section via
+  `atomicio.atomic_write_text`. There is no lock and no "one process at a time"
+  assumption (there never was — two clones against one origin routinely race):
+  the spool is mergeable **by construction**, the contract documented next. The
+  primitive is deliberately notification-agnostic; the digest is its first
+  caller.
+
+### Why the spool is a contended file, and how it stays mergeable
+
+State-plane writes — ticket transitions, the digest spool, recurring markers,
+dream logs — are committed **directly to `origin/main`** by `sync_task_state` /
+`_push_control_branch`, with no branch and no PR. (Only `(#NN)` commits go
+through PRs; those are the code plane.) So any number of relay processes — in
+this repo, in another clone, on another machine — push state straight to the
+same `main`. The digest spool (`recurring/digest/spool.md`'s
+`## Spool (pending)`) is the hottest such file: every done/error event appends
+to it, and the daily `relay digest` drains it. Two writers therefore routinely
+collide on it during a rejected-push → `rebase --autostash` recovery.
+
+git resolves a 3-way merge cleanly only when the two sides' changed line ranges
+don't touch. The spool is engineered around that one fact, with **two** distinct
+concurrency cases and a different mechanism for each:
+
+1. **Append vs append** (two producers each add a record at the bottom). Plain
+   git conflicts — both insert at the same EOF anchor. This is resolved by
+   marking the spool file `merge=union` in `.gitattributes`: union keeps
+   **both** sides' lines. It is *safe here precisely because both sides only
+   add* — there is nothing to resurrect. Records carry a unique `id`, so the
+   ours-then-theirs order union picks is harmless (the digest de-dups by
+   content, and orders by `ts`/`id`, not file position).
+
+2. **Drain vs append** (the digest consumes while a producer adds). This is the
+   dangerous case, and `merge=union` makes it *worse*: if union ever sees a hunk
+   where one side **deleted** lines, it keeps them — resurrecting just-consumed
+   records (the historical `e66c302 "restore PR #368 spool record"` bug; stale
+   records lingering for days). The fix is structural, not a merge driver:
+
+   - Producers **append only at the bottom**, never touching the watermark or
+     existing records.
+   - A `consumed_through: <id>` watermark in a fixed slot names the last record
+     the digest has posted.
+   - The digest **drains by compacting the consumed *prefix*** — it deletes the
+     run of already-posted records from the **top**, but always **keeps the
+     newest record in place as an anchor** (and never empties the tail).
+
+   Now the delete (top) and any concurrent append (bottom) are separated by the
+   anchor — disjoint hunks — so git auto-merges them with **no conflict and no
+   resurrection**, and `merge=union` is never invoked on a delete. The watermark
+   stops the retained anchor being re-posted next run. Size stays bounded to
+   ~one digest interval of records plus the anchor.
+
+**The invariant, stated once:** deletes only at the top, appends only at the
+bottom, always an untouched anchor between them. `merge=union` is the *backstop*
+for the pure-append collision (case 1); prefix-compaction is what guarantees
+union never has to touch a delete (case 2). The original `drain` violated this
+by rewriting the whole section to empty — deleting the very region producers
+append to — which was the entire root cause of the recurring conflict markers
+and orphaned `autostash` stashes.
+
+The same-branch push retry that triggers all this (`git.py::_rebase_onto_remote`)
+is itself hardened to never leave the wound behind: it stashes dirty changes
+explicitly (not `rebase --autostash`), and on any rebase or pop failure resets
+to the pre-sync tip and re-applies the stash there — so a failed recovery leaves
+no conflict markers and no orphaned stash, only a reported sync miss.
+
+(Process-level races within a single clone — a recurring sweep and an agent's
+`relay mark`/`bump` both `rebase --autostash`-ing one working tree — are a
+separate concern handled by per-agent worktree isolation, tracked in its own
+ticket. relay is intentionally lock-free; this contract is what makes that safe
+for the spool.)
 
 ## Git — durable task-state sync
 

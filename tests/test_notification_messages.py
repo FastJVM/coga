@@ -320,19 +320,19 @@ def test_automerge_digest_preserves_transition_and_pr_link(
     slug, _ = _make_task(repo, status="active", on_final=True, pr_url=url)
     monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
     posts = _capture(monkeypatch)
-    # Single-file format: the digest spool lives in the blackboard region of
-    # `recurring/digest/ticket.md` (below the fence), not a sibling blackboard.md.
-    digest_ticket = repo / "recurring" / "digest" / "ticket.md"
+    # The digest spool is now a dedicated, `merge=union` `spool.md` file, kept
+    # separate from the digest ticket so concurrent appends never touch its YAML.
+    digest_spool = repo / "recurring" / "digest" / "spool.md"
     _write(
-        digest_ticket,
-        "## Description\n\n<!-- relay:blackboard -->\n\n## Spool (pending)\n",
+        digest_spool,
+        "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
     )
 
     count = am.sweep_merged(load_config(repo), quiet=True)
 
     assert count == 1
     assert posts == []
-    records = spool.read_records(digest_ticket)
+    records = spool.read_records(digest_spool)
     assert len(records) == 1
     assert records[0]["ticket"] == slug
     assert records[0]["kind"] == "done"

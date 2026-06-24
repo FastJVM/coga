@@ -53,19 +53,30 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _install_digest(relay_os: Path) -> Path:
-    """Create the recurring/digest spool ticket and return its `ticket.md` path.
+    """Install the recurring/digest spool + ticket; return the `spool.md` path.
 
-    Single-file format: the spool lives in the blackboard region of
-    `recurring/digest/ticket.md` (below the fence), not a sibling blackboard.md.
+    The pending-record spool lives in the dedicated, `merge=union`
+    `recurring/digest/spool.md` file; the git high-water mark (`### Digest State`)
+    lives in the sibling `ticket.md`. Most assertions read the spool, so the
+    spool path is returned; the state file is `_state_path(spool_path)`.
     """
-    bb = relay_os / "recurring" / "digest" / "ticket.md"
+    digest = relay_os / "recurring" / "digest"
     _write(
-        bb,
+        digest / "spool.md",
+        "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
+    )
+    _write(
+        digest / "ticket.md",
         "## Description\n\n"
         "<!-- relay:blackboard -->\n\n"
-        "Digest spool.\n\n## Spool (pending)\n",
+        "Digest state.\n\n### Digest State\n\nlast_commit:\nrange:\nposted:\n",
     )
-    return bb
+    return digest / "spool.md"
+
+
+def _state_path(spool_path: Path) -> Path:
+    """The digest ticket holding `### Digest State`, sibling of the spool file."""
+    return spool_path.parent / "ticket.md"
 
 
 @pytest.fixture
@@ -89,71 +100,115 @@ def captured_posts(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 # --- spool primitive ----------------------------------------------------------
 
 
-def test_spool_roundtrip_and_preserves_non_spool_state(tmp_path: Path) -> None:
-    bb = tmp_path / "ticket.md"
-    bb.write_text(
-        "## Description\n\n<!-- relay:blackboard -->\n\n"
-        "Seed text.\n\n## Spool (pending)\n\n## State\n\nlast_serviced_period: 2026-06-03\n"
-    )
+def _spool_file(tmp_path: Path) -> Path:
+    sp = tmp_path / "spool.md"
+    sp.write_text("# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n")
+    return sp
 
-    spool.append_record(bb, {"kind": "bump", "detail": "→ step 2"})
-    spool.append_record(bb, {"kind": "done", "detail": "→ done"})
 
-    assert spool.read_records(bb) == [
-        {"kind": "bump", "detail": "→ step 2"},
-        {"kind": "done", "detail": "→ done"},
-    ]
+def test_append_stamps_id_and_tails(tmp_path: Path) -> None:
+    sp = _spool_file(tmp_path)
+    spool.append_record(sp, {"kind": "bump", "detail": "→ step 2"})
+    spool.append_record(sp, {"kind": "done", "detail": "→ done"})
 
-    drained = spool.drain(bb)
+    records = spool.read_records(sp)
+    assert [r["kind"] for r in records] == ["bump", "done"]  # append order
+    # Every record is id-stamped, and the ids are unique.
+    ids = [r["id"] for r in records]
+    assert all(ids) and len(set(ids)) == 2
+    # Header prose is untouched; records sit below the watermark line.
+    text = sp.read_text()
+    assert text.index("consumed_through:") < text.index('"kind":"bump"')
+
+
+def test_append_creates_section_when_absent(tmp_path: Path) -> None:
+    sp = tmp_path / "spool.md"
+    sp.write_text("# Digest spool\n\nno section yet\n")
+    spool.append_record(sp, {"kind": "draft", "detail": "created"})
+    records = spool.read_records(sp)
+    assert [r["kind"] for r in records] == ["draft"]
+    assert "## Spool (pending)" in sp.read_text()
+
+
+def test_drain_keeps_anchor_and_advances_watermark(tmp_path: Path) -> None:
+    sp = _spool_file(tmp_path)
+    spool.append_record(sp, {"id": "a1", "kind": "bump", "detail": "a"})
+    spool.append_record(sp, {"id": "a2", "kind": "done", "detail": "b"})
+
+    drained = spool.drain(sp)
     assert [r["kind"] for r in drained] == ["bump", "done"]
+    # Newest record stays as the anchor; watermark names it; nothing unconsumed.
+    assert "consumed_through: a2" in sp.read_text()
+    assert [r["id"] for r in spool.read_records(sp)] == ["a2"]
+    assert spool.read_unconsumed(sp) == []
 
-    text = bb.read_text()
-    # State + seed survive; spool section is emptied.
-    assert "last_serviced_period: 2026-06-03" in text
-    assert "Seed text." in text
-    assert "## State" in text
-    assert spool.read_records(bb) == []
-
-
-def test_spool_creates_section_when_absent(tmp_path: Path) -> None:
-    bb = tmp_path / "ticket.md"
-    bb.write_text(
-        "## Description\n\n<!-- relay:blackboard -->\n\n"
-        "Just a seed line, no spool section yet.\n"
-    )
-    spool.append_record(bb, {"kind": "draft", "detail": "created"})
-    assert spool.read_records(bb) == [{"kind": "draft", "detail": "created"}]
-    assert "## Spool (pending)" in bb.read_text()
+    # A later append is unconsumed; a re-drain leaves only the new anchor.
+    spool.append_record(sp, {"id": "a3", "kind": "done", "detail": "c"})
+    assert [r["id"] for r in spool.read_unconsumed(sp)] == ["a3"]
+    assert [r["kind"] for r in spool.drain(sp)] == ["done"]
+    assert "consumed_through: a3" in sp.read_text()
+    assert [r["id"] for r in spool.read_records(sp)] == ["a3"]
 
 
-def test_drain_returns_records_and_preserves_non_record_lines(tmp_path: Path) -> None:
-    bb = tmp_path / "ticket.md"
-    bb.write_text(
-        "## Description\n\n<!-- relay:blackboard -->\n\n"
-        "## Spool (pending)\n\n"
-        '{"kind":"bump","detail":"a"}\n'
-        "last_serviced_period: 2026-06-03\n"  # stray high-water line
-        '{"kind":"done","detail":"b"}\n'
-    )
-    drained = spool.drain(bb)
-    assert [r["kind"] for r in drained] == ["bump", "done"]
-    # JSON records are cleared; the non-record high-water line is preserved.
-    text = bb.read_text()
-    assert "last_serviced_period: 2026-06-03" in text
-    assert spool.read_records(bb) == []
-
-
-def test_drain_empty_and_missing_are_noops(tmp_path: Path) -> None:
+def test_drain_empty_missing_and_already_consumed_are_noops(tmp_path: Path) -> None:
     missing = tmp_path / "nope.md"
     assert spool.drain(missing) == []
 
-    bb = tmp_path / "ticket.md"
-    bb.write_text(
-        "## Description\n\n<!-- relay:blackboard -->\n\n## Spool (pending)\n\n"
+    sp = _spool_file(tmp_path)
+    before = sp.read_text()
+    assert spool.drain(sp) == []
+    assert sp.read_text() == before  # empty spool untouched
+
+    spool.append_record(sp, {"id": "a1", "kind": "done", "detail": "a"})
+    spool.drain(sp)
+    consumed = sp.read_text()
+    # Nothing new since the last drain → no-op, file untouched.
+    assert spool.drain(sp) == []
+    assert sp.read_text() == consumed
+
+
+def test_drain_vs_append_merge_without_conflict(tmp_path: Path) -> None:
+    """The structural invariant: a concurrent consumer drain (top-trim) and a
+    producer append (bottom) 3-way merge cleanly, with no conflict, no
+    resurrection of consumed records, and the anchor not re-posted.
+
+    This reproduces the contended-push → rebase recovery that left conflict
+    markers before, using `git merge-file` as the 3-way merger.
+    """
+    base = tmp_path / "base.md"
+    base.write_text("# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n")
+    for rid in ("r1", "r2", "r3"):
+        spool.append_record(base, {"id": rid, "kind": "done", "detail": rid})
+
+    consumer = tmp_path / "consumer.md"  # the digest drains
+    producer = tmp_path / "producer.md"  # a clone appends r4
+    consumer.write_text(base.read_text())
+    producer.write_text(base.read_text())
+    spool.drain(consumer)  # trims r1,r2 from the top; keeps r3 as anchor
+    spool.append_record(producer, {"id": "r4", "kind": "done", "detail": "r4"})
+
+    # 3-way merge consumer (ours) + base + producer (theirs).
+    import subprocess
+
+    merged = subprocess.run(
+        ["git", "merge-file", "-p", str(consumer), str(base), str(producer)],
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    before = bb.read_text()
-    assert spool.drain(bb) == []
-    assert bb.read_text() == before  # untouched on empty
+    assert merged.returncode == 0, merged.stdout + merged.stderr  # clean merge
+    out = merged.stdout
+    assert "<<<<<<<" not in out and ">>>>>>>" not in out
+    # Consumed records were trimmed, NOT resurrected by the merge.
+    assert '"id":"r1"' not in out and '"id":"r2"' not in out
+    # The anchor (r3) and the new append (r4) both survive; watermark advanced.
+    assert "consumed_through: r3" in out
+    assert '"id":"r3"' in out and '"id":"r4"' in out
+
+    # And the merged file presents exactly r4 as the next unconsumed record.
+    result = tmp_path / "merged.md"
+    result.write_text(out)
+    assert [r["id"] for r in spool.read_unconsumed(result)] == ["r4"]
 
 
 # --- notify routing -----------------------------------------------------------
@@ -257,6 +312,40 @@ def test_render_digest_groups_and_mentions(repo: Path) -> None:
     assert out.index("Also merged") < out.index("Recurring errors")
 
 
+# --- de-dup -------------------------------------------------------------------
+
+
+def test_dedupe_collapses_same_event_from_two_clones() -> None:
+    # Two clones recorded the same done event: distinct random ids, ts seconds
+    # apart, identical content. id alone can't collapse them; the content key does.
+    records = [
+        {"id": "a", "project": "relay", "kind": "done", "ticket": "t",
+         "detail": "→ done ✅", "ts": "2026-06-24T11:00"},
+        {"id": "b", "project": "relay", "kind": "done", "ticket": "t",
+         "detail": "→ done ✅", "ts": "2026-06-24T11:01"},
+        {"id": "c", "project": "relay", "kind": "done", "ticket": "u",
+         "detail": "→ done ✅", "ts": "2026-06-24T11:00"},
+    ]
+    out = notification.dedupe_records(records)
+    assert [r["ticket"] for r in out] == ["t", "u"]  # one t (first-seen), one u
+
+
+def test_run_digest_posts_a_duplicated_event_once(
+    repo: Path, captured_posts: list[dict]
+) -> None:
+    bb = _install_digest(repo)
+    cfg = load_config()
+    # The same event, spooled twice (as two racing clones would).
+    for _ in range(2):
+        notification.notify(
+            cfg, "y", kind="done", detail="→ done ✅", ticket="dup", owner="nick"
+        )
+    assert len(spool.read_unconsumed(bb)) == 2  # both records are on the spool
+
+    assert run_digest(cfg) is True
+    assert captured_posts[0]["text"].count(" • dup ") == 1  # posted once
+
+
 # --- flush --------------------------------------------------------------------
 
 
@@ -281,9 +370,9 @@ def test_run_digest_flushes_then_empties(
     assert "done ✅" in text
     assert "→ active" not in text
 
-    # Spool emptied, including legacy lifecycle records; a same-day re-run is
-    # a silent no-op in this non-git test repo.
-    assert spool.read_records(bb) == []
+    # Spool drained (watermark advanced past the legacy lifecycle record too);
+    # nothing left unconsumed, so a same-day re-run is a silent no-op here.
+    assert spool.read_unconsumed(bb) == []
     assert run_digest(cfg) is False
     assert len(captured_posts) == 1
 
@@ -300,19 +389,14 @@ def _commit_and_push(git_repo, relpath: str, text: str, subject: str) -> str:
 
 
 def _install_digest_with_state(relay_os: Path, last_commit: str) -> Path:
+    """Install the spool + ticket and seed `### Digest State` with `last_commit`.
+
+    Returns the spool.md path; the high-water mark lives in `_state_path(bb)`.
+    """
     bb = _install_digest(relay_os)
-    text = bb.read_text()
-    bb.write_text(
-        text.replace(
-            "## Spool (pending)\n",
-            (
-                "### Digest State\n\n"
-                f"last_commit: {last_commit}\n"
-                "range:\n"
-                "posted:\n\n"
-                "## Spool (pending)\n"
-            ),
-        )
+    state = _state_path(bb)
+    state.write_text(
+        state.read_text().replace("last_commit:\n", f"last_commit: {last_commit}\n")
     )
     return bb
 
@@ -367,8 +451,9 @@ def test_run_digest_posts_also_merged_from_git_high_water(
     assert "Improve digest rendering (#42)" not in text
     assert "Ticket: sync-task-state" not in text
     assert "Sync task state:" not in text
-    assert spool.read_records(bb) == []
-    assert f"last_commit: {git_repo.git('rev-parse', 'origin/main').strip()}" in bb.read_text()
+    assert spool.read_unconsumed(bb) == []
+    head = git_repo.git("rev-parse", "origin/main").strip()
+    assert f"last_commit: {head}" in _state_path(bb).read_text()
 
 
 def test_run_digest_posts_git_commits_even_with_empty_spool(
@@ -390,7 +475,7 @@ def test_run_digest_posts_git_commits_even_with_empty_spool(
     assert "Done:" not in text
     assert "Also merged (no ticket):" in text
     assert f" • {sha[:7]} Add digest high-water scan" in text
-    assert "last_commit:" in bb.read_text()
+    assert "last_commit:" in _state_path(bb).read_text()
 
 
 def test_run_digest_flushes_done_when_git_disabled(
@@ -418,8 +503,9 @@ def test_run_digest_flushes_done_when_git_disabled(
     assert "Done:" in text
     assert "manual-done" in text
     assert "Also merged" not in text
-    assert spool.read_records(bb) == []
-    assert "last_commit:" not in bb.read_text()
+    assert spool.read_unconsumed(bb) == []
+    # git disabled → no high-water scan, so the seeded last_commit stays empty.
+    assert "last_commit:\n" in _state_path(bb).read_text()
 
 
 def test_run_digest_skips_filtered_commits_but_advances_high_water(
@@ -437,7 +523,8 @@ def test_run_digest_skips_filtered_commits_but_advances_high_water(
 
     assert run_digest(cfg) is False
     assert captured_posts == []
-    assert f"last_commit: {git_repo.git('rev-parse', 'origin/main').strip()}" in bb.read_text()
+    head = git_repo.git("rev-parse", "origin/main").strip()
+    assert f"last_commit: {head}" in _state_path(bb).read_text()
 
 
 def test_run_digest_noop_without_digest_ticket(

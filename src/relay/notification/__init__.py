@@ -14,9 +14,9 @@ Only ticket outcomes (`done`) and recurring scan errors enter the daily digest.
 Routine lifecycle churn (draft, active, bump, paused, retire, recurring
 create) is intentionally silent: the repo-global `relay-os/log.md` remains the audit trail,
 while notifications carry outcomes and urgent exceptions. When the daily-digest
-recurring ticket is installed (`recurring/digest/` exists), `notify` spools a
-structured record to that ticket's blackboard region; when it is absent, those same
-outcome/error events fall back to a live `post`.
+recurring ticket is installed (`recurring/digest/spool.md` exists), `notify`
+spools a structured record to that dedicated, `merge=union` spool file; when it
+is absent, those same outcome/error events fall back to a live `post`.
 """
 
 from __future__ import annotations
@@ -73,17 +73,58 @@ _SLACK_PR_LINK_RE = re.compile(r"<[^>|]+?\|PR #\d+>")
 
 
 def digest_spool_path(cfg: Config) -> Path | None:
-    """The digest ticket whose blackboard region holds the spool, or None when
-    it isn't installed.
+    """The dedicated digest spool file, or None when it isn't installed.
 
-    The spool lives in the `recurring/digest/` template ticket's blackboard
-    region (the part of its `ticket.md` below the fence) — a real, git-tracked,
-    human-readable file (never a hidden dotfile). Its presence is what routes
+    The spool lives in `recurring/digest/spool.md` — a standalone, git-tracked,
+    `merge=union` file (never a hidden dotfile), kept *separate* from the
+    digest ticket so concurrent producer appends merge by union without ever
+    touching the ticket's YAML frontmatter. Its presence is what routes
     outcome/error `notify` records into the daily digest instead of posting them
-    live. Returns the `ticket.md` path; `relay.spool` operates on its region.
+    live. `relay.spool` operates on this file's `## Spool (pending)` section.
     """
-    path = recurring_dir(cfg) / DIGEST_RECURRING_NAME / "ticket.md"
+    path = recurring_dir(cfg) / DIGEST_RECURRING_NAME / "spool.md"
     return path if path.is_file() else None
+
+
+def digest_state_path(cfg: Config) -> Path:
+    """The digest ticket holding `### Digest State` (the git high-water mark).
+
+    Kept in the ticket (not the union-merged spool file): the high-water mark is
+    single-writer consumer state that should not ride union semantics. Returned
+    unconditionally — callers guard on `is_file()` — so the path resolves even
+    before the recurring ticket is materialized.
+    """
+    return recurring_dir(cfg) / DIGEST_RECURRING_NAME / "ticket.md"
+
+
+def dedupe_records(records: list[dict]) -> list[dict]:
+    """Drop duplicate spool records, preserving first-seen order.
+
+    Two clones that independently recorded the same event each stamp a distinct
+    random `id`, so id alone can't collapse them; the de-dup key is the content
+    tuple `(project, kind, ticket, detail)` (deliberately excluding `ts`, which
+    the two clones capture seconds apart). That key also subsumes an exact line
+    duplicated by a `merge=union` resolution. `id` is kept as a fast exact-dup
+    guard for records that carry no distinguishing content.
+    """
+    seen_ids: set[str] = set()
+    seen_keys: set[tuple] = set()
+    out: list[dict] = []
+    for rec in records:
+        rid = rec.get("id")
+        key = (
+            rec.get("project"),
+            rec.get("kind"),
+            rec.get("ticket"),
+            rec.get("detail"),
+        )
+        if (rid is not None and rid in seen_ids) or key in seen_keys:
+            continue
+        if rid is not None:
+            seen_ids.add(rid)
+        seen_keys.add(key)
+        out.append(rec)
+    return out
 
 
 def notify(
@@ -264,7 +305,9 @@ __all__ = [
     "notify",
     "render_digest",
     "done_pr_numbers",
+    "dedupe_records",
     "digest_spool_path",
+    "digest_state_path",
     "DIGEST_RECURRING_NAME",
     "DIGEST_EVENT_KINDS",
     "SlackChannel",

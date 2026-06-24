@@ -413,6 +413,46 @@ def test_sync_control_branch_nonff_preserves_dirty_worktree(git_repo):
     assert not git_repo.origin_tracks("STRAY.txt")
 
 
+def test_sync_control_branch_unpoppable_dirty_change_leaves_no_markers_or_stash(
+    git_repo, capsys
+):
+    """Hardened recovery: a dirty *tracked* change that can't replay onto the
+    moved tip is rolled back cleanly — no conflict markers, no orphaned stash,
+    no lingering rebase — and the miss is non-fatal.
+
+    This is the exact autostash wound the fix targets: previously the autostash
+    pop conflicted, `rebase --abort` re-conflicted, and the repo was left with
+    `<<<<<<<` markers in the working tree AND an undropped stash. The explicit
+    stash dance must instead restore the pre-sync state.
+    """
+    cfg = load_config(git_repo.relay_os)
+    task = _task_dir(git_repo.relay_os)
+
+    shared = git_repo.relay_os / "workflows" / "direct" / "body.md"
+    original = shared.read_text()
+    # A dirty tracked edit locally...
+    shared.write_text(original + "\nlocal dirty edit\n")
+    # ...and a rival edit to the SAME file on origin/main → the stash pop, after
+    # the task commit rebases onto the rival tip, cannot apply cleanly.
+    git_repo.push_competing_commit(
+        "relay-os/workflows/direct/body.md", original + "\nrival edit\n"
+    )
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    # Non-fatal miss surfaced.
+    assert "sync failed" in capsys.readouterr().err
+    # No lingering rebase, no conflict markers, no orphaned stash.
+    assert not (git_repo.root / ".git" / "rebase-merge").exists()
+    assert not (git_repo.root / ".git" / "rebase-apply").exists()
+    assert git_repo.git("stash", "list").strip() == ""
+    body = shared.read_text()
+    assert "<<<<<<<" not in body
+    # The dirty change is preserved, restored onto the pre-sync tip.
+    assert "local dirty edit" in body
+    assert "rival edit" not in body
+
+
 def test_sync_control_branch_retry_loop_survives_mid_flight_race(git_repo, monkeypatch):
     """Force a non-ff *between* fetch and push on `main`: the loop rebases and succeeds."""
     cfg = load_config(git_repo.relay_os)

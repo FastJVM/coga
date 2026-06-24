@@ -19,18 +19,19 @@ plus other commits merged to `origin/main` since the last digest run.
 
 Routine lifecycle chatter (`relay create`, message-less `bump`, `mark
 active/paused`, `retire`, successful recurring creates) does not enter Slack.
-Done tickets and recurring scan errors append one JSONL record to this recurring
-task's own `blackboard.md` (the `## Spool (pending)` section) — see
-`relay.notification.notify`. Once a day this ticket fires on its schedule and its
-The script step runs `relay digest`, which:
+Done tickets and recurring scan errors append one JSONL record to the dedicated
+`spool.md` file (its `## Spool (pending)` section) — see
+`relay.notification.notify`. Once a day this ticket fires on its schedule and
+its script step runs `relay digest`, which:
 
-1. reads the pending Done/error records (single-process serialization, not a lock),
+1. reads the unconsumed Done/error records (a merge-by-construction spool, not a lock),
 2. fetches `origin/main` and scans commits since `### Digest State` `last_commit`
    (first run falls back to the last 24 hours),
 3. attributes merge commits to Done tickets by matching PR numbers,
 4. filters Relay's own state-sync commits out of "Also merged",
 5. posts one sectioned message to the shared channel,
-6. empties the spool section back to its seed, and
+6. advances the spool watermark, trimming the consumed prefix and keeping the
+   newest record as an anchor (so a concurrent producer append never conflicts), and
 7. updates `### Digest State` with the new high-water mark.
 
 Genuinely urgent events (`relay panic`, script-step failures, the
@@ -40,31 +41,23 @@ agent or a failure never waits a day to be seen.
 An empty spool is not automatically a no-op: merged commits can still produce
 the "Also merged (no ticket)" section. The run posts nothing only when there
 are no Done records, no recurring errors, and no post-filter new commits. The
-spool and high-water mark are real, git-tracked, human-readable blackboard
-state — never hidden state — so the queue and scan boundary are always legible.
+spool and high-water mark are real, git-tracked, human-readable state — never
+hidden state — so the queue and scan boundary are always legible.
 
 <!-- relay:blackboard -->
 
-This blackboard is the **spool and git high-water state** for the daily Slack
-digest.
-
-Done outcomes and recurring scan errors append one JSONL record to the
-`## Spool (pending)` section below as they happen (see `relay.notification.notify`).
-The daily `relay digest` run combines those records with a git scan of
-`origin/main`, posts one outcome-focused message to Slack, empties the spool
-back to just the heading, and updates `### Digest State`. Everything here is
-plain text in a git-tracked file on purpose — the pending queue and high-water
-mark stay legible, never hidden state.
+This blackboard holds the **git high-water state** for the daily Slack digest.
+The pending-record spool lives in the sibling `spool.md` file (a `merge=union`
+file kept out of this ticket so concurrent appends never touch the YAML
+frontmatter); only the `### Digest State` mark below lives here, written by the
+single `relay digest` consumer.
 
 `relay recurring` keeps the serviced-period high-water mark here and append-only
-human history in this template's `log.md` (never composed into a run, so it can
-grow unbounded). The digest flush still parses only valid JSON records and
-rewrites only the spool section, so any stray non-JSON line is left untouched.
+human history in the repo-global `relay-os/log.md` (never composed into a run,
+so it can grow unbounded).
 
 ### Digest State
 
 last_commit:
 range:
 posted:
-
-## Spool (pending)
