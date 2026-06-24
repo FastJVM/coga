@@ -109,6 +109,22 @@ def test_agent_discussion_template_must_be_string(repo: Path) -> None:
         load_config(repo)
 
 
+def test_agent_session_id_flag_loads_from_shared_config(repo: Path) -> None:
+    text = (repo / "relay.toml").read_text()
+    (repo / "relay.toml").write_text(text + 'session_id_flag = "--session-id"\n')
+    cfg = load_config(repo)
+    assert cfg.agent_type("claude").session_id_flag == "--session-id"
+
+
+def test_agent_session_id_flag_must_be_string(repo: Path) -> None:
+    text = (repo / "relay.toml").read_text()
+    (repo / "relay.toml").write_text(text + "session_id_flag = 42\n")
+    with pytest.raises(
+        ConfigError, match="agents.claude.session_id_flag must be a string"
+    ):
+        load_config(repo)
+
+
 def test_agent_skip_policy_defaults_off(repo: Path) -> None:
     cfg = load_config(repo)
     agent = cfg.agent_type("claude")
@@ -360,6 +376,7 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
         file = "CLAUDE.md"
         mode = "local"
         name_flag = "-n"
+        session_id_flag = "--session-id"
         discussion = "--append-system-prompt {prompt}"
 
         [notification]

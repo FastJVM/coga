@@ -75,6 +75,10 @@ class AgentType:
     # ticket title is appended as the next argv element. Skipped in
     # `discussion` mode so the human's first ask can name the session.
     name_flag: str = ""
+    # Optional CLI flag that pins the launched agent session id. Empty when
+    # the CLI does not expose one; Relay then falls back to provider-specific
+    # transcript matching.
+    session_id_flag: str = ""
     # Optional argv override for discussion prompts (`relay chat`, `relay ticket`):
     # the composed prompt rides as system/developer context instead of becoming
     # the agent's first user message. Parsed via `shlex.split`; the literal
@@ -362,6 +366,7 @@ _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
     "file",
     "mode",
     "name_flag",
+    "session_id_flag",
     "discussion",
 })
 _ALLOWED_NOTIFICATION_KEYS: frozenset[str] = frozenset({"channels", "slack"})
@@ -449,6 +454,12 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
                 f"agents.{name}.discussion must be a string "
                 f"(got {type(discussion).__name__})"
             )
+        session_id_flag = data.get("session_id_flag", "")
+        if not isinstance(session_id_flag, str):
+            raise ConfigError(
+                f"agents.{name}.session_id_flag must be a string "
+                f"(got {type(session_id_flag).__name__})"
+            )
         local_data = (local_raw or {}).get(name, {})
         skip_permissions, skip_permissions_argv = _parse_local_skip_policy(
             name, local_data
@@ -460,6 +471,7 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
             file=data["file"],
             mode=data.get("mode", "local"),
             name_flag=data.get("name_flag", ""),
+            session_id_flag=session_id_flag,
             discussion=discussion,
             skip_permissions=skip_permissions,
             skip_permissions_argv=skip_permissions_argv,
