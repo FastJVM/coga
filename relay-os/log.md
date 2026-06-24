@@ -254,3 +254,5 @@
 2026-06-24 15:23 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [git] sync failed: `git add -- relay-os/tasks/fix-optioninfo-sentinel-crash-in-on-demand-recurri.md relay-os/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
 2026-06-24 15:23 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-24 15:24 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/436
+2026-06-24 15:28 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] launched in interactive mode (assignee=nick, launch_assignee=codex, agent=codex)
+2026-06-24 15:47 [handle-better-delete-branches-autcommit] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
