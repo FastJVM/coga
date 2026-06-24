@@ -70,8 +70,11 @@ def test_secret_get_rejects_literal(repo: Path) -> None:
     is rejected (only `op://…` or `env:VAR` references are valid)."""
     result = CliRunner().invoke(app, ["secret", "get", "just-a-value"])
     assert result.exit_code == 2
-    # The error names the rejected reference, never treats it as a value.
+    # The error names the rejected reference, never treats it as a value...
     assert "just-a-value" in result.output
+    assert "not a resolvable reference" in result.output
+    # ...and is phrased for a `secret get` query, not the internal ticket form.
+    assert "ticket secret" not in result.output
 
 
 def test_secret_get_fails_loud_on_op_error(
