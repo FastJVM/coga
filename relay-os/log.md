@@ -219,3 +219,4 @@
 2026-06-24 11:33 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-24 11:52 [single-file-task-format-section-aware-compose-filt] [human:nick] task done
 2026-06-24 11:53 [retire-standalone-relay-automerge-triggers-recurri] [human:nick] task done
+2026-06-24 11:53 [200-single-file-task-format-section-aware-compose] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
