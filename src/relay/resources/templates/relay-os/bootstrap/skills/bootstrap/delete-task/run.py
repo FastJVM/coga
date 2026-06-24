@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-"""Delete a Relay task directory.
+"""Delete a Relay task.
 
-The single implementation of task deletion: the body behind `relay delete`,
-and a standalone `mode: script` skill. Removes exactly the directory named by
-`RELAY_TASK_DIR` — nothing else — after confirming it is a task directory.
+The single implementation of task deletion: the body behind `relay delete`, and
+a standalone script skill. Works for both task shapes, keyed off the
+unambiguous `RELAY_TASK_TICKET`:
+
+- **Directory form** (`<dir>/ticket.md`) — removes that one task directory and
+  nothing else, after confirming it holds the ticket.
+- **File form** (`tasks/<slug>.md`) — removes that single file only. It never
+  touches the parent (a shared `tasks/` subtree), so a self-contained task can
+  be deleted without risking its neighbours.
 """
 
 from __future__ import annotations
@@ -20,22 +26,27 @@ def _fail(msg: str) -> int:
 
 
 def main() -> int:
-    raw = os.environ.get("RELAY_TASK_DIR")
+    raw = os.environ.get("RELAY_TASK_TICKET")
     if not raw:
-        return _fail("RELAY_TASK_DIR is not set")
+        return _fail("RELAY_TASK_TICKET is not set")
 
-    task_dir = Path(raw)
-    slug = os.environ.get("RELAY_TASK_SLUG") or task_dir.name
+    ticket = Path(raw)
+    slug = os.environ.get("RELAY_TASK_SLUG") or ticket.stem
 
-    if not task_dir.is_dir():
-        return _fail(f"{task_dir} is not a directory")
-    if not (task_dir / "ticket.md").is_file():
-        return _fail(
-            f"{task_dir} has no ticket.md — refusing to delete a non-task directory"
-        )
+    if not ticket.is_file():
+        return _fail(f"{ticket} is not a file — refusing to delete")
 
-    shutil.rmtree(task_dir)
-    sys.stdout.write(f"{slug}: deleted\n")
+    if ticket.name == "ticket.md":
+        # Directory form: remove the whole task directory (ticket + siblings).
+        shutil.rmtree(ticket.parent)
+        target = ticket.parent
+    else:
+        # File form: remove just the single-file ticket; leave the parent
+        # (a shared tasks/ subtree) untouched.
+        ticket.unlink()
+        target = ticket
+
+    sys.stdout.write(f"{slug}: deleted {target}\n")
     return 0
 
 

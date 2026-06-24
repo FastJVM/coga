@@ -1,7 +1,8 @@
 ---
+slug: _template
 title: Replace with a one-line task title
 status: draft
-mode: interactive
+autonomy: interactive
 owner: replace-with-human-name
 human: replace-with-human-name
 agent: replace-with-agent-nickname
@@ -30,3 +31,7 @@ organize their thinking.
 Task-specific knowledge that isn't a reusable skill or context file.
 One-off details: where in the codebase, what to watch out for, what not
 to touch.
+
+<!-- relay:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

@@ -11,6 +11,9 @@ from conftest import seed_direct_body_workflow
 from relay.cli import app
 from relay.create import create_task
 from relay.config import load_config
+from relay.logfile import task_log_lines
+from relay.paths import log_path
+from relay.taskfile import fence_count, read_blackboard
 from relay.tasks import list_tasks
 from relay.ticket import Ticket
 
@@ -83,21 +86,25 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         title="Fix retry logic",
         workflow_name=None,
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner=None,
         assignee=None,
         watchers=[],
         status=None,
     )
     assert ref["slug"] == "fix-retry-logic"
-    task_dir = ref["path"]
-    assert (task_dir / "ticket.md").is_file()
-    assert (task_dir / "blackboard.md").is_file()
-    assert (task_dir / "log.md").is_file()
-    ticket = Ticket.read(task_dir / "ticket.md")
+    ticket_path = ref["path"]
+    # Single-file format: the created path IS a single `<slug>.md` ticket file
+    # carrying exactly one blackboard fence, with no companion directory and
+    # therefore no sibling blackboard.md / log.md.
+    assert ticket_path.is_file()
+    assert ticket_path.name == "fix-retry-logic.md"
+    assert not (repo / "tasks" / "fix-retry-logic").exists()
+    assert fence_count(ticket_path.read_text()) == 1
+    ticket = Ticket.read(ticket_path)
     assert ticket.title == "Fix retry logic"
     assert ticket.status == "draft"
-    assert ticket.mode == "interactive"
+    assert ticket.autonomy == "interactive"
     assert ticket.owner == "marc"
     assert ticket.assignee == "marc"
     # Auto-populated role fields: human ← owner, agent ← owner's lone configured agent.
@@ -116,14 +123,14 @@ def test_create_preserves_secret_declaration(repo: Path, monkeypatch: pytest.Mon
         title="Call API",
         workflow_name=None,
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner=None,
         assignee=None,
         watchers=[],
         status=None,
         secrets=[{"API_KEY": "op://Vault/item/field"}],
     )
-    ticket = Ticket.read(ref["path"] / "ticket.md")
+    ticket = Ticket.read(ref["path"])
     assert ticket.secrets == [{"API_KEY": "op://Vault/item/field"}]
 
 
@@ -156,13 +163,13 @@ def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) ->
         title="Try me",
         workflow_name=None,
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner=None,
         assignee=None,
         watchers=[],
         status=None,
     )
-    ticket = Ticket.read(ref["path"] / "ticket.md")
+    ticket = Ticket.read(ref["path"])
     assert ticket.human == "marc"
     assert ticket.agent == "claude"
 
@@ -182,7 +189,7 @@ def test_create_requires_agent_before_writing_task_dir(repo: Path) -> None:
             title="No agent",
             workflow_name=None,
             contexts=[],
-            mode="interactive",
+            autonomy="interactive",
             owner=None,
             assignee=None,
             watchers=[],
@@ -209,11 +216,11 @@ def test_create_initial_assignee_resolved_from_workflow_step(repo: Path) -> None
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="W", workflow_name="review",
-        contexts=[], mode="interactive",
+        contexts=[], autonomy="interactive",
         owner="marc", assignee=None,
         watchers=[], status="active",
     )
-    ticket = Ticket.read(ref["path"] / "ticket.md")
+    ticket = Ticket.read(ref["path"])
     # Step 1 declares `assignee: agent` → resolves to `marc`'s configured agent.
     assert ticket.assignee == "claude"
 
@@ -222,12 +229,12 @@ def test_create_explicit_human_and_agent_overrides_defaults(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="interactive",
+        contexts=[], autonomy="interactive",
         owner="marc", assignee=None,
         human="alice", agent="claude2",
         watchers=[], status="draft",
     )
-    ticket = Ticket.read(ref["path"] / "ticket.md")
+    ticket = Ticket.read(ref["path"])
     assert ticket.human == "alice"
     assert ticket.agent == "claude2"
 
@@ -253,10 +260,10 @@ def test_backfill_role_fields_adds_human_and_agent(repo: Path) -> None:
 
         ## Description
         old.
+
+        <!-- relay:blackboard -->
         """
     ).lstrip())
-    (legacy / "blackboard.md").write_text("")
-    (legacy / "log.md").write_text("")
 
     cfg = load_config(repo)
     rewritten = backfill_role_fields(cfg)
@@ -282,10 +289,10 @@ def test_backfill_uses_owner_lone_agent_when_assignee_unknown(repo: Path) -> Non
         owner: marc
         assignee: marc
         ---
+
+        <!-- relay:blackboard -->
         """
     ).lstrip())
-    (legacy / "blackboard.md").write_text("")
-    (legacy / "log.md").write_text("")
 
     cfg = load_config(repo)
     backfill_role_fields(cfg)
@@ -312,10 +319,10 @@ def test_backfill_freezes_legacy_workflow_and_fills_assignee(repo: Path) -> None
         workflow: code/with-review
         step: 2 (pr)
         ---
+
+        <!-- relay:blackboard -->
         """
     ).lstrip())
-    (legacy / "blackboard.md").write_text("")
-    (legacy / "log.md").write_text("")
 
     cfg = load_config(repo)
     assert backfill_role_fields(cfg) == ["legacy3"]
@@ -343,13 +350,13 @@ def test_create_with_workflow_and_contexts(repo: Path) -> None:
         title="Task A",
         workflow_name="code/with-review",
         contexts=["email/payment-flow", "email/payment-flow"],  # dupe ignored
-        mode="auto",
+        autonomy="auto",
         owner="marc",
         assignee="claude",
         watchers=["pierre"],
         status="active",
     )
-    ticket = Ticket.read(ref["path"] / "ticket.md")
+    ticket = Ticket.read(ref["path"])
     assert ticket.contexts == ["email/payment-flow"]
     assert ticket.workflow["name"] == "code/with-review"
     assert ticket.step == "1 (implement)"
@@ -364,7 +371,7 @@ def test_create_rejects_unknown_context(repo: Path) -> None:
             title="X",
             workflow_name=None,
             contexts=["does/not/exist"],
-            mode="interactive",
+            autonomy="interactive",
             owner=None,
             assignee=None,
             watchers=[],
@@ -380,7 +387,7 @@ def test_create_distinct_titles_get_distinct_slugs(repo: Path) -> None:
             title=f"Task {i}",
             workflow_name=None,
             contexts=[],
-            mode="interactive",
+            autonomy="interactive",
             owner=None,
             assignee=None,
             watchers=[],
@@ -398,7 +405,7 @@ def test_create_collision_auto_suffixes(repo: Path) -> None:
         cfg=cfg,
         workflow_name=None,
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner=None,
         assignee=None,
         watchers=[],
@@ -418,7 +425,7 @@ def test_create_nested_slug_can_reuse_top_level_leaf(repo: Path) -> None:
         cfg=cfg,
         workflow_name=None,
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner=None,
         assignee=None,
         watchers=[],
@@ -443,14 +450,17 @@ def test_create_log_entry_written(repo: Path) -> None:
         title="X",
         workflow_name=None,
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner=None,
         assignee=None,
         watchers=[],
         status=None,
     )
-    log = (ref["path"] / "log.md").read_text()
-    assert "[human:marc] created" in log
+    # The audit line lands in the repo-global log, tagged with the new slug.
+    log = log_path(cfg).read_text()
+    assert "[x] [human:marc] created" in log
+    lines = task_log_lines(cfg, ref["slug"])
+    assert any("[human:marc] created" in line for line in lines)
 
 
 @pytest.fixture
@@ -461,7 +471,7 @@ def repo_with_shim(repo: Path) -> Path:
         """
         ---
         title: Create a new ticket
-        mode: interactive
+        autonomy: interactive
         skills:
           - bootstrap/ticket
         assignee: claude
@@ -499,7 +509,7 @@ def test_recurring_creates_silently(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        mode: interactive
+        autonomy: interactive
         assignee: claude
         owner: marc
         ---
@@ -592,12 +602,12 @@ def test_cli_create_creates_draft_silently(
     )
     assert result.exit_code == 0, result.output
 
-    task_dir = repo / "tasks" / "investigate-retries"
-    assert task_dir.is_dir()
-    t = Ticket.read(task_dir / "ticket.md")
+    ticket_path = repo / "tasks" / "investigate-retries.md"
+    assert ticket_path.is_file()
+    t = Ticket.read(ticket_path)
     assert t.title == "Investigate retries"
     assert t.status == "draft"
-    assert t.mode == "interactive"
+    assert t.autonomy == "interactive"
 
     assert posts == []
 
@@ -625,16 +635,16 @@ def test_cli_create_does_not_spawn_agent(
     assert not called
 
 
-def test_cli_create_mode_option(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_cli_create_autonomy_option(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(repo)
     runner = CliRunner()
     result = runner.invoke(
         app,
-        ["create", "Auto job", "--mode", "auto", "--workflow", "code/with-review"],
+        ["create", "Auto job", "--autonomy", "auto", "--workflow", "code/with-review"],
     )
     assert result.exit_code == 0, result.output
-    t = Ticket.read(repo / "tasks" / "auto-job" / "ticket.md")
-    assert t.mode == "auto"
+    t = Ticket.read(repo / "tasks" / "auto-job.md")
+    assert t.autonomy == "auto"
 
 
 def test_cli_create_rejects_empty_title(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -661,7 +671,7 @@ def test_cli_create_workflow_flag_attaches_workflow(
         app, ["create", "With workflow", "--workflow", "code/with-review"]
     )
     assert result.exit_code == 0, result.output
-    t = Ticket.read(repo / "tasks" / "with-workflow" / "ticket.md")
+    t = Ticket.read(repo / "tasks" / "with-workflow.md")
     assert t.workflow is not None
     assert t.workflow["name"] == "code/with-review"
     assert t.step == "1 (implement)"
@@ -679,7 +689,7 @@ def test_cli_create_allows_no_workflow(
     runner = CliRunner()
     result = runner.invoke(app, ["create", "No workflow"])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(repo / "tasks" / "no-workflow" / "ticket.md")
+    t = Ticket.read(repo / "tasks" / "no-workflow.md")
     assert t.workflow is None
     assert t.status == "draft"
 
@@ -695,8 +705,8 @@ def test_create_draft_without_workflow(
         "relay.notification.slack.requests.post",
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
-    result = create_draft(title="Interview start", mode="interactive")
-    t = Ticket.read(result["path"] / "ticket.md")
+    result = create_draft(title="Interview start", autonomy="interactive")
+    t = Ticket.read(result["path"])
     assert t.workflow is None
 
 
@@ -721,17 +731,17 @@ def test_create_writes_declared_extension_fields(repo: Path) -> None:
         title="With extensions",
         workflow_name=None,
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
         status="draft",
     )
-    t = Ticket.read(ref["path"] / "ticket.md")
+    t = Ticket.read(ref["path"])
     assert t.frontmatter["docket"] == ""
     assert t.frontmatter["priority"] == "P2"
 
-    raw = (ref["path"] / "ticket.md").read_text()
+    raw = ref["path"].read_text()
     assert "# --- extensions ---" in raw
     # Marker sits between canonical keys and extension keys.
     marker_pos = raw.index("# --- extensions ---")
@@ -747,13 +757,13 @@ def test_create_no_extensions_no_marker(repo: Path) -> None:
         title="Plain",
         workflow_name=None,
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
         status="draft",
     )
-    raw = (ref["path"] / "ticket.md").read_text()
+    raw = ref["path"].read_text()
     assert "# --- extensions ---" not in raw
 
 
@@ -768,18 +778,18 @@ def test_extension_fields_round_trip(repo: Path) -> None:
         title="Round trip",
         workflow_name=None,
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
         status="draft",
     )
-    t = Ticket.read(ref["path"] / "ticket.md")
+    t = Ticket.read(ref["path"])
     t.frontmatter["docket"] = "55-12345"
-    t.write(ref["path"] / "ticket.md")
-    again = Ticket.read(ref["path"] / "ticket.md")
+    t.write(ref["path"])
+    again = Ticket.read(ref["path"])
     assert again.frontmatter["docket"] == "55-12345"
-    raw = (ref["path"] / "ticket.md").read_text()
+    raw = ref["path"].read_text()
     assert "# --- extensions ---" in raw
 
 

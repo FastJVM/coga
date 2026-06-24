@@ -103,10 +103,24 @@ def retro_block(text: str) -> str:
     return rest[: next_heading.start()]
 
 
-def has_cleanup_eligible_retro_marker(blackboard: Path) -> bool:
-    if not blackboard.is_file():
-        return False
-    block = retro_block(blackboard.read_text())
+_BLACKBOARD_FENCE = "<!-- relay:blackboard -->"
+
+
+def blackboard_region(ticket: Path) -> str:
+    """The blackboard region of a single-file `ticket.md` (text after the
+    `<!-- relay:blackboard -->` fence), or "" when absent.
+
+    The `## Retro` marker lives in this region under the v2 single-file format
+    (it was a separate `blackboard.md` before)."""
+    if not ticket.is_file():
+        return ""
+    text = ticket.read_text()
+    idx = text.find(_BLACKBOARD_FENCE)
+    return text[idx + len(_BLACKBOARD_FENCE):] if idx != -1 else ""
+
+
+def has_cleanup_eligible_retro_marker(ticket: Path) -> bool:
+    block = retro_block(blackboard_region(ticket))
     return RETRO_SKILL in block and RETRO_STATUS in block and RETRO_NO_NEW not in block
 
 
@@ -123,7 +137,7 @@ def find_candidates(relay_os: Path) -> list[Candidate]:
             continue
         if load_status(ticket) != "done":
             continue
-        if not has_cleanup_eligible_retro_marker(task_dir / "blackboard.md"):
+        if not has_cleanup_eligible_retro_marker(ticket):
             continue
         candidates.append(Candidate(slug=task_dir.name, path=task_dir))
     return candidates

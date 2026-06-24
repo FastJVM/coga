@@ -29,7 +29,7 @@ This context is **sequencing only**; the reasoning behind decisions lives in
 2. Ship the **RC release gate** (below) — a stranger can `pipx install` Relay
    and run their first task. This is the launch.
 3. `auto/stream-agent-progress` is the **single highest-leverage unlock** — it
-   re-enables `mode: auto` and thereby the entire unattended-drain vision. The
+   re-enables `autonomy: auto` and thereby the entire unattended-drain vision. The
    whole autonomy chain in v1 sits behind it.
 4. The single-file task-format rewrite is high-blast-radius; sequence it when
    the board is calm.
@@ -40,7 +40,7 @@ The hard list of what must be true before we tag and announce. This is a
 **subset and re-ordering of the v1 cut** focused on "a stranger installs it and
 runs their first task." Tier chosen: **blockers + CI + telemetry** (domain,
 uninstall, and changelog are fast-follows, not gate items). Assumption: the RC
-ships **interactive + script only** — `mode: auto` stays disabled (its blocker
+ships **interactive + script only** — `autonomy: auto` stays disabled (its blocker
 is `auto/stream-agent-progress`, in the v1 autonomy chain below).
 
 **Blockers — cannot tag without these:**
@@ -114,7 +114,7 @@ A stranger must be able to install and run Relay out of the box.
   install a documented one-step way to turn the sweep on. Scheduling only — the
   budget-aware drain loop is a separate v1 ticket (below).
 - `enforce-mode-auto-for-recurring-templates` [draft] — no-TTY safety: under
-  cron only `mode: auto`/`script` templates launch; an interactive template
+  cron only `autonomy: auto` / script templates launch; an interactive template
   scaffolds but fails to launch. Pairs with the cron ticket.
 - `fix-recurring-templates-not-instantiated` [draft] — **verification gate**
   (not an open bug): prove a due template reliably instantiates + launches its
@@ -179,7 +179,7 @@ blocker, so this lands late in v1.
 2. `represent-autonomy-tier-in-ticket-mode-field` [draft] — the
    "ready for unattended execution" flag; consumes the autonomy-triage work.
 3. `auto/stream-agent-progress-in-auto-mode-and-recurring-l` [draft] — **hard
-   blocker**; re-enables `mode: auto` (currently disabled — it buffers stdout).
+   blocker**; re-enables `autonomy: auto` (currently disabled — it buffers stdout).
 4. `async-park-and-continue-on-block` [draft] — a blocked ticket parks cleanly
    and the sweep keeps going instead of stalling.
 5. `drain-pending-auto-tickets-with-leftover-session-b` [draft] — the

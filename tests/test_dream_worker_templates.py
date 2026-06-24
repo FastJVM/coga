@@ -26,7 +26,9 @@ RECURRING_TEMPLATES = (
 # Dream is a recurring task template, not a built-in command. Its body lives
 # in the recurring template's `## Description` section.
 DREAM_PROMPT = RECURRING_TEMPLATES / "dream" / "ticket.md"
-DREAM_BLACKBOARD = RECURRING_TEMPLATES / "dream" / "blackboard.md"
+# Single-file format: the recurring template's blackboard is the region of
+# `ticket.md` below the `<!-- relay:blackboard -->` fence (no separate file).
+DREAM_BLACKBOARD = DREAM_PROMPT
 REM_TEMPLATE = RECURRING_TEMPLATES / "_rem" / "ticket.md"
 
 
@@ -39,7 +41,7 @@ def test_dream_ships_as_a_recurring_template() -> None:
     assert text.startswith("---\n")
     assert "schedule:" in text
     assert 'title: "Dream"' in text
-    assert "mode: interactive" in text
+    assert "autonomy: interactive" in text
     assert "\n## Description\n" in text
 
 
@@ -124,7 +126,9 @@ def test_dream_is_the_single_deleter_of_done_recurring_tickets() -> None:
     assert "relay delete <this-dream-task>" not in text
     assert "Dream cleans up after itself in the same run" not in text
 
-    blackboard = DREAM_BLACKBOARD.read_text()
+    from relay.taskfile import read_blackboard
+
+    blackboard = read_blackboard(DREAM_BLACKBOARD)
     blackboard_norm = " ".join(blackboard.split())
     assert "Dream's per-period task is disposable after it is marked done" in blackboard_norm
     assert "Dream keeps no durable state here" in blackboard_norm
@@ -190,7 +194,7 @@ def test_validate_drift_worker_declares_contract() -> None:
     assert "## Known Skill Contract" in text
     assert "- Purpose: deterministic repo-health validation" in text
     assert "- Action: `direct-fix`" in text
-    assert "- May change: missing `blackboard.md` and `log.md` files only" in text
+    assert "- May change: a missing `<!-- relay:blackboard -->` fence + blackboard region" in text
     assert "- Idempotency: `relay validate --fix`" in text
     assert "- Output: append `## Dream Skill: validate-drift`" in text
     assert "RELAY_TASK_BLACKBOARD" in text

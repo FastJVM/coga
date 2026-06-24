@@ -24,7 +24,7 @@ TICKET = """
 ---
 title: X
 status: draft
-mode: interactive
+autonomy: interactive
 owner: marc
 human: marc
 agent: claude
@@ -133,14 +133,31 @@ def test_task_dirs_are_not_recursed_into(repo: Path) -> None:
     assert [r.slug for r in refs] == ["parent-task"]
 
 
-def test_plain_dir_without_tickets_is_ignored(repo: Path) -> None:
+def test_plain_dir_without_tasks_is_ignored(repo: Path) -> None:
+    # A sub-directory holding only non-task files (no `ticket.md`, no bare
+    # `.md` file form) is recursed into and contributes nothing.
     (repo / "tasks" / "notes").mkdir(parents=True)
-    _write(repo / "tasks" / "notes" / "scratch.md", "not a ticket\n")
+    _write(repo / "tasks" / "notes" / "scratch.txt", "not a ticket\n")
     _task(repo, "real-task")
 
     refs = list_tasks(load_config(repo))
 
     assert [r.slug for r in refs] == ["real-task"]
+
+
+def test_bare_md_file_is_discovered_as_file_form_task(repo: Path) -> None:
+    # File-form task: a bare `tasks/<slug>.md` (not named `ticket.md`) is a
+    # task in its own right, reported as `file_form` with no companion dir.
+    _write(repo / "tasks" / "quick-note.md", TICKET)
+    _task(repo, "real-task")
+
+    refs = {r.id_slug: r for r in list_tasks(load_config(repo))}
+
+    assert set(refs) == {"quick-note", "real-task"}
+    note = refs["quick-note"]
+    assert note.file_form is True
+    assert note.ticket_path == repo / "tasks" / "quick-note.md"
+    assert note.task_dir is None
 
 
 def test_same_leaf_name_in_different_directories_coexists(repo: Path) -> None:

@@ -225,7 +225,7 @@ add the new context to the ticket's `contexts:` list (or, for a new skill,
 note it in the body so the human can wire it into a workflow on review).
 
 If a gap is too speculative to commit to a file, write it to
-`blackboard.md` under a **Proposals** section instead — same shape as the
+the ticket's blackboard region under a **Proposals** section instead — same shape as the
 `bootstrap/dream` skill uses. The human accepts or rejects on review.
 
 ## Step 5 — Write the ticket
@@ -272,7 +272,7 @@ Hand the evaluator the path to the ticket and ask it to assess:
   work?
 - Any assumptions that should be questioned before launch?
 
-Write the evaluator's response to `blackboard.md` under a top-level
+Write the evaluator's response to the ticket's blackboard region under a top-level
 **## Evaluator review** section, verbatim. Don't summarize — the human reads
 it directly.
 
@@ -310,7 +310,7 @@ Summary
   <2–3 sentences in your own words: what this ticket is, what done looks
   like, anything you flagged as a gap or assumption.>
 
-Evaluator review: see blackboard.md ## Evaluator review
+Evaluator review: see the ticket.md blackboard region ## Evaluator review
 ```
 
 Then ask the human directly: "Does this look right, or anything to change

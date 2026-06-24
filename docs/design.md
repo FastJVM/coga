@@ -83,11 +83,12 @@ Mechanism: naming convention on created tasks, not `last_run` in the template.
    it is *the* live run: launch/resume it (an `in_progress` orphan is resumed
    from its current step) and do **not** create a duplicate.
 6. Only when none is live, consider the current period: if
-   `last_serviced_period >= current period_key` in
-   `relay-os/recurring/<name>/blackboard.md` and the task dir is gone, it's
+   `last_serviced_period >= current period_key` in the blackboard region of
+   `relay-os/recurring/<name>/ticket.md` and the task dir is gone, it's
    handled — skip. Otherwise create it using the template's frontmatter (mode,
    workflow, assignee, owner, contexts, description), write the high-water
-   mark, and append human-readable history to `log.md`.
+   mark, and append human-readable history to the repo-global `relay-os/log.md`
+   (tagged `recurring/<name>`).
 
 This is idempotent — running `relay recurring` twice inside the same period is a no-op.
 Across periods, a template does not start a new run while an older period run

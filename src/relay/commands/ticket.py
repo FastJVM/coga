@@ -100,8 +100,10 @@ def _resolve_or_create_target(cfg: Config, target: str) -> tuple[TaskRef, Ticket
         msg = str(exc)
         if msg.startswith("Ambiguous task ref"):
             _bail(msg)
-        result = create_draft(title=target, mode="interactive")
-        ref = TaskRef(slug=str(result["slug"]), path=cast(Path, result["path"]))
+        result = create_draft(title=target, autonomy="interactive")
+        # Re-resolve through discovery so the TaskRef carries the correct shape
+        # (file-form vs directory-form) — create may land a bare `<slug>.md`.
+        ref = resolve_task(cfg, str(result["slug"]))
         typer.echo(f"{ref.id_slug}: launching guided ticket authoring")
         return ref, read_ticket(ref)
 
@@ -126,7 +128,7 @@ def _resolve_or_create_target(cfg: Config, target: str) -> tuple[TaskRef, Ticket
 
 def _authoring_ticket(ticket: Ticket) -> Ticket:
     fm = dict(ticket.frontmatter)
-    fm["mode"] = "interactive"
+    fm["autonomy"] = "interactive"
     fm["skills"] = [AUTHORING_SKILL]
     return Ticket(frontmatter=fm, body=ticket.body)
 

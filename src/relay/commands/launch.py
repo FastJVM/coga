@@ -30,6 +30,7 @@ import typer
 from relay import usage as usage_tracking
 from relay.agent_skills import refresh_agent_skill_view
 from relay.blackboard import blackboard_size_warning, format_bytes
+from relay.commands.launch_script import is_script_launch
 from relay.compose import (
     ComposeError,
     PromptComposition,
@@ -84,11 +85,11 @@ def launch(
         "--prompt-report",
         help="Print composed prompt layers and approximate token counts, then exit without launching.",
     ),
-    mode_override: str | None = typer.Option(
+    autonomy_override: str | None = typer.Option(
         None,
-        "--mode",
-        help="Run in this mode for this launch only (interactive or auto), "
-        "overriding the ticket's `mode:`. For debugging — the ticket file is "
+        "--autonomy",
+        help="Run with this autonomy for this launch only (interactive or auto), "
+        "overriding the ticket's `autonomy:`. For debugging — the ticket file is "
         "not modified.",
     ),
     idle_timeout: float | None = typer.Option(
@@ -141,8 +142,8 @@ def launch(
         except ConfigError as exc:
             _bail(str(exc))
 
-    if mode_override is not None and mode_override not in ("interactive", "auto"):
-        _bail("--mode must be 'interactive' or 'auto'")
+    if autonomy_override is not None and autonomy_override not in ("interactive", "auto"):
+        _bail("--autonomy must be 'interactive' or 'auto'")
 
     def _read(target: TaskRef | BootstrapRef) -> Ticket:
         """Read the ticket, applying the ephemeral `--agent` override.
@@ -153,9 +154,9 @@ def launch(
         `build_agent_command` so the ticket file is never touched.
         """
         t = read_ticket(target)
-        if mode_override is not None and t.mode == "script":
+        if autonomy_override is not None and is_script_launch(cfg, t):
             _bail(
-                "--mode override is not supported for script-mode tasks "
+                "--autonomy-override is not supported for script tasks "
                 "(they compose no agent prompt)."
             )
         if agent_override is not None and is_bootstrap:
@@ -164,16 +165,16 @@ def launch(
 
     if prompt_report:
         ticket = _read(ref)
-        if ticket.mode == "script":
-            _bail("mode=script tasks do not compose an agent prompt.")
+        if is_script_launch(cfg, ticket):
+            _bail("script tasks do not compose an agent prompt.")
         try:
             composition = compose_prompt_report(
-                cfg, ref, ticket, mode_override=mode_override
+                cfg, ref, ticket, autonomy_override=autonomy_override
             )
         except ComposeError as exc:
             _bail(str(exc))
         typer.echo(_format_prompt_report(ref.id_slug, composition))
-        warning = blackboard_size_warning(ref.path / "blackboard.md")
+        warning = blackboard_size_warning(ref.ticket_path)
         if warning:
             typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
         return
@@ -182,12 +183,12 @@ def launch(
 
     typer.echo(
         f"Launch: task {ref.id_slug} "
-        f"(status={ticket.status if not is_bootstrap else 'n/a'}, mode={ticket.mode}, "
+        f"(status={ticket.status if not is_bootstrap else 'n/a'}, autonomy={ticket.autonomy}, "
         f"assignee={ticket.assignee or 'unassigned'})"
     )
-    if mode_override is not None:
+    if autonomy_override is not None:
         typer.secho(
-            f"Launch: mode overridden to {mode_override!r} for this run "
+            f"Launch: autonomy overridden to {autonomy_override!r} for this run "
             "— ticket file unchanged",
             fg=typer.colors.YELLOW,
         )
@@ -223,39 +224,42 @@ def launch(
     if not assignee:
         _bail(f"Task {ref.id_slug} has no assignee")
 
-    mode = mode_override or ticket.mode
-
-    if mode == "script":
+    # Script vs. agent is deduced, not declared: a step whose skill carries a
+    # `script:` (or a no-skill step / workflow-less task with the ticket's own
+    # `script:`) runs as a script, with no agent and no composed prompt.
+    if is_script_launch(cfg, ticket):
         if agent_override is not None:
-            _bail("--agent is only supported for interactive/auto launches.")
+            _bail("--agent is only supported for agent (interactive/auto) launches.")
         if is_bootstrap:
-            _bail("Bootstrap tickets only support interactive/auto modes.")
+            _bail("Bootstrap tickets only support interactive/auto launches.")
         from relay.commands.launch_script import run_script_mode
         run_script_mode(cfg, ref, ticket)
         return
 
-    if mode not in ("interactive", "auto"):
-        _bail(f"Unknown mode: {mode!r}")
+    autonomy = autonomy_override or ticket.autonomy
 
-    if mode == "auto":
+    if autonomy not in ("interactive", "auto"):
+        _bail(f"Unknown autonomy: {autonomy!r}")
+
+    if autonomy == "auto":
         # Temporary policy. `claude -p` and `codex exec` buffer stdout until
         # the run completes, so auto launches produce no live console output
         # for the operator. Until relay grows a streaming consumer for the
         # agent's structured output, we refuse rather than let runs sit
         # silently. Re-enable when streaming lands.
         _bail(
-            f"Cannot launch {ref.id_slug!r}: mode=auto is temporarily disabled. "
+            f"Cannot launch {ref.id_slug!r}: autonomy=auto is temporarily disabled. "
             "Auto runs produce no live console output (claude -p and codex exec "
             "buffer until completion), so unattended runs are unobservable. "
-            "Edit the ticket to mode: interactive (and run from a TTY), or "
-            "mode: script if the work fits a single script entry point."
+            "Set the ticket to autonomy: interactive (and run from a TTY), or "
+            "give it a script if the work fits a single script entry point."
         )
 
-    if mode == "interactive" and not _interactive_stdio_has_tty():
+    if autonomy == "interactive" and not _interactive_stdio_has_tty():
         _bail(
-            f"Cannot launch {ref.id_slug!r}: mode=interactive requires a TTY "
+            f"Cannot launch {ref.id_slug!r}: autonomy=interactive requires a TTY "
             "(stdin and stdout must both be terminals). Run from a real "
-            "shell, or change the ticket to mode: script."
+            "shell, or give the ticket a script entry point."
         )
 
     launch_assignee = agent_override or assignee
@@ -282,7 +286,7 @@ def launch(
     # pre-flight below. The per-step loop re-resolves the policy for rotated
     # agents.
     try:
-        _skip_permissions_argv_for_launch(agent, mode, ref)
+        _skip_permissions_argv_for_launch(agent, autonomy, ref)
     except ConfigError as exc:
         _bail(str(exc))
 
@@ -293,7 +297,7 @@ def launch(
     # The per-step loop below re-composes; this is a cheap pre-flight (file
     # reads only) so the flip and notification post are never reached on a bad ref.
     try:
-        compose_prompt(cfg, ref, ticket, mode_override=mode_override)
+        compose_prompt(cfg, ref, ticket, autonomy_override=autonomy_override)
     except ComposeError as exc:
         _bail(str(exc))
 
@@ -398,7 +402,7 @@ def launch(
         # (claude <-> codex), and each agent carries its own local policy.
         try:
             skip_permissions_argv = _skip_permissions_argv_for_launch(
-                agent, mode_override or ticket.mode, ref
+                agent, autonomy_override or ticket.autonomy, ref
             )
         except ConfigError as exc:
             _bail(str(exc))
@@ -409,16 +413,16 @@ def launch(
                 ref,
                 ticket,
                 agent,
-                mode,
+                autonomy,
                 env=env,
                 actor=f"human:{cfg.current_user}",
                 log_message=_launch_log_message(
-                    mode,
+                    autonomy,
                     ticket.assignee or assignee,
                     step_assignee or launch_assignee,
                     agent.name,
                 ),
-                mode_override=mode_override,
+                autonomy_override=autonomy_override,
                 name=ticket.title or "",
                 discussion=_is_discussion_bootstrap(ref),
                 kickoff=_bootstrap_kickoff(ref),
@@ -461,7 +465,7 @@ def launch(
         # An agent may delete its own task directory as a final action —
         # e.g. a Dream run retiring itself once its findings are durable.
         # A missing ticket.md is a clean terminal state, not a chain step.
-        if not (ref.path / "ticket.md").exists():
+        if not ref.ticket_path.exists():
             typer.echo(
                 "Launch: task directory removed by agent — nothing to chain"
             )
@@ -655,7 +659,7 @@ def spawn_agent_session(
     env,
     actor: str,
     log_message: str,
-    mode_override: str | None = None,
+    autonomy_override: str | None = None,
     name: str = "",
     discussion: bool = False,
     kickoff: str | None = None,
@@ -681,12 +685,12 @@ def spawn_agent_session(
     The launch supervisor loop and step chaining deliberately stay outside.
     """
     if warn_blackboard:
-        warning = blackboard_size_warning(ref.path / "blackboard.md")
+        warning = blackboard_size_warning(ref.ticket_path)
         if warning:
             typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
 
     typer.echo(f"{label}: composing prompt")
-    prompt = compose_prompt(cfg, ref, ticket, mode_override=mode_override)
+    prompt = compose_prompt(cfg, ref, ticket, autonomy_override=autonomy_override)
     if prompt_suffix:
         prompt = f"{prompt}{prompt_suffix}"
     prompt_file = write_prompt_file(prompt, ref)
@@ -695,7 +699,9 @@ def spawn_agent_session(
         f"({len(prompt)} chars)"
     )
 
-    usage_blackboard = ref.path / "blackboard.md"
+    # Single-file format: usage records live in the `## Usage` section of the
+    # ticket's blackboard region, so the usage "blackboard" is the ticket itself.
+    usage_blackboard = ref.ticket_path
     should_capture_usage = (
         capture_usage
         and mode in {"interactive", "auto"}
@@ -731,7 +737,7 @@ def spawn_agent_session(
             f"{_format_agent_command_for_console(cmd, prompt)}"
         )
 
-        append_log(ref.path, actor, log_message)
+        append_log(cfg, ref.id_slug, actor, log_message)
 
         if mode == "interactive" and name and sys.stdout.isatty():
             sys.stdout.write(f"\033]2;{name}\007")
@@ -839,12 +845,12 @@ def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:
     if current is None:
         typer.echo(
             f"→ launching {ref.id_slug} "
-            f"(status={ticket.status}, mode={ticket.mode}, assignee={ticket.assignee or 'unassigned'})"
+            f"(status={ticket.status}, mode={ticket.autonomy}, assignee={ticket.assignee or 'unassigned'})"
         )
         return
     typer.echo(
         f"→ entering step {ticket.step}: {current['name']} "
-        f"(status={ticket.status}, mode={ticket.mode}, assignee={ticket.assignee or 'unassigned'})"
+        f"(status={ticket.status}, mode={ticket.autonomy}, assignee={ticket.assignee or 'unassigned'})"
     )
 
 

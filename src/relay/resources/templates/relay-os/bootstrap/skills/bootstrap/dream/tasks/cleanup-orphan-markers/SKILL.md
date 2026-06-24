@@ -21,8 +21,9 @@ run.
   delete-only cleanup.
 - Runs: a `mode: script` Relay task whose workflow step references
   `bootstrap/dream/tasks/cleanup-orphan-markers`.
-- Inputs: task directories under `relay-os/tasks/`, the source task
-  `blackboard.md` marker, GitHub open PR metadata when available, and the
+- Inputs: task directories under `relay-os/tasks/`, the source task's
+  `## Retro` marker in its `ticket.md` blackboard region, GitHub open PR
+  metadata when available, and the
   public `bootstrap/delete-task` skill.
 - May change: none directly. Cleanup deletion must go through the public
   `bootstrap/delete-task` skill inside a reviewable cleanup PR worktree.
@@ -42,7 +43,7 @@ run.
 A task is a cleanup candidate only when all of these are true:
 
 - `relay-os/tasks/<slug>/ticket.md` has exact `status: done`;
-- `relay-os/tasks/<slug>/blackboard.md` has a `## Retro` block containing both
+- the `ticket.md` blackboard region of `relay-os/tasks/<slug>/` has a `## Retro` block containing both
   `skill: retro/done-ticket` and `status: processed`;
 - that Retro block does not contain `result: no-new-durable-knowledge`;
 - `<slug>` is the exact task directory name, not a prefix match;

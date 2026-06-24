@@ -5,6 +5,7 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+from types import SimpleNamespace
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
@@ -19,6 +20,7 @@ from relay.commands.launch import (
 from relay.config import AgentType, ConfigError, load_config
 from relay.github_preflight import CheckResult
 from relay.repl_supervisor import _TIMEOUT_EXIT_CODE, ReplOutcome
+from relay.taskfile import read_blackboard, upsert_blackboard
 from relay.tasks import BootstrapRef, TaskRef, list_tasks
 from relay.ticket import Ticket
 
@@ -26,6 +28,11 @@ from relay.ticket import Ticket
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
+
+
+def _read_log(repo: Path) -> str:
+    """The repo-global audit log (`relay-os/log.md`)."""
+    return (repo / "log.md").read_text()
 
 
 def _capture_slack(sink: list[str], json_payload):
@@ -266,12 +273,12 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
 
     monkeypatch.setattr(
         "relay.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, mode_override=None: "# Relay task\nbody",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
     )
     monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
 
     result = spawn_agent_session(
-        object(),
+        SimpleNamespace(repo_root=tmp_path),
         ref,
         _ticket(),
         AgentType(
@@ -292,7 +299,7 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
 
     assert result.exit_code == 0
     assert calls == [["claude", "--append-system-prompt", "# Relay task\nbody", "Begin"]]
-    assert "launched" in (ref.path / "log.md").read_text()
+    assert "launched" in (tmp_path / "log.md").read_text()
 
 
 def test_spawn_agent_session_appends_kickoff_for_codex(
@@ -311,12 +318,12 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
 
     monkeypatch.setattr(
         "relay.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, mode_override=None: "# Relay task\nbody",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
     )
     monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
 
     spawn_agent_session(
-        object(),
+        SimpleNamespace(repo_root=tmp_path),
         ref,
         _ticket(),
         AgentType(
@@ -354,12 +361,12 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
 
     monkeypatch.setattr(
         "relay.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, mode_override=None: "# Relay task\nbody",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
     )
     monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
 
     spawn_agent_session(
-        object(),
+        SimpleNamespace(repo_root=tmp_path),
         ref,
         _ticket(),
         AgentType(
@@ -515,7 +522,7 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     cfg = load_config(company)
     create_task(
         cfg=cfg, title="Fix retry logic",
-        workflow_name="direct/body", contexts=[], mode="interactive",
+        workflow_name="direct/body", contexts=[], autonomy="interactive",
         owner="marc", assignee="claude", watchers=[], status="active",
     )
     return company
@@ -589,7 +596,7 @@ def _create_chain_task(active_task: Path, *, mode: str = "interactive") -> dict[
         title="Chain work",
         workflow_name="chain",
         contexts=[],
-        mode=mode,
+        autonomy=mode,
         owner="marc",
         human="marc",
         agent="claude",
@@ -627,9 +634,9 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     # Log entry written
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket = Ticket.read(ref.ticket_path)
     assert ticket.status == "in_progress"
-    log = (ref.path / "log.md").read_text()
+    log = _read_log(active_task)
     assert "started (active → in_progress) via relay launch" in log
     assert "launched in interactive mode" in log
 
@@ -732,7 +739,7 @@ def test_launch_refuses_and_stays_active_when_push_auth_broken(
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    assert Ticket.read(ref.path / "ticket.md").status == "active"
+    assert Ticket.read(ref.ticket_path).status == "active"
 
 
 def test_launch_captures_usage_with_session_id(
@@ -789,10 +796,10 @@ def test_launch_fails_loud_on_unset_declared_secret(
     monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    t = Ticket.read(ref.path / "ticket.md")
+    t = Ticket.read(ref.ticket_path)
     # Inline per-ticket secret pointing at an env var that is not exported.
     t.frontmatter["secrets"] = [{"stripe_key": "env:STRIPE_SECRET_KEY"}]
-    t.write(ref.path / "ticket.md")
+    t.write(ref.ticket_path)
 
     calls: list[list[str]] = []
     monkeypatch.setattr(
@@ -809,9 +816,9 @@ def test_launch_fails_loud_on_unset_declared_secret(
     assert "stripe_key" in combined and "STRIPE_SECRET_KEY" in combined
     # Fail-loud: no agent process was ever spawned.
     assert calls == []
-    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket = Ticket.read(ref.ticket_path)
     assert ticket.status == "active"
-    log = (ref.path / "log.md").read_text()
+    log = _read_log(active_task)
     assert "started (active" not in log
 
 
@@ -824,11 +831,11 @@ def test_launch_injects_only_declared_secret(
     monkeypatch.setenv("OTHER_SECRET", "nope")
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    t = Ticket.read(ref.path / "ticket.md")
+    t = Ticket.read(ref.ticket_path)
     # Only `stripe_key` is declared inline; `OTHER_SECRET` is set in the env but
     # the ticket never references it, so it must not leak to the child.
     t.frontmatter["secrets"] = [{"stripe_key": "env:STRIPE_SECRET_KEY"}]
-    t.write(ref.path / "ticket.md")
+    t.write(ref.ticket_path)
 
     captured: dict[str, str] = {}
 
@@ -864,9 +871,9 @@ def test_launch_fails_loud_on_op_read_error(
     _allow_interactive_tty(monkeypatch)
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    t = Ticket.read(ref.path / "ticket.md")
+    t = Ticket.read(ref.ticket_path)
     t.frontmatter["secrets"] = [{"stripe_key": "op://vault/stripe/key"}]
-    t.write(ref.path / "ticket.md")
+    t.write(ref.ticket_path)
 
     # `relay.config` and `relay.commands.launch` import the same `subprocess`
     # module, so patching `relay.config.subprocess.run` covers both the `op read`
@@ -893,7 +900,7 @@ def test_launch_fails_loud_on_op_read_error(
     assert "stripe_key" in combined and "op://vault/stripe/key" in combined
     # Fail-loud: no agent process was ever spawned, ticket stays active.
     assert calls == []
-    assert Ticket.read(ref.path / "ticket.md").status == "active"
+    assert Ticket.read(ref.ticket_path).status == "active"
 
 
 def test_launch_injects_op_secret(
@@ -903,9 +910,9 @@ def test_launch_injects_op_secret(
     _allow_interactive_tty(monkeypatch)
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    t = Ticket.read(ref.path / "ticket.md")
+    t = Ticket.read(ref.ticket_path)
     t.frontmatter["secrets"] = [{"stripe_key": "op://vault/stripe/key"}]
-    t.write(ref.path / "ticket.md")
+    t.write(ref.ticket_path)
 
     # One dispatching mock for both modules' shared `subprocess`: `op read`
     # returns the secret; the agent spawn records its injected env.
@@ -1001,7 +1008,7 @@ def test_launch_bails_on_missing_context(
     _allow_interactive_tty(monkeypatch)
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    ticket_md = ref.path / "ticket.md"
+    ticket_md = ref.ticket_path
     ticket_md.write_text(
         ticket_md.read_text().replace("contexts: []", "contexts:\n- email/ghost")
     )
@@ -1026,18 +1033,17 @@ def test_launch_handles_agent_self_deleting_task(
     """A workflow-less agent (e.g. a Dream run retiring itself) may delete its
     own task directory as a final action. Launch must treat the missing
     ticket.md as a clean terminal state, not crash reading the ticket back."""
-    import shutil as _shutil
-
     _allow_interactive_tty(monkeypatch)
-    task_dir = active_task / "tasks" / "fix-retry-logic"
-    assert task_dir.exists()
+    # File-form task: the whole ticket lives in `tasks/<slug>.md`.
+    ticket_md = active_task / "tasks" / "fix-retry-logic.md"
+    assert ticket_md.exists()
 
     class _Result:
         returncode = 0
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
-        # Simulate the agent deleting its own task directory before exit.
-        _shutil.rmtree(task_dir)
+        # Simulate the agent deleting its own task before exit.
+        ticket_md.unlink()
         return _Result()
 
     monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
@@ -1046,7 +1052,7 @@ def test_launch_handles_agent_self_deleting_task(
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
-    assert not task_dir.exists()
+    assert not ticket_md.exists()
 
 
 def test_launch_marks_interactive_session_supervised(
@@ -1081,9 +1087,9 @@ def test_launch_in_progress_resumes_without_status_transition(
 ) -> None:
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket = Ticket.read(ref.ticket_path)
     ticket.frontmatter["status"] = "in_progress"
-    ticket.write(ref.path / "ticket.md")
+    ticket.write(ref.ticket_path)
     calls: list[list[str]] = []
     _allow_interactive_tty(monkeypatch)
 
@@ -1100,7 +1106,7 @@ def test_launch_in_progress_resumes_without_status_transition(
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
-    log = (ref.path / "log.md").read_text()
+    log = _read_log(active_task)
     assert "started (active → in_progress) via relay launch" not in log
 
 
@@ -1122,7 +1128,7 @@ def test_launch_interactive_without_tty_fails_before_lock(
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
     assert result.exit_code == 2
-    assert "Cannot launch 'fix-retry-logic': mode=interactive requires a TTY" in (
+    assert "Cannot launch 'fix-retry-logic': autonomy=interactive requires a TTY" in (
         result.output + (result.stderr or "")
     )
     assert not called
@@ -1169,7 +1175,7 @@ def test_launch_interactive_chains_consecutive_agent_steps(
     assert len(calls) == 2
 
     from relay.ticket import Ticket
-    ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
+    ticket = Ticket.read(Path(ref["path"]))
     assert ticket.step == "3 (review)"
 
 
@@ -1213,7 +1219,7 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
         title="Chain work",
         workflow_name="chain",
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         human="marc",
         agent="claude",
@@ -1225,7 +1231,7 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
     slug = str(ref["slug"])
 
     from relay.ticket import Ticket
-    assert Ticket.read(Path(ref["path"]) / "ticket.md").skills == ["code/implement"]
+    assert Ticket.read(Path(ref["path"])).skills == ["code/implement"]
 
     calls: list[list[str]] = []
     _allow_slack(monkeypatch)
@@ -1247,7 +1253,7 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
     assert result.exit_code == 0, result.output
     # Step 1 (agent) chains to step 2 (agent); stops at step 3 (human).
     assert len(calls) == 2
-    assert Ticket.read(Path(ref["path"]) / "ticket.md").step == "3 (review)"
+    assert Ticket.read(Path(ref["path"])).step == "3 (review)"
 
 
 def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
@@ -1280,7 +1286,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
         title="Handoff work",
         workflow_name="handoff",
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         human="marc",
         agent="claude",
@@ -1313,7 +1319,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
     assert len(calls) == 1
 
     from relay.ticket import Ticket
-    ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
+    ticket = Ticket.read(Path(ref["path"]))
     assert ticket.step == "2 (human-check)"
     assert ticket.assignee == "marc"
 
@@ -1347,7 +1353,7 @@ def test_launch_harness_stops_on_agent_panic(
     assert result.exit_code == 1, result.output
     assert len(calls) == 1
     assert "Agent exited with code 1" in (result.output + (result.stderr or ""))
-    assert "test panic" in (Path(ref["path"]) / "blackboard.md").read_text()
+    assert "test panic" in read_blackboard(Path(ref["path"]))
 
 
 def _launch_single_spawn(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
@@ -1380,7 +1386,7 @@ def test_launch_auto_activates_draft_and_paused(
 
     ref = _create_chain_task(active_task, mode="interactive")
     slug = str(ref["slug"])
-    ticket_md = Path(ref["path"]) / "ticket.md"
+    ticket_md = Path(ref["path"])
     t = Ticket.read(ticket_md)
     t.frontmatter["status"] = prior
     t.write(ticket_md)
@@ -1394,7 +1400,7 @@ def test_launch_auto_activates_draft_and_paused(
     after = Ticket.read(ticket_md)
     assert after.status == "in_progress"
     assert after.step == "1 (implement)"
-    log = (Path(ref["path"]) / "log.md").read_text()
+    log = _read_log(active_task)
     assert f"activated ({prior} → active) — auto on launch" in log
 
 
@@ -1408,7 +1414,7 @@ def test_launch_refuses_done_ticket(
 
     ref = _create_chain_task(active_task, mode="interactive")
     slug = str(ref["slug"])
-    ticket_md = Path(ref["path"]) / "ticket.md"
+    ticket_md = Path(ref["path"])
     t = Ticket.read(ticket_md)
     t.frontmatter["status"] = "done"
     t.frontmatter.pop("step", None)  # mark done clears the step
@@ -1441,10 +1447,10 @@ def test_launch_auto_activate_bails_without_workflow(
     ref = list_tasks(cfg)[0]
     # Strip the workflow and drop to draft so launch's auto-activate hits the
     # workflow-less path (a workflow-less non-draft can't be created now).
-    t = Ticket.read(ref.path / "ticket.md")
+    t = Ticket.read(ref.ticket_path)
     t.frontmatter["status"] = "draft"
     t.frontmatter["workflow"] = None
-    t.write(ref.path / "ticket.md")
+    t.write(ref.ticket_path)
 
     calls = _launch_single_spawn(monkeypatch)
 
@@ -1455,7 +1461,7 @@ def test_launch_auto_activate_bails_without_workflow(
     assert not calls  # agent never spawned
 
     # Ticket stayed draft — the failed activation did not mutate status.
-    assert Ticket.read(ref.path / "ticket.md").status == "draft"
+    assert Ticket.read(ref.ticket_path).status == "draft"
 
 
 def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1473,7 +1479,7 @@ def test_launch_warns_for_large_blackboard(
 ) -> None:
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    (ref.path / "blackboard.md").write_text("x" * (33 * 1024))
+    upsert_blackboard(ref.ticket_path, "\n\n" + "x" * (33 * 1024) + "\n")
     _allow_interactive_tty(monkeypatch)
 
     class _Result:
@@ -1491,7 +1497,7 @@ def test_launch_warns_for_large_blackboard(
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
-    assert "blackboard.md is" in (result.output + (result.stderr or ""))
+    assert "blackboard region is" in (result.output + (result.stderr or ""))
 
 
 def test_launch_prompt_report_prints_layers_without_launching(
@@ -1529,7 +1535,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
         title="Measure prompt scope",
         workflow_name="code/measure",
         contexts=["email/payment-flow"],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         human="marc",
         agent="claude",
@@ -1555,9 +1561,9 @@ def test_launch_prompt_report_prints_layers_without_launching(
     assert "Total composed prompt" in result.output
 
     from relay.ticket import Ticket
-    ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
+    ticket = Ticket.read(Path(ref["path"]))
     assert ticket.status == "draft"
-    assert "launched in interactive mode" not in (Path(ref["path"]) / "log.md").read_text()
+    assert "launched in interactive mode" not in _read_log(active_task)
 
 
 # --- bootstrap shims -----------------------------------------------------------
@@ -1590,7 +1596,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Create a new ticket
-        mode: interactive
+        autonomy: interactive
         skills:
           - bootstrap/ticket
         assignee: claude
@@ -1679,8 +1685,8 @@ def test_launch_bootstrap_skips_status_and_lock(
     # Header still uses the bootstrap/<name> id_slug.
     assert "bootstrap/ticket" in prompt
 
-    # log.md was created and recorded the launch.
-    log = (bootstrap_repo / "bootstrap" / "ticket" / "log.md").read_text()
+    # The repo-global log recorded the launch.
+    log = _read_log(bootstrap_repo)
     assert "launched in interactive mode" in log
 
 
@@ -1839,7 +1845,7 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
     assert "Skill: bootstrap/ticket" in _prompt_arg(cmd)
     assert cmd[-1] == "Begin"
 
-    log = (bootstrap_repo / "bootstrap" / "ticket" / "log.md").read_text()
+    log = _read_log(bootstrap_repo)
     assert "assignee=codex, agent=codex" in log
 
 
@@ -1870,10 +1876,10 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     from relay.ticket import Ticket
-    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket = Ticket.read(ref.ticket_path)
     assert ticket.frontmatter["assignee"] == "claude"
 
-    log = (ref.path / "log.md").read_text()
+    log = _read_log(active_task)
     assert "assignee=claude, launch_assignee=codex, agent=codex" in log
 
 
@@ -2025,7 +2031,7 @@ def test_launch_interactive_rotates_across_agents(
     cfg = load_config(active_task)
     ref = create_task(
         cfg=cfg, title="Rotate work", workflow_name="rotate", contexts=[],
-        mode="interactive", owner="marc", human="marc", agent="claude",
+        autonomy="interactive", owner="marc", human="marc", agent="claude",
         assignee="claude", watchers=[], status="active",
     )
     slug = ref["slug"]
@@ -2055,7 +2061,7 @@ def test_launch_interactive_rotates_across_agents(
     assert calls[1][0] == "codex"
 
     from relay.ticket import Ticket
-    ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
+    ticket = Ticket.read(Path(ref["path"]))
     assert ticket.step == "3 (review)"
     assert ticket.assignee == "marc"
 
@@ -2088,7 +2094,7 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     cfg = load_config(active_task)
     ref = create_task(
         cfg=cfg, title="Rotate2 work", workflow_name="rotate2", contexts=[],
-        mode="interactive", owner="marc", human="marc", agent="claude",
+        autonomy="interactive", owner="marc", human="marc", agent="claude",
         assignee="claude", watchers=[], status="active",
     )
     slug = ref["slug"]
@@ -2120,6 +2126,6 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     assert "not on PATH" in result.output
 
     from relay.ticket import Ticket
-    ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
+    ticket = Ticket.read(Path(ref["path"]))
     assert ticket.step == "2 (peer)"
     assert ticket.assignee == "codex"

@@ -53,9 +53,18 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def _install_digest(relay_os: Path) -> Path:
-    """Create the recurring/digest spool blackboard and return its path."""
-    bb = relay_os / "recurring" / "digest" / "blackboard.md"
-    _write(bb, "Digest spool.\n\n## Spool (pending)\n")
+    """Create the recurring/digest spool ticket and return its `ticket.md` path.
+
+    Single-file format: the spool lives in the blackboard region of
+    `recurring/digest/ticket.md` (below the fence), not a sibling blackboard.md.
+    """
+    bb = relay_os / "recurring" / "digest" / "ticket.md"
+    _write(
+        bb,
+        "## Description\n\n"
+        "<!-- relay:blackboard -->\n\n"
+        "Digest spool.\n\n## Spool (pending)\n",
+    )
     return bb
 
 
@@ -81,8 +90,9 @@ def captured_posts(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 
 
 def test_spool_roundtrip_and_preserves_non_spool_state(tmp_path: Path) -> None:
-    bb = tmp_path / "blackboard.md"
+    bb = tmp_path / "ticket.md"
     bb.write_text(
+        "## Description\n\n<!-- relay:blackboard -->\n\n"
         "Seed text.\n\n## Spool (pending)\n\n## State\n\nlast_serviced_period: 2026-06-03\n"
     )
 
@@ -106,16 +116,20 @@ def test_spool_roundtrip_and_preserves_non_spool_state(tmp_path: Path) -> None:
 
 
 def test_spool_creates_section_when_absent(tmp_path: Path) -> None:
-    bb = tmp_path / "blackboard.md"
-    bb.write_text("Just a seed line, no spool section yet.\n")
+    bb = tmp_path / "ticket.md"
+    bb.write_text(
+        "## Description\n\n<!-- relay:blackboard -->\n\n"
+        "Just a seed line, no spool section yet.\n"
+    )
     spool.append_record(bb, {"kind": "draft", "detail": "created"})
     assert spool.read_records(bb) == [{"kind": "draft", "detail": "created"}]
     assert "## Spool (pending)" in bb.read_text()
 
 
 def test_drain_returns_records_and_preserves_non_record_lines(tmp_path: Path) -> None:
-    bb = tmp_path / "blackboard.md"
+    bb = tmp_path / "ticket.md"
     bb.write_text(
+        "## Description\n\n<!-- relay:blackboard -->\n\n"
         "## Spool (pending)\n\n"
         '{"kind":"bump","detail":"a"}\n'
         "last_serviced_period: 2026-06-03\n"  # stray high-water line
@@ -133,8 +147,10 @@ def test_drain_empty_and_missing_are_noops(tmp_path: Path) -> None:
     missing = tmp_path / "nope.md"
     assert spool.drain(missing) == []
 
-    bb = tmp_path / "blackboard.md"
-    bb.write_text("## Spool (pending)\n\n")
+    bb = tmp_path / "ticket.md"
+    bb.write_text(
+        "## Description\n\n<!-- relay:blackboard -->\n\n## Spool (pending)\n\n"
+    )
     before = bb.read_text()
     assert spool.drain(bb) == []
     assert bb.read_text() == before  # untouched on empty

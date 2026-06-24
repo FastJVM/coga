@@ -72,7 +72,7 @@ def _make_task(
         return _write_workflow_less_task(repo, status=status)
     ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status=status,
     )
     return ref["slug"], ref["path"]
@@ -85,9 +85,10 @@ def _write_workflow_less_task(
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
+        slug: {slug}
         title: Work
         status: {status}
-        mode: interactive
+        autonomy: interactive
         owner: marc
         human: marc
         agent: claude
@@ -98,9 +99,10 @@ def _write_workflow_less_task(
         ---
 
         ## Description
+
+        <!-- relay:blackboard -->
+        # Blackboard
     """).lstrip())
-    (task_dir / "blackboard.md").write_text("# Blackboard\n")
-    (task_dir / "log.md").write_text("")
     return slug, task_dir
 
 

@@ -52,7 +52,7 @@ If the DOM-backed method cannot finish the automation, fail loudly.
 Do not predict or enumerate failure cases up front, and do not switch
 to another automation method inside a DOM-only run.
 
-When failing, write a short blocker entry to `blackboard.md` with:
+When failing, write a short blocker entry to the blackboard region of `ticket.md` with:
 
 - current URL
 - latest snapshot path

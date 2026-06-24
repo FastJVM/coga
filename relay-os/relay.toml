@@ -6,7 +6,7 @@ version = 1
 default_status = "draft"
 
 # --- Agents ---
-# Permission-skip policy for `mode: auto` launches (`skip_permissions`,
+# Permission-skip policy for `autonomy: auto` launches (`skip_permissions`,
 # `skip_permissions_argv`) is machine-local and belongs in a partial
 # `[agents.<name>]` table in relay.local.toml — committing those keys
 # here fails config load.

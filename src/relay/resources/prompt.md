@@ -26,22 +26,30 @@ contexts, and workflow step below. Read it once; follow it throughout.
 
 Everything below is reference for the steps in that loop.
 
-## Files in the task directory
+## Your task file
 
-Task directories live under `relay-os/tasks/` — any directory containing a
-`ticket.md`, at any depth. The composed prompt header gives the exact task
-directory for this launch; use that path, don't reconstruct it from the slug.
-Each task directory has:
+Tasks live under `relay-os/tasks/`, as either a bare `tasks/<slug>.md` file or
+a `tasks/<slug>/` directory holding `ticket.md` plus any siblings (a `script:`
+file, attachments). The composed prompt header gives the exact path for this
+launch; use it, don't reconstruct it from the slug. Either way the ticket is
+one file with two regions after the YAML frontmatter, separated by one fence
+line `<!-- relay:blackboard -->`:
 
-- `ticket.md` — source of truth for task state (YAML frontmatter + body). You
-  **may** edit frontmatter when the spec says so (e.g. add a `contexts` entry
-  you discover you need); you do **not** hand-edit `status`, `step`, or
-  `workflow` — CLI commands own those.
-- `blackboard.md` — the shared, free-form workspace described in the loop
-  above. Write here often; read here first.
-- `log.md` — append-only audit trail. **Don't write to it** — the CLI
-  commands (`relay create`, `ticket`, `mark`, `launch`, `bump`, `panic`) are
-  its only writers. Put observations in the blackboard instead.
+- **above the fence — the body.** Source of truth for task state (frontmatter
+  + body sections like `## Description` / `## Context`). You **may** edit
+  frontmatter when the spec says so (e.g. add a `contexts` entry you discover
+  you need); you do **not** hand-edit `status`, `step`, or `workflow` — CLI
+  commands own those.
+- **below the fence — the blackboard.** The shared, free-form workspace
+  described in the loop above. Write here often; read here first. Keep it
+  small — it is composed into every launch prompt.
+
+The append-only audit trail is **not** in your task file: it lives in one
+repo-global `relay-os/log.md`, each line tagged with its task ref. **Don't
+write to it** — the CLI commands (`relay create`, `ticket`, `mark`, `launch`,
+`bump`, `panic`) are its only writers. Put observations in the blackboard
+instead. Because the log lives outside the task file, the per-task `ticket.md`
+stays small and is the only thing composed into prompts.
 
 ## Finishing a step
 

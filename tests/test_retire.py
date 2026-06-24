@@ -58,9 +58,10 @@ def _seed_done_task(repo: Path, slug: str = "fix-retry-logic") -> Path:
         task_dir / "ticket.md",
         f"""
         ---
+        slug: {slug}
         title: Fix retry logic
         status: done
-        mode: interactive
+        autonomy: interactive
         owner: marc
         assignee: marc
         ---
@@ -85,21 +86,21 @@ def test_retire_no_launch_creates_task_with_target_slug(
 
     assert result.exit_code == 0, result.output
     assert "Retire: target task fix-retry-logic" in result.output
-    assert "Retire: using assignee claude (agent type claude, mode interactive)" in result.output
+    assert "Retire: using assignee claude (agent type claude, autonomy interactive)" in result.output
     assert "Retire: creating task 'Retire fix-retry-logic'" in result.output
     assert "Retire: created task retire-fix-retry-logic" in result.output
     assert "Retire: launch skipped (--no-launch)" in result.output
     assert "relay launch retire-fix-retry-logic" in result.output
 
-    new_task = repo / "tasks" / "retire-fix-retry-logic"
-    assert new_task.is_dir()
-    ticket = Ticket.read(new_task / "ticket.md")
+    new_task = repo / "tasks" / "retire-fix-retry-logic.md"
+    assert new_task.is_file()
+    ticket = Ticket.read(new_task)
     assert ticket.title == "Retire fix-retry-logic"
     # Retire tasks create straight to `active`, carrying the `direct/body`
     # workflow so they run their body directly while still being a
     # workflow-carrying, bumpable, valid active task.
     assert ticket.status == "active"
-    assert ticket.mode == "interactive"
+    assert ticket.autonomy == "interactive"
     assert ticket.assignee == "claude"
     assert ticket.workflow["name"] == "direct/body"
     assert "Retire the done ticket `fix-retry-logic`" in ticket.body
@@ -118,9 +119,10 @@ def test_retire_refuses_non_done_target(
         task_dir / "ticket.md",
         """
         ---
+        slug: in-flight
         title: Still going
         status: active
-        mode: interactive
+        autonomy: interactive
         owner: marc
         assignee: marc
         ---
@@ -157,16 +159,16 @@ def test_retire_refuses_unknown_slug(
 def test_retire_refuses_auto_mode(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay retire <slug> --mode auto` is rejected while auto is disabled."""
+    """`relay retire <slug> --autonomy auto` is rejected while auto is disabled."""
     monkeypatch.chdir(repo)
     _seed_done_task(repo, "fix-retry-logic")
 
     result = CliRunner().invoke(
-        app, ["retire", "fix-retry-logic", "--mode", "auto", "--no-launch"]
+        app, ["retire", "fix-retry-logic", "--autonomy", "auto", "--no-launch"]
     )
 
     assert result.exit_code == 2
-    assert "mode=auto is temporarily disabled" in result.output
+    assert "autonomy=auto is temporarily disabled" in result.output
     assert not (repo / "tasks" / "retire-fix-retry-logic").exists()
 
 
@@ -181,16 +183,16 @@ def test_retire_launches_after_create(
         task: str,
         agent_override: str | None,
         prompt_report: bool,
-        mode_override: str | None = None,
+        autonomy_override: str | None = None,
     ) -> None:
-        ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
+        ticket = Ticket.read(repo / "tasks" / f"{task}.md")
         assert ticket.status == "active"
         calls.append(
             {
                 "task": task,
                 "agent_override": agent_override,
                 "prompt_report": prompt_report,
-                "mode_override": mode_override,
+                "autonomy_override": autonomy_override,
             }
         )
         typer.echo("fake launch called")
@@ -198,7 +200,7 @@ def test_retire_launches_after_create(
     monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(
-        app, ["retire", "fix-retry-logic", "--mode", "interactive"]
+        app, ["retire", "fix-retry-logic", "--autonomy", "interactive"]
     )
 
     assert result.exit_code == 0, result.output
@@ -206,14 +208,20 @@ def test_retire_launches_after_create(
     assert "(active)" in result.output
     assert "Retire: launching retire-fix-retry-logic" in result.output
     assert "fake launch called" in result.output
-    log = (repo / "tasks" / "retire-fix-retry-logic" / "log.md").read_text()
-    assert "created (mode=interactive, status=active)" in log
+    # The audit log is the repo-global `relay-os/log.md` now; filter it to the
+    # retire task's ref instead of reading a per-task log.md (which is gone).
+    from relay.config import load_config
+    from relay.logfile import task_log_lines
+
+    cfg = load_config(repo)
+    log = "\n".join(task_log_lines(cfg, "retire-fix-retry-logic"))
+    assert "created (autonomy=interactive, status=active)" in log
     assert calls == [
         {
             "task": "retire-fix-retry-logic",
             "agent_override": None,
             "prompt_report": False,
-            "mode_override": None,
+            "autonomy_override": None,
         }
     ]
 
@@ -228,4 +236,5 @@ def test_retire_resolves_unique_prefix(
 
     assert result.exit_code == 0, result.output
     assert "Retire: target task fix-retry-logic" in result.output
-    assert (repo / "tasks" / "retire-fix-retry-logic").is_dir()
+    assert (repo / "tasks" / "retire-fix-retry-logic.md").is_file()
+

@@ -516,11 +516,14 @@ def _read_codex_session_meta(path: Path) -> dict[str, str] | None:
 
 
 def _usage_blackboards(relay_os: Path) -> list[Path]:
+    # Single-file format: usage records live in the `## Usage` section of each
+    # task's ticket — a file-form `tasks/<slug>.md`, a directory-form
+    # `tasks/<dir>/ticket.md`, or a `recurring/<name>/ticket.md`. All are `.md`.
     roots = [relay_os / "tasks", relay_os / "recurring"]
     paths: list[Path] = []
     for root in roots:
         if root.is_dir():
-            paths.extend(root.glob("**/blackboard.md"))
+            paths.extend(root.glob("**/*.md"))
     return sorted(paths)
 
 

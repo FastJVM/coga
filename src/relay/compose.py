@@ -19,7 +19,8 @@ from relay.paths import (
     rules_path,
     skill_resolution_paths,
 )
-from relay.tasks import TargetRef
+from relay.taskfile import split_body
+from relay.tasks import BootstrapRef, TargetRef
 from relay.ticket import Ticket
 from relay.workflow import Workflow
 
@@ -105,11 +106,11 @@ def compose_prompt(
     task_ref: TargetRef,
     ticket: Ticket,
     *,
-    mode_override: str | None = None,
+    autonomy_override: str | None = None,
 ) -> str:
     """Assemble the composed prompt in spec order (§compose)."""
     return compose_prompt_report(
-        cfg, task_ref, ticket, mode_override=mode_override
+        cfg, task_ref, ticket, autonomy_override=autonomy_override
     ).prompt
 
 
@@ -118,22 +119,31 @@ def compose_prompt_report(
     task_ref: TargetRef,
     ticket: Ticket,
     *,
-    mode_override: str | None = None,
+    autonomy_override: str | None = None,
 ) -> PromptComposition:
     """Assemble the prompt and keep per-layer measurement metadata.
 
-    `mode_override`, when set, replaces the ticket's `mode:` for the header
-    and the mode-specific prompt block — a per-launch debug override that
-    never touches the ticket file.
+    `autonomy_override`, when set, replaces the ticket's `autonomy:` for the
+    header and the autonomy-specific prompt block — a per-launch debug override
+    that never touches the ticket file.
     """
     layers: list[PromptLayer] = []
-    mode = mode_override or ticket.mode
+    autonomy = autonomy_override or ticket.autonomy
+
+    # Split the single-file ticket body at the blackboard fence: the body above
+    # feeds the Description / inline-Context layers, the region below is the
+    # blackboard layer. Bootstrap shims legitimately carry no fence, so they are
+    # parsed leniently (blackboard is then None and the blackboard layer is
+    # omitted); a normal task ticket missing the fence fails loud.
+    body_above, blackboard_text = split_body(
+        ticket.body, blackboard_required=not isinstance(task_ref, BootstrapRef)
+    )
 
     header = (
         f"# Relay task — {task_ref.id_slug}\n\n"
         f"Title: {ticket.title}\n"
         f"Task directory: {_task_path_for_prompt(cfg, task_ref)}\n"
-        f"Mode: {mode}"
+        f"Autonomy: {autonomy}"
     )
     if ticket.status:
         header += f"\nStatus: {ticket.status}"
@@ -147,22 +157,22 @@ def compose_prompt_report(
         ref="prompt.md",
     ))
 
-    # 2. Mode-specific prompt
-    if mode == "interactive":
+    # 2. Autonomy-specific prompt
+    if autonomy == "interactive":
         layers.append(PromptLayer(
             "mode_prompt",
             "Interactive mode",
             _resource("prompt-interactive.md"),
             ref="prompt-interactive.md",
         ))
-    elif mode == "auto":
+    elif autonomy == "auto":
         layers.append(PromptLayer(
             "mode_prompt",
             "Auto mode",
             _resource("prompt-auto.md"),
             ref="prompt-auto.md",
         ))
-    # script mode never gets composed; enforced by launch.py
+    # A script task is never composed; enforced by launch.py's dispatch.
 
     # 3. rules.md
     rules = rules_path(cfg)
@@ -205,14 +215,14 @@ def compose_prompt_report(
         ))
 
     # 6. inline `## Context` from ticket body
-    inline_ctx = _extract_section(ticket.body, "Context")
+    inline_ctx = _extract_section(body_above, "Context")
     if inline_ctx:
         layers.append(PromptLayer(
             "task_context",
             "Task-specific context",
             inline_ctx,
             ref="ticket.md##Context",
-            path=str(task_ref.path / "ticket.md"),
+            path=str(task_ref.ticket_path),
         ))
 
     # 7. ticket-level skills + current workflow step
@@ -220,26 +230,25 @@ def compose_prompt_report(
         layers.extend(_skill_layers(cfg, skill_ref, slug=task_ref.id_slug))
     layers.extend(_step_layers(cfg, ticket, slug=task_ref.id_slug))
 
-    # 8. blackboard
-    bb = task_ref.path / "blackboard.md"
-    if bb.is_file():
+    # 8. blackboard (the single-file region below the fence)
+    if blackboard_text and blackboard_text.strip():
         layers.append(PromptLayer(
             "blackboard",
             "Blackboard (current state)",
-            bb.read_text(),
-            ref="blackboard.md",
-            path=str(bb),
+            blackboard_text,
+            ref="ticket.md##blackboard",
+            path=str(task_ref.ticket_path),
         ))
 
     # Trailing task description from ticket body
-    desc = _extract_section(ticket.body, "Description")
+    desc = _extract_section(body_above, "Description")
     if desc:
         layers.append(PromptLayer(
             "task_description",
             "Task description",
             desc,
             ref="ticket.md##Description",
-            path=str(task_ref.path / "ticket.md"),
+            path=str(task_ref.ticket_path),
         ))
 
     return PromptComposition(layers)

@@ -1,11 +1,16 @@
 """A durable, human-visible producer/consumer queue on a blackboard.
 
-A *spool* is a `## Spool (pending)` section inside an ordinary `blackboard.md`,
-holding one JSON object per line (JSONL). Producers `append_record` as events
-happen; a consumer `drain`s the whole section, processes the records, and the
-section is emptied back to just its heading. The records are plain text in a
-git-tracked blackboard — never a hidden dotfile — so the queue stays legible
-and recoverable, consistent with Relay's no-hidden-state rule.
+A *spool* is a `## Spool (pending)` section inside a task's blackboard region
+(the part of `ticket.md` below the `<!-- relay:blackboard -->` fence), holding
+one JSON object per line (JSONL). Producers `append_record` as events happen; a
+consumer `drain`s the whole section, processes the records, and the section is
+emptied back to just its heading. The records are plain text in a git-tracked
+blackboard — never a hidden dotfile — so the queue stays legible and
+recoverable, consistent with Relay's no-hidden-state rule.
+
+All three entry points take a `ticket.md` path and operate only on its
+blackboard region via `read_blackboard` / `replace_blackboard`, leaving the
+frontmatter and body above the fence untouched.
 
 JSONL (not a table) so a record's free-text fields can hold any characters
 (pipes, arrows, emoji) without escaping, and each line stands alone. Records
@@ -26,7 +31,7 @@ import json
 import re
 from pathlib import Path
 
-from relay.atomicio import atomic_write_text
+from relay.taskfile import read_blackboard, replace_blackboard
 
 
 SPOOL_HEADING = "Spool (pending)"
@@ -43,12 +48,13 @@ _SECTION_RE = re.compile(
 def append_record(path: Path, record: dict) -> None:
     """Append one JSONL `record` to the `## Spool (pending)` section of `path`.
 
-    Creates the file (and the section) if absent. The record is serialized
-    compactly on a single line; the spool section is created at EOF when it
-    doesn't already exist so it never collides with other sections.
+    `path` is a `ticket.md`; the record lands in its blackboard region. Creates
+    the spool section if absent. The record is serialized compactly on a single
+    line; the spool section is created at the end of the region when it doesn't
+    already exist so it never collides with other sections.
     """
     line = json.dumps(record, separators=(",", ":"), ensure_ascii=False)
-    text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    text = read_blackboard(path)
 
     match = _SECTION_RE.search(text)
     if match:
@@ -59,7 +65,7 @@ def append_record(path: Path, record: dict) -> None:
         sep = "" if not text or text.endswith("\n") else "\n"
         new_text = f"{text}{sep}\n## {SPOOL_HEADING}\n\n{line}\n"
 
-    atomic_write_text(path, new_text)
+    replace_blackboard(path, new_text)
 
 
 def read_records(path: Path) -> list[dict]:
@@ -70,7 +76,7 @@ def read_records(path: Path) -> list[dict]:
     """
     if not path.is_file():
         return []
-    match = _SECTION_RE.search(path.read_text(encoding="utf-8"))
+    match = _SECTION_RE.search(read_blackboard(path))
     if not match:
         return []
     return _parse_records(match.group(1))
@@ -88,7 +94,7 @@ def drain(path: Path) -> list[dict]:
     """
     if not path.is_file():
         return []
-    text = path.read_text(encoding="utf-8")
+    text = read_blackboard(path)
     match = _SECTION_RE.search(text)
     if not match:
         return []
@@ -110,7 +116,7 @@ def drain(path: Path) -> list[dict]:
     if kept:
         new_body += "\n".join(kept) + "\n"
     emptied = text[: match.start(1)] + new_body + text[match.end(1) :]
-    atomic_write_text(path, emptied)
+    replace_blackboard(path, emptied)
     return records
 
 

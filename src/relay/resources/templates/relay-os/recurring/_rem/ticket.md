@@ -5,7 +5,7 @@ title: "Replace with the REM task title"
 # Pick a mode: `script` runs a skill script directly with no agent;
 # `auto` is a one-shot headless agent run whose output is buffered to the
 # task log; `interactive` drops into a human terminal with live output.
-mode: script
+autonomy: auto
 workflow: namespace/your-workflow
 owner: replace-with-human-name
 assignee: replace-with-agent-type-or-human-name
@@ -51,3 +51,13 @@ summary.
 task when its schedule is due. Directories in `recurring/` whose name starts
 with `_` are skipped, so this template stays inert until a human copies or
 renames it.
+
+<!-- relay:blackboard -->
+
+This blackboard persists across every run of this recurring task. A run reads
+it at the start to pick up where the last run left off, and updates it at the
+end with whatever the next run needs.
+
+If your REM task carries state between runs — a last-processed commit, a
+high-water mark, a cursor — record it here in a clearly named section, and
+say in `ticket.md` that runs read and update it.

@@ -108,6 +108,16 @@ def repo_context_path(cfg: Config) -> Path:
     return cfg.repo_root / "context.md"
 
 
+def log_path(cfg: Config) -> Path:
+    """The repo-global append-only audit log (`relay-os/log.md`).
+
+    One file per repo, never a prompt-composition layer, marked `merge=union`
+    via `relay-os/.gitattributes` so concurrent appends across branches merge
+    cleanly. Each line is tagged with its task ref; see `relay.logfile`.
+    """
+    return cfg.repo_root / "log.md"
+
+
 def tasks_dir(cfg: Config) -> Path:
     return cfg.repo_root / "tasks"
 
@@ -139,6 +149,7 @@ __all__ = [
     "context_resolution_paths",
     "recurring_dir",
     "repo_context_path",
+    "log_path",
     "tasks_dir",
     "bootstrap_dir",
     "bootstrap_path",

@@ -196,8 +196,10 @@ def test_skill_update_skill_declares_contract() -> None:
 
 def test_skill_update_ships_as_a_recurring_template() -> None:
     """The skill updater is a standalone recurring task, not a Dream phase.
-    The packaged template wires a weekly `mode: script` ticket to the
-    `skill-update/run` workflow, whose one step runs `bootstrap/skill-update`."""
+    The packaged template wires a weekly `autonomy: auto` ticket to the
+    `skill-update/run` workflow, whose one step runs `bootstrap/skill-update`;
+    that script-backed step is what makes it run as a script (deduced at
+    launch), so no `mode: script` is declared anymore."""
     relay_os = SKILL_UPDATE.parents[3]
     ticket = (relay_os / "recurring" / "skill-update" / "ticket.md").read_text()
     workflow = (relay_os / "workflows" / "skill-update" / "run.md").read_text()
@@ -205,7 +207,7 @@ def test_skill_update_ships_as_a_recurring_template() -> None:
     assert ticket.startswith("---\n")
     assert "schedule:" in ticket
     assert 'title: "Skill update"' in ticket
-    assert "mode: script" in ticket
+    assert "autonomy: auto" in ticket
     assert "workflow: skill-update/run" in ticket
     assert "relay skill update --all --pr" in ticket
 
@@ -272,7 +274,7 @@ def test_skill_update_runs_as_script_skill_and_reports_no_op(repo: Path) -> None
         title="Skill Update",
         workflow_name="skill-update/run",
         contexts=[],
-        mode="script",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -283,7 +285,11 @@ def test_skill_update_runs_as_script_skill_and_reports_no_op(repo: Path) -> None
 
     assert result.exit_code == 0, result.output
     ref = list_tasks(cfg)[0]
-    blackboard = (ref.path / "blackboard.md").read_text()
+    # Single-file format: a script worker's RELAY_TASK_BLACKBOARD is its own
+    # ticket.md, so its report lands in that ticket's blackboard region.
+    from relay.taskfile import read_blackboard
+
+    blackboard = read_blackboard(ref.ticket_path)
     assert "## Skill Update" in blackboard
     assert "Task: `skill-update`" in blackboard
     assert "PR: none opened" in blackboard

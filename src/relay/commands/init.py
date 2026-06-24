@@ -175,9 +175,15 @@ def _prune_onboarding_tickets(relay_os: Path) -> list[str]:
     pruned: list[str] = []
     tasks = relay_os / "tasks"
     for name in _ONBOARDING_TICKET_DIRS:
+        # A delivered onboarding task may be file-form (`tasks/<name>.md`) or
+        # directory-form (`tasks/<name>/`).
         ticket_dir = tasks / name
+        ticket_file = tasks / f"{name}.md"
         if ticket_dir.is_dir():
             shutil.rmtree(ticket_dir)
+            pruned.append(name)
+        elif ticket_file.is_file():
+            ticket_file.unlink()
             pruned.append(name)
     return pruned
 
@@ -193,19 +199,24 @@ def _stamp_user_into_delivered_tickets(relay_os: Path, name: str) -> list[str]:
     """Replace the `new-user` placeholder with `name` in every delivered ticket.
 
     Rewrites `owner:`/`human:`/`assignee:` lines that read `new-user` across
-    `tasks/**/ticket.md`, so the placeholder never ships as a live owner.
-    Returns the ticket dir names that were stamped.
+    every delivered task ticket — both file-form `tasks/<slug>.md` and
+    directory-form `tasks/**/ticket.md` — so the placeholder never ships as a
+    live owner. Returns the slugs that were stamped.
     """
     stamped: list[str] = []
     tasks = relay_os / "tasks"
     if not tasks.is_dir():
         return stamped
-    for ticket in sorted(tasks.glob("**/ticket.md")):
+    # `**/*.md` covers both shapes: a file-form `<slug>.md` and a directory-form
+    # `<dir>/ticket.md` (both end in `.md`).
+    for ticket in sorted(tasks.glob("**/*.md")):
         text = ticket.read_text()
         new_text, count = _NEW_USER_LINE.subn(rf"\1: {name}", text)
         if count:
             ticket.write_text(new_text)
-            stamped.append(ticket.parent.name)
+            stamped.append(
+                ticket.parent.name if ticket.name == "ticket.md" else ticket.stem
+            )
     return stamped
 
 
@@ -257,7 +268,8 @@ disagree with anything else in the repo, they win.
 
 - Don't hand-edit `status` / `step` / `workflow` in ticket frontmatter — the
   CLI manages them. Use `relay bump` / `relay panic` instead.
-- Don't write to `log.md` — also CLI-managed.
+- Don't write to the repo-global `relay-os/log.md` — also CLI-managed.
+  Working notes go in the blackboard region of `ticket.md`.
 - Don't commit secrets. Use `relay.local.toml` (gitignored) for machine-local
   values, and `env:VAR_NAME` references in `relay.toml` for shared ones.
 """

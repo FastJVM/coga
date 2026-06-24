@@ -10,6 +10,7 @@ from conftest import seed_direct_body_workflow
 from relay.cli import app
 from relay.config import load_config
 from relay.create import create_task
+from relay.logfile import task_log_lines
 from relay.ticket import Ticket
 
 
@@ -52,7 +53,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Create a new ticket
-        mode: interactive
+        autonomy: interactive
         skills:
           - bootstrap/ticket
         assignee: claude
@@ -104,26 +105,27 @@ def test_ticket_title_creates_draft_and_launches_authoring(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     prompts: list[str] = []
-    task_dir = repo / "tasks" / "investigate-retries"
+    ticket_path = repo / "tasks" / "investigate-retries.md"
 
     def author_workflow() -> None:
         # Simulate the bootstrap/ticket skill picking a workflow: guided
         # authoring of a draft must land on a workflow or `relay ticket`
         # hard-refuses the result.
-        t = Ticket.read(task_dir / "ticket.md")
+        t = Ticket.read(ticket_path)
         t.frontmatter["workflow"] = "code/with-review"
-        t.write(task_dir / "ticket.md")
+        t.write(ticket_path)
 
     _allow_ticket_launch(monkeypatch, prompts, on_run=author_workflow)
 
     result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
     assert result.exit_code == 0, result.output
 
-    ticket = Ticket.read(task_dir / "ticket.md")
+    ticket = Ticket.read(ticket_path)
     assert ticket.status == "draft"
     assert ticket.title == "Investigate retries"
     assert ticket.skills == []
-    assert "ticket authoring launched" in (task_dir / "log.md").read_text()
+    log = "\n".join(task_log_lines(load_config(repo), "investigate-retries"))
+    assert "ticket authoring launched" in log
 
     assert len(prompts) == 1
     assert "Relay task — investigate-retries" in prompts[0]
@@ -140,7 +142,7 @@ def test_ticket_authoring_does_not_inject_relay_secrets(
     # declares no `secrets:`, so it must never gain a scoped Relay secret alias
     # in its env — even when a source env var the operator exported is present.
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live")
-    task_dir = repo / "tasks" / "investigate-retries"
+    ticket_path = repo / "tasks" / "investigate-retries.md"
     captured_env: dict[str, str] = {}
 
     class _Result:
@@ -148,9 +150,9 @@ def test_ticket_authoring_does_not_inject_relay_secrets(
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
         captured_env.update(env or {})
-        t = Ticket.read(task_dir / "ticket.md")
+        t = Ticket.read(ticket_path)
         t.frontmatter["workflow"] = "code/with-review"
-        t.write(task_dir / "ticket.md")
+        t.write(ticket_path)
         return _Result()
 
     monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
@@ -185,7 +187,7 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
 
         """,
     )
-    task_dir = repo / "tasks" / "investigate-retries"
+    ticket_path = repo / "tasks" / "investigate-retries.md"
     captured: dict[str, object] = {}
 
     class _Result:
@@ -193,9 +195,9 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
-        t = Ticket.read(task_dir / "ticket.md")
+        t = Ticket.read(ticket_path)
         t.frontmatter["workflow"] = "code/with-review"
-        t.write(task_dir / "ticket.md")
+        t.write(ticket_path)
         return _Result()
 
     monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
@@ -238,7 +240,7 @@ def test_ticket_agent_override_codex_gets_kickoff(
 
         """,
     )
-    task_dir = repo / "tasks" / "investigate-retries"
+    ticket_path = repo / "tasks" / "investigate-retries.md"
     captured: dict[str, object] = {}
 
     class _Result:
@@ -246,9 +248,9 @@ def test_ticket_agent_override_codex_gets_kickoff(
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
-        t = Ticket.read(task_dir / "ticket.md")
+        t = Ticket.read(ticket_path)
         t.frontmatter["workflow"] = "code/with-review"
-        t.write(task_dir / "ticket.md")
+        t.write(ticket_path)
         return _Result()
 
     monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
@@ -281,7 +283,7 @@ def test_ticket_refuses_draft_left_without_workflow(
     assert result.exit_code == 2, result.output
     assert "no workflow" in result.output
 
-    ticket = Ticket.read(repo / "tasks" / "investigate-retries" / "ticket.md")
+    ticket = Ticket.read(repo / "tasks" / "investigate-retries.md")
     assert ticket.workflow is None
 
 
@@ -295,7 +297,7 @@ def test_ticket_existing_active_task_is_editable_without_status_change(
         title="Queued work",
         workflow_name="direct/body",
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -307,7 +309,7 @@ def test_ticket_existing_active_task_is_editable_without_status_change(
     result = CliRunner().invoke(app, ["ticket", "queued-work"])
     assert result.exit_code == 0, result.output
 
-    ticket = Ticket.read(Path(ref["path"]) / "ticket.md")
+    ticket = Ticket.read(Path(ref["path"]))
     assert ticket.status == "active"
     assert ticket.skills == []
     assert "Status: active" in prompts[0]
@@ -324,13 +326,13 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
         title="Broken context",
         workflow_name="direct/body",
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
         status="active",
     )
-    ticket_path = Path(ref["path"]) / "ticket.md"
+    ticket_path = Path(ref["path"])
     ticket = Ticket.read(ticket_path)
     ticket.frontmatter["contexts"] = ["email/ghost"]
     ticket.write(ticket_path)
@@ -364,7 +366,7 @@ def test_ticket_edits_in_progress_task(
         title="Running work",
         workflow_name="direct/body",
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -394,3 +396,4 @@ def test_ticket_without_target_launches_bootstrap_interview(
     assert len(prompts) == 1
     assert "Relay task — bootstrap/ticket" in prompts[0]
     assert "Skill: bootstrap/ticket" in prompts[0]
+

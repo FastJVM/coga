@@ -6,7 +6,7 @@ title: "Dream"
 # subagents, and exercises agent judgment. A weekly `relay recurring` run
 # creates and launches the Dream task when its schedule is due; `relay dream`
 # (alias for `relay recurring launch dream`) creates and launches it now.
-mode: interactive
+autonomy: interactive
 ---
 
 ## Description
@@ -58,7 +58,7 @@ permit a replacement: record the result and continue only with later phases
 whose inputs do not depend on the blocked one. If a repo wants a different
 maintenance loop, make another task with its own body and ordered phase list.
 
-The two script workers (Phases 1 and 5) each run as a child `mode: script`
+The two script workers (Phases 1 and 5) each run as a child script
 task whose one workflow step references the worker skill — Dream-owned scripts
 are skills attached to Relay tasks, never standalone execution units. Before
 launching a worker, read its `## Known Skill Contract`, keep its reads and
@@ -67,7 +67,7 @@ section to the child task blackboard, then summarize that child result here.
 
 ### Phase 1 — validate-drift
 
-Launch a child `mode: script` task whose current workflow step references
+Launch a child script task whose current workflow step references
 `bootstrap/dream/tasks/validate-drift`. The skill runs the same deterministic
 surface as `relay validate --json`, classifies every issue, and appends
 `## Dream Skill: validate-drift` to the child task's blackboard.
@@ -156,7 +156,7 @@ by Phase 4 in the run and never carries a `## Retro` marker, so it can never be 
 candidate here; the gate still excludes any `result: no-new-durable-knowledge`
 marker left behind by an older run.
 
-Launch a child `mode: script` task whose current workflow step references
+Launch a child script task whose current workflow step references
 `bootstrap/dream/tasks/cleanup-orphan-markers`. The skill detects cleanup
 candidates and gates deletion through `bootstrap/delete-task`. That delete
 skill ships, but until its cleanup PR-dispatch wiring is finished the worker
@@ -229,3 +229,15 @@ done `recurring/dream` ticket and is cleaned up by the **next** Dream run's
 Phase 4 retro pass, exactly like every other done recurring period ticket.
 Dream is the single deleter of done recurring tickets; it just never turns that
 deleter on itself in the same run.
+
+<!-- relay:blackboard -->
+
+This blackboard persists across every run of this recurring task. A run reads
+it at the start to pick up where the last run left off, and updates it at the
+end with whatever the next run needs.
+
+Dream's per-period task is disposable after it is marked done, but Dream does
+not delete itself mid-run. Dream keeps no durable state here — every finding
+ends in a PR, a draft ticket, or a recorded marker instead. `relay recurring`
+keeps Dream's serviced-period high-water mark here as `last_serviced_period`;
+`log.md` keeps append-only human history.

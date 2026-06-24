@@ -53,7 +53,7 @@ def slack(
         owner=ticket.owner or cfg.current_user,
         watchers=ticket.watchers,
     )
-    append_log(ref.path, actor, f"slack: {message}")
+    append_log(cfg, ref.id_slug, actor, f"slack: {message}")
     typer.echo("posted")
 
 

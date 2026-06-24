@@ -573,7 +573,6 @@ def test_post_failure_with_task_path_appends_to_log_then_crashes(
 ) -> None:
     task_path = tmp_path / "tasks" / "001-x"
     task_path.mkdir(parents=True)
-    (task_path / "log.md").write_text("")
 
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise requests.ConnectionError("no network")
@@ -582,7 +581,10 @@ def test_post_failure_with_task_path_appends_to_log_then_crashes(
     with pytest.raises(typer.Exit):
         post(cfg_with_webhook, "daemon message", task_path=task_path)
 
-    log_text = (task_path / "log.md").read_text()
+    # Single-file format: the failure lands in the repo-global audit log,
+    # tagged with the task ref, not a per-task log.md.
+    log_text = (cfg_with_webhook.repo_root / "log.md").read_text()
+    assert "[001-x]" in log_text
     assert "[slack]" in log_text
     assert "post failed" in log_text
     assert "ConnectionError" in log_text
@@ -596,7 +598,6 @@ def test_post_revoked_webhook_response_logs_then_crashes(
 ) -> None:
     task_path = tmp_path / "tasks" / "001-x"
     task_path.mkdir(parents=True)
-    (task_path / "log.md").write_text("")
 
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         return _SlackResponse(404, "no_service")
@@ -611,7 +612,10 @@ def test_post_revoked_webhook_response_logs_then_crashes(
     assert "HTTP 404" in err
     assert f"[{cfg_with_webhook.project_name}] daemon message" in err
 
-    log_text = (task_path / "log.md").read_text()
+    # Single-file format: the failure lands in the repo-global audit log,
+    # tagged with the task ref, not a per-task log.md.
+    log_text = (cfg_with_webhook.repo_root / "log.md").read_text()
+    assert "[001-x]" in log_text
     assert "[slack]" in log_text
     assert "revoked/invalid webhook" in log_text
     assert "HTTP 404" in log_text

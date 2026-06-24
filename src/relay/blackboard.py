@@ -1,4 +1,11 @@
-"""blackboard.md — render from bundled template and append to sections."""
+"""Blackboard region helpers — render the default template and append to sections.
+
+The blackboard is the region of a task's `ticket.md` below the
+`<!-- relay:blackboard -->` fence (see `relay.taskfile`). These helpers operate
+on that region only: they read it with `read_blackboard`, manipulate the
+section text, and write it back with `replace_blackboard`, so the frontmatter
+and body above the fence are never touched.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +13,8 @@ import re
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
+
+from relay.taskfile import TaskFileError, read_blackboard, replace_blackboard
 
 
 BLACKBOARD_WARN_BYTES = 32 * 1024
@@ -20,12 +29,12 @@ def render_blackboard(task_title: str) -> str:
 _SECTION_RE = re.compile(r"^(## .+?)$", re.MULTILINE)
 
 
-def append_to_section(path: Path, heading: str, entry: str) -> None:
-    """Append `entry` at the end of the `## <heading>` section.
+def append_to_section_text(text: str, heading: str, entry: str) -> str:
+    """Return `text` with `entry` appended to the `## <heading>` section.
 
-    If the section isn't found, appends a new section at the end of the file.
+    Pure text transform on the blackboard region. If the section isn't found, a
+    new section is appended at the end.
     """
-    text = path.read_text()
     entry = entry.rstrip() + "\n"
     target = f"## {heading}"
 
@@ -40,22 +49,32 @@ def append_to_section(path: Path, heading: str, entry: str) -> None:
             separator_start = trimmed.rfind("---")
             if separator_start > m.end() and trimmed[separator_start:].strip() == "---":
                 insertion = trimmed[:separator_start].rstrip() + "\n\n" + entry + "\n"
-                new_text = insertion + "\n---\n\n" + text[end:]
-            else:
-                new_text = trimmed + "\n\n" + entry + text[end:]
-            path.write_text(new_text)
-            return
+                return insertion + "\n---\n\n" + text[end:]
+            return trimmed + "\n\n" + entry + text[end:]
 
     # Section not found — append a new one.
     tail = "" if text.endswith("\n") else "\n"
-    path.write_text(text + f"{tail}\n---\n\n## {heading}\n\n{entry}")
+    return text + f"{tail}\n---\n\n## {heading}\n\n{entry}"
 
 
-def append_blocker(task_dir: Path, actor: str, reason: str) -> None:
-    """Write a timestamped blocker entry to the blackboard's Blockers section."""
+def append_to_section(ticket_path: Path, heading: str, entry: str) -> None:
+    """Append `entry` to the `## <heading>` section of the blackboard region.
+
+    Reads and rewrites only the region below the fence; the body above stays
+    byte-for-byte unchanged.
+    """
+    region = read_blackboard(ticket_path)
+    replace_blackboard(ticket_path, append_to_section_text(region, heading, entry))
+
+
+def append_blocker(ticket_path: Path, actor: str, reason: str) -> None:
+    """Write a timestamped blocker entry to the blackboard's Blockers section.
+
+    `ticket_path` is the task's `ticket.md` (file-form: the `.md` file itself;
+    directory-form: `<dir>/ticket.md`)."""
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     entry = f"- [{ts}] [{actor}] {reason}"
-    append_to_section(task_dir / "blackboard.md", "Blockers", entry)
+    append_to_section(ticket_path, "Blockers", entry)
 
 
 def format_bytes(size: int) -> str:
@@ -66,19 +85,25 @@ def format_bytes(size: int) -> str:
 
 
 def blackboard_size_warning(
-    path: Path,
+    ticket_path: Path,
     *,
     max_bytes: int = BLACKBOARD_WARN_BYTES,
 ) -> str | None:
-    """Return a warning if `blackboard.md` is large enough to bloat prompts."""
+    """Return a warning if the ticket's blackboard region is large enough to
+    bloat prompts.
+
+    Measures only the region below the fence — the part compose includes in
+    launch prompts — not the whole `ticket.md`.
+    """
     try:
-        size = path.stat().st_size
-    except FileNotFoundError:
+        region = read_blackboard(ticket_path)
+    except (FileNotFoundError, TaskFileError):
         return None
+    size = len(region.encode())
     if size <= max_bytes:
         return None
     return (
-        f"blackboard.md is {format_bytes(size)} "
+        f"blackboard region is {format_bytes(size)} "
         f"(warning threshold {format_bytes(max_bytes)}); it is included in "
         "launch prompts. Consider summarizing old notes."
     )
@@ -87,6 +112,7 @@ def blackboard_size_warning(
 __all__ = [
     "BLACKBOARD_WARN_BYTES",
     "render_blackboard",
+    "append_to_section_text",
     "append_to_section",
     "append_blocker",
     "format_bytes",

@@ -47,9 +47,11 @@ EXPECTED_FILES = {
     "relay-os/recurring/dream/ticket.md",
     "relay-os/recurring/skill-update/ticket.md",
     "relay-os/tasks/_template/ticket.md",
-    "relay-os/tasks/relay-build/ticket.md",
-    "relay-os/tasks/relay-build/blackboard.md",
-    "relay-os/tasks/relay-build/log.md",
+    "relay-os/tasks/relay-build.md",
+    # Single-file format: the repo-global audit log + its union-merge attribute
+    # ship at the relay-os root; tasks no longer carry per-dir blackboard.md/log.md.
+    "relay-os/log.md",
+    "relay-os/.gitattributes",
     "relay-os/workflows/autoclose-merged/sweep.md",
     "relay-os/workflows/direct/body.md",
     "relay-os/workflows/skill-update/run.md",
@@ -215,9 +217,15 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         "## Context\n"
         "\n"
         "Empty until the `gather-and-spec` step runs at first launch.\n"
+        "\n"
+        "<!-- relay:blackboard -->\n"
+        "\n"
+        "notepad\n"
     )
-    (templates / "tasks" / "relay-build" / "blackboard.md").write_text("notepad\n")
-    (templates / "tasks" / "relay-build" / "log.md").write_text("created\n")
+    # Single-file format: the audit log + its union-merge attribute ship at the
+    # relay-os root, not as per-task siblings.
+    (templates / "log.md").write_text("")
+    (templates / ".gitattributes").write_text("/log.md merge=union\n")
     (templates / "workflows" / "autoclose-merged").mkdir(
         parents=True, exist_ok=True
     )
@@ -792,8 +800,9 @@ def test_init_ships_build_ticket_template(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    task_dir = target / "relay-os" / "tasks" / "relay-build"
-    text = (task_dir / "ticket.md").read_text()
+    tasks = target / "relay-os" / "tasks"
+    ticket = tasks / "relay-build.md"
+    text = ticket.read_text()
     assert "status: active" in text
     assert "name: build/onboarding" in text
     assert "step: 1 (gather-and-spec)" in text
@@ -802,8 +811,15 @@ def test_init_ships_build_ticket_template(
     assert "owner: tester" in text
     assert "human: tester" in text
     assert "new-user" not in text
-    assert (task_dir / "blackboard.md").is_file()
-    assert (task_dir / "log.md").is_file()
+    # Single-file format: the blackboard rides inside ticket.md behind one
+    # fence; no per-task blackboard.md / log.md siblings.
+    from relay.taskfile import fence_count
+
+    assert fence_count(text) == 1
+    # File-form task: a self-contained `.md`, no companion directory.
+    assert not (tasks / "relay-build").exists()
+    assert not (tasks / "relay-build" / "blackboard.md").exists()
+    assert not (tasks / "relay-build" / "log.md").exists()
     # Bare init on an empty repo points at `relay build` (the alias that
     # launches this ticket) rather than at a manual launch.
     assert "Run `relay build`" in result.output
@@ -821,10 +837,11 @@ def test_init_stamps_new_user_out_of_every_delivered_ticket(
     assert result.exit_code == 0, result.output
 
     tasks = target / "relay-os" / "tasks"
-    for ticket in tasks.glob("**/ticket.md"):
+    # File-form tasks are `<slug>.md`; dir-form (the `_template`) keep `ticket.md`.
+    for ticket in tasks.glob("**/*.md"):
         assert "new-user" not in ticket.read_text(), f"new-user survived in {ticket}"
     # browser-automation ships on every repo (not gated) and is stamped too.
-    browser = (tasks / "browser-automation" / "ticket.md").read_text()
+    browser = (tasks / "browser-automation.md").read_text()
     assert "owner: marc" in browser
     assert "human: marc" in browser
 
@@ -840,7 +857,7 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
     assert result.exit_code == 0, result.output
 
     tasks = target / "relay-os" / "tasks"
-    assert (tasks / "relay-build" / "ticket.md").is_file()
+    assert (tasks / "relay-build.md").is_file()
     assert "Run `relay build`" in result.output
     assert 'relay ticket "' not in result.output
     assert "Skipped the onboarding ticket" not in result.output
@@ -859,9 +876,9 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     assert result.exit_code == 0, result.output
 
     tasks = target / "relay-os" / "tasks"
-    assert not (tasks / "relay-build").exists()  # onboarding pruned
+    assert not (tasks / "relay-build.md").exists()  # onboarding pruned
     # Not gated — still delivered, and stamped (no placeholder survives).
-    browser = tasks / "browser-automation" / "ticket.md"
+    browser = tasks / "browser-automation.md"
     assert browser.is_file()
     assert "new-user" not in browser.read_text()
     assert 'relay ticket "' in result.output
@@ -883,7 +900,7 @@ def test_init_filled_repo_ignores_relay_managed_files(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    assert (target / "relay-os" / "tasks" / "relay-build" / "ticket.md").is_file()
+    assert (target / "relay-os" / "tasks" / "relay-build.md").is_file()
     assert "Run `relay build`" in result.output
 
 

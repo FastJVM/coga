@@ -1,6 +1,7 @@
 """Status transitions — the shared core of `relay mark` and the autoclose sweep.
 
-These finalizers mutate ticket frontmatter, append a `log.md` line, and echo
+These finalizers mutate ticket frontmatter, append a repo-global `log.md`
+line (tagged by task ref), and echo
 the local outcome. Done outcomes still enter Slack through the digest path;
 routine active/paused transitions are intentionally local-only noise. The CLI
 commands and the auto-merge scanner all reuse the same helpers so the on-disk
@@ -51,9 +52,9 @@ def mark_done(
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "done"
     ticket.frontmatter.pop("step", None)
-    ticket.write(ref.path / "ticket.md")
+    ticket.write(ref.ticket_path)
     assert_task_valid(cfg, ref, action="mark done")
-    append_log(ref.path, actor, log_message)
+    append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
         typer.echo(echo)
     notify(
@@ -81,9 +82,11 @@ def _sync_done_state(
         return
 
     paths = [ref.path]
-    parent_blackboard = recurring_dir(cfg) / snapshot.parent / "blackboard.md"
-    if parent_blackboard.parent.is_dir():
-        paths.append(parent_blackboard)
+    # The parent template's working state (high-water / state keys) lives in the
+    # blackboard region of its single-file ticket.md, so sync that file.
+    parent_ticket = recurring_dir(cfg) / snapshot.parent / "ticket.md"
+    if parent_ticket.parent.is_dir():
+        paths.append(parent_ticket)
     git.sync_paths(cfg, ref.path, paths, message=message)
 
 
@@ -239,9 +242,9 @@ def mark_active(
         raise RequiredExtensionMissing(missing)
 
     ticket.frontmatter["status"] = "active"
-    ticket.write(ref.path / "ticket.md")
+    ticket.write(ref.ticket_path)
     assert_task_valid(cfg, ref, action="mark active")
-    append_log(ref.path, actor, log_message)
+    append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
         typer.echo(echo)
     git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — active")
@@ -260,9 +263,9 @@ def mark_in_progress(
     """Flip a ticket to `in_progress`: write frontmatter, log, optionally post."""
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "in_progress"
-    ticket.write(ref.path / "ticket.md")
+    ticket.write(ref.ticket_path)
     assert_task_valid(cfg, ref, action="mark in_progress")
-    append_log(ref.path, actor, log_message)
+    append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
         typer.echo(echo)
     if slack_text is not None:
@@ -293,9 +296,9 @@ def mark_paused(
     """
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "paused"
-    ticket.write(ref.path / "ticket.md")
+    ticket.write(ref.ticket_path)
     assert_task_valid(cfg, ref, action="mark paused")
-    append_log(ref.path, actor, log_message)
+    append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
         typer.echo(echo)
     if slack_text is not None:

@@ -76,8 +76,9 @@ OBSOLETE_PATHS: tuple[str, ...] = (
 # create).
 #
 # A recurring task is a ticket-format directory; only the upstream-managed
-# `ticket.md` is refreshed. The sibling `blackboard.md` (last-run state) and
-# `log.md` (run history) are per-repo and deliberately left untouched.
+# `ticket.md` is refreshed. Its blackboard region (last-run state) is per-repo
+# content inside that file; run history lives in the repo-global `relay-os/log.md`.
+# A template refresh rewrites the upstream-owned parts of `ticket.md` only.
 VENDORED_RECURRING_TEMPLATES: tuple[str, ...] = (
     "recurring/autoclose-merged/ticket.md",
     "recurring/digest/ticket.md",
@@ -295,7 +296,8 @@ def refresh_templates(
       - `VENDORED_RECURRING_TEMPLATES` — named relay-owned recurring batteries
         (for example `recurring/dream/ticket.md`) that sit outside `bootstrap/` and carry
         no `_` prefix, refreshed by `_copy_vendored_recurring`. The sibling
-        `blackboard.md`/`log.md` files are per-repo and left untouched.
+        per-repo blackboard region inside each template `ticket.md` is left untouched;
+        history lives in the repo-global `relay-os/log.md`.
       - `VENDORED_WORKFLOW_TEMPLATES` — named relay-owned workflows referenced
         by those batteries, refreshed by `_copy_vendored_workflows`.
       - `VENDORED_SKILL_TEMPLATES` — named relay-owned skills required by
@@ -774,13 +776,34 @@ _RELAY_GITIGNORE_HEADER = (
 def _copy_upstream_files(src_root: Traversable, dst_root: Path) -> list[str]:
     """Refresh upstream-managed root files inside `dst_root`.
 
-    Currently just `.gitignore`, which is merged into a relay-managed marker
-    block — preserving any user-added entries outside the block and deduping
-    entries the user may have copied in before the block existed.
+    `.gitignore` is merged into a relay-managed marker block — preserving any
+    user-added entries outside the block. `.gitattributes` is shipped verbatim
+    so existing repos pick up the `log.md merge=union` rule on update (the
+    single-file format's repo-global log needs it to merge cleanly).
     """
+    copied: list[str] = []
     if _refresh_relay_gitignore(src_root, dst_root):
-        return [".gitignore"]
-    return []
+        copied.append(".gitignore")
+    if _refresh_gitattributes(src_root, dst_root):
+        copied.append(".gitattributes")
+    return copied
+
+
+def _refresh_gitattributes(src_root: Traversable, dst_root: Path) -> bool:
+    """Copy the packaged `relay-os/.gitattributes` verbatim if it differs.
+
+    Returns True iff the file was written. Whole-file ownership (no marker
+    block): the only entry is the relay-managed `log.md merge=union` rule.
+    """
+    src = _resource_join(src_root, Path(".gitattributes"))
+    if not src.is_file():
+        return False
+    content = src.read_text()
+    dst = dst_root / ".gitattributes"
+    if dst.is_file() and dst.read_text() == content:
+        return False
+    dst.write_text(content)
+    return True
 
 
 def _refresh_relay_gitignore(src_root: Traversable, dst_root: Path) -> bool:
@@ -888,7 +911,7 @@ def _copy_vendored_recurring(src_root: Traversable, dst_root: Path) -> list[str]
     (e.g. Dream's known-skill list), not per-repo customizable — REM is the
     repo-specific recurring loop. This also restores the file in repos that
     predate it. Only `ticket.md` is listed, so a recurring task's per-repo
-    `blackboard.md`/`log.md` siblings survive the refresh untouched.
+    the per-repo blackboard region inside each `ticket.md` survives the refresh untouched.
 
     Missing srcs are skipped — a template the package no longer ships isn't an
     error here.

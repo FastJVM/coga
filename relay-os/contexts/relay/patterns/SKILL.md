@@ -18,14 +18,14 @@ one scheduled reader drains the accumulated records, acts, and empties them.
 The blackboard *is* the queue.
 
 ```
-producer  ──append(record)──▶  recurring/<job>/blackboard.md  ──drain()──▶  consumer
+producer  ──append(record)──▶  recurring/<job>/ticket.md (blackboard region)  ──drain()──▶  consumer
  (many, at event time)           ## Spool (pending)              (one, scheduled)
 ```
 
 Why a spool rather than a bespoke queue:
 
 - **No hidden state.** The queue is an ordinary, git-tracked, human-readable
-  `blackboard.md` — openable mid-flight, never a dotfile or opaque store.
+  the blackboard region of `ticket.md` — openable mid-flight, never a dotfile or opaque store.
 - **No reliance on git history.** Events are captured the moment they fire, so
   nothing depends on scanning `git log` (too slow on a busy task repo) to
   reconstruct what happened.
@@ -70,9 +70,9 @@ Slack-agnostic helper:
 Wire the consumer as a `recurring/<job>/` ticket (see `relay/recurring`):
 
 - The spool lives on the **recurring template's persistent blackboard**
-  (`relay-os/recurring/<job>/blackboard.md`), which carries across runs — not
+  (the blackboard region of `relay-os/recurring/<job>/ticket.md`), which carries across runs — not
   the fresh per-period task blackboard, which is gone next period.
-- A `mode: script` step runs a skill whose `script:` drains the spool, acts on
+- A script step runs a skill whose `script:` drains the spool, acts on
   the records, and exits. The daily Slack digest is the canonical instance:
   see `relay/sync` → "The daily digest — a blackboard producer/consumer", with
   `relay digest` as the consumer.

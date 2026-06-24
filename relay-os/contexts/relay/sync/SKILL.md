@@ -37,7 +37,7 @@ Live (urgent) surface — still posts immediately:
   intentional human broadcast, so batching it would surprise the sender.
 - `relay bump --message "<FYI>"` — explicit FYI attached to step movement.
   Message-less bumps are silent.
-- `relay launch` script-mode failure — non-zero exit on a `mode: script`
+- `relay launch` script-step failure — non-zero exit on a script step
   step.
 - `relay launch` — an approved `active` ticket starts and becomes
   `in_progress`. The session-start signal stays live (one per task).
@@ -100,7 +100,7 @@ Slack-channel failure:
   `[notification].channels`, or the opt-out.
 - Network or webhook-rejection error during `requests.post` →
   `typer.Exit(1)` with the error and (when `task_path` is given) a line
-  appended to that task's `log.md`.
+  appended (tagged with that task's ref) to the repo-global `relay-os/log.md`.
 
 Why crash instead of degrading to stderr-only? Because a silent FYI
 becomes a stale mental model on the human side, and that's worse than a
@@ -231,7 +231,7 @@ new string:
   the autoclose sweep and script-mode completion) and `commands/recurring.py`'s error
   summary. Both paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands
-  in the task's `log.md`.
+  in the repo-global `relay-os/log.md`, tagged with the task ref.
 - `relay validate --check-slack` — probes the webhook with an
   empty-text payload that Slack rejects without notifying the channel.
   Honors the opt-out (skipped when `enabled = false`).
@@ -243,7 +243,8 @@ The digest collapses outcomes into one notification message a day. It is a
 mechanism:
 
 - **Producer.** `notification.notify` appends one JSONL record per outcome/error to the
-  `recurring/digest/` ticket's `blackboard.md`, under a `## Spool (pending)`
+  `recurring/digest/` ticket's blackboard region (its `ticket.md`, below the
+  fence), under a `## Spool (pending)`
   section. The record is self-describing — `ts`, `project`, `kind`, `detail`,
   and (when present) `ticket`, `owner`, `watchers`. JSONL so `detail` can hold
   any text (arrows, pipes, emoji) with no escaping. Captured at event time, so
@@ -261,7 +262,7 @@ mechanism:
   the file with recurring template state such as `last_serviced_period`; the
   flush parses only valid-JSON lines and rewrites only the spool section, so
   other state is untouched.
-- **Consumer.** The `recurring/digest/` ticket (`mode: script`, daily
+- **Consumer.** The `recurring/digest/` ticket (a script task, daily
   `schedule:`) fires through the normal `relay recurring` scan. Its one
   workflow step runs the `relay/digest/flush` skill, whose `script:` calls
   `relay digest` → `commands/digest.run_digest`: read the spool, fetch/scan
@@ -338,7 +339,7 @@ Failure model:
 - A non-git checkout is a soft warning and no-op.
 - Git operation failures (missing git, invalid repo state, commit failure,
   fetch/push failure, no remote, or contention exhausting the retry loop) crash
-  loud: stderr plus a `log.md` line, then `typer.Exit(1)`. The same-branch push
+  loud: stderr plus a repo-global `relay-os/log.md` line, then `typer.Exit(1)`. The same-branch push
   stays crash-loud on non-fast-forward; only the cross-branch land retries
   (where rebuilding is trivial because no working tree is involved).
 
@@ -354,7 +355,7 @@ about, it must reach the sync layer — `post` for genuinely urgent events
 scheduled-work errors that belong in the daily digest. Pick the tier by
 urgency and substance: would a teammate need this within minutes (live), is it
 a daily outcome/error (digest), or is it lifecycle audit noise that belongs
-only in `log.md` and git? Don't add silent state mutations that bypass both
+only in the global `relay-os/log.md` and git? Don't add silent state mutations that bypass both
 when the team needs awareness. Conversely, don't emit chatter that doesn't
 represent an outcome, urgent exception, or explicit FYI — notifications are the
 sync surface, not a debug stream.

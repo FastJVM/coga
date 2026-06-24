@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from textwrap import dedent
+from types import SimpleNamespace
 
 import pytest
 
@@ -36,7 +37,7 @@ TICKET_EXAMPLE = dedent(
     ---
     title: Fix retry logic
     status: active
-    mode: interactive
+    autonomy: interactive
     owner: marc
     assignee: claude
     workflow:
@@ -65,7 +66,7 @@ TICKET_EXAMPLE = dedent(
 def test_ticket_roundtrip(tmp_path: Path) -> None:
     t = Ticket.parse(TICKET_EXAMPLE)
     assert t.title == "Fix retry logic"
-    assert t.mode == "interactive"
+    assert t.autonomy == "interactive"
     assert t.contexts == ["email/payment-flow"]
     assert t.step_index() == 1
     assert t.current_step() == {"name": "implement", "skills": ["infra/testing-conventions"]}
@@ -138,11 +139,14 @@ def test_workflow_rejects_non_role_token_assignee(tmp_path: Path) -> None:
 
 
 def test_append_log(tmp_path: Path) -> None:
-    append_log(tmp_path, "agent:claude", "advanced to step 2 (pr)")
-    append_log(tmp_path, "human:marc", "approved")
+    # The log is now one repo-global file at `<repo_root>/log.md`, and each
+    # line is tagged with the task ref it belongs to before the actor.
+    cfg = SimpleNamespace(repo_root=tmp_path)
+    append_log(cfg, "fix-retry", "agent:claude", "advanced to step 2 (pr)")
+    append_log(cfg, "fix-retry", "human:marc", "approved")
     log = (tmp_path / "log.md").read_text()
-    assert "[agent:claude] advanced to step 2 (pr)" in log
-    assert "[human:marc] approved" in log
+    assert "[fix-retry] [agent:claude] advanced to step 2 (pr)" in log
+    assert "[fix-retry] [human:marc] approved" in log
     assert len(log.strip().splitlines()) == 2
 
 

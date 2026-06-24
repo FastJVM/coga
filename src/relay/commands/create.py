@@ -23,10 +23,10 @@ from relay.create import create_task
 
 def create(
     title: str = typer.Argument(..., help="Short human title for the new ticket."),
-    mode: str = typer.Option(
+    autonomy: str = typer.Option(
         "interactive",
-        "--mode",
-        help="Ticket mode: interactive, auto, or script.",
+        "--autonomy",
+        help="Ticket autonomy: interactive or auto.",
     ),
     workflow: str | None = typer.Option(
         None,
@@ -39,13 +39,13 @@ def create(
     ),
 ) -> None:
     """Create a new raw draft ticket."""
-    create_draft(title=title, mode=mode, workflow=workflow)
+    create_draft(title=title, autonomy=autonomy, workflow=workflow)
 
 
 def create_draft(
     *,
     title: str,
-    mode: str,
+    autonomy: str,
     workflow: str | None = None,
 ) -> dict[str, object]:
     """Create a raw draft ticket.
@@ -71,7 +71,7 @@ def create_draft(
             title=title,
             workflow_name=workflow,
             contexts=[],
-            mode=mode,
+            autonomy=autonomy,
             owner=cfg.current_user,
             assignee=None,
             watchers=[],

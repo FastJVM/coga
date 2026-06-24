@@ -88,7 +88,7 @@ def bump(
         ticket.frontmatter["workflow"] = wf_def.freeze()
         if not ticket.step:
             ticket.frontmatter["step"] = f"1 ({wf_def.steps[0].name})"
-        ticket.write(ref.path / "ticket.md")
+        ticket.write(ref.ticket_path)
         try:
             assert_task_valid(cfg, ref, action="freeze workflow on bump")
         except TaskValidationError as exc:
