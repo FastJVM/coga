@@ -1,7 +1,7 @@
 ---
 slug: retire-standalone-relay-automerge-triggers-recurri
 title: Retire standalone relay automerge triggers — recurring sweep is sole trigger
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -28,7 +28,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

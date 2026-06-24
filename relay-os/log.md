@@ -218,3 +218,4 @@
 [v2/add-relay-skill-search-with-candidate-eval] relay-os/recurring/digest/blackboard.md: unmerged (38c87e706511541d79238291ca03f47cb8bf9edd)
 2026-06-24 11:33 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-24 11:52 [single-file-task-format-section-aware-compose-filt] [human:nick] task done
+2026-06-24 11:53 [retire-standalone-relay-automerge-triggers-recurri] [human:nick] task done
