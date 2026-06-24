@@ -1,6 +1,6 @@
 ---
 title: Remove the shim concept
-status: active
+status: in_progress
 mode: interactive
 owner: zach
 human: zach
