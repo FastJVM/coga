@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts:
 - relay/codebase
 - relay/architecture
@@ -28,7 +28,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -370,6 +370,31 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: track-llm-usage
 worktree: /home/n/Code/codex/relay-track-llm-usage
+pr: https://github.com/FastJVM/relay/pull/429
+
+## Open PR summary (2026-06-24, codex)
+
+Opened PR:
+
+- https://github.com/FastJVM/relay/pull/429
+- branch: `track-llm-usage`
+- latest commits after rebasing onto current `origin/main`:
+  - `c31316a Track LLM usage from launch sessions`
+  - `cb2c5a3 peer-review: apply usage fixes`
+
+Verification after rebase:
+
+- `python -m pytest -q -p no:cacheprovider`
+  -> `873 passed, 1 skipped`
+- `PYTHONPATH=/home/n/Code/codex/relay-track-llm-usage/src python -m relay.cli validate --task track-usage-of-llm --json`
+  -> `ok_count: 1`, no issues
+- `PYTHONPATH=/home/n/Code/codex/relay-track-llm-usage/src python -m relay.cli usage --json`
+  -> empty usage rollup JSON emitted successfully
+
+CI:
+
+- `gh pr checks 429`
+  -> no checks reported on the `track-llm-usage` branch at PR creation time.
 
 ## Implement summary (2026-06-24, codex)
 
