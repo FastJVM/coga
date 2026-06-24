@@ -249,11 +249,12 @@ relay mark done add-retry-to-webhook-handler   # finish on the final step
 ### `relay init [PATH] [--user <name>] [--update] [--all]`
 
 Create `relay-os/` inside `PATH` (default: the current dir). A fresh init
-requires `--user <name>` (the name tickets and agents refer to you by). Copies
+requires `--user <name>` (the name tickets and agents refer to you by), and
+`PATH` must already be a git repo — relay is git-backed, so init commits the
+new create into your repo; run `git init` there first if it isn't one. Copies
 templates from the installed Relay package, vendors the CLI into `.relay/`,
-creates a self-contained venv, writes a starter `relay.local.toml`, and — if
-`PATH` is a git repo — auto-stages and commits the new create (push is left to
-you).
+creates a self-contained venv, writes a starter `relay.local.toml`, and
+auto-stages and commits the new create (push is left to you).
 
 ```sh
 relay init --user marc             # fresh init in the current dir (PATH defaults to .)

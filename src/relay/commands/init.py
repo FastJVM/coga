@@ -150,6 +150,17 @@ def _repo_is_empty(target: Path) -> bool:
     return all(entry.name in _INIT_IGNORE for entry in target.iterdir())
 
 
+def _is_git_repo(target: Path) -> bool:
+    """True when `target` looks like a git repo (filesystem check only).
+
+    `.git` may be a directory (normal repo) or a file (worktree/submodule), so
+    test existence rather than dir-ness. `relay init` requires this up front and
+    `_git_commit_relay_os` reuses it to decide whether to commit — the two must
+    agree, so they share this predicate.
+    """
+    return (target / ".git").exists()
+
+
 # Delivered onboarding ticket, pruned from the copied tree on a filled repo
 # (a real project doesn't want the bootstrap interview seeded for it).
 _ONBOARDING_TICKET_DIRS: tuple[str, ...] = ("relay-build",)
@@ -355,6 +366,22 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # `current_user` is valid from the first moment after init, and a bad
     # invocation leaves nothing on disk.
     name = _require_user_name(user)
+
+    # Relay is git-backed: `relay init` commits relay-os/ into the host repo.
+    # If the target isn't a git repo, fail loud (principle 6) instead of writing
+    # relay-os/ and silently skipping the commit further down. We don't run
+    # `git init` ourselves — the user does, which keeps branch naming in their
+    # hands. Checked here, before any writes, so a bad invocation leaves nothing
+    # behind and we fail before the slow clone/venv.
+    if not _is_git_repo(target):
+        typer.secho(
+            f"{target} is not a git repository — relay is git-backed and "
+            f"`relay init` commits relay-os/ into your repo.\n"
+            f"Run `git init` in {target} first, then re-run `relay init`.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
 
     target.mkdir(parents=True, exist_ok=True)
 
@@ -950,7 +977,7 @@ def _git_commit_relay_os(
     Returns the new commit SHA on success, None if we skipped (not a git repo,
     nothing to stage, or git invocation failed). Never raises.
     """
-    if not (target / ".git").exists():
+    if not _is_git_repo(target):
         return None
     try:
         paths = ["relay-os"]
