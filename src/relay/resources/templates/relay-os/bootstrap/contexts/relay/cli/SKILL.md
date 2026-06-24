@@ -1,6 +1,6 @@
 ---
 name: relay/cli
-description: The relay CLI surface — what each command does, the flags that matter, and which command to reach for when. Loaded by ticket-less bootstrap shims so an oriented agent doesn't have to discover commands by trial.
+description: The relay CLI surface — what each command does, the flags that matter, and which command to reach for when. Loaded by ticket-less bootstrap tickets so an oriented agent doesn't have to discover commands by trial.
 ---
 
 # Relay CLI
@@ -192,10 +192,10 @@ directly. Script launches inject task metadata env vars including
   mode-specific prompt block follow the override. Rejected for a script step
   tickets, which compose no agent prompt. `--mode auto` is rejected while
   the auto-launch policy is in force.
-- `relay launch bootstrap/<name>` — stateless shim; concurrent launches
+- `relay launch bootstrap/<name>` — stateless launch target; concurrent launches
   safe.
 
-Discussion bootstrap shims (`bootstrap/orient`, `bootstrap/ticket`) use
+Discussion bootstrap tickets (`bootstrap/orient`, `bootstrap/ticket`) use
 built-in templates for the standard `claude` and `codex` CLIs, or the selected
 agent's optional `discussion = "...{prompt}..."` override. In interactive mode
 the Relay prompt is context and the first human ask can name the session.
@@ -211,7 +211,7 @@ refuses the launch if push auth is broken. Relay drives the whole session
 through git/gh (branch push, `gh pr create`, every `relay bump` syncs ticket
 state), so a dead remote means a run guaranteed to fail at ship time — fail
 loud at the door, not after a long run. The gate self-skips for bootstrap
-shims, `[git].enabled = false`, and non-git checkouts.
+tickets, `[git].enabled = false`, and non-git checkouts.
 
 All of relay's git subprocesses run non-interactively (`GIT_TERMINAL_PROMPT=0`,
 SSH `BatchMode=yes`), so a credential-less remote fails fast instead of hanging
@@ -263,7 +263,7 @@ guardrail and task-to-task comparison, not exact provider billing.
 
 List the live tasks in the repo — `draft`, `active`, `in_progress`, and
 `paused`. `done` tasks are hidden by default; pass `--all` (`-a`) to include
-them. Bootstrap shims have no status and don't appear here. Pipe through
+them. Bootstrap tickets have no status and don't appear here. Pipe through
 `grep` for ad-hoc slicing of any column. When done tasks are hidden the
 output ends with a `(N done tasks hidden — use --all to show)` note.
 
@@ -310,7 +310,7 @@ in with it. `relay recurring list` is the schedule-aware view of those.
 Print a task's `ticket.md` (frontmatter + body + blackboard region) and its
 history from the repo-global `relay-os/log.md` to the
 terminal, rendered as markdown via Rich. Same prefix matching as
-`launch`/`bump`. Bootstrap shims show only `ticket.md` (they have no
+`launch`/`bump`. Bootstrap tickets show only `ticket.md` (they have no
 blackboard or log). For grep/pipe use, read the files directly — `show`
 is for human eyes.
 
@@ -358,7 +358,7 @@ git history is the audit trail, no Slack broadcast. The removal itself
 runs through the `bootstrap/delete-task` skill, so the command is a thin
 resolver and the same deletion is reachable as a script step.
 
-Bootstrap shims aren't user-deletable — they're managed by
+Bootstrap tickets aren't user-deletable — they're managed by
 `relay init --update`.
 
 ## relay retire \<slug\> [--mode interactive] [--agent <type>] [--no-launch]
@@ -621,7 +621,7 @@ only; they don't accept their own flags.
   filter) → `relay recurring --all`.
 - Launching one named recurring task now → `relay recurring launch <name>`.
 - Starting or resuming agent work on a task → `relay launch <slug>`.
-- Other bootstrap shim → `relay launch bootstrap/<name>`.
+- Other bootstrap ticket → `relay launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `relay bump`.
 - Catching up tickets after a teammate merged a PR → `relay automerge`
   (explicit-only; run it by hand).

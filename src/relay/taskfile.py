@@ -29,7 +29,7 @@ Two write paths share one file without clobbering each other:
   after the fence and leaves the frontmatter + body bytes above it untouched —
   so a blackboard write never reformats the frontmatter.
 
-Bootstrap shims (`relay-os/bootstrap/<name>/ticket.md`) are stateless launch
+Bootstrap tickets (`relay-os/bootstrap/<name>/ticket.md`) are stateless launch
 targets with no blackboard; they legitimately have no fence. Pass
 `blackboard_required=False` to parse them without failing loud.
 """
@@ -91,7 +91,7 @@ def split_body(body: str, *, blackboard_required: bool = True) -> tuple[str, str
     split round-trips with `replace_blackboard`).
 
     Fail-loud when the fence is missing or duplicated and `blackboard_required`.
-    When not required (bootstrap shims), a fence-less body returns
+    When not required (bootstrap tickets), a fence-less body returns
     ``(body, None)``.
     """
     matches = _fence_matches(body)
@@ -123,7 +123,7 @@ def read_blackboard(path: Path, *, blackboard_required: bool = True) -> str:
     """Return the blackboard region of `path` (text after the fence marker).
 
     Returns ``""`` for a fence-less file when `blackboard_required` is False
-    (bootstrap shims have no blackboard). The byte-faithful inverse of
+    (bootstrap tickets have no blackboard). The byte-faithful inverse of
     `replace_blackboard`: ``replace_blackboard(p, read_blackboard(p))`` is a
     no-op.
     """

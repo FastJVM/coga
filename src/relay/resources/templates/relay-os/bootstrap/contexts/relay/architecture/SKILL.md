@@ -67,13 +67,13 @@ no in-memory state.
   records the serviced period as `last_serviced_period` in the template
   blackboard, and launches the due ones. The created tasks then use the same
   ticket, workflow, launch, bump, and blackboard machinery as any other task.
-- **Bootstrap shims** in `relay-os/bootstrap/<name>/ticket.md` are
+- **Bootstrap tickets** in `relay-os/bootstrap/<name>/ticket.md` are
   stateless launch targets for skills. No status, no workflow. Used for
   ticket-less re-entry points like `relay launch bootstrap/orient`
   (the `chat` alias). They are never factories — `relay launch` no
-  longer scaffolds new tickets from shims; use `relay create` for that.
+  longer creates new tickets from them; use `relay create` for that.
 - **Bundled batteries** are package-backed core skills, contexts, reusable
-  workflows, hooks, and launch shims materialized under `relay-os/bootstrap/`
+  workflows, hooks, and launch targets materialized under `relay-os/bootstrap/`
   by `relay init` and `relay init --update`. `pip install relay-os` puts them in the wheel; init
   materializes them into each repo. They are inspectable local files, but
   edits under `bootstrap/` are overwritten on update. Optional domain skills
@@ -247,7 +247,7 @@ script or composes an agent is deduced, not declared.
   after the session-name argv and before the auto argv/prompt). The policy
   is machine-local only — either key in shared `relay.toml` fails config
   load — and applies only to normal task tickets in effective `autonomy: auto`:
-  interactive launches, bootstrap/discussion shims, and script steps keep
+  interactive launches, bootstrap/discussion tickets, and script steps keep
   today's behavior. (`auto` is currently frozen, as `mode: auto` was.) Supervised chains re-resolve it per step for whichever
   agent the step rotated to, and `"auto"` with no configured argv fails the
   launch loud before spawning.
@@ -283,7 +283,7 @@ loading. A section-aware reader splits the single `ticket.md` at the
 `<!-- relay:blackboard -->` fence: the body above feeds layers 5 and 8, the
 region below feeds layer 7. It fails loud if a task ticket is missing the
 fence rather than silently folding the blackboard into the body (or vice
-versa); a bootstrap shim legitimately has no blackboard and no fence.
+versa); a bootstrap ticket legitimately has no blackboard and no fence.
 
 Note what is deliberately **absent**: the `relay-os/log.md` audit log is never
 a composition layer. It is the one repo-global, append-only file, lives

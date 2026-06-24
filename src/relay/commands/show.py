@@ -46,7 +46,7 @@ def show(
         text = ticket_path.read_text()
         console.print(Markdown(text) if text.strip() else "[dim](empty)[/dim]")
 
-    # Bootstrap shims are stateless: no log history to reconstruct.
+    # Bootstrap tickets are stateless: no log history to reconstruct.
     if isinstance(ref, BootstrapRef):
         return
 

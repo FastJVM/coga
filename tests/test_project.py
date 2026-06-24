@@ -65,7 +65,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         ## Description
 
-        Persistent launch shim for project planning.
+        Persistent launch target for project planning.
         """,
     )
     _write(
@@ -178,7 +178,7 @@ def test_project_planning_does_not_inject_relay_secrets(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Secrets are now declared inline per-ticket and flow only through the
-    # `relay launch` chokepoint. The project-planning shim runs no task work and
+    # `relay launch` chokepoint. The project-planning ticket runs no task work and
     # declares no `secrets:`, so it must never gain a scoped Relay secret alias
     # in its env — even when a source env var the operator exported is present.
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live")
