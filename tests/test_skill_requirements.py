@@ -29,6 +29,42 @@ def _mk_req(skills_dir: Path, ref: str, body: str = "somedep>=1\n") -> Path:
     return req
 
 
+def test_hash_checking_hint_detects_require_hashes() -> None:
+    from relay.commands.update import _hash_checking_hint
+
+    assert _hash_checking_hint("some unrelated error") == ""
+    for stderr in (
+        "ERROR: The editable requirement file:///x cannot be installed when "
+        "requiring hashes, because there is no single file to hash.",
+        "ERROR: Can't verify hashes for these file:// requirements",
+        "In --require-hashes mode, all requirements must have their versions pinned",
+    ):
+        assert "PIP_CONFIG_FILE=" in _hash_checking_hint(stderr)
+
+
+def test_skill_requirements_failure_surfaces_hash_hint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A require-hashes failure during skill-dep install surfaces the bypass
+    remediation, not just the raw pip traceback."""
+    _mk_req(tmp_path / "skills", "team/demo")
+
+    def _hash_fail(*args, **kwargs):  # type: ignore[no-untyped-def]
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=1,
+            stdout="",
+            stderr="ERROR: ... cannot be installed when requiring hashes",
+        )
+
+    monkeypatch.setattr(subprocess, "run", _hash_fail)
+    with pytest.raises(SystemExit):
+        install_skill_requirements(tmp_path, tmp_path / ".venv")
+    assert "PIP_CONFIG_FILE=" in capsys.readouterr().err
+
+
 def test_no_skills_dir_is_noop(tmp_path: Path) -> None:
     assert install_skill_requirements(tmp_path, tmp_path / ".venv") == []
 

@@ -573,13 +573,34 @@ def install_venv(relay_os: Path) -> Path:
     )
     if result.returncode != 0:
         typer.secho(
-            f"pip install failed:\n{result.stderr}",
+            f"pip install failed:\n{result.stderr}{_hash_checking_hint(result.stderr)}",
             fg=typer.colors.RED,
             err=True,
         )
         sys.exit(2)
     install_skill_requirements(relay_os, venv_dir)
     return venv_dir
+
+
+def _hash_checking_hint(stderr: str) -> str:
+    """Remediation appended when a vendored-venv `pip install` aborts under pip's
+    global hash-checking mode (`require-hashes`, common on managed work machines).
+
+    A local/VCS source has no single file to hash, so the install fails with a
+    raw traceback; point at the one-line bypass instead of leaving the user to
+    dig for it. Returns "" when the failure isn't hash-checking."""
+    s = stderr.lower()
+    if not any(
+        m in s for m in ("require-hashes", "requiring hashes", "can't verify hashes")
+    ):
+        return ""
+    return (
+        "\n\nThis is pip's hash-checking mode (`require-hashes`, a managed-machine "
+        "setting): it can't install relay from a local source. Re-run with the "
+        "managed pip config bypassed, e.g.:\n"
+        "    PIP_CONFIG_FILE= relay init\n"
+        "(the same `PIP_CONFIG_FILE=` prefix unblocks the first `pip install -e .`)."
+    )
 
 
 def install_skill_requirements(relay_os: Path, venv_dir: Path) -> list[Path]:
@@ -621,7 +642,8 @@ def install_skill_requirements(relay_os: Path, venv_dir: Path) -> list[Path]:
         )
         if result.returncode != 0:
             typer.secho(
-                f"pip install -r {req} failed:\n{result.stderr}",
+                f"pip install -r {req} failed:\n{result.stderr}"
+                f"{_hash_checking_hint(result.stderr)}",
                 fg=typer.colors.RED,
                 err=True,
             )

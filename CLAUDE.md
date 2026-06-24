@@ -18,7 +18,7 @@ Core code lives in `src/relay/`. Keep CLI entrypoints thin in `src/relay/command
 When changing shipped Relay OS contexts or templates, check both the live repo copy under `relay-os/` and the packaged copy under `src/relay/resources/templates/relay-os/`. Keep them in sync unless the difference is intentional and documented.
 
 ## Build, Test, and Development Commands
-- `python -m pip install -e .` installs the package in editable mode and exposes `relay`.
+- `python -m pip install -e .` installs the package in editable mode and exposes `relay`. (On a managed machine with pip hash-checking on, prefix `PIP_CONFIG_FILE=` to bypass the global `require-hashes` config — it can't install a local source.)
 - `relay --help` or `python -m relay.cli` is the fastest CLI smoke check.
 - `python -m pytest` runs the test suite; install `pytest` in your dev environment first.
 - `relay validate --json` validates repo/task structure after config, workflow, or task-model changes.

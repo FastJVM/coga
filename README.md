@@ -35,6 +35,13 @@ python -m pip install -e .
 That puts `relay` on your PATH against the source. Keep it current later with a
 periodic `git pull && pip install -e .`.
 
+> **On a managed/work machine?** If pip has global hash-checking enabled
+> (`require-hashes`), the editable install aborts with *"cannot be installed
+> when requiring hashes"* — a local source can't be hashed. Bypass the managed
+> pip config just for this install (and the periodic update):
+> `PIP_CONFIG_FILE= python -m pip install -e .`. `relay init` takes the same
+> `PIP_CONFIG_FILE=` prefix if it hits this while building its vendored venv.
+
 **2. Set up a project.** One `relay-os/` per repo — the repo *is* the project.
 For a fresh project:
 
