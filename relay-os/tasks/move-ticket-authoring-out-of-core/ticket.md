@@ -35,7 +35,20 @@ step: 1 (design)
 
 ## Description
 
-
+Move the `relay ticket` authoring logic out of the kernel so ticket-authoring
+is itself a **ticket** (a stateless bootstrap ticket launched like any other),
+not a built-in command. This is the real version of what the now-deleted
+"tier-2 shim" gestured at, and the redo of closed PR 425. Shrinks the kernel
+home, grows the tickets home.
 
 ## Context
 
+Depends on the shim-concept removal landing first (`remove-the-shim-concept`)
+so the model is clean. PR 425 attempted this and is being closed — redo from
+scratch. Today `relay ticket` is a built-in (`src/relay/cli.py`,
+`src/relay/commands/`), and the authoring interview is the `bootstrap/ticket`
+skill. The `design` step decides the mechanism for collapsing a logic-bearing
+built-in into a ticket (+ alias). The reasons `ticket` was a built-in rather
+than a pure alias — draft-on-the-fly, post-exit validate, git-sync, TTY guard
+(see `docs/cli-extension-audit.md`) — must be preserved in whatever shape the
+design lands on. Keep `python -m pytest` green.
