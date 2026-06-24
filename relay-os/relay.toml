@@ -145,7 +145,7 @@ zach = "U0AG5LKCK8E"
 #   control_branch = "main"
 
 # --- Aliases ---
-# Thin sugar over often-used commands (typically bootstrap-shim launches).
+# Thin sugar over often-used commands (typically bootstrap-ticket launches).
 # Aliases forward positional args after the alias name to the expanded form.
 
 [aliases]

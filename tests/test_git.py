@@ -612,10 +612,10 @@ def test_cli_panic_from_feature_branch_leaves_code_untouched(git_repo):
 
 
 def _seed_ticket_bootstrap(relay_os: Path) -> None:
-    """Add the `bootstrap/ticket` shim + skill the `relay ticket` cmd launches."""
-    shim = relay_os / "bootstrap" / "ticket"
-    shim.mkdir(parents=True)
-    (shim / "ticket.md").write_text(
+    """Add the `bootstrap/ticket` launch target + skill the `relay ticket` cmd launches."""
+    bootstrap_dir = relay_os / "bootstrap" / "ticket"
+    bootstrap_dir.mkdir(parents=True)
+    (bootstrap_dir / "ticket.md").write_text(
         dedent(
             """
             ---
@@ -628,7 +628,7 @@ def _seed_ticket_bootstrap(relay_os: Path) -> None:
 
             ## Description
 
-            Persistent launch shim.
+            Persistent launch target.
             """
         ).lstrip()
     )

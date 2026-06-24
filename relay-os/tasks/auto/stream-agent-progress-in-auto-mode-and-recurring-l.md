@@ -1,15 +1,36 @@
 ---
 slug: auto/stream-agent-progress-in-auto-mode-and-recurring-l
 title: Stream agent progress in auto-mode and recurring launches
-status: draft
+status: active
 autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: nick
-contexts: []
+assignee: claude
+contexts:
+- relay/codebase
+- relay/architecture
+- relay/recurring
+- dev/code
 skills: []
-workflow: null
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
+step: 1 (implement)
 ---
 
 ## Description

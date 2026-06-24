@@ -132,7 +132,7 @@ def compose_prompt_report(
 
     # Split the single-file ticket body at the blackboard fence: the body above
     # feeds the Description / inline-Context layers, the region below is the
-    # blackboard layer. Bootstrap shims legitimately carry no fence, so they are
+    # blackboard layer. Bootstrap tickets legitimately carry no fence, so they are
     # parsed leniently (blackboard is then None and the blackboard layer is
     # omitted); a normal task ticket missing the fence fails loud.
     body_above, blackboard_text = split_body(

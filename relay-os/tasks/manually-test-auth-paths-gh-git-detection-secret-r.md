@@ -1,12 +1,12 @@
 ---
 slug: manually-test-auth-paths-gh-git-detection-secret-r
 title: 'Manually test auth paths: gh/git detection, secret resolution, per-task injection'
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: claude
 contexts:
 - relay/architecture
 - relay/cli
@@ -24,7 +24,6 @@ workflow:
     skills: []
     assignee: agent
 secrets: null
-step: 2 (human-executes)
 ---
 
 ## Description
@@ -40,10 +39,12 @@ pass/fail + any wrong/silent behavior in the blackboard.
 
 ### 1. gh / git auth detection
 
-- With `gh` logged out (`gh auth logout`), run `relay launch <slug>` on a
-  ticket whose `## Dev` names a PR: the freshness check must emit a **loud
-  warning** with a `gh auth login` hint and continue unverified — not a silent
-  skip, not a hard crash.
+- With `gh` logged out (`gh auth logout`), `relay launch <slug>` must **fail
+  loud, never hang**: the launch-entry push-auth preflight refuses with "git
+  push access … is unavailable" (and the git sync runs non-interactively so a
+  credential-less push fails fast instead of blocking on a prompt). [Note: the
+  old launch-time gh "freshness check / warn-and-continue" was retired (#414);
+  the shipped behavior is fail-fast + refuse — see #426.]
 - `relay automerge` with `gh` logged out / not installed: surfaces the `gh`
   error loudly, does not report success.
 - Confirm git transport uses the configured remote and that a bad/missing
@@ -51,25 +52,30 @@ pass/fail + any wrong/silent behavior in the blackboard.
 - Re-auth (`gh auth login`) and confirm the verified path works (auto-bump of a
   merged-PR final-step ticket).
 
-### 2. Secret resolution (`env:` / `op://`)
+### 2. Secret resolution (`env:` / `op://`) — inline per-ticket (no `[secrets]` catalog)
 
-- `env:VAR` indirection: set, then unset the var — launch resolves the value
-  when set, and **fails loud naming the Relay secret key** (never the value)
-  when unset/required.
-- `op://vault/item/field`: signed out of 1Password → launch fails loud with the
-  op reference named, not a silent skip; `op read` non-zero is surfaced.
-- Signed in → value resolves and is injected.
-- Confirm error messages reference the Relay secret key / reference, never leak
-  the resolved secret value.
+Secrets are declared inline on the ticket as `secrets: [{NAME: <ref>}]` where
+`<ref>` is `env:VAR` or `op://vault/item/field` (PR #428 dropped the central
+catalog).
+
+- `env:VAR`: with VAR set → launch resolves and injects it as env var `NAME`;
+  with VAR unset → **fails loud naming the env var** (never the value).
+- `op://vault/item/field`: signed in → value resolves (live `op read`) and is
+  injected; `op` missing / not signed in / `op read` non-zero → fails loud with
+  the **reference** named, never a silent skip.
+- Error messages reference the secret name / reference, never the resolved value.
+- `relay secret get <ref>` (an `op://…` or `env:VAR` reference) is the
+  human-facing single-reference probe.
 
 ### 3. Per-task secrets injection (`secrets:` gating)
 
-- `secrets: null` (or absent) → legacy behavior: all configured secrets
-  injected, unset env-backed values skipped.
-- `secrets: []` → no secrets injected.
-- `secrets: [<one key>]` → only that `[secrets]` key injected, others withheld.
-- Verify a `mode: script` launch sees the injected secrets as env vars and an
-  excluded one is absent.
+- `secrets: null` (or absent) **or** `secrets: []` → no secrets injected.
+  (There is no `[secrets]` catalog, so there is no "inject all" blanket.)
+- `secrets: [{NAME: <ref>}]` → only the declared name(s) injected as env vars;
+  the source `env:VAR` is scrubbed from the child; anything not declared is
+  withheld.
+- Verify a `script`-mode launch sees the injected secrets as env vars and an
+  excluded one is absent (a script that echoes presence — not values).
 
 Out of scope: the `skip_permissions` auto-mode policy (auto launches are
 temporarily disabled anyway).
@@ -155,3 +161,54 @@ agent read-back.
 ---
 
 ## Results (fill in during human-executes)
+
+> Note: the "Brief" numbered steps above were written against the pre-refactor
+> model (gh freshness warning, `[secrets]` catalog, `null` = inject-all). They
+> are **superseded** by the updated `## Description` checks — the testing this
+> session surfaced bugs that were fixed, and the secrets model itself changed.
+
+### Check 1 — gh / git auth detection
+- **1.1 logged-out launch → PASS (behavior changed + bug fixed).** Original
+  expectation (loud gh-freshness warning + continue) described retired behavior
+  (#414). Found instead: launch's git sync **hung on an interactive credential
+  prompt**. Fixed in **PR #426** — git sync is now non-interactive
+  (`GIT_TERMINAL_PROMPT=0`), so a credential-less push fails fast/loud; and a
+  new launch-entry **push-auth preflight refuses** to start when push access is
+  broken (no agent spawned). Verified live (loud `terminal prompts disabled`,
+  no hang) + unit tests.
+- 1.2 `relay automerge` logged out / gh missing → surfaces `gh` error loudly:
+  path intact (`autoclose.sweep_merged(quiet=False)` raises `GhError`). NOT
+  re-run live this session (would need `gh auth logout`).
+- 1.3 bad/missing remote → `relay validate --check-github` is the actionable
+  probe (`github_preflight`, non-interactive). Not re-run live.
+- 1.4 re-auth → verified path / merged-PR auto-bump. Not re-run live.
+
+### Check 2 — secret resolution — PASS
+- `op://` resolves live through relay: `relay secret get op://Employee/Namecheap/username`
+  → printed `ntoper` (real `op read` via relay's exact path). ✅
+- `op` missing / `op read` non-zero → launch crashes loud naming the reference,
+  no agent spawned, value never leaked — covered by merged unit tests
+  (`test_launch_*` op paths, `test_secret_*`). ✅
+- `env:VAR` unset → fail loud naming the var — demonstrated live via
+  `select_launch_secrets` (`ticket secret 'NEEDED' references env var
+  'DEFINITELY_UNSET_VAR' but it is not set`). ✅
+- `relay secret get <literal>` → clean rejection (PR #431). ✅
+
+### Check 3 — per-task gating / injection — PASS (resolution layer live)
+Demonstrated live via `build_launch_env` (relay's real path):
+- declared secret injected under its scoped env-var name ✅
+- source `env:VAR` scrubbed from the child env ✅
+- non-secret env var still inherited ✅
+- `secrets: []` injects nothing ✅
+- unset `env:` var fails loud, names the var ✅
+End-to-end `script`-mode delivery covered by merged `test_launch_script` tests.
+
+### Follow-ups filed (v2)
+- `op-secret-dependency-init-enforcement` — should `op` be enforceable at init?
+- `op-service-account-auth-for-unattended-secrets` — service-account token so
+  `op://` resolves unattended (no per-call prompt).
+
+### Shipped this session
+PR #426 (git-launch fail-loud), #428 (inline `op://`/`env:` secrets, drop
+catalog), #430 (init requires git+gh; deps manifest) — all merged. #431 (secret
+get literal wording) open.

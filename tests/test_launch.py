@@ -459,8 +459,8 @@ def test_skip_policy_noop_without_agent_policy() -> None:
     assert _skip_permissions_argv_for_launch(inert, "auto", _task_ref()) == ()
 
 
-def test_skip_policy_noop_for_bootstrap_shim() -> None:
-    """`relay chat` / `relay ticket` shims never skip permissions, regardless
+def test_skip_policy_noop_for_bootstrap_ticket() -> None:
+    """`relay chat` / `relay ticket` launch targets never skip permissions, regardless
     of the selected agent's local policy."""
     agent = _agent(
         "-p",
@@ -657,7 +657,7 @@ def test_preflight_skips_for_bootstrap_and_when_git_disabled(active_task):
     ref = list_tasks(cfg)[0]
     boot = BootstrapRef(name="orient", path=ref.path)
 
-    # Bootstrap shims never push — skip regardless of auth.
+    # Bootstrap tickets never push — skip regardless of auth.
     _preflight_push_auth(cfg, boot, is_bootstrap=True)
 
     # git disabled → no sync, nothing to gate.
@@ -1188,7 +1188,7 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
     Regression: the loop used to break on `is_bootstrap or ticket.skills`,
     a rename artifact of the old singular skill-shim field. That silently
     stopped any normal workflow ticket carrying ticket-level skills from
-    chaining to its next agent step. Only bootstrap shims should stop here.
+    chaining to its next agent step. Only bootstrap tickets should stop here.
     """
     _write(
         active_task / "workflows" / "chain.md",
@@ -1566,12 +1566,12 @@ def test_launch_prompt_report_prints_layers_without_launching(
     assert "launched in interactive mode" not in _read_log(active_task)
 
 
-# --- bootstrap shims -----------------------------------------------------------
+# --- bootstrap tickets ---------------------------------------------------------
 
 
 @pytest.fixture
 def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A relay-os/ with a bootstrap/ticket shim and a stub skill, no tasks."""
+    """A relay-os/ with a bootstrap/ticket launch target and a stub skill, no tasks."""
     company = tmp_path / "relay-os"
     _write(
         company / "relay.toml",
@@ -1604,7 +1604,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         ## Description
 
-        Persistent launch shim for the bootstrap/ticket skill.
+        Persistent launch target for the bootstrap/ticket skill.
         """,
     )
     _write(
@@ -1625,7 +1625,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_launch_bare_bootstrap_does_not_post_to_slack(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Bare shim launches (e.g. `relay chat`) are stateless re-entry points,
+    """Bare bootstrap-ticket launches (e.g. `relay chat`) are stateless re-entry points,
     not "started work" events — they must not post to Slack."""
     posts: list[str] = []
     _allow_interactive_tty(monkeypatch)
@@ -1693,7 +1693,7 @@ def test_launch_bootstrap_skips_status_and_lock(
 def test_launch_discussion_bootstrap_uses_discussion_template(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Discussion shims ride the composed prompt as system context instead of
+    """Discussion tickets ride the composed prompt as system context instead of
     making it the first user message."""
     # Rewrite the fixture's relay.toml to add a discussion template on claude.
     _write(
@@ -1754,7 +1754,7 @@ def test_launch_orient_bootstrap_stays_silent(
 
         ## Description
 
-        Persistent launch shim for a discussion session.
+        Persistent launch target for a discussion session.
         """,
     )
     captured: dict[str, object] = {}
@@ -1883,7 +1883,7 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     assert "assignee=claude, launch_assignee=codex, agent=codex" in log
 
 
-def test_launch_bootstrap_unknown_shim(
+def test_launch_bootstrap_unknown_ticket(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     runner = CliRunner()

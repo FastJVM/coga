@@ -67,7 +67,7 @@ user = ""
 # (these keys are rejected in shared relay.toml). With `skip_permissions =
 # "auto"`, normal `mode: auto` task launches append `skip_permissions_argv`
 # (one string, shlex-split) so the agent CLI doesn't stop on per-command
-# permission/approval prompts. Interactive launches, bootstrap shims
+# permission/approval prompts. Interactive launches, bootstrap tickets
 # (`relay chat` / `relay ticket`), and script tasks are unaffected.
 # Verify the flags against your installed CLIs before enabling.
 # [agents.claude]

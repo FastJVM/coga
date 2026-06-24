@@ -43,7 +43,7 @@ relay-os/
   recurring/<name>/      ← recurring task template directories
                            (single-file ticket.md; history in the
                            repo-global relay-os/log.md)
-  bootstrap/<name>/      ← stateless launch shims
+  bootstrap/<name>/      ← stateless launch targets
   bootstrap/skills/      ← package-backed core skills (overwritten on update)
   bootstrap/contexts/    ← package-backed bundled contexts (overwritten on update)
   bootstrap/workflows/   ← package-backed reusable workflows (overwritten on update)

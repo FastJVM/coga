@@ -221,3 +221,36 @@
 2026-06-24 11:53 [retire-standalone-relay-automerge-triggers-recurri] [human:nick] task done
 2026-06-24 11:53 [200-single-file-task-format-section-aware-compose] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-24 12:12 [remove-support-for-directory-in-relay-task-in-v2] [human:nick] created (autonomy=interactive, status=draft)
+2026-06-24 12:43 [manually-test-auth-paths-gh-git-detection-secret-r] [agent:nick] advanced to step 3 (verify-read-only) → assigned to claude
+2026-06-24 12:43 [manually-test-auth-paths-gh-git-detection-secret-r] [human:nick] task done
+2026-06-24 12:48 [auto/stream-agent-progress-in-auto-mode-and-recurring-l] [human:nick] activated (draft → active)
+2026-06-24 12:48 [auto/stream-agent-progress-in-auto-mode-and-recurring-l] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '/home/n/Code/codex/relay/.git/worktrees/relay-task-state-sync/FETCH_HEAD': Read-only file system
+2026-06-24 12:48 [drain-pending-auto-tickets-with-leftover-session-b] [agent:nick] advanced to step 3 (implement) → assigned to claude — Spec reviewed; auto-mode blocker activated.
+2026-06-24 12:48 [drain-pending-auto-tickets-with-leftover-session-b] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-06-24 12:22 [prevent-autostash-spool-conflicts-on-control-branc] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-24 12:57 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nick] created (autonomy=interactive, status=draft)
+2026-06-24 12:57 [retire-the-duplicate-relay-clone-so-one-process-wr] [human:nick] created (autonomy=interactive, status=draft)
+2026-06-24 14:19 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-24 14:19 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-24 14:19 [prevent-autostash-spool-conflicts-on-control-branc] [human:nick] activated (draft → active)
+2026-06-24 14:20 [prevent-autostash-spool-conflicts-on-control-branc] [agent:nick] advanced to step 2 (peer-review) → assigned to codex — implement done: spool merge-by-construction + rebase hardening; branch spool-merge-by-construction (worktree ../relay-spool-merge); full suite 887 passed
+2026-06-24 14:55 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-24 14:55 [retire-mark-active] [human:nick] task done
+2026-06-24 14:58 [branch-cleanup-as-recurring-tasks] [human:nick] created (autonomy=interactive, status=draft)
+2026-06-24 14:22 [prevent-autostash-spool-conflicts-on-control-branc] [human:nick] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-24 14:57 [prevent-autostash-spool-conflicts-on-control-branc] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-06-24 14:57 [prevent-autostash-spool-conflicts-on-control-branc] [git] sync failed: `git add -- relay-os/tasks/prevent-autostash-spool-conflicts-on-control-branc.md relay-os/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/relay/.git/index.lock': Read-only file system
+2026-06-24 14:57 [prevent-autostash-spool-conflicts-on-control-branc] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-24 14:59 [prevent-autostash-spool-conflicts-on-control-branc] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/435
+2026-06-24 14:56 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] ticket authoring launched (assignee=codex, agent=codex)
+2026-06-24 15:11 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [agent:claude] panic: Implementation commit 94a938d is complete, but relay bump cannot advance because the ticket frontmatter is still status: draft while the launch prompt assigned step 1 (implement).
+2026-06-24 15:11 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] activated (draft → active)
+2026-06-24 15:12 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] started (active → in_progress) via relay launch
+2026-06-24 15:12 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] launched in interactive mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-06-24 15:13 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-06-24 15:13 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [git] sync failed: `git add -- relay-os/tasks/fix-optioninfo-sentinel-crash-in-on-demand-recurri.md relay-os/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
+2026-06-24 15:13 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-24 15:23 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-06-24 15:23 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [git] sync failed: `git add -- relay-os/tasks/fix-optioninfo-sentinel-crash-in-on-demand-recurri.md relay-os/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/relay/.git/index.lock': Read-only file system
+2026-06-24 15:23 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-24 15:24 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/436

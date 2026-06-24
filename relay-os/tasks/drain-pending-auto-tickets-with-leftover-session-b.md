@@ -6,11 +6,12 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: claude
 contexts:
 - relay/recurring
 - relay/codebase
 - dev/code
+- relay/sync
 skills: []
 workflow:
   name: code/design-then-implement
@@ -33,7 +34,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (review-design)
+step: 3 (implement)
 ---
 
 ## Description
@@ -49,9 +50,12 @@ Stop on the first failed or unfinished non-interactive launch, mirroring how
 the sweep already stops on an unfinished recurring launch.
 
 The budget signal is the agent's own subscription usage-window reporting (the
-5h/weekly budget), read per agent type rather than relay tracking tokens
-itself. The design step's go/no-go probe (decision #1) has been **run against
-the real endpoints** — results below:
+5h/session window plus the weekly window), read per agent type rather than
+relay tracking tokens itself. Relay does not try to predict a ticket's cost.
+It drains sequentially: launch one eligible ticket, re-read that agent's usage
+state, then decide whether to launch the next ticket. The design step's
+go/no-go probe (decision #1) has been **run against the real endpoints** —
+results below:
 
 - **Claude — verified GO (free + fresh).** `GET
   https://api.anthropic.com/api/oauth/usage` with the OAuth bearer token from
@@ -89,13 +93,17 @@ crashes the sweep.
   workflows and bump normally. Do not confuse them with period tasks — the
   `recurring-` slug prefix is the period-task identity marker and ordinary
   tickets never carry it.
+- Launch precondition: ordinary `mode: auto` launches must already be
+  re-enabled before this ticket can ship. In the current codebase,
+  `relay launch` temporarily refuses `mode: auto` because auto runs have no
+  live progress stream; the separate blocker is
+  `auto/stream-agent-progress-in-auto-mode-and-recurring-l`. This ticket does
+  not own streaming auto-mode output or re-enabling auto launches.
 - The drain should be observable in Slack: post which tickets were drained,
   or that the drain was skipped for lack of budget. Note there is no
   end-of-sweep Slack summary today — output is per-event `notify()` calls in
-  `_broadcast_scan()`, which fire *before* launches — so this is a new
-  notification point, not an edit to an existing one. (Slack mechanics live
-  in the `relay/sync` context if the implement step needs more than
-  `notify()`.)
+  `_broadcast_scan()`, which fire *before* launches — so this is a new live
+  notification point, not an edit to an existing summary or digest spool.
 - "Oldest first" needs a concrete ordering source — frontmatter has no
   created-date field, so git history, directory mtime, and slug order all
   differ. Design step picks one and says why. (See locked decision below —
@@ -155,6 +163,12 @@ crashes the sweep.
       ordinary task — **not** under `tasks/recurring/`. `in_progress`, `draft`,
       `paused`, `done`, human-assigned, and `mode: interactive`/`script`
       tickets are excluded.
+- [ ] This ticket does **not** re-enable ordinary `mode: auto` launches. Before
+      implementation proceeds, the existing auto-mode launch block in
+      `src/relay/commands/launch.py` must already be gone or explicitly
+      resolved by `auto/stream-agent-progress-in-auto-mode-and-recurring-l`.
+      If that blocker is still present, implementation stops and reports the
+      dependency instead of shipping a drain that can only fail on launch.
 - [ ] Eligible tickets are serviced oldest-first by `first_activity()` (the
       first parseable `YYYY-MM-DD HH:MM` line in `log.md`).
 - [ ] A new `first_activity(task_dir)` helper exists in
@@ -167,24 +181,42 @@ crashes the sweep.
       Codex impl primes once via a throwaway `codex exec` then reads the newest
       rollout `rate_limits` snapshot. Both fail soft (return "no signal" on any
       error/timeout/missing-credential), never raising into the sweep.
-- [ ] "Remaining budget" is computed as the **minimum** of `100 −
-      used_percent` across the windows the probe returns (both the 5h and the
-      weekly window must clear the threshold), so the binding window governs.
-- [ ] A ticket is launched only if its assignee's remaining budget ≥
-      `min_remaining_percent`. An agent whose budget is below threshold, or
-      whose probe returned no signal, has its remaining tickets skipped for the
-      rest of this drain (claude budget re-probed per ticket since it is free;
-      once an agent is marked exhausted/unreadable it is not re-probed).
+- [ ] Budget guards are checked against the agent's own **session** and
+      **weekly** windows. A launch is allowed only when the 5h/session window
+      has at least `drain_min_session_remaining_percent` remaining and the
+      weekly window has at least its reset-aware pacing reserve remaining.
+      Missing or empty required window data is "no signal" and skips that
+      agent; it never means "safe to drain".
+- [ ] The weekly guard is time-to-reset aware. For most of the week, preserve
+      more of the weekly budget according to a linear pacing curve: at a full
+      weekly window before reset, require nearly all weekly budget to remain;
+      during the final `drain_weekly_final_window_hours` before reset, require
+      only the hard `drain_min_weekly_remaining_percent` floor. This matches
+      the intent: care a lot about weekly budget seven days before reset, but
+      spend leftover allotment aggressively on the last day without hitting
+      zero. If the weekly reset time is missing, the probe returns "no signal".
+- [ ] A ticket is launched only if its assignee clears both guards. Treat these
+      as safety reserves: if the session window is below its configured floor
+      (for example 5% remaining), or the weekly window is below its effective
+      pacing reserve, Relay launches nothing else for that agent in this drain.
+      An agent whose budget is below guard, or whose probe returned no signal,
+      has its remaining tickets skipped for the rest of this drain (claude
+      budget re-probed per ticket since it is free; once an agent is marked
+      exhausted/unreadable it is not re-probed). The expected recurring cron
+      timing is overnight, so this guard is about avoiding zero/exhaustion, not
+      reserving daytime interactive capacity inside the same 5h session.
 - [ ] The drain stops entirely on the first launched ticket that returns
       unfinished/failed (same check as the recurring sweep), and respects an
       optional `max_tickets` cap.
 - [ ] Drained launches go through the same `relay launch <slug>` path a human
       would use; drained tickets keep their own workflow and bump normally.
-- [ ] The drain is observable: a single one-line summary is posted to the
-      notification channel naming the drained tickets, or stating the drain was
-      skipped for lack of budget / unreadable usage — but only when there was
-      at least one eligible ticket (no post when nothing was eligible). This is
-      a new notification call, not an edit to `_broadcast_scan()`.
+- [ ] The drain is observable: a single one-line summary is posted through the
+      live notification path (`relay.notification.post`, not `notify`) naming
+      the drained tickets, or stating the drain was skipped for lack of budget /
+      unreadable usage — but only when there was at least one eligible ticket
+      (no post when nothing was eligible). This is a new notification call, not
+      an edit to `_broadcast_scan()`. Slack failures follow the live-post
+      fail-loud semantics documented in `relay/sync`.
 - [ ] Command handlers stay thin: selection, ordering, probing, and the drain
       loop live in importable modules (`src/relay/drain.py`,
       `src/relay/usage.py`), not in `commands/recurring.py`.
@@ -206,9 +238,33 @@ crashes the sweep.
 
 ### 2. Usage probe — `src/relay/usage.py` (new)
 - `@dataclass UsageWindow { label: str; used_percent: float; resets_at:
-  datetime | None }` and `@dataclass UsageSnapshot { windows: list[UsageWindow]
-  }` with `remaining_percent` = `min(100 - w.used_percent for w in windows)`
-  (returns 100.0 if no windows).
+  datetime | None; window_minutes: int | None = None }` and `@dataclass
+  UsageSnapshot { windows: list[UsageWindow] }`. The probe must return one
+  session window and one weekly window for the agent family, including
+  `resets_at` for the weekly window. A parser that cannot produce the required
+  windows returns `None` from the probe rather than an empty or partial
+  snapshot.
+- Add a helper such as `budget_allows_launch(snapshot, cfg, now) -> bool` that:
+  session remaining = `100 - session.used_percent`; weekly remaining =
+  `100 - weekly.used_percent`; session must be at or above
+  `drain_min_session_remaining_percent`; weekly must be at or above the
+  effective weekly floor. Effective weekly floor:
+  `drain_min_weekly_remaining_percent` during the final
+  `drain_weekly_final_window_hours` before reset; otherwise
+  `drain_min_weekly_remaining_percent + (100 -
+  drain_min_weekly_remaining_percent) * ((hours_until_reset -
+  drain_weekly_final_window_hours) / (weekly_window_hours -
+  drain_weekly_final_window_hours))`, clamped to
+  `[drain_min_weekly_remaining_percent, 100]`. `weekly_window_hours` comes from
+  the weekly window's `window_minutes` when available, else defaults to 168.
+  With the default config, the weekly floor is roughly:
+  - 7 days before reset: 100% remaining required.
+  - 6 days before reset: 84% remaining required.
+  - 5 days before reset: 68% remaining required.
+  - 4 days before reset: 53% remaining required.
+  - 3 days before reset: 37% remaining required.
+  - 2 days before reset: 21% remaining required.
+  - Final 24h before reset: 5% remaining required.
 - `class UsageProbe(Protocol): def read(self) -> UsageSnapshot | None` — `None`
   means "no signal, skip this agent".
 - `ClaudeUsageProbe`: read `~/.claude/.credentials.json` →
@@ -220,19 +276,33 @@ crashes the sweep.
   macOS Claude stores credentials in the Keychain, not this file; the cron
   target is Linux so the file path is the supported one, and a missing file
   fails soft (skip) rather than erroring.
-- `CodexUsageProbe`: on first `read()` (memoized for the drain), fire one
-  throwaway `codex exec --json -s read-only --skip-git-repo-check "Reply with
-  exactly: ok" </dev/null` with a timeout, **stdin redirected from /dev/null**
-  (without it codex blocks on "Reading additional input from stdin"). Ignore
-  stdout (the `--json` stream does not carry rate_limits). Then read the newest
-  `~/.codex/sessions/**/rollout-*.jsonl`, parse the last `rate_limits` object
-  → `primary` (5h) and `secondary` (weekly) `used_percent` into `UsageWindow`s
-  (`resets_at` is unix epoch seconds). Any failure → `None`.
+- `CodexUsageProbe`: on first `read()` (memoized for the drain), record
+  `started_at`, then fire one throwaway `codex exec --json -s read-only
+  --skip-git-repo-check "Reply with exactly: ok" </dev/null` with a timeout,
+  **stdin redirected from /dev/null** (without it codex blocks on "Reading
+  additional input from stdin"). Ignore stdout (the `--json` stream does not
+  carry rate_limits). Then read the newest
+  `~/.codex/sessions/**/rollout-*.jsonl`, but accept it only if the file was
+  modified after `started_at` and contains parseable `rate_limits`; otherwise
+  return `None` rather than using stale data. Parse the last fresh
+  `rate_limits` object → `primary` (5h) and `secondary` (weekly)
+  `used_percent` into `UsageWindow`s (`resets_at` is unix epoch seconds). Any
+  failure → `None`.
 - `probe_for_agent(cfg, agent_name) -> UsageProbe | None`: dispatch on the
   agent's `cli` (`claude` → ClaudeUsageProbe, `codex` → CodexUsageProbe), else
   `None` (unknown agent CLI → no probe → skip, conservatively).
 
-### 3. Drain orchestration — `src/relay/drain.py` (new)
+### 3. Launch Precondition
+- This ticket depends on ordinary `mode: auto` launches being available. If the
+  temporary block in `src/relay/commands/launch.py` and its coverage in
+  `tests/test_launch_auto.py` are still present, do not implement around it or
+  treat the refusal as a drained-ticket failure. Stop with a clear blocker that
+  `auto/stream-agent-progress-in-auto-mode-and-recurring-l` must land first.
+- If that dependency has landed before implementation, this ticket should keep
+  its own scope to the drain/usage work and add only drain-specific tests; the
+  auto-mode streaming policy and architecture-doc update belong to the blocker.
+
+### 4. Drain orchestration — `src/relay/drain.py` (new)
 - `eligible_auto_tickets(cfg) -> list[TaskRef]`: `list_tasks(cfg)` filtered to
   active + auto + assignee in `cfg.agents` + not `is_under(ref.directory,
   "recurring")`; sorted by `first_activity()` ascending (None sorts last).
@@ -240,8 +310,8 @@ crashes the sweep.
   on demand (so codex is only primed if a codex ticket exists). Maintain a
   per-agent cache of `{exhausted, unreadable}`. For each eligible ticket in
   order: skip if its agent is already exhausted/unreadable; else probe (claude
-  re-probed each ticket; mark exhausted when `remaining_percent <
-  min_remaining_percent`, mark unreadable when probe returns `None`); if OK,
+  re-probed each ticket; mark exhausted when either the session guard or the
+  weekly guard fails, mark unreadable when probe returns `None`); if OK,
   launch via the existing `relay launch` entrypoint (non-interactive, same call
   shape the sweep uses with `return_timeout=True`); on an unfinished/failed
   return, stop the whole drain; honor `max_tickets`. Collect drained slugs and
@@ -252,7 +322,7 @@ crashes the sweep.
   the intended behavior and its visibility comes from the summary + each
   launch's own broadcasts.
 
-### 4. Hook into the sweep — `src/relay/commands/recurring.py`
+### 5. Hook into the sweep — `src/relay/commands/recurring.py`
 - In `main()`, for the bare sweep only (`not all_ and not interactive`), call
   `drain.drain_pending_auto_tickets(cfg)` **after** the recurring launch loop,
   and also on the "no recurring tasks due" path (restructure the early
@@ -260,32 +330,54 @@ crashes the sweep.
   unfinished non-interactive recurring launch naturally skips the drain (the
   process ends), satisfying "aborted sweep skips the drain".
 
-### 5. Config — `src/relay/config.py`
+### 6. Config — `src/relay/config.py`
 - Parse `[recurring.drain]` (new `_parse_recurring`/`_parse_drain` helper, same
   validation style as `_parse_launch`), surfaced on `Config`:
   - `drain_enabled: bool = False` — opt-in; default keeps today's behavior.
-  - `drain_min_remaining_percent: float = 20.0` — per-agent floor (applied to
-    every returned window).
+  - `drain_min_session_remaining_percent: float = 5.0` — fixed per-agent
+    reserve for the 5h/session window.
+  - `drain_min_weekly_remaining_percent: float = 5.0` — hard floor for the
+    weekly window; the effective weekly pacing reserve never drops below this.
+  - `drain_weekly_final_window_hours: float = 24.0` — within this many hours
+    before weekly reset, use only the hard weekly floor; before that, linearly
+    pace from near-100% reserve at the start of the weekly window down to the
+    hard floor.
   - `drain_max_tickets: int = 0` — `0`/absent = unlimited.
+- Example `relay.toml` block:
+
+  ```toml
+  [recurring.drain]
+  enabled = true
+  min_session_remaining_percent = 5.0
+  min_weekly_remaining_percent = 5.0
+  weekly_final_window_hours = 24.0
+  max_tickets = 0
+  ```
+
 - Re-probe cadence (decision #2): claude is re-probed before every ticket
   (free GET); codex's snapshot is re-read each time but only primed once via
   the throwaway, and naturally refreshes after each codex launch.
 
-### 6. Notifications
-- One end-of-drain summary via the notification layer (live `post()` — see the
-  `relay/sync` context for mechanics), e.g. `🫗 drain: launched 3 pending auto
-  ticket(s): a, b, c` or `🫗 drain skipped — <agent> usage at 4% remaining`.
-  Gate on "≥1 eligible ticket existed" so quiet sweeps stay silent.
+### 7. Notifications
+- One end-of-drain summary via the live notification layer
+  (`relay.notification.post`, not `notify`), e.g. `drain: launched 3 pending
+  auto ticket(s): a, b, c` or `drain skipped: codex session 4% remaining below
+  5% reserve`. Gate on "≥1 eligible ticket existed" so quiet sweeps stay
+  silent. Because this uses the live `post()` path, configured Slack failures
+  fail loud per `relay/sync`; no daily-digest spool entry is created.
 
-### 7. Tests
+### 8. Tests
 - `first_activity()` unit tests (present/absent/unparseable/multi-line).
 - `relay status --order-by created` ordering test.
 - Usage parsing tests against captured JSON fixtures (Claude usage body; codex
   rollout `rate_limits` line) — no live network/codex calls; monkeypatch the
-  HTTP fetch and the codex-exec/rollout-read seams.
-- Drain selection/ordering test; drain-loop tests for: budget above/below
-  threshold, unreadable→skip-agent, stop-on-unfinished, `max_tickets`, disabled
-  (no-op), aborted-sweep-skips-drain.
+  HTTP fetch and the codex-exec/rollout-read seams. Include a Codex stale-file
+  test: a successful primer followed by no rollout modified after `started_at`
+  returns `None` and skips codex drains.
+- Drain selection/ordering test; drain-loop tests for: session guard fail,
+  weekly guard fail early in the weekly window, weekly final-day hard floor,
+  unreadable→skip-agent, stop-on-unfinished, `max_tickets`, disabled (no-op),
+  aborted-sweep-skips-drain.
 - Config parsing tests for `[recurring.drain]` defaults + validation.
 
 ## Out of Scope
@@ -329,19 +421,80 @@ ticket.md `## Context` → "Decisions locked with Nick"):
    repos see no behavior change until they flip it on. The feature's whole
    point is "just drain after the sweep", which argues for `true`. Picked the
    conservative default — confirm or flip.
-2. **`drain_min_remaining_percent` default = 20.0.** Pure heuristic (ticket
-   cost varies wildly). Applied to BOTH the 5h and weekly windows. Sane
-   starting value? Want a max-tickets cap default too (currently 0 =
-   unlimited)?
-3. **Codex throwaway cost.** Priming codex costs one tiny `codex exec` per
-   drain (~17k input tokens, mostly cached; 27 output) and only fires if a
-   codex-assigned auto ticket exists. Acceptable, or prefer skipping codex
-   entirely until a real endpoint exists?
-4. **Summary channel.** Spec posts a live `post()` one-liner. Alternative: spool
-   into the daily digest (`notify`). Live was chosen for immediacy on an
-   unattended cron run — confirm.
+2. **Reserve defaults.** Spec now uses separate guards:
+   `drain_min_session_remaining_percent = 5.0`,
+   `drain_min_weekly_remaining_percent = 5.0`, and
+   `drain_weekly_final_window_hours = 24.0`. Confirm these defaults and whether
+   `drain_max_tickets` should stay `0` = unlimited.
+3. **Codex throwaway cost — resolved toward support.** Priming codex costs one
+   tiny `codex exec` per drain (~17k input tokens, mostly cached; 27 output)
+   and only fires if a codex-assigned auto ticket exists. Current spec keeps
+   codex support with the primer + rollout snapshot read; failures skip codex
+   conservatively.
+4. **Summary channel — resolved toward live post.** Spec posts a live
+   `relay.notification.post` one-liner, not a digest `notify` record. This is
+   immediate enough for unattended cron and follows `relay/sync` fail-loud
+   semantics.
 5. **Config location.** `[recurring.drain]` chosen (the drain is a recurring-
    sweep tail). Alternatives: top-level `[drain]` or fold into `[launch]`.
+
+## Review-design notes (2026-06-24)
+
+- Nick confirmed the threshold must be a `relay.toml` safety reserve: configure
+  how much usage must remain before Relay is allowed to drain, and if the
+  remaining budget is too low (e.g. 5%) launch nothing else for that agent.
+- Nick confirmed the check is **session + weekly**. The implementation must use
+  the binding window: both the 5h/session window and the weekly window have to
+  clear the configured reserve floor.
+- Codex remains special: there is no clean free/fresh standalone usage endpoint.
+  The current spec keeps codex support via one minimal `codex exec` primer,
+  then reads the fresh `rate_limits` snapshot from the newest rollout file. If
+  that primer or snapshot read fails, codex drains are skipped conservatively.
+- Nick reframed the intent: consume leftover Claude and Codex allotment by
+  running ordinary auto tickets after recurring, sequentially and reasonably,
+  until the agent's own usage windows say to stop. Relay should not estimate
+  ticket cost or run work in parallel.
+- Spec adjusted from one shared `min_remaining_percent` to separate guards:
+  fixed 5h/session reserve (`drain_min_session_remaining_percent`, default
+  5.0) plus a weekly pacing reserve with a hard floor
+  (`drain_min_weekly_remaining_percent`, default 5.0).
+- Nick clarified the overriding goal is **do not run out of tokens**. Recurring
+  runs overnight when humans are not using the account, so the session guard
+  does not need to preserve daytime interactive headroom inside the same 5h
+  window.
+- Nick clarified the weekly window is different: when reset is far away (e.g.
+  seven days), preserve a lot of weekly budget; on the last day before reset,
+  it is acceptable to spend leftover allotment more aggressively. Spec updated
+  to use a linear weekly pacing reserve: near-100% required remaining at the
+  start of the weekly window, linearly down to the hard weekly floor by the
+  final `drain_weekly_final_window_hours` (default 24h). The weekly reserve
+  never drops below the hard floor, so the drain still avoids token exhaustion.
+- Nick called out that the hard floors must be explicit `relay.toml` settings.
+  Spec now includes the intended `[recurring.drain]` block and a table showing
+  the default weekly pacing thresholds: 100% required at 7 days, then about
+  84/68/53/37/21% at 6/5/4/3/2 days, then 5% during the final 24h.
+
+## Evaluator follow-up fixes (2026-06-24)
+
+- Fresh `eval/ticket-diagnostic` found four gaps: current `mode: auto` launch
+  block, missing `relay/sync` notification context/contract, Codex stale
+  rollout risk, and validation noise from using the wrong global `relay` shim.
+- Auto-mode decision: this drain ticket **does not** re-enable ordinary
+  `mode: auto`. It depends on
+  `auto/stream-agent-progress-in-auto-mode-and-recurring-l` (or equivalent
+  removal of the launch block) landing first. If the block remains at
+  implementation time, the implementer should stop and report the dependency
+  rather than shipping a nonfunctional drain.
+- Notification decision: attached `relay/sync`; end-of-drain summary uses
+  `relay.notification.post`, not `notify`, so configured Slack failures fail
+  loud and no digest spool entry is created.
+- Codex freshness guard added: record `started_at` before the throwaway
+  `codex exec`; accept only a rollout file modified after `started_at` and
+  containing parseable `rate_limits`; stale/missing data returns `None` and
+  skips codex drains.
+- Validation note: `/home/n/.local/bin/relay` imports `/home/n/Code/relay`, not
+  this checkout. For this task, verify with
+  `PYTHONPATH=/home/n/Code/codex/relay/src python -m relay.cli ...`.
 
 ## Budget-probe go/no-go (2026-06-20, design step) — REAL probes run
 

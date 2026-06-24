@@ -1,5 +1,5 @@
 ---
-slug: wire-recurring-sweep-into-system-cron
+slug: v2/wire-recurring-sweep-into-system-cron
 title: Wire recurring sweep into system cron
 status: draft
 autonomy: interactive

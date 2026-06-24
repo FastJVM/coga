@@ -290,7 +290,7 @@ def refresh_templates(
 
     Five things are treated as upstream-owned (always overwritten on update):
       - `_*` template creates (`_template/` etc.)
-      - `bootstrap/` — the relay-vendored umbrella. Holds launch shims plus
+      - `bootstrap/` — the relay-vendored umbrella. Holds launch targets plus
         package-backed core skills and contexts
         (`bootstrap/skills/`, `bootstrap/contexts/*`). Optional domain skills
         are installed into `skills/` through the managed-skill manifest instead
@@ -889,7 +889,7 @@ def _copy_vendored_bootstrap(src_root: Traversable, dst_root: Path) -> list[str]
     """Mirror the `bootstrap/` umbrella — wipe, copy fresh.
 
     `bootstrap/` is the single home for package-backed control-plane batteries
-    Relay vendors and updates wholesale: launch shims
+    Relay vendors and updates wholesale: launch targets
     (`bootstrap/<name>/ticket.md`), the core skills they reference
     (`bootstrap/skills/`), and canonical contexts (`bootstrap/contexts/*`).
     Optional domain skills are installed into `skills/` by the managed-skill

@@ -49,9 +49,19 @@ def get(
     except ConfigError as exc:
         _bail(str(exc))
 
-    # Resolve the bare reference through the shared path by wrapping it in the
+    # Guard the bare-literal case here so the message is phrased for a `secret
+    # get` query — the shared resolver's error talks about a ticket's `secrets:`
+    # entry, which is confusing when there is no ticket involved.
+    if not (ref.startswith("op://") or ref.startswith("env:")):
+        _bail(
+            f"{ref!r} is not a resolvable reference — pass "
+            "`op://vault/item/field` or `env:VAR` (a raw literal has nothing to "
+            "resolve)."
+        )
+
+    # Resolve the reference through the shared path by wrapping it in the
     # inline-secret shape a ticket carries. The name `value` is just a local
-    # label for error messages; `select_launch_secrets` ignores `cfg`.
+    # label; `select_launch_secrets` ignores `cfg`.
     try:
         resolved = select_launch_secrets(None, [{"value": ref}])
     except SecretError as exc:
