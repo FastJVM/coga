@@ -548,7 +548,9 @@ the supervisor tears it down (reported as a clean exit) so the sweep moves on.
 `relay recurring --interactive` — a human stepping through by hand — leaves the
 REPL unbounded, as does a plain `relay launch`. The default window is 15
 minutes; set `RELAY_REPL_IDLE_TIMEOUT` (seconds) to change it, or to `0` /
-a non-finite value to disarm the backstop for the sweep.
+a non-finite value to disarm the backstop for recurring launches. When
+configured, `RELAY_REPL_MAX_SESSION` / `[launch].max_session` threads the same
+way as a wall-clock cap.
 
 Dream, REM, and other recurring maintenance loops all use this surface.
 
@@ -561,8 +563,10 @@ converge on one stable task directory (idempotent — a second `launch` reuses
 the existing task). An orphaned `in_progress` run is resumed rather than
 duplicated; a `done` or `paused` run is left alone. This is exactly what the
 `relay dream` alias expands to.
-`--interactive` runs it in interactive mode even if the template says
-`autonomy: auto`, for debugging one template by hand.
+Unless `--interactive` is set, it passes the same concrete idle-timeout and
+max-session limits as the scheduled sweep. `--interactive` runs it in
+interactive mode even if the template says `autonomy: auto`, for debugging one
+template by hand, and leaves those liveness limits unarmed.
 
 ## relay recurring list
 
