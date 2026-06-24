@@ -227,3 +227,5 @@
 2026-06-24 12:48 [auto/stream-agent-progress-in-auto-mode-and-recurring-l] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '/home/n/Code/codex/relay/.git/worktrees/relay-task-state-sync/FETCH_HEAD': Read-only file system
 2026-06-24 12:48 [drain-pending-auto-tickets-with-leftover-session-b] [agent:nick] advanced to step 3 (implement) → assigned to claude — Spec reviewed; auto-mode blocker activated.
 2026-06-24 12:48 [drain-pending-auto-tickets-with-leftover-session-b] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-06-24 12:22 [prevent-autostash-spool-conflicts-on-control-branc] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-24 12:57 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nick] created (autonomy=interactive, status=draft)
