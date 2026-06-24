@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: claude
 contexts:
 - relay/architecture
 - relay/cli
@@ -24,7 +24,7 @@ workflow:
     skills: []
     assignee: agent
 secrets: null
-step: 2 (human-executes)
+step: 3 (verify-read-only)
 ---
 
 ## Description
