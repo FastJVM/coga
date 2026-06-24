@@ -231,6 +231,7 @@ def _rebase_onto_remote(root: Path, remote: str, branch: str) -> None:
         capture_output=True,
         text=True,
         check=False,
+        env={**os.environ, **_noninteractive_git_env()},
     )
     if proc.returncode != 0:
         subprocess.run(
@@ -408,6 +409,7 @@ def _push_ref(root: Path, remote: str, refspec: str) -> str | None:
             capture_output=True,
             text=True,
             check=False,
+            env={**os.environ, **_noninteractive_git_env()},
         )
     except FileNotFoundError as exc:
         raise GitError("`git` not found on PATH") from exc
@@ -452,15 +454,38 @@ def _try_update_local_ref(root: Path, branch: str, new: str) -> None:
 # --- low-level git plumbing ----------------------------------------------------
 
 
+def _noninteractive_git_env() -> dict[str, str]:
+    """Env overlay that makes git fail fast instead of prompting for creds.
+
+    Relay's git sync runs unattended inside `relay launch` / `bump` / `mark`.
+    A logged-out HTTPS push (or an unloaded SSH key) must surface as a loud,
+    catchable `GitError` — never an interactive credential/passphrase prompt
+    that silently hangs the launch waiting on a human who isn't watching.
+    `GIT_TERMINAL_PROMPT=0` disables git's terminal credential prompt;
+    `GIT_SSH_COMMAND` adds `BatchMode=yes` for SSH remotes, but only when the
+    operator hasn't set their own (so a custom SSH command is preserved).
+    Mirrors `github_preflight.py`, which already runs every probe
+    non-interactively for the same fail-fast reason.
+    """
+    env = {"GIT_TERMINAL_PROMPT": "0"}
+    if "GIT_SSH_COMMAND" not in os.environ:
+        env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes"
+    return env
+
+
 def _run_git(root: Path, *args: str, env: dict[str, str] | None = None) -> str:
     """Run a git subcommand in `root`, returning stdout. Raise GitError on
     failure or a missing git binary.
 
     `env` entries are overlaid on the current environment (not replacing it) —
     used to thread `GIT_INDEX_FILE` through the temp-index plumbing without
-    losing the caller's PATH/HOME/git config.
+    losing the caller's PATH/HOME/git config. The non-interactive overlay is
+    always applied so a credential-less network op fails loud instead of
+    hanging on a prompt.
     """
-    run_env = {**os.environ, **env} if env else None
+    run_env = {**os.environ, **_noninteractive_git_env()}
+    if env:
+        run_env.update(env)
     try:
         result = subprocess.run(
             ["git", "-C", str(root), *args],

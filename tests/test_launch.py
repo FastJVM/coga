@@ -11,11 +11,13 @@ from conftest import seed_direct_body_workflow
 from relay.cli import app
 from relay.create import create_task
 from relay.commands.launch import (
+    _preflight_push_auth,
     _skip_permissions_argv_for_launch,
     build_agent_command,
     spawn_agent_session,
 )
 from relay.config import AgentType, ConfigError, load_config
+from relay.github_preflight import CheckResult
 from relay.repl_supervisor import _TIMEOUT_EXIT_CODE, ReplOutcome
 from relay.tasks import BootstrapRef, TaskRef, list_tasks
 from relay.ticket import Ticket
@@ -610,6 +612,107 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     log = (ref.path / "log.md").read_text()
     assert "started (active → in_progress) via relay launch" in log
     assert "launched in interactive mode" in log
+
+
+# --- push-auth gate -----------------------------------------------------------
+#
+# Relay drives the whole session through git/gh, so launch refuses to spawn an
+# agent when push access to the configured remote is broken — fail loud at the
+# door, not after a long run that can't ship.
+
+
+def _ok_remote(_remote):
+    return CheckResult("git-remote", True, "remote 'origin' -> url", "url")
+
+
+def test_preflight_skips_for_bootstrap_and_when_git_disabled(active_task):
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    boot = BootstrapRef(name="orient", path=ref.path)
+
+    # Bootstrap shims never push — skip regardless of auth.
+    _preflight_push_auth(cfg, boot, is_bootstrap=True)
+
+    # git disabled → no sync, nothing to gate.
+    disabled = load_config(active_task)
+    object.__setattr__(disabled, "git_enabled", False)
+    _preflight_push_auth(disabled, ref, is_bootstrap=False)
+
+
+def test_preflight_skips_when_remote_unresolved(active_task, monkeypatch):
+    """Not a git repo / no remote → soft no-op; the auth probe never runs."""
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+
+    monkeypatch.setattr(
+        "relay.commands.launch.check_git_remote",
+        lambda remote: CheckResult("git-remote", False, "not a git repo"),
+    )
+
+    def _boom(_remote):
+        raise AssertionError("check_git_auth must not run when remote unresolved")
+
+    monkeypatch.setattr("relay.commands.launch.check_git_auth", _boom)
+    _preflight_push_auth(cfg, ref, is_bootstrap=False)  # must not raise
+
+
+def test_preflight_passes_when_push_authenticated(active_task, monkeypatch):
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    monkeypatch.setattr("relay.commands.launch.check_git_remote", _ok_remote)
+    monkeypatch.setattr(
+        "relay.commands.launch.check_git_auth",
+        lambda remote: CheckResult("git-auth", True, "push access authenticated"),
+    )
+    _preflight_push_auth(cfg, ref, is_bootstrap=False)  # must not raise
+
+
+def test_preflight_bails_when_push_auth_broken(active_task, monkeypatch):
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    monkeypatch.setattr("relay.commands.launch.check_git_remote", _ok_remote)
+    monkeypatch.setattr(
+        "relay.commands.launch.check_git_auth",
+        lambda remote: CheckResult("git-auth", False, "could not authenticate push access"),
+    )
+    with pytest.raises(SystemExit):
+        _preflight_push_auth(cfg, ref, is_bootstrap=False)
+
+
+def test_launch_refuses_and_stays_active_when_push_auth_broken(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End-to-end: a broken remote refuses the launch before flipping status
+    or spawning — the ticket stays `active`, no agent process is started."""
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr("relay.commands.launch.check_git_remote", _ok_remote)
+    monkeypatch.setattr(
+        "relay.commands.launch.check_git_auth",
+        lambda remote: CheckResult("git-auth", False, "could not authenticate push access"),
+    )
+
+    spawned: list[list[str]] = []
+
+    def fake_run(cmd, *a, **k):  # pragma: no cover - must never run
+        spawned.append(cmd)
+
+        class _R:
+            returncode = 0
+
+        return _R()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+
+    assert result.exit_code != 0
+    assert "git push access" in result.output
+    assert spawned == []  # no agent spawned
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    assert Ticket.read(ref.path / "ticket.md").status == "active"
 
 
 def test_launch_fails_loud_on_unset_declared_secret(
