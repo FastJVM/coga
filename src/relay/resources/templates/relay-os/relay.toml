@@ -21,6 +21,9 @@ mode = "local"
 # picker, the prompt box, and the terminal title. Skipped in discussion
 # launches so the human's first ask names the session.
 name_flag = "-n"
+# `claude --session-id <uuid>` lets Relay deterministically recover the
+# transcript usage for exactly the session it launched.
+session_id_flag = "--session-id"
 # `discussion` rides the composed prompt as system context for discussion
 # sessions (`relay chat`, `relay ticket`) so the human's first ask becomes
 # the session title instead of a 20KB Relay prompt.

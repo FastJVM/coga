@@ -27,6 +27,7 @@ from relay.commands import skill as skill_cmd
 from relay.commands import ticket as ticket_cmd
 from relay.commands import bump as bump_cmd
 from relay.commands import uninstall as uninstall_cmd
+from relay.commands import usage as usage_cmd
 from relay.commands import validate as validate_cmd
 from relay.commands.update import read_pin
 from relay.config import ConfigError, find_repo_root, load_config
@@ -85,6 +86,7 @@ app.command("retire")(retire_cmd.retire)
 app.command("panic")(panic_cmd.panic)
 app.command("slack")(slack_cmd.slack)
 app.command("digest")(digest_cmd.digest)
+app.command("usage")(usage_cmd.usage)
 app.command("validate")(validate_cmd.validate)
 app.add_typer(skill_cmd.app, name="skill")
 app.add_typer(mark_cmd.app, name="mark")
@@ -98,7 +100,7 @@ app.add_typer(secret_cmd.app, name="secret")
 _BUILTIN_COMMANDS = frozenset(
     {
         "init", "uninstall", "create", "launch", "status", "show", "bump",
-        "delete", "retire", "panic", "slack", "digest",
+        "delete", "retire", "panic", "slack", "digest", "usage",
         "skill", "mark", "recurring", "ticket", "project", "validate", "secret",
     }
 )
