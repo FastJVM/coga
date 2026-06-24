@@ -245,3 +245,4 @@
 2026-06-24 14:56 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] ticket authoring launched (assignee=codex, agent=codex)
 2026-06-24 15:11 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [agent:claude] panic: Implementation commit 94a938d is complete, but relay bump cannot advance because the ticket frontmatter is still status: draft while the launch prompt assigned step 1 (implement).
 2026-06-24 15:11 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] activated (draft → active)
+2026-06-24 15:12 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] started (active → in_progress) via relay launch
