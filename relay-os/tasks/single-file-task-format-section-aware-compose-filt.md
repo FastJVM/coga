@@ -1,7 +1,7 @@
 ---
 slug: single-file-task-format-section-aware-compose-filt
 title: Single-file task format + section-aware compose filter
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -32,7 +32,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (implement)
 ---
 
 ## Description
