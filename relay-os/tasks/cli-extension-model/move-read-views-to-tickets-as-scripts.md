@@ -1,5 +1,5 @@
 ---
-slug: cli-extension-model/move-read-views-to-script-shims
+slug: cli-extension-model/move-read-views-to-tickets-as-scripts
 title: Move show/status into their lowest-tier mechanism
 status: draft
 autonomy: interactive

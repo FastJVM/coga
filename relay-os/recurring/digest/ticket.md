@@ -216,3 +216,4 @@ posted: yes
 {"ts":"2026-06-19T15:13","project":"relay","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/404|PR #404> merged ✅","ticket":"relay-forces-https","owner":"zach"}
 {"ts":"2026-06-19T15:13","project":"relay","kind":"done","detail":"auto-bumped: review → done — <https://github.com/FastJVM/relay/pull/406|PR #406> merged ✅","ticket":"remote-default-origin","owner":"zach"}
 {"ts":"2026-06-22T09:01","project":"relay","kind":"done","detail":"claude finished: execute → done ✅ — Design doc committed: a6f0e4f","ticket":"cli-extension-model/design-external-script-service-mechanism","owner":"nick"}
+{"ts":"2026-06-24T10:52","project":"relay","kind":"done","detail":"nick finished: review → done ✅","ticket":"track-usage-of-llm","owner":"nick"}

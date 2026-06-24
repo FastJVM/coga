@@ -230,5 +230,7 @@
 2026-06-24 12:22 [prevent-autostash-spool-conflicts-on-control-branc] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-24 12:57 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nick] created (autonomy=interactive, status=draft)
 2026-06-24 12:57 [retire-the-duplicate-relay-clone-so-one-process-wr] [human:nick] created (autonomy=interactive, status=draft)
+2026-06-24 14:19 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-24 14:19 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=codex, agent=codex)
 2026-06-24 14:19 [prevent-autostash-spool-conflicts-on-control-branc] [human:nick] activated (draft → active)
 2026-06-24 14:20 [prevent-autostash-spool-conflicts-on-control-branc] [agent:nick] advanced to step 2 (peer-review) → assigned to codex — implement done: spool merge-by-construction + rebase hardening; branch spool-merge-by-construction (worktree ../relay-spool-merge); full suite 887 passed
