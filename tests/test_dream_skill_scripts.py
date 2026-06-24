@@ -102,7 +102,7 @@ def test_validate_drift_runs_as_script_skill(repo: Path) -> None:
     ref = list_tasks(cfg)[0]
     # Single-file format: a script worker's RELAY_TASK_BLACKBOARD is its own
     # ticket.md, so its appended notes land in that ticket's blackboard region.
-    blackboard = read_blackboard(ref.path / "ticket.md")
+    blackboard = read_blackboard(ref.ticket_path)
     assert "## Dream Skill: validate-drift" in blackboard
     assert "Task: `validate-drift`" in blackboard
 
@@ -164,7 +164,7 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
 
     assert result.exit_code == 0, result.output
     refs = {ref.slug: ref for ref in list_tasks(cfg)}
-    blackboard = read_blackboard(refs["cleanup-orphan-markers"].path / "ticket.md")
+    blackboard = read_blackboard(refs["cleanup-orphan-markers"].ticket_path)
     assert "## Dream Skill: cleanup-orphan-markers" in blackboard
     assert "Result: human-needed." in blackboard
     assert "Required delete skill is missing" in blackboard
@@ -224,7 +224,7 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
 
     assert result.exit_code == 0, result.output
     refs = {ref.slug: ref for ref in list_tasks(cfg)}
-    blackboard = read_blackboard(refs["cleanup-orphan-markers"].path / "ticket.md")
+    blackboard = read_blackboard(refs["cleanup-orphan-markers"].ticket_path)
     assert "## Dream Skill: cleanup-orphan-markers" in blackboard
     assert "Result: no-op." in blackboard
     assert "cleanup-eligible processed done tickets" in blackboard
@@ -286,7 +286,7 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> Non
 
     assert result.exit_code == 0, result.output
     refs = {ref.slug: ref for ref in list_tasks(cfg)}
-    blackboard = read_blackboard(refs["cleanup-orphan-markers"].path / "ticket.md")
+    blackboard = read_blackboard(refs["cleanup-orphan-markers"].ticket_path)
     assert "## Dream Skill: cleanup-orphan-markers" in blackboard
     assert "Result: no-op." in blackboard
     assert "`documents-the-marker`" not in blackboard

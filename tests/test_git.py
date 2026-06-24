@@ -491,7 +491,7 @@ def test_cli_create_then_activate_sync_to_origin(git_repo):
     subjects = git_repo.origin_subjects()
     assert f"Ticket: {slug} — created" in subjects
     assert f"Ticket: {slug} — active" in subjects
-    assert git_repo.origin_tracks(f"relay-os/tasks/{slug}/ticket.md")
+    assert git_repo.origin_tracks(f"relay-os/tasks/{slug}.md")
 
 
 def test_cli_bump_syncs_step_to_origin(git_repo):
@@ -501,7 +501,7 @@ def test_cli_bump_syncs_step_to_origin(git_repo):
 
     # Move to in_progress by hand (launch normally does this, but it spawns an
     # agent). The hand edit is swept into the bump's commit — fine for the test.
-    ticket = git_repo.relay_os / "tasks" / slug / "ticket.md"
+    ticket = git_repo.relay_os / "tasks" / f"{slug}.md"
     ticket.write_text(ticket.read_text().replace("status: active", "status: in_progress"))
 
     bumped = runner.invoke(app, ["bump", slug])
@@ -537,9 +537,9 @@ def test_cli_panic_syncs_blocker_to_origin(git_repo):
         s.startswith(f"Ticket: {slug} — panic") for s in git_repo.origin_subjects()
     )
     # The blocker is appended to the blackboard region of the single-file
-    # ticket.md (there is no separate blackboard.md anymore).
+    # ticket (the file-form `tasks/<slug>.md`; no separate blackboard.md).
     ticket = git_repo.git(
-        "show", f"main:relay-os/tasks/{slug}/ticket.md", cwd=git_repo.origin
+        "show", f"main:relay-os/tasks/{slug}.md", cwd=git_repo.origin
     )
     assert "retry ceiling unspecified" in ticket
 
@@ -646,12 +646,12 @@ def test_cli_ticket_authoring_syncs_edits_to_origin(git_repo, monkeypatch):
     _seed_ticket_bootstrap(git_repo.relay_os)
     result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = result.output.split(":", 1)[0].strip()
-    task_dir = git_repo.relay_os / "tasks" / slug
+    ticket_path = git_repo.relay_os / "tasks" / f"{slug}.md"
 
     def author():
-        t = Ticket.read(task_dir / "ticket.md")
+        t = Ticket.read(ticket_path)
         t.body = t.body + "\n\nAuthored during the session.\n"
-        t.write(task_dir / "ticket.md")
+        t.write(ticket_path)
 
     _fake_authoring_agent(monkeypatch, on_run=author)
 
@@ -663,7 +663,7 @@ def test_cli_ticket_authoring_syncs_edits_to_origin(git_repo, monkeypatch):
         for s in git_repo.origin_subjects()
     )
     body = git_repo.git(
-        "show", f"main:relay-os/tasks/{slug}/ticket.md", cwd=git_repo.origin
+        "show", f"main:relay-os/tasks/{slug}.md", cwd=git_repo.origin
     )
     assert "Authored during the session." in body
 
@@ -678,7 +678,7 @@ def test_cli_ticket_authoring_syncs_a_newly_created_task(git_repo, monkeypatch):
     _seed_ticket_bootstrap(git_repo.relay_os)
 
     def author():
-        path = git_repo.relay_os / "tasks" / "fresh-idea" / "ticket.md"
+        path = git_repo.relay_os / "tasks" / "fresh-idea.md"
         t = Ticket.read(path)
         t.frontmatter["workflow"] = "code"  # a draft must land on a workflow
         t.body = t.body + "\n\nFleshed out during authoring.\n"
@@ -689,13 +689,13 @@ def test_cli_ticket_authoring_syncs_a_newly_created_task(git_repo, monkeypatch):
     result = runner.invoke(app, ["ticket", "Fresh idea"])
     assert result.exit_code == 0, result.output
 
-    assert git_repo.origin_tracks("relay-os/tasks/fresh-idea/ticket.md")
+    assert git_repo.origin_tracks("relay-os/tasks/fresh-idea.md")
     assert any(
         s.startswith("Ticket: fresh-idea — authored")
         for s in git_repo.origin_subjects()
     )
     body = git_repo.git(
-        "show", "main:relay-os/tasks/fresh-idea/ticket.md", cwd=git_repo.origin
+        "show", "main:relay-os/tasks/fresh-idea.md", cwd=git_repo.origin
     )
     assert "Fleshed out during authoring." in body
 
@@ -761,7 +761,7 @@ def test_cli_delete_syncs_removal_to_origin(git_repo):
     _install_delete_skill(git_repo.relay_os)
     created = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = created.output.split(":", 1)[0].strip()
-    assert git_repo.origin_tracks(f"relay-os/tasks/{slug}/ticket.md")
+    assert git_repo.origin_tracks(f"relay-os/tasks/{slug}.md")
 
     deleted = runner.invoke(app, ["delete", slug])
     assert deleted.exit_code == 0, deleted.output
@@ -769,7 +769,7 @@ def test_cli_delete_syncs_removal_to_origin(git_repo):
     # The removal landed: a deletion commit on origin, and the path is gone from
     # the control-branch tree — not merely from the local working copy.
     assert f"Ticket: {slug} — deleted" in git_repo.origin_subjects()
-    assert not git_repo.origin_tracks(f"relay-os/tasks/{slug}/ticket.md")
+    assert not git_repo.origin_tracks(f"relay-os/tasks/{slug}.md")
     # And nothing is left dirty in the working tree (the bug's symptom).
     status = git_repo.git("status", "--porcelain", cwd=git_repo.root)
     assert slug not in status

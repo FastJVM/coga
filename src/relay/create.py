@@ -42,6 +42,7 @@ def create_task(
     body: str | None = None,
     secrets: Any = None,
     script: Any = None,
+    force_directory: bool = False,
     created_by: str = "human",
 ) -> dict[str, Any]:
     """Create a task directory. Returns dict with {slug, path}.
@@ -114,24 +115,42 @@ def create_task(
         assignee = assignee or owner
 
     base_slug = slug_override or slugify(title)
-    # Creates land at the top level (`tasks/<slug>/`), so uniqueness only
-    # needs to clear other top-level slugs — a task in a sub-directory may
-    # reuse the leaf.
+    # Creates land at the top level (`tasks/<slug>.md` or `tasks/<slug>/`), so
+    # uniqueness only needs to clear other top-level slugs — a task in a
+    # sub-directory may reuse the leaf.
     existing_slugs = {t.slug for t in list_tasks(cfg) if t.directory is None}
     slug = base_slug
     n = 2
     while slug in existing_slugs:
         slug = f"{base_slug}-{n}"
         n += 1
-    task_dir = tasks_dir(cfg) / slug
-    if task_dir.exists():
-        raise ValueError(f"Task directory already exists: {task_dir}")
-    task_dir.mkdir(parents=True)
 
-    # The TaskRef discovery will report for this new dir — its `id_slug` is the
+    # A task is a single `tasks/<slug>.md` file unless it needs a companion
+    # directory: a deferred `script: <file>` sibling, or a caller that keeps
+    # siblings (recurring period tasks carry a `.state-snapshot.json`). An
+    # inline script lives in the body, so it stays file-form.
+    needs_dir = force_directory or (
+        isinstance(script, str) and bool(script) and script != "inline"
+    )
+    file_form = not needs_dir
+    if needs_dir:
+        task_dir = tasks_dir(cfg) / slug
+        if task_dir.exists():
+            raise ValueError(f"Task directory already exists: {task_dir}")
+        task_dir.mkdir(parents=True)
+        ticket_path = task_dir / "ticket.md"
+        result_path = task_dir
+    else:
+        ticket_path = tasks_dir(cfg) / f"{slug}.md"
+        if ticket_path.exists() or (tasks_dir(cfg) / slug).is_dir():
+            raise ValueError(f"Task already exists: {ticket_path}")
+        ticket_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path = ticket_path
+
+    # The TaskRef discovery will report for this new task — its `id_slug` is the
     # canonical task reference, recorded on the ticket as `slug:` so the file is
     # self-describing.
-    created_ref = _task_ref_for_created_dir(slug, task_dir)
+    created_ref = _task_ref_for_created(slug, result_path, file_form=file_form)
 
     # Canonical frontmatter order. Every key is always present so tasks have
     # a single legible shape on disk, even when contexts / skills / workflow
@@ -183,7 +202,7 @@ def create_task(
     # One file per task: body + fence + blackboard, no sibling blackboard.md /
     # log.md. The append-only history goes to the repo-global log.
     full_body = join_task_body(ticket_body, render_blackboard(title))
-    Ticket(frontmatter=fm, body=full_body).write(task_dir / "ticket.md")
+    Ticket(frontmatter=fm, body=full_body).write(ticket_path)
 
     actor = f"{created_by}:{cfg.current_user}" if created_by == "human" else created_by
     append_log(cfg, created_ref.id_slug, actor, f"created (autonomy={autonomy}, status={status})")
@@ -195,15 +214,19 @@ def create_task(
             "Created task failed validation:\n" + format_task_issues(errors)
         )
 
-    return {"slug": created_ref.id_slug, "path": task_dir}
+    return {"slug": created_ref.id_slug, "path": result_path}
 
 
-def _task_ref_for_created_dir(slug: str, task_dir: Path) -> TaskRef:
-    """Build the same TaskRef that discovery will report for a new task dir."""
+def _task_ref_for_created(slug: str, path: Path, *, file_form: bool) -> TaskRef:
+    """Build the same TaskRef that discovery will report for a new task.
+
+    `path` is the `.md` file for a file-form task, or the task directory for a
+    directory-form one.
+    """
     head, sep, leaf = slug.rpartition("/")
     if sep and head:
-        return TaskRef(slug=leaf, path=task_dir, directory=head)
-    return TaskRef(slug=slug, path=task_dir)
+        return TaskRef(slug=leaf, path=path, directory=head, file_form=file_form)
+    return TaskRef(slug=slug, path=path, file_form=file_form)
 
 
 def _default_agent_for(cfg: Config, assignee: str | None) -> str | None:

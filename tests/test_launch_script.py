@@ -104,10 +104,12 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     assert "token=secret-abc" in output
     assert "source=\n" in output
     assert "slug=check" in output
-    assert f"dir={ref.path.resolve()}" in output
-    # Single-file format: the blackboard region lives in ticket.md, so
+    # File-form task has no per-task directory, so RELAY_TASK_DIR is the
+    # `tasks/` parent the ticket file lives in.
+    assert f"dir={ref.path.parent.resolve()}" in output
+    # Single-file format: the blackboard region lives in the ticket file, so
     # RELAY_TASK_BLACKBOARD points at the ticket itself.
-    assert f"blackboard={(ref.path / 'ticket.md').resolve()}" in output
+    assert f"blackboard={ref.ticket_path.resolve()}" in output
 
     # Log records launch + exit (in the repo-global log)
     log = (repo / "log.md").read_text()
@@ -116,9 +118,9 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
 
 
 def _set_ticket_secrets(ref, value) -> None:
-    t = Ticket.read(ref.path / "ticket.md")
+    t = Ticket.read(ref.ticket_path)
     t.frontmatter["secrets"] = value
-    t.write(ref.path / "ticket.md")
+    t.write(ref.ticket_path)
 
 
 def test_script_mode_fails_loud_on_unset_declared_secret(
@@ -140,7 +142,7 @@ def test_script_mode_fails_loud_on_unset_declared_secret(
     assert "token" in combined and "TEST_TOKEN" in combined
     # Fail-loud means the script never ran.
     assert not (cfg.repo_root.parent / "script-output.txt").exists()
-    ticket = Ticket.read(ref.path / "ticket.md")
+    ticket = Ticket.read(ref.ticket_path)
     assert ticket.status == "active"
     log = (repo / "log.md").read_text()
     assert "started (active" not in log

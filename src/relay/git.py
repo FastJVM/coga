@@ -525,7 +525,12 @@ def _toplevel(start: Path) -> Path | None:
     Uses `git rev-parse --show-toplevel` so worktrees and nested checkouts
     resolve correctly — unlike `cfg.repo_root`, which walks for `relay.toml`
     and may itself be `relay-os/`, not the git root.
+
+    `git -C` needs a directory, but the anchor may now be a file-form task's
+    `tasks/<slug>.md` file; resolve to its parent directory first.
     """
+    if not start.is_dir():
+        start = start.parent
     try:
         result = subprocess.run(
             ["git", "-C", str(start), "rev-parse", "--show-toplevel"],

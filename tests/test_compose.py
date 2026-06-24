@@ -252,7 +252,7 @@ def test_compose_inline_step_instructions(repo: Path) -> None:
     ticket = read_ticket(ref)
     # Advance to step 2 (pr) — has inline instructions, no skill
     ticket.frontmatter["step"] = "2 (pr)"
-    ticket.write(ref.path / "ticket.md")
+    ticket.write(ref.ticket_path)
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
     assert "Open a PR. Push branch first." in prompt

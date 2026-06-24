@@ -113,7 +113,7 @@ def test_launch_auto_mode_is_blocked(
     # No agent spawned, ticket still active.
     assert calls == []
     from relay.ticket import Ticket
-    ticket = Ticket.read(repo / "tasks" / "auto-run" / "ticket.md")
+    ticket = Ticket.read(repo / "tasks" / "auto-run.md")
     assert ticket.status == "active"
 
 
@@ -176,7 +176,7 @@ def test_launch_mode_override_runs_auto_ticket_interactively(
 
     # The override is ephemeral — the ticket file still says `autonomy: auto`.
     from relay.ticket import Ticket
-    ticket = Ticket.read(repo / "tasks" / "auto-run" / "ticket.md")
+    ticket = Ticket.read(repo / "tasks" / "auto-run.md")
     assert ticket.autonomy == "auto"
     assert ticket.status == "in_progress"
 

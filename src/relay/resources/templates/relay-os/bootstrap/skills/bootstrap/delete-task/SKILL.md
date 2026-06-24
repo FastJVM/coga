@@ -16,25 +16,28 @@ task-metadata environment variables a `mode: script` launch injects. The skill
 is equally a normal `mode: script` skill: a workflow step that references
 `bootstrap/delete-task` deletes its own task directory on `relay launch`.
 
-The script deletes the directory named by `RELAY_TASK_DIR` and nothing else. It
-refuses a target that is unset, is not a directory, or has no `ticket.md`, so
-it can never be pointed at an arbitrary directory.
+The script keys off `RELAY_TASK_TICKET`: a `<dir>/ticket.md` means a
+directory-form task, so it removes that one task directory; a `tasks/<slug>.md`
+means a file-form task, so it removes that single file only and never touches
+the shared parent. It refuses a target that is unset or not a file, so it can
+never be pointed at an arbitrary directory.
 
 ## Known Skill Contract
 
-- Purpose: remove a single task directory from the working tree.
+- Purpose: remove a single task (file or directory) from the working tree.
 - Runs: `run.py` — invoked by `relay delete <slug>`, or as the script of a
-  `mode: script` workflow step that references `bootstrap/delete-task`.
-- Inputs: the `RELAY_TASK_DIR` and `RELAY_TASK_SLUG` environment variables;
-  the target's `ticket.md` (its presence is checked to confirm the directory
-  is a task directory).
-- May change: deletes the one task directory named by `RELAY_TASK_DIR`. No
-  other file, ref, or lifecycle state.
+  workflow step that references `bootstrap/delete-task`.
+- Inputs: the `RELAY_TASK_TICKET` and `RELAY_TASK_SLUG` environment variables.
+  The ticket path's name discriminates the form (`ticket.md` → directory form;
+  `<slug>.md` → file form).
+- May change: deletes exactly the one task named by `RELAY_TASK_TICKET` — its
+  directory (directory form) or its single `.md` file (file form). No other
+  file, ref, or lifecycle state, and never a shared parent directory.
 - Action: `direct-fix`
-- Idempotency: existence and shape are checked before the single `rmtree`;
-  there is no partial state to reconcile. The caller (`relay delete`, or a
-  Dream worker) is responsible for not dispatching a target twice.
-- Stop and ask: `RELAY_TASK_DIR` is unset, the target is not a directory, or
-  it has no `ticket.md` — the script exits non-zero without deleting anything.
-- Output: prints `<slug>: deleted` to stdout. No Slack broadcast, no
+- Idempotency: existence is checked before the single delete; there is no
+  partial state to reconcile. The caller (`relay delete`, or a Dream worker) is
+  responsible for not dispatching a target twice.
+- Stop and ask: `RELAY_TASK_TICKET` is unset or not a file — the script exits
+  non-zero without deleting anything.
+- Output: prints `<slug>: deleted <path>` to stdout. No Slack broadcast, no
   blackboard write.

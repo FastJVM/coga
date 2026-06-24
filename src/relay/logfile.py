@@ -56,8 +56,12 @@ def ref_tag_for_path(cfg: Config, path: Path) -> str:
             rel = resolved.relative_to(root.resolve())
         except ValueError:
             continue
+        # A file-form task's anchor is `<slug>.md`; its ref drops the suffix
+        # (a directory-form anchor is `<slug>` / `<slug>/ticket.md` unaffected).
+        if rel.suffix == ".md" and rel.name != "ticket.md":
+            rel = rel.with_suffix("")
         return f"{prefix}{rel}" if str(rel) != "." else prefix.rstrip("/")
-    return path.name
+    return Path(path.name).stem if path.suffix == ".md" else path.name
 
 
 def last_activity_map(cfg: Config) -> dict[str, datetime]:

@@ -131,16 +131,19 @@ def _make_task(
             watchers=[], status=status,
         )
     path = ref["path"]
+    # `create_task` yields a file-form task (`tasks/<slug>.md`), while the
+    # workflow-less helper writes a dir-form task; resolve the ticket file for
+    # either shape.
+    ticket_path = path if path.is_file() else path / "ticket.md"
     if workflow and on_final:
-        t = Ticket.read(path / "ticket.md")
+        t = Ticket.read(ticket_path)
         steps = t.workflow["steps"]
         last = len(steps)
         t.frontmatter["step"] = f"{last} ({steps[last - 1]['name']})"
-        t.write(path / "ticket.md")
+        t.write(ticket_path)
     if pr_url is not None:
         # Single-file format: the `## Dev` PR link lives in the blackboard
         # region of `ticket.md` (below the fence), not a sibling blackboard.md.
-        ticket_path = path / "ticket.md"
         region = read_blackboard(ticket_path, blackboard_required=False)
         replace_blackboard(
             ticket_path,

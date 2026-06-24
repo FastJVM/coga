@@ -92,9 +92,9 @@ def test_retire_no_launch_creates_task_with_target_slug(
     assert "Retire: launch skipped (--no-launch)" in result.output
     assert "relay launch retire-fix-retry-logic" in result.output
 
-    new_task = repo / "tasks" / "retire-fix-retry-logic"
-    assert new_task.is_dir()
-    ticket = Ticket.read(new_task / "ticket.md")
+    new_task = repo / "tasks" / "retire-fix-retry-logic.md"
+    assert new_task.is_file()
+    ticket = Ticket.read(new_task)
     assert ticket.title == "Retire fix-retry-logic"
     # Retire tasks create straight to `active`, carrying the `direct/body`
     # workflow so they run their body directly while still being a
@@ -185,7 +185,7 @@ def test_retire_launches_after_create(
         prompt_report: bool,
         autonomy_override: str | None = None,
     ) -> None:
-        ticket = Ticket.read(repo / "tasks" / task / "ticket.md")
+        ticket = Ticket.read(repo / "tasks" / f"{task}.md")
         assert ticket.status == "active"
         calls.append(
             {
@@ -236,4 +236,5 @@ def test_retire_resolves_unique_prefix(
 
     assert result.exit_code == 0, result.output
     assert "Retire: target task fix-retry-logic" in result.output
-    assert (repo / "tasks" / "retire-fix-retry-logic").is_dir()
+    assert (repo / "tasks" / "retire-fix-retry-logic.md").is_file()
+

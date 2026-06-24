@@ -104,9 +104,9 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
-    t = Ticket.read(ref.path / "ticket.md")
+    t = Ticket.read(ref.ticket_path)
     t.frontmatter["workflow"] = "code/with-review"
-    t.write(ref.path / "ticket.md")
+    t.write(ref.ticket_path)
     report = run(cfg)
     kinds = [i.kind for i in report.issues]
     assert "unfrozen-workflow" in kinds
@@ -120,9 +120,9 @@ def test_invalid_status(repo: Path) -> None:
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
-    t = Ticket.read(ref.path / "ticket.md")
+    t = Ticket.read(ref.ticket_path)
     t.frontmatter["status"] = "bogus"
-    t.write(ref.path / "ticket.md")
+    t.write(ref.ticket_path)
     report = run(cfg)
     assert any(i.kind == "invalid-status" for i in report.issues)
 
@@ -134,9 +134,9 @@ def _draft_with_secrets(repo: Path, cfg, secrets_value) -> None:
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
-    t = Ticket.read(ref.path / "ticket.md")
+    t = Ticket.read(ref.ticket_path)
     t.frontmatter["secrets"] = secrets_value
-    t.write(ref.path / "ticket.md")
+    t.write(ref.ticket_path)
 
 
 def test_secrets_null_is_valid(repo: Path) -> None:
@@ -210,7 +210,7 @@ def test_missing_blackboard_fence_is_error(repo: Path) -> None:
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
-    ticket_path = ref.path / "ticket.md"
+    ticket_path = ref.ticket_path
     ticket_path.write_text(
         ticket_path.read_text().replace("<!-- relay:blackboard -->\n", "")
     )
@@ -231,7 +231,7 @@ def test_apply_safe_fixes_adds_missing_blackboard_fence(repo: Path) -> None:
     ref = list_tasks(cfg)[0]
     # Single-file format: strip the blackboard fence so the ticket.md is
     # fence-less; the safe fix re-appends a fence + rendered region.
-    ticket_path = ref.path / "ticket.md"
+    ticket_path = ref.ticket_path
     ticket_path.write_text(
         ticket_path.read_text().replace("<!-- relay:blackboard -->\n", "")
     )
@@ -254,7 +254,7 @@ def test_run_fix_repairs_before_reporting(repo: Path) -> None:
     ref = list_tasks(cfg)[0]
     # Single-file format: strip the fence so the ticket.md is fence-less; the
     # fix pass re-adds it before the issue scan runs.
-    ticket_path = ref.path / "ticket.md"
+    ticket_path = ref.ticket_path
     ticket_path.write_text(
         ticket_path.read_text().replace("<!-- relay:blackboard -->\n", "")
     )
@@ -278,7 +278,7 @@ def test_large_blackboard_warns(repo: Path) -> None:
     # in ticket.md, not a sibling blackboard.md. The region content starts on its
     # own line after the fence (as every real blackboard writer leaves it).
     from relay.taskfile import replace_blackboard
-    replace_blackboard(ref.path / "ticket.md", "\n\n" + "x" * 2048 + "\n")
+    replace_blackboard(ref.ticket_path, "\n\n" + "x" * 2048 + "\n")
 
     report = run(cfg, max_blackboard_bytes=1024)
     issue = next(i for i in report.issues if i.kind == "large-blackboard")
@@ -632,9 +632,9 @@ def test_validate_flags_enum_violation(repo: Path) -> None:
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
-    t = Ticket.read(ref.path / "ticket.md")
+    t = Ticket.read(ref.ticket_path)
     t.frontmatter["priority"] = "P9"
-    t.write(ref.path / "ticket.md")
+    t.write(ref.ticket_path)
     report = run(cfg)
     assert any(
         i.kind == "bad-extension-value" and i.severity == "error"

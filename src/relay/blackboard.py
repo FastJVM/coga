@@ -67,11 +67,14 @@ def append_to_section(ticket_path: Path, heading: str, entry: str) -> None:
     replace_blackboard(ticket_path, append_to_section_text(region, heading, entry))
 
 
-def append_blocker(task_dir: Path, actor: str, reason: str) -> None:
-    """Write a timestamped blocker entry to the blackboard's Blockers section."""
+def append_blocker(ticket_path: Path, actor: str, reason: str) -> None:
+    """Write a timestamped blocker entry to the blackboard's Blockers section.
+
+    `ticket_path` is the task's `ticket.md` (file-form: the `.md` file itself;
+    directory-form: `<dir>/ticket.md`)."""
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     entry = f"- [{ts}] [{actor}] {reason}"
-    append_to_section(task_dir / "ticket.md", "Blockers", entry)
+    append_to_section(ticket_path, "Blockers", entry)
 
 
 def format_bytes(size: int) -> str:

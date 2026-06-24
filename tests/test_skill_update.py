@@ -289,7 +289,7 @@ def test_skill_update_runs_as_script_skill_and_reports_no_op(repo: Path) -> None
     # ticket.md, so its report lands in that ticket's blackboard region.
     from relay.taskfile import read_blackboard
 
-    blackboard = read_blackboard(ref.path / "ticket.md")
+    blackboard = read_blackboard(ref.ticket_path)
     assert "## Skill Update" in blackboard
     assert "Task: `skill-update`" in blackboard
     assert "PR: none opened" in blackboard

@@ -69,13 +69,13 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         watchers=["pierre"],
         status="in_progress",
     )
+    # File-form task: the result path is the self-contained `tasks/<slug>.md`
+    # ticket (with a blackboard fence) — no companion directory or siblings.
     task_path = ref["path"]
-    # Single-file format: one ticket.md (with a blackboard fence), no sibling
-    # blackboard.md / log.md.
-    assert (task_path / "ticket.md").is_file()
-    assert not (task_path / "blackboard.md").exists()
-    assert not (task_path / "log.md").exists()
-    assert fence_count((task_path / "ticket.md").read_text()) == 1
+    assert task_path == seeded / "tasks" / "fix-retry-logic.md"
+    assert task_path.is_file()
+    assert not (seeded / "tasks" / "fix-retry-logic").exists()
+    assert fence_count(task_path.read_text()) == 1
 
     # Discovery sees both the created top-level task and the seeded
     # fixture task nested one level inside the `tasks/auto/` directory.
@@ -124,7 +124,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "--reason", "need prod DNS access to reproduce",
     ])
     assert r.exit_code == 1, r.output
-    bb = read_blackboard(ref2["path"] / "ticket.md")
+    bb = read_blackboard(ref2["path"])
     assert "need prod DNS access to reproduce" in bb
     assert "## Blockers" in bb
 

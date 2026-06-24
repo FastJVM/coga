@@ -93,14 +93,15 @@ def test_create_minimal(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         status=None,
     )
     assert ref["slug"] == "fix-retry-logic"
-    task_dir = ref["path"]
-    # Single-file format: one ticket.md carrying exactly one blackboard fence,
-    # no sibling blackboard.md / log.md.
-    assert (task_dir / "ticket.md").is_file()
-    assert not (task_dir / "blackboard.md").exists()
-    assert not (task_dir / "log.md").exists()
-    assert fence_count((task_dir / "ticket.md").read_text()) == 1
-    ticket = Ticket.read(task_dir / "ticket.md")
+    ticket_path = ref["path"]
+    # Single-file format: the created path IS a single `<slug>.md` ticket file
+    # carrying exactly one blackboard fence, with no companion directory and
+    # therefore no sibling blackboard.md / log.md.
+    assert ticket_path.is_file()
+    assert ticket_path.name == "fix-retry-logic.md"
+    assert not (repo / "tasks" / "fix-retry-logic").exists()
+    assert fence_count(ticket_path.read_text()) == 1
+    ticket = Ticket.read(ticket_path)
     assert ticket.title == "Fix retry logic"
     assert ticket.status == "draft"
     assert ticket.autonomy == "interactive"
@@ -129,7 +130,7 @@ def test_create_preserves_secret_declaration(repo: Path, monkeypatch: pytest.Mon
         status=None,
         secrets=["api_key"],
     )
-    ticket = Ticket.read(ref["path"] / "ticket.md")
+    ticket = Ticket.read(ref["path"])
     assert ticket.secrets == ["api_key"]
 
 
@@ -168,7 +169,7 @@ def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) ->
         watchers=[],
         status=None,
     )
-    ticket = Ticket.read(ref["path"] / "ticket.md")
+    ticket = Ticket.read(ref["path"])
     assert ticket.human == "marc"
     assert ticket.agent == "claude"
 
@@ -219,7 +220,7 @@ def test_create_initial_assignee_resolved_from_workflow_step(repo: Path) -> None
         owner="marc", assignee=None,
         watchers=[], status="active",
     )
-    ticket = Ticket.read(ref["path"] / "ticket.md")
+    ticket = Ticket.read(ref["path"])
     # Step 1 declares `assignee: agent` → resolves to `marc`'s configured agent.
     assert ticket.assignee == "claude"
 
@@ -233,7 +234,7 @@ def test_create_explicit_human_and_agent_overrides_defaults(repo: Path) -> None:
         human="alice", agent="claude2",
         watchers=[], status="draft",
     )
-    ticket = Ticket.read(ref["path"] / "ticket.md")
+    ticket = Ticket.read(ref["path"])
     assert ticket.human == "alice"
     assert ticket.agent == "claude2"
 
@@ -355,7 +356,7 @@ def test_create_with_workflow_and_contexts(repo: Path) -> None:
         watchers=["pierre"],
         status="active",
     )
-    ticket = Ticket.read(ref["path"] / "ticket.md")
+    ticket = Ticket.read(ref["path"])
     assert ticket.contexts == ["email/payment-flow"]
     assert ticket.workflow["name"] == "code/with-review"
     assert ticket.step == "1 (implement)"
@@ -601,9 +602,9 @@ def test_cli_create_creates_draft_silently(
     )
     assert result.exit_code == 0, result.output
 
-    task_dir = repo / "tasks" / "investigate-retries"
-    assert task_dir.is_dir()
-    t = Ticket.read(task_dir / "ticket.md")
+    ticket_path = repo / "tasks" / "investigate-retries.md"
+    assert ticket_path.is_file()
+    t = Ticket.read(ticket_path)
     assert t.title == "Investigate retries"
     assert t.status == "draft"
     assert t.autonomy == "interactive"
@@ -642,7 +643,7 @@ def test_cli_create_autonomy_option(repo: Path, monkeypatch: pytest.MonkeyPatch)
         ["create", "Auto job", "--autonomy", "auto", "--workflow", "code/with-review"],
     )
     assert result.exit_code == 0, result.output
-    t = Ticket.read(repo / "tasks" / "auto-job" / "ticket.md")
+    t = Ticket.read(repo / "tasks" / "auto-job.md")
     assert t.autonomy == "auto"
 
 
@@ -670,7 +671,7 @@ def test_cli_create_workflow_flag_attaches_workflow(
         app, ["create", "With workflow", "--workflow", "code/with-review"]
     )
     assert result.exit_code == 0, result.output
-    t = Ticket.read(repo / "tasks" / "with-workflow" / "ticket.md")
+    t = Ticket.read(repo / "tasks" / "with-workflow.md")
     assert t.workflow is not None
     assert t.workflow["name"] == "code/with-review"
     assert t.step == "1 (implement)"
@@ -688,7 +689,7 @@ def test_cli_create_allows_no_workflow(
     runner = CliRunner()
     result = runner.invoke(app, ["create", "No workflow"])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(repo / "tasks" / "no-workflow" / "ticket.md")
+    t = Ticket.read(repo / "tasks" / "no-workflow.md")
     assert t.workflow is None
     assert t.status == "draft"
 
@@ -705,7 +706,7 @@ def test_create_draft_without_workflow(
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
     result = create_draft(title="Interview start", autonomy="interactive")
-    t = Ticket.read(result["path"] / "ticket.md")
+    t = Ticket.read(result["path"])
     assert t.workflow is None
 
 
@@ -736,11 +737,11 @@ def test_create_writes_declared_extension_fields(repo: Path) -> None:
         watchers=[],
         status="draft",
     )
-    t = Ticket.read(ref["path"] / "ticket.md")
+    t = Ticket.read(ref["path"])
     assert t.frontmatter["docket"] == ""
     assert t.frontmatter["priority"] == "P2"
 
-    raw = (ref["path"] / "ticket.md").read_text()
+    raw = ref["path"].read_text()
     assert "# --- extensions ---" in raw
     # Marker sits between canonical keys and extension keys.
     marker_pos = raw.index("# --- extensions ---")
@@ -762,7 +763,7 @@ def test_create_no_extensions_no_marker(repo: Path) -> None:
         watchers=[],
         status="draft",
     )
-    raw = (ref["path"] / "ticket.md").read_text()
+    raw = ref["path"].read_text()
     assert "# --- extensions ---" not in raw
 
 
@@ -783,12 +784,12 @@ def test_extension_fields_round_trip(repo: Path) -> None:
         watchers=[],
         status="draft",
     )
-    t = Ticket.read(ref["path"] / "ticket.md")
+    t = Ticket.read(ref["path"])
     t.frontmatter["docket"] = "55-12345"
-    t.write(ref["path"] / "ticket.md")
-    again = Ticket.read(ref["path"] / "ticket.md")
+    t.write(ref["path"])
+    again = Ticket.read(ref["path"])
     assert again.frontmatter["docket"] == "55-12345"
-    raw = (ref["path"] / "ticket.md").read_text()
+    raw = ref["path"].read_text()
     assert "# --- extensions ---" in raw
 
 

@@ -97,31 +97,33 @@ def _make_task(
     cfg = load_config(repo)
     if workflow is None and status != "draft":
         # `create_task` refuses to create a workflow-less non-draft task now,
-        # so the workflow-less mark-done tests construct that shape on disk.
+        # so the workflow-less mark-done tests construct that shape on disk
+        # (directory form, so `ticket.md` lives under the returned dir).
         slug, path = _write_workflow_less_task(repo, status=status)
         ref = {"slug": slug, "path": path}
+        ticket = path / "ticket.md"
     else:
         ref = create_task(
             cfg=cfg, title="Work", workflow_name=workflow,
             contexts=[], autonomy="interactive", owner="marc", assignee="claude",
             watchers=[], status=status,
         )
-    path = ref["path"]
+        # File-form default: `ref["path"]` is the `tasks/<slug>.md` ticket itself.
+        ticket = ref["path"]
     if workflow and on_final:
-        t = Ticket.read(path / "ticket.md")
+        t = Ticket.read(ticket)
         steps = t.workflow["steps"]
         last = len(steps)
         t.frontmatter["step"] = f"{last} ({steps[last - 1]['name']})"
-        t.write(path / "ticket.md")
+        t.write(ticket)
     if pr_url is not None:
         from relay.taskfile import read_blackboard, replace_blackboard
 
-        ticket = path / "ticket.md"
         bb = read_blackboard(ticket, blackboard_required=False).rstrip()
         replace_blackboard(
             ticket, bb + f"\n\n## Dev\n\nbranch: foo\npr: {pr_url}\n"
         )
-    return ref["slug"], path
+    return ref["slug"], ticket
 
 
 # --- pure parsers -------------------------------------------------------------
@@ -193,7 +195,7 @@ def test_sweep_merged_bumps_final_step_with_merged_pr(
     count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 1
-    t = Ticket.read(path / "ticket.md")
+    t = Ticket.read(path)
     assert t.status == "done"
     from relay.logfile import task_log_lines
 
@@ -212,7 +214,7 @@ def test_sweep_merged_skips_non_final_step(
     count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 0
-    t = Ticket.read(path / "ticket.md")
+    t = Ticket.read(path)
     assert t.status == "active"
 
 
@@ -228,7 +230,7 @@ def test_sweep_merged_no_workflow_marks_done(
     count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 1
-    t = Ticket.read(path / "ticket.md")
+    t = Ticket.read(path)
     assert t.status == "done"
 
 
@@ -244,7 +246,7 @@ def test_sweep_merged_skips_open_pr(
     count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 0
-    t = Ticket.read(path / "ticket.md")
+    t = Ticket.read(path)
     assert t.status == "active"
 
 
@@ -309,7 +311,7 @@ def test_sweep_merged_quiet_swallows_gh_error(
     count = am.sweep_merged(cfg, quiet=True)
 
     assert count == 0
-    t = Ticket.read(path / "ticket.md")
+    t = Ticket.read(path)
     assert t.status == "active"
 
 
@@ -348,7 +350,7 @@ def test_relay_status_does_not_auto_bump(
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0, result.output
     # Ticket is untouched — still active, never marked done.
-    assert Ticket.read(path / "ticket.md").status == "active"
+    assert Ticket.read(path).status == "active"
 
 
 def test_relay_status_never_calls_gh(
@@ -369,4 +371,4 @@ def test_relay_status_never_calls_gh(
     runner = CliRunner()
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0, result.output
-    assert Ticket.read(path / "ticket.md").status == "active"
+    assert Ticket.read(path).status == "active"

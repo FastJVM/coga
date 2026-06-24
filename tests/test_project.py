@@ -234,7 +234,7 @@ def test_project_fails_loud_on_broken_draft(
         )
         # An invalid autonomy is a hard validation error — the session left a
         # malformed ticket and the command must surface it, not pass silently.
-        path = result["path"] / "ticket.md"
+        path = result["path"]
         t = Ticket.read(path)
         t.frontmatter["autonomy"] = "bogus"
         t.write(path)

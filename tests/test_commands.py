@@ -90,14 +90,25 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return company
 
 
-def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "in_progress") -> tuple[str, Path]:
+def _make_task(
+    repo: Path,
+    *,
+    workflow: str | None = "code",
+    status: str = "in_progress",
+    force_directory: bool = False,
+) -> tuple[str, Path]:
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
         contexts=[], autonomy="interactive", owner="marc", assignee="claude",
-        watchers=[], status=status,
+        watchers=[], status=status, force_directory=force_directory,
     )
-    return ref["slug"], ref["path"]
+    # File form: `ref["path"]` is the `tasks/<slug>.md` ticket file (it *is* the
+    # ticket). Directory form (`force_directory=True`): it is the task
+    # directory; the ticket lives at `<dir>/ticket.md`. Tests that read ticket
+    # content use the returned path directly in the file-form case.
+    path = ref["path"]
+    return ref["slug"], path
 
 
 def _write_workflow_less_task(
@@ -105,10 +116,15 @@ def _write_workflow_less_task(
 ) -> tuple[str, Path]:
     """Write a workflow-less task directly to disk. `create_task` refuses to
     create a workflow-less non-draft task now, so on-disk construction is the
-    only way to exercise the workflow-less (structurally stuck) shape."""
-    task_dir = repo / "tasks" / slug
-    task_dir.mkdir(parents=True)
-    (task_dir / "ticket.md").write_text(dedent(f"""
+    only way to exercise the workflow-less (structurally stuck) shape.
+
+    Written in the default file form (`tasks/<slug>.md`); the returned path is
+    the ticket file itself, so callers read it directly like a `_make_task`
+    result."""
+    tasks = repo / "tasks"
+    tasks.mkdir(parents=True, exist_ok=True)
+    ticket_path = tasks / f"{slug}.md"
+    ticket_path.write_text(dedent(f"""
         ---
         slug: {slug}
         title: Work
@@ -129,7 +145,7 @@ def _write_workflow_less_task(
 
         # Blackboard
     """).lstrip())
-    return slug, task_dir
+    return slug, ticket_path
 
 
 # --- bump ---------------------------------------------------------------------
@@ -142,7 +158,7 @@ def test_bump_advances(repo: Path) -> None:
     assert result.exit_code == 0, result.output
     cfg = load_config(repo)
     ref = list_tasks(cfg)[0]
-    t = Ticket.read(ref.path / "ticket.md")
+    t = Ticket.read(ref.ticket_path)
     assert t.step == "2 (pr)"
     assert "advanced to step 2" in _log_text(repo, slug)
 
@@ -156,7 +172,7 @@ def test_bump_rewinds_by_number(repo: Path) -> None:
     result = runner.invoke(app, ["bump", slug, "--to", "1"])
 
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.step == "1 (implement)"
     log = _log_text(repo, slug)
     assert "rewound to step 1 (implement)" in log
@@ -171,22 +187,22 @@ def test_bump_backward_rewinds_one_step(repo: Path) -> None:
     result = runner.invoke(app, ["bump", slug, "--backward"])
 
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.step == "2 (pr)"
     assert "rewound to step 2 (pr)" in _log_text(repo, slug)
 
 
 def test_bump_rewind_rejects_invalid_current_step(repo: Path) -> None:
     slug, task_path = _make_task(repo)
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     t.frontmatter["step"] = "99 (bogus)"
-    t.write(task_path / "ticket.md")
+    t.write(task_path)
 
     result = CliRunner().invoke(app, ["bump", slug, "--backward"])
 
     assert result.exit_code == 2, result.output
     assert "invalid step '99 (bogus)'" in result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.step == "99 (bogus)"
 
 
@@ -199,7 +215,7 @@ def test_bump_rejects_named_rewind_target(repo: Path) -> None:
 
     assert result.exit_code == 2, result.output
     assert "Invalid value for '--to'" in result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.step == "2 (pr)"
 
 
@@ -212,7 +228,7 @@ def test_bump_rejects_unknown_rewind_target(repo: Path) -> None:
 
     assert result.exit_code == 2, result.output
     assert "Unknown step 99" in result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.step == "2 (pr)"
 
 
@@ -224,7 +240,7 @@ def test_bump_to_refuses_forward_skip(repo: Path) -> None:
 
     assert result.exit_code == 2, result.output
     assert "Cannot skip ahead" in result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.step == "1 (implement)"
 
 
@@ -242,7 +258,7 @@ def test_bump_rewind_refuses_supervised_agent(repo: Path) -> None:
     assert result.exit_code == 2, result.output
     assert "Agents cannot rewind" in result.output
     assert "relay panic" in result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.step == "2 (pr)"
 
 
@@ -327,7 +343,7 @@ def test_bump_past_final_step_errors_with_mark_done_hint(repo: Path) -> None:
     assert "final step" in result.output
     assert f"relay mark done {slug}" in result.output
     # Ticket stays in progress — bump does not mark done.
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.status == "in_progress"
 
 
@@ -345,7 +361,7 @@ def test_bump_no_workflow_errors_with_mark_done_hint(repo: Path) -> None:
     assert result.exit_code == 2, result.output
     assert "no workflow" in result.output
     assert f"relay mark done {slug}" in result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.status == "in_progress"
 
 
@@ -358,7 +374,7 @@ def test_panic_writes_blocker(repo: Path) -> None:
     result = runner.invoke(app, ["panic", "--task", slug, "--reason", "unclear ceiling for 429 backoff"])
     # Panic exits non-zero so a parent process can detect agent distress.
     assert result.exit_code == 1, result.output
-    blackboard = read_blackboard(task_path / "ticket.md")
+    blackboard = read_blackboard(task_path)
     assert "unclear ceiling for 429 backoff" in blackboard
     assert "## Blockers" in blackboard
     assert "panic:" in _log_text(repo, slug)
@@ -369,7 +385,9 @@ def test_panic_writes_blocker(repo: Path) -> None:
 
 def test_delete_removes_task_directory(repo: Path) -> None:
     _install_delete_skill(repo)
-    slug, task_path = _make_task(repo)
+    # The delete skill removes a task *directory*, so exercise it against a
+    # directory-form task (its single implementation is `rmtree` of the dir).
+    slug, task_path = _make_task(repo, force_directory=True)
     assert task_path.is_dir()
     runner = CliRunner()
     result = runner.invoke(app, ["delete", slug])
@@ -380,7 +398,7 @@ def test_delete_removes_task_directory(repo: Path) -> None:
 
 def test_delete_resolves_prefix(repo: Path) -> None:
     _install_delete_skill(repo)
-    slug, task_path = _make_task(repo)
+    slug, task_path = _make_task(repo, force_directory=True)
     runner = CliRunner()
     result = runner.invoke(app, ["delete", slug[:6]])
     assert result.exit_code == 0, result.output
@@ -397,7 +415,7 @@ def test_delete_unknown_task_exits_nonzero(repo: Path) -> None:
 def test_delete_missing_skill_exits_nonzero(repo: Path) -> None:
     # The skill is the implementation; without it `relay delete` fails loud
     # rather than silently falling back to a private rmtree.
-    slug, task_path = _make_task(repo)
+    slug, task_path = _make_task(repo, force_directory=True)
     result = CliRunner().invoke(app, ["delete", slug])
     assert result.exit_code == 2
     assert task_path.is_dir()
@@ -426,7 +444,7 @@ def test_delete_skill_runs_as_script_step(repo: Path) -> None:
     ref = create_task(
         cfg=cfg, title="Throwaway", workflow_name="delete-self",
         contexts=[], autonomy="auto", owner="marc", assignee="claude",
-        watchers=[], status="active",
+        watchers=[], status="active", force_directory=True,
     )
     task_path = ref["path"]
     assert task_path.is_dir()
@@ -487,7 +505,7 @@ def test_script_mode_marks_done_after_final_step(repo: Path) -> None:
     result = CliRunner().invoke(app, ["launch", ref["slug"]])
     assert result.exit_code == 0, result.output
 
-    ticket = Ticket.read(task_path / "ticket.md")
+    ticket = Ticket.read(task_path)
     assert ticket.status == "done"
     assert "script ran successfully" in result.output
     assert "done" in result.output
@@ -525,7 +543,7 @@ def test_script_mode_advances_to_next_step(repo: Path) -> None:
     result = CliRunner().invoke(app, ["launch", ref["slug"]])
     assert result.exit_code == 0, result.output
 
-    ticket = Ticket.read(task_path / "ticket.md")
+    ticket = Ticket.read(task_path)
     assert ticket.status == "in_progress"
     assert ticket.step_index() == 2
 
@@ -624,14 +642,14 @@ def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
     task_path = ref["path"]
 
     # Step 1 declared `assignee: agent` → resolved at create time.
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.assignee == "claude"
 
     # Bump into step 2 (assignee: human) → ticket.assignee = ticket.human.
     runner = CliRunner()
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.step == "2 (review)"
     assert t.assignee == "marc"
     log = _log_text(repo, slug)
@@ -640,7 +658,7 @@ def test_bump_resolves_role_token_to_ticket_field(repo: Path) -> None:
     # Bump into step 3 (assignee: owner) → ticket.assignee = ticket.owner.
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.assignee == "marc"  # owner == marc, no change → no handoff line
     log = _log_text(repo, slug)
     # Only one handoff line so far (the human→owner step is a no-op handoff).
@@ -653,7 +671,7 @@ def test_bump_no_assignee_declared_leaves_assignee_unchanged(repo: Path) -> None
     runner = CliRunner()
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.assignee == "claude"  # unchanged
     log = _log_text(repo, slug)
     assert "→ assigned to" not in log
@@ -671,9 +689,9 @@ def test_bump_role_token_with_missing_field_fails_loud(repo: Path) -> None:
     )
     # Hand-edit the ticket to remove the `human` field, then bump into the
     # human step. Bump must refuse rather than silently skip.
-    t = Ticket.read(ref["path"] / "ticket.md")
+    t = Ticket.read(ref["path"])
     del t.frontmatter["human"]
-    t.write(ref["path"] / "ticket.md")
+    t.write(ref["path"])
 
     runner = CliRunner()
     result = runner.invoke(app, ["bump", ref["slug"]])
@@ -731,7 +749,7 @@ def test_other_agent_resolves_to_the_peer_on_bump(repo: Path) -> None:
     slug, task_path = ref["slug"], ref["path"]
 
     # Step 1 `assignee: agent` → the coder (claude).
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.assignee == "claude"
 
     # Bump into peer-review (`assignee: other-agent`) → codex, the agent
@@ -739,7 +757,7 @@ def test_other_agent_resolves_to_the_peer_on_bump(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.step == "2 (peer-review)"
     assert t.assignee == "codex"
     assert "→ assigned to codex" in _log_text(repo, slug)
@@ -761,13 +779,13 @@ def test_bump_rewind_resolves_target_step_assignee(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.step == "2 (peer-review)"
     assert t.assignee == "codex"
 
     result = runner.invoke(app, ["bump", slug, "--to", "1"])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.step == "1 (implement)"
     assert t.assignee == "claude"
     log = _log_text(repo, slug)
@@ -790,7 +808,7 @@ def test_other_agent_flips_with_the_coder(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["bump", ref["slug"]])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(ref["path"] / "ticket.md")
+    t = Ticket.read(ref["path"])
     assert t.assignee == "claude"
 
 
@@ -816,7 +834,7 @@ def test_other_agent_step_one_resolves_at_create_time(repo: Path) -> None:
         human="marc", agent="claude",
         watchers=[], status="in_progress",
     )
-    t = Ticket.read(ref["path"] / "ticket.md")
+    t = Ticket.read(ref["path"])
     assert t.assignee == "codex"
 
 
@@ -836,7 +854,7 @@ def test_other_agent_fails_loud_without_exactly_two_agents(repo: Path) -> None:
     assert result.exit_code == 2, result.output
     assert "other-agent" in result.output
     # assignee must not have changed on the failed bump.
-    t = Ticket.read(ref["path"] / "ticket.md")
+    t = Ticket.read(ref["path"])
     assert t.assignee == "claude"
     assert t.step == "1 (implement)"
 
@@ -900,7 +918,7 @@ def test_show_prints_ticket_blackboard_and_log(repo: Path) -> None:
 
     slug, task_path = _make_task(repo)
     # Blackboard now lives inside ticket.md; history lives in the global log.
-    upsert_blackboard(task_path / "ticket.md", "# Plan\n\nfigure it out\n")
+    upsert_blackboard(task_path, "# Plan\n\nfigure it out\n")
     append_log(load_config(repo), slug, "system", "created task")
     runner = CliRunner()
     result = runner.invoke(app, ["show", slug])
@@ -927,7 +945,7 @@ def test_show_handles_missing_blackboard_and_log(repo: Path) -> None:
     slug, task_path = _make_task(repo)
     # Empty the blackboard region and drop the global log entirely, so the task
     # has no blackboard content and no reconstructable history.
-    replace_blackboard(task_path / "ticket.md", "")
+    replace_blackboard(task_path, "")
     log_path(load_config(repo)).unlink(missing_ok=True)
     runner = CliRunner()
     result = runner.invoke(app, ["show", slug])
@@ -1041,7 +1059,7 @@ def test_validate_fix_json_repairs_missing_workspace_file(repo: Path) -> None:
     _, task_path = _make_task(repo)
     # Single-file equivalent of a missing workspace file: a ticket.md whose
     # blackboard fence is gone. The safe fix re-appends the fence + region.
-    ticket_path = task_path / "ticket.md"
+    ticket_path = task_path
     text = ticket_path.read_text()
     above, _, _ = text.partition("\n<!-- relay:blackboard -->")
     ticket_path.write_text(above + "\n")
@@ -1064,7 +1082,7 @@ def test_validate_warns_for_large_blackboard(repo: Path) -> None:
     _, task_path = _make_task(repo)
     # The blackboard region now lives inside ticket.md; inflate it there. The
     # region keeps its leading newlines so the fence stays on its own line.
-    replace_blackboard(task_path / "ticket.md", "\n\n" + "x" * 2048 + "\n")
+    replace_blackboard(task_path, "\n\n" + "x" * 2048 + "\n")
 
     runner = CliRunner()
     result = runner.invoke(app, ["validate", "--max-blackboard-kb", "1"])
@@ -1076,9 +1094,9 @@ def test_validate_warns_for_large_blackboard(repo: Path) -> None:
 def test_status_shows_done_tasks_with_all(repo: Path) -> None:
     slug, task_path = _make_task(repo)
     # Mark done directly
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     t.frontmatter["status"] = "done"
-    t.write(task_path / "ticket.md")
+    t.write(task_path)
     runner = CliRunner()
     # Done is hidden by default; --all reveals it.
     assert slug not in runner.invoke(app, ["status"]).output
@@ -1107,8 +1125,8 @@ def test_status_hides_done_by_default_without_deleting(repo: Path) -> None:
     assert active["slug"] in result.output
     assert done["slug"] not in result.output
     assert "1 task  ·  1 active" in result.output
-    # Hidden, not deleted — the dir survives and a hint points at --all.
-    assert done["path"].is_dir()
+    # Hidden, not deleted — the task file survives and a hint points at --all.
+    assert done["path"].is_file()
     assert "1 done task hidden — use --all to show" in result.output
 
 

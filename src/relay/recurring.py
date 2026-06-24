@@ -596,6 +596,10 @@ def _create_at_slug(
         # (notably `## Script config`, which sets a script step's mode/sync)
         # reach the period task instead of being dropped at create time.
         body=template.body,
+        # Recurring period tasks stay directory-form: they may carry a
+        # `.state-snapshot.json` sibling (state-key tracking), and the sweep's
+        # cross-branch sync addresses them as a directory.
+        force_directory=True,
         created_by="system",
     )
     out_ref = _task_with_slug(cfg, ref["slug"])
