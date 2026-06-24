@@ -10,14 +10,24 @@ assignee: claude
 contexts: []
 skills: []
 workflow:
-  name: direct/body
+  name: code/with-review
   steps:
-  - name: execute
+  - name: implement
     skills:
-    - direct/body
+    - code/implement
     assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
-step: 1 (execute)
+step: 1 (implement)
 ---
 
 ## Description

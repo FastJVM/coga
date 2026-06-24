@@ -185,9 +185,6 @@ directly. Script launches inject task metadata env vars including
 - `relay launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
   spawning an agent.
-- `relay launch <slug> --no-verify` — skip the pre-launch freshness check
-  (below). For offline runs, or when you know the ticket is stale and want
-  to launch anyway.
 - `relay launch <slug> --mode <interactive|auto>` — override the ticket's
   `mode:` for this launch only. The debug knob for stepping through a
   `autonomy: auto` ticket in an attended terminal. Ephemeral: the ticket file is
@@ -204,14 +201,25 @@ agent's optional `discussion = "...{prompt}..."` override. In interactive mode
 the Relay prompt is context and the first human ask can name the session.
 Other task launches keep passing the composed prompt positionally.
 
-Before composing the prompt, `launch` verifies the ticket is still where
-disk says it is: for an `active`/`in_progress` ticket on its final step (or
-with no workflow) that names a merged PR under `## Dev`, it auto-bumps to
-done first. If the bump finished the ticket it prints a line and exits 0
-without spawning an agent. A missing or unauthed `gh` is a loud warning
-(with a `gh auth login` hint), not a hard failure — the launch continues
-unverified. Bootstrap shims, `--prompt-report`, and `--no-verify` skip the
-check entirely.
+`launch` does not probe `gh` for PR state before composing the prompt —
+auto-bumping a ticket whose final-step PR has merged is the job of
+`relay automerge` / the `autoclose-merged` recurring sweep, never launch. It
+does, though, **pre-flight git push access**: before flipping status or
+spawning the agent, it runs a non-interactive `git push --dry-run` against the
+configured remote (the same probe as `relay validate --check-github`) and
+refuses the launch if push auth is broken. Relay drives the whole session
+through git/gh (branch push, `gh pr create`, every `relay bump` syncs ticket
+state), so a dead remote means a run guaranteed to fail at ship time — fail
+loud at the door, not after a long run. The gate self-skips for bootstrap
+shims, `[git].enabled = false`, and non-git checkouts.
+
+All of relay's git subprocesses run non-interactively (`GIT_TERMINAL_PROMPT=0`,
+SSH `BatchMode=yes`), so a credential-less remote fails fast instead of hanging
+on a prompt. Note the asymmetry: the launch-entry gate is **fatal** (refuse to
+start), but a mid-workflow ticket-state sync miss (`relay bump` / `mark`) stays
+**non-fatal** — reported to stderr + `log.md`, then continue — because the
+on-disk markdown is the source of truth and aborting there would stall the
+supervised chain.
 
 Agent type comes from the ticket's `assignee` directly — it names an
 `[agents.<type>]` block in `relay.toml`. Human assignees aren't
@@ -276,6 +284,15 @@ and there is no Relay-invented vocabulary to learn:
 - An unknown directory fails loud, listing the directories that do exist,
   rather than printing a silently empty list. A *known* directory that
   currently holds no tasks is not an error — it prints `(no tasks in <dir>)`.
+
+`relay status --dirs` (`-d`) flips the listing to the *directories* themselves
+instead of the tasks: it prints every plain (non-task) directory under `tasks/`,
+one path per line, and nothing else. It honors both axes — a `<dir>` argument
+lists the sub-directories below that directory (the directory itself is the
+query, not a result), and `--no-recurse` keeps only the immediate level. An
+unknown `<dir>` fails loud the same way; an empty result prints a `(no
+directories ...)` note. This is the read-only counterpart to the `mkdir` /
+`mv` / `rm` you'd use to manage them.
 
 There is no command to create, rename, or delete one of these directories —
 they are plain directories, so you manage them with the shell: `mkdir

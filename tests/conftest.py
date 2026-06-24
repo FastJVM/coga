@@ -115,6 +115,16 @@ def _stub_git(monkeypatch, request):
     # real git on a non-git tmp path and break the faked-subprocess tests.
     monkeypatch.setattr("relay.git.sync_task_state", lambda *a, **k: None)
     monkeypatch.setattr("relay.git.sync_paths", lambda *a, **k: None)
+    # Launch's push-auth gate also shells out to git (check_git_remote /
+    # check_git_auth). Default the remote probe to "unresolved" so the gate
+    # self-skips exactly as it would in a non-git checkout; the dedicated gate
+    # tests override this with a resolving remote.
+    from relay.github_preflight import CheckResult
+
+    monkeypatch.setattr(
+        "relay.commands.launch.check_git_remote",
+        lambda remote: CheckResult("git-remote", False, "no remote (test default)"),
+    )
 
 
 @pytest.fixture

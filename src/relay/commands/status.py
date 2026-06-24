@@ -15,6 +15,7 @@ from relay.tasks import (
     UnknownDirectoryError,
     filter_tasks_under,
     is_under,
+    list_task_dirs,
     list_tasks,
     read_ticket,
 )
@@ -81,6 +82,16 @@ def status(
         "-a",
         help="Include tasks whose status is `done` (hidden by default).",
     ),
+    dirs: bool = typer.Option(
+        False,
+        "--dirs",
+        "-d",
+        help=(
+            "List the plain (non-task) directories under tasks/ instead of the "
+            "tasks themselves, one path per line. Honors DIR (sub-dirs of that "
+            "directory) and --no-recurse (only the immediate level)."
+        ),
+    ),
 ) -> None:
     """Show tasks in the repo."""
     try:
@@ -88,6 +99,10 @@ def status(
     except ConfigError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
+
+    if dirs:
+        _list_dirs(cfg, directory, no_recurse=no_recurse)
+        return
 
     if order_by not in ORDER_BY_CHOICES:
         typer.secho(
@@ -185,6 +200,40 @@ def status(
         console.print(_summary_line(recurring_rows), style="dim")
     if hidden_done:
         console.print(_done_hint(hidden_done).lstrip(), style="dim")
+
+
+def _list_dirs(cfg, directory: str | None, *, no_recurse: bool) -> None:
+    """Print the plain (non-task) directories under tasks/, one path per line.
+
+    Mirrors the two axes of the task listing: `directory` narrows to the
+    sub-tree below a directory (the directory itself is not echoed — it's the
+    query, not a result), and `no_recurse` keeps only the immediate level.
+    An unknown `directory` fails loud, exactly like the task path.
+    """
+    available = list_task_dirs(cfg)
+    target = directory.strip("/") if directory is not None else None
+    if target is not None and target not in available:
+        typer.secho(str(UnknownDirectoryError(target, available)),
+                    fg=typer.colors.RED, err=True)
+        sys.exit(2)
+
+    if target is None:
+        selected = list(available)
+        base_depth = 0
+    else:
+        selected = [d for d in available if d.startswith(target + "/")]
+        base_depth = target.count("/") + 1
+
+    if no_recurse:
+        selected = [d for d in selected if d.count("/") == base_depth]
+
+    if not selected:
+        where = f" under {target}" if target else ""
+        scope = " immediately" if no_recurse else ""
+        typer.echo(f"(no{scope} directories{where})")
+        return
+    for d in selected:
+        typer.echo(d)
 
 
 def _done_hint(hidden_done: int) -> str:

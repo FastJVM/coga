@@ -103,7 +103,7 @@ def _allow_launch(
 
     monkeypatch.setattr("relay.commands.project._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("relay.commands.project.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("relay.commands.project.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
 
 
 def _create_drafts(*titles: str):  # type: ignore[no-untyped-def]
@@ -172,6 +172,37 @@ def test_project_threads_seed_into_prompt(
 
     assert "## Project seed" in prompts[0]
     assert "ship the killer demo video" in prompts[0]
+
+
+def test_project_planning_does_not_inject_relay_secrets(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write(
+        repo / "relay.local.toml",
+        """
+        user = "marc"
+
+        [secrets]
+        stripe_key = "env:STRIPE_SECRET_KEY"
+        """,
+    )
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live")
+    captured_env: dict[str, str] = {}
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        captured_env.update(env or {})
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.project._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("relay.commands.project.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, ["project"])
+    assert result.exit_code == 0, result.output
+    assert "stripe_key" not in captured_env
 
 
 def test_project_requires_tty(

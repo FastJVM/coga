@@ -5,16 +5,20 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+from types import SimpleNamespace
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
 from relay.cli import app
 from relay.create import create_task
 from relay.commands.launch import (
+    _preflight_push_auth,
     _skip_permissions_argv_for_launch,
     build_agent_command,
+    spawn_agent_session,
 )
 from relay.config import AgentType, ConfigError, load_config
+from relay.github_preflight import CheckResult
 from relay.repl_supervisor import _TIMEOUT_EXIT_CODE, ReplOutcome
 from relay.taskfile import read_blackboard, upsert_blackboard
 from relay.tasks import BootstrapRef, TaskRef, list_tasks
@@ -216,6 +220,151 @@ def test_build_command_discussion_ignored_in_auto_mode() -> None:
         discussion=True,
     )
     assert cmd == ["my-cli", "-p", "orient body"]
+
+
+# --- unit: shared single-shot spawn -------------------------------------------
+
+
+def _ticket() -> Ticket:
+    return Ticket(
+        frontmatter={
+            "title": "Spawn test",
+            "mode": "interactive",
+            "status": "active",
+            "assignee": "claude",
+        },
+        body="",
+    )
+
+
+def test_spawn_agent_session_appends_kickoff_for_claude(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = TaskRef(slug="draft-ticket", path=tmp_path / "draft-ticket")
+    ref.path.mkdir()
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr(
+        "relay.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
+    )
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+
+    result = spawn_agent_session(
+        SimpleNamespace(repo_root=tmp_path),
+        ref,
+        _ticket(),
+        AgentType(
+            name="claude",
+            cli="claude",
+            auto="-p",
+            file="CLAUDE.md",
+            mode="local",
+            discussion="--append-system-prompt {prompt}",
+        ),
+        "interactive",
+        env={},
+        actor="human:marc",
+        log_message="launched",
+        discussion=True,
+        kickoff="Begin",
+    )
+
+    assert result.exit_code == 0
+    assert calls == [["claude", "--append-system-prompt", "# Relay task\nbody", "Begin"]]
+    assert "launched" in (tmp_path / "log.md").read_text()
+
+
+def test_spawn_agent_session_appends_kickoff_for_codex(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = TaskRef(slug="draft-ticket", path=tmp_path / "draft-ticket")
+    ref.path.mkdir()
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr(
+        "relay.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
+    )
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+
+    spawn_agent_session(
+        SimpleNamespace(repo_root=tmp_path),
+        ref,
+        _ticket(),
+        AgentType(
+            name="codex",
+            cli="codex",
+            auto="exec",
+            file="AGENTS.md",
+            mode="local",
+            discussion="-c developer_instructions={prompt}",
+        ),
+        "interactive",
+        env={},
+        actor="human:marc",
+        log_message="launched",
+        discussion=True,
+        kickoff="Begin",
+    )
+
+    assert calls == [["codex", "-c", "developer_instructions=# Relay task\nbody", "Begin"]]
+
+
+def test_spawn_agent_session_without_kickoff_stays_silent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = BootstrapRef(name="orient", path=tmp_path / "bootstrap" / "orient")
+    ref.path.mkdir(parents=True)
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    monkeypatch.setattr(
+        "relay.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
+    )
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+
+    spawn_agent_session(
+        SimpleNamespace(repo_root=tmp_path),
+        ref,
+        _ticket(),
+        AgentType(
+            name="claude",
+            cli="claude",
+            auto="-p",
+            file="CLAUDE.md",
+            mode="local",
+            discussion="--append-system-prompt {prompt}",
+        ),
+        "interactive",
+        env={},
+        actor="human:marc",
+        log_message="launched",
+        discussion=True,
+    )
+
+    assert calls == [["claude", "--append-system-prompt", "# Relay task\nbody"]]
 
 
 # --- unit: permission-skip argv -------------------------------------------------
@@ -470,6 +619,107 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     log = _read_log(active_task)
     assert "started (active → in_progress) via relay launch" in log
     assert "launched in interactive mode" in log
+
+
+# --- push-auth gate -----------------------------------------------------------
+#
+# Relay drives the whole session through git/gh, so launch refuses to spawn an
+# agent when push access to the configured remote is broken — fail loud at the
+# door, not after a long run that can't ship.
+
+
+def _ok_remote(_remote):
+    return CheckResult("git-remote", True, "remote 'origin' -> url", "url")
+
+
+def test_preflight_skips_for_bootstrap_and_when_git_disabled(active_task):
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    boot = BootstrapRef(name="orient", path=ref.path)
+
+    # Bootstrap shims never push — skip regardless of auth.
+    _preflight_push_auth(cfg, boot, is_bootstrap=True)
+
+    # git disabled → no sync, nothing to gate.
+    disabled = load_config(active_task)
+    object.__setattr__(disabled, "git_enabled", False)
+    _preflight_push_auth(disabled, ref, is_bootstrap=False)
+
+
+def test_preflight_skips_when_remote_unresolved(active_task, monkeypatch):
+    """Not a git repo / no remote → soft no-op; the auth probe never runs."""
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+
+    monkeypatch.setattr(
+        "relay.commands.launch.check_git_remote",
+        lambda remote: CheckResult("git-remote", False, "not a git repo"),
+    )
+
+    def _boom(_remote):
+        raise AssertionError("check_git_auth must not run when remote unresolved")
+
+    monkeypatch.setattr("relay.commands.launch.check_git_auth", _boom)
+    _preflight_push_auth(cfg, ref, is_bootstrap=False)  # must not raise
+
+
+def test_preflight_passes_when_push_authenticated(active_task, monkeypatch):
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    monkeypatch.setattr("relay.commands.launch.check_git_remote", _ok_remote)
+    monkeypatch.setattr(
+        "relay.commands.launch.check_git_auth",
+        lambda remote: CheckResult("git-auth", True, "push access authenticated"),
+    )
+    _preflight_push_auth(cfg, ref, is_bootstrap=False)  # must not raise
+
+
+def test_preflight_bails_when_push_auth_broken(active_task, monkeypatch):
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    monkeypatch.setattr("relay.commands.launch.check_git_remote", _ok_remote)
+    monkeypatch.setattr(
+        "relay.commands.launch.check_git_auth",
+        lambda remote: CheckResult("git-auth", False, "could not authenticate push access"),
+    )
+    with pytest.raises(SystemExit):
+        _preflight_push_auth(cfg, ref, is_bootstrap=False)
+
+
+def test_launch_refuses_and_stays_active_when_push_auth_broken(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End-to-end: a broken remote refuses the launch before flipping status
+    or spawning — the ticket stays `active`, no agent process is started."""
+    _allow_interactive_tty(monkeypatch)
+    monkeypatch.setattr("relay.commands.launch.check_git_remote", _ok_remote)
+    monkeypatch.setattr(
+        "relay.commands.launch.check_git_auth",
+        lambda remote: CheckResult("git-auth", False, "could not authenticate push access"),
+    )
+
+    spawned: list[list[str]] = []
+
+    def fake_run(cmd, *a, **k):  # pragma: no cover - must never run
+        spawned.append(cmd)
+
+        class _R:
+            returncode = 0
+
+        return _R()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+
+    assert result.exit_code != 0
+    assert "git push access" in result.output
+    assert spawned == []  # no agent spawned
+
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    assert Ticket.read(ref.path / "ticket.md").status == "active"
 
 
 def test_launch_fails_loud_on_unset_declared_secret(
@@ -1449,6 +1699,46 @@ def test_launch_discussion_bootstrap_uses_discussion_template(
     assert cmd[0] == "claude"
     assert cmd[1] == "--append-system-prompt"
     assert "Skill: bootstrap/ticket" in cmd[2]
+    assert cmd[3] == "Begin"
+
+
+def test_launch_orient_bootstrap_stays_silent(
+    bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write(
+        bootstrap_repo / "bootstrap" / "orient" / "ticket.md",
+        """
+        ---
+        title: Chat
+        mode: interactive
+        assignee: claude
+        ---
+
+        ## Description
+
+        Persistent launch shim for a discussion session.
+        """,
+    )
+    captured: dict[str, object] = {}
+    _allow_interactive_tty(monkeypatch)
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        captured["cmd"] = cmd
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["launch", "bootstrap/orient"])
+    assert result.exit_code == 0, result.output
+
+    cmd = captured["cmd"]
+    assert isinstance(cmd, list)
+    assert cmd[-1] != "Begin"
 
 
 def test_launch_regular_task_does_not_use_discussion_template(
@@ -1515,6 +1805,7 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
     assert cmd[0] == "codex"
     assert cmd[1] == "-c"
     assert "Skill: bootstrap/ticket" in _prompt_arg(cmd)
+    assert cmd[-1] == "Begin"
 
     log = _read_log(bootstrap_repo)
     assert "assignee=codex, agent=codex" in log

@@ -223,3 +223,74 @@ def test_status_unknown_directory_fails_loud(repo: Path) -> None:
     assert result.exit_code == 2
     assert "Unknown directory 'sales'" in result.output
     assert "marketing" in result.output
+
+
+# --- status --dirs ---------------------------------------------------------
+
+
+def test_status_dirs_lists_all_directories_not_tasks(repo: Path) -> None:
+    _task(repo, "fix-retry-logic")  # a task, not a directory — must not appear
+    _task(repo, "marketing/digest-sweep")
+    _task(repo, "marketing/social/relaunch")
+    _task(repo, "ops/rotate-keys")
+
+    result = CliRunner().invoke(app, ["status", "--dirs"])
+
+    assert result.exit_code == 0
+    lines = result.stdout.split()
+    assert lines == ["marketing", "marketing/social", "ops"]
+    assert "fix-retry-logic" not in result.stdout
+
+
+def test_status_dirs_no_recurse_keeps_only_top_level(repo: Path) -> None:
+    _task(repo, "marketing/digest-sweep")
+    _task(repo, "marketing/social/relaunch")
+    _task(repo, "ops/rotate-keys")
+
+    result = CliRunner().invoke(app, ["status", "--dirs", "--no-recurse"])
+
+    assert result.exit_code == 0
+    lines = result.stdout.split()
+    assert lines == ["marketing", "ops"]
+
+
+def test_status_dirs_under_directory_excludes_the_query_itself(repo: Path) -> None:
+    _task(repo, "marketing/digest-sweep")
+    _task(repo, "marketing/social/relaunch")
+    _task(repo, "marketing/social/paid/promo")
+
+    result = CliRunner().invoke(app, ["status", "marketing", "--dirs"])
+
+    assert result.exit_code == 0
+    lines = result.stdout.split()
+    assert lines == ["marketing/social", "marketing/social/paid"]
+    assert "marketing\n" not in result.stdout
+
+
+def test_status_dirs_under_directory_no_recurse_is_immediate_level(repo: Path) -> None:
+    _task(repo, "marketing/social/relaunch")
+    _task(repo, "marketing/social/paid/promo")
+
+    result = CliRunner().invoke(app, ["status", "marketing", "--dirs", "--no-recurse"])
+
+    assert result.exit_code == 0
+    lines = result.stdout.split()
+    assert lines == ["marketing/social"]
+
+
+def test_status_dirs_unknown_directory_fails_loud(repo: Path) -> None:
+    _task(repo, "marketing/digest-sweep")
+
+    result = CliRunner().invoke(app, ["status", "sales", "--dirs"])
+
+    assert result.exit_code == 2
+    assert "Unknown directory 'sales'" in result.output
+
+
+def test_status_dirs_empty_prints_note(repo: Path) -> None:
+    _task(repo, "fix-retry-logic")  # only top-level tasks, no plain directories
+
+    result = CliRunner().invoke(app, ["status", "--dirs"])
+
+    assert result.exit_code == 0
+    assert "no directories" in result.stdout

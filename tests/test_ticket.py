@@ -97,7 +97,7 @@ def _allow_ticket_launch(
 
     monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("relay.commands.ticket.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
 
 
 def test_ticket_title_creates_draft_and_launches_authoring(
@@ -131,6 +131,42 @@ def test_ticket_title_creates_draft_and_launches_authoring(
     assert "Relay task — investigate-retries" in prompts[0]
     assert "Status: draft" in prompts[0]
     assert "Skill: bootstrap/ticket" in prompts[0]
+
+
+def test_ticket_authoring_does_not_inject_relay_secrets(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(
+        repo / "relay.local.toml",
+        """
+        user = "marc"
+
+        [secrets]
+        stripe_key = "env:STRIPE_SECRET_KEY"
+        """,
+    )
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live")
+    task_dir = repo / "tasks" / "investigate-retries"
+    captured_env: dict[str, str] = {}
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        captured_env.update(env or {})
+        t = Ticket.read(task_dir / "ticket.md")
+        t.frontmatter["workflow"] = "code/with-review"
+        t.write(task_dir / "ticket.md")
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
+    assert result.exit_code == 0, result.output
+    assert "stripe_key" not in captured_env
 
 
 def test_ticket_uses_discussion_template_when_agent_configures_one(
@@ -169,7 +205,7 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
 
     monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("relay.commands.ticket.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
     assert result.exit_code == 0, result.output
@@ -179,6 +215,61 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
     assert cmd[1] == "--append-system-prompt"
     assert "Relay task — investigate-retries" in cmd[2]
     assert "Skill: bootstrap/ticket" in cmd[2]
+    assert cmd[3] == "Begin"
+
+
+def test_ticket_agent_override_codex_gets_kickoff(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(
+        repo / "relay.toml",
+        """
+        version = 1
+        default_status = "draft"
+
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        mode = "local"
+        [agents.codex]
+        cli = "codex"
+        auto = "exec"
+        file = "AGENTS.md"
+        mode = "local"
+
+        """,
+    )
+    task_dir = repo / "tasks" / "investigate-retries"
+    captured: dict[str, object] = {}
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+        captured["cmd"] = cmd
+        t = Ticket.read(task_dir / "ticket.md")
+        t.frontmatter["workflow"] = "code/with-review"
+        t.write(task_dir / "ticket.md")
+        return _Result()
+
+    monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(
+        app, ["ticket", "Investigate retries", "--agent", "codex"]
+    )
+    assert result.exit_code == 0, result.output
+
+    cmd = captured["cmd"]
+    assert cmd[0] == "codex"
+    assert cmd[1] == "-c"
+    assert "Skill: bootstrap/ticket" in _prompt_arg(cmd)
+    assert cmd[-1] == "Begin"
 
 
 def test_ticket_refuses_draft_left_without_workflow(
@@ -257,7 +348,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
 
     monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("relay.commands.ticket.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "broken-context"])
     assert result.exit_code == 2

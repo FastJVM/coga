@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import sys
 from hashlib import sha256
 from pathlib import Path
@@ -15,13 +14,11 @@ import typer
 from relay import git
 from relay.commands.create import create_draft
 from relay.commands.launch import (
-    _format_agent_command_for_console,
     _interactive_stdio_has_tty,
-    build_agent_command,
+    spawn_agent_session,
 )
-from relay.compose import ComposeError, compose_prompt, write_prompt_file
+from relay.compose import ComposeError
 from relay.config import Config, ConfigError, load_config
-from relay.logfile import append_log
 from relay.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -159,45 +156,42 @@ def _run_authoring_session(
     typer.echo(
         f"Ticket: authoring {ref.id_slug} with {launch_assignee} -> {agent.name}"
     )
-    try:
-        prompt = compose_prompt(cfg, ref, ticket)
-    except ComposeError as exc:
-        _bail(str(exc))
-    prompt_file = write_prompt_file(prompt, ref)
-    cmd = build_agent_command(agent, "interactive", prompt, discussion=True)
-    typer.echo(
-        "Ticket: command: "
-        f"{_format_agent_command_for_console(cmd, prompt)}"
-    )
     before_tasks = {task_ref.id_slug for task_ref in list_tasks(cfg)}
     before_authoring = _snapshot_authoring_files(cfg)
-    append_log(
-        cfg,
-        ref.id_slug,
-        f"human:{cfg.current_user}",
-        f"ticket authoring launched (assignee={launch_assignee}, agent={agent.name})",
-    )
 
-    # Ticket authoring does not run task work, so it receives no secrets:
-    # secrets flow through the `relay launch` chokepoint only (least privilege).
-    env = os.environ.copy()
+    # Ticket authoring routes through the shared single-shot spawn without the
+    # launch supervisor chain. It runs no task work, so it receives no Relay
+    # secret injection; secrets flow through the `relay launch` chokepoint only
+    # (least privilege). The kickoff token makes `relay ticket` greet first.
     try:
-        result = subprocess.run(cmd, env=env, check=False)
+        session = spawn_agent_session(
+            cfg,
+            ref,
+            ticket,
+            agent,
+            "interactive",
+            env=os.environ.copy(),
+            actor=f"human:{cfg.current_user}",
+            log_message=(
+                "ticket authoring launched "
+                f"(assignee={launch_assignee}, agent={agent.name})"
+            ),
+            discussion=True,
+            kickoff="Begin",
+            label="Ticket",
+        )
+    except ComposeError as exc:
+        _bail(str(exc))
     except FileNotFoundError:
         _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
-    finally:
-        try:
-            prompt_file.unlink()
-        except FileNotFoundError:
-            pass
 
-    if result.returncode != 0:
+    if session.exit_code != 0:
         typer.secho(
-            f"Agent exited with code {result.returncode}.",
+            f"Agent exited with code {session.exit_code}.",
             fg=typer.colors.YELLOW,
             err=True,
         )
-        sys.exit(result.returncode)
+        sys.exit(session.exit_code)
 
     # Post-authoring validation: the agent edited the ticket directly during
     # the session. Surface schema breakage now, while the user is at the

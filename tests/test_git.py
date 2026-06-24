@@ -614,7 +614,7 @@ def _fake_authoring_agent(monkeypatch, *, on_run=None) -> None:
     `on_run` (which stands in for the agent's external edits) instead of a real
     subprocess.
 
-    Patching `ticket.subprocess.run` patches the module-global `run`, which the
+    Patching `launch.subprocess.run` patches the module-global `run`, which the
     real git sync (also a `subprocess.run` caller) would otherwise hit — so git
     invocations are delegated to the real `run`; only the agent launch is faked.
     """
@@ -638,7 +638,7 @@ def _fake_authoring_agent(monkeypatch, *, on_run=None) -> None:
     monkeypatch.setattr(
         "relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}"
     )
-    monkeypatch.setattr("relay.commands.ticket.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
 
 
 def test_cli_ticket_authoring_syncs_edits_to_origin(git_repo, monkeypatch):
@@ -773,3 +773,65 @@ def test_cli_delete_syncs_removal_to_origin(git_repo):
     # And nothing is left dirty in the working tree (the bug's symptom).
     status = git_repo.git("status", "--porcelain", cwd=git_repo.root)
     assert slug not in status
+
+
+# --- non-interactive git (no credential-prompt hangs) -------------------------
+#
+# Regression: relay's git sync runs unattended inside `relay launch` / `bump` /
+# `mark`. With an HTTPS remote and `gh` logged out (gh is the credential
+# helper), a push had no creds and git dropped into an interactive credential
+# prompt that hung the launch instead of failing loud. Every git invocation
+# must run with the terminal prompt disabled so that surfaces as a GitError.
+
+
+class _OkResult:
+    returncode = 0
+    stdout = ""
+    stderr = ""
+
+
+def _capture_run(monkeypatch):
+    """Patch `git.subprocess.run`, returning a list that collects each env."""
+    envs: list[dict | None] = []
+
+    def fake_run(cmd, *args, **kwargs):
+        envs.append(kwargs.get("env"))
+        return _OkResult()
+
+    monkeypatch.setattr(git.subprocess, "run", fake_run)
+    return envs
+
+
+def test_noninteractive_env_disables_terminal_prompt(monkeypatch):
+    monkeypatch.delenv("GIT_SSH_COMMAND", raising=False)
+    env = git._noninteractive_git_env()
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+    assert "BatchMode=yes" in env["GIT_SSH_COMMAND"]
+
+
+def test_noninteractive_env_preserves_operator_ssh_command(monkeypatch):
+    monkeypatch.setenv("GIT_SSH_COMMAND", "ssh -i /my/key")
+    env = git._noninteractive_git_env()
+    assert env["GIT_TERMINAL_PROMPT"] == "0"
+    # The operator's own SSH command is left untouched, not clobbered.
+    assert "GIT_SSH_COMMAND" not in env
+
+
+def test_run_git_runs_non_interactively(monkeypatch, tmp_path):
+    envs = _capture_run(monkeypatch)
+    git._run_git(tmp_path, "status")
+    assert envs[0] is not None
+    assert envs[0]["GIT_TERMINAL_PROMPT"] == "0"
+
+
+def test_run_git_overlay_preserves_caller_env(monkeypatch, tmp_path):
+    envs = _capture_run(monkeypatch)
+    git._run_git(tmp_path, "write-tree", env={"GIT_INDEX_FILE": "/tmp/idx"})
+    assert envs[0]["GIT_TERMINAL_PROMPT"] == "0"
+    assert envs[0]["GIT_INDEX_FILE"] == "/tmp/idx"
+
+
+def test_push_ref_runs_non_interactively(monkeypatch, tmp_path):
+    envs = _capture_run(monkeypatch)
+    assert git._push_ref(tmp_path, "origin", "main") is None
+    assert envs[0]["GIT_TERMINAL_PROMPT"] == "0"
