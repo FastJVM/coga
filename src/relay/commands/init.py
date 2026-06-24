@@ -42,7 +42,7 @@ from relay.commands.update import (
     write_bin_wrapper,
     write_pin,
 )
-from relay.config import ConfigError, find_repo_root, load_config
+from relay.config import ConfigError, PLACEHOLDER_USER, find_repo_root, load_config
 from relay.dependencies import DEPENDENCIES
 from relay.managed_skills import (
     ManagedSkillError,
@@ -93,21 +93,25 @@ def _clean_user_name(raw: str) -> str | None:
 
 
 def _require_user_name(user: str | None) -> str:
-    """Validate the `--user` value for a direct `relay init`, or exit.
+    """Resolve the `--user` value for a direct `relay init`.
 
-    `relay init` takes the operator's name as a parameter rather than
-    prompting, so init stays scriptable. A missing flag or an invalid value is
-    a hard error (exit 2, matching init's other arg errors) — we never fall
-    back to writing `user = ""` on this path.
+    `relay init` takes the operator's name as a parameter rather than prompting,
+    so init stays scriptable. When `--user` is omitted we no longer exit — we
+    default to `PLACEHOLDER_USER` and warn loudly, so first-run never wedges
+    (Greg's case). The placeholder is self-documenting: it shows up as the
+    owner/author everywhere until corrected. An invalid `--user` value is still
+    a hard error.
     """
     if user is None:
         typer.secho(
-            "relay init needs your name to set `user` in relay.local.toml — "
-            "pass it as `relay init --user NAME` (e.g. `relay init --user marc`).",
-            fg=typer.colors.RED,
+            f'No user set — defaulting to "{PLACEHOLDER_USER}". This is the name '
+            "tickets you create are owned by and attributed to; set a real one "
+            "with `relay init --user NAME` (e.g. `relay init --user marc`), or "
+            "edit `user` in relay-os/relay.local.toml.",
+            fg=typer.colors.YELLOW,
             err=True,
         )
-        sys.exit(2)
+        return PLACEHOLDER_USER
     name = _clean_user_name(user)
     if name is None:
         typer.secho(

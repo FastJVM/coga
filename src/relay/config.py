@@ -190,22 +190,11 @@ def find_repo_root(start: Path | None = None) -> Path:
 # --- loader --------------------------------------------------------------------
 
 
-def _current_os_user() -> str:
-    """Best-effort OS username, used when `relay.local.toml` sets no `user`.
-
-    A name is cosmetic for most commands (task attribution, Slack), so a missing
-    `user` must never wall anyone out — default to $USER rather than hard-failing
-    (`--help` and read-only included). `relay init --user` is still how you set a
-    durable name."""
-    import getpass
-
-    name = os.environ.get("USER") or os.environ.get("LOGNAME")
-    if name:
-        return name
-    try:
-        return getpass.getuser()
-    except Exception:
-        return "user"
+# Sentinel `user` when none is configured. Self-documenting on purpose: it
+# surfaces as the owner/author on everything until corrected, which — with the
+# warning `relay init` prints — pushes the operator to set a real name
+# (`relay init --user NAME`, or edit relay.local.toml).
+PLACEHOLDER_USER = "username"
 
 
 def load_config(repo_root: Path | None = None) -> Config:
@@ -268,10 +257,11 @@ def load_config(repo_root: Path | None = None) -> Config:
         _parse_launch(shared.get("launch"))
     )
 
-    # A missing `user` is no longer fatal: default to the OS user so a fresh
-    # clone can run `--help`, read-only, and write commands without first
-    # editing relay.local.toml. `relay init --user` still sets a durable name.
-    current_user = local.get("user") or _current_os_user()
+    # A missing `user` is no longer fatal: fall back to the self-documenting
+    # PLACEHOLDER_USER so `--help`, read-only, and write commands all work on a
+    # bare clone (no relay.local.toml). `relay init` writes a real — or, with no
+    # `--user`, the placeholder — value and warns.
+    current_user = local.get("user") or PLACEHOLDER_USER
 
     return Config(
         repo_root=root,
