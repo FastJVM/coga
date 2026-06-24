@@ -43,6 +43,7 @@ from relay.commands.update import (
     write_pin,
 )
 from relay.config import ConfigError, find_repo_root, load_config
+from relay.dependencies import DEPENDENCIES
 from relay.managed_skills import (
     ManagedSkillError,
     ManagedSkillSummary,
@@ -53,12 +54,14 @@ from relay.retrofit import backfill_role_fields
 
 
 LOCAL_TOML_TEMPLATE = """\
-# Machine-local config — gitignored. Holds your assignee name and secrets.
-# Override anything from relay.toml here without committing it.
+# Machine-local config — gitignored. Holds your assignee name and any
+# machine-local overrides. Override anything from relay.toml here without
+# committing it.
 user = ""
 
-# [secrets]
-# stripe_key = "env:STRIPE_SECRET_KEY"
+# Secrets are declared inline on each ticket's `secrets:` frontmatter
+# (`NAME: op://vault/item/field` or `NAME: env:VAR`) — there is no central
+# [secrets] catalog here.
 
 # Per-agent permission-skip policy for autonomous runs — machine-local only
 # (these keys are rejected in shared relay.toml). With `skip_permissions =
@@ -145,6 +148,17 @@ def _repo_is_empty(target: Path) -> bool:
     if not target.exists():
         return True
     return all(entry.name in _INIT_IGNORE for entry in target.iterdir())
+
+
+def _is_git_repo(target: Path) -> bool:
+    """True when `target` looks like a git repo (filesystem check only).
+
+    `.git` may be a directory (normal repo) or a file (worktree/submodule), so
+    test existence rather than dir-ness. `relay init` requires this up front and
+    `_git_commit_relay_os` reuses it to decide whether to commit — the two must
+    agree, so they share this predicate.
+    """
+    return (target / ".git").exists()
 
 
 # Delivered onboarding ticket, pruned from the copied tree on a filled repo
@@ -261,6 +275,34 @@ disagree with anything else in the repo, they win.
 """
 
 
+def _check_external_dependencies() -> None:
+    """Fail loud if an external CLI relay *requires at init* is not on PATH.
+
+    Enforces only the `required_at_init` dependencies in the `relay.dependencies`
+    manifest — `git` and `gh` — at the start of every `relay init` invocation
+    (fresh, update, update-all). `op` is deliberately not enforced here: it is
+    only needed when a ticket actually declares an `op://` secret, and that
+    launch fails loud on its own if `op` is missing — so a missing `op` never
+    blocks init (it would force the 1Password CLI on operators who never use an
+    op secret). Missing tools are reported together, each with an install hint.
+    """
+    missing = [
+        dep
+        for dep in DEPENDENCIES
+        if dep.required_at_init and shutil.which(dep.name) is None
+    ]
+    if not missing:
+        return
+    lines = [
+        "relay needs these external command-line tools, but they are not on "
+        "PATH:",
+        *(f"  - {dep.name}: install from {dep.install}" for dep in missing),
+        "Install the missing tool(s), then re-run `relay init`.",
+    ]
+    typer.secho("\n".join(lines), fg=typer.colors.RED, err=True)
+    sys.exit(2)
+
+
 def init(
     path: Path | None = typer.Argument(
         None,
@@ -291,6 +333,7 @@ def init(
     ),
 ) -> None:
     """Create `relay-os/` from package templates, or refresh it with --update."""
+    _check_external_dependencies()
     if all_repos and not update:
         typer.secho(
             "--all only applies with --update — it refreshes existing repos, and "
@@ -335,6 +378,22 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # `current_user` is valid from the first moment after init, and a bad
     # invocation leaves nothing on disk.
     name = _require_user_name(user)
+
+    # Relay is git-backed: `relay init` commits relay-os/ into the host repo.
+    # If the target isn't a git repo, fail loud (principle 6) instead of writing
+    # relay-os/ and silently skipping the commit further down. We don't run
+    # `git init` ourselves — the user does, which keeps branch naming in their
+    # hands. Checked here, before any writes, so a bad invocation leaves nothing
+    # behind and we fail before the slow clone/venv.
+    if not _is_git_repo(target):
+        typer.secho(
+            f"{target} is not a git repository — relay is git-backed and "
+            f"`relay init` commits relay-os/ into your repo.\n"
+            f"Run `git init` in {target} first, then re-run `relay init`.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
 
     target.mkdir(parents=True, exist_ok=True)
 
@@ -930,7 +989,7 @@ def _git_commit_relay_os(
     Returns the new commit SHA on success, None if we skipped (not a git repo,
     nothing to stage, or git invocation failed). Never raises.
     """
-    if not (target / ".git").exists():
+    if not _is_git_repo(target):
         return None
     try:
         paths = ["relay-os"]

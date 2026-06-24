@@ -154,46 +154,42 @@ def test_secrets_non_list_is_error(repo: Path) -> None:
     assert bad and bad[0].severity == "error"
 
 
-def test_secrets_undeclared_key_warns(repo: Path) -> None:
+def test_secrets_bad_shape_errors(repo: Path) -> None:
+    """No catalog: a bare-string entry (the removed catalog-key form) or a raw
+    literal value is a hard `bad-shape` error, not a warning."""
     cfg = load_config(repo)
+    # Bare string entry — the removed catalog-key form.
     _draft_with_secrets(repo, cfg, ["nope"])
     report = run(cfg)
-    issues = [i for i in report.issues if i.kind == "undeclared-secret"]
-    assert issues and issues[0].severity == "warn"
+    issues = [i for i in report.issues if i.kind == "bad-shape"]
+    assert issues and issues[0].severity == "error"
+
+    # A raw literal value (not op://… or env:VAR) is also rejected.
+    _draft_with_secrets(repo, cfg, [{"API": "just-a-value"}])
+    report = run(cfg)
+    issues = [i for i in report.issues if i.kind == "bad-shape"]
+    assert issues and issues[0].severity == "error"
 
 
 def test_secrets_unset_env_warns(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _write(
-        repo / "relay.local.toml",
-        """
-        user = "marc"
-        [secrets]
-        stripe_key = "env:STRIPE_SECRET_KEY"
-        """,
-    )
-    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+    monkeypatch.delenv("MISSINGVAR", raising=False)
     cfg = load_config(repo)
-    _draft_with_secrets(repo, cfg, ["stripe_key"])
+    _draft_with_secrets(repo, cfg, [{"API": "env:MISSINGVAR"}])
     report = run(cfg)
     issues = [i for i in report.issues if i.kind == "unset-secret-env"]
     assert issues and issues[0].severity == "warn"
-    assert "STRIPE_SECRET_KEY" in issues[0].message
+    assert "MISSINGVAR" in issues[0].message
 
 
 def test_secrets_declared_and_set_is_clean(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _write(
-        repo / "relay.local.toml",
-        """
-        user = "marc"
-        [secrets]
-        stripe_key = "env:STRIPE_SECRET_KEY"
-        """,
-    )
-    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
+    monkeypatch.setenv("SETVAR", "sk_test_abc")
     cfg = load_config(repo)
-    _draft_with_secrets(repo, cfg, ["stripe_key"])
+    # An env ref whose var is set, plus an op:// ref (never probed by validate).
+    _draft_with_secrets(
+        repo, cfg, [{"API": "env:SETVAR"}, {"DB_PASS": "op://Prod/db/pass"}]
+    )
     report = run(cfg)
     assert not [i for i in report.issues if "secret" in i.kind]
 

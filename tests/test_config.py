@@ -12,6 +12,7 @@ from relay.config import (
     SecretError,
     find_repo_root,
     load_config,
+    parse_inline_secrets,
     select_launch_secrets,
 )
 
@@ -46,17 +47,12 @@ def repo(tmp_path: Path) -> Path:
         tmp_path / "relay.local.toml",
         """
         user = "marc"
-
-        [secrets]
-        stripe_key = "env:STRIPE_SECRET_KEY"
-        literal = "just-a-value"
         """,
     )
     return tmp_path
 
 
 def test_load_basic(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/xxx")
     cfg = load_config(repo)
     assert cfg.current_user == "marc"
@@ -64,11 +60,30 @@ def test_load_basic(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert cfg.agents["claude"].cli == "claude"
     assert cfg.slack_webhook.startswith("https://")
     assert cfg.slack_enabled is True
-    assert cfg.secrets["stripe_key"].value == "sk_test_abc"
-    assert cfg.secrets["stripe_key"].env_var == "STRIPE_SECRET_KEY"
-    assert cfg.secrets["stripe_key"].missing is False
-    assert cfg.secrets["literal"].value == "just-a-value"
-    assert cfg.secrets["literal"].env_var is None
+    # The central [secrets] catalog is gone — Config no longer carries it.
+    assert not hasattr(cfg, "secrets")
+
+
+def test_secrets_table_in_local_toml_rejected(repo: Path) -> None:
+    """The central `[secrets]` catalog was removed; a stray `[secrets]` table in
+    relay.local.toml now fails config load loud rather than being silently
+    honored. Secrets are declared inline per-ticket instead."""
+    _write(
+        repo / "relay.local.toml",
+        """
+        user = "marc"
+
+        [secrets]
+        stripe_key = "env:STRIPE_SECRET_KEY"
+        """,
+    )
+    # A leftover `[secrets]` table gets the tailored migration error (it runs
+    # before the generic unknown-section check) pointing at inline declaration.
+    with pytest.raises(
+        ConfigError,
+        match=r"\[secrets\] in relay.local.toml is no longer supported",
+    ):
+        load_config(repo)
 
 
 def test_default_status_defaults_to_draft(tmp_path: Path) -> None:
@@ -106,6 +121,22 @@ def test_agent_discussion_template_must_be_string(repo: Path) -> None:
     text = (repo / "relay.toml").read_text()
     (repo / "relay.toml").write_text(text + "discussion = 42\n")
     with pytest.raises(ConfigError, match="agents.claude.discussion must be a string"):
+        load_config(repo)
+
+
+def test_agent_session_id_flag_loads_from_shared_config(repo: Path) -> None:
+    text = (repo / "relay.toml").read_text()
+    (repo / "relay.toml").write_text(text + 'session_id_flag = "--session-id"\n')
+    cfg = load_config(repo)
+    assert cfg.agent_type("claude").session_id_flag == "--session-id"
+
+
+def test_agent_session_id_flag_must_be_string(repo: Path) -> None:
+    text = (repo / "relay.toml").read_text()
+    (repo / "relay.toml").write_text(text + "session_id_flag = 42\n")
+    with pytest.raises(
+        ConfigError, match="agents.claude.session_id_flag must be a string"
+    ):
         load_config(repo)
 
 
@@ -360,6 +391,7 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
         file = "CLAUDE.md"
         mode = "local"
         name_flag = "-n"
+        session_id_flag = "--session-id"
         discussion = "--append-system-prompt {prompt}"
 
         [notification]
@@ -395,9 +427,6 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
         tmp_path / "relay.local.toml",
         """
         user = "marc"
-
-        [secrets]
-        stripe_key = "env:STRIPE_SECRET_KEY"
 
         [agents.claude]
         skip_permissions = "auto"
@@ -569,8 +598,8 @@ def test_unknown_ticket_key_rejected(repo: Path) -> None:
 
 
 def test_free_form_maps_keep_arbitrary_keys(repo: Path) -> None:
-    """Free-form maps (secrets, slack gifs/users, aliases) map user-chosen names
-    to values — their keys are data and must NOT be rejected."""
+    """Free-form maps (slack gifs/users, aliases) map user-chosen names to
+    values — their keys are data and must NOT be rejected."""
     (repo / "relay.toml").write_text(
         (repo / "relay.toml").read_text()
         + (
@@ -580,19 +609,9 @@ def test_free_form_maps_keep_arbitrary_keys(repo: Path) -> None:
             'whoever = "U0XXXXXXX"\n'
         )
     )
-    _write(
-        repo / "relay.local.toml",
-        """
-        user = "marc"
-
-        [secrets]
-        some_made_up_name = "literal"
-        """,
-    )
     cfg = load_config(repo)
     assert cfg.slack_gifs["anything_goes"] == ["https://example.test/x.gif"]
     assert cfg.slack_users["whoever"] == "U0XXXXXXX"
-    assert cfg.secrets["some_made_up_name"].value == "literal"
 
 
 def test_assignees_dedicated_message_beats_generic(tmp_path: Path) -> None:
@@ -649,152 +668,96 @@ def test_find_repo_root_not_found(tmp_path: Path) -> None:
         find_repo_root(tmp_path)
 
 
-def test_missing_env_secret_resolves_to_none_not_empty(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # An unset env:VAR keeps provenance and resolves to value=None (not ""),
-    # so launch can fail loud instead of injecting a silent empty secret.
-    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
-    cfg = load_config(repo)
-    sv = cfg.secrets["stripe_key"]
-    assert sv.value is None
-    assert sv.env_var == "STRIPE_SECRET_KEY"
-    assert sv.missing is True
+# --- inline per-ticket `secrets:` ---------------------------------------------
+# Secrets are no longer a central catalog; each ticket declares them inline as
+# `secrets:` frontmatter — a list of single-key `NAME: <ref>` maps where <ref>
+# is `op://vault/item/field` or `env:VAR`. `select_launch_secrets(cfg, declared)`
+# resolves that inline list at launch (cfg is unused). Coverage below mirrors the
+# old catalog tests' intent against the inline model.
 
 
-def test_select_launch_secrets_blanket_when_absent(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+def test_parse_inline_secrets_none_and_empty_are_no_secrets() -> None:
+    # Absent/null and an empty list both mean "no secrets".
+    assert parse_inline_secrets(None) == []
+    assert parse_inline_secrets([]) == []
+
+
+def test_parse_inline_secrets_returns_name_ref_pairs() -> None:
+    declared = [
+        {"STRIPE_KEY": "env:STRIPE_SECRET_KEY"},
+        {"OP_KEY": "op://vault/stripe/key"},
+    ]
+    assert parse_inline_secrets(declared) == [
+        ("STRIPE_KEY", "env:STRIPE_SECRET_KEY"),
+        ("OP_KEY", "op://vault/stripe/key"),
+    ]
+
+
+def test_parse_inline_secrets_rejects_bare_string() -> None:
+    # A bare string is the removed catalog-key form — rejected.
+    with pytest.raises(SecretError, match="bare string"):
+        parse_inline_secrets(["stripe_key"])
+
+
+def test_parse_inline_secrets_rejects_raw_literal() -> None:
+    # A raw literal value may not live in a git-committed ticket.
+    with pytest.raises(SecretError, match="literal value cannot live"):
+        parse_inline_secrets([{"STRIPE_KEY": "just-a-value"}])
+
+
+def test_parse_inline_secrets_rejects_non_list() -> None:
+    with pytest.raises(SecretError, match="must be null or a list"):
+        parse_inline_secrets("stripe_key")
+
+
+def test_parse_inline_secrets_rejects_duplicate_name() -> None:
+    with pytest.raises(SecretError, match="more than once"):
+        parse_inline_secrets(
+            [{"STRIPE_KEY": "env:A"}, {"STRIPE_KEY": "env:B"}]
+        )
+
+
+def test_select_launch_secrets_none_and_empty_inject_nothing(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Absent/null `secrets:` (passed as None) keeps legacy blanket-inject of
-    # every resolvable secret, but never injects an unset env: secret as "".
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
-    cfg = load_config(repo)
-    env = select_launch_secrets(cfg, None)
-    assert env == {"stripe_key": "sk_test_abc", "literal": "just-a-value"}
-
-
-def test_select_launch_secrets_blanket_skips_unset_env(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
-    cfg = load_config(repo)
-    env = select_launch_secrets(cfg, None)
-    # Unset env: secret is omitted entirely — never injected as "".
-    assert env == {"literal": "just-a-value"}
-
-
-def test_select_launch_secrets_empty_list_injects_nothing(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
-    cfg = load_config(repo)
-    assert select_launch_secrets(cfg, []) == {}
+    # cfg is unused by the catalog-free resolver; None is accepted.
+    assert select_launch_secrets(None, None) == {}
+    assert select_launch_secrets(None, []) == {}
 
 
 def test_select_launch_secrets_least_privilege(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
-    cfg = load_config(repo)
-    # Only the declared key is injected; the undeclared `literal` is withheld.
-    assert select_launch_secrets(cfg, ["stripe_key"]) == {"stripe_key": "sk_test_abc"}
+    monkeypatch.setenv("OTHER_SECRET", "nope")
+    # Only the declared key is injected under its scoped name; an undeclared
+    # env var is never leaked.
+    env = select_launch_secrets(None, [{"STRIPE_KEY": "env:STRIPE_SECRET_KEY"}])
+    assert env == {"STRIPE_KEY": "sk_test_abc"}
 
 
 def test_select_launch_secrets_fails_on_unset_env(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
-    cfg = load_config(repo)
     with pytest.raises(SecretError) as exc:
-        select_launch_secrets(cfg, ["stripe_key"])
-    # Message names both the secret key and the missing env var.
-    assert "stripe_key" in str(exc.value)
+        select_launch_secrets(None, [{"STRIPE_KEY": "env:STRIPE_SECRET_KEY"}])
+    # Message names both the scoped secret name and the missing env var.
+    assert "STRIPE_KEY" in str(exc.value)
     assert "STRIPE_SECRET_KEY" in str(exc.value)
 
 
-def test_select_launch_secrets_fails_on_undeclared_key(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
-    cfg = load_config(repo)
-    with pytest.raises(SecretError, match="not defined in"):
-        select_launch_secrets(cfg, ["nonexistent_key"])
+def test_select_launch_secrets_rejects_non_list() -> None:
+    with pytest.raises(SecretError, match="must be null or a list"):
+        select_launch_secrets(None, "stripe_key")
 
 
-def test_select_launch_secrets_rejects_non_list(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_abc")
-    cfg = load_config(repo)
-    with pytest.raises(SecretError, match="must be a list"):
-        select_launch_secrets(cfg, "stripe_key")
-
-
-# --- 1Password `op://` references ---------------------------------------------
-
-
-@pytest.fixture
-def op_repo(tmp_path: Path) -> Path:
-    """A repo whose `[secrets]` carries a 1Password `op://` reference."""
-    _write(
-        tmp_path / "relay.toml",
-        """
-        version = 1
-        default_status = "draft"
-
-        [agents.claude]
-        cli = "claude"
-        auto = "-p"
-        file = "CLAUDE.md"
-        mode = "local"
-        """,
-    )
-    _write(
-        tmp_path / "relay.local.toml",
-        """
-        user = "marc"
-
-        [secrets]
-        stripe_key = "op://vault/stripe/key"
-        literal = "just-a-value"
-        """,
-    )
-    return tmp_path
-
-
-def test_op_reference_loads_deferred_not_resolved(
-    op_repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Loading config records the op reference but never shells out — a config
-    # load must not prompt 1Password.
-    def _boom(*args, **kwargs):  # pragma: no cover — must not be called
-        raise AssertionError("config load must not invoke `op`")
-
-    monkeypatch.setattr("relay.config.subprocess.run", _boom)
-    cfg = load_config(op_repo)
-    sv = cfg.secrets["stripe_key"]
-    assert sv.op_ref == "op://vault/stripe/key"
-    assert sv.value is None
-    assert sv.env_var is None
-    assert sv.missing is False  # deferred, not env-unset
-
-
-def test_select_launch_secrets_blanket_skips_op(
-    op_repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # Legacy blanket mode (declared is None) must not resolve op references —
-    # an unselected op secret is skipped, never prompted for.
-    def _boom(*args, **kwargs):  # pragma: no cover — must not be called
-        raise AssertionError("blanket mode must not invoke `op`")
-
-    monkeypatch.setattr("relay.config.subprocess.run", _boom)
-    cfg = load_config(op_repo)
-    env = select_launch_secrets(cfg, None)
-    assert env == {"literal": "just-a-value"}
+# --- 1Password `op://` references (inline) ------------------------------------
 
 
 def test_select_launch_secrets_resolves_op_when_declared(
-    op_repo: Path, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[list[str]] = []
 
@@ -804,32 +767,30 @@ def test_select_launch_secrets_resolves_op_when_declared(
         return subprocess.CompletedProcess(argv, 0, stdout="sk_op_secret\n", stderr="")
 
     monkeypatch.setattr("relay.config.subprocess.run", fake_run)
-    cfg = load_config(op_repo)
-    env = select_launch_secrets(cfg, ["stripe_key"])
-    # Only the declared op key; trailing newline stripped, value untransformed.
-    assert env == {"stripe_key": "sk_op_secret"}
+    env = select_launch_secrets(None, [{"STRIPE_KEY": "op://vault/stripe/key"}])
+    # Trailing newline stripped, value otherwise untransformed.
+    assert env == {"STRIPE_KEY": "sk_op_secret"}
     assert calls == [["op", "read", "op://vault/stripe/key"]]
 
 
 def test_select_launch_secrets_op_missing_binary(
-    op_repo: Path, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fake_run(argv, **kwargs):
         raise FileNotFoundError("op")
 
     monkeypatch.setattr("relay.config.subprocess.run", fake_run)
-    cfg = load_config(op_repo)
     with pytest.raises(SecretError) as exc:
-        select_launch_secrets(cfg, ["stripe_key"])
+        select_launch_secrets(None, [{"STRIPE_KEY": "op://vault/stripe/key"}])
     msg = str(exc.value)
     # Names the key and reference; never a secret value (there is none).
-    assert "stripe_key" in msg
+    assert "STRIPE_KEY" in msg
     assert "op://vault/stripe/key" in msg
     assert "not installed" in msg
 
 
 def test_select_launch_secrets_op_read_nonzero(
-    op_repo: Path, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fake_run(argv, **kwargs):
         return subprocess.CompletedProcess(
@@ -837,11 +798,10 @@ def test_select_launch_secrets_op_read_nonzero(
         )
 
     monkeypatch.setattr("relay.config.subprocess.run", fake_run)
-    cfg = load_config(op_repo)
     with pytest.raises(SecretError) as exc:
-        select_launch_secrets(cfg, ["stripe_key"])
+        select_launch_secrets(None, [{"STRIPE_KEY": "op://vault/stripe/key"}])
     msg = str(exc.value)
-    assert "stripe_key" in msg
+    assert "STRIPE_KEY" in msg
     assert "op://vault/stripe/key" in msg
     assert "not signed in" in msg
 

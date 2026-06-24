@@ -1,7 +1,7 @@
 ---
 slug: track-usage-of-llm
 title: track usage of LLM
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -28,7 +28,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
@@ -381,6 +380,7 @@ Opened PR:
 - latest commits after rebasing onto current `origin/main`:
   - `c31316a Track LLM usage from launch sessions`
   - `cb2c5a3 peer-review: apply usage fixes`
+  - `26625b6 Tighten Codex usage matching`
 
 Verification after rebase:
 
@@ -395,6 +395,30 @@ CI:
 
 - `gh pr checks 429`
   -> no checks reported on the `track-llm-usage` branch at PR creation time.
+
+## Codex matching follow-up (2026-06-24, codex)
+
+After nick asked about Codex coverage, tightened the PR branch rather than only
+explaining the current behavior:
+
+- commit: `26625b6 Tighten Codex usage matching`
+- Codex still cannot be pinned with a Relay-minted session id (`codex exec
+  --help` has no `--session-id`), so matching remains conservative:
+  snapshot pre-existing rollout files, claim exactly one new rollout for the
+  launched cwd, and return `usage_status: "unknown"` on ambiguity.
+- Added an additional guard: when Codex `session_meta` exposes `timestamp`,
+  Relay now requires that rollout to fall inside the launch window before
+  attributing it.
+- Kept the token parser first-class: Codex `total_token_usage` is cumulative,
+  `cached_input_tokens` is split out of input, and reasoning tokens are treated
+  as part of output rather than double-counted.
+
+Verification:
+
+- `PYTHONPATH=/home/n/Code/codex/relay-track-llm-usage/src python -m pytest tests/test_usage.py -q -p no:cacheprovider`
+  -> `7 passed`
+- `PYTHONPATH=/home/n/Code/codex/relay-track-llm-usage/src python -m pytest -q -p no:cacheprovider`
+  -> `874 passed, 1 skipped`
 
 ## Implement summary (2026-06-24, codex)
 

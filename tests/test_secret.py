@@ -1,6 +1,9 @@
-"""`relay secret get <key>` — resolve and print one declared secret on demand.
+"""`relay secret get <ref>` — resolve and print one secret reference on demand.
 
-Mocks `subprocess.run`; no test requires a real `op` binary or 1Password account.
+Secrets are declared inline per-ticket (there is no `[secrets]` catalog), so
+`get` takes a reference directly — `op://vault/item/field` or `env:VAR` — and
+resolves it through the same launch-time path. Mocks `subprocess.run`; no test
+requires a real `op` binary or 1Password account.
 """
 
 from __future__ import annotations
@@ -38,11 +41,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         tmp_path / "relay.local.toml",
         """
         user = "marc"
-
-        [secrets]
-        stripe_key = "op://vault/stripe/key"
-        env_key = "env:SOME_ENV_SECRET"
-        literal = "just-a-value"
         """,
     )
     monkeypatch.chdir(tmp_path)
@@ -51,38 +49,48 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def test_secret_get_resolves_op(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_run(argv, **kwargs):
-        assert argv == ["op", "read", "op://vault/stripe/key"]
-        return subprocess.CompletedProcess(argv, 0, stdout="sk_op_secret\n", stderr="")
+        assert argv == ["op", "read", "op://Vault/item/field"]
+        return subprocess.CompletedProcess(argv, 0, stdout="THEVALUE\n", stderr="")
 
     monkeypatch.setattr("relay.config.subprocess.run", fake_run)
-    result = CliRunner().invoke(app, ["secret", "get", "stripe_key"])
+    result = CliRunner().invoke(app, ["secret", "get", "op://Vault/item/field"])
     assert result.exit_code == 0, result.output
-    assert result.stdout.strip() == "sk_op_secret"
+    assert result.stdout.strip() == "THEVALUE"
 
 
-def test_secret_get_resolves_literal(repo: Path) -> None:
-    result = CliRunner().invoke(app, ["secret", "get", "literal"])
+def test_secret_get_resolves_env(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SOMEVAR", "env_value")
+    result = CliRunner().invoke(app, ["secret", "get", "env:SOMEVAR"])
     assert result.exit_code == 0, result.output
-    assert result.stdout.strip() == "just-a-value"
+    assert result.stdout.strip() == "env_value"
+
+
+def test_secret_get_rejects_literal(repo: Path) -> None:
+    """Literals are no longer resolvable — there is no catalog and a raw literal
+    is rejected (only `op://…` or `env:VAR` references are valid)."""
+    result = CliRunner().invoke(app, ["secret", "get", "just-a-value"])
+    assert result.exit_code == 2
+    # The error names the rejected reference, never treats it as a value.
+    assert "just-a-value" in result.output
 
 
 def test_secret_get_fails_loud_on_op_error(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def fake_run(argv, **kwargs):
-        return subprocess.CompletedProcess(
-            argv, 1, stdout="", stderr="[ERROR] not signed in"
-        )
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr="boom")
 
     monkeypatch.setattr("relay.config.subprocess.run", fake_run)
-    result = CliRunner().invoke(app, ["secret", "get", "stripe_key"])
+    result = CliRunner().invoke(app, ["secret", "get", "op://Vault/item/field"])
     assert result.exit_code == 2
-    # The error names the key and reference, never a resolved value.
-    assert "stripe_key" in result.output
-    assert "op://vault/stripe/key" in result.output
+    # The error names the reference, never a resolved value.
+    assert "op://Vault/item/field" in result.output
 
 
-def test_secret_get_fails_loud_on_undeclared_key(repo: Path) -> None:
-    result = CliRunner().invoke(app, ["secret", "get", "nonexistent"])
+def test_secret_get_fails_loud_on_unset_env(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("MISSINGVAR", raising=False)
+    result = CliRunner().invoke(app, ["secret", "get", "env:MISSINGVAR"])
     assert result.exit_code == 2
-    assert "not defined in" in result.output
+    assert "MISSINGVAR" in result.output

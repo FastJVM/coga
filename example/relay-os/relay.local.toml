@@ -3,8 +3,9 @@
 
 user = "marc"
 
-[secrets]
-# Populated from env vars at launch time using env:VAR_NAME refs.
+# Secrets are declared inline on each ticket's `secrets:` frontmatter
+# (`NAME: op://vault/item/field` or `NAME: env:VAR`) — there is no central
+# [secrets] catalog.
 
 # Per-agent permission-skip policy for `mode: auto` task launches —
 # machine-local only; either key in shared relay.toml fails config load.

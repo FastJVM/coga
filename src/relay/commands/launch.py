@@ -20,11 +20,14 @@ import shutil
 import signal
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import NamedTuple
+from uuid import uuid4
 
 import typer
 
+from relay import usage as usage_tracking
 from relay.agent_skills import refresh_agent_skill_view
 from relay.blackboard import blackboard_size_warning, format_bytes
 from relay.commands.launch_script import is_script_launch
@@ -428,6 +431,7 @@ def launch(
                 max_session=max_session,
                 label="Launch",
                 warn_blackboard=True,
+                capture_usage=not is_bootstrap,
             )
         except ComposeError as exc:
             _bail(str(exc))
@@ -580,6 +584,7 @@ def build_agent_command(
     name: str = "",
     discussion: bool = False,
     skip_permissions_argv: tuple[str, ...] = (),
+    session_id: str | None = None,
 ) -> list[str]:
     """Build the argv for spawning the agent.
 
@@ -593,11 +598,12 @@ def build_agent_command(
     session carries the ticket title in its picker / window title. Skipped
     in `discussion` mode so the human's first ask names the session.
 
-    `skip_permissions_argv` (the agent's machine-local permission-skip argv,
-    threaded by `_skip_permissions_argv_for_launch` only when its policy
-    applies) is inserted after the name argv and before the mode-specific
-    argv/prompt payload — `claude -n <title> <skip-argv> -p <prompt>`,
-    `codex <skip-argv> exec <prompt>`.
+    `session_id` uses the agent's `session_id_flag`, when configured, to pin a
+    transcript id. `skip_permissions_argv` (the agent's machine-local
+    permission-skip argv, threaded by `_skip_permissions_argv_for_launch` only
+    when its policy applies) is inserted after the name/session argv and before
+    the mode-specific argv/prompt payload — `claude -n <title> --session-id
+    <uuid> <skip-argv> -p <prompt>`, `codex <skip-argv> exec <prompt>`.
 
     `discussion=True` (used for human discussion sessions like `relay chat`
     and `relay ticket`) routes the prompt through the agent's
@@ -617,11 +623,21 @@ def build_agent_command(
     name_args: list[str] = []
     if name and agent.name_flag:
         name_args = [*shlex.split(agent.name_flag), name]
+    session_id_args: list[str] = []
+    if session_id and agent.session_id_flag:
+        session_id_args = [*shlex.split(agent.session_id_flag), session_id]
     if mode == "interactive":
-        return [agent.cli, *name_args, *skip_permissions_argv, prompt]
+        return [
+            agent.cli,
+            *name_args,
+            *session_id_args,
+            *skip_permissions_argv,
+            prompt,
+        ]
     return [
         agent.cli,
         *name_args,
+        *session_id_args,
         *skip_permissions_argv,
         *shlex.split(agent.auto),
         prompt,
@@ -653,6 +669,7 @@ def spawn_agent_session(
     max_session: float | None = None,
     label: str = "Launch",
     warn_blackboard: bool = False,
+    capture_usage: bool = False,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
 
@@ -682,6 +699,27 @@ def spawn_agent_session(
         f"({len(prompt)} chars)"
     )
 
+    # Single-file format: usage records live in the `## Usage` section of the
+    # ticket's blackboard region, so the usage "blackboard" is the ticket itself.
+    usage_blackboard = ref.ticket_path
+    should_capture_usage = (
+        capture_usage
+        and mode in {"interactive", "auto"}
+        and isinstance(ref, TaskRef)
+        and usage_blackboard.is_file()
+    )
+    usage_provider = usage_tracking.parser_key_for_cli(agent.cli)
+    usage_session_id = (
+        str(uuid4()) if should_capture_usage and agent.session_id_flag else None
+    )
+    usage_pre_existing = (
+        usage_tracking.snapshot_session_files(usage_provider)
+        if should_capture_usage else set()
+    )
+    usage_cwd = Path.cwd().resolve()
+    usage_window_start = datetime.now(timezone.utc)
+    spawn_started = False
+
     try:
         cmd = build_agent_command(
             agent,
@@ -690,6 +728,7 @@ def spawn_agent_session(
             name=name,
             discussion=discussion,
             skip_permissions_argv=skip_permissions_argv,
+            session_id=usage_session_id,
         )
         if kickoff:
             cmd.append(kickoff)
@@ -708,6 +747,7 @@ def spawn_agent_session(
             # Interactive REPLs (`claude`, `codex`) don't exit on their own.
             # Run through a PTY watcher so an agent that writes the session-done
             # sentinel after `relay mark done` / `relay panic` releases the REPL.
+            spawn_started = True
             outcome = run_with_done_marker(
                 cmd,
                 env,
@@ -717,9 +757,28 @@ def spawn_agent_session(
             )
             return AgentSessionResult(outcome.exit_code, outcome.kind)
 
+        spawn_started = True
         result = subprocess.run(cmd, env=env, check=False)
         return AgentSessionResult(result.returncode, "natural")
+    except FileNotFoundError:
+        spawn_started = False
+        raise
     finally:
+        usage_window_end = datetime.now(timezone.utc)
+        if should_capture_usage and spawn_started:
+            usage_tracking.capture_session(
+                blackboard=usage_blackboard,
+                title=ticket.title or "",
+                slug=ref.id_slug,
+                step=_current_step_name(ticket),
+                agent=agent.name,
+                cli=agent.cli,
+                cwd=usage_cwd,
+                session_id=usage_session_id,
+                pre_existing=usage_pre_existing,
+                window_start=usage_window_start,
+                window_end=usage_window_end,
+            )
         try:
             prompt_file.unlink()
         except FileNotFoundError:
@@ -763,6 +822,15 @@ def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
 def _bootstrap_kickoff(ref: TaskRef | BootstrapRef) -> str | None:
     if isinstance(ref, BootstrapRef) and ref.id_slug == "bootstrap/ticket":
         return "Begin"
+    return None
+
+
+def _current_step_name(ticket: Ticket) -> str | None:
+    current = ticket.current_step()
+    if isinstance(current, dict):
+        name = current.get("name")
+        if isinstance(name, str):
+            return name
     return None
 
 

@@ -110,9 +110,15 @@ reserved — no extension or alias may collide with them:
 `slug` is the task's path-qualified reference, recorded on the ticket for
 legibility (the path under `tasks/` stays the addressing source of truth).
 
-`secrets` is nullable. Absent or `null` preserves legacy launch behavior
-(inject all configured secrets, skipping unset env-backed values), `[]`
-injects none, and a non-empty list injects only those `[secrets]` keys.
+`secrets` is nullable and declared **inline** — there is no central
+`[secrets]` catalog. Absent / `null` / `[]` inject nothing; otherwise it is a
+list of single-key maps `- NAME: <ref>` where `<ref>` is an
+`op://vault/item/field` 1Password reference (resolved live with `op read`) or
+an `env:VAR` indirection (read from the operator's environment). At launch each
+ref is resolved and injected as env var `NAME`; the source `env:VAR` is
+scrubbed so the child sees only the scoped name. A bare-string entry (the
+removed catalog-key form) or a raw literal value is rejected — a literal secret
+may not live in a git-committed ticket.
 
 A repo may declare additional fields under `[ticket.fields.<name>]` in
 `relay.toml` — see "Ticket frontmatter extensions" below.
@@ -328,22 +334,27 @@ committed to git.
   operator is the OS user plus the local tools they already authenticate: `git`,
   `ssh-agent` / git credential helpers, and `gh`. Relay inspects these and fails
   with actionable setup hints (`gh auth login`, fix your git remote); it never
-  stores a GitHub PAT, reads `GITHUB_TOKEN`/PATs from `[secrets]` for normal
-  human PR work, or reimplements GitHub auth. Git transport uses the user's
-  configured remote; GitHub PR/API operations use `gh` auth.
+  stores a GitHub PAT or reimplements GitHub auth for normal human PR work. Git
+  transport uses the user's configured remote; GitHub PR/API operations use
+  `gh` auth.
 - **Repo / install identity.** The repo is identified by the git checkout and
   `relay-os/` config. An install may additionally carry an anonymous telemetry
   identity, generated locally and stored only in gitignored local config/state —
   it counts active installs, it never names a person, repo, or path.
 - **Skill / task capability.** A task's capabilities are its ticket-level
-  `secrets:` list. Secret values live in `relay.local.toml` as literals (local
-  testing only) or, normally, as indirections: `env:VAR` and
-  `op://vault/item/field`. Launch resolves only what the task is allowed to
-  receive and fails loud when a declared value cannot be satisfied (e.g. `op`
-  missing, not signed in, or `op read` non-zero) — error messages name the
-  Relay secret key and reference, never the value. The extension seam for new
-  providers is **prefix dispatch in `config.py`**, not a provider registry: a
-  future provider is another explicit branch on the same shared secret path.
+  `secrets:` list, declared **inline** — each entry is a single-key map
+  `NAME: <ref>` whose `<ref>` is an `env:VAR` or `op://vault/item/field`
+  indirection (both safe to commit — they are pointers, not values; a raw
+  literal is rejected). There is no central `[secrets]` catalog: the ticket
+  carries the reference directly, and the trust boundary on what an `op://`
+  reference can read is 1Password's own vault/service-account permissions, not
+  a Relay allow-list. Launch resolves each ref live and fails loud when it
+  cannot be satisfied (`op` missing / not signed in / `op read` non-zero, or an
+  unset `env:VAR`) — error messages name the Relay secret name and reference,
+  never the value. The extension seam for new reference providers is **prefix
+  dispatch in `config.py`** (`parse_inline_secrets` / `select_launch_secrets`),
+  not a provider registry: a future provider is another explicit branch on the
+  same shared secret path.
 - **Hosted endpoint.** v1 has at most one hosted crossing — the anonymous
   telemetry sink, with a trivial opt-out. Relay does **not** ship a hosted
   account, signup/login flow, API-token store, or sync backend in v1.

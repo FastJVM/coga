@@ -37,7 +37,6 @@ def _cfg(repo_root: Path, **over) -> Config:
         agents={},
         slack_webhook=None,
         slack_enabled=False,
-        secrets={},
     )
     base.update(over)
     return Config(**base)

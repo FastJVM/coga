@@ -35,14 +35,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(
-        company / "relay.local.toml",
-        '''
-        user = "marc"
-        [secrets]
-        token = "env:TEST_TOKEN"
-        ''',
-    )
+    _write(company / "relay.local.toml", 'user = "marc"\n')
     _write(
         company / "workflows" / "ops.md",
         """
@@ -94,6 +87,9 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
         watchers=[], status="active",
     )
     ref = list_tasks(cfg)[0]
+    # Declare the secret inline on the ticket: scoped `token` resolved from the
+    # operator's `TEST_TOKEN` env var.
+    _set_ticket_secrets(ref, [{"token": "env:TEST_TOKEN"}])
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "check"])
@@ -102,6 +98,7 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     # Script wrote to the host repo (parent of relay-os/) with the secret
     output = (cfg.repo_root.parent / "script-output.txt").read_text()
     assert "token=secret-abc" in output
+    # The raw source var `TEST_TOKEN` is scrubbed from the child env.
     assert "source=\n" in output
     assert "slug=check" in output
     # File-form task has no per-task directory, so RELAY_TASK_DIR is the
@@ -134,7 +131,7 @@ def test_script_mode_fails_loud_on_unset_declared_secret(
         watchers=[], status="active",
     )
     ref = list_tasks(cfg)[0]
-    _set_ticket_secrets(ref, ["token"])
+    _set_ticket_secrets(ref, [{"token": "env:TEST_TOKEN"}])
 
     result = CliRunner().invoke(app, ["launch", "check"])
     assert result.exit_code != 0
@@ -164,10 +161,13 @@ def test_script_mode_least_privilege_empty_list_injects_nothing(
     result = CliRunner().invoke(app, ["launch", "check"])
     assert result.exit_code == 0, result.output
     output = (cfg.repo_root.parent / "script-output.txt").read_text()
-    # `secrets: []` is a strict lockdown — the token is withheld even though
-    # TEST_TOKEN is set in the environment.
+    # `secrets: []` is a strict lockdown — no scoped secret is injected, so the
+    # `token` NAME is empty in the child even though TEST_TOKEN is set in the env.
     assert "token=\n" in output
-    assert "source=\n" in output
+    # Scrubbing is tied to a ticket's inline `env:` refs; with none declared,
+    # the operator's own `TEST_TOKEN` env var is not touched. The lockdown is
+    # that Relay injects no *scoped* secret, not that it sanitizes the whole env.
+    assert "source=secret-abc\n" in output
 
 
 def test_script_mode_rejects_agent_override(repo: Path) -> None:

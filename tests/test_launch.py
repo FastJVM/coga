@@ -58,6 +58,7 @@ def _prompt_arg(cmd: list[str]) -> str:
 def _agent(
     auto: str,
     name_flag: str = "",
+    session_id_flag: str = "",
     discussion: str = "",
     skip_permissions: str = "",
     skip_permissions_argv: tuple[str, ...] = (),
@@ -69,6 +70,7 @@ def _agent(
         file="X.md",
         mode="local",
         name_flag=name_flag,
+        session_id_flag=session_id_flag,
         discussion=discussion,
         skip_permissions=skip_permissions,
         skip_permissions_argv=skip_permissions_argv,
@@ -108,6 +110,24 @@ def test_build_command_injects_name_flag_in_auto_mode() -> None:
         name="Fix retry backoff",
     )
     assert cmd == ["my-cli", "-n", "Fix retry backoff", "-p", "full prompt text"]
+
+
+def test_build_command_injects_session_id_after_name_flag() -> None:
+    cmd = build_agent_command(
+        _agent("-p", name_flag="-n", session_id_flag="--session-id"),
+        mode="interactive",
+        prompt="full prompt text",
+        name="Fix retry backoff",
+        session_id="session-123",
+    )
+    assert cmd == [
+        "my-cli",
+        "-n",
+        "Fix retry backoff",
+        "--session-id",
+        "session-123",
+        "full prompt text",
+    ]
 
 
 def test_build_command_skips_name_flag_when_agent_has_none() -> None:
@@ -722,24 +742,63 @@ def test_launch_refuses_and_stays_active_when_push_auth_broken(
     assert Ticket.read(ref.ticket_path).status == "active"
 
 
+def test_launch_captures_usage_with_session_id(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    text = (active_task / "relay.toml").read_text()
+    (active_task / "relay.toml").write_text(
+        text.replace(
+            'file = "CLAUDE.md"',
+            'file = "CLAUDE.md"\nsession_id_flag = "--session-id"',
+            1,
+        )
+    )
+    calls: list[list[str]] = []
+    captures: list[dict] = []
+    _allow_interactive_tty(monkeypatch)
+
+    def fake_supervisor(cmd, env, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return ReplOutcome(0, "natural")
+
+    def fake_capture(**kwargs):  # type: ignore[no-untyped-def]
+        captures.append(kwargs)
+
+    monkeypatch.setattr(
+        "relay.commands.launch.run_with_done_marker", fake_supervisor
+    )
+    monkeypatch.setattr(
+        "relay.commands.launch.usage_tracking.capture_session", fake_capture
+    )
+    monkeypatch.setattr(
+        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    assert "--session-id" in calls[0]
+    session_id = calls[0][calls[0].index("--session-id") + 1]
+    assert len(captures) == 1
+    assert captures[0]["session_id"] == session_id
+    assert captures[0]["slug"] == "fix-retry-logic"
+    assert captures[0]["step"] == "execute"
+    assert captures[0]["agent"] == "claude"
+    assert captures[0]["cli"] == "claude"
+
+
 def test_launch_fails_loud_on_unset_declared_secret(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _allow_slack(monkeypatch)
     _allow_interactive_tty(monkeypatch)
     monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
-    _write(
-        active_task / "relay.local.toml",
-        """
-        user = "marc"
-        [secrets]
-        stripe_key = "env:STRIPE_SECRET_KEY"
-        """,
-    )
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.ticket_path)
-    t.frontmatter["secrets"] = ["stripe_key"]
+    # Inline per-ticket secret pointing at an env var that is not exported.
+    t.frontmatter["secrets"] = [{"stripe_key": "env:STRIPE_SECRET_KEY"}]
     t.write(ref.ticket_path)
 
     calls: list[list[str]] = []
@@ -770,19 +829,12 @@ def test_launch_injects_only_declared_secret(
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live")
     monkeypatch.setenv("OTHER_SECRET", "nope")
-    _write(
-        active_task / "relay.local.toml",
-        """
-        user = "marc"
-        [secrets]
-        stripe_key = "env:STRIPE_SECRET_KEY"
-        other = "env:OTHER_SECRET"
-        """,
-    )
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.ticket_path)
-    t.frontmatter["secrets"] = ["stripe_key"]
+    # Only `stripe_key` is declared inline; `OTHER_SECRET` is set in the env but
+    # the ticket never references it, so it must not leak to the child.
+    t.frontmatter["secrets"] = [{"stripe_key": "env:STRIPE_SECRET_KEY"}]
     t.write(ref.ticket_path)
 
     captured: dict[str, str] = {}
@@ -801,12 +853,13 @@ def test_launch_injects_only_declared_secret(
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
-    # Only the declared secret was injected; the undeclared one is withheld.
+    # Only the declared secret was injected, under its scoped NAME.
     assert captured.get("stripe_key") == "sk_live"
     assert "other" not in captured
-    # The raw source env vars used to resolve `[secrets]` are scrubbed too.
+    # The raw source env var the `env:` ref points at is scrubbed from the
+    # child; an undeclared env var that was never referenced is left untouched.
     assert "STRIPE_SECRET_KEY" not in captured
-    assert "OTHER_SECRET" not in captured
+    assert captured.get("OTHER_SECRET") == "nope"
 
 
 def test_launch_fails_loud_on_op_read_error(
@@ -816,22 +869,16 @@ def test_launch_fails_loud_on_op_read_error(
     # agent is spawned, naming the key and reference (never a value).
     _allow_slack(monkeypatch)
     _allow_interactive_tty(monkeypatch)
-    _write(
-        active_task / "relay.local.toml",
-        """
-        user = "marc"
-        [secrets]
-        stripe_key = "op://vault/stripe/key"
-        """,
-    )
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.ticket_path)
-    t.frontmatter["secrets"] = ["stripe_key"]
+    t.frontmatter["secrets"] = [{"stripe_key": "op://vault/stripe/key"}]
     t.write(ref.ticket_path)
 
-    # `relay.config` and `relay.commands.launch` share one `subprocess` module,
-    # so a single dispatching mock serves both the `op read` and the agent spawn.
+    # `relay.config` and `relay.commands.launch` import the same `subprocess`
+    # module, so patching `relay.config.subprocess.run` covers both the `op read`
+    # resolution and the agent spawn. The op read is mocked non-zero → SecretError
+    # before any spawn, so `calls` stays empty.
     calls: list[list[str]] = []
 
     def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
@@ -861,18 +908,10 @@ def test_launch_injects_op_secret(
 ) -> None:
     _allow_slack(monkeypatch)
     _allow_interactive_tty(monkeypatch)
-    _write(
-        active_task / "relay.local.toml",
-        """
-        user = "marc"
-        [secrets]
-        stripe_key = "op://vault/stripe/key"
-        """,
-    )
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.ticket_path)
-    t.frontmatter["secrets"] = ["stripe_key"]
+    t.frontmatter["secrets"] = [{"stripe_key": "op://vault/stripe/key"}]
     t.write(ref.ticket_path)
 
     # One dispatching mock for both modules' shared `subprocess`: `op read`

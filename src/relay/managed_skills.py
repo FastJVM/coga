@@ -265,5 +265,4 @@ def _manifest_skill_config(relay_os: Path) -> Config:
         agents={},
         slack_webhook=None,
         slack_enabled=False,
-        secrets={},
     )

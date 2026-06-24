@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -41,7 +42,13 @@ from typing import Any, Iterable
 import requests
 
 from relay.blackboard import BLACKBOARD_WARN_BYTES, blackboard_size_warning, render_blackboard
-from relay.config import Config, ConfigError, load_config
+from relay.config import (
+    Config,
+    ConfigError,
+    SecretError,
+    load_config,
+    parse_inline_secrets,
+)
 from relay.logfile import last_activity
 from relay.taskfile import BLACKBOARD_FENCE, fence_count
 from relay.period_state import read_snapshot, stale_keys
@@ -553,18 +560,20 @@ def _check_frontmatter_schema(
 
 
 def _check_secrets(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
-    """Validate a ticket's `secrets:` declaration.
+    """Validate a ticket's inline `secrets:` declaration.
 
-    Shape is an error (the field is otherwise free-form): `secrets:` must be
-    `null` or a list of strings. Env presence is a warning, not an error, since
-    which env vars are exported is per-shell: a declared key absent from
-    `[secrets]`, or one whose `env:VAR` is unset in this environment, warns so
-    a launch-time fail-loud isn't a surprise.
+    Secrets are declared inline (no `[secrets]` catalog): `secrets:` must be
+    `null`/`[]` or a list of single-key `{NAME: ref}` maps where each ref is an
+    `op://vault/item/field` or `env:VAR` indirection. A malformed shape, a
+    bare-string (removed catalog-key form), or a raw literal value is a hard
+    error — reusing `parse_inline_secrets` so validate and launch agree exactly.
 
-    An `op://` reference is intentionally **not** probed here: validate never
-    requires a real 1Password account, so it does no live `op read` (that
-    belongs to explicit launch / `relay secret get`). An op secret is neither
-    undeclared nor env-unset (`missing` is env-only), so it produces no issue.
+    Env presence is a warning, not an error, since which env vars are exported is
+    per-shell: an `env:VAR` reference whose var is unset in this environment
+    warns so a launch-time fail-loud isn't a surprise. An `op://` reference is
+    intentionally **not** probed here — validate never requires a real 1Password
+    account, so it does no live `op read` (that belongs to explicit launch /
+    `relay secret get`).
     """
     out: list[Issue] = []
     fm = ticket.frontmatter
@@ -573,36 +582,29 @@ def _check_secrets(cfg: Config, task_label: str, ticket: Ticket) -> list[Issue]:
     declared = fm["secrets"]
     if declared is None:
         return out
-    if not _is_string_list(declared):
+    try:
+        parsed = parse_inline_secrets(declared)
+    except SecretError as exc:
         out.append(Issue(
             kind="bad-shape",
             task=task_label,
-            message=f"secrets must be `null` or a list of strings, got {declared!r}",
+            message=str(exc),
             severity="error",
         ))
         return out
-    for key in declared:
-        sv = cfg.secrets.get(key)
-        if sv is None:
-            out.append(Issue(
-                kind="undeclared-secret",
-                task=task_label,
-                message=(
-                    f"declares secret {key!r} but it is not defined in "
-                    "[secrets] in relay.local.toml"
-                ),
-                severity="warn",
-            ))
-        elif sv.missing:
-            out.append(Issue(
-                kind="unset-secret-env",
-                task=task_label,
-                message=(
-                    f"declared secret {key!r} points at env var "
-                    f"{sv.env_var!r}, which is unset in this environment"
-                ),
-                severity="warn",
-            ))
+    for name, ref in parsed:
+        if ref.startswith("env:"):
+            var = ref[len("env:") :]
+            if os.environ.get(var) is None:
+                out.append(Issue(
+                    kind="unset-secret-env",
+                    task=task_label,
+                    message=(
+                        f"declared secret {name!r} points at env var "
+                        f"{var!r}, which is unset in this environment"
+                    ),
+                    severity="warn",
+                ))
     return out
 
 
