@@ -33,7 +33,7 @@ def show(
 
     console = Console()
 
-    # Bootstrap shims are stateless: only ticket.md is meaningful.
+    # Bootstrap tickets are stateless: only ticket.md is meaningful.
     files = ["ticket.md"] if isinstance(ref, BootstrapRef) else ["ticket.md", "blackboard.md", "log.md"]
 
     for i, name in enumerate(files):

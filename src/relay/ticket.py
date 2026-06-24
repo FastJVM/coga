@@ -147,7 +147,7 @@ class Ticket:
 
     @property
     def skills(self) -> list[str]:
-        """Ticket-level skill refs (plural). Used by bootstrap shims that
+        """Ticket-level skill refs (plural). Used by bootstrap tickets that
         aren't workflow-bound and by normal tickets that want extra process
         instructions on top of the current workflow step."""
         value = self.frontmatter.get("skills") or []

@@ -107,7 +107,7 @@ There is no filesystem mutex. The ticket's `status` field is the only signal tha
 - `draft` means unapproved, `active` means approved/queued, and `in_progress` means launched work.
 - `relay launch` accepts `status: active` or `status: in_progress`. Launching active work marks it `in_progress`; launching already-in-progress work resumes it.
 - `relay bump` moves only `in_progress` workflow tasks.
-- Bootstrap shims are stateless and exempt — they are re-entry points, not units of work.
+- Bootstrap tickets are stateless and exempt — they are re-entry points, not units of work.
 - Dream's `validate-drift` skill flags tasks stuck in `in_progress` with no recent log activity. Recovery is human-initiated.
 
 We tried a `task.lock` file-existence mutex first. It cost a module of acquisition/release logic, `--force` flags on `launch` and `delete`, orphan-cleanup machinery, and two "don't touch task.lock" lines in the base prompt — to guarantee something (two concurrent workers on the same slug) that almost never happened under one-task-one-worker. The failure mode without the mutex is two divergent blackboard edits and two PR branches; both are visible in git and recoverable by hand. Dropping the lock simplified six call sites and removed all of the above.

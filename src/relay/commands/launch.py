@@ -8,7 +8,7 @@ so those fail loud with the same remedy `mark active` gives.) An
 already-`in_progress` ticket resumes without another status flip. A `done`
 ticket is refused and left untouched.
 
-Bootstrap shims are stateless re-entry points (no status, no log of state
+Bootstrap tickets are stateless re-entry points (no status, no log of state
 changes) — launch is the only way to run a skill against one.
 """
 
@@ -65,7 +65,7 @@ from relay.validate import TaskValidationError
 from relay.workflow import WorkflowError
 
 
-DISCUSSION_BOOTSTRAP_SHIMS = frozenset({"bootstrap/orient", "bootstrap/ticket"})
+DISCUSSION_BOOTSTRAP_TICKETS = frozenset({"bootstrap/orient", "bootstrap/ticket"})
 DEFAULT_DISCUSSION_TEMPLATES = {
     "claude": "--append-system-prompt {prompt}",
     "codex": "-c developer_instructions={prompt}",
@@ -73,11 +73,11 @@ DEFAULT_DISCUSSION_TEMPLATES = {
 
 
 def launch(
-    task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` shim."),
+    task: str = typer.Argument(..., help="Task ID, id-slug, or `bootstrap/<name>` ticket."),
     agent_override: str | None = typer.Option(
         None,
         "--agent",
-        help="Agent nickname to use for this launch instead of the ticket/shim assignee.",
+        help="Agent nickname to use for this launch instead of the ticket assignee.",
     ),
     prompt_report: bool = typer.Option(
         False,
@@ -467,14 +467,14 @@ def launch(
             )
             break
 
-        # Bootstrap shims are stateless single-shot launches — they have no
+        # Bootstrap tickets are stateless single-shot launches — they have no
         # workflow to chain across, so stop after the one run. A normal
         # workflow ticket that happens to declare ticket-level `skills:`
         # MUST still chain; gating on `ticket.skills` here (a rename
         # artifact of the old singular skill-shim field) silently broke that.
         if is_bootstrap:
             typer.echo(
-                f"Launch: {ref.id_slug} is a bootstrap shim — not chaining"
+                f"Launch: {ref.id_slug} is a bootstrap ticket — not chaining"
             )
             break
 
@@ -549,7 +549,7 @@ def _preflight_push_auth(
     uses (so a logged-out HTTPS remote fails fast, not on a prompt).
 
     Self-skips when there is nothing to push to or no sync configured:
-    bootstrap shims (stateless, no PR), `[git].enabled = false`, and any
+    bootstrap tickets (stateless, no PR), `[git].enabled = false`, and any
     checkout where the configured remote does not resolve (not a git repo / no
     remote) — which is also why the non-git launch test fixtures are
     unaffected. Only a *configured, reachable-but-unauthenticated* remote bails.
@@ -787,7 +787,7 @@ def _skip_permissions_argv_for_launch(
     The policy is machine-local per-agent config (`relay.local.toml`
     `[agents.<name>] skip_permissions = "auto"`) and applies only to normal
     task tickets running in effective `mode: auto`. Bootstrap/discussion
-    shims and interactive/script launches always get `()` — today's
+    tickets and interactive/script launches always get `()` — today's
     behavior. Called per step so supervised chains re-evaluate the policy
     for whichever agent the current step rotated to.
 
@@ -810,7 +810,7 @@ def _skip_permissions_argv_for_launch(
 
 
 def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
-    return isinstance(ref, BootstrapRef) and ref.id_slug in DISCUSSION_BOOTSTRAP_SHIMS
+    return isinstance(ref, BootstrapRef) and ref.id_slug in DISCUSSION_BOOTSTRAP_TICKETS
 
 
 def _bootstrap_kickoff(ref: TaskRef | BootstrapRef) -> str | None:

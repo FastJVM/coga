@@ -974,9 +974,9 @@ def _seed_local_relay_os(root: Path) -> Path:
     (relay_os / "skills" / "myteam" / "real-skill").mkdir(parents=True)
     (relay_os / "skills" / "myteam" / "real-skill" / "SKILL.md").write_text("user content\n")
     (relay_os / "bootstrap" / "create").mkdir(parents=True)
-    (relay_os / "bootstrap" / "create" / "ticket.md").write_text("OLD bootstrap shim\n")
+    (relay_os / "bootstrap" / "create" / "ticket.md").write_text("OLD bootstrap ticket\n")
     (relay_os / "bootstrap" / "stale").mkdir(parents=True)
-    (relay_os / "bootstrap" / "stale" / "ticket.md").write_text("STALE shim from a prior upstream\n")
+    (relay_os / "bootstrap" / "stale" / "ticket.md").write_text("STALE ticket from a prior upstream\n")
     (relay_os / "relay.toml").write_text("version = 1\n")
     (relay_os / "rules.md").write_text("user-edited rules\n")
 
@@ -984,7 +984,7 @@ def _seed_local_relay_os(root: Path) -> Path:
     (relay_os / "counter").write_text("7\n")
     # Stale top-level dir an earlier upstream shipped (meta/ → bootstrap/ rename).
     (relay_os / "meta").mkdir()
-    (relay_os / "meta" / "ticket.md").write_text("OLD meta/ shim\n")
+    (relay_os / "meta" / "ticket.md").write_text("OLD meta/ ticket\n")
     # Stale nested dir from a bootstrap skill rename (create → ticket in 350c4ed).
     (relay_os / "skills" / "bootstrap" / "create").mkdir(parents=True)
     (relay_os / "skills" / "bootstrap" / "create" / "SKILL.md").write_text("OLD bootstrap/create skill\n")
@@ -1069,7 +1069,7 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     )
     (templates / "rules.md").write_text("NEW upstream rules — should NOT be copied (no _ prefix)\n")
     (templates / "bootstrap" / "create").mkdir(parents=True)
-    (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap shim\n")
+    (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap ticket\n")
     # All vendored skills and contexts now live under `bootstrap/`.
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text(
@@ -1181,8 +1181,8 @@ def test_init_update_refreshes_cli_and_underscore_templates(
 
     assert (relay_os / "skills" / "_template" / "SKILL.md").read_text() == "NEW skill template\n"
     assert (relay_os / "tasks" / "_template" / "ticket.md").read_text() == "NEW ticket template\n"
-    # Bootstrap shims are infra — the whole tree mirrors upstream on --update.
-    assert (relay_os / "bootstrap" / "create" / "ticket.md").read_text() == "NEW bootstrap shim\n"
+    # Bootstrap tickets are infra — the whole tree mirrors upstream on --update.
+    assert (relay_os / "bootstrap" / "create" / "ticket.md").read_text() == "NEW bootstrap ticket\n"
     # Vendored skills + canonical contexts live under bootstrap/.
     assert (
         (relay_os / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").read_text()
@@ -1445,7 +1445,7 @@ def test_init_update_in_relay_source_checkout_materializes_gitignored_mirrors(
     # Gitignored mirrors must still land — that's the whole point of this path.
     assert (
         relay_os / "bootstrap" / "create" / "ticket.md"
-    ).read_text() == "NEW bootstrap shim\n"
+    ).read_text() == "NEW bootstrap ticket\n"
     assert (
         relay_os / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md"
     ).read_text() == "NEW bootstrap/ticket skill\n"
@@ -2412,7 +2412,7 @@ def test_update_all_refreshes_every_repo(
         )
         assert (
             (relay_os / "bootstrap" / "create" / "ticket.md").read_text()
-            == "NEW bootstrap shim\n"
+            == "NEW bootstrap ticket\n"
         )
         assert (relay_os / ".relay" / "RELAY_PIN").is_file()
     # install_venv ran exactly once per repo.

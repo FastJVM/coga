@@ -61,7 +61,7 @@ class TaskRef:
 
 @dataclass(frozen=True)
 class BootstrapRef:
-    """A persistent launch-shim ticket under `relay-os/bootstrap/<name>/`.
+    """A persistent bootstrap ticket under `relay-os/bootstrap/<name>/`.
 
     Bootstrap tickets are stateless re-entry points (no status flips, no lock).
     `id_slug` matches the launch arg form so logs read naturally.
@@ -245,7 +245,7 @@ def resolve_task(cfg: Config, task_arg: str) -> TaskRef:
 
 
 def resolve_bootstrap(cfg: Config, name: str) -> BootstrapRef:
-    """Resolve a bootstrap shim by name (e.g. "ticket" or "bootstrap/ticket")."""
+    """Resolve a bootstrap ticket by name (e.g. "ticket" or "bootstrap/ticket")."""
     if name.startswith(_BOOTSTRAP_PREFIX):
         name = name[len(_BOOTSTRAP_PREFIX):]
     path = bootstrap_path(cfg, name)
@@ -258,7 +258,7 @@ def resolve_bootstrap(cfg: Config, name: str) -> BootstrapRef:
 
 
 def resolve_target(cfg: Config, arg: str) -> TargetRef:
-    """Resolve a target arg to either a task slug or a bootstrap shim."""
+    """Resolve a target arg to either a task slug or a bootstrap ticket."""
     if arg.startswith(_BOOTSTRAP_PREFIX):
         return resolve_bootstrap(cfg, arg)
     return resolve_task(cfg, arg)

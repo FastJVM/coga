@@ -201,7 +201,7 @@ mycompany/
     ├── workflows/              # multi-step recipes
     ├── recurring/              # cron-like recurring task templates
     ├── tasks/                  # one dir per task (named by slug): ticket.md, blackboard.md, log.md
-    ├── bootstrap/              # persistent launch shims (e.g. bootstrap/ticket)
+    ├── bootstrap/              # persistent bootstrap tickets (e.g. bootstrap/ticket)
     └── .relay/                 # vendored CLI + venv (gitignored)
         ├── src/relay/          # CLI source
         ├── .venv/              # self-contained venv
@@ -289,7 +289,7 @@ relay-os` / `pip uninstall relay-os` commands. Add `--purge` to run the global
 uninstall too.
 
 **Batteries and skill discovery.** The installed Relay package carries bundled
-skills, contexts, hooks, and bootstrap shims as package resources. `pip install`
+skills, contexts, hooks, and bootstrap tickets as package resources. `pip install`
 puts those resources in the wheel; `relay init` / `relay init --update`
 materializes them into `relay-os/bootstrap/`. Project-local
 `relay-os/skills/` and `relay-os/contexts/` still win when they define the same
@@ -513,7 +513,7 @@ relay launch add-retry                              # any unique prefix works
 relay launch add-retry --agent codex                # one-off agent override
 relay launch add-retry --mode interactive           # debug: run an auto ticket interactively
 relay launch add-retry --prompt-report              # show prompt layer sizes, no launch
-relay launch bootstrap/orient                       # stateless shim → run a skill
+relay launch bootstrap/orient                       # stateless launch target → run a skill
 relay launch bootstrap/orient --agent codex         # choose a bootstrap agent
 ```
 
@@ -523,11 +523,11 @@ Tasks are addressed by slug — there is no numeric ID. Pass any unique prefix
 The agent type comes from the ticket's `assignee` (e.g. `claude`), which
 names an `[agents.<type>]` block in `relay.toml` directly. Pass
 `--agent <type>` to override for this launch only; normal task launches do
-not rewrite the ticket's `assignee`. Bootstrap shims use the same flag for
-one-off sessions, so `relay chat --agent codex` can open the orient shim
+not rewrite the ticket's `assignee`. Bootstrap tickets use the same flag for
+one-off sessions, so `relay chat --agent codex` can open the orient ticket
 with Codex while `relay chat --agent claude` opens it with Claude.
 
-Discussion shims (`bootstrap/orient`, `bootstrap/ticket`) use built-in
+Discussion tickets (`bootstrap/orient`, `bootstrap/ticket`) use built-in
 discussion templates for the standard `claude` and `codex` CLIs, or the
 selected agent's optional `discussion = "...{prompt}..."` override. In
 interactive mode the Relay prompt is context and the first human ask can name
@@ -559,7 +559,7 @@ useful for running an `auto` ticket `interactive`ly.
 `bootstrap/<name>` tickets are stateless re-entry points for skills.
 Concurrent launches are safe — they have no status, no log of state changes,
 and no lock. The `relay-os/bootstrap/` tree is upstream-managed and refreshed
-wholesale by `relay init --update`, so don't add custom shims there — write
+wholesale by `relay init --update`, so don't add custom bootstrap tickets there — write
 your own launch wrappers elsewhere.
 
 For autonomous runs, an operator can opt an agent into skipping its CLI's
@@ -575,7 +575,7 @@ skip_permissions_argv = "--dangerously-skip-permissions"
 The policy is machine-local by design — committing either key to shared
 `relay.toml` fails config load, so a repo can never set a dangerous default
 for everyone. It applies only to normal task tickets in effective
-`mode: auto`: interactive launches, bootstrap/discussion shims (`relay chat`,
+`mode: auto`: interactive launches, bootstrap/discussion tickets (`relay chat`,
 `relay ticket`), and script tasks keep today's behavior. The argv is one
 string (`shlex`-split) inserted between the session-name argv and the auto
 argv/prompt — e.g. `codex --dangerously-bypass-approvals-and-sandbox exec
@@ -587,7 +587,7 @@ Verify the flags against your installed CLIs before enabling.
 ### `relay status`
 
 Show the live tasks in the repo — `draft`, `active`, `in_progress`, and `paused`.
-One line per task. Bootstrap shims have no status and don't appear. `done`
+One line per task. Bootstrap tickets have no status and don't appear. `done`
 tickets are hidden by default (the listing ends with a `(N done tasks hidden —
 use --all to show)` note); add `--all` (`-a`) to include them.
 
@@ -600,7 +600,7 @@ relay status --all
 
 Print a task's `ticket.md`, `blackboard.md`, and `log.md` to the
 terminal, rendered as markdown. Same prefix matching as `bump`/`launch`.
-Bootstrap shims show only `ticket.md`. For grep/pipe use, read the
+Bootstrap tickets show only `ticket.md`. For grep/pipe use, read the
 files directly — `show` is for human eyes.
 
 ```sh
@@ -653,7 +653,7 @@ Throw away an abandoned ticket. Removes the whole task directory —
 ticket, blackboard, log. Recovery is via `git restore`; the git
 history is the audit trail, no Slack broadcast.
 
-Bootstrap shims aren't user-deletable — they're managed by
+Bootstrap tickets aren't user-deletable — they're managed by
 `relay init --update`.
 
 ```sh
@@ -838,7 +838,7 @@ build = "launch relay-build"
 ```
 
 `draft`, `ticket`, and `create` are built-in commands, not aliases. Add your
-own aliases for shims or skills you launch often; running an alias prints the
+own aliases for bootstrap tickets or skills you launch often; running an alias prints the
 expansion to stderr —
 `→ relay launch bootstrap/orient` — so the indirection is visible.
 

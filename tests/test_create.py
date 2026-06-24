@@ -454,8 +454,8 @@ def test_create_log_entry_written(repo: Path) -> None:
 
 
 @pytest.fixture
-def repo_with_shim(repo: Path) -> Path:
-    """Same fixture as `repo`, plus the bootstrap/ticket shim + skill."""
+def repo_with_bootstrap_ticket(repo: Path) -> Path:
+    """Same fixture as `repo`, plus the `bootstrap/ticket` launch target + skill."""
     _write(
         repo / "bootstrap" / "ticket" / "ticket.md",
         """
@@ -469,7 +469,7 @@ def repo_with_shim(repo: Path) -> Path:
 
         ## Description
 
-        Persistent launch shim.
+        Persistent launch target.
         """,
     )
     _write(
@@ -490,11 +490,11 @@ def repo_with_shim(repo: Path) -> Path:
 
 
 def test_recurring_creates_silently(
-    repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
+    repo_with_bootstrap_ticket: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Bare `relay recurring` scans and creates due tasks without lifecycle Slack."""
     _write(
-        repo_with_shim / "recurring" / "weekly-check" / "ticket.md",
+        repo_with_bootstrap_ticket / "recurring" / "weekly-check" / "ticket.md",
         """
         ---
         schedule: "0 9 * * 1"
@@ -509,7 +509,7 @@ def test_recurring_creates_silently(
         Run the diagnostic suite.
         """,
     )
-    monkeypatch.chdir(repo_with_shim)
+    monkeypatch.chdir(repo_with_bootstrap_ticket)
 
     slack_msgs: list[str] = []
 
@@ -527,9 +527,9 @@ def test_recurring_creates_silently(
     # The bare scan launches due tasks sequentially; mark the stubbed launch
     # done so the recurring sweep sees a completed run.
     def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
-        ticket = Ticket.read(repo_with_shim / "tasks" / task / "ticket.md")
+        ticket = Ticket.read(repo_with_bootstrap_ticket / "tasks" / task / "ticket.md")
         ticket.frontmatter["status"] = "done"
-        ticket.write(repo_with_shim / "tasks" / task / "ticket.md")
+        ticket.write(repo_with_bootstrap_ticket / "tasks" / task / "ticket.md")
 
     monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
 
@@ -542,11 +542,11 @@ def test_recurring_creates_silently(
 
 
 def test_recurring_posts_error_summary(
-    repo_with_shim: Path, monkeypatch: pytest.MonkeyPatch
+    repo_with_bootstrap_ticket: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A broken template surfaces as a Slack summary, not just stderr."""
-    _write(repo_with_shim / "recurring" / "broken.md", "no frontmatter here\n")
-    monkeypatch.chdir(repo_with_shim)
+    _write(repo_with_bootstrap_ticket / "recurring" / "broken.md", "no frontmatter here\n")
+    monkeypatch.chdir(repo_with_bootstrap_ticket)
 
     slack_msgs: list[str] = []
 
@@ -564,7 +564,7 @@ def test_recurring_posts_error_summary(
     assert result.exit_code == 0, result.output
     assert any("skipped 1 template" in m and "broken.md" in m for m in slack_msgs)
     # Path duplication regression: the bullet should NOT contain the full file path.
-    assert not any(str(repo_with_shim) in m for m in slack_msgs)
+    assert not any(str(repo_with_bootstrap_ticket) in m for m in slack_msgs)
 
 
 # --- `relay create` CLI ------------------------------------------------------

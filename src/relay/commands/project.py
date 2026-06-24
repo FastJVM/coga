@@ -56,12 +56,12 @@ def project(
         ref = resolve_bootstrap(cfg, "project")
     except TaskNotFoundError as exc:
         _bail(
-            f"{exc}\nThe bootstrap/project shim ships with the package — run "
+            f"{exc}\nThe bootstrap/project ticket ships with the package — run "
             "`relay init --update` to vendor it."
         )
-    shim_ticket = read_ticket(ref)
+    bootstrap_ticket = read_ticket(ref)
 
-    launch_assignee = agent_override or shim_ticket.assignee
+    launch_assignee = agent_override or bootstrap_ticket.assignee
     if not launch_assignee:
         _bail("No planning agent configured; pass --agent <nickname>.")
 
@@ -89,7 +89,7 @@ def project(
         session = spawn_agent_session(
             cfg,
             ref,
-            shim_ticket,
+            bootstrap_ticket,
             agent,
             "interactive",
             env=os.environ.copy(),

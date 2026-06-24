@@ -10,7 +10,7 @@ contexts:
 
 ## Description
 
-Stateless launch shim. `relay launch bootstrap/orient` drops an agent
+Stateless launch target. `relay launch bootstrap/orient` drops an agent
 into a fully-composed relay-aware session — global rules, repo context,
 and the canonical relay/* contexts (architecture, principles, cli).
 No ticket, no workflow, no lock.
@@ -34,7 +34,7 @@ What the agent should do once oriented:
   initiative.
 - If asked for a triage view, run `relay status` and summarize.
 
-This is a bootstrap shim, not a `tasks/` ticket: stateless — no status,
+This is a bootstrap ticket, not a `tasks/` ticket: stateless — no status,
 no owner, no log, no lock — every launch is independent and concurrent
-launches are safe. Don't edit this shim except to swap `assignee` to
+launches are safe. Don't edit this ticket except to swap `assignee` to
 whichever agent type matches your `relay.toml`.

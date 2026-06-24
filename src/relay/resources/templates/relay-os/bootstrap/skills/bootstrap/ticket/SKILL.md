@@ -42,8 +42,8 @@ way that matches how this skill was launched. Read the prompt header and ticket
 body to tell which of these you're in:
 
 - **Empty interview** — the header id-slug is `bootstrap/ticket`, there is **no
-`Status:` line**, and the Description is the "Persistent launch shim" text.
-You're inside the stateless shim with no target. Open with:
+`Status:` line**, and the Description is the "Persistent launch target" text.
+You're inside the stateless bootstrap ticket with no target. Open with:
 > "You ran `relay ticket` without naming a ticket, so: are you starting a
 > **new** ticket, or editing an **existing** one?"
 Keep the greeting command-light: refer to it as `relay ticket`, not the
@@ -123,7 +123,7 @@ Rules:
   skill exists but no workflow uses it yet, mention the skill ref in the body
   or propose the workflow change.
 
-The exception is `bootstrap/orient`, which is the orientation shim itself; it
+The exception is `bootstrap/orient`, which is the orientation ticket itself; it
 intentionally attaches broad relay contexts so an ad-hoc oriented session has
 the operator reference loaded.
 
@@ -178,7 +178,7 @@ answer.
 5. **Contexts to attach** — which exact context bodies must be included in the
    future prompt? Keep the list narrow. If only a specific fact is needed, put
    it in `## Context` instead of attaching the whole context.
-6. **Assignee** — default to whatever the shim seeded (usually the human's
+6. **Assignee** — default to whatever the bootstrap ticket seeded (usually the human's
    primary agent). Confirm if the work clearly fits a different agent or
    needs to go to a human.
 7. **Extension fields** — if `relay.toml` declares any `[ticket.fields.<name>]`

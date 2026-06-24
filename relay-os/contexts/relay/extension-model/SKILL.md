@@ -1,6 +1,6 @@
 ---
 name: relay/extension-model
-description: How Relay's command surface is meant to extend — the three homes for logic (kernel, tickets, external tools), aliases as sugar, the launch-rooted kernel (launch plus what it depends on), and the shape test (parameters? state? when does it run?) that decides where a command-shaped thing belongs. Read this before adding a command, an alias, or a shim, or before arguing a built-in must stay one.
+description: How Relay's command surface is meant to extend — the three homes for logic (kernel, tickets, external tools), aliases as sugar, the launch-rooted kernel (launch plus what it depends on), and the shape test (parameters? state? when does it run?) that decides where a command-shaped thing belongs. Read this before adding a command or an alias, or before arguing a built-in must stay one.
 ---
 
 # Relay extension model
@@ -31,9 +31,8 @@ Aliases are not a fourth home — they are argv sugar pointing at one of the thr
      implementation yet**: today a stateless Relay operation can only be a
      built-in command or a `mode: script` ticket step. A first-class surface for
      it (a `gh`-style extension, a separate package/service, or a
-     `relay-os/scripts/` target `launch` can call) is the sibling of the tier-2
-     shim. The mechanism design now lives in
-     `docs/cli-extension-external-surface.md`.
+     `relay-os/scripts/` target `launch` can call) is still to be designed — the
+     mechanism design now lives in `docs/cli-extension-external-surface.md`.
 
 ## The decision rule
 
@@ -131,8 +130,8 @@ preserve, not a gap to fill. The load-bearing invariant (`relay/architecture`) i
 that **the prompt is a pure function of the files on disk now**.
 
 - A param **materialized into the ticket's files at creation** becomes state — fine,
-  and already how `retire`, recurring instantiation, and the tier-2 shim work
-  (`arg → draft` writes the arg into the draft).
+  and already how `retire`, recurring instantiation, and the ticket-authoring
+  commands work (`arg → draft` writes the arg into the draft).
 - A param passed **at launch, per-invocation, not persisted** is forbidden: it
   smuggles hidden input that is not in the repo, so re-running the same slug does
   different things for reasons no file records. That breaks reproducibility and the
@@ -162,11 +161,11 @@ actively fights the capability boundary.
 
 ## Two guardrails
 
-- **No worse Typer.** Do not add transient launch-time parameters, and do not grow
-  the tier-2 shim past the single fixed shape `arg → create-draft-with-workflow →
-  launch`. Conditionals, computed args, types, or validation in `relay.toml` rebuild
-  Typer worse and in TOML — an illegible config DSL that violates the legibility
-  non-negotiable (`relay/principles`). Branching logic belongs in a tier-3 skill.
+- **No worse Typer.** Do not add transient launch-time parameters, and do not let an
+  `arg → create-draft-with-workflow → launch` authoring command grow past that single
+  fixed shape. Conditionals, computed args, types, or validation in `relay.toml`
+  rebuild Typer worse and in TOML — an illegible config DSL that violates the
+  legibility non-negotiable (`relay/principles`). Branching logic belongs in a skill.
 - **No inversion.** Relocating logic out of the kernel must move the *substance
   unchanged* — `mode: script` Python with its tests intact — never rewrite a
   deterministic check as agent judgment because it now lives "in a skill." Change
@@ -177,7 +176,7 @@ actively fights the capability boundary.
 | Home | Members |
 | --- | --- |
 | **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · *(hooks)* secret-inject, skill-verify-at-compose |
-| **Tickets** | already out: `automerge`→sweep, `digest`→post, `delete`→delete-task · move target: `recurring` (scan) · fused, pending tier-2: `ticket`, `project`, `retire` |
+| **Tickets** | already out: `automerge`→sweep, `digest`→post, `delete`→delete-task · move target: `recurring` (scan) · fused, authoring moving to tickets: `ticket`, `project`, `retire` |
 | **External / command** | reads: `status`, `show`, `recurring list`, `skill status`, `validate` · external CLI: `skill install/install-local/install-url/update/remove`, `init --update` · notify/escape: `slack`, `panic` · `secret get` |
 | **Alias (sugar)** | `chat`, `dream`, `build` · (proposed) `skill-update`, `autoclose` |
 
@@ -198,10 +197,11 @@ model):
   "stays kernel" to "becomes an external script."
 - **Pass 2 — what goes *into tickets*** (execution;
   `cli-extension-model/move-command-logic-to-tickets`). Moves the read views
-  (`status`/`show`/`recurring list`/`skill status`) → stateless script shims and
-  `recurring` scan → a Dream-shaped task (neither needs a new mechanism), and
-  collapses the `arg → draft` heads of `ticket`/`project`/`retire` onto the
-  **tier-2 shim** built there (its one new mechanism).
+  (`status`/`show`/`recurring list`/`skill status`) → stateless script tickets
+  (tickets-as-scripts) and `recurring` scan → a Dream-shaped task (neither needs a
+  new mechanism), and moves ticket-authoring (`ticket`/`project`/`retire`) into
+  tickets via `move-ticket-authoring-out-of-core`; no new launcher mechanism is
+  introduced.
 
 Each pass respects the carve-outs: the secret/state-write kernel does not move, and
 externalized logic stays tested Python (the no-inversion guardrail).

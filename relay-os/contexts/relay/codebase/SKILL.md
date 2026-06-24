@@ -42,7 +42,7 @@ relay-os/
   context.md             ← repo-context layer of the composed prompt
   recurring/<name>/      ← recurring task template directories
                            (ticket.md + blackboard.md + log.md)
-  bootstrap/<name>/      ← stateless launch shims
+  bootstrap/<name>/      ← stateless launch targets
   bootstrap/skills/      ← package-backed core skills (overwritten on update)
   bootstrap/contexts/    ← package-backed bundled contexts (overwritten on update)
   bootstrap/workflows/   ← package-backed reusable workflows (overwritten on update)
