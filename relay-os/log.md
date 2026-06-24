@@ -170,7 +170,10 @@
 2026-06-24 10:24 [remove-the-shim-concept] [human:zach] created (mode=interactive, status=draft)
 2026-06-24 10:33 [remove-the-shim-concept] [human:zach] activated (draft → active) — auto on launch
 2026-06-24 10:33 [remove-the-shim-concept] [human:zach] started (active → in_progress) via relay launch
+2026-06-24 10:33 [remove-the-shim-concept] [human:zach] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-24 10:52 [track-usage-of-llm] [human:nick] task done
+2026-06-24 11:08 [remove-the-shim-concept] [agent:claude] advanced to step 2 (review-design) → assigned to zach — Design spec written: model-contract rewordings (tier-2 shim deleted, guardrail kept) + full rename inventory on the ticket. Ready for review-design sign-off.
+2026-06-24 11:14 [remove-the-shim-concept] [agent:zach] advanced to step 3 (implement) → assigned to claude
 [finish-relay-ticket-greet-first-land-pr-417] Auto-merging relay-os/tasks/finish-relay-ticket-greet-first-land-pr-417/ticket.md
 [finish-relay-ticket-greet-first-land-pr-417] CONFLICT (content): Merge conflict in relay-os/tasks/finish-relay-ticket-greet-first-land-pr-417/ticket.md
 [finish-relay-ticket-greet-first-land-pr-417] Could not apply bbaea7e... Ticket: finish-relay-ticket-greet-first-land-pr-417 — step 4 (review)
