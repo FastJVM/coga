@@ -1,12 +1,12 @@
 ---
 slug: prevent-autostash-spool-conflicts-on-control-branc
 title: Prevent autostash spool conflicts on control-branch sync
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: codex
 contexts:
 - relay/sync
 - relay/architecture
@@ -29,7 +29,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 secrets: null
 ---
 
