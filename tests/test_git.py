@@ -605,7 +605,7 @@ def _fake_authoring_agent(monkeypatch, *, on_run=None) -> None:
     `on_run` (which stands in for the agent's external edits) instead of a real
     subprocess.
 
-    Patching `ticket.subprocess.run` patches the module-global `run`, which the
+    Patching `launch.subprocess.run` patches the module-global `run`, which the
     real git sync (also a `subprocess.run` caller) would otherwise hit — so git
     invocations are delegated to the real `run`; only the agent launch is faked.
     """
@@ -629,7 +629,7 @@ def _fake_authoring_agent(monkeypatch, *, on_run=None) -> None:
     monkeypatch.setattr(
         "relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}"
     )
-    monkeypatch.setattr("relay.commands.ticket.subprocess.run", fake_run)
+    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
 
 
 def test_cli_ticket_authoring_syncs_edits_to_origin(git_repo, monkeypatch):

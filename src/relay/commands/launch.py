@@ -21,6 +21,7 @@ import signal
 import subprocess
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 import typer
 
@@ -330,204 +331,145 @@ def launch(
     # launch supervisor so its chaining hint can fire.
     env["RELAY_SUPERVISED"] = "1"
 
-    # Install a signal-safe cleanup.
-    prompt_file: Path | None = None
-
-    def _cleanup_prompt() -> None:
-        nonlocal prompt_file
-        if prompt_file is None:
-            return
-        try:
-            prompt_file.unlink()
-        except FileNotFoundError:
-            pass
-        prompt_file = None
-
-    def _cleanup() -> None:
-        _cleanup_prompt()
-
     def _on_signal(signum, frame):  # type: ignore[no-untyped-def]
-        _cleanup()
         sys.exit(128 + signum)
 
     signal.signal(signal.SIGINT, _on_signal)
     signal.signal(signal.SIGTERM, _on_signal)
 
     first_step = True
-    try:
-        while True:
-            ticket = _read(ref)
+    while True:
+        ticket = _read(ref)
 
-            # Resolve the agent for THIS step from the ticket's current
-            # assignee, so the supervisor can rotate claude <-> codex across
-            # the workflow. The `--agent` override applies only to the first
-            # step; chained steps follow the ticket. A step whose assignee is
-            # a human never reaches here — `_harness_stop_reason` returns
-            # control to the caller before we'd relaunch.
-            step_assignee = (
-                (agent_override or ticket.assignee) if first_step else ticket.assignee
+        # Resolve the agent for THIS step from the ticket's current
+        # assignee, so the supervisor can rotate claude <-> codex across
+        # the workflow. The `--agent` override applies only to the first
+        # step; chained steps follow the ticket. A step whose assignee is
+        # a human never reaches here — `_harness_stop_reason` returns
+        # control to the caller before we'd relaunch.
+        step_assignee = (
+            (agent_override or ticket.assignee) if first_step else ticket.assignee
+        )
+        first_step = False
+        try:
+            agent = cfg.agent_type(step_assignee) if step_assignee else None
+            if agent is None:
+                raise ConfigError(f"Task {ref.id_slug} has no assignee")
+        except ConfigError as exc:
+            # Defensive: a non-agent assignee should have stopped the
+            # chain at the previous bump. If we somehow reach here, stop
+            # rather than crash.
+            typer.echo(f"{ref.id_slug}: {exc}; stopping")
+            break
+        # Re-check the CLI every step — catches the case where the chain
+        # rotates to an agent (e.g. codex) whose CLI isn't on PATH. Stop
+        # cleanly and hand back to the human rather than panicking.
+        if shutil.which(agent.cli) is None:
+            typer.secho(
+                f"{ref.id_slug}: next step needs agent {step_assignee!r} "
+                f"but its CLI {agent.cli!r} is not on PATH — stopping. "
+                f"Install it, then `relay launch {ref.id_slug}` to continue.",
+                fg=typer.colors.YELLOW,
+                err=True,
             )
-            first_step = False
-            try:
-                agent = cfg.agent_type(step_assignee) if step_assignee else None
-                if agent is None:
-                    raise ConfigError(f"Task {ref.id_slug} has no assignee")
-            except ConfigError as exc:
-                # Defensive: a non-agent assignee should have stopped the
-                # chain at the previous bump. If we somehow reach here, stop
-                # rather than crash.
-                typer.echo(f"{ref.id_slug}: {exc}; stopping")
-                break
-            # Re-check the CLI every step — catches the case where the chain
-            # rotates to an agent (e.g. codex) whose CLI isn't on PATH. Stop
-            # cleanly and hand back to the human rather than panicking.
-            if shutil.which(agent.cli) is None:
-                typer.secho(
-                    f"{ref.id_slug}: next step needs agent {step_assignee!r} "
-                    f"but its CLI {agent.cli!r} is not on PATH — stopping. "
-                    f"Install it, then `relay launch {ref.id_slug}` to continue.",
-                    fg=typer.colors.YELLOW,
-                    err=True,
-                )
-                break
-            typer.echo(
-                f"Launch: step agent {step_assignee} -> {agent.name} "
-                f"(cli={agent.cli})"
+            break
+        typer.echo(
+            f"Launch: step agent {step_assignee} -> {agent.name} "
+            f"(cli={agent.cli})"
+        )
+
+        _echo_launch_iteration(ref, ticket)
+
+        # Re-resolve the permission-skip policy for THIS step's agent and
+        # the ticket's current mode — supervised chains rotate agents
+        # (claude <-> codex), and each agent carries its own local policy.
+        try:
+            skip_permissions_argv = _skip_permissions_argv_for_launch(
+                agent, mode_override or ticket.mode, ref
             )
+        except ConfigError as exc:
+            _bail(str(exc))
 
-            _echo_launch_iteration(ref, ticket)
-
-            # Compose & write prompt fresh for this step.
-            warning = blackboard_size_warning(ref.path / "blackboard.md")
-            if warning:
-                typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
-
-            typer.echo("Launch: composing prompt")
-            try:
-                prompt = compose_prompt(cfg, ref, ticket, mode_override=mode_override)
-            except ComposeError as exc:
-                _bail(str(exc))
-            prompt_file = write_prompt_file(prompt, ref)
-            typer.echo(
-                f"Launch: prompt written to {prompt_file} "
-                f"({len(prompt)} chars)"
-            )
-            # Re-resolve the permission-skip policy for THIS step's agent and
-            # the ticket's current mode — supervised chains rotate agents
-            # (claude <-> codex), and each agent carries its own local policy.
-            try:
-                skip_permissions_argv = _skip_permissions_argv_for_launch(
-                    agent, mode_override or ticket.mode, ref
-                )
-            except ConfigError as exc:
-                _bail(str(exc))
-            cmd = build_agent_command(
+        try:
+            session = spawn_agent_session(
+                cfg,
+                ref,
+                ticket,
                 agent,
                 mode,
-                prompt,
-                name=ticket.title or "",
-                discussion=_is_discussion_bootstrap(ref),
-                skip_permissions_argv=skip_permissions_argv,
-            )
-            typer.echo(
-                f"Launch: command: "
-                f"{_format_agent_command_for_console(cmd, prompt)}"
-            )
-
-            append_log(
-                ref.path,
-                f"human:{cfg.current_user}",
-                _launch_log_message(
+                env=env,
+                actor=f"human:{cfg.current_user}",
+                log_message=_launch_log_message(
                     mode,
                     ticket.assignee or assignee,
                     step_assignee or launch_assignee,
                     agent.name,
                 ),
+                mode_override=mode_override,
+                name=ticket.title or "",
+                discussion=_is_discussion_bootstrap(ref),
+                kickoff=_bootstrap_kickoff(ref),
+                skip_permissions_argv=skip_permissions_argv,
+                idle_timeout=idle_timeout,
+                max_session=max_session,
+                label="Launch",
+                warn_blackboard=True,
             )
+        except ComposeError as exc:
+            _bail(str(exc))
+        except FileNotFoundError:
+            _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
 
-            if mode == "interactive" and ticket.title and sys.stdout.isatty():
-                sys.stdout.write(f"\033]2;{ticket.title}\007")
-                sys.stdout.flush()
+        typer.echo(f"Launch: agent exited with code {session.exit_code}")
+        if session.termination_kind == "timeout":
+            # A liveness limit (idle / max-session) tore the REPL down — the
+            # agent never signalled done. Don't chain to the next step.
+            # Recurring's in-process caller asks for the kind so it can
+            # record the timeout and continue its sweep; public CLI callers
+            # get the supervisor's non-zero timeout exit.
+            typer.secho(
+                f"Agent timed out (no progress past the liveness limit) — "
+                f"exit {session.exit_code}.",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
+            if return_timeout:
+                return "timeout"
+            sys.exit(session.exit_code)
+        if session.exit_code != 0:
+            typer.secho(
+                f"Agent exited with code {session.exit_code}.",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
+            sys.exit(session.exit_code)
 
-            try:
-                if mode == "interactive":
-                    # Interactive REPLs (`claude`, `codex`) don't exit on
-                    # their own. Run through a PTY watcher so an agent that
-                    # writes the session-done sentinel file after `relay mark
-                    # done` / `relay panic` releases the REPL — and `relay
-                    # recurring --interactive` can move to the next task
-                    # without the human typing `/exit`. The sentinel path is
-                    # advertised via `relay.repl_supervisor.SENTINEL_ENV`.
-                    outcome = run_with_done_marker(
-                        cmd,
-                        env,
-                        session_id=str(ref.path.resolve()),
-                        idle_timeout=idle_timeout,
-                        max_session=max_session,
-                    )
-                    exit_code = outcome.exit_code
-                    termination_kind = outcome.kind
-                else:
-                    result = subprocess.run(cmd, env=env, check=False)
-                    exit_code = result.returncode
-                    termination_kind = "natural"
-            except FileNotFoundError:
-                _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
-            finally:
-                _cleanup_prompt()
+        # An agent may delete its own task directory as a final action —
+        # e.g. a Dream run retiring itself once its findings are durable.
+        # A missing ticket.md is a clean terminal state, not a chain step.
+        if not (ref.path / "ticket.md").exists():
+            typer.echo(
+                "Launch: task directory removed by agent — nothing to chain"
+            )
+            break
 
-            typer.echo(f"Launch: agent exited with code {exit_code}")
-            if termination_kind == "timeout":
-                # A liveness limit (idle / max-session) tore the REPL down — the
-                # agent never signalled done. Don't chain to the next step.
-                # Recurring's in-process caller asks for the kind so it can
-                # record the timeout and continue its sweep; public CLI callers
-                # get the supervisor's non-zero timeout exit.
-                typer.secho(
-                    f"Agent timed out (no progress past the liveness limit) — "
-                    f"exit {exit_code}.",
-                    fg=typer.colors.YELLOW,
-                    err=True,
-                )
-                if return_timeout:
-                    return "timeout"
-                sys.exit(exit_code)
-            if exit_code != 0:
-                typer.secho(
-                    f"Agent exited with code {exit_code}.",
-                    fg=typer.colors.YELLOW,
-                    err=True,
-                )
-                sys.exit(exit_code)
+        # Bootstrap shims are stateless single-shot launches — they have no
+        # workflow to chain across, so stop after the one run. A normal
+        # workflow ticket that happens to declare ticket-level `skills:`
+        # MUST still chain; gating on `ticket.skills` here (a rename
+        # artifact of the old singular skill-shim field) silently broke that.
+        if is_bootstrap:
+            typer.echo(
+                f"Launch: {ref.id_slug} is a bootstrap shim — not chaining"
+            )
+            break
 
-            # An agent may delete its own task directory as a final action —
-            # e.g. a Dream run retiring itself once its findings are durable.
-            # A missing ticket.md is a clean terminal state, not a chain step.
-            if not (ref.path / "ticket.md").exists():
-                typer.echo(
-                    "Launch: task directory removed by agent — nothing to chain"
-                )
-                break
-
-            # Bootstrap shims are stateless single-shot launches — they have no
-            # workflow to chain across, so stop after the one run. A normal
-            # workflow ticket that happens to declare ticket-level `skills:`
-            # MUST still chain; gating on `ticket.skills` here (a rename
-            # artifact of the old singular skill-shim field) silently broke that.
-            if is_bootstrap:
-                typer.echo(
-                    f"Launch: {ref.id_slug} is a bootstrap shim — not chaining"
-                )
-                break
-
-            typer.echo("Launch: reading task state after agent exit")
-            updated_ticket = read_ticket(ref)
-            stop_reason = _harness_stop_reason(ref, ticket, updated_ticket, cfg)
-            if stop_reason is not None:
-                typer.echo(stop_reason)
-                break
-    finally:
-        _cleanup()
+        typer.echo("Launch: reading task state after agent exit")
+        updated_ticket = read_ticket(ref)
+        stop_reason = _harness_stop_reason(ref, ticket, updated_ticket, cfg)
+        if stop_reason is not None:
+            typer.echo(stop_reason)
+            break
 
 
 # --- helpers ------------------------------------------------------------------
@@ -638,6 +580,104 @@ def build_agent_command(
     ]
 
 
+class AgentSessionResult(NamedTuple):
+    exit_code: int
+    termination_kind: str
+
+
+def spawn_agent_session(
+    cfg: Config,
+    ref: TaskRef | BootstrapRef,
+    ticket: Ticket,
+    agent,
+    mode: str,
+    *,
+    env,
+    actor: str,
+    log_message: str,
+    mode_override: str | None = None,
+    name: str = "",
+    discussion: bool = False,
+    kickoff: str | None = None,
+    skip_permissions_argv: tuple[str, ...] = (),
+    prompt_suffix: str = "",
+    idle_timeout: float | None = None,
+    max_session: float | None = None,
+    label: str = "Launch",
+    warn_blackboard: bool = False,
+) -> AgentSessionResult:
+    """Spawn one agent process once.
+
+    This is the shared single-shot body beneath `relay launch`'s supervisor
+    chain: compose prompt, write prompt file, build argv, log, spawn under the
+    PTY watcher for interactive REPLs, and remove the temp prompt file.
+
+    Per-caller differences are arguments here, not forked command code:
+    `env` carries the secrets policy (`relay launch` passes a launch env;
+    authoring passes the ambient process env with no Relay secret injection),
+    `discussion` selects discussion-prompt argv, and `kickoff` appends an
+    optional first user turn such as the `relay ticket` greet-first "Begin".
+    The launch supervisor loop and step chaining deliberately stay outside.
+    """
+    if warn_blackboard:
+        warning = blackboard_size_warning(ref.path / "blackboard.md")
+        if warning:
+            typer.secho(f"Warning: {warning}", fg=typer.colors.YELLOW, err=True)
+
+    typer.echo(f"{label}: composing prompt")
+    prompt = compose_prompt(cfg, ref, ticket, mode_override=mode_override)
+    if prompt_suffix:
+        prompt = f"{prompt}{prompt_suffix}"
+    prompt_file = write_prompt_file(prompt, ref)
+    typer.echo(
+        f"{label}: prompt written to {prompt_file} "
+        f"({len(prompt)} chars)"
+    )
+
+    try:
+        cmd = build_agent_command(
+            agent,
+            mode,
+            prompt,
+            name=name,
+            discussion=discussion,
+            skip_permissions_argv=skip_permissions_argv,
+        )
+        if kickoff:
+            cmd.append(kickoff)
+        typer.echo(
+            f"{label}: command: "
+            f"{_format_agent_command_for_console(cmd, prompt)}"
+        )
+
+        append_log(ref.path, actor, log_message)
+
+        if mode == "interactive" and name and sys.stdout.isatty():
+            sys.stdout.write(f"\033]2;{name}\007")
+            sys.stdout.flush()
+
+        if mode == "interactive":
+            # Interactive REPLs (`claude`, `codex`) don't exit on their own.
+            # Run through a PTY watcher so an agent that writes the session-done
+            # sentinel after `relay mark done` / `relay panic` releases the REPL.
+            outcome = run_with_done_marker(
+                cmd,
+                env,
+                session_id=str(ref.path.resolve()),
+                idle_timeout=idle_timeout,
+                max_session=max_session,
+            )
+            return AgentSessionResult(outcome.exit_code, outcome.kind)
+
+        result = subprocess.run(cmd, env=env, check=False)
+        return AgentSessionResult(result.returncode, "natural")
+    finally:
+        try:
+            prompt_file.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def _skip_permissions_argv_for_launch(
     agent, mode: str, ref: TaskRef | BootstrapRef
 ) -> tuple[str, ...]:
@@ -670,6 +710,12 @@ def _skip_permissions_argv_for_launch(
 
 def _is_discussion_bootstrap(ref: TaskRef | BootstrapRef) -> bool:
     return isinstance(ref, BootstrapRef) and ref.id_slug in DISCUSSION_BOOTSTRAP_SHIMS
+
+
+def _bootstrap_kickoff(ref: TaskRef | BootstrapRef) -> str | None:
+    if isinstance(ref, BootstrapRef) and ref.id_slug == "bootstrap/ticket":
+        return "Begin"
+    return None
 
 
 def _discussion_template(agent) -> str:
