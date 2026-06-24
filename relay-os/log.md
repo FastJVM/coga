@@ -230,3 +230,4 @@
 2026-06-24 12:22 [prevent-autostash-spool-conflicts-on-control-branc] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-24 12:57 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nick] created (autonomy=interactive, status=draft)
 2026-06-24 12:57 [retire-the-duplicate-relay-clone-so-one-process-wr] [human:nick] created (autonomy=interactive, status=draft)
+2026-06-24 14:19 [prevent-autostash-spool-conflicts-on-control-branc] [human:nick] activated (draft → active)

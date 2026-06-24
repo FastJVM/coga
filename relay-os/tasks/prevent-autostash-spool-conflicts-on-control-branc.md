@@ -1,7 +1,7 @@
 ---
 slug: prevent-autostash-spool-conflicts-on-control-branc
 title: Prevent autostash spool conflicts on control-branch sync
-status: draft
+status: active
 autonomy: interactive
 owner: nick
 human: nick
@@ -315,8 +315,9 @@ example fixture clean. Per-AC:
   rewritten to the merge-by-construction contract).
 - [x] `relay/sync` context block landed in the SAME commit (live + template
   copy; template also absorbed prior automerge→autoclose drift).
-- [ ] Follow-up tickets — NOT yet filed (filing pushes drafts to origin); see
-  specs below, holding for nick's go-ahead.
+- [x] Follow-up tickets filed (drafts pushed to origin):
+  `per-agent-git-worktree-isolation-for-launch-to-avo` and
+  `retire-the-duplicate-relay-clone-so-one-process-wr`.
 
 ### Decisions made during impl (beyond Q1/Q2)
 - Union backstop can't be a `.gitattributes` entry on a mid-ticket section, so
