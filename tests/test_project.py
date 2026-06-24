@@ -179,15 +179,10 @@ def test_project_threads_seed_into_prompt(
 def test_project_planning_does_not_inject_relay_secrets(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _write(
-        repo / "relay.local.toml",
-        """
-        user = "marc"
-
-        [secrets]
-        stripe_key = "env:STRIPE_SECRET_KEY"
-        """,
-    )
+    # Secrets are now declared inline per-ticket and flow only through the
+    # `relay launch` chokepoint. The project-planning shim runs no task work and
+    # declares no `secrets:`, so it must never gain a scoped Relay secret alias
+    # in its env — even when a source env var the operator exported is present.
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live")
     captured_env: dict[str, str] = {}
 
@@ -204,6 +199,8 @@ def test_project_planning_does_not_inject_relay_secrets(
 
     result = CliRunner().invoke(app, ["project"])
     assert result.exit_code == 0, result.output
+    # No ticket-scoped secret alias is injected into the planning session.
+    assert "STRIPE_KEY" not in captured_env
     assert "stripe_key" not in captured_env
 
 

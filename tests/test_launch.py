@@ -721,18 +721,11 @@ def test_launch_fails_loud_on_unset_declared_secret(
     _allow_slack(monkeypatch)
     _allow_interactive_tty(monkeypatch)
     monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
-    _write(
-        active_task / "relay.local.toml",
-        """
-        user = "marc"
-        [secrets]
-        stripe_key = "env:STRIPE_SECRET_KEY"
-        """,
-    )
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.path / "ticket.md")
-    t.frontmatter["secrets"] = ["stripe_key"]
+    # Inline per-ticket secret pointing at an env var that is not exported.
+    t.frontmatter["secrets"] = [{"stripe_key": "env:STRIPE_SECRET_KEY"}]
     t.write(ref.path / "ticket.md")
 
     calls: list[list[str]] = []
@@ -763,19 +756,12 @@ def test_launch_injects_only_declared_secret(
     _allow_interactive_tty(monkeypatch)
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live")
     monkeypatch.setenv("OTHER_SECRET", "nope")
-    _write(
-        active_task / "relay.local.toml",
-        """
-        user = "marc"
-        [secrets]
-        stripe_key = "env:STRIPE_SECRET_KEY"
-        other = "env:OTHER_SECRET"
-        """,
-    )
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.path / "ticket.md")
-    t.frontmatter["secrets"] = ["stripe_key"]
+    # Only `stripe_key` is declared inline; `OTHER_SECRET` is set in the env but
+    # the ticket never references it, so it must not leak to the child.
+    t.frontmatter["secrets"] = [{"stripe_key": "env:STRIPE_SECRET_KEY"}]
     t.write(ref.path / "ticket.md")
 
     captured: dict[str, str] = {}
@@ -794,12 +780,13 @@ def test_launch_injects_only_declared_secret(
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
-    # Only the declared secret was injected; the undeclared one is withheld.
+    # Only the declared secret was injected, under its scoped NAME.
     assert captured.get("stripe_key") == "sk_live"
     assert "other" not in captured
-    # The raw source env vars used to resolve `[secrets]` are scrubbed too.
+    # The raw source env var the `env:` ref points at is scrubbed from the
+    # child; an undeclared env var that was never referenced is left untouched.
     assert "STRIPE_SECRET_KEY" not in captured
-    assert "OTHER_SECRET" not in captured
+    assert captured.get("OTHER_SECRET") == "nope"
 
 
 def test_launch_fails_loud_on_op_read_error(
@@ -809,22 +796,16 @@ def test_launch_fails_loud_on_op_read_error(
     # agent is spawned, naming the key and reference (never a value).
     _allow_slack(monkeypatch)
     _allow_interactive_tty(monkeypatch)
-    _write(
-        active_task / "relay.local.toml",
-        """
-        user = "marc"
-        [secrets]
-        stripe_key = "op://vault/stripe/key"
-        """,
-    )
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.path / "ticket.md")
-    t.frontmatter["secrets"] = ["stripe_key"]
+    t.frontmatter["secrets"] = [{"stripe_key": "op://vault/stripe/key"}]
     t.write(ref.path / "ticket.md")
 
-    # `relay.config` and `relay.commands.launch` share one `subprocess` module,
-    # so a single dispatching mock serves both the `op read` and the agent spawn.
+    # `relay.config` and `relay.commands.launch` import the same `subprocess`
+    # module, so patching `relay.config.subprocess.run` covers both the `op read`
+    # resolution and the agent spawn. The op read is mocked non-zero → SecretError
+    # before any spawn, so `calls` stays empty.
     calls: list[list[str]] = []
 
     def fake_run(cmd, **kwargs):  # type: ignore[no-untyped-def]
@@ -854,18 +835,10 @@ def test_launch_injects_op_secret(
 ) -> None:
     _allow_slack(monkeypatch)
     _allow_interactive_tty(monkeypatch)
-    _write(
-        active_task / "relay.local.toml",
-        """
-        user = "marc"
-        [secrets]
-        stripe_key = "op://vault/stripe/key"
-        """,
-    )
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
     t = Ticket.read(ref.path / "ticket.md")
-    t.frontmatter["secrets"] = ["stripe_key"]
+    t.frontmatter["secrets"] = [{"stripe_key": "op://vault/stripe/key"}]
     t.write(ref.path / "ticket.md")
 
     # One dispatching mock for both modules' shared `subprocess`: `op read`

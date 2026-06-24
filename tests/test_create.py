@@ -121,10 +121,10 @@ def test_create_preserves_secret_declaration(repo: Path, monkeypatch: pytest.Mon
         assignee=None,
         watchers=[],
         status=None,
-        secrets=["api_key"],
+        secrets=[{"API_KEY": "op://Vault/item/field"}],
     )
     ticket = Ticket.read(ref["path"] / "ticket.md")
-    assert ticket.secrets == ["api_key"]
+    assert ticket.secrets == [{"API_KEY": "op://Vault/item/field"}]
 
 
 def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) -> None:

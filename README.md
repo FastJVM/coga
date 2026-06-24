@@ -135,6 +135,12 @@ human-installed command line tools:
   `gh skill` ships as a public preview in recent `gh`. Managed skills are
   optional: a fresh `relay init` on an older `gh` just skips them with a warning
   instead of failing.
+- `op` — the [1Password CLI](https://developer.1password.com/docs/cli/get-started/).
+  Required **only** if a ticket's `secrets:` entry uses an `op://vault/item/field`
+  reference: Relay resolves it live with `op read` at launch / `relay secret
+  get`. Run `op signin` first. If `op` is missing while an `op://` secret is
+  actually needed, Relay fails loud naming the reference (never the value);
+  tickets that use only `env:VAR` references never need it.
 
 ### Git/GitHub auth readiness
 

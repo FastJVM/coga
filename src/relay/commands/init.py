@@ -53,12 +53,14 @@ from relay.retrofit import backfill_role_fields
 
 
 LOCAL_TOML_TEMPLATE = """\
-# Machine-local config — gitignored. Holds your assignee name and secrets.
-# Override anything from relay.toml here without committing it.
+# Machine-local config — gitignored. Holds your assignee name and any
+# machine-local overrides. Override anything from relay.toml here without
+# committing it.
 user = ""
 
-# [secrets]
-# stripe_key = "env:STRIPE_SECRET_KEY"
+# Secrets are declared inline on each ticket's `secrets:` frontmatter
+# (`NAME: op://vault/item/field` or `NAME: env:VAR`) — there is no central
+# [secrets] catalog here.
 
 # Per-agent permission-skip policy for autonomous runs — machine-local only
 # (these keys are rejected in shared relay.toml). With `skip_permissions =
