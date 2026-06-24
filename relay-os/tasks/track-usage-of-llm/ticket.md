@@ -1,7 +1,7 @@
 ---
 slug: track-usage-of-llm
 title: track usage of LLM
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
@@ -28,7 +28,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -365,6 +365,69 @@ Run `python -m pytest` and `relay validate --json` before the PR.
 <!-- relay:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: track-llm-usage
+worktree: /home/n/Code/codex/relay-track-llm-usage
+
+## Implement summary (2026-06-24, codex)
+
+Committed implementation on `track-llm-usage`:
+
+- commit: `cfcc257 Track LLM usage from launch sessions`
+- added `src/relay/usage.py` with `UsageRecord`, Claude/Codex transcript
+  parsers, blackboard `## Usage` append/load, and rollup support.
+- added `relay usage` with `--by task|model|agent|step`, `--since`,
+  `--until`, `--task`, and `--json`.
+- wired launch capture into the per-agent-session loop, gated to real agent
+  launches with a task blackboard, skipped on spawn failure, and resilient to
+  parse/append failures.
+- added `[agents.*].session_id_flag` and set Claude's default/template/example
+  value to `--session-id`; Codex uses the new-file rollout diff.
+
+Verification:
+
+- `PYTHONPATH=/home/n/Code/codex/relay-track-llm-usage/src python -m pytest -q -p no:cacheprovider`
+  -> `856 passed, 1 skipped`
+- `PYTHONPATH=/home/n/Code/codex/relay-track-llm-usage/src python -m relay.cli usage --json`
+  -> empty usage rollup JSON emitted successfully
+- `PYTHONPATH=/home/n/Code/codex/relay-track-llm-usage/src python -m relay.cli validate --task track-usage-of-llm --json`
+  -> `ok_count: 1`, no issues
+
+Repo-wide `validate --json` in the fresh feature worktree still fails on
+pre-existing unrelated drift: missing materialized bootstrap/context refs,
+older missing-step tickets, and unknown human assignees. I did not change those.
+
+## Peer review summary (2026-06-24, codex)
+
+Ran native review from the feature worktree:
+
+- `codex review --base main`
+  - sandboxed run failed with the known read-only app-server setup error.
+  - reran outside the sandbox and got two must-fix findings.
+
+Applied fixes in commit `5c58681 peer-review: apply usage fixes`:
+
+- Codex token normalization now treats `cached_input_tokens` and
+  `reasoning_output_tokens` as breakdowns of Codex's cumulative
+  input/output totals. The shared usage categories split cached input out of
+  base input, keep output non-additive, and sum back to Codex's `total_tokens`.
+- Ambiguous Codex rollout matching now records `usage_status: "unknown"` when
+  more than one new rollout matches the same cwd instead of choosing the newest
+  file by mtime and risking same-cwd misattribution.
+- Added focused regression coverage for both cases in `tests/test_usage.py`.
+
+Verification:
+
+- `python -m pytest -q -p no:cacheprovider`
+  -> `857 passed, 1 skipped`
+- `git diff --check`
+  -> clean
+- `PYTHONPATH=/home/n/Code/codex/relay-track-llm-usage/src python -m relay.cli validate --task track-usage-of-llm --json`
+  -> `ok_count: 1`, no issues
+- `PYTHONPATH=/home/n/Code/codex/relay-track-llm-usage/src python -m relay.cli usage --json`
+  -> empty usage rollup JSON emitted successfully
 
 ## Workflow swapped: design-then-implement → code/with-review (2026-06-23, nick)
 
