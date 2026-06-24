@@ -1,7 +1,7 @@
 ---
 slug: manually-test-auth-paths-gh-git-detection-secret-r
 title: 'Manually test auth paths: gh/git detection, secret resolution, per-task injection'
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -24,7 +24,6 @@ workflow:
     skills: []
     assignee: agent
 secrets: null
-step: 3 (verify-read-only)
 ---
 
 ## Description
