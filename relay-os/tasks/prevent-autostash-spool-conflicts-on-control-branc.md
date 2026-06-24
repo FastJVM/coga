@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: nick
 contexts:
 - relay/sync
 - relay/architecture
@@ -29,7 +29,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (peer-review)
+step: 4 (review)
 secrets: null
 ---
 
@@ -292,7 +292,8 @@ union log) per the existing non-fatal failure model.
 
 branch: spool-merge-by-construction
 worktree: /home/n/Code/claude/relay-spool-merge
-commit: 2f982cb3 (one logical change, working tree clean)
+commit: 86a6f5aa (impl 2f982cb3 + peer-review fixes; working tree clean)
+pr: https://github.com/FastJVM/relay/pull/435
 
 ## Implementation status (implement step done)
 
@@ -346,3 +347,31 @@ example fixture clean. Per-AC:
   moving any pending records into the new `spool.md`. The 2 pending records
   currently in your working copy are daily-ephemeral; worst case they miss one
   digest. Shipped `spool.md` starts empty (header + empty `consumed_through:`).
+
+## Peer review (codex, 2026-06-24)
+
+- Ran native review from `/home/n/Code/claude/relay-spool-merge`:
+  `codex review --base main` (first sandbox attempt failed with the known
+  read-only app-server setup error; reran outside the sandbox with approval).
+- Must-fix findings:
+  1. Existing repos with `recurring/digest/ticket.md` but no new `spool.md`
+     would silently fall back to live posts / no-op digest until
+     `relay init --update`.
+  2. `relay/patterns` still documented the old blackboard-backed, clear-to-empty,
+     single-process spool contract.
+- Applied fixes in the feature worktree:
+  - `digest_spool_path` now treats a legacy digest ticket as installed and lazily
+    creates `recurring/digest/spool.md`, migrating any old pending JSONL records
+    from the ticket's former `## Spool (pending)` section.
+  - Added `test_notify_migrates_legacy_digest_ticket_spool`.
+  - Updated live + packaged `relay/patterns` to the dedicated-file,
+    watermark/prefix-trim, merge-by-construction contract.
+- Verification after fixes:
+  - `python -m pytest tests/test_digest.py -q` → 19 passed.
+  - `python -m pytest -p no:cacheprovider` → 888 passed, 1 skipped.
+  - `git diff --check` clean; targeted stale-text scan over updated contexts
+    clean; live/packaged `relay/patterns` copies match.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3740032,"cli":"codex","input_tokens":280994,"model":"gpt-5.5","output_tokens":17476,"provider":"openai","schema":1,"session_id":"019efb83-7fd0-78c2-873c-ed1cdc9ed1e6","slug":"prevent-autostash-spool-conflicts-on-control-branc","step":"peer-review","title":"Prevent autostash spool conflicts on control-branch sync","ts":"2026-06-24T21:57:33.622606Z","usage_status":"ok"}

@@ -237,3 +237,8 @@
 2026-06-24 14:55 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=codex, agent=codex)
 2026-06-24 14:55 [retire-mark-active] [human:nick] task done
 2026-06-24 14:58 [branch-cleanup-as-recurring-tasks] [human:nick] created (autonomy=interactive, status=draft)
+2026-06-24 14:22 [prevent-autostash-spool-conflicts-on-control-branc] [human:nick] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-24 14:57 [prevent-autostash-spool-conflicts-on-control-branc] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-06-24 14:57 [prevent-autostash-spool-conflicts-on-control-branc] [git] sync failed: `git add -- relay-os/tasks/prevent-autostash-spool-conflicts-on-control-branc.md relay-os/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/relay/.git/index.lock': Read-only file system
+2026-06-24 14:57 [prevent-autostash-spool-conflicts-on-control-branc] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-24 14:59 [prevent-autostash-spool-conflicts-on-control-branc] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/relay/pull/435
