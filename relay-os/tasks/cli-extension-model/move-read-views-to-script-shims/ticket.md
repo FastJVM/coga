@@ -1,5 +1,5 @@
 ---
-title: Move read views to stateless script shims
+title: Move show/status into their lowest-tier mechanism
 status: draft
 mode: interactive
 owner: zach
@@ -17,16 +17,21 @@ secrets: null
 
 ## Description
 
-Move the read-only view commands — `relay show`, `relay status`, `relay
-recurring list`, `relay skill status` — out of bespoke Typer Python into the
-stateless **script-shim** shape (the `bootstrap/orient` launch shape: no
-status, no log, no lock), so the rendered views live as editable `relay-os/`
-files instead of compiled command code. This is **group 1** of
-`cli-extension-model/move-command-logic-to-tickets` — the part Nico ordered
-*first* ("reads → script shims, no new mechanism needed") — and it is
-independent of the tier-2 shim (PR #425) and #423. Per the *no-inversion*
-guardrail the render Python relocates **unchanged** into a `mode: script` step;
-only its home changes. Start with one read as a proof, then the rest.
+Per Nico's plan — push each command to the **lowest tier** it can use — move
+zach's remaining core read commands out of `commands/*.py`:
+
+- **`show`, `status`** (read-only views) → **tickets-as-scripts** (`mode:
+  script`), per Nico's reads decision below. *(The other reads — `validate`,
+  `skill status`, `recurring list` — share this destination but aren't the
+  immediate focus.)*
+- **`chat`, `build`** → **already aliases** (`launch bootstrap/orient` /
+  `launch relay-build`) — lowest tier already, no work.
+- *(`ticket` → tier-2 shim is already in flight as PR #425 — not part of this.)*
+
+This is **group 1** of `cli-extension-model/move-command-logic-to-tickets`,
+independent of #425 and #423. Immediate work: `show` and `status`. Per the
+*no-inversion* guardrail the render Python relocates **unchanged**; only its
+home changes. Start with `show` (a pure render of one task's files) as the proof.
 
 ## Decision (Nico, 2026-06-23)
 
