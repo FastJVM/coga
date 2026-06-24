@@ -514,6 +514,11 @@ def _sync_recurring_create_paths(
             if branch == cfg.git_control_branch:
                 _restore_selected_paths_from_ref(root, "HEAD", rels)
                 _rebase_checked_out_branch_onto(root, base)
+                # The create appended to the global log before the sync detected
+                # the period was already handled on control; commit that line so
+                # the control checkout is left clean (the overlay never carries
+                # the log).
+                _commit_global_log(cfg, root, message)
                 return (
                     _control_blackboard_with_local_period(
                         root, "HEAD", ticket_rel, original_ticket
@@ -626,6 +631,21 @@ def _local_commit_rels(cfg: Config, root: Path, rels: list[str]) -> list[str]:
         return rels
     log_rel = _relative_to_root(root, log_file)
     return rels if log_rel in rels else [*rels, log_rel]
+
+
+def _commit_global_log(cfg: Config, root: Path, message: str) -> None:
+    """Commit only the repo-global `relay-os/log.md`, if it has changes.
+
+    The union-merge global log rides the *local* commit and never the
+    cross-branch overlay, so every control-branch return path that may have left
+    an appended log line in the working tree (a recurring create that the sync
+    then detected was already handled on control, and unwound the task/ticket
+    for) must commit it — otherwise the tree is left dirty. A no-op when the log
+    is unchanged or the period task path was removed (only the log rel is
+    passed, so a removed-task pathspec can't abort the commit)."""
+    log_file = log_path(cfg)
+    if log_file.exists():
+        git._commit_paths(root, [_relative_to_root(root, log_file)], message)
 
 
 def _control_blackboard_with_local_period(
@@ -779,16 +799,11 @@ def _sync_recurring_create_on_checked_out_control_branch(
     _restore_selected_paths_from_ref(root, "HEAD", rels)
     _rebase_checked_out_branch_onto(root, landed)
     # The overlay already landed (and the rebase pulled in) the task dir +
-    # template ticket, so the only thing still uncommitted in the working tree
-    # is the repo-global `relay-os/log.md` — union-merge, deliberately excluded
-    # from the overlay, appended here by `_record_run`. Commit just that file so
-    # origin and the local control branch reflect the history line and the tree
-    # is left clean. (Committing the full `local_rels` here would fail when the
-    # race-handled path removed the task dir: `git commit --only` rejects a
-    # pathspec that matches no tracked-or-present file.)
-    log_file = log_path(cfg)
-    if log_file.exists():
-        git._commit_paths(root, [_relative_to_root(root, log_file)], message)
+    # template ticket; the only thing still uncommitted is the repo-global
+    # `relay-os/log.md` (union-merge, excluded from the overlay, appended by
+    # `_record_run`). Commit just that file so origin and the local control
+    # branch reflect the history line and the tree is left clean.
+    _commit_global_log(cfg, root, message)
     git._push_control_branch(cfg, root)
     if already_handled:
         return (
