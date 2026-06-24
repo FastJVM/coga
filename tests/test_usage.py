@@ -76,8 +76,8 @@ def test_parse_codex_rollout_takes_last_cumulative_usage(
         f"""
         {{"type":"session_meta","payload":{{"id":"codex-session","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
         {{"type":"turn_context","payload":{{"model":"gpt-5.4"}}}}
-        {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":1,"cached_input_tokens":2,"output_tokens":3,"reasoning_output_tokens":4,"total_tokens":10}}}}}}}}
-        {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":11,"cached_input_tokens":12,"output_tokens":13,"reasoning_output_tokens":14,"total_tokens":50}}}}}}}}
+        {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":10,"cached_input_tokens":2,"output_tokens":3,"reasoning_output_tokens":1,"total_tokens":13}}}}}}}}
+        {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":50,"cached_input_tokens":12,"output_tokens":13,"reasoning_output_tokens":5,"total_tokens":63}}}}}}}}
         """,
     )
     start, end = _window()
@@ -95,10 +95,51 @@ def test_parse_codex_rollout_takes_last_cumulative_usage(
     assert parsed.provider == "openai"
     assert parsed.model == "gpt-5.4"
     assert parsed.session_id == "codex-session"
-    assert parsed.input_tokens == 11
+    assert parsed.input_tokens == 38
     assert parsed.cache_creation_input_tokens is None
     assert parsed.cache_read_input_tokens == 12
-    assert parsed.output_tokens == 27
+    assert parsed.output_tokens == 13
+    assert (
+        parsed.input_tokens
+        + parsed.cache_read_input_tokens
+        + parsed.output_tokens
+        == 63
+    )
+
+
+def test_parse_codex_rollout_ambiguous_cwd_matches_are_unknown(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    sessions = tmp_path / ".codex" / "sessions" / "2026" / "06" / "23"
+    old = sessions / "rollout-old.jsonl"
+    first = sessions / "rollout-first.jsonl"
+    second = sessions / "rollout-second.jsonl"
+    _write(old, '{"type":"session_meta","payload":{"cwd":"/elsewhere"}}\n')
+    for path, session_id in ((first, "first"), (second, "second")):
+        _write(
+            path,
+            f"""
+            {{"type":"session_meta","payload":{{"id":"{session_id}","cwd":"{cwd.resolve()}","model_provider":"openai"}}}}
+            {{"type":"event_msg","payload":{{"type":"token_count","info":{{"total_token_usage":{{"input_tokens":1,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0,"total_tokens":2}}}}}}}}
+            """,
+        )
+    start, end = _window()
+
+    parsed = parse_session(
+        "codex",
+        cwd=cwd,
+        session_id=None,
+        pre_existing={old},
+        window_start=start,
+        window_end=end,
+    )
+
+    assert parsed.usage_status == "unknown"
+    assert parsed.provider == "openai"
+    assert parsed.session_id is None
 
 
 def test_append_and_load_records_from_usage_section(tmp_path: Path) -> None:

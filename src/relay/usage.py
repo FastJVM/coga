@@ -397,8 +397,15 @@ def _parse_codex_session(cwd: Path, pre_existing: set[Path]) -> ParsedUsage:
             candidates.append(path)
     if not candidates:
         return _unknown("openai", reason=f"codex rollout not found for cwd: {cwd_str}")
-    path = max(candidates, key=lambda item: (_mtime_ns(item), str(item)))
-    return _parse_codex_rollout(path)
+    if len(candidates) > 1:
+        return _unknown(
+            "openai",
+            reason=(
+                "multiple codex rollouts matched cwd: "
+                + ", ".join(str(path) for path in sorted(candidates))
+            ),
+        )
+    return _parse_codex_rollout(candidates[0])
 
 
 def _parse_codex_rollout(path: Path) -> ParsedUsage:
@@ -442,16 +449,16 @@ def _parse_codex_rollout(path: Path) -> ParsedUsage:
             session_id=session_id,
             reason=f"codex rollout had no token_count event: {path}",
         )
-    output_tokens = _int_value(last_usage.get("output_tokens")) + _int_value(
-        last_usage.get("reasoning_output_tokens")
-    )
+    input_tokens = _int_value(last_usage.get("input_tokens"))
+    cache_read_input_tokens = _int_value(last_usage.get("cached_input_tokens"))
+    output_tokens = _int_value(last_usage.get("output_tokens"))
     return ParsedUsage(
         provider=provider,
         model=model,
         session_id=session_id,
-        input_tokens=_int_value(last_usage.get("input_tokens")),
+        input_tokens=max(0, input_tokens - cache_read_input_tokens),
         cache_creation_input_tokens=None,
-        cache_read_input_tokens=_int_value(last_usage.get("cached_input_tokens")),
+        cache_read_input_tokens=cache_read_input_tokens,
         output_tokens=output_tokens,
         usage_status="ok",
     )
@@ -661,10 +668,3 @@ def _int_value(value: object) -> int:
     if isinstance(value, int):
         return value
     return 0
-
-
-def _mtime_ns(path: Path) -> int:
-    try:
-        return path.stat().st_mtime_ns
-    except OSError:
-        return 0
