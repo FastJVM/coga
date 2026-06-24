@@ -145,27 +145,24 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
     kind = issue.kind
     message = issue.message
 
+    if kind == "blackboard-fence":
+        # v2 single-file: `relay validate --fix` appends a missing
+        # `<!-- relay:blackboard -->` fence + a fresh blackboard region.
+        return ClassifiedIssue(
+            issue=issue,
+            action=ACTION_DIRECT_FIX,
+            remediation=(
+                "Run `relay validate --fix` (or add the "
+                "`<!-- relay:blackboard -->` fence + a blackboard region) in a "
+                "small Dream PR. This restores the blackboard region without "
+                "changing task state."
+            ),
+        )
+
     if kind == "missing-file":
-        if "blackboard.md" in message:
-            return ClassifiedIssue(
-                issue=issue,
-                action=ACTION_DIRECT_FIX,
-                remediation=(
-                    "Create a minimal `blackboard.md` for the task in a small "
-                    "Dream PR. This restores the recovery surface without "
-                    "changing task state."
-                ),
-            )
-        if "log.md" in message:
-            return ClassifiedIssue(
-                issue=issue,
-                action=ACTION_DIRECT_FIX,
-                remediation=(
-                    "Create an empty `log.md` in a small Dream PR. Do not "
-                    "synthesize history; future Relay commands will append "
-                    "real log entries."
-                ),
-            )
+        # v2: the only required per-task file is `ticket.md` — the source of
+        # truth, never recreated from inference. (The append-only history lives
+        # in the repo-global `relay-os/log.md`, not a per-task file.)
         return ClassifiedIssue(
             issue=issue,
             action=ACTION_HUMAN_NEEDED,
@@ -446,8 +443,13 @@ def infer_task_slug_from_blackboard(cfg: Config, blackboard: Path | None) -> str
         rel = blackboard.resolve().relative_to((cfg.repo_root / "tasks").resolve())
     except ValueError:
         return None
-    if len(rel.parts) == 2 and rel.parts[1] == "blackboard.md":
-        return rel.parts[0]
+    parts = rel.parts
+    # Directory form: tasks/<slug>/ticket.md (v2) or .../blackboard.md (legacy).
+    if len(parts) == 2 and parts[1] in ("ticket.md", "blackboard.md"):
+        return parts[0]
+    # File form: tasks/<slug>.md.
+    if len(parts) == 1 and parts[0].endswith(".md"):
+        return parts[0][:-3]
     return None
 
 

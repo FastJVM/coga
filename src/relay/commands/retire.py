@@ -26,10 +26,10 @@ def retire(
         "--agent",
         help="Agent nickname to assign. Defaults to the current user's first configured agent.",
     ),
-    mode: str = typer.Option(
+    autonomy: str = typer.Option(
         "interactive",
-        "--mode",
-        help="Launch mode for the retire run: interactive. (Auto is temporarily disabled.)",
+        "--autonomy",
+        help="Launch autonomy for the retire run: interactive. (Auto is temporarily disabled.)",
     ),
     no_launch: bool = typer.Option(
         False,
@@ -48,14 +48,14 @@ def retire(
     with `git restore`). Branch hygiene (local prune, stale-branch sweep) is a
     Dream concern, not retire's.
     """
-    if mode == "auto":
+    if autonomy == "auto":
         _bail(
-            "mode=auto is temporarily disabled: auto runs produce no live "
-            "console output. Run `relay retire <slug> --mode interactive` "
+            "autonomy=auto is temporarily disabled: auto runs produce no live "
+            "console output. Run `relay retire <slug> --autonomy interactive` "
             "from a TTY instead."
         )
-    if mode != "interactive":
-        _bail("--mode must be 'interactive'")
+    if autonomy != "interactive":
+        _bail("--autonomy must be 'interactive'")
 
     try:
         cfg = load_config()
@@ -82,7 +82,7 @@ def retire(
         _bail(str(exc))
     typer.echo(
         f"Retire: using assignee {assignee} "
-        f"(agent type {agent_type.name}, mode {mode})"
+        f"(agent type {agent_type.name}, autonomy {autonomy})"
     )
 
     title = f"Retire {ref.id_slug}"
@@ -98,7 +98,7 @@ def retire(
             # task the validator (rightly) rejects as un-bumpable.
             workflow_name="direct/body",
             contexts=[],
-            mode=mode,
+            autonomy=autonomy,
             owner=cfg.current_user,
             assignee=assignee,
             watchers=[],
@@ -129,7 +129,7 @@ def retire(
         slug,
         agent_override=None,
         prompt_report=False,
-        mode_override=None,
+        autonomy_override=None,
     )
 
 

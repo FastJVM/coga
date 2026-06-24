@@ -24,7 +24,7 @@ Keep it on `main` when possible. Do code changes in a feature worktree
 outside the primary checkout, then return to the primary checkout for
 blackboard updates, `relay bump`, `relay slack`, and `relay panic`.
 
-This keeps task-state edits (`ticket.md`, `blackboard.md`, `log.md`)
+This keeps task-state edits (`ticket.md`, plus the repo-global `relay-os/log.md`)
 from mixing with source changes on a feature branch. If task-state
 changes need to be committed, commit them separately from the code PR.
 
@@ -53,7 +53,7 @@ When to write each:
 
 Update in place, don't append. If you rebase onto a renamed branch
 or create a fresh worktree or PR, overwrite the existing line. The
-blackboard records *current* state, not history (that's `log.md`'s
+blackboard records *current* state, not history (that's the global `relay-os/log.md`'s
 job).
 
 ## Why a section, not frontmatter

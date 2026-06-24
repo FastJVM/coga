@@ -41,9 +41,23 @@ _BOOTSTRAP_PREFIX = "bootstrap/"
 
 @dataclass(frozen=True)
 class TaskRef:
+    """A task under `relay-os/tasks/`, in either of two interchangeable shapes.
+
+    - **File form** (`file_form=True`): a single `tasks/<slug>.md` file; `path`
+      is that file. Self-contained — no companion directory, so no sibling
+      files (a snapshot, a `script:` file) are possible.
+    - **Directory form** (`file_form=False`): a `tasks/<slug>/` directory
+      holding `ticket.md` plus any siblings; `path` is the directory.
+
+    `ticket_path` abstracts over the two; `task_dir` is the companion directory
+    or `None` for file form. Addressing is always by `id_slug` (the path under
+    `tasks/`), identical for both shapes.
+    """
+
     slug: str
     path: Path
     directory: str | None = None
+    file_form: bool = False
 
     @property
     def id_slug(self) -> str:
@@ -52,11 +66,24 @@ class TaskRef:
         A task directly under `tasks/` is its bare leaf slug; a task in a
         sub-directory is `<directory>/<leaf>` (the relative path, e.g.
         `marketing/social/relaunch`) so it stays unambiguous and reads the same
-        in `relay status`, Slack, and the launch arg.
+        in `relay status`, Slack, and the launch arg. The `.md` suffix of a
+        file-form task is never part of the ref.
         """
         if self.directory:
             return f"{self.directory}/{self.slug}"
         return self.slug
+
+    @property
+    def ticket_path(self) -> Path:
+        """The task's `ticket.md` — the `.md` file itself in file form, or
+        `<dir>/ticket.md` in directory form."""
+        return self.path if self.file_form else self.path / "ticket.md"
+
+    @property
+    def task_dir(self) -> Path | None:
+        """The task's companion directory, or `None` for a self-contained
+        file-form task (which has nowhere to put siblings)."""
+        return None if self.file_form else self.path
 
 
 @dataclass(frozen=True)
@@ -74,36 +101,45 @@ class BootstrapRef:
     def id_slug(self) -> str:
         return f"bootstrap/{self.name}"
 
+    @property
+    def ticket_path(self) -> Path:
+        """Bootstrap tickets are always directory form."""
+        return self.path / "ticket.md"
+
+    @property
+    def task_dir(self) -> Path:
+        return self.path
+
 
 TargetRef = Union[TaskRef, BootstrapRef]
 
 
 def list_tasks(cfg: Config) -> list[TaskRef]:
-    """List all task directories under `relay-os/tasks/`.
+    """List all tasks under `relay-os/tasks/`, in either on-disk shape.
 
-    A task is any directory containing a `ticket.md`, at any depth under
-    `tasks/` — directly (`tasks/<slug>/`) or in any sub-directory
-    (`tasks/marketing/social/relaunch/`). The task is referenced by its path
-    under `tasks/`, exposed as `TaskRef.id_slug` (`marketing/social/relaunch`);
+    A task is either a directory containing a `ticket.md` (**directory form**,
+    `tasks/<slug>/ticket.md`) or a bare `tasks/<slug>.md` file (**file form**),
+    at any depth under `tasks/`. The task is referenced by its path under
+    `tasks/` (sans `.md` for file form), exposed as `TaskRef.id_slug`;
     `TaskRef.directory` is the relative parent path, or None at the top level.
-    Sub-directories are plain directories — make them with `mkdir`, nest them
-    freely — and are recursed into until a `ticket.md` is found. A task
-    directory is never recursed into (no task inside a task). Directories whose
-    names start with `_` are treated as templates and skipped at every level.
+    Plain sub-directories (those without a `ticket.md`) are recursed into. A
+    task directory is never recursed into (no task inside a task). Names that
+    start with `_` are treated as templates and skipped at every level.
 
-    Raises `DuplicateTaskSlugError` if two task directories ever resolve to the
-    same path (impossible by construction, but checked anyway — fail loud).
+    Raises `DuplicateTaskSlugError` if two tasks resolve to the same slug —
+    notably a `tasks/<slug>.md` file alongside a `tasks/<slug>/` directory.
     """
     tasks_root = tasks_dir(cfg)
     if not tasks_root.is_dir():
         return []
     found: dict[str, TaskRef] = {}
 
-    def add(entry: Path) -> None:
+    def add(entry: Path, *, file_form: bool) -> None:
+        slug = entry.stem if file_form else entry.name
         rel = entry.relative_to(tasks_root)
         parent = rel.parent
         directory = None if parent == Path(".") else parent.as_posix()
-        ref = TaskRef(slug=entry.name, path=entry, directory=directory)
+        ref = TaskRef(slug=slug, path=entry, directory=directory, file_form=file_form)
         clash = found.get(ref.id_slug)
         if clash is not None:
             raise DuplicateTaskSlugError(ref.id_slug, [clash.path, entry])
@@ -111,10 +147,16 @@ def list_tasks(cfg: Config) -> list[TaskRef]:
 
     def walk(directory: Path) -> None:
         for entry in sorted(directory.iterdir()):
-            if not entry.is_dir() or entry.name.startswith("_"):
+            if entry.name.startswith("_"):
+                continue
+            if entry.is_file():
+                if entry.suffix == ".md" and entry.name != "ticket.md":
+                    add(entry, file_form=True)  # file-form task
+                continue
+            if not entry.is_dir():
                 continue
             if (entry / "ticket.md").is_file():
-                add(entry)  # a task — never recurse into it
+                add(entry, file_form=False)  # directory-form task — never recurse
             else:
                 walk(entry)  # a plain sub-directory — keep descending
 
@@ -265,7 +307,7 @@ def resolve_target(cfg: Config, arg: str) -> TargetRef:
 
 
 def read_ticket(ref: TargetRef) -> Ticket:
-    return Ticket.read(ref.path / "ticket.md")
+    return Ticket.read(ref.ticket_path)
 
 
 __all__ = [

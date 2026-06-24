@@ -169,10 +169,10 @@ than refusing. A ticket that can't be activated — no workflow, or an empty
 active` gives. Launching an `active` ticket then marks it
 `in_progress` (posting `▶️`) before spawning the agent; launching an
 already-`in_progress` ticket resumes it without another status flip. Interactive launches require stdin and stdout to both be
-terminals. **`mode: auto` is temporarily disabled** — auto runs (claude
+terminals. **`autonomy: auto` is temporarily disabled** — auto runs (claude
 `-p`, codex `exec`) buffer stdout until completion, leaving the operator
-with no live console signal. Use `mode: script` for unattended wrappers
-and CI until streaming lands. `mode: script` runs the step's skill script
+with no live console signal. Use a script step (a step whose skill has `script:`) for unattended wrappers
+and CI until streaming lands. a script step runs the step's skill script
 directly. Script launches inject task metadata env vars including
 `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`, and `RELAY_TASK_BLACKBOARD`.
 
@@ -187,9 +187,9 @@ directly. Script launches inject task metadata env vars including
   spawning an agent.
 - `relay launch <slug> --mode <interactive|auto>` — override the ticket's
   `mode:` for this launch only. The debug knob for stepping through a
-  `mode: auto` ticket in an attended terminal. Ephemeral: the ticket file is
+  `autonomy: auto` ticket in an attended terminal. Ephemeral: the ticket file is
   never rewritten, and both the spawned command and the composed
-  mode-specific prompt block follow the override. Rejected for `mode: script`
+  mode-specific prompt block follow the override. Rejected for a script step
   tickets, which compose no agent prompt. `--mode auto` is rejected while
   the auto-launch policy is in force.
 - `relay launch bootstrap/<name>` — stateless launch target; concurrent launches
@@ -307,7 +307,8 @@ in with it. `relay recurring list` is the schedule-aware view of those.
 
 ## relay show \<slug\>
 
-Print a task's `ticket.md`, `blackboard.md`, and `log.md` to the
+Print a task's `ticket.md` (frontmatter + body + blackboard region) and its
+history from the repo-global `relay-os/log.md` to the
 terminal, rendered as markdown via Rich. Same prefix matching as
 `launch`/`bump`. Bootstrap tickets show only `ticket.md` (they have no
 blackboard or log). For grep/pipe use, read the files directly — `show`
@@ -355,7 +356,7 @@ Remove a task directory from the working tree — ticket, blackboard,
 log, and the directory itself. Recovery is via `git restore`; the
 git history is the audit trail, no Slack broadcast. The removal itself
 runs through the `bootstrap/delete-task` skill, so the command is a thin
-resolver and the same deletion is reachable as a `mode: script` step.
+resolver and the same deletion is reachable as a script step.
 
 Bootstrap tickets aren't user-deletable — they're managed by
 `relay init --update`.
@@ -480,7 +481,8 @@ is a default alias for `recurring launch dream`. It scaffolds the
 
 The instantiated task ref is `recurring/dream`: the `recurring/` directory
 marks it as generated, and the current period is recorded in
-`relay-os/recurring/dream/blackboard.md` as `last_serviced_period`. Running
+the blackboard region of `relay-os/recurring/dream/ticket.md` as
+`last_serviced_period`. Running
 `relay dream` mid-week reuses that task instead of creating a second one. Dream
 scans current task state, runs the known Relay housekeeping pass, writes
 results to that run's blackboard, and finishes with `relay mark done`.
@@ -507,11 +509,11 @@ period's), not a backlog. It does not install or manage system cron —
 nothing runs unless you invoke it. `relay-os/scripts/cron.sh` is the
 optional entry point if you later wire it into a scheduler yourself.
 Dedup after Dream deletes a completed run comes from
-`last_serviced_period >= current period_key`; the template `log.md` is
-append-only human history, not the dedup source.
+`last_serviced_period >= current period_key`; the repo-global `relay-os/log.md`
+(tagged `recurring/<name>`) is append-only human history, not the dedup source.
 
 `relay recurring --interactive` launches every due task in interactive mode
-for that run from an attended TTY, even ones whose template says `mode: auto`
+for that run from an attended TTY, even ones whose template says `autonomy: auto`
 — the debug knob for stepping through a recurring run by hand. It threads
 `relay launch --mode interactive` through and rewrites no ticket files.
 
@@ -528,15 +530,15 @@ slug-based suppression, no orphan reaping, and no fold-back-to-template-log
 step. Use it to force this period's work to re-run without waiting for the
 schedule.
 
-**`mode: auto` templates are temporarily skipped** with a stderr line and
+**`autonomy: auto` templates are temporarily skipped** with a stderr line and
 a Slack scan-error summary. The auto-launch path produces no live console
-output, so scheduled runs would sit silently. **`mode: interactive` templates
+output, so scheduled runs would sit silently. **`autonomy: interactive` templates
 are also skipped when `relay recurring` has no stdin/stdout TTY**, because the
-agent REPL cannot be driven. Templates should use `mode: script` (or
-`mode: interactive` when the scan is launched from a real TTY) until streaming
+agent REPL cannot be driven. Templates should use a script step (or
+`autonomy: interactive` when the scan is launched from a real TTY) until streaming
 lands.
 
-**Idle-timeout backstop.** A `mode: interactive` template that *does* launch
+**Idle-timeout backstop.** A `autonomy: interactive` template that *does* launch
 (a TTY is present) but whose agent stalls or crashes before signalling done —
 never reaching `relay bump` / `mark done` / `panic` — would otherwise block the
 sequential sweep forever. Both the bare sweep and `relay recurring --all` arm a
@@ -560,7 +562,7 @@ the existing task). An orphaned `in_progress` run is resumed rather than
 duplicated; a `done` or `paused` run is left alone. This is exactly what the
 `relay dream` alias expands to.
 `--interactive` runs it in interactive mode even if the template says
-`mode: auto`, for debugging one template by hand.
+`autonomy: auto`, for debugging one template by hand.
 
 ## relay recurring list
 
@@ -641,8 +643,8 @@ ticket. Relay-owned commands that mutate a task — draft, ticket-authoring exit
 mark, bump, launch-time transitions, recurring/retire scaffolding — run that
 same task-scoped check after the write and before reporting success, so
 malformed frontmatter fails at the edge of the edit instead of drifting until
-launch. `--fix` is deliberately narrow: it creates missing `blackboard.md` and
-empty `log.md` files, then reports the remaining issues. It does not rewrite
+launch. `--fix` is deliberately narrow: it appends a missing blackboard fence +
+rendered region to a `ticket.md` that lacks one, then reports the remaining issues. It does not rewrite
 existing files, freeze workflows, delete locks, or push git state. `--check-github`
 is an opt-in preflight that mirrors `--check-slack`: it probes git/GitHub auth
 readiness so a raw tool failure surfaces as an actionable setup hint before PR

@@ -24,10 +24,16 @@ no in-memory state.
   bare leaf does not resolve on its own. Agents should use the composed
   prompt's exact task directory instead of reconstructing it from the slug.
   Relay reads this tree — `relay status <dir>` filters to a sub-tree — but
-  never reimplements it. Each task has
-  `ticket.md` (frontmatter + body), `log.md` (append-only, written by CLI
-  commands only), and `blackboard.md` (free-form workspace shared between
-  human and agent).
+  never reimplements it. A task is a **single file or a directory**, whichever
+  it needs: a self-contained task is a bare `tasks/<slug>.md`; a task that needs
+  companions (a deferred `script:` file, attachments) is a `tasks/<slug>/`
+  directory holding `ticket.md` plus the siblings. (`<slug>.md` and `<slug>/`
+  must not both exist; promotion is `mkdir <slug>/ && mv <slug>.md
+  <slug>/ticket.md`.) Either way the ticket is YAML frontmatter + body, then a
+  fence line `<!-- relay:blackboard -->` followed by the free-form blackboard
+  region (the workspace shared between human and agent). The append-only audit
+  trail is not in the task file — it lives in one repo-global `relay-os/log.md`
+  (written by CLI commands only), each line tagged with its task ref.
 - **Contexts** are domain knowledge — what's true about the world.
   Project-local contexts live in `relay-os/contexts/`; bundled Relay
   batteries live in `relay-os/bootstrap/contexts/`. Attached to tickets via
@@ -80,7 +86,7 @@ no in-memory state.
   template (`relay-os/recurring/dream/`) plus a `dream` alias — not a
   built-in command. `relay recurring` scaffolds and launches it when its
   weekly schedule is due; the `relay dream` alias (`recurring launch dream`)
-  scaffolds and launches it on demand. The parent task orchestrates child `mode: script`
+  scaffolds and launches it on demand. The parent task orchestrates child script
   tasks over worker skills; its body scans the ticket set, runs fixed Relay
   housekeeping skills, proposes cleanup, and writes reviewable results to its
   blackboard.
@@ -97,8 +103,12 @@ Claude Code and Codex use.
 Every ticket carries the same canonical key set. These names are
 reserved — no extension or alias may collide with them:
 
-`title`, `status`, `mode`, `owner`, `human`, `agent`, `assignee`,
-`watchers`, `workflow`, `step`, `contexts`, `skills`, `secrets`.
+`slug`, `title`, `status`, `autonomy`, `owner`, `human`, `agent`,
+`assignee`, `watchers`, `workflow`, `step`, `contexts`, `skills`, `secrets`,
+`script`.
+
+`slug` is the task's path-qualified reference, recorded on the ticket for
+legibility (the path under `tasks/` stays the addressing source of truth).
 
 `secrets` is nullable. Absent or `null` preserves legacy launch behavior
 (inject all configured secrets, skipping unset env-backed values), `[]`
@@ -202,9 +212,14 @@ authors a draft, `relay mark` flips status across the lifecycle,
 then flipping `active → in_progress` as it does. `launch` is the one command
 that touches both planes.
 
-## Three modes
+## Autonomy and execution
 
-`mode:` in ticket frontmatter:
+A task does **not** declare what *kind* of work it is — that is deduced from
+its content and its workflow steps. The single declared execution axis is
+`autonomy:` (it replaced the former `mode:`); whether a given step runs a
+script or composes an agent is deduced, not declared.
+
+`autonomy:` in ticket frontmatter:
 
 - **`interactive`** — human-attended terminal session. Agent gets the
   composed prompt, human stays in the loop. The REPL doesn't terminate on
@@ -231,13 +246,20 @@ that touches both planes.
   plus `skip_permissions_argv = "..."` (one string, `shlex`-split, inserted
   after the session-name argv and before the auto argv/prompt). The policy
   is machine-local only — either key in shared `relay.toml` fails config
-  load — and applies only to normal task tickets in effective `mode: auto`:
-  interactive launches, bootstrap/discussion tickets, and script tasks keep
-  today's behavior. Supervised chains re-resolve it per step for whichever
+  load — and applies only to normal task tickets in effective `autonomy: auto`:
+  interactive launches, bootstrap/discussion tickets, and script steps keep
+  today's behavior. (`auto` is currently frozen, as `mode: auto` was.) Supervised chains re-resolve it per step for whichever
   agent the step rotated to, and `"auto"` with no configured argv fails the
   launch loud before spawning.
-- **`script`** — no agent. `relay launch` runs the step's skill
-  script directly with secrets injected as env vars.
+Script vs. agent is **deduced**, not declared — there is no `mode: script`. A
+workflow step runs a script when it resolves to a script entry: its single
+skill's `script:`, or (for a no-skill step, or a workflow-less task) the
+ticket's own `script:` field. Otherwise the step composes a prompt and spawns
+the step's agent. A "mixed" task is just a workflow with both kinds of steps
+over one ticket. A ticket's `script:` is either `inline` (a fenced code block
+under the body's `## Script` heading) or a sibling filename (which makes the
+task take its directory form). Script steps inject secrets as env vars and run
+with no agent; `autonomy` does not apply to them.
 
 ## Prompt composition
 
@@ -250,22 +272,28 @@ file. Layers, in order:
 3. Repo context (`relay-os/context.md` — top-level facts about this
    surface).
 4. Ticket contexts (everything in `contexts:` frontmatter list).
-5. Task-specific context (the ticket body's inline `## Context`).
+5. Task-specific context (the ticket body's inline `## Context`, read from
+   the region **above** the blackboard fence).
 6. Ticket-level skills and the current workflow step's skill (if any).
-7. The blackboard.
+7. The blackboard (the `ticket.md` region **below** the fence).
 8. The task description (the ticket body's `## Description`).
 
 The agent gets all of this as one input. There is no follow-up
-loading.
+loading. A section-aware reader splits the single `ticket.md` at the
+`<!-- relay:blackboard -->` fence: the body above feeds layers 5 and 8, the
+region below feeds layer 7. It fails loud if a task ticket is missing the
+fence rather than silently folding the blackboard into the body (or vice
+versa); a bootstrap ticket legitimately has no blackboard and no fence.
 
-Note what is deliberately **absent**: no `log.md` is ever a composition
-layer — not the task's, not a recurring template's. `log.md` is append-only
-audit history and never enters an agent's context, so it can grow without
-bound. Only `blackboard.md` (layer 7) carries state forward into the prompt.
-The consequence is a hard division of labor: working state that the next run
-must read goes in the blackboard (and is therefore composed, so keep it
-small); durable history goes in the log (never composed, so let it
-accumulate).
+Note what is deliberately **absent**: the `relay-os/log.md` audit log is never
+a composition layer. It is the one repo-global, append-only file, lives
+outside every task directory, and never enters an agent's context, so it can
+grow without bound. Only the blackboard region (layer 7) carries state forward
+into the prompt. The consequence is a hard division of labor: working state
+that the next run must read goes in the blackboard (and is therefore composed,
+so keep it small); durable history goes in the global log (never composed, so
+let it accumulate). This is exactly what makes the single-file format safe —
+the unbounded thing is the one file compose never opens.
 
 An interactive launch's PTY supervisor tears down the REPL when the
 session-scoped `$RELAY_DONE_SENTINEL` file names the launched task — its sole
@@ -345,7 +373,7 @@ as a `SKILL.md` (standard `name` + `description` frontmatter, plus an
 optional `script: <filename>` entry point) alongside that script. `relay
 init` materializes them into `relay-os/bootstrap/skills/...`, so a workflow
 step references the worker by ref `bootstrap/dream/tasks/<name>`. Running a
-worker is just a `mode: script` Relay task whose one workflow step names that
+worker is just a script-step Relay task whose one workflow step names that
 skill — it gets a normal ticket, blackboard, and log. There is no separate
 "Dream worker" Python shape, no `worker.main()` import from `relay.commands`,
 and no in-process call path; the worker runs end-to-end through the same
@@ -366,7 +394,7 @@ target inline. Known limitation: the contract audit's own corpus globs
 `relay-os/bootstrap/skills/**`, so the bundled Dream skills — the scan
 skills included — sit outside the surface that audit reads.
 
-A `mode: script` launch injects task and skill metadata as environment
+A script-step launch injects task and skill metadata as environment
 variables instead of CLI argument plumbing — a worker script reads these, not
 a `--blackboard` flag. The full set: `RELAY_TASK_SLUG`, `RELAY_TASK_DIR`,
 `RELAY_TASK_TICKET`, `RELAY_TASK_BLACKBOARD`, `RELAY_TASK_LOG`,

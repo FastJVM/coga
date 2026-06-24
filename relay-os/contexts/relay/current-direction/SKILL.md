@@ -14,7 +14,7 @@ Last updated: 2026-06-13.
   not `tasks/recurring-<name>-<period>/`. The `recurring/` directory is the
   namespace/identity marker; the schedule period lives in the template
   blackboard as a single overwritten `last_serviced_period` line. The template
-  `log.md` remains append-only human history, not the dedup source.
+  the repo-global `relay-os/log.md` remains append-only human history, not the dedup source.
 
 - **The lifecycle stays ordinary and Dream owns cleanup.** `relay recurring`
   creates a normal `active` task, `relay launch` moves it through the usual
@@ -195,7 +195,7 @@ ones that affect implementation:
   only person field surfaced in Slack messages. Re-introduce when
   team size warrants it.
 - **Manual edits stay silent by design.** Editing ticket.md,
-  blackboard.md, or contexts directly does NOT post to Slack and
+  the blackboard region, or contexts directly does NOT post to Slack and
   does NOT log. Slack is for agent-driven state transitions only.
   No post-commit hooks watching task files.
 - **`relay step` renamed to `relay bump`.** The "advance" semantic

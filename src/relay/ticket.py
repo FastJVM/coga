@@ -24,9 +24,10 @@ _FM_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n?(.*)$", re.DOTALL)
 # rendered below the `# --- extensions ---` marker. Kept here so renderer and
 # validator share the same source of truth.
 CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
+    "slug",
     "title",
     "status",
-    "mode",
+    "autonomy",
     "owner",
     "human",
     "agent",
@@ -37,6 +38,7 @@ CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
     "contexts",
     "skills",
     "secrets",
+    "script",
 })
 
 EXTENSION_MARKER = "# --- extensions ---"
@@ -104,6 +106,16 @@ class Ticket:
     # --- helpers ---------------------------------------------------------------
 
     @property
+    def slug(self) -> str | None:
+        """The task's canonical slug, recorded on the ticket for legibility.
+
+        Defaults to (and is kept in sync with) the task's path under `tasks/`;
+        `relay validate` flags a mismatch. The path stays the addressing source
+        of truth — this field makes a ticket self-describing.
+        """
+        return self.frontmatter.get("slug")
+
+    @property
     def title(self) -> str:
         return self.frontmatter.get("title", "")
 
@@ -112,8 +124,21 @@ class Ticket:
         return self.frontmatter.get("status", "")
 
     @property
-    def mode(self) -> str:
-        return self.frontmatter.get("mode", "interactive")
+    def autonomy(self) -> str:
+        """How the task is attended — `interactive` (a human is present) or
+        `auto` (one-shot, unattended). The only declared execution axis;
+        script-vs-agent is deduced from `script:` / the workflow step, not
+        declared. Replaces the former `mode:` field (whose `script` value is
+        gone). `auto` is currently frozen, as `mode: auto` was."""
+        return self.frontmatter.get("autonomy", "interactive")
+
+    @property
+    def script(self) -> str | None:
+        """The task's own script entry, or None. `inline` → the fenced code
+        block in the body's `## Script` section; a filename (`run.sh`) → a
+        sibling file (directory form). Absent → no ticket-owned script (a pure
+        agent task, or a task whose script comes from a workflow step's skill)."""
+        return self.frontmatter.get("script")
 
     @property
     def owner(self) -> str | None:

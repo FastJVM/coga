@@ -14,12 +14,15 @@ per-period tasks.
 A recurring task lives under `relay-os/recurring/<name>/` and has the same
 shape as any task directory:
 
-- `ticket.md` — YAML frontmatter (`schedule`, `mode`, `title`, …) plus the
+- `ticket.md` — YAML frontmatter (`schedule`, `autonomy`, `title`, …) plus the
   run body. This is the recurring task's definition.
-- `blackboard.md` — **persists across every run.** This is where a recurring
-  task stores last-run state.
-- `log.md` — append-only run history; `relay recurring` adds a line each time
-  it creates a period task.
+- the **blackboard region** (in `ticket.md`, below the
+  `<!-- relay:blackboard -->` fence) — **persists across every run.** This is
+  where a recurring task stores last-run state.
+
+Append-only run history is not beside the template: `relay recurring` adds a
+line to the repo-global `relay-os/log.md` (tagged `recurring/<name>`) each time
+it creates a period task.
 
 A directory whose name starts with `_` (`_template/`, `_rem/`) is inert — the
 scanner skips it. That is how the starter templates ship without firing.
@@ -54,7 +57,8 @@ scanner skips it. That is how the starter templates ship without firing.
 - `schedule` — a 5-field cron string. **Required**; a recurring task without
   it (or without `ticket.md`) is skipped with a stderr warning and an entry
   in the run's Slack summary.
-- `mode` — `script`, `auto`, or `interactive`. Defaults to `auto`.
+- `autonomy` — `interactive` or `auto` (defaults to `auto`). Script-ness is
+  deduced from the workflow's step skills / a ticket `script:`, not declared.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered
@@ -72,8 +76,8 @@ blackboard does **not** carry over.
 
 So a recurring task that needs continuity between runs (a last-processed
 commit SHA, a cursor, a posted/skipped flag) keeps that state in **its own**
-blackboard: `relay-os/recurring/<name>/blackboard.md`. The creator also
-keeps the schedule high-water mark there as `last_serviced_period:
+blackboard region: the part of `relay-os/recurring/<name>/ticket.md` below the
+fence. The creator also keeps the schedule high-water mark there as `last_serviced_period:
 <period_key>`, overwriting the single line as periods advance.
 
 When designing a recurring task that carries cross-run state, name in the
@@ -90,14 +94,15 @@ task, which carries that rule.
 - **`last_serviced_period` in the template blackboard is the period
   high-water mark.** The period key buckets the firing: hourly →
   `YYYY-MM-DD-HH`, daily → `YYYY-MM-DD`, weekly → `YYYY-Www`, monthly →
-  `YYYY-MM`. Bare `relay recurring` reads
-  `relay-os/recurring/<name>/blackboard.md` before creating: if
+  `YYYY-MM`. Bare `relay recurring` reads the blackboard region of
+  `relay-os/recurring/<name>/ticket.md` before creating: if
   `last_serviced_period >= current period_key` and no instantiated task dir
   remains, that period has been handled — it is not re-created and not
   re-launched. The on-demand `relay recurring launch <name>` (and aliases like
   `relay dream`) bypass this skip: it's the explicit override.
-- **The recurring template's `log.md` is append-only history.** The creator
-  still appends a human-readable period line, but dedup does not depend on
+- **Run history goes to the repo-global `relay-os/log.md`** (tagged
+  `recurring/<name>`). The creator still appends a human-readable period line,
+  but dedup does not depend on
   parsing the log. Logs are never composed into prompts, so history can grow
   without bloating the next run.
 - Period tasks create **straight to `status: active`** — ready jobs, not
@@ -141,8 +146,8 @@ only cleanup path.
   example blocks or use `###`.
 - Do not store last-run state in the instantiated task's blackboard under
   `relay-os/tasks/recurring/<name>/` — it is fresh for one run and deleted on
-  cleanup. Use the recurring task's own
-  `relay-os/recurring/<name>/blackboard.md`.
+  cleanup. Use the recurring task's own blackboard region in
+  `relay-os/recurring/<name>/ticket.md`.
 
 ## What this context does NOT cover
 

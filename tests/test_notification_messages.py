@@ -26,6 +26,7 @@ from relay import spool
 from relay.cli import app
 from relay.config import load_config
 from relay.create import create_task
+from relay.taskfile import read_blackboard, replace_blackboard
 from relay.ticket import Ticket
 
 
@@ -48,9 +49,10 @@ def _write_workflow_less_task(
     task_dir.mkdir(parents=True)
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
+        slug: {slug}
         title: Work
         status: {status}
-        mode: interactive
+        autonomy: interactive
         owner: marc
         human: marc
         agent: claude
@@ -61,9 +63,11 @@ def _write_workflow_less_task(
         ---
 
         ## Description
+
+        <!-- relay:blackboard -->
+
+        # Blackboard
     """).lstrip())
-    (task_dir / "blackboard.md").write_text("# Blackboard\n")
-    (task_dir / "log.md").write_text("")
     return slug, task_dir
 
 
@@ -123,20 +127,27 @@ def _make_task(
     else:
         ref = create_task(
             cfg=cfg, title="Work", workflow_name=workflow,
-            contexts=[], mode="interactive", owner="marc", assignee=assignee,
+            contexts=[], autonomy="interactive", owner="marc", assignee=assignee,
             watchers=[], status=status,
         )
     path = ref["path"]
+    # `create_task` yields a file-form task (`tasks/<slug>.md`), while the
+    # workflow-less helper writes a dir-form task; resolve the ticket file for
+    # either shape.
+    ticket_path = path if path.is_file() else path / "ticket.md"
     if workflow and on_final:
-        t = Ticket.read(path / "ticket.md")
+        t = Ticket.read(ticket_path)
         steps = t.workflow["steps"]
         last = len(steps)
         t.frontmatter["step"] = f"{last} ({steps[last - 1]['name']})"
-        t.write(path / "ticket.md")
+        t.write(ticket_path)
     if pr_url is not None:
-        bb = path / "blackboard.md"
-        bb.write_text(
-            bb.read_text().rstrip() + f"\n\n## Dev\n\nbranch: foo\npr: {pr_url}\n"
+        # Single-file format: the `## Dev` PR link lives in the blackboard
+        # region of `ticket.md` (below the fence), not a sibling blackboard.md.
+        region = read_blackboard(ticket_path, blackboard_required=False)
+        replace_blackboard(
+            ticket_path,
+            region.rstrip() + f"\n\n## Dev\n\nbranch: foo\npr: {pr_url}\n",
         )
     return ref["slug"], path
 
@@ -309,14 +320,19 @@ def test_automerge_digest_preserves_transition_and_pr_link(
     slug, _ = _make_task(repo, status="active", on_final=True, pr_url=url)
     monkeypatch.setattr(am, "pr_state", lambda u: "MERGED")
     posts = _capture(monkeypatch)
-    digest_blackboard = repo / "recurring" / "digest" / "blackboard.md"
-    _write(digest_blackboard, "## Spool (pending)\n")
+    # Single-file format: the digest spool lives in the blackboard region of
+    # `recurring/digest/ticket.md` (below the fence), not a sibling blackboard.md.
+    digest_ticket = repo / "recurring" / "digest" / "ticket.md"
+    _write(
+        digest_ticket,
+        "## Description\n\n<!-- relay:blackboard -->\n\n## Spool (pending)\n",
+    )
 
     count = am.sweep_merged(load_config(repo), quiet=True)
 
     assert count == 1
     assert posts == []
-    records = spool.read_records(digest_blackboard)
+    records = spool.read_records(digest_ticket)
     assert len(records) == 1
     assert records[0]["ticket"] == slug
     assert records[0]["kind"] == "done"

@@ -105,18 +105,37 @@ def test_build_validate_command_uses_deterministic_json_surface() -> None:
     assert "--idle-hours" in cmd
 
 
-def test_classifies_missing_log_as_direct_fix() -> None:
+def test_classifies_blackboard_fence_as_direct_fix() -> None:
+    # v2 single-file: the auto-fixable issue is a missing blackboard fence,
+    # which `relay validate --fix` appends to ticket.md. (There is no per-task
+    # log.md / blackboard.md to recreate anymore.)
     classified = classify_issue(
         ValidationIssue(
-            kind="missing-file",
+            kind="blackboard-fence",
             task="broken-task",
-            message="missing log.md",
+            message="ticket.md must contain exactly one blackboard fence",
             severity="error",
         )
     )
 
     assert classified.action == ACTION_DIRECT_FIX
-    assert "empty `log.md`" in classified.remediation
+    assert "relay validate --fix" in classified.remediation
+
+
+def test_classifies_missing_ticket_as_human_needed() -> None:
+    # The only required per-task file is ticket.md — never recreated from
+    # inference, so a missing one is human-needed.
+    classified = classify_issue(
+        ValidationIssue(
+            kind="missing-file",
+            task="broken-task",
+            message="missing ticket.md",
+            severity="error",
+        )
+    )
+
+    assert classified.action == validate_drift.ACTION_HUMAN_NEEDED
+    assert "`ticket.md` is the source of truth" in classified.remediation
 
 
 def test_classifies_broken_refs_as_pr_proposal() -> None:
@@ -185,16 +204,21 @@ def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
 
 
 def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> None:
+    from relay.taskfile import fence_count
+
     relay_os = _seed_repo(tmp_path)
     task = relay_os / "tasks" / "broken-context"
-    (task / "blackboard.md").unlink()
-    (task / "log.md").unlink()
+    # Single-file format: the deterministic drift `--fix` repairs is a ticket.md
+    # missing its blackboard fence (there is no separate blackboard.md/log.md to
+    # recreate). `_seed_repo` writes the body with no fence, so the fix adds one.
+    assert fence_count((task / "ticket.md").read_text()) == 0
+    report = task / "report.md"
     env = os.environ.copy()
     env.update(
         {
             "RELAY_TASK_SLUG": "validate-drift-child",
             "RELAY_TASK_DIR": str(task.resolve()),
-            "RELAY_TASK_BLACKBOARD": str((task / "blackboard.md").resolve()),
+            "RELAY_TASK_BLACKBOARD": str(report.resolve()),
             "RELAY_RELAY_OS_ROOT": str(relay_os.resolve()),
             "RELAY_REPO_ROOT": str(tmp_path.resolve()),
         }
@@ -214,12 +238,11 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
     )
 
     assert result.returncode == 0, result.stderr
-    assert (task / "blackboard.md").is_file()
-    assert (task / "log.md").is_file()
-    text = (task / "blackboard.md").read_text()
-    assert "Applied fixes: 2." in text
-    assert "created blackboard.md" in text
-    assert "created log.md" in text
+    # The fix landed in the repo: ticket.md now carries exactly one fence.
+    assert fence_count((task / "ticket.md").read_text()) == 1
+    text = report.read_text()
+    assert "Applied fixes: 1." in text
+    assert "added blackboard fence + region" in text
     assert "PR Proposal" in text
 
 

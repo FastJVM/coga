@@ -2,11 +2,11 @@
 schedule: "0 8 * * *"
 schedule_comment: "Every day at 8am - close merged final-step tickets before the 9am digest"
 title: "Autoclose merged tickets"
-# `mode: script` runs the sweep directly with no agent: the workflow's one
+# A script step runs the sweep directly with no agent: the workflow's one
 # step references the `relay/autoclose/sweep` skill, whose `script:` calls
 # `relay.autoclose.sweep_merged`. No `claude -p` / `codex exec`
 # buffering, so it is safe under the temporary mode=auto recurring freeze.
-mode: script
+autonomy: auto
 workflow: autoclose-merged/sweep
 ---
 
@@ -17,7 +17,7 @@ workflow is at its final step.
 
 Tickets can get stuck `in_progress` after the owner merges the PR on GitHub but
 forgets to run `relay mark done`. Once a day this recurring task fires before
-the daily digest. Its `mode: script` step runs the existing merged-ticket sweep,
+the daily digest. Its script step runs the existing merged-ticket sweep,
 which:
 
 1. scans active and in-progress tickets,
@@ -34,3 +34,9 @@ Done events produced by the sweep go through `relay mark done`, so they are
 spooled into the daily digest when `recurring/digest/` is installed. Running at
 8am keeps those closures visible in the same day's 9am digest. A quiet day with
 no merged final-step tickets exits successfully and changes nothing.
+
+<!-- relay:blackboard -->
+
+This blackboard persists across every run of this recurring task. The
+`relay/autoclose/sweep` script keeps no durable state here - every run's output
+is the tickets it marks done and the resulting digest spool records.

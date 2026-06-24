@@ -33,11 +33,14 @@ def _write_workflow_less_task(
     slug = slugify(title)
     task_dir = repo / "tasks" / slug
     task_dir.mkdir(parents=True)
+    # Single-file format: body + fence + blackboard region, no sibling
+    # blackboard.md / log.md (history lives in the repo-global log).
     (task_dir / "ticket.md").write_text(dedent(f"""
         ---
+        slug: {slug}
         title: {title}
         status: {status}
-        mode: {mode}
+        autonomy: {mode}
         owner: marc
         human: marc
         agent: claude
@@ -50,9 +53,11 @@ def _write_workflow_less_task(
         ## Description
 
         ## Context
+
+        <!-- relay:blackboard -->
+
+        # Blackboard
     """).lstrip())
-    (task_dir / "blackboard.md").write_text("# Blackboard\n")
-    (task_dir / "log.md").write_text("")
     return slug
 
 
@@ -109,7 +114,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
         title="Fix retry logic",
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -163,7 +168,7 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
         title="Chain work",
         workflow_name="code/with-review",
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -199,7 +204,7 @@ def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
         title="Fix retry logic",
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
-        mode="interactive",
+        autonomy="interactive",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -216,7 +221,7 @@ def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
     layers = {(layer.layer, layer.ref): layer for layer in composition.layers}
     assert ("ticket_context", "email/payment-flow") in layers
     assert ("workflow_skill", "infra/testing-conventions") in layers
-    assert ("blackboard", "blackboard.md") in layers
+    assert ("blackboard", "ticket.md##blackboard") in layers
     assert layers[("ticket_context", "email/payment-flow")].approx_tokens > 0
 
 
@@ -237,7 +242,7 @@ def test_compose_inline_step_instructions(repo: Path) -> None:
         title="T",
         workflow_name="code/with-review",
         contexts=[],
-        mode="interactive",
+        autonomy="interactive",
         owner=None,
         assignee=None,
         watchers=[],
@@ -247,7 +252,7 @@ def test_compose_inline_step_instructions(repo: Path) -> None:
     ticket = read_ticket(ref)
     # Advance to step 2 (pr) — has inline instructions, no skill
     ticket.frontmatter["step"] = "2 (pr)"
-    ticket.write(ref.path / "ticket.md")
+    ticket.write(ref.ticket_path)
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
     assert "Open a PR. Push branch first." in prompt
@@ -296,7 +301,7 @@ def test_compose_raises_on_missing_step_skill(repo: Path) -> None:
         frontmatter={
             "title": "Ghost step skill",
             "status": "in_progress",
-            "mode": "interactive",
+            "autonomy": "interactive",
             "contexts": [],
             "skills": [],
             "workflow": {
@@ -305,7 +310,7 @@ def test_compose_raises_on_missing_step_skill(repo: Path) -> None:
             },
             "step": "1 (implement)",
         },
-        body="## Description\n\nDo the thing.\n",
+        body="## Description\n\nDo the thing.\n\n<!-- relay:blackboard -->\n\n# Blackboard\n",
     )
 
     with pytest.raises(ComposeError) as exc:

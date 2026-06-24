@@ -18,7 +18,9 @@ from rich.table import Table
 from relay import git
 from relay.commands.launch import _interactive_stdio_has_tty
 from relay.config import Config, ConfigError, load_config
-from relay.logfile import append_log
+from relay.logfile import append_log, ref_tag_for_path, task_log_lines
+from relay.paths import log_path
+from relay.taskfile import read_blackboard
 from relay.recurring import (
     DueTask,
     DueScan,
@@ -64,7 +66,7 @@ def main(
         False,
         "--interactive",
         help="Launch every due task in interactive mode for this run, even "
-        "ones whose ticket says `mode: auto`. For debugging; ticket files "
+        "ones whose ticket says `autonomy: auto`. For debugging; ticket files "
         "are not modified.",
     ),
     all_: bool = typer.Option(
@@ -131,7 +133,7 @@ def main(
         )
         return
 
-    mode_override = "interactive" if interactive else None
+    autonomy_override = "interactive" if interactive else None
     # `--interactive` is a human stepping through by hand, so leave the spawned
     # REPL unbounded; an automatic sweep arms the liveness backstops so one stuck
     # agent can't block the tasks behind it.
@@ -157,7 +159,7 @@ def main(
             task.ref.id_slug,
             agent_override=None,
             prompt_report=False,
-            mode_override=mode_override,
+            autonomy_override=autonomy_override,
             idle_timeout=idle_timeout,
             max_session=max_session,
             return_timeout=True,
@@ -177,7 +179,7 @@ def launch(
         False,
         "--interactive",
         help="Launch in interactive mode even if the template says "
-        "`mode: auto`. For debugging; the ticket file is not modified.",
+        "`autonomy: auto`. For debugging; the ticket file is not modified.",
     ),
 ) -> None:
     """Create a named recurring template now and launch it.
@@ -204,7 +206,7 @@ def launch(
         created_on_control = _sync_recurring_create(
             cfg, name, ref, respect_handled_period=False
         )
-        if not (ref.path / "ticket.md").is_file():
+        if not (ref.ticket_path).is_file():
             typer.secho(
                 f"{ref.id_slug} was already handled on the control branch; "
                 "not launching.",
@@ -216,7 +218,7 @@ def launch(
     else:
         typer.echo(f"{ref.id_slug} already created for this period")
 
-    _launch_created(ref, mode_override="interactive" if interactive else None)
+    _launch_created(ref, autonomy_override="interactive" if interactive else None)
 
 
 @app.command("list")
@@ -285,7 +287,7 @@ def _print_picked_table(console: Console, picked: list[TaskRef]) -> None:
         title_justify="left",
         show_edge=False,
     )
-    for col in ("slug", "status", "step", "mode"):
+    for col in ("slug", "status", "step", "autonomy"):
         table.add_column(col, no_wrap=True)
     for ref in picked:
         try:
@@ -297,7 +299,7 @@ def _print_picked_table(console: Console, picked: list[TaskRef]) -> None:
             ref.id_slug,
             ticket.status or "-",
             ticket.step or "-",
-            ticket.mode or "-",
+            ticket.autonomy or "-",
         )
     console.print(table)
 
@@ -309,7 +311,7 @@ def _firing_stamp(when: datetime | None) -> str:
     return when.strftime("%a %m-%d %H:%M")
 
 
-def _launch_created(ref: TaskRef, *, mode_override: str | None = None) -> None:
+def _launch_created(ref: TaskRef, *, autonomy_override: str | None = None) -> None:
     """Launch (or resume) a created recurring task.
 
     Recurring tasks create straight to `active` — machine-authored ready
@@ -320,7 +322,7 @@ def _launch_created(ref: TaskRef, *, mode_override: str | None = None) -> None:
     are left alone — re-launching finished or human-parked work would be wrong,
     and saying so beats silently doing nothing.
     """
-    if not (ref.path / "ticket.md").is_file():
+    if not (ref.ticket_path).is_file():
         typer.secho(
             f"{ref.id_slug} was already handled on the control branch; not launching.",
             fg=typer.colors.BRIGHT_BLACK,
@@ -343,7 +345,7 @@ def _launch_created(ref: TaskRef, *, mode_override: str | None = None) -> None:
         ref.id_slug,
         agent_override=None,
         prompt_report=False,
-        mode_override=mode_override,
+        autonomy_override=autonomy_override,
         return_timeout=False,
     )
 
@@ -372,15 +374,16 @@ def _sync_recurring_create(
             message=message,
         )
         return True
-    template_log = template_dir / "log.md"
-    template_blackboard = template_dir / "blackboard.md"
-    original_log = template_log.read_text() if template_log.is_file() else ""
-    local_log = original_log
-    original_blackboard = (
-        template_blackboard.read_text() if template_blackboard.is_file() else ""
-    )
-    local_blackboard = original_blackboard
-    period_key = read_last_serviced_period(template_blackboard)
+    # Single-file format: the template's working state (the `last_serviced_period`
+    # high-water line) lives in the blackboard region of its `ticket.md`. There is
+    # no per-template `log.md` to merge anymore — period history is appended to the
+    # repo-global, union-merged `relay-os/log.md` (by `_record_run`), which never
+    # rides the cross-branch overlay. So the only cross-branch state this sync
+    # reconciles is the template ticket.md's high-water mark.
+    template_ticket = template_dir / "ticket.md"
+    original_ticket = template_ticket.read_text() if template_ticket.is_file() else ""
+    local_ticket = original_ticket
+    period_key = read_last_serviced_period(template_ticket)
     state_keys: list[str] = []
     if force_period_key is not None:
         try:
@@ -389,24 +392,19 @@ def _sync_recurring_create(
             template = None
         if template is not None:
             state_keys = list(template.frontmatter.get("state_keys") or [])
-    restore_log = original_log
-    restore_blackboard = original_blackboard
+    restore_ticket = original_ticket
     created_on_control = True
     try:
         (
-            restore_log,
-            restore_blackboard,
+            restore_ticket,
             created_on_control,
         ) = _sync_recurring_create_paths(
             cfg,
             anchor_path=ref.path,
-            paths=[ref.path, template_log, template_blackboard],
-            template_log=template_log,
-            template_blackboard=template_blackboard,
-            original_log=original_log,
-            local_log=local_log,
-            original_blackboard=original_blackboard,
-            local_blackboard=local_blackboard,
+            paths=[ref.path, template_ticket],
+            template_ticket=template_ticket,
+            original_ticket=original_ticket,
+            local_ticket=local_ticket,
             period_key=period_key,
             message=message,
             respect_handled_period=respect_handled_period,
@@ -419,8 +417,8 @@ def _sync_recurring_create(
             state_keys=state_keys,
         )
     finally:
-        template_log.write_text(restore_log)
-        template_blackboard.write_text(restore_blackboard)
+        if restore_ticket:
+            template_ticket.write_text(restore_ticket)
     return created_on_control
 
 
@@ -429,12 +427,9 @@ def _sync_recurring_create_paths(
     *,
     anchor_path: Path,
     paths: list[Path],
-    template_log: Path,
-    template_blackboard: Path,
-    original_log: str,
-    local_log: str,
-    original_blackboard: str,
-    local_blackboard: str,
+    template_ticket: Path,
+    original_ticket: str,
+    local_ticket: str,
     period_key: str | None,
     message: str,
     respect_handled_period: bool,
@@ -445,31 +440,36 @@ def _sync_recurring_create_paths(
     force_snapshot_is_fresh: bool,
     force_record_period: bool,
     state_keys: list[str],
-) -> tuple[str, str, bool]:
-    """Sync create paths while merging recurring log/history state."""
+) -> tuple[str, bool]:
+    """Sync create paths while merging the template ticket's high-water mark.
+
+    The cross-branch overlay carries the period task dir and the template
+    `ticket.md` (`rels`). The repo-global `relay-os/log.md` is union-merged and
+    rides only the *local* commit (`_local_commit_rels`), never the overlay —
+    mirroring `relay.git.sync_paths`.
+    """
     if not cfg.git_enabled:
         sys.stderr.write(f"[git] disabled (sync suppressed): {message}\n")
-        return original_log, original_blackboard, True
+        return original_ticket, True
 
     root = _git_toplevel(anchor_path)
     if root is None:
         sys.stderr.write(f"[git] not a git repo (sync skipped): {message}\n")
-        return original_log, original_blackboard, True
+        return original_ticket, True
 
     try:
         rels = [_relative_to_root(root, path) for path in paths]
-        log_rel = _relative_to_root(root, template_log)
-        blackboard_rel = _relative_to_root(root, template_blackboard)
-        template_ticket_rel = _relative_to_root(root, template_log.parent / "ticket.md")
+        ticket_rel = _relative_to_root(root, template_ticket)
+        local_rels = _local_commit_rels(cfg, root, rels)
         branch = _current_branch(root)
 
         try:
             _fetch_control_branch(cfg, root)
         except git.GitError:
-            template_log.write_text(local_log)
-            template_blackboard.write_text(local_blackboard)
+            if local_ticket:
+                template_ticket.write_text(local_ticket)
             git.sync_paths(cfg, anchor_path, paths, message=message)
-            return original_log, original_blackboard, True
+            return original_ticket, True
         base = _rev_parse(root, "FETCH_HEAD")
         task_rel = _relative_to_root(root, anchor_path)
         restored_control_task = False
@@ -482,32 +482,30 @@ def _sync_recurring_create_paths(
                 preserve_local_changes=not overwrite_dirty_control_task,
             )
             if restored_control_task and force_period_key is not None:
-                local_log, local_blackboard, period_key = (
+                local_ticket, period_key = (
                     _reconcile_forced_period_after_control_restore(
+                        cfg,
                         root,
                         base,
                         task_rel=task_rel,
-                        log_rel=log_rel,
-                        blackboard_rel=blackboard_rel,
-                        template_log=template_log,
-                        template_blackboard=template_blackboard,
+                        ticket_rel=ticket_rel,
+                        template_ticket=template_ticket,
                         task_id_slug=_task_id_slug_from_rel(task_rel),
                         force_period_key=force_period_key,
                         snapshot_text_is_fresh=force_snapshot_is_fresh,
                         snapshot_text=restored_snapshot,
-                        snapshot_blackboard_text=local_blackboard,
+                        snapshot_ticket_text=local_ticket,
                         record_period=force_record_period,
                         state_keys=state_keys,
                     )
                 )
-                original_log = local_log
-                original_blackboard = local_blackboard
+                original_ticket = local_ticket
                 if not force_record_period:
-                    return local_log, local_blackboard, False
+                    return local_ticket, False
         if _control_already_has_period(
             root,
             base,
-            blackboard_rel,
+            ticket_rel,
             task_rel,
             period_key=period_key,
             include_ledger=respect_handled_period,
@@ -516,33 +514,34 @@ def _sync_recurring_create_paths(
             if branch == cfg.git_control_branch:
                 _restore_selected_paths_from_ref(root, "HEAD", rels)
                 _rebase_checked_out_branch_onto(root, base)
+                # The create appended to the global log before the sync detected
+                # the period was already handled on control; commit that line so
+                # the control checkout is left clean (the overlay never carries
+                # the log).
+                _commit_global_log(cfg, root, message)
                 return (
-                    _control_log(root, "HEAD", log_rel),
                     _control_blackboard_with_local_period(
-                        root, "HEAD", blackboard_rel, original_blackboard
+                        root, "HEAD", ticket_rel, original_ticket
                     ),
                     False,
                 )
             _restore_selected_paths_from_ref(root, base, rels)
             if branch != "HEAD":
-                git._commit_paths(root, rels, message)
+                git._commit_paths(root, local_rels, message)
                 return (
-                    _control_log(root, "HEAD", log_rel),
                     _control_blackboard_with_local_period(
-                        root, "HEAD", blackboard_rel, original_blackboard
+                        root, "HEAD", ticket_rel, original_ticket
                     ),
                     False,
                 )
             return (
-                _control_log(root, base, log_rel),
                 _control_blackboard_with_local_period(
-                    root, base, blackboard_rel, original_blackboard
+                    root, base, ticket_rel, original_ticket
                 ),
                 False,
             )
-        _write_merged_log_for_ref(root, template_log, log_rel, base, local_log)
         _write_merged_blackboard_for_ref(
-            root, template_blackboard, blackboard_rel, base, local_blackboard
+            root, template_ticket, ticket_rel, base, local_ticket
         )
 
         if branch == cfg.git_control_branch:
@@ -550,15 +549,10 @@ def _sync_recurring_create_paths(
                 cfg,
                 root,
                 rels,
-                template_log=template_log,
-                template_blackboard=template_blackboard,
-                log_rel=log_rel,
-                blackboard_rel=blackboard_rel,
-                template_ticket_rel=template_ticket_rel,
-                original_log=original_log,
-                local_log=local_log,
-                original_blackboard=original_blackboard,
-                local_blackboard=local_blackboard,
+                template_ticket=template_ticket,
+                ticket_rel=ticket_rel,
+                original_ticket=original_ticket,
+                local_ticket=local_ticket,
                 period_key=period_key,
                 message=message,
                 respect_handled_period=respect_handled_period,
@@ -571,29 +565,23 @@ def _sync_recurring_create_paths(
                 state_keys=state_keys,
             )
 
-        committed_log = template_log.read_text()
-        committed_blackboard = template_blackboard.read_text()
+        committed_ticket = template_ticket.read_text()
         if branch == "HEAD":
             sys.stderr.write(
                 f"[git] detached HEAD — task state landed on "
                 f"{cfg.git_control_branch!r} but not committed locally. ({message})\n"
             )
         else:
-            git._commit_paths(root, rels, message)
-            committed_log = _show_path(root, "HEAD", log_rel)
-            committed_blackboard = _show_path(root, "HEAD", blackboard_rel)
+            git._commit_paths(root, local_rels, message)
+            committed_ticket = _show_path(root, "HEAD", ticket_rel)
         landed, already_handled = _land_recurring_create_on_control_branch(
             cfg,
             root,
             rels,
-            template_log=template_log,
-            template_blackboard=template_blackboard,
-            log_rel=log_rel,
-            blackboard_rel=blackboard_rel,
-            template_ticket_rel=template_ticket_rel,
+            template_ticket=template_ticket,
+            ticket_rel=ticket_rel,
             task_rel=task_rel,
-            local_log=local_log,
-            local_blackboard=local_blackboard,
+            local_ticket=local_ticket,
             period_key=period_key,
             message=message,
             respect_handled_period=respect_handled_period,
@@ -608,65 +596,75 @@ def _sync_recurring_create_paths(
         if already_handled:
             _restore_selected_paths_from_ref(root, landed, rels)
             if branch != "HEAD":
-                git._commit_paths(root, rels, message)
+                git._commit_paths(root, local_rels, message)
                 return (
-                    _control_log(root, "HEAD", log_rel),
                     _control_blackboard_with_local_period(
-                        root, "HEAD", blackboard_rel, original_blackboard
+                        root, "HEAD", ticket_rel, original_ticket
                     ),
                     False,
                 )
             return (
-                _control_log(root, landed, log_rel),
                 _control_blackboard_with_local_period(
-                    root, landed, blackboard_rel, original_blackboard
+                    root, landed, ticket_rel, original_ticket
                 ),
                 False,
             )
         return (
-            _merge_log_entries(committed_log, original_log),
-            merge_last_serviced_period_text(committed_blackboard, original_blackboard),
+            merge_last_serviced_period_text(committed_ticket, original_ticket),
             True,
         )
     except git.GitError as exc:
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
-        _append_sync_failure(anchor_path, exc)
-        return original_log, original_blackboard, True
+        _append_sync_failure(cfg, anchor_path, exc)
+        return original_ticket, True
 
 
-def _control_log(root: Path, ref: str, log_rel: str) -> str:
-    """The recurring template `log.md` as committed on `ref` (control branch),
-    normalized through the append-only merge."""
-    return _merge_log_entries(_show_path(root, ref, log_rel))
+def _local_commit_rels(cfg: Config, root: Path, rels: list[str]) -> list[str]:
+    """The overlay `rels` plus the repo-global log for the *local* commit only.
+
+    The global `relay-os/log.md` is `merge=union`, so it must never ride the
+    cross-branch overlay (which replaces files wholesale). It is committed
+    locally and reaches control via the same-branch push / PR merge.
+    """
+    log_file = log_path(cfg)
+    if not log_file.exists():
+        return rels
+    log_rel = _relative_to_root(root, log_file)
+    return rels if log_rel in rels else [*rels, log_rel]
+
+
+def _commit_global_log(cfg: Config, root: Path, message: str) -> None:
+    """Commit only the repo-global `relay-os/log.md`, if it has changes.
+
+    The union-merge global log rides the *local* commit and never the
+    cross-branch overlay, so every control-branch return path that may have left
+    an appended log line in the working tree (a recurring create that the sync
+    then detected was already handled on control, and unwound the task/ticket
+    for) must commit it — otherwise the tree is left dirty. A no-op when the log
+    is unchanged or the period task path was removed (only the log rel is
+    passed, so a removed-task pathspec can't abort the commit)."""
+    log_file = log_path(cfg)
+    if log_file.exists():
+        git._commit_paths(root, [_relative_to_root(root, log_file)], message)
 
 
 def _control_blackboard_with_local_period(
-    root: Path, ref: str, blackboard_rel: str, original_blackboard: str
+    root: Path, ref: str, ticket_rel: str, original_ticket: str
 ) -> str:
+    """The control template `ticket.md`, with the local high-water mark merged
+    in (take-max). Operates on the whole ticket text; only the
+    `last_serviced_period` line is touched."""
     return merge_last_serviced_period_text(
-        _show_path(root, ref, blackboard_rel), original_blackboard
+        _show_path(root, ref, ticket_rel), original_ticket
     )
 
 
-def _merge_log_entries(*texts: str) -> str:
-    """Merge append-only log lines, preserving first-seen order."""
-    out: list[str] = []
-    seen: set[str] = set()
-    for text in texts:
-        for line in text.splitlines():
-            if line in seen:
-                continue
-            seen.add(line)
-            out.append(line)
-    return "".join(f"{line}\n" for line in out)
-
-
-def _append_sync_failure(anchor_path: Path, exc: Exception) -> None:
-    """Best-effort task log note for non-fatal git sync failures."""
+def _append_sync_failure(cfg: Config, anchor_path: Path, exc: Exception) -> None:
+    """Best-effort global-log note for non-fatal git sync failures."""
     if not anchor_path.is_dir():
         return
     try:
-        append_log(anchor_path, "git", f"sync failed: {exc}")
+        append_log(cfg, ref_tag_for_path(cfg, anchor_path), "git", f"sync failed: {exc}")
     except OSError:
         return
 
@@ -676,14 +674,10 @@ def _land_recurring_create_on_control_branch(
     root: Path,
     rels: list[str],
     *,
-    template_log: Path,
-    template_blackboard: Path,
-    log_rel: str,
-    blackboard_rel: str,
-    template_ticket_rel: str,
+    template_ticket: Path,
+    ticket_rel: str,
     task_rel: str,
-    local_log: str,
-    local_blackboard: str,
+    local_ticket: str,
     period_key: str | None,
     message: str,
     respect_handled_period: bool,
@@ -711,20 +705,19 @@ def _land_recurring_create_on_control_branch(
                 preserve_local_changes=not overwrite_dirty_control_task,
             )
             if restored_control_task and force_period_key is not None:
-                local_log, local_blackboard, period_key = (
+                local_ticket, period_key = (
                     _reconcile_forced_period_after_control_restore(
+                        cfg,
                         root,
                         base,
                         task_rel=task_rel,
-                        log_rel=log_rel,
-                        blackboard_rel=blackboard_rel,
-                        template_log=template_log,
-                        template_blackboard=template_blackboard,
+                        ticket_rel=ticket_rel,
+                        template_ticket=template_ticket,
                         task_id_slug=_task_id_slug_from_rel(task_rel),
                         force_period_key=force_period_key,
                         snapshot_text_is_fresh=force_snapshot_is_fresh,
                         snapshot_text=restored_snapshot,
-                        snapshot_blackboard_text=local_blackboard,
+                        snapshot_ticket_text=local_ticket,
                         record_period=force_record_period,
                         state_keys=state_keys,
                     )
@@ -732,18 +725,17 @@ def _land_recurring_create_on_control_branch(
         if _control_already_has_period(
             root,
             base,
-            blackboard_rel,
+            ticket_rel,
             task_rel,
             period_key=period_key,
             include_ledger=respect_handled_period,
             include_task=respect_existing_task,
         ):
             return base, True
-        _write_merged_log_for_ref(root, template_log, log_rel, base, local_log)
         _write_merged_blackboard_for_ref(
-            root, template_blackboard, blackboard_rel, base, local_blackboard
+            root, template_ticket, ticket_rel, base, local_ticket
         )
-        control_rels = _control_create_rels(root, base, rels, template_ticket_rel)
+        control_rels = _control_create_rels(root, base, rels, ticket_rel)
 
         tree = git._build_overlay_tree(root, base, control_rels)
         if tree == _rev_parse(root, f"{base}^{{tree}}"):
@@ -770,15 +762,10 @@ def _sync_recurring_create_on_checked_out_control_branch(
     root: Path,
     rels: list[str],
     *,
-    template_log: Path,
-    template_blackboard: Path,
-    log_rel: str,
-    blackboard_rel: str,
-    template_ticket_rel: str,
-    original_log: str,
-    local_log: str,
-    original_blackboard: str,
-    local_blackboard: str,
+    template_ticket: Path,
+    ticket_rel: str,
+    original_ticket: str,
+    local_ticket: str,
     period_key: str | None,
     message: str,
     respect_handled_period: bool,
@@ -789,19 +776,15 @@ def _sync_recurring_create_on_checked_out_control_branch(
     force_snapshot_is_fresh: bool,
     force_record_period: bool,
     state_keys: list[str],
-) -> tuple[str, str, bool]:
+) -> tuple[str, bool]:
     landed, already_handled = _land_recurring_create_on_control_branch(
         cfg,
         root,
         rels,
-        template_log=template_log,
-        template_blackboard=template_blackboard,
-        log_rel=log_rel,
-        blackboard_rel=blackboard_rel,
-        template_ticket_rel=template_ticket_rel,
+        template_ticket=template_ticket,
+        ticket_rel=ticket_rel,
         task_rel=rels[0],
-        local_log=local_log,
-        local_blackboard=local_blackboard,
+        local_ticket=local_ticket,
         period_key=period_key,
         message=message,
         respect_handled_period=respect_handled_period,
@@ -813,34 +796,34 @@ def _sync_recurring_create_on_checked_out_control_branch(
         force_record_period=force_record_period,
         state_keys=state_keys,
     )
+    _restore_selected_paths_from_ref(root, "HEAD", rels)
+    _rebase_checked_out_branch_onto(root, landed)
+    # The overlay already landed (and the rebase pulled in) the task dir +
+    # template ticket; the only thing still uncommitted is the repo-global
+    # `relay-os/log.md` (union-merge, excluded from the overlay, appended by
+    # `_record_run`). Commit just that file so origin and the local control
+    # branch reflect the history line and the tree is left clean.
+    _commit_global_log(cfg, root, message)
+    git._push_control_branch(cfg, root)
     if already_handled:
-        _restore_selected_paths_from_ref(root, "HEAD", rels)
-        _rebase_checked_out_branch_onto(root, landed)
-        git._push_control_branch(cfg, root)
         return (
-            _control_log(root, "HEAD", log_rel),
             _control_blackboard_with_local_period(
-                root, "HEAD", blackboard_rel, original_blackboard
+                root, "HEAD", ticket_rel, original_ticket
             ),
             False,
         )
-
-    _restore_selected_paths_from_ref(root, "HEAD", rels)
-    _rebase_checked_out_branch_onto(root, landed)
-    git._push_control_branch(cfg, root)
     return (
-        _merge_log_entries(_show_path(root, "HEAD", log_rel), original_log),
         merge_last_serviced_period_text(
-            _show_path(root, "HEAD", blackboard_rel), original_blackboard
+            _show_path(root, "HEAD", ticket_rel), original_ticket
         ),
         True,
     )
 
 
 def _control_create_rels(
-    root: Path, ref: str, rels: list[str], template_ticket_rel: str
+    root: Path, ref: str, rels: list[str], ticket_rel: str
 ) -> list[str]:
-    if _ref_has_path(root, ref, template_ticket_rel):
+    if _ref_has_path(root, ref, ticket_rel):
         return rels
     return rels[:1]
 
@@ -848,7 +831,7 @@ def _control_create_rels(
 def _control_already_has_period(
     root: Path,
     ref: str,
-    blackboard_rel: str,
+    ticket_rel: str,
     task_rel: str,
     *,
     period_key: str | None,
@@ -859,7 +842,7 @@ def _control_already_has_period(
         return True
     if not include_ledger or period_key is None:
         return False
-    serviced = _read_control_last_serviced_period(root, ref, blackboard_rel)
+    serviced = _read_control_last_serviced_period(root, ref, ticket_rel)
     return serviced is not None and serviced >= period_key
 
 
@@ -911,44 +894,42 @@ def _is_generated_snapshot_status(line: str, rel: str) -> bool:
 
 
 def _reconcile_forced_period_after_control_restore(
+    cfg: Config,
     root: Path,
     ref: str,
     *,
     task_rel: str,
-    log_rel: str,
-    blackboard_rel: str,
-    template_log: Path,
-    template_blackboard: Path,
+    ticket_rel: str,
+    template_ticket: Path,
     task_id_slug: str,
     force_period_key: str,
     snapshot_text_is_fresh: bool,
     snapshot_text: str | None,
-    snapshot_blackboard_text: str,
+    snapshot_ticket_text: str,
     record_period: bool,
     state_keys: list[str],
-) -> tuple[str, str, str | None]:
-    """Recompute forced-run bookkeeping after local task state is current."""
-    control_log = _show_path(root, ref, log_rel)
-    control_blackboard = _show_path(root, ref, blackboard_rel)
+) -> tuple[str, str | None]:
+    """Recompute forced-run bookkeeping after local task state is current.
+
+    Operates on the template's single-file `ticket.md`; the high-water mark is
+    the only mutable cross-branch state, and the forced-reused history line goes
+    to the repo-global log.
+    """
+    control_ticket = _show_path(root, ref, ticket_rel)
     if not record_period:
-        template_log.write_text(control_log)
-        template_blackboard.write_text(
+        template_ticket.write_text(
             _local_blackboard_with_control_period(
-                snapshot_blackboard_text, control_blackboard
+                snapshot_ticket_text, control_ticket
             )
         )
-        return (
-            control_log,
-            template_blackboard.read_text() if template_blackboard.is_file() else "",
-            read_last_serviced_period(template_blackboard),
-        )
+        merged = template_ticket.read_text() if template_ticket.is_file() else ""
+        return merged, read_last_serviced_period(template_ticket)
 
-    template_log.write_text(control_log)
-    template_blackboard.write_text(control_blackboard)
-    current = read_last_serviced_period(template_blackboard)
+    template_ticket.write_text(control_ticket)
+    current = read_last_serviced_period(template_ticket)
     if current is None or current < force_period_key:
-        write_last_serviced_period(template_blackboard, force_period_key)
-        _append_forced_reused_log(template_log, task_id_slug, force_period_key)
+        write_last_serviced_period(template_ticket, force_period_key)
+        _append_forced_reused_log(cfg, template_ticket, task_id_slug, force_period_key)
 
     snapshot = root / task_rel / SNAPSHOT_FILE
     if snapshot_text is not None and snapshot_text_is_fresh:
@@ -957,27 +938,24 @@ def _reconcile_forced_period_after_control_restore(
         _write_snapshot_from_text(
             root / task_rel,
             Path(task_id_slug).name,
-            snapshot_blackboard_text,
+            snapshot_ticket_text,
             state_keys,
         )
 
-    return (
-        template_log.read_text() if template_log.is_file() else "",
-        template_blackboard.read_text() if template_blackboard.is_file() else "",
-        read_last_serviced_period(template_blackboard),
-    )
+    merged = template_ticket.read_text() if template_ticket.is_file() else ""
+    return merged, read_last_serviced_period(template_ticket)
 
 
 def _append_forced_reused_log(
-    template_log: Path, task_id_slug: str, period_key: str
+    cfg: Config, template_ticket: Path, task_id_slug: str, period_key: str
 ) -> None:
-    existing = template_log.read_text() if template_log.is_file() else ""
+    """Record a forced reuse in the repo-global log, tagged `recurring/<name>`,
+    idempotently (skip if the same line is already present)."""
+    tag = f"recurring/{template_ticket.parent.name}"
     needle = f"reused {task_id_slug} for {period_key}"
-    if needle in existing:
+    if any(needle in line for line in task_log_lines(cfg, tag)):
         return
-    sep = "" if not existing or existing.endswith("\n") else "\n"
-    stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-    template_log.write_text(f"{existing}{sep}{stamp} [system] {needle}\n")
+    append_log(cfg, tag, "system", needle)
 
 
 def _local_blackboard_with_control_period(
@@ -1040,32 +1018,25 @@ def _rebase_checked_out_branch_onto(root: Path, target: str) -> None:
     )
 
 
-def _write_merged_log_for_ref(
-    root: Path, template_log: Path, log_rel: str, ref: str, local_log: str
-) -> None:
-    control_log = _show_path(root, ref, log_rel)
-    template_log.write_text(
-        _merge_log_entries(control_log, local_log)
-    )
-
-
 def _write_merged_blackboard_for_ref(
     root: Path,
-    template_blackboard: Path,
-    blackboard_rel: str,
+    template_ticket: Path,
+    ticket_rel: str,
     ref: str,
-    local_blackboard: str,
+    local_ticket: str,
 ) -> None:
-    control_blackboard = _show_path(root, ref, blackboard_rel)
-    template_blackboard.write_text(
-        merge_last_serviced_period_text(control_blackboard, local_blackboard)
+    """Write the template `ticket.md` with the control + local high-water marks
+    merged (take-max). Whole-text merge; only the high-water line changes."""
+    control_ticket = _show_path(root, ref, ticket_rel)
+    template_ticket.write_text(
+        merge_last_serviced_period_text(control_ticket, local_ticket)
     )
 
 
 def _read_control_last_serviced_period(
-    root: Path, ref: str, blackboard_rel: str
+    root: Path, ref: str, ticket_rel: str
 ) -> str | None:
-    text = _show_path(root, ref, blackboard_rel)
+    text = _show_path(root, ref, ticket_rel)
     return _last_serviced_period_from_text(text)
 
 
@@ -1164,7 +1135,7 @@ def _stop_if_unfinished_after_launch(
     broadcast it as a watchdog *timeout*, with a system actor, then continue the
     sweep so one wedge can't starve the tasks behind it.
     """
-    if not (ref.path / "ticket.md").exists():
+    if not (ref.ticket_path).exists():
         return
 
     ticket = read_ticket(ref)
@@ -1196,7 +1167,7 @@ def _stop_if_unfinished_after_launch(
         )
         return
 
-    if interactive or ticket.mode == "interactive":
+    if interactive or ticket.autonomy == "interactive":
         suffix = "interactive recurring launch exited unfinished"
         try:
             mark_paused(
@@ -1297,7 +1268,7 @@ def _prepare_forced_launch(cfg: Config, task: DueTask) -> None:
     if task.ref is None:
         return
 
-    if not (task.ref.path / "ticket.md").is_file():
+    if not (task.ref.ticket_path).is_file():
         outcome = create_named(cfg, task.template)
         task.ref = outcome.ref
         task.created = outcome.created
@@ -1351,8 +1322,8 @@ def _record_forced_period_locally(cfg: Config, task: DueTask) -> None:
     template_dir = recurring_dir(cfg) / task.template
     template = Template.load(template_dir)
     blackboard_text = (
-        template.blackboard_path.read_text()
-        if template.blackboard_path.is_file()
+        read_blackboard(template.ticket_path, blackboard_required=False)
+        if template.ticket_path.is_file()
         else ""
     )
     state_keys = list(template.frontmatter.get("state_keys") or [])
@@ -1364,11 +1335,11 @@ def _record_forced_period_locally(cfg: Config, task: DueTask) -> None:
             state_keys,
         )
 
-    current = read_last_serviced_period(template.blackboard_path)
+    current = read_last_serviced_period(template.ticket_path)
     if current is not None and current >= task.period_key:
         return
-    write_last_serviced_period(template.blackboard_path, task.period_key)
-    _append_forced_reused_log(template.log_path, task.ref.id_slug, task.period_key)
+    write_last_serviced_period(template.ticket_path, task.period_key)
+    _append_forced_reused_log(cfg, template.ticket_path, task.ref.id_slug, task.period_key)
 
 
 def _broadcast_scan(
@@ -1405,7 +1376,7 @@ def _broadcast_scan(
             force_snapshot_is_fresh=False,
             force_record_period=False,
         )
-        if not (task.ref.path / "ticket.md").is_file():
+        if not (task.ref.ticket_path).is_file():
             scan.tasks.remove(task)
             typer.secho(
                 f"{task.ref.id_slug} was already handled on the control branch; "

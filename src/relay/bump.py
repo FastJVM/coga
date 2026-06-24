@@ -99,9 +99,9 @@ def advance_step(
     ticket.frontmatter["step"] = f"{next_step} ({new_step_name})"
     if new_assignee is not None:
         ticket.frontmatter["assignee"] = new_assignee
-    ticket.write(ref.path / "ticket.md")
+    ticket.write(ref.ticket_path)
     assert_task_valid(cfg, ref, action=f"bump to step {next_step} ({new_step_name})")
-    append_log(ref.path, actor, log_message)
+    append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
         typer.echo(echo)
     if notify_slack:

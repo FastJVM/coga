@@ -41,7 +41,8 @@ relay-os/
   rules.md               ← global-rules layer of the composed prompt
   context.md             ← repo-context layer of the composed prompt
   recurring/<name>/      ← recurring task template directories
-                           (ticket.md + blackboard.md + log.md)
+                           (single-file ticket.md; history in the
+                           repo-global relay-os/log.md)
   bootstrap/<name>/      ← stateless launch targets
   bootstrap/skills/      ← package-backed core skills (overwritten on update)
   bootstrap/contexts/    ← package-backed bundled contexts (overwritten on update)

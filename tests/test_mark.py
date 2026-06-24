@@ -57,10 +57,15 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "draf
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], mode="interactive", owner="marc", assignee="claude",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
         watchers=[], status=status,
     )
     return ref["slug"], ref["path"]
+
+
+def _read_log(repo: Path) -> str:
+    """The repo-global audit log (`relay-os/log.md`)."""
+    return (repo / "log.md").read_text()
 
 
 # --- mark active --------------------------------------------------------------
@@ -71,9 +76,9 @@ def test_mark_active_from_draft(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.status == "active"
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "activated (draft → active)" in log
 
 
@@ -82,9 +87,9 @@ def test_mark_active_from_paused(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.status == "active"
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "activated (paused → active)" in log
 
 
@@ -99,9 +104,9 @@ def test_mark_active_already_active_errors(repo: Path) -> None:
 def test_mark_active_from_done_errors(repo: Path) -> None:
     slug, task_path = _make_task(repo, status="active")
     # Hand-set to done.
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     t.frontmatter["status"] = "done"
-    t.write(task_path / "ticket.md")
+    t.write(task_path)
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
     assert result.exit_code == 2
@@ -116,7 +121,7 @@ def test_mark_active_refuses_workflow_less_ticket(repo: Path) -> None:
     result = runner.invoke(app, ["mark", "active", slug])
     assert result.exit_code == 2
     assert "no workflow" in result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.status == "draft"
 
 
@@ -125,15 +130,15 @@ def test_mark_active_freezes_string_workflow(repo: Path) -> None:
     snapshot on activation, and seeded at step 1."""
     slug, task_path = _make_task(repo, workflow=None, status="draft")
     # Hand-author a bare-string workflow ref, as guided authoring would.
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     t.frontmatter["workflow"] = "code"
-    t.write(task_path / "ticket.md")
+    t.write(task_path)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
     assert result.exit_code == 0, result.output
 
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.status == "active"
     assert isinstance(t.workflow, dict)
     assert t.workflow["name"] == "code"
@@ -144,15 +149,15 @@ def test_mark_active_refuses_unknown_string_workflow(repo: Path) -> None:
     """A bare-string `workflow:` ref that names no known workflow is refused
     at activation, when the freeze fails."""
     slug, task_path = _make_task(repo, workflow=None, status="draft")
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     t.frontmatter["workflow"] = "no-such-workflow"
-    t.write(task_path / "ticket.md")
+    t.write(task_path)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
     assert result.exit_code == 2
     assert "could not" in result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.status == "draft"
 
 
@@ -173,7 +178,7 @@ def test_mark_active_blocks_on_required_extension_empty(repo: Path) -> None:
     assert result.exit_code == 2
     assert "required extension field" in result.output
     assert "docket" in result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.status == "draft"
 
 
@@ -187,14 +192,14 @@ def test_mark_active_allows_filled_required_extension(repo: Path) -> None:
         )
     )
     slug, task_path = _make_task(repo, status="draft")
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     t.frontmatter["docket"] = "55-12345"
-    t.write(task_path / "ticket.md")
+    t.write(task_path)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.status == "active"
     assert t.frontmatter["docket"] == "55-12345"
 
@@ -219,9 +224,9 @@ def test_mark_paused_from_active(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "paused", slug])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.status == "paused"
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "paused (active → paused)" in log
 
 
@@ -230,12 +235,12 @@ def test_mark_paused_preserves_step(repo: Path) -> None:
     # Advance to step 2.
     runner = CliRunner()
     runner.invoke(app, ["bump", slug])
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.step == "2 (pr)"
     # Pausing preserves the step.
     result = runner.invoke(app, ["mark", "paused", slug])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.status == "paused"
     assert t.step == "2 (pr)"
 
@@ -263,10 +268,10 @@ def test_mark_done_from_active_clears_step(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     assert t.status == "done"
     assert t.step is None
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "task done" in log
 
 
@@ -286,9 +291,9 @@ def test_mark_done_from_paused_errors(repo: Path) -> None:
 
 def test_mark_done_already_done_errors(repo: Path) -> None:
     slug, task_path = _make_task(repo, status="active")
-    t = Ticket.read(task_path / "ticket.md")
+    t = Ticket.read(task_path)
     t.frontmatter["status"] = "done"
-    t.write(task_path / "ticket.md")
+    t.write(task_path)
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "done", slug])
     assert result.exit_code == 2
@@ -305,7 +310,7 @@ def test_mark_active_message_appended(repo: Path) -> None:
         app, ["mark", "active", slug, "--message", "kicking off"]
     )
     assert result.exit_code == 0, result.output
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "activated (draft → active) — kicking off" in log
 
 
@@ -316,7 +321,7 @@ def test_mark_paused_message_appended(repo: Path) -> None:
         app, ["mark", "paused", slug, "--message", "blocked on review"]
     )
     assert result.exit_code == 0, result.output
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "paused (in_progress → paused) — blocked on review" in log
 
 
@@ -327,7 +332,7 @@ def test_mark_done_message_appended(repo: Path) -> None:
         app, ["mark", "done", slug, "--message", "shipped"]
     )
     assert result.exit_code == 0, result.output
-    log = (task_path / "log.md").read_text()
+    log = _read_log(repo)
     assert "task done — shipped" in log
 
 

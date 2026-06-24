@@ -34,13 +34,27 @@ def backfill_role_fields(cfg: Config) -> list[str]:
     agent_types = set(cfg.agents)
     rewritten: list[str] = []
     for ref in list_tasks(cfg):
-        ticket_path = ref.path / "ticket.md"
+        ticket_path = ref.ticket_path
         try:
             ticket = Ticket.read(ticket_path)
         except (TicketError, FileNotFoundError):
             continue
 
         changed = False
+        # Legacy `mode:` → `autonomy:` (the v2 rename). A legacy `mode: script`
+        # has no autonomy meaning — script-ness is deduced now — so it maps to
+        # the unattended `auto`; interactive/auto carry through.
+        if "mode" in ticket.frontmatter and "autonomy" not in ticket.frontmatter:
+            legacy_mode = ticket.frontmatter.pop("mode")
+            ticket.frontmatter["autonomy"] = (
+                "auto" if legacy_mode == "script" else (legacy_mode or "interactive")
+            )
+            changed = True
+        # `slug:` is a v2 required key — the task's path-qualified ref, recorded
+        # on the ticket for legibility.
+        if "slug" not in ticket.frontmatter:
+            ticket.frontmatter["slug"] = ref.id_slug
+            changed = True
         if "human" not in ticket.frontmatter and ticket.owner:
             ticket.frontmatter["human"] = ticket.owner
             changed = True
@@ -160,9 +174,10 @@ def _reorder_role_fields(fm: dict) -> None:
     """
     # Canonical order matches create.py.
     preferred = [
+        "slug",
         "title",
         "status",
-        "mode",
+        "autonomy",
         "owner",
         "human",
         "agent",
