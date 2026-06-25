@@ -77,7 +77,6 @@ def repo(tmp_path: Path) -> Path:
         """,
     )
     _write(company / "relay.local.toml", 'user = "marc"\n')
-    _write(company / "rules.md", "Never commit secrets.\n")
     _write(
         company / "workflows" / "code" / "with-review.md",
         """
@@ -131,8 +130,6 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     assert "You are an agent working on a ticket inside Relay" in prompt
     # Interactive prompt
     assert "Interactive mode" in prompt
-    # Rules
-    assert "Never commit secrets" in prompt
     # Repo context
     assert "Email tool is YC-backed" in prompt
     # Ticket context

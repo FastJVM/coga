@@ -87,7 +87,6 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     task_ref = by_slug[ref["slug"]]
     ticket = read_ticket(task_ref)
     prompt = compose_prompt(cfg, task_ref, ticket)
-    assert "Never commit secrets" in prompt         # rules.md
     assert "email-tool repo handles deliverability" in prompt  # repo context.md
     assert "Stripe webhooks retry" in prompt         # ticket context
     assert "Tests live next to the code" in prompt   # step skill

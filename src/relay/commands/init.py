@@ -4,7 +4,7 @@ Default mode (`relay init`) writes everything from scratch into `<path>/relay-os
 and refuses to overwrite if it already exists. Templates come from the installed
 relay package; `--update` mode refreshes the vendored CLI in `.relay/` plus
 package-owned template creates, leaving user-edited config (`relay.toml`,
-`rules.md`, etc.) untouched. Both modes (re)build the self-contained venv that
+custom skills, etc.) untouched. Both modes (re)build the self-contained venv that
 backs the `relay` console script.
 """
 

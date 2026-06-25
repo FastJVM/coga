@@ -38,7 +38,8 @@ scanner skips it. That is how the starter templates ship without firing.
   non-cleanup templates the existing order holds — orphaned `in_progress`
   resumes first, then fresh launches, each most-overdue first — and a resuming
   Dream orphan still sorts last (cleanup-after-the-rest wins for the janitor
-  itself). Run from `scripts/cron.sh`. A current-period task
+  itself). Invoke it directly from whatever operator-owned scheduler exists
+  outside Relay. A current-period task
   left `in_progress` by a sweep whose supervisor died mid-run (laptop sleep,
   SSH drop) is **relaunched and resumed from its current step**, not skipped:
   `relay launch` re-composes it from `step:`. If an interactive launch returns
@@ -154,6 +155,6 @@ only cleanup path.
 
 ## What this context does NOT cover
 
-The cron wiring in `scripts/cron.sh`, how to write a run's skill or body
+Scheduler wiring, how to write a run's skill or body
 logic, and notification posting mechanics (see `relay/sync`). Implementation lives
 in `src/relay/recurring.py`.
