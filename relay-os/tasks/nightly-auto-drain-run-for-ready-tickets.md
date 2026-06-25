@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts:
 - relay/architecture
 - relay/cli
@@ -32,7 +32,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (design)
+step: 2 (review-design)
 ---
 
 ## Description
