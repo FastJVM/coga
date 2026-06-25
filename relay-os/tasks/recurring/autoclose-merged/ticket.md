@@ -1,7 +1,7 @@
 ---
 slug: recurring/autoclose-merged
 title: Autoclose merged tickets
-status: active
+status: in_progress
 autonomy: auto
 owner: nick
 human: nick

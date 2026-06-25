@@ -260,3 +260,4 @@
 2026-06-24 16:28 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-24 21:13 [recurring/autoclose-merged] [system] created (autonomy=auto, status=active)
 2026-06-24 21:13 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-06-24
+2026-06-24 21:13 [recurring/autoclose-merged] [system] started (active → in_progress) via relay launch
