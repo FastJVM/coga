@@ -689,7 +689,7 @@ def spawn_agent_session(
 
     `commit_log` immediately commits the `log.md` launch append (via
     `sync_log`) instead of leaving it dirty. Callers set it only when no later
-    sync will carry the log: a stateless bootstrap-shim launch has no
+    sync will carry the log: a stateless bootstrap-ticket launch has no
     subsequent bump/`sync_paths`, so without this its append blocks the next
     `git pull` at the checkout gate (the append is committed before the REPL
     starts, so even an in-session `git pull` is unblocked). `relay ticket`
@@ -751,7 +751,7 @@ def spawn_agent_session(
         append_log(cfg, ref.id_slug, actor, log_message)
         if commit_log:
             # Commit the launch line now so it never lingers uncommitted in the
-            # working tree. A bootstrap-shim launch has no later sync to carry
+            # working tree. A bootstrap-ticket launch has no later sync to carry
             # the log, so without this its append blocks the next `git pull` at
             # the checkout gate (merge=union only saves committed content).
             # Non-fatal on any git failure.
