@@ -405,43 +405,63 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
 
     target.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory(prefix="relay-init-") as tmp:
-        repo_url = resolve_relay_repo_url()
-        clone_dir = clone_upstream(Path(tmp) / "repo", repo_url=repo_url)
-        template_root = packaged_template_root()
-        copy_fresh_templates(template_root, relay_os)
-        # `.gitignore` shipped verbatim by copytree; wrap it in the
-        # relay-managed marker block so `init --update` later only touches
-        # the fenced region and leaves user additions alone.
-        _refresh_relay_gitignore(template_root, relay_os)
-        refresh_cli(clone_dir, relay_os)
-        sha = upstream_sha(clone_dir)
+    # Init is atomic. The check above guarantees relay-os/ did not exist before
+    # this run, so if any step below fails — clone, template copy, venv build, a
+    # Ctrl-C, even a sys.exit — we remove the half-built relay-os/ and re-raise.
+    # A partial init must never survive: it is the dead end where `relay init`
+    # refuses ("already exists — use --update") while `relay init --update` then
+    # chokes on the broken venv / missing user (the re-init wedge).
+    try:
+        with tempfile.TemporaryDirectory(prefix="relay-init-") as tmp:
+            repo_url = resolve_relay_repo_url()
+            clone_dir = clone_upstream(Path(tmp) / "repo", repo_url=repo_url)
+            template_root = packaged_template_root()
+            copy_fresh_templates(template_root, relay_os)
+            # `.gitignore` shipped verbatim by copytree; wrap it in the
+            # relay-managed marker block so `init --update` later only touches
+            # the fenced region and leaves user additions alone.
+            _refresh_relay_gitignore(template_root, relay_os)
+            refresh_cli(clone_dir, relay_os)
+            sha = upstream_sha(clone_dir)
 
-    # On a filled repo, drop the onboarding ticket(s) the template ships — a
-    # real project doesn't want the bootstrap interview seeded for it.
-    pruned_onboarding = (
-        _prune_onboarding_tickets(relay_os) if not is_empty else []
-    )
-    # Stamp the captured name over the `new-user` placeholder in whatever
-    # tickets remain, so the placeholder never ships as a live owner.
-    _stamp_user_into_delivered_tickets(relay_os, name)
+        # On a filled repo, drop the onboarding ticket(s) the template ships — a
+        # real project doesn't want the bootstrap interview seeded for it.
+        pruned_onboarding = (
+            _prune_onboarding_tickets(relay_os) if not is_empty else []
+        )
+        # Stamp the captured name over the `new-user` placeholder in whatever
+        # tickets remain, so the placeholder never ships as a live owner.
+        _stamp_user_into_delivered_tickets(relay_os, name)
 
-    managed_skills = _install_managed_skills_or_exit(relay_os)
-    install_venv(relay_os)
-    write_bin_wrapper(relay_os / ".relay" / "bin")
-    write_pin(relay_os, sha, repo_url=repo_url)
+        managed_skills = _install_managed_skills_or_exit(relay_os)
+        install_venv(relay_os)
+        write_bin_wrapper(relay_os / ".relay" / "bin")
+        write_pin(relay_os, sha, repo_url=repo_url)
 
-    local_toml = relay_os / "relay.local.toml"
-    local_toml.write_text(render_local_toml(name))
+        local_toml = relay_os / "relay.local.toml"
+        local_toml.write_text(render_local_toml(name))
 
-    bin_dir = relay_os / ".relay" / "bin"
-    shim = _try_install_shim(bin_dir / "relay")
-    wired_agents, blocked_agents = _link_skills_for_agents(target, relay_os)
-    host_gitignore_changed = ensure_host_gitignore(target)
-    written_guides = _write_agent_guides(target)
-    commit_sha = _git_commit_relay_os(
-        target, relay_os, host_gitignore_changed, written_guides
-    )
+        bin_dir = relay_os / ".relay" / "bin"
+        shim = _try_install_shim(bin_dir / "relay")
+        wired_agents, blocked_agents = _link_skills_for_agents(target, relay_os)
+        host_gitignore_changed = ensure_host_gitignore(target)
+        written_guides = _write_agent_guides(target)
+        commit_sha = _git_commit_relay_os(
+            target, relay_os, host_gitignore_changed, written_guides
+        )
+    except BaseException:
+        # Roll back the partial relay-os/ this run created (only this run — a
+        # pre-existing one is refused far above and never reaches here), then
+        # re-raise so the original error / exit code / Ctrl-C is preserved.
+        if relay_os.exists():
+            shutil.rmtree(relay_os, ignore_errors=True)
+            typer.secho(
+                f"init failed — removed the partial {relay_os}; "
+                f"fix the cause and re-run `relay init`.",
+                fg=typer.colors.YELLOW,
+                err=True,
+            )
+        raise
 
     typer.echo("")
     typer.echo(f"Initialized relay repo at {relay_os}")
