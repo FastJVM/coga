@@ -24,16 +24,26 @@ It's the substrate FastJVM uses to run the company. **Try it now ↓** — then 
 
 ## Getting Started
 
-**1. Install the CLI (once).**
+**1. Install the CLI (once).** Use a virtual environment — it puts `relay` on
+your PATH and keeps your system Python clean:
 
 ```sh
 git clone https://github.com/FastJVM/relay
 cd relay
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install -e .
 ```
 
-That puts `relay` on your PATH against the source. Keep it current later with a
-periodic `git pull && pip install -e .`.
+`relay` is on your PATH whenever that venv is active; in a new shell, re-activate
+with `source /path/to/relay/.venv/bin/activate`. Keep it current later with a
+periodic `git pull && pip install -e .` (venv active).
+
+> **Global install (opt-out).** `python3 -m pip install -e .` without a venv
+> works too, but on macOS pip drops the `relay` script into
+> `~/Library/Python/<ver>/bin`, which usually isn't on your PATH — so `relay`
+> gives `command not found` until you add that directory yourself. The venv
+> avoids it entirely.
 
 **2. Set up a project.** One `relay-os/` per repo — the repo *is* the project.
 For a fresh project:
