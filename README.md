@@ -27,13 +27,10 @@ It's the substrate FastJVM uses to run the company. **Try it now ↓** — then 
 **1. Install the CLI (once).**
 
 ```sh
-git clone https://github.com/FastJVM/relay
-cd relay
-python -m pip install -e .
+pipx install relay-os
 ```
 
-That puts `relay` on your PATH against the source. Keep it current later with a
-periodic `git pull && pip install -e .`.
+Upgrade with `pipx upgrade relay-os` (or plain `pip install relay-os`). Hacking on relay itself: clone and `pip install -e .` in a virtualenv.
 
 **2. Set up a project.** One `relay-os/` per repo — the repo *is* the project.
 For a fresh project:
@@ -118,7 +115,7 @@ A few things worth knowing once you run more than one project:
   auto-activate the vendored copy per-repo (no PATH munging, no rbenv-style
   re-exec) — with several repos that turns into a "which `.relay/.venv/bin/relay`
   won the PATH race?" mess. The tradeoff: keep your global install reasonably
-  current with that periodic `git pull && pip install -e .`.
+  current with `pipx upgrade relay-os`.
 
 ## External CLI Tools
 
@@ -265,7 +262,7 @@ relay init --update --all ~/code   # sweep: refresh every relay repo under ~/cod
 ```
 
 Because each repo vendors its own batteries, picking up a new Relay release
-means `pip install -U relay-os` once, then `relay init --update` per repo. The
+means `pipx upgrade relay-os` once, then `relay init --update` per repo. The
 `--all` sweep does that last step in bulk — it requires an explicit scan root,
 then scans that path for every `relay-os/relay.toml`, refreshes each (sharing
 one upstream clone), reports per-repo results, and exits non-zero if any repo
@@ -469,7 +466,7 @@ public preview `gh skill` command; Relay adds exact removal, URL-backed
 provenance, local-adaptation checks, and a PR-ready update summary for Dream.
 Bundled bootstrap skills are package-backed batteries: `relay skill status`
 shows them, but `relay skill update --all` skips them and points you at the
-package update path (`pip install --upgrade relay-os`, then
+package update path (`pipx upgrade relay-os`, then
 `relay init --update`).
 
 ```sh
