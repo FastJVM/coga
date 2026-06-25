@@ -261,3 +261,5 @@
 2026-06-24 21:13 [recurring/autoclose-merged] [system] created (autonomy=auto, status=active)
 2026-06-24 21:13 [recurring/autoclose-merged] [system] created recurring/autoclose-merged for 2026-06-24
 2026-06-24 21:13 [recurring/autoclose-merged] [system] started (active → in_progress) via relay launch
+2026-06-24 21:13 [recurring/autoclose-merged] [system] launched as a script (skill=relay/autoclose/sweep, script=run.py)
+2026-06-24 21:13 [cli-extension-model/add-recurring-launch-aliases] [human:nick] auto-bumped on merge of PR #421 → done

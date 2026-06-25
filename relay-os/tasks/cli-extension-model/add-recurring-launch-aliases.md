@@ -1,7 +1,7 @@
 ---
 slug: cli-extension-model/add-recurring-launch-aliases
 title: Add recurring-launch aliases
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -28,7 +28,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
