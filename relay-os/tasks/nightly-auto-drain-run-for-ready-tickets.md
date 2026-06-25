@@ -1,7 +1,7 @@
 ---
 slug: nightly-auto-drain-run-for-ready-tickets
 title: Nightly auto-drain run for ready tickets
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
