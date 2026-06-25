@@ -1,7 +1,7 @@
 ---
 slug: marketing/relay-init-git-inits-a-fresh-dir
 title: relay init git-inits a fresh dir
-status: in_progress
+status: done
 autonomy: interactive
 owner: zach
 human: zach
@@ -29,7 +29,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
