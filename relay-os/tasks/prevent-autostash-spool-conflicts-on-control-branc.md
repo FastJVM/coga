@@ -1,7 +1,7 @@
 ---
 slug: prevent-autostash-spool-conflicts-on-control-branc
 title: Prevent autostash spool conflicts on control-branch sync
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -29,7 +29,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 secrets: null
 ---
 
@@ -375,3 +374,5 @@ example fixture clean. Per-AC:
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3740032,"cli":"codex","input_tokens":280994,"model":"gpt-5.5","output_tokens":17476,"provider":"openai","schema":1,"session_id":"019efb83-7fd0-78c2-873c-ed1cdc9ed1e6","slug":"prevent-autostash-spool-conflicts-on-control-branc","step":"peer-review","title":"Prevent autostash spool conflicts on control-branch sync","ts":"2026-06-24T21:57:33.622606Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":163249,"cache_read_input_tokens":1129925,"cli":"claude","input_tokens":16150,"model":"claude-opus-4-8","output_tokens":11264,"provider":"anthropic","schema":1,"session_id":"dee63ef7-1216-40f6-bb34-1fd2418abd5e","slug":"prevent-autostash-spool-conflicts-on-control-branc","step":"open-pr","title":"Prevent autostash spool conflicts on control-branch sync","ts":"2026-06-24T21:59:08.472711Z","usage_status":"ok"}
