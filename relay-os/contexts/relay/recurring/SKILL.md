@@ -50,7 +50,10 @@ scanner skips it. That is how the starter templates ship without firing.
   template. If a non-interactive launched task
   returns still unfinished, the sweep stops before the next due task.
 - `relay recurring launch <name>` — creates one named recurring task now,
-  ignoring its schedule. `<name>` is the directory name.
+  ignoring its schedule. `<name>` is the directory name. Unless
+  `--interactive` is set, the launched REPL receives the same concrete
+  `idle_timeout` / `max_session` limits the scheduled sweep would pass, so the
+  in-process launch path never relies on Typer option sentinels.
 
 `ticket.md` frontmatter fields:
 

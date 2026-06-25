@@ -218,7 +218,9 @@ def launch(
     else:
         typer.echo(f"{ref.id_slug} already created for this period")
 
-    _launch_created(ref, autonomy_override="interactive" if interactive else None)
+    _launch_created(
+        cfg, ref, autonomy_override="interactive" if interactive else None
+    )
 
 
 @app.command("list")
@@ -311,7 +313,9 @@ def _firing_stamp(when: datetime | None) -> str:
     return when.strftime("%a %m-%d %H:%M")
 
 
-def _launch_created(ref: TaskRef, *, autonomy_override: str | None = None) -> None:
+def _launch_created(
+    cfg: Config, ref: TaskRef, *, autonomy_override: str | None = None
+) -> None:
     """Launch (or resume) a created recurring task.
 
     Recurring tasks create straight to `active` — machine-authored ready
@@ -341,11 +345,16 @@ def _launch_created(ref: TaskRef, *, autonomy_override: str | None = None) -> No
     typer.echo(f"{verb} {ref.id_slug}")
     from relay.commands.launch import launch as launch_cmd
 
+    interactive = autonomy_override == "interactive"
+    idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
+    max_session = None if interactive else _recurring_max_session(cfg)
     launch_cmd(
         ref.id_slug,
         agent_override=None,
         prompt_report=False,
         autonomy_override=autonomy_override,
+        idle_timeout=idle_timeout,
+        max_session=max_session,
         return_timeout=False,
     )
 
