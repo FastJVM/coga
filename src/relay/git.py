@@ -227,37 +227,107 @@ def _push_control_branch(cfg: Config, root: Path) -> None:
 
 
 def _rebase_onto_remote(root: Path, remote: str, branch: str) -> None:
-    """Rebase the local control branch onto the freshly-fetched remote tip.
+    """Rebase the local control branch onto the freshly-fetched remote tip,
+    preserving unrelated dirty changes without ever leaving a conflicted tree
+    or an orphaned stash.
 
-    `--autostash` keeps any unrelated dirty working-tree changes intact across
-    the rebase (the user's uncommitted edits are not relay's to commit, but they
-    must survive the recovery). On *any* failure — most likely a content
-    conflict between a local relay commit and concurrent remote work — we
-    `git rebase --abort` so the repo never lingers mid-rebase and the autostash
-    is restored, then raise. The caller surfaces that as a non-fatal sync miss
-    (stderr + log), never a crash: the on-disk markdown is still the source of
-    truth.
+    This replaces git's implicit `rebase --autostash`. Autostash couples the
+    stash and the rebase: when the popped changes conflict with the integrated
+    remote move, its abort path fails to re-apply the autostash, leaving
+    **conflict markers in the working tree AND an undropped stash** — the exact
+    wound this command was hardened against (a contended digest spool, popped
+    back over a moved `origin/main`, re-conflicting on every `rebase --abort`).
+
+    Here the stash is explicit and every failure exit restores the pre-sync
+    state — dirty changes intact, working tree clean, no leftover stash — by
+    resetting to the original local tip (`orig`) and re-applying the stash
+    there, where it is guaranteed to apply because that is where it was taken.
+    The caller surfaces the raised `GitError` as a non-fatal sync miss (stderr +
+    log), never a crash: the on-disk markdown is still the source of truth.
     """
     _run_git(root, "fetch", remote, branch)
-    proc = subprocess.run(
-        ["git", "-C", str(root), "-c", "rebase.autoStash=true",
-         "rebase", "FETCH_HEAD"],
+    orig = _run_git(root, "rev-parse", "HEAD").strip()
+    stashed = _stash_if_dirty(root)
+
+    rebase = subprocess.run(
+        ["git", "-C", str(root), "rebase", "FETCH_HEAD"],
         capture_output=True,
         text=True,
         check=False,
         env={**os.environ, **_noninteractive_git_env()},
     )
-    if proc.returncode != 0:
-        subprocess.run(
-            ["git", "-C", str(root), "rebase", "--abort"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+    if rebase.returncode != 0:
+        _run_git_quiet(root, "rebase", "--abort")
+        _restore_to_orig(root, orig, stashed=stashed)
         raise GitError(
             f"could not rebase {branch!r} onto {remote}/{branch}: "
-            f"{(proc.stderr + proc.stdout).strip()}"
+            f"{(rebase.stderr + rebase.stdout).strip()}"
         )
+
+    if stashed and not _pop_stash(root):
+        # Rebase succeeded, but the dirty changes don't replay onto the new tip.
+        # Roll all the way back so nothing is left half-applied or orphaned.
+        _restore_to_orig(root, orig, stashed=True)
+        raise GitError(
+            f"could not reapply local changes after rebasing {branch!r} onto "
+            f"{remote}/{branch}; restored pre-sync state"
+        )
+
+
+def _stash_if_dirty(root: Path) -> bool:
+    """Stash tracked working-tree changes if any; return whether a stash was made.
+
+    Untracked files are deliberately left in place — relay never sweeps them, so
+    they neither enter the stash nor block the rebase (which ignores untracked
+    paths). Staged and unstaged tracked changes are both captured so the rebase
+    runs against a clean tree.
+    """
+    if not _run_git(root, "status", "--porcelain", "--untracked-files=no").strip():
+        return False
+    _run_git(root, "stash", "push", "--quiet", "--message", "relay-sync-autostash")
+    return True
+
+
+def _pop_stash(root: Path) -> bool:
+    """Pop the most recent stash; return True on a clean pop, False on conflict.
+
+    A conflicted `stash pop` leaves the stash entry intact (git drops it only on
+    a clean apply), so the caller can roll back and re-apply it elsewhere.
+    """
+    proc = subprocess.run(
+        ["git", "-C", str(root), "stash", "pop"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, **_noninteractive_git_env()},
+    )
+    return proc.returncode == 0
+
+
+def _restore_to_orig(root: Path, orig: str, *, stashed: bool) -> None:
+    """Hard-restore the working tree to `orig` and re-apply the stash there.
+
+    Used on every failure exit of `_rebase_onto_remote`. `reset --hard orig`
+    clears any conflict markers, index conflicts, or partial-rebase state and
+    moves the branch back to its pre-sync tip; the stash (taken from `orig`'s
+    tree) then applies cleanly, leaving no orphaned stash and no markers.
+    Best-effort — this already runs inside a `GitError` path the caller reports
+    as a sync miss — so cleanup git calls do not themselves raise.
+    """
+    _run_git_quiet(root, "reset", "--hard", orig)
+    if stashed:
+        _run_git_quiet(root, "stash", "pop")
+
+
+def _run_git_quiet(root: Path, *args: str) -> None:
+    """Run a git subcommand for best-effort cleanup, ignoring any failure."""
+    subprocess.run(
+        ["git", "-C", str(root), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={**os.environ, **_noninteractive_git_env()},
+    )
 
 
 def _commit_task_dir(root: Path, rel: str, message: str) -> bool:

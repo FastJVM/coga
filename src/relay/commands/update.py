@@ -82,6 +82,10 @@ OBSOLETE_PATHS: tuple[str, ...] = (
 VENDORED_RECURRING_TEMPLATES: tuple[str, ...] = (
     "recurring/autoclose-merged/ticket.md",
     "recurring/digest/ticket.md",
+    # The digest spool moved out of the ticket into its own `merge=union` file;
+    # vendored so repos predating it gain `spool.md` on `--update` (the runtime
+    # path also lazily migrates an older installed digest ticket on first use).
+    "recurring/digest/spool.md",
     "recurring/dream/ticket.md",
     "recurring/skill-update/ticket.md",
 )

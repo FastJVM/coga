@@ -1,19 +1,27 @@
 """`relay digest` — post one outcome-focused daily Slack digest.
 
 This is the **consumer** half of the daily-digest pipeline. Done events and
-recurring scan errors spool structured JSONL records onto the
-`recurring/digest/` ticket's blackboard as they happen (see
+recurring scan errors spool structured JSONL records into the dedicated
+`recurring/digest/spool.md` file as they happen (see
 `relay.notification.notify`). Once a day the digest recurring ticket fires as a
 `mode: script` task, and its script step runs this command:
 
-  read the spool → fetch origin/main → render Done + Also merged → post via
-  the webhook → empty the spool → record the new git high-water mark.
+  read the unconsumed records → fetch origin/main → render Done + Also merged →
+  post via the webhook → advance the spool watermark → record the new git
+  high-water mark.
+
+The spool is *compacted*, not emptied: `spool.drain` advances the
+`consumed_through` watermark to the newest record and trims the consumed prefix,
+keeping that newest record in place as an anchor so a concurrent producer append
+stays in a disjoint merge hunk (see `relay.spool`). The git high-water mark
+lives in the digest ticket's `### Digest State` (`state_path`), separate from
+the union-merged spool file.
 
 Idempotent: when there are no Done/error records and no new post-filter
-commits, the command stays silent. The spool is emptied only after a successful
-post, or after deciding the pending records contain only now-silent legacy
-lifecycle chatter. A failed post leaves the records and git state intact for
-the next run.
+commits, the command stays silent. The watermark advances only after a
+successful post, or after deciding the pending records contain only now-silent
+legacy lifecycle chatter. A failed post leaves the records and git state intact
+for the next run.
 """
 
 from __future__ import annotations
@@ -29,7 +37,14 @@ import typer
 from relay import spool
 from relay.atomicio import atomic_write_text
 from relay.config import ConfigError, load_config
-from relay.notification import digest_spool_path, done_pr_numbers, post, render_digest
+from relay.notification import (
+    dedupe_records,
+    digest_spool_path,
+    digest_state_path,
+    done_pr_numbers,
+    post,
+    render_digest,
+)
 
 
 _STATE_HEADING = "Digest State"
@@ -73,15 +88,20 @@ def run_digest(cfg, *, quiet_empty: bool = True) -> bool:
     if spool_path is None:
         if not quiet_empty:
             typer.secho(
-                "digest: no recurring/digest/ ticket installed — nothing to flush.",
+                "digest: no recurring/digest/ spool installed — nothing to flush.",
                 fg=typer.colors.YELLOW,
                 err=True,
             )
         return False
 
-    records = spool.read_records(spool_path)
+    state_path = digest_state_path(cfg)
+
+    # Read only the *unconsumed* records (those past the watermark anchor). The
+    # retained anchor was already posted on a prior run; re-reading it would
+    # double-post. De-dup collapses the same event recorded by two clones.
+    records = dedupe_records(spool.read_unconsumed(spool_path))
     try:
-        merged, state = _scan_control_branch(cfg, spool_path, done_pr_numbers(records))
+        merged, state = _scan_control_branch(cfg, state_path, done_pr_numbers(records))
     except DigestGitError as exc:
         typer.secho(f"digest: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
@@ -93,11 +113,13 @@ def run_digest(cfg, *, quiet_empty: bool = True) -> bool:
     date_label = datetime.now().strftime("%Y-%m-%d")
 
     if not should_post:
+        # Advance the watermark past now-silent lifecycle chatter so it doesn't
+        # re-accumulate; the newest record stays as the anchor.
         if records:
             spool.drain(spool_path)
         if state is not None:
             _write_digest_state(
-                spool_path,
+                state_path,
                 last_commit=state["head"],
                 range_label=state["range"],
                 posted="skipped — no done tickets or new commits",
@@ -118,7 +140,7 @@ def run_digest(cfg, *, quiet_empty: bool = True) -> bool:
     spool.drain(spool_path)
     if state is not None:
         _write_digest_state(
-            spool_path,
+            state_path,
             last_commit=state["head"],
             range_label=state["range"],
             posted="yes",
@@ -222,6 +244,17 @@ def _write_digest_state(
     range_label: str,
     posted: str,
 ) -> None:
+    """Persist the git high-water mark into the digest ticket's `### Digest State`.
+
+    No-op when the ticket file is absent (the spool was installed without it):
+    losing the high-water mark only makes the next run re-scan the last 24h,
+    which is harmless, whereas crashing would abort the flush.
+    """
+    if not path.is_file():
+        sys.stderr.write(
+            f"digest: no {path.name} to record high-water mark — skipping state write.\n"
+        )
+        return
     text = path.read_text(encoding="utf-8")
     state = (
         f"### {_STATE_HEADING}\n\n"
@@ -233,16 +266,7 @@ def _write_digest_state(
     if match:
         new_text = text[: match.start()] + state + text[match.end() :]
     else:
-        spool_heading = re.search(
-            rf"^##\s+{re.escape(spool.SPOOL_HEADING)}\s*$",
-            text,
-            re.MULTILINE,
-        )
-        if spool_heading:
-            prefix = text[: spool_heading.start()].rstrip() + "\n\n"
-            new_text = prefix + state + "\n" + text[spool_heading.start() :]
-        else:
-            new_text = text.rstrip() + "\n\n" + state
+        new_text = text.rstrip() + "\n\n" + state + "\n"
     atomic_write_text(path, new_text)
 
 
