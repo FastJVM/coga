@@ -5,11 +5,22 @@ build-backend = "hatchling.build"
 [project]
 name = "relay-os"
 version = "0.2.0"
-description = "A blackboard for humans and agents — CLI."
+description = "A way to organize agent work — a git-backed, markdown-first CLI for humans and AI agents."
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "AGPL-3.0-or-later" }
 authors = [
   { name = "Relay contributors" },
+]
+keywords = ["agents", "cli", "workflow", "task-management", "markdown"]
+classifiers = [
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development",
+  "Topic :: Utilities",
 ]
 dependencies = [
   "typer>=0.12",

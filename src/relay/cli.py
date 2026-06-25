@@ -53,7 +53,7 @@ def _print_version_and_exit(value: bool) -> None:
 
 app = typer.Typer(
     name="relay",
-    help="A blackboard for humans and agents.",
+    help="Organize agent work in markdown.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -69,7 +69,7 @@ def _root(
         help="Print the relay package version and pinned upstream SHA.",
     ),
 ) -> None:
-    """A blackboard for humans and agents."""
+    """Organize agent work in markdown."""
 
 
 app.command("init")(init_cmd.init)
