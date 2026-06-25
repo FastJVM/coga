@@ -4,7 +4,7 @@ status: in_progress
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (open-pr)
+step: 5 (review)
 autonomy: interactive
 slug: remove-the-shim-concept
 ---
@@ -297,6 +297,7 @@ Planned implement scope: the 4-line mop-up above. Human confirmed
 
 branch: shim-residue-cleanup
 worktree: ../relay-shim-residue (/home/n/Code/codex/relay-shim-residue)
+pr: https://github.com/FastJVM/relay/pull/445
 
 ### Implement result (2026-06-24)
 
@@ -324,3 +325,7 @@ templates and has no committable change.
   already-deleted `shim.py` command — harmless, gitignored, out of scope.
 - The `cli` context's Aliases section still lists only `chat` + `dream` —
   pre-existing doc drift unrelated to "shim"; flagged as a separate follow-up.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":149229,"cache_read_input_tokens":2484710,"cli":"claude","input_tokens":14229,"model":"claude-opus-4-8","output_tokens":53406,"provider":"anthropic","schema":1,"session_id":"e8a60f91-42e2-4e2f-bd40-672bef4a81a9","slug":"remove-the-shim-concept","step":"implement","title":"Remove the shim concept","ts":"2026-06-25T04:19:55.122337Z","usage_status":"ok"}
