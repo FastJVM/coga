@@ -2,7 +2,7 @@
 slug: fail-loud-on-unrecognized-config-sections-instead
 title: Fail loud on unrecognized config sections instead of silently treating webhook
   as absent
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -27,7 +27,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description

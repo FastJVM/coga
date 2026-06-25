@@ -263,3 +263,4 @@
 2026-06-24 21:13 [recurring/autoclose-merged] [system] started (active → in_progress) via relay launch
 2026-06-24 21:13 [recurring/autoclose-merged] [system] launched as a script (skill=relay/autoclose/sweep, script=run.py)
 2026-06-24 21:13 [cli-extension-model/add-recurring-launch-aliases] [human:nick] auto-bumped on merge of PR #421 → done
+2026-06-24 21:13 [fail-loud-on-unrecognized-config-sections-instead] [human:nick] auto-bumped on merge of PR #418 → done
