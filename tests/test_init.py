@@ -678,17 +678,24 @@ def test_init_writes_captured_user_name_to_local_toml(
     assert 'with user = "marc"' in result.output
 
 
-def test_init_without_user_errors(tmp_path: Path, fake_clone, fake_venv) -> None:
-    """A fresh `relay init` with no `--user` is a hard error — the name is a
-    required parameter (so init stays scriptable), and we never fall back to
-    writing `user = ""`. Nothing lands on disk."""
-    target = tmp_path / "company"
-    target.mkdir()
+def test_init_without_user_defaults_to_machine_name(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fresh `relay init` with no `--user` no longer wedges — it derives the
+    name from the machine (git user.name / OS username), warns, and writes that
+    real name to relay.local.toml."""
+    import relay.commands.init as init_mod
+
+    target = _make_git_repo(tmp_path / "company")
+    monkeypatch.setattr(init_mod, "_default_user", lambda: "nicktoper")
 
     result = CliRunner().invoke(app, ["init", str(target)])
-    assert result.exit_code == 2
-    assert "--user" in result.output
-    assert not (target / "relay-os").exists()
+    assert result.exit_code == 0, result.output
+    assert "No --user given" in result.output
+    assert "nicktoper" in result.output
+    local_toml = (target / "relay-os" / "relay.local.toml").read_text()
+    assert 'user = "nicktoper"' in local_toml
+    assert 'user = ""' not in local_toml
 
 
 def test_init_rejects_invalid_user(tmp_path: Path, fake_clone, fake_venv) -> None:

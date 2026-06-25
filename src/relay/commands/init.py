@@ -42,7 +42,7 @@ from relay.commands.update import (
     write_bin_wrapper,
     write_pin,
 )
-from relay.config import ConfigError, find_repo_root, load_config
+from relay.config import ConfigError, _default_user, find_repo_root, load_config
 from relay.dependencies import DEPENDENCIES
 from relay.managed_skills import (
     ManagedSkillError,
@@ -93,21 +93,29 @@ def _clean_user_name(raw: str) -> str | None:
 
 
 def _require_user_name(user: str | None) -> str:
-    """Validate the `--user` value for a direct `relay init`, or exit.
+    """Resolve the `--user` value for a direct `relay init`.
 
-    `relay init` takes the operator's name as a parameter rather than
-    prompting, so init stays scriptable. A missing flag or an invalid value is
-    a hard error (exit 2, matching init's other arg errors) — we never fall
-    back to writing `user = ""` on this path.
+    `relay init` takes the operator's name as a parameter rather than prompting,
+    so init stays scriptable. When `--user` is omitted we no longer exit — we
+    derive a name from the machine (git `user.name`, then the OS username) and
+    warn, so first-run never wedges (Greg's case). The derived name is written
+    to `relay.local.toml` like an explicit `--user` would be. An invalid
+    `--user` value is still a hard error.
     """
     if user is None:
+        # _default_user() may return a git `user.name` containing characters that
+        # would break the `user = "..."` line; fall back to a safe literal then.
+        derived = _clean_user_name(_default_user()) or "user"
         typer.secho(
-            "relay init needs your name to set `user` in relay.local.toml — "
-            "pass it as `relay init --user NAME` (e.g. `relay init --user marc`).",
-            fg=typer.colors.RED,
+            f'No --user given — defaulting to "{derived}" (from your git '
+            "user.name / OS username). This is the name tickets you create are "
+            "owned by and attributed to; set a different one with "
+            "`relay init --user NAME` (e.g. `relay init --user marc`), or edit "
+            "`user` in relay-os/relay.local.toml.",
+            fg=typer.colors.YELLOW,
             err=True,
         )
-        sys.exit(2)
+        return derived
     name = _clean_user_name(user)
     if name is None:
         typer.secho(
