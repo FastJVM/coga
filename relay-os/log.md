@@ -265,3 +265,4 @@
 2026-06-24 21:13 [cli-extension-model/add-recurring-launch-aliases] [human:nick] auto-bumped on merge of PR #421 → done
 2026-06-24 21:13 [fail-loud-on-unrecognized-config-sections-instead] [human:nick] auto-bumped on merge of PR #418 → done
 2026-06-24 21:13 [finish-relay-ticket-greet-first-land-pr-417] [human:nick] auto-bumped on merge of PR #423 → done
+2026-06-24 21:13 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] auto-bumped on merge of PR #436 → done

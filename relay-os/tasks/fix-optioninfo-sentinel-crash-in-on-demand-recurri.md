@@ -1,7 +1,7 @@
 ---
 slug: fix-optioninfo-sentinel-crash-in-on-demand-recurri
 title: Fix OptionInfo sentinel crash in on-demand recurring launchers
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -27,7 +27,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
