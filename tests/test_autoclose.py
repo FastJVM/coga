@@ -161,6 +161,14 @@ def test_parse_pr_url_ignores_pr_outside_dev_section() -> None:
     assert am.parse_pr_url(text) is None
 
 
+def test_parse_pr_url_list_item_form() -> None:
+    # `- pr: <url>` — the bulleted shape `_BRANCH_LINE_RE` already tolerated but
+    # `_PR_LINE_RE` did not, so a merged final-step ticket written this way was
+    # silently skipped by the sweep and left stranded `in_progress`.
+    text = "## Dev\n\n- branch: `trim-prompt`\n- pr: https://github.com/o/r/pull/416\n"
+    assert am.parse_pr_url(text) == "https://github.com/o/r/pull/416"
+
+
 def test_parse_branch_name_bare_form() -> None:
     text = "## Dev\n\nbranch: feature-x\npr: https://github.com/o/r/pull/1\n"
     assert am.parse_branch_name(text) == "feature-x"
