@@ -44,7 +44,12 @@ _DEV_SECTION_RE = re.compile(
     r"^##\s+Dev\s*\n(.*?)(?=\n##\s|\Z)",
     re.MULTILINE | re.DOTALL,
 )
-_PR_LINE_RE = re.compile(r"^\s*pr:\s*(\S+)\s*$", re.MULTILINE)
+# Tolerate an optional `- ` list prefix, exactly like `_BRANCH_LINE_RE` below:
+# `## Dev` lines are written both bare (`pr: <url>`) and bulleted
+# (`- pr: <url>`), and the bulleted shape is perfectly natural. Without the
+# prefix group a bulleted `pr:` line is invisible to the sweep, so a merged
+# final-step ticket is silently skipped and left stranded `in_progress`.
+_PR_LINE_RE = re.compile(r"^\s*(?:-\s*)?pr:\s*(\S+)\s*$", re.MULTILINE)
 _PR_NUMBER_RE = re.compile(r"/pull/(\d+)")
 # The `branch:` line is written inconsistently across existing tickets:
 # `branch: my-branch`, `- branch: \`my-branch\``, ``branch: `my-branch` ``.
