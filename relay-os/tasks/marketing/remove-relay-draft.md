@@ -1,7 +1,7 @@
 ---
 slug: marketing/remove-relay-draft
 title: Remove the relay draft command
-status: in_progress
+status: done
 autonomy: interactive
 owner: zach
 human: zach
@@ -27,7 +27,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description

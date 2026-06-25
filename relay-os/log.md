@@ -267,3 +267,4 @@
 2026-06-24 21:13 [finish-relay-ticket-greet-first-land-pr-417] [human:nick] auto-bumped on merge of PR #423 → done
 2026-06-24 21:13 [fix-optioninfo-sentinel-crash-in-on-demand-recurri] [human:nick] auto-bumped on merge of PR #436 → done
 2026-06-24 21:13 [marketing/relay-init-git-inits-a-fresh-dir] [human:nick] auto-bumped on merge of PR #422 → done
+2026-06-24 21:13 [marketing/remove-relay-draft] [human:nick] auto-bumped on merge of PR #419 → done
