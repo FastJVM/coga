@@ -7,10 +7,6 @@ from pathlib import Path
 from relay.config import Config
 
 
-def rules_path(cfg: Config) -> Path:
-    return cfg.repo_root / "rules.md"
-
-
 def workflow_path(cfg: Config, name: str) -> Path:
     return cfg.repo_root / "workflows" / f"{name}.md"
 
@@ -131,7 +127,6 @@ def bootstrap_path(cfg: Config, name: str) -> Path:
 
 
 __all__ = [
-    "rules_path",
     "workflow_path",
     "bootstrap_workflow_path",
     "resolve_workflow_path",

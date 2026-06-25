@@ -38,7 +38,6 @@ review bars.
 relay-os/
   relay.toml             ← shared config (committed)
   relay.local.toml       ← machine-local (NEVER committed; secrets here)
-  rules.md               ← global-rules layer of the composed prompt
   context.md             ← repo-context layer of the composed prompt
   recurring/<name>/      ← recurring task template directories
                            (single-file ticket.md; history in the
@@ -52,7 +51,6 @@ relay-os/
   skills/<ns>/<name>/    ← project-local process knowledge / overrides
   contexts/<ns>/<name>/  ← project-local domain knowledge / overrides
   workflows/<ns>/<name>.md ← step definitions (local-first over bootstrap/workflows/)
-  scripts/cron.sh        ← entry for recurring scheduler
 ```
 
 Relay resolves skills and contexts from project-local roots first, then from

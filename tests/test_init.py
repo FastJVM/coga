@@ -30,9 +30,7 @@ _PACKAGED_RELAY_TOML = (
 EXPECTED_FILES = {
     "relay-os/.gitignore",
     "relay-os/relay.toml",
-    "relay-os/rules.md",
     "relay-os/context.md",
-    "relay-os/scripts/cron.sh",
     "relay-os/bootstrap/contexts/dev/code/SKILL.md",
     "relay-os/bootstrap/contexts/relay/sync/SKILL.md",
     "relay-os/bootstrap/skills/eval/ticket-diagnostic/SKILL.md",
@@ -81,10 +79,7 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         "**/_template/\n**/_template.md\n"
     )
     (templates / "relay.toml").write_text("version = 1\n")
-    (templates / "rules.md").write_text("rules\n")
     (templates / "context.md").write_text("context\n")
-    (templates / "scripts").mkdir()
-    (templates / "scripts" / "cron.sh").write_text("#!/bin/sh\n")
     # Vendored skills + canonical relay/* contexts both live under bootstrap/.
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text(
@@ -509,7 +504,6 @@ def test_init_into_empty_dir(
 
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
-    assert os.access(target / "relay-os" / "scripts" / "cron.sh", os.X_OK)
     assert not (target / "relay-os" / "skills" / "eval").exists()
     assert not (target / "relay-os" / "skills" / "relay").exists()
     assert not (target / "relay-os" / "contexts" / "dev").exists()
@@ -1002,7 +996,9 @@ def _seed_local_relay_os(root: Path) -> Path:
     (relay_os / "bootstrap" / "stale").mkdir(parents=True)
     (relay_os / "bootstrap" / "stale" / "ticket.md").write_text("STALE ticket from a prior upstream\n")
     (relay_os / "relay.toml").write_text("version = 1\n")
-    (relay_os / "rules.md").write_text("user-edited rules\n")
+    (relay_os / "rules.md").write_text("obsolete global rules\n")
+    (relay_os / "scripts").mkdir()
+    (relay_os / "scripts" / "cron.sh").write_text("#!/bin/sh\n")
 
     # Stale top-level file an earlier upstream shipped (counter / numeric IDs).
     (relay_os / "counter").write_text("7\n")
@@ -1091,7 +1087,6 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "workflows" / "skill-update" / "run.md").write_text(
         "NEW skill update workflow\n"
     )
-    (templates / "rules.md").write_text("NEW upstream rules — should NOT be copied (no _ prefix)\n")
     (templates / "bootstrap" / "create").mkdir(parents=True)
     (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap ticket\n")
     # All vendored skills and contexts now live under `bootstrap/`.
@@ -1269,13 +1264,14 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert "  contexts/dev\n" not in result.output
     assert "  contexts/relay\n" not in result.output
     assert "recurring/_template_old.md" in result.output
-    # User-edited content untouched.
+    # User-owned content untouched; removed upstream surface is pruned.
     assert (relay_os / "skills" / "myteam" / "real-skill" / "SKILL.md").read_text() == "user content\n"
     assert (
         (relay_os / "skills" / "relay" / "calendar-reminder" / "SKILL.md").read_text()
         == "OLD relay/calendar-reminder skill\n"
     )
-    assert (relay_os / "rules.md").read_text() == "user-edited rules\n"
+    assert not (relay_os / "rules.md").exists()
+    assert not (relay_os / "scripts" / "cron.sh").exists()
     assert fake_managed_skill_sync.reconcile_calls == [relay_os]
     assert "Managed skills: delegated=1" in result.output
 

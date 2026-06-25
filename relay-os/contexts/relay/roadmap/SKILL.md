@@ -106,13 +106,13 @@ A stranger must be able to install and run Relay out of the box.
   `fail-loud-when-an-env-indirected-secret-is-missing`). Expect it to split
   at the design step.
 
-### Recurring in cron (4)
+### Recurring scheduling (4)
 
 - `wire-recurring-sweep-into-system-cron` [draft] — the recurring sweep
-  (digest/dream/skill-update) only fires when a human runs `relay recurring`;
-  `scripts/cron.sh` ships but nothing installs it into a scheduler. Give a fresh
-  install a documented one-step way to turn the sweep on. Scheduling only — the
-  budget-aware drain loop is a separate v1 ticket (below).
+  (digest/dream/skill-update) only fires when a human runs `relay recurring`.
+  Scheduling is deferred out of v1; when revisited, design the operator-owned
+  scheduler entry point from scratch instead of assuming a bundled cron wrapper.
+  Scheduling only — the budget-aware drain loop is a separate ticket (below).
 - `enforce-mode-auto-for-recurring-templates` [draft] — no-TTY safety: under
   cron only `autonomy: auto` / script templates launch; an interactive template
   scaffolds but fails to launch. Pairs with the cron ticket.
@@ -184,9 +184,8 @@ blocker, so this lands late in v1.
    and the sweep keeps going instead of stalling.
 5. `drain-pending-auto-tickets-with-leftover-session-b` [draft] — the
    budget-aware drain loop.
-6. `nightly-auto-drain-run-for-ready-tickets` [draft] — assembles 1–5 into the
-   scheduled overnight run (wires `relay-os/scripts/cron.sh`, pairing with the
-   recurring-in-cron ticket; Relay does not manage cron itself).
+6. `nightly-auto-drain-run-for-ready-tickets` [draft] — assembles 1–5 into a
+   future scheduled overnight run. Relay v1 does not ship a scheduler wrapper.
 
 ## v2 — deferred backlog
 
@@ -194,8 +193,8 @@ Everything under `relay-os/tasks/v2/`. Not scheduled against the launch. The
 broad buckets (see `relay status` / the directory for the authoritative list):
 
 - **Docs / knowledge-base** — the `document-*` batch, context-splitting and
-  file-access cleanups, the `rules.md` audit. Do these after the single-file
-  format rewrite or you will clean up docs you are about to rewrite.
+  file-access cleanups. Do these after the single-file format rewrite or you
+  will clean up docs you are about to rewrite.
 - **PM / planning features** — `acceptance-criteria`, `identify-blocking-issues`,
   `relay-design-repositories`, `issue-inbox-slack`, ticket-spec splitting,
   subprojects.

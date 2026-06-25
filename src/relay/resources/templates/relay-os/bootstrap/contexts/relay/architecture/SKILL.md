@@ -268,27 +268,26 @@ file. Layers, in order:
 
 1. Base prompt + mode-specific block (`interactive` / `auto`). Both
    are package resources, not files under `relay-os/`.
-2. Global rules (`relay-os/rules.md`).
-3. Repo context (`relay-os/context.md` — top-level facts about this
+2. Repo context (`relay-os/context.md` — top-level facts about this
    surface).
-4. Ticket contexts (everything in `contexts:` frontmatter list).
-5. Task-specific context (the ticket body's inline `## Context`, read from
+3. Ticket contexts (everything in `contexts:` frontmatter list).
+4. Task-specific context (the ticket body's inline `## Context`, read from
    the region **above** the blackboard fence).
-6. Ticket-level skills and the current workflow step's skill (if any).
-7. The blackboard (the `ticket.md` region **below** the fence).
-8. The task description (the ticket body's `## Description`).
+5. Ticket-level skills and the current workflow step's skill (if any).
+6. The blackboard (the `ticket.md` region **below** the fence).
+7. The task description (the ticket body's `## Description`).
 
 The agent gets all of this as one input. There is no follow-up
 loading. A section-aware reader splits the single `ticket.md` at the
-`<!-- relay:blackboard -->` fence: the body above feeds layers 5 and 8, the
-region below feeds layer 7. It fails loud if a task ticket is missing the
+`<!-- relay:blackboard -->` fence: the body above feeds layers 4 and 7, the
+region below feeds layer 6. It fails loud if a task ticket is missing the
 fence rather than silently folding the blackboard into the body (or vice
 versa); a bootstrap ticket legitimately has no blackboard and no fence.
 
 Note what is deliberately **absent**: the `relay-os/log.md` audit log is never
 a composition layer. It is the one repo-global, append-only file, lives
 outside every task directory, and never enters an agent's context, so it can
-grow without bound. Only the blackboard region (layer 7) carries state forward
+grow without bound. Only the blackboard region (layer 6) carries state forward
 into the prompt. The consequence is a hard division of labor: working state
 that the next run must read goes in the blackboard (and is therefore composed,
 so keep it small); durable history goes in the global log (never composed, so

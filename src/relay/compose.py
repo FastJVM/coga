@@ -16,7 +16,6 @@ from relay.paths import (
     resolve_context_path,
     resolve_skill_path,
     resolve_workflow_path,
-    rules_path,
     skill_resolution_paths,
 )
 from relay.taskfile import split_body
@@ -174,18 +173,7 @@ def compose_prompt_report(
         ))
     # A script task is never composed; enforced by launch.py's dispatch.
 
-    # 3. rules.md
-    rules = rules_path(cfg)
-    if rules.is_file():
-        layers.append(PromptLayer(
-            "global_rules",
-            "Global rules",
-            rules.read_text(),
-            ref="rules.md",
-            path=str(rules),
-        ))
-
-    # 4. repo context.md
+    # 3. repo context.md
     pctx = repo_context_path(cfg)
     if pctx.is_file():
         layers.append(PromptLayer(
@@ -196,7 +184,7 @@ def compose_prompt_report(
             path=str(pctx),
         ))
 
-    # 5. ticket-attached contexts
+    # 4. ticket-attached contexts
     for ref in ticket.contexts:
         cp = resolve_context_path(cfg, ref)
         if cp is None:
@@ -214,7 +202,7 @@ def compose_prompt_report(
             path=str(cp),
         ))
 
-    # 6. inline `## Context` from ticket body
+    # 5. inline `## Context` from ticket body
     inline_ctx = _extract_section(body_above, "Context")
     if inline_ctx:
         layers.append(PromptLayer(
@@ -225,12 +213,12 @@ def compose_prompt_report(
             path=str(task_ref.ticket_path),
         ))
 
-    # 7. ticket-level skills + current workflow step
+    # 6. ticket-level skills + current workflow step
     for skill_ref in ticket.skills:
         layers.extend(_skill_layers(cfg, skill_ref, slug=task_ref.id_slug))
     layers.extend(_step_layers(cfg, ticket, slug=task_ref.id_slug))
 
-    # 8. blackboard (the single-file region below the fence)
+    # 7. blackboard (the single-file region below the fence)
     if blackboard_text and blackboard_text.strip():
         layers.append(PromptLayer(
             "blackboard",

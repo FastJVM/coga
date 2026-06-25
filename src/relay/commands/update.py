@@ -49,6 +49,8 @@ TEMPLATE_RESOURCE_PATH = ("templates", "relay-os")
 # `contexts/<namespace>` directories must be preserved.
 OBSOLETE_PATHS: tuple[str, ...] = (
     "counter",  # numeric task ID counter, dropped in the slug-only migration
+    "rules.md",  # global prompt rules layer removed; use contexts/base prompt
+    "scripts/cron.sh",  # v1 ships no recurring scheduler entry point
     "meta",  # renamed to bootstrap/ — pre-bootstrap upstreams shipped meta/
     "skills/bootstrap/create",  # renamed to bootstrap/ticket in 350c4ed
     "skills/bootstrap/ticket",  # consolidated under bootstrap/skills/bootstrap/ticket

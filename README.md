@@ -194,7 +194,6 @@ mycompany/
 └── relay-os/
     ├── relay.toml              # shared config (committed)
     ├── relay.local.toml        # per-machine: user, paths, secrets (gitignored)
-    ├── rules.md                # project-wide agent rules
     ├── context.md              # company context shared by every task
     ├── skills/                 # reusable process knowledge
     ├── contexts/               # reusable domain knowledge
@@ -261,7 +260,7 @@ auto-stages and commits the new create (push is left to you).
 relay init --user marc             # fresh init in the current dir (PATH defaults to .)
 relay init mycompany --user marc   # or: create + init a new mycompany/ dir
 relay init --update                # refresh .relay/ + package templates in current repo
-                                   # (never touches your relay.toml, rules.md, custom skills, etc.)
+                                   # (never touches your relay.toml, custom skills, etc.)
 relay init --update --all ~/code   # sweep: refresh every relay repo under ~/code
 ```
 
@@ -416,9 +415,9 @@ its own keeps it, and a workflow-less one (e.g. Dream) creates with the
 one-step `direct/body` workflow, which runs the template body's ordered phases
 directly.
 
-`scripts/cron.sh` calls `relay recurring` directly. Naming a command
+Relay does not ship a scheduler entry point in v1. Naming a command
 `recurring` does not install or schedule anything — `relay recurring` only
-runs when you (or a cron entry you set up yourself) invoke it.
+runs when you invoke it directly.
 
 `--interactive` launches every due task in interactive mode for that run,
 even ones whose template says `mode: auto` — the debug knob for stepping

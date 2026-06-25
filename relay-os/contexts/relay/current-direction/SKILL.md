@@ -209,8 +209,8 @@ ones that affect implementation:
 - **`relay recurring` is the canonical entry point** for the recurring
   creator. It scans templates, creates the current period's task for
   each, and launches the due ones sequentially — current period only, no
-  backlog of missed periods. `scripts/cron.sh` calls it directly rather than
-  going through `relay create` / `create_task()`.
+  backlog of missed periods. Relay v1 ships no scheduler wrapper; operators
+  invoke `relay recurring` directly when they want a sweep.
 - **Control plane and data plane are fully split.** `draft` is unapproved,
   `active` is approved/queued, and `in_progress` is launched work. `relay
   launch` owns the `active` → `in_progress` start transition; `relay bump`

@@ -278,14 +278,13 @@ file. Layers, in order:
 
 1. Base prompt + mode-specific block (`interactive` / `auto`). Both
    are package resources, not files under `relay-os/`.
-2. Global rules (`relay-os/rules.md`).
-3. Repo context (`relay-os/context.md` — top-level facts about this
+2. Repo context (`relay-os/context.md` — top-level facts about this
    surface).
-4. Ticket contexts (everything in `contexts:` frontmatter list).
-5. Task-specific context (the ticket body's inline `## Context`).
-6. Ticket-level skills and the current workflow step's skill (if any).
-7. The blackboard.
-8. The task description (the ticket body's `## Description`).
+3. Ticket contexts (everything in `contexts:` frontmatter list).
+4. Task-specific context (the ticket body's inline `## Context`).
+5. Ticket-level skills and the current workflow step's skill (if any).
+6. The blackboard.
+7. The task description (the ticket body's `## Description`).
 
 The agent gets all of this as one input. There is no follow-up
 loading.
