@@ -1,7 +1,7 @@
 ---
 slug: finish-relay-ticket-greet-first-land-pr-417
 title: Consolidate agent-triggering into one launch mechanism (greet-first as an option)
-status: in_progress
+status: done
 autonomy: interactive
 owner: zach
 human: zach
@@ -30,7 +30,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
