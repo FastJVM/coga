@@ -46,6 +46,7 @@ from relay.config import (
     load_config,
 )
 from relay.github_preflight import check_git_auth, check_git_remote
+from relay import git
 from relay.logfile import append_log
 from relay.mark import (
     RequiredExtensionMissing,
@@ -432,6 +433,7 @@ def launch(
                 label="Launch",
                 warn_blackboard=True,
                 capture_usage=not is_bootstrap,
+                commit_log=is_bootstrap,
             )
         except ComposeError as exc:
             _bail(str(exc))
@@ -670,6 +672,7 @@ def spawn_agent_session(
     label: str = "Launch",
     warn_blackboard: bool = False,
     capture_usage: bool = False,
+    commit_log: bool = False,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
 
@@ -683,6 +686,14 @@ def spawn_agent_session(
     `discussion` selects discussion-prompt argv, and `kickoff` appends an
     optional first user turn such as the `relay ticket` greet-first "Begin".
     The launch supervisor loop and step chaining deliberately stay outside.
+
+    `commit_log` immediately commits the `log.md` launch append (via
+    `sync_log`) instead of leaving it dirty. Callers set it only when no later
+    sync will carry the log: a stateless bootstrap-shim launch has no
+    subsequent bump/`sync_paths`, so without this its append blocks the next
+    `git pull` at the checkout gate (the append is committed before the REPL
+    starts, so even an in-session `git pull` is unblocked). `relay ticket`
+    leaves it False — its post-session `sync_paths` folds the log in instead.
     """
     if warn_blackboard:
         warning = blackboard_size_warning(ref.ticket_path)
@@ -738,6 +749,13 @@ def spawn_agent_session(
         )
 
         append_log(cfg, ref.id_slug, actor, log_message)
+        if commit_log:
+            # Commit the launch line now so it never lingers uncommitted in the
+            # working tree. A bootstrap-shim launch has no later sync to carry
+            # the log, so without this its append blocks the next `git pull` at
+            # the checkout gate (merge=union only saves committed content).
+            # Non-fatal on any git failure.
+            git.sync_log(cfg, message=f"Log: {ref.id_slug}")
 
         if mode == "interactive" and name and sys.stdout.isatty():
             sys.stdout.write(f"\033]2;{name}\007")

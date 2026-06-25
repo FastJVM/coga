@@ -20,6 +20,7 @@ from typer.testing import CliRunner
 from relay import git
 from relay.cli import app
 from relay.config import Config, ConfigError, load_config
+from relay.logfile import append_log
 from relay.ticket import Ticket
 
 runner = CliRunner()
@@ -164,6 +165,71 @@ def test_sync_lands_on_main_from_feature_branch(git_repo):
     assert "Ticket: demo — created" in git_repo.git("log", "--format=%s", "feature/x")
     # The control branch was never checked out.
     assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
+
+
+# --- sync_log branches ---------------------------------------------------------
+
+
+def test_sync_log_commits_and_pushes_the_log_on_control_branch(git_repo):
+    """A bare log append is committed + pushed, never left dirty (the bootstrap
+    launch hole that blocks the next `git pull` at the checkout gate)."""
+    cfg = load_config(git_repo.relay_os)
+    append_log(cfg, "bootstrap/orient", "human:nick", "launched in interactive mode")
+    # The append starts life uncommitted in the working tree.
+    assert "log.md" in git_repo.git("status", "--porcelain")
+
+    git.sync_log(cfg, message="Log: bootstrap/orient")
+
+    # Committed (clean tree) and pushed to the shared control branch.
+    assert "log.md" not in git_repo.git("status", "--porcelain")
+    assert git_repo.origin_tracks("relay-os/log.md")
+    assert "Log: bootstrap/orient" in git_repo.origin_subjects()
+
+
+def test_sync_log_scopes_commit_to_the_log_only(git_repo):
+    """An unrelated dirty file is not swept into the log commit."""
+    cfg = load_config(git_repo.relay_os)
+    append_log(cfg, "bootstrap/orient", "human:nick", "launched")
+    stray = git_repo.root / "STRAY.txt"
+    stray.write_text("unrelated\n")
+
+    git.sync_log(cfg, message="Log: bootstrap/orient")
+
+    assert not git_repo.origin_tracks("STRAY.txt")
+    assert "STRAY.txt" in git_repo.git("status", "--porcelain")
+
+
+def test_sync_log_commits_locally_only_on_feature_branch(git_repo):
+    """On a feature branch the log is committed locally (not dirty) but never
+    overlaid onto the control branch — it reaches it union-safely via PR merge."""
+    cfg = load_config(git_repo.relay_os)
+    git_repo.checkout_branch("feature/x")
+    append_log(cfg, "bootstrap/orient", "human:nick", "launched")
+
+    git.sync_log(cfg, message="Log: bootstrap/orient")
+
+    assert "log.md" not in git_repo.git("status", "--porcelain")
+    assert "Log: bootstrap/orient" in git_repo.git("log", "--format=%s", "feature/x")
+    # Not landed on the control branch (no overlay that could clobber appends).
+    assert not git_repo.origin_tracks("relay-os/log.md")
+    assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
+
+
+def test_sync_log_failure_does_not_redirty_the_log(git_repo, capsys):
+    """A failed log sync surfaces to stderr but does NOT append to log.md —
+    re-dirtying the file it failed to commit would recreate the dangling line."""
+    cfg = load_config(git_repo.relay_os)
+    git_repo.git("remote", "remove", "origin")
+    append_log(cfg, "bootstrap/orient", "human:nick", "launched")
+    before = (cfg.repo_root / "log.md").read_text()
+
+    # Must not raise.
+    git.sync_log(cfg, message="Log: bootstrap/orient")
+
+    # The log content is unchanged (no `[git] sync failed` line appended)...
+    assert (cfg.repo_root / "log.md").read_text() == before
+    # ...and the miss is surfaced loudly instead.
+    assert "log sync failed" in capsys.readouterr().err
 
 
 def test_sync_feature_branch_relands_existing_task_after_local_change(git_repo):
