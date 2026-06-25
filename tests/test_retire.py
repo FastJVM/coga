@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from textwrap import dedent
 
@@ -224,6 +225,90 @@ def test_retire_launches_after_create(
             "autonomy_override": None,
         }
     ]
+
+
+def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    proc = subprocess.run(
+        ["git", "-C", str(root), *args], capture_output=True, text=True
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    return proc
+
+
+def test_retire_prunes_merged_branch_before_launch(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """retire deletes the ticket's branch (read from `## Dev`) before launching.
+
+    The branch was merged into `main` (an ancestor of HEAD), so the local
+    `git branch -d` path applies — no `gh`/origin needed; the remote delete
+    self-skips without a merged-PR signal.
+    """
+    monkeypatch.chdir(repo)
+    _git(repo, "init", "-b", "main", ".")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "Tester")
+    (repo / "seed.txt").write_text("seed")
+    _git(repo, "add", "seed.txt")
+    _git(repo, "commit", "-m", "seed")
+    # A feature branch whose commit lands in main (fast-forward) — merged.
+    _git(repo, "checkout", "-b", "fix-retry-branch")
+    (repo / "work.txt").write_text("work")
+    _git(repo, "add", "work.txt")
+    _git(repo, "commit", "-m", "work")
+    _git(repo, "checkout", "main")
+    _git(repo, "merge", "--ff-only", "fix-retry-branch")
+
+    slug = "fix-retry-logic"
+    task_dir = repo / "tasks" / slug
+    task_dir.mkdir(parents=True)
+    _write(
+        task_dir / "ticket.md",
+        f"""
+        ---
+        slug: {slug}
+        title: Fix retry logic
+        status: done
+        autonomy: interactive
+        owner: marc
+        assignee: marc
+        ---
+
+        ## Description
+
+        Done.
+
+        <!-- relay:blackboard -->
+
+        ## Dev
+        branch: fix-retry-branch
+        pr: https://github.com/owner/repo/pull/9
+        """,
+    )
+    (task_dir / "log.md").write_text("")
+
+    assert (
+        subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--verify", "--quiet",
+             "refs/heads/fix-retry-branch"],
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+    result = CliRunner().invoke(app, ["retire", slug, "--no-launch"])
+
+    assert result.exit_code == 0, result.output
+    assert "Branch cleanup: deleted local 'fix-retry-branch'." in result.output
+    # Branch is gone, and it happened before the retro task even existed.
+    assert (
+        subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "--verify", "--quiet",
+             "refs/heads/fix-retry-branch"],
+            capture_output=True,
+        ).returncode
+        != 0
+    )
 
 
 def test_retire_resolves_unique_prefix(
