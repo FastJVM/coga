@@ -345,6 +345,80 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
     assert calls == [["codex", "-c", "developer_instructions=# Relay task\nbody", "Begin"]]
 
 
+def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
+    """A bootstrap launch (commit_log=True) commits its `log.md` append at once.
+
+    Without it the append lingers uncommitted and blocks the next `git pull` at
+    the checkout gate (merge=union only saves committed content). The launch
+    command passes `commit_log=is_bootstrap`, so this is the bootstrap path.
+    """
+    cfg = load_config(git_repo.relay_os)
+    ref = BootstrapRef(name="orient", path=git_repo.relay_os / "bootstrap" / "orient")
+    ref.path.mkdir(parents=True)
+
+    # Fake only the agent spawn (the PTY watcher) — leave real `subprocess.run`
+    # for git so `sync_log` actually commits.
+    monkeypatch.setattr(
+        "relay.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
+    )
+    monkeypatch.setattr(
+        "relay.commands.launch.run_with_done_marker",
+        lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
+    )
+
+    spawn_agent_session(
+        cfg,
+        ref,
+        _ticket(),
+        AgentType(
+            name="claude", cli="claude", auto="-p", file="CLAUDE.md",
+            mode="local", discussion="--append-system-prompt {prompt}",
+        ),
+        "interactive",
+        env={},
+        actor="human:marc",
+        log_message="launched in interactive mode",
+        discussion=True,
+        kickoff="Begin",
+        commit_log=True,
+    )
+
+    # The append is committed (clean tree) and pushed to the control branch.
+    assert "log.md" not in git_repo.git("status", "--porcelain")
+    assert git_repo.origin_tracks("relay-os/log.md")
+    assert "Log: bootstrap/orient" in git_repo.origin_subjects()
+
+
+def test_spawn_leaves_log_dirty_when_commit_log_unset(git_repo, monkeypatch):
+    """Default (commit_log=False) preserves today's behavior: the append stays
+    uncommitted so a later sync (`relay ticket`'s `sync_paths`) carries it."""
+    cfg = load_config(git_repo.relay_os)
+    ref = BootstrapRef(name="orient", path=git_repo.relay_os / "bootstrap" / "orient")
+    ref.path.mkdir(parents=True)
+
+    monkeypatch.setattr(
+        "relay.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
+    )
+    monkeypatch.setattr(
+        "relay.commands.launch.run_with_done_marker",
+        lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
+    )
+
+    spawn_agent_session(
+        cfg, ref, _ticket(),
+        AgentType(
+            name="claude", cli="claude", auto="-p", file="CLAUDE.md",
+            mode="local", discussion="--append-system-prompt {prompt}",
+        ),
+        "interactive", env={}, actor="human:marc",
+        log_message="launched", discussion=True, kickoff="Begin",
+    )
+
+    assert "log.md" in git_repo.git("status", "--porcelain")
+
+
 def test_spawn_agent_session_without_kickoff_stays_silent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

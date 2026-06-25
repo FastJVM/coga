@@ -14,6 +14,12 @@ straight to `refs/heads/<control>`, never checking out `main` or touching the
 feature working tree — and *also* commits the task files on the current branch
 so the agent's checkout reflects the ticket state it works against.
 
+`sync_log` is the narrow companion for callers that append to the repo-global
+`log.md` with no task-dir sync to ride along — chiefly stateless bootstrap-shim
+launches. Those appends would otherwise sit uncommitted and block the next
+`git pull` at the checkout gate (`merge=union` only resolves committed content),
+so it commits `log.md` alone, union-safely.
+
 A non-fast-forward `origin/<control>` (it moved under us) is absorbed by a
 bounded retry loop on both push paths. On the cross-branch landing path the
 `git push <sha>:refs/heads/<control>` is the atomic compare-and-swap that
@@ -95,6 +101,61 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
     changes are not swept in.
     """
     sync_paths(cfg, task_path, [task_path], message=message)
+
+
+def sync_log(cfg: Config, *, message: str) -> None:
+    """Commit (and on the control branch, push) the repo-global `log.md` alone.
+
+    For the union-safe audit log to survive a `git pull`, its appended lines
+    must be *committed*: `merge=union` only resolves committed-vs-committed
+    content, never a dirty working-tree file (git refuses the pull at the
+    checkout gate, before any merge driver runs). Most commands sweep the log
+    in via the task-dir sync — `sync_paths` folds `log.md` into `local_rels` —
+    but a caller that appends without any task-dir sync, notably a stateless
+    bootstrap-shim launch, leaves the line dangling and dirty. `sync_log`
+    closes that hole by committing exactly `log.md`, nothing else.
+
+    Branch handling mirrors `sync_paths`'s log invariant:
+
+      - Control branch: commit + push. A moved `origin/<control>` is absorbed by
+        `_push_control_branch`'s fetch + rebase, which union-merges the log, so
+        a concurrent append is never clobbered.
+      - Feature branch: commit the log locally only. It reaches the control
+        branch union-safely when the branch's PR merges — never via the
+        cross-branch overlay, which replaces the file wholesale and would drop
+        lines another branch appended.
+      - Detached HEAD: skip (the commit would be orphaned); the line stays
+        dirty, reported to stderr.
+
+    Same non-fatal failure model as `sync_paths` (stderr, never a crash) with
+    one deliberate difference: it does **not** `append_log` on failure. That
+    would re-dirty the very file it just failed to commit, recreating the
+    dangling-line problem instead of closing it.
+    """
+    if not cfg.git_enabled:
+        sys.stderr.write(f"[git] disabled (log sync suppressed): {message}\n")
+        return
+    log_file = log_path(cfg)
+    if not log_file.exists():
+        return
+    try:
+        root = _toplevel(log_file)
+        if root is None:
+            sys.stderr.write(f"[git] not a git repo (log sync skipped): {message}\n")
+            return
+        log_rel = _relative_to_root(root, log_file)
+        branch = _current_branch(root)
+        if branch == cfg.git_control_branch:
+            if _commit_paths(root, [log_rel], message):
+                _push_control_branch(cfg, root)
+        elif branch == "HEAD":
+            sys.stderr.write(
+                f"[git] detached HEAD — log append not committed locally. ({message})\n"
+            )
+        else:
+            _commit_paths(root, [log_rel], message)
+    except GitError as exc:
+        sys.stderr.write(f"[git] log sync failed: {exc}. Message was: {message}\n")
 
 
 def sync_paths(
@@ -611,4 +672,4 @@ def _path_exists(root: Path, rel: str) -> bool:
     return path.exists()
 
 
-__all__ = ["GitError", "sync_paths", "sync_task_state"]
+__all__ = ["GitError", "sync_log", "sync_paths", "sync_task_state"]

@@ -124,12 +124,15 @@ def _stub_git(monkeypatch, request):
     the requested fixture names, so the real helper runs there)."""
     if {"git_repo", "real_git"} & set(request.fixturenames):
         return
-    # Both public sync entry points are stubbed: `sync_task_state` (mark / bump /
-    # create / panic) and `sync_paths` (the multi-path variant `relay ticket`
-    # authoring uses). Stubbing only the former would let authoring shell out to
-    # real git on a non-git tmp path and break the faked-subprocess tests.
+    # All public sync entry points are stubbed: `sync_task_state` (mark / bump /
+    # create / panic), `sync_paths` (the multi-path variant `relay ticket`
+    # authoring uses), and `sync_log` (the log-only commit a bootstrap-shim
+    # launch fires). Stubbing only the first would let authoring or a bootstrap
+    # launch shell out to real git on a non-git tmp path and break the
+    # faked-subprocess tests.
     monkeypatch.setattr("relay.git.sync_task_state", lambda *a, **k: None)
     monkeypatch.setattr("relay.git.sync_paths", lambda *a, **k: None)
+    monkeypatch.setattr("relay.git.sync_log", lambda *a, **k: None)
     # Launch's push-auth gate also shells out to git (check_git_remote /
     # check_git_auth). Default the remote probe to "unresolved" so the gate
     # self-skips exactly as it would in a non-git checkout; the dedicated gate
