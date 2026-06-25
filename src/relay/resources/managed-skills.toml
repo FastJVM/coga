@@ -1,10 +1,10 @@
 # Relay-managed skills installed into relay-os/skills through `relay skill`.
 #
-# Core Relay control-plane skills stay package-backed under
-# relay-os/bootstrap/skills so `relay init` works offline. Entries here are
-# optional domain skills: init/update attempts them through the public skill
-# installer and warns, rather than failing, when the source or `gh skill` is not
-# available.
+# Skills bundled in the package live under relay-os/bootstrap/skills and need no
+# entry here (they work offline) — this includes the gmail / google-calendar /
+# calendar-reminder / browser capabilities. Entries below are optional domain
+# skills still fetched from a public source at init/update; a failed fetch warns
+# rather than failing init.
 
 [[skills]]
 ref = "google-agents-cli-workflow"
@@ -46,34 +46,4 @@ required = false
 ref = "google-agents-cli-observability"
 source_type = "github"
 source = "google/agents-cli"
-required = false
-
-[[skills]]
-ref = "relay/calendar-reminder"
-source_type = "github"
-source = "FastJVM/relay-skills"
-required = false
-
-[[skills]]
-ref = "relay/gmail"
-source_type = "github"
-source = "FastJVM/relay-skills"
-required = false
-
-[[skills]]
-ref = "relay/google-calendar"
-source_type = "github"
-source = "FastJVM/relay-skills"
-required = false
-
-[[skills]]
-ref = "browser/dochub"
-source_type = "github"
-source = "FastJVM/relay-skills"
-required = false
-
-[[skills]]
-ref = "browser/playwright"
-source_type = "github"
-source = "FastJVM/relay-skills"
 required = false
