@@ -64,13 +64,41 @@ def test_load_basic(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert not hasattr(cfg, "secrets")
 
 
-def test_missing_local_toml_still_loads(repo: Path) -> None:
-    """With no relay.local.toml at all, load_config falls back to the
-    self-documenting PLACEHOLDER_USER instead of failing."""
-    from relay.config import PLACEHOLDER_USER
+def test_missing_local_toml_still_loads(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no relay.local.toml at all, load_config derives the user (git
+    user.name, then the OS username) instead of failing."""
+    import relay.config as config_mod
 
     (repo / "relay.local.toml").unlink()
-    assert load_config(repo).current_user == PLACEHOLDER_USER
+    monkeypatch.setattr(config_mod, "_default_user", lambda: "dora")
+    assert load_config(repo).current_user == "dora"
+
+
+def test_default_user_prefers_git_then_os(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_default_user uses git user.name when set, else the OS username."""
+    import subprocess
+
+    from relay.config import _default_user
+
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="git-name\n", stderr=""),
+    )
+    assert _default_user() == "git-name"
+
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 1, stdout="", stderr=""),
+    )
+    monkeypatch.setenv("USER", "ada")
+    assert _default_user() == "ada"
+    monkeypatch.delenv("USER", raising=False)
+    monkeypatch.setenv("LOGNAME", "lin")
+    assert _default_user() == "lin"
 
 
 def test_secrets_table_in_local_toml_rejected(repo: Path) -> None:
@@ -650,11 +678,11 @@ def test_extra_local_field_retired(repo: Path) -> None:
     assert not hasattr(cfg, "extra_local")
 
 
-def test_missing_user(tmp_path: Path) -> None:
-    """A missing `user` is no longer fatal — it falls back to the
-    self-documenting PLACEHOLDER_USER, so a fresh clone runs `--help` /
+def test_missing_user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A missing `user` is no longer fatal — it derives a name from the machine
+    (git user.name, then the OS username), so a fresh clone runs `--help` /
     read-only / write commands without editing relay.local.toml first."""
-    from relay.config import PLACEHOLDER_USER
+    import relay.config as config_mod
 
     _write(
         tmp_path / "relay.toml",
@@ -667,7 +695,8 @@ def test_missing_user(tmp_path: Path) -> None:
         """,
     )
     _write(tmp_path / "relay.local.toml", "")
-    assert load_config(tmp_path).current_user == PLACEHOLDER_USER
+    monkeypatch.setattr(config_mod, "_default_user", lambda: "greg")
+    assert load_config(tmp_path).current_user == "greg"
 
 
 def test_find_repo_root(repo: Path) -> None:

@@ -678,22 +678,23 @@ def test_init_writes_captured_user_name_to_local_toml(
     assert 'with user = "marc"' in result.output
 
 
-def test_init_without_user_defaults_to_placeholder(
+def test_init_without_user_defaults_to_machine_name(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A fresh `relay init` with no `--user` no longer wedges — it defaults
-    `user` to the self-documenting placeholder, warns, and proceeds."""
-    from relay.config import PLACEHOLDER_USER
+    """A fresh `relay init` with no `--user` no longer wedges — it derives the
+    name from the machine (git user.name / OS username), warns, and writes that
+    real name to relay.local.toml."""
+    import relay.commands.init as init_mod
 
     target = _make_git_repo(tmp_path / "company")
-    monkeypatch.setenv("PATH", "")
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(init_mod, "_default_user", lambda: "nicktoper")
 
     result = CliRunner().invoke(app, ["init", str(target)])
     assert result.exit_code == 0, result.output
-    assert "No user set" in result.output
+    assert "No --user given" in result.output
+    assert "nicktoper" in result.output
     local_toml = (target / "relay-os" / "relay.local.toml").read_text()
-    assert f'user = "{PLACEHOLDER_USER}"' in local_toml
+    assert 'user = "nicktoper"' in local_toml
     assert 'user = ""' not in local_toml
 
 

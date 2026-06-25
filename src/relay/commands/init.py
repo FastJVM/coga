@@ -42,7 +42,7 @@ from relay.commands.update import (
     write_bin_wrapper,
     write_pin,
 )
-from relay.config import ConfigError, PLACEHOLDER_USER, find_repo_root, load_config
+from relay.config import ConfigError, _default_user, find_repo_root, load_config
 from relay.dependencies import DEPENDENCIES
 from relay.managed_skills import (
     ManagedSkillError,
@@ -97,21 +97,25 @@ def _require_user_name(user: str | None) -> str:
 
     `relay init` takes the operator's name as a parameter rather than prompting,
     so init stays scriptable. When `--user` is omitted we no longer exit — we
-    default to `PLACEHOLDER_USER` and warn loudly, so first-run never wedges
-    (Greg's case). The placeholder is self-documenting: it shows up as the
-    owner/author everywhere until corrected. An invalid `--user` value is still
-    a hard error.
+    derive a name from the machine (git `user.name`, then the OS username) and
+    warn, so first-run never wedges (Greg's case). The derived name is written
+    to `relay.local.toml` like an explicit `--user` would be. An invalid
+    `--user` value is still a hard error.
     """
     if user is None:
+        # _default_user() may return a git `user.name` containing characters that
+        # would break the `user = "..."` line; fall back to a safe literal then.
+        derived = _clean_user_name(_default_user()) or "user"
         typer.secho(
-            f'No user set — defaulting to "{PLACEHOLDER_USER}". This is the name '
-            "tickets you create are owned by and attributed to; set a real one "
-            "with `relay init --user NAME` (e.g. `relay init --user marc`), or "
-            "edit `user` in relay-os/relay.local.toml.",
+            f'No --user given — defaulting to "{derived}" (from your git '
+            "user.name / OS username). This is the name tickets you create are "
+            "owned by and attributed to; set a different one with "
+            "`relay init --user NAME` (e.g. `relay init --user marc`), or edit "
+            "`user` in relay-os/relay.local.toml.",
             fg=typer.colors.YELLOW,
             err=True,
         )
-        return PLACEHOLDER_USER
+        return derived
     name = _clean_user_name(user)
     if name is None:
         typer.secho(

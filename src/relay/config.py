@@ -190,11 +190,38 @@ def find_repo_root(start: Path | None = None) -> Path:
 # --- loader --------------------------------------------------------------------
 
 
-# Sentinel `user` when none is configured. Self-documenting on purpose: it
-# surfaces as the owner/author on everything until corrected, which — with the
-# warning `relay init` prints — pushes the operator to set a real name
-# (`relay init --user NAME`, or edit relay.local.toml).
-PLACEHOLDER_USER = "username"
+def _default_user() -> str:
+    """Best-effort operator name when `relay.local.toml` sets no `user`.
+
+    A name is cosmetic for most commands (task attribution, Slack), so a missing
+    `user` must never wall anyone out — derive one rather than hard-failing
+    (`--help` and read-only included). Prefer the name the operator already
+    configured for git, since that's what their commits are attributed to, then
+    fall back to the OS username, then a last-resort literal. `relay init --user`
+    is still how you set a durable name explicitly.
+    """
+    import getpass
+    import subprocess
+
+    try:
+        name = subprocess.run(
+            ["git", "config", "user.name"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout.strip()
+        if name:
+            return name
+    except Exception:
+        pass
+
+    name = os.environ.get("USER") or os.environ.get("LOGNAME")
+    if name:
+        return name
+    try:
+        return getpass.getuser()
+    except Exception:
+        return "user"
 
 
 def load_config(repo_root: Path | None = None) -> Config:
@@ -257,11 +284,12 @@ def load_config(repo_root: Path | None = None) -> Config:
         _parse_launch(shared.get("launch"))
     )
 
-    # A missing `user` is no longer fatal: fall back to the self-documenting
-    # PLACEHOLDER_USER so `--help`, read-only, and write commands all work on a
-    # bare clone (no relay.local.toml). `relay init` writes a real — or, with no
-    # `--user`, the placeholder — value and warns.
-    current_user = local.get("user") or PLACEHOLDER_USER
+    # A missing `user` is no longer fatal: derive one (git `user.name`, then the
+    # OS username) so `--help`, read-only, and write commands all work on a bare
+    # clone (no relay.local.toml). `relay init` writes a durable `user` — the
+    # `--user` value, or the same derived default — and warns when it had to
+    # derive it.
+    current_user = local.get("user") or _default_user()
 
     return Config(
         repo_root=root,
