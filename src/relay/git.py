@@ -15,7 +15,7 @@ feature working tree — and *also* commits the task files on the current branch
 so the agent's checkout reflects the ticket state it works against.
 
 `sync_log` is the narrow companion for callers that append to the repo-global
-`log.md` with no task-dir sync to ride along — chiefly stateless bootstrap-shim
+`log.md` with no task-dir sync to ride along — chiefly stateless bootstrap-ticket
 launches. Those appends would otherwise sit uncommitted and block the next
 `git pull` at the checkout gate (`merge=union` only resolves committed content),
 so it commits `log.md` alone, union-safely.
@@ -112,7 +112,7 @@ def sync_log(cfg: Config, *, message: str) -> None:
     checkout gate, before any merge driver runs). Most commands sweep the log
     in via the task-dir sync — `sync_paths` folds `log.md` into `local_rels` —
     but a caller that appends without any task-dir sync, notably a stateless
-    bootstrap-shim launch, leaves the line dangling and dirty. `sync_log`
+    bootstrap-ticket launch, leaves the line dangling and dirty. `sync_log`
     closes that hole by committing exactly `log.md`, nothing else.
 
     Branch handling mirrors `sync_paths`'s log invariant:
