@@ -161,6 +161,34 @@ def test_parse_pr_url_ignores_pr_outside_dev_section() -> None:
     assert am.parse_pr_url(text) is None
 
 
+def test_parse_branch_name_bare_form() -> None:
+    text = "## Dev\n\nbranch: feature-x\npr: https://github.com/o/r/pull/1\n"
+    assert am.parse_branch_name(text) == "feature-x"
+
+
+def test_parse_branch_name_list_item_form() -> None:
+    # `- branch: \`name\`` — list prefix + backticks, the trap form.
+    text = "## Dev\n\n- branch: `first-run-no-slack`\n- pr: `https://x/pull/2`\n"
+    assert am.parse_branch_name(text) == "first-run-no-slack"
+
+
+def test_parse_branch_name_backtick_wrapped_form() -> None:
+    text = "## Dev\n\nbranch: `drop-debug-all`\n"
+    assert am.parse_branch_name(text) == "drop-debug-all"
+
+
+def test_parse_branch_name_none_without_dev_section() -> None:
+    assert am.parse_branch_name("## Plan\n\nbranch: nope\n") is None
+
+
+def test_parse_branch_name_none_when_dev_lacks_branch_line() -> None:
+    assert am.parse_branch_name("## Dev\n\npr: https://x/pull/3\n") is None
+
+
+def test_parse_branch_name_empty_value_is_none() -> None:
+    assert am.parse_branch_name("## Dev\n\nbranch: ``\n") is None
+
+
 def test_parse_pr_number() -> None:
     assert am.parse_pr_number("https://github.com/o/r/pull/74") == 74
     assert am.parse_pr_number("not-a-url") is None

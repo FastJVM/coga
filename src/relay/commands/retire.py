@@ -8,9 +8,12 @@ from importlib.resources import files
 import typer
 
 from relay import git
+from relay.branchcleanup import delete_ticket_branch
 from relay.config import Config, ConfigError, load_config
 from relay.create import create_task
+from relay.git import GitError
 from relay.slugify import slugify
+from relay.taskfile import TaskFileError, read_blackboard
 from relay.tasks import (
     TaskRef,
     TaskNotFoundError,
@@ -45,8 +48,15 @@ def retire(
     records the `## Retro` marker, edits the knowledge base, and deletes the
     source task directory in the same PR. If no new durable knowledge exists,
     Retro direct-deletes the task via `relay delete` (no PR, no marker; recover
-    with `git restore`). Branch hygiene (local prune, stale-branch sweep) is a
-    Dream concern, not retire's.
+    with `git restore`).
+
+    Before launching that retro pass, retire prunes the ticket's git branch —
+    the local branch and its `origin` counterpart — read from the `## Dev`
+    blackboard section while the ticket (and thus the `branch:` line) still
+    exists. This is the lifecycle event that disposes of the branch: the remote
+    delete is gated on the linked PR being merged, never `main`, never an
+    unrelated branch. (This deliberately overrides the former punt that branch
+    hygiene was a Dream concern — that punt is why branches piled up.)
     """
     if autonomy == "auto":
         _bail(
@@ -74,6 +84,11 @@ def retire(
             f"Retire only operates on done tickets — {ref.id_slug} is "
             f"{source.status!r}. Bump it to done first."
         )
+
+    # Prune the ticket's branch while the task (and its `## Dev` `branch:`/`pr:`
+    # lines) still exists — the retro pass below deletes the directory. Best
+    # effort: a branch-cleanup failure must never abort the retire run.
+    _cleanup_branch(cfg, ref)
 
     try:
         assignee = agent or _default_agent(cfg)
@@ -131,6 +146,30 @@ def retire(
         prompt_report=False,
         autonomy_override=None,
     )
+
+
+def _cleanup_branch(cfg: Config, ref: TaskRef) -> None:
+    """Delete the retiring ticket's git branch, best-effort.
+
+    Reads the `## Dev` blackboard section (still present pre-retro) and hands it
+    to `branchcleanup.delete_ticket_branch`. Any failure — `git`/`gh` missing, a
+    read error, git not enabled — is reported and swallowed: branch hygiene is a
+    courtesy on top of retire, not a precondition for it.
+    """
+    if not cfg.git_enabled:
+        return
+    try:
+        root = git._toplevel(ref.ticket_path)
+        if root is None:
+            return
+        blackboard = read_blackboard(ref.ticket_path, blackboard_required=False)
+    except (GitError, OSError, TaskFileError) as exc:
+        typer.echo(f"Retire: branch cleanup skipped ({exc}).")
+        return
+    try:
+        delete_ticket_branch(cfg, root, blackboard, echo=typer.echo)
+    except Exception as exc:  # noqa: BLE001 — never let cleanup abort retire
+        typer.echo(f"Retire: branch cleanup failed ({exc}).")
 
 
 def _default_agent(cfg: Config) -> str:

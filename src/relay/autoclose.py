@@ -46,6 +46,12 @@ _DEV_SECTION_RE = re.compile(
 )
 _PR_LINE_RE = re.compile(r"^\s*pr:\s*(\S+)\s*$", re.MULTILINE)
 _PR_NUMBER_RE = re.compile(r"/pull/(\d+)")
+# The `branch:` line is written inconsistently across existing tickets:
+# `branch: my-branch`, `- branch: \`my-branch\``, ``branch: `my-branch` ``.
+# Tolerate an optional `- ` list prefix and capture the rest of the line; the
+# surrounding backticks/whitespace are stripped in `parse_branch_name`. A
+# naive `(\S+)` here would swallow the trailing backtick or miss the list form.
+_BRANCH_LINE_RE = re.compile(r"^\s*(?:-\s*)?branch:\s*(.+?)\s*$", re.MULTILINE)
 
 
 def parse_pr_url(blackboard_text: str) -> str | None:
@@ -55,6 +61,25 @@ def parse_pr_url(blackboard_text: str) -> str | None:
         return None
     pr = _PR_LINE_RE.search(section.group(1))
     return pr.group(1) if pr else None
+
+
+def parse_branch_name(blackboard_text: str) -> str | None:
+    """Return the normalized `branch:` name under `## Dev`, or None if absent.
+
+    Normalizes the inconsistent shapes the convention has accreted: tolerates a
+    leading "- " list prefix and strips surrounding backticks/whitespace, so the
+    bare, list-item, and backtick-wrapped forms all yield the same plain name.
+    Without this, `git branch -d <raw>` would target a backtick-wrapped name and
+    silently no-op. Returns None for a missing or empty branch line.
+    """
+    section = _DEV_SECTION_RE.search(blackboard_text)
+    if not section:
+        return None
+    match = _BRANCH_LINE_RE.search(section.group(1))
+    if not match:
+        return None
+    name = match.group(1).strip().strip("`").strip()
+    return name or None
 
 
 def parse_pr_number(url: str) -> int | None:
@@ -200,5 +225,6 @@ __all__ = [
     "sweep_merged",
     "parse_pr_number",
     "parse_pr_url",
+    "parse_branch_name",
     "pr_state",
 ]
