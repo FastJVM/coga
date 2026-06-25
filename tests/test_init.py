@@ -538,6 +538,39 @@ def test_init_into_empty_dir(
     assert fake_managed_skill_sync.install_calls == [target / "relay-os"]
 
 
+@pytest.mark.parametrize(
+    "exc", [RuntimeError("venv build failed"), KeyboardInterrupt()]
+)
+def test_failed_init_rolls_back_partial_relay_os(
+    tmp_path: Path,
+    fake_clone,
+    monkeypatch: pytest.MonkeyPatch,
+    exc: BaseException,
+) -> None:
+    """A first init that dies after relay-os/ is created must leave nothing
+    behind — for a normal error and a Ctrl-C alike (hence `except BaseException`)
+    — so re-running isn't wedged between "already exists — use --update" and an
+    --update that then chokes on the half-built venv / missing user.
+
+    Ticket: install/init-does-not-persist-user-then-blocks-on-reinit.
+    """
+    target = _make_git_repo(tmp_path / "company")
+    relay_os = target / "relay-os"
+
+    def boom(_relay_os: Path):
+        # copy_fresh_templates has already created relay-os/ by now — that's the
+        # half-built state the old code stranded.
+        assert relay_os.exists(), "relay-os/ should exist before the failing step"
+        raise exc
+
+    monkeypatch.setattr(init_cmd, "install_venv", boom)
+
+    with pytest.raises(type(exc)):
+        init_cmd._do_init(target, user="tester")
+
+    assert not relay_os.exists(), "partial relay-os/ left behind — rollback didn't fire"
+
+
 def test_packaged_template_first_run_works_without_slack(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
