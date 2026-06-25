@@ -1,7 +1,7 @@
 ---
 slug: launch-prompt/improve-prompt-for-relay-launch
 title: improve prompt for relay launch
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -28,7 +28,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
