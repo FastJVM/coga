@@ -87,6 +87,60 @@ template under `relay-os/`, keep the packaged
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## Dev
+branch: retire-deletes-branch
+worktree: (none — committed from the primary checkout)
+pr: https://github.com/FastJVM/relay/pull/443
+
+## Implementation
+
+Done in the primary checkout (interactive, draft ticket — no workflow step
+running, so nothing to `bump`). Branch deletion runs **synchronously in
+`relay retire` before the retro task is launched**: that's the only clean hook,
+because retire launches the retro pass as a detached agent session that deletes
+the task dir, and retire.py can't re-read state after. At that point the source
+ticket still exists, so its `## Dev` `branch:`/`pr:` lines are readable.
+
+Files:
+- `src/relay/autoclose.py` — added `parse_branch_name()` next to `parse_pr_url`.
+  Regex `_BRANCH_LINE_RE` tolerates a leading `- ` list prefix; value is
+  `.strip().strip("\`").strip()` so the bare / list-item / backtick-wrapped
+  forms all normalize to the same plain name. Exported.
+- `src/relay/branchcleanup.py` (new) — `delete_ticket_branch(cfg, root,
+  blackboard_text, *, echo)`. Never touches the control branch or the
+  checked-out branch. **Remote** delete (`git push origin --delete`) is gated
+  solely on the linked PR being `MERGED` (reuses `autoclose.pr_state`). **Local**
+  delete is gated on `git merge-base --is-ancestor <branch> HEAD` (the positive
+  "did it land" signal) → `git branch -d`; the squash-merge case (not an
+  ancestor but PR merged) logs the tip SHA then force-`-D`; genuinely unmerged
+  with no merged PR is skipped and reported.
+- `src/relay/commands/retire.py` — `_cleanup_branch()` called after the `done`
+  check, before `create_task`. Best-effort: any git/gh/read failure is reported
+  and swallowed, never aborts retire. Updated the docstring note that used to
+  say branch hygiene was "a Dream concern, not retire's".
+
+Key design correction (worth remembering): `git branch -d` alone is **too
+loose** — it deletes a branch that's merged only into its *upstream*
+(`origin/<branch>`), so a pushed branch whose PR is still open would be deleted
+just for being pushed. That's why local deletion gates on ancestry into HEAD,
+not on `-d`'s own merge check. The task's "gate remote on PR-merged, not
+ancestry" still holds (squash-merge breaks ancestry-against-main for the remote
+gate); ancestry is only used as a *positive* confirmation for the safe local
+`-d`, with PR-merged as the fallback authorization for the squash case.
+
+Tests (all green; full suite 899 passed / 1 skipped):
+- `tests/test_branchcleanup.py` (new, real temp git repo + bare origin):
+  clean-merge deletes local+remote, squash-merge force-deletes local & logs
+  tip SHA, unmerged-no-PR skip, PR-open skip, never-deletes-`main`, no-branch
+  noop, checked-out-branch left in place.
+- `tests/test_autoclose.py` — `parse_branch_name` across bare / list-item /
+  backtick / empty / missing forms.
+- `tests/test_retire.py` — integration: branch pruned before launch.
+
+No shipped-template (`relay-os/`) edits, so no `src/relay/resources/templates/`
+sync needed. Left the `retro/done-ticket` skill's "do not delete branches"
+prohibition untouched — still correct, since the *command* deletes, not the agent.
+
 ## Evaluator review
 
 _Note: this review was written against an earlier design (a standalone
