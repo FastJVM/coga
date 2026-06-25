@@ -63,3 +63,7 @@ last_serviced_period: 2026-06-17
 last_commit: 8fe393be8ee3fd7f0e8b76ad237c144227baafa4
 range: last 24h..8fe393b (123 commit(s), 16 reported)
 posted: yes
+
+## Spool (pending)
+
+{"ts":"2026-06-24T21:13","project":"relay","kind":"done","detail":"→ done (script)","ticket":"recurring/autoclose-merged","owner":"nick"}
