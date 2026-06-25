@@ -273,3 +273,5 @@
 2026-06-24 21:13 [recurring/autoclose-merged] [system] completed (final script step ran) via relay launch
 2026-06-24 21:16 [launch-prompt/improve-prompt-for-relay-launch] [human:nick] task done
 2026-06-24 19:52 [handle-better-delete-branches-autcommit] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-24 21:14 [remove-the-shim-concept] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-24 21:19 [remove-the-shim-concept] [agent:claude] advanced to step 4 (open-pr)
