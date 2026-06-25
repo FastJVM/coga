@@ -1,10 +1,10 @@
 name: Release
 
-# Build the package once, then publish via PyPI Trusted Publishing (OIDC) —
-# no API tokens are stored anywhere.
+# Build + publish via PyPI Trusted Publishing (OIDC) — no stored API tokens.
 #   - cutting a GitHub Release        -> publish to PyPI
 #   - manual run (workflow_dispatch)  -> publish to TestPyPI (dry run) or PyPI
-# One-time setup + the release steps live in docs/releasing.md.
+# Build and publish run in ONE job (no artifact handoff) so a release never
+# depends on Actions artifact storage. One-time setup: docs/releasing.md.
 
 on:
   release:
@@ -19,57 +19,47 @@ on:
           - pypi
         default: testpypi
 
-# Least privilege by default; publish jobs opt into id-token below.
 permissions: {}
 
 jobs:
-  build:
-    name: Build wheel + sdist
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
-      - name: Build
-        run: uv build
-      - name: Check metadata
-        run: uvx twine check dist/*
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/
-
-  publish-testpypi:
-    name: Publish to TestPyPI
-    needs: build
+  testpypi:
+    name: Build + publish to TestPyPI
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'testpypi'
     runs-on: ubuntu-latest
     environment:
       name: testpypi
       url: https://test.pypi.org/p/relay-os
     permissions:
-      id-token: write   # OIDC token for Trusted Publishing
+      contents: read     # clone the repo
+      id-token: write    # OIDC token for Trusted Publishing
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v5
+      - name: Build
+        run: uv build
+      - name: Check metadata
+        run: uvx twine check dist/*
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
 
-  publish-pypi:
-    name: Publish to PyPI
-    needs: build
+  pypi:
+    name: Build + publish to PyPI
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'pypi')
     runs-on: ubuntu-latest
     environment:
       name: pypi
       url: https://pypi.org/p/relay-os
     permissions:
-      id-token: write   # OIDC token for Trusted Publishing
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v5
+      - name: Build
+        run: uv build
+      - name: Check metadata
+        run: uvx twine check dist/*
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
