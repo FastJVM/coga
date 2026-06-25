@@ -280,3 +280,5 @@
 2026-06-24 21:20 [remove-the-shim-concept] [agent:claude] advanced to step 5 (review) → assigned to zach — PR opened: https://github.com/FastJVM/relay/pull/445
 2026-06-24 21:17 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-24 21:57 [relay-ticket-doesn-t-ask-quesion-and-start-doing] [human:nick] created (autonomy=interactive, status=draft)
+2026-06-24 21:56 [nightly-auto-drain-run-for-ready-tickets] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-24 22:24 [nightly-auto-drain-run-for-ready-tickets] [human:nick] activated (draft → active) — auto on launch
