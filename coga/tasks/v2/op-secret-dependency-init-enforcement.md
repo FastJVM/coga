@@ -62,6 +62,6 @@ docs (`relay/cli`, `relay/architecture`, README External CLI Tools), and tests.
   (the launch-time op crash).
 - Sibling v2 ticket: `gh-merge-requirement`.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

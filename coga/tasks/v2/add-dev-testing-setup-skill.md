@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-- relay/codebase
-- relay/project-stage
+- coga/codebase
+- coga/project-stage
 - dev/code
 skills: []
 workflow:
@@ -92,7 +92,7 @@ Relay's own Python test command into the generic skill.
 - [ ] Test-running consumers report exact results: command, exit code,
       pass/fail/skip counts when available, failing test names.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/codebase
-- relay/architecture
+- coga/codebase
+- coga/architecture
 skills: []
 workflow:
   name: code/with-review
@@ -361,7 +361,7 @@ through a `## Usage` blackboard section and a mixed-provider rollup. Per
 CLAUDE.md, update `example/` fixtures if launch/task layout semantics change.
 Run `python -m pytest` and `relay validate --json` before the PR.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

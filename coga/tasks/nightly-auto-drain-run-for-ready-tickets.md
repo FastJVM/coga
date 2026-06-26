@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/architecture
-- relay/cli
+- coga/architecture
+- coga/cli
 skills: []
 workflow:
   name: code/design-then-implement
@@ -206,7 +206,7 @@ intentional: scheduling is "wire `relay recurring` into *your* scheduler" (the
 (`relay/architecture`, `relay-os/recurring/dream/`) is the structural model for a
 recurring orchestrator task that launches child work.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 ## Design notes (step 1: design)
 

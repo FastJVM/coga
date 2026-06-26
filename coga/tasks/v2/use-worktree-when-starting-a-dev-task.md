@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/codebase
-- relay/sync
+- coga/codebase
+- coga/sync
 - dev/code
 skills: []
 workflow:
@@ -111,7 +111,7 @@ on git-lifecycle code (medium failure radius — a bad `git worktree remove`
 could delete real work), so it runs through `code/with-review` with an owner
 gate before merge.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

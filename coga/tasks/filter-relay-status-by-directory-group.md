@@ -8,9 +8,9 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/cli
-- relay/architecture
-- relay/codebase
+- coga/cli
+- coga/architecture
+- coga/codebase
 skills: []
 workflow:
   name: dev/with-self-review
@@ -67,7 +67,7 @@ group-qualified slug convention (`<group>/<leaf>`) and the
 `relay/architecture` context already in this prompt. Keep the change
 markdown-first and legible; no new dependencies.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 # Blackboard — filter-relay-status-by-directory-group
 

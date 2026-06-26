@@ -8,9 +8,9 @@ human: zach
 agent: claude
 assignee: zach
 contexts:
-- relay/architecture
-- relay/codebase
-- relay/extension-model
+- coga/architecture
+- coga/codebase
+- coga/extension-model
 skills: []
 workflow:
   name: code/with-review
@@ -169,7 +169,7 @@ must stay green.
 - Configurable kickoff tokens — `"Begin"` stays hardcoded at the `relay ticket`
   call site; making it configurable was explicitly rejected in #417 review.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 # Bootstrap notes
 

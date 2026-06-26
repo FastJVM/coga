@@ -53,7 +53,7 @@ up by this — it's a small, independent removal.
   `bootstrap/ticket` SKILL Step 1 ("Raw draft") and any README mention.
 - nick owns these primitives.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 # remove-relay-draft — blackboard
 

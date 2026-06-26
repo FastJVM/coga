@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/architecture
-- relay/principles
+- coga/architecture
+- coga/principles
 skills: []
 workflow:
   name: autonomy/assist-only
@@ -60,7 +60,7 @@ nick wants to set direction first.
   changes still must not silently drop a load-bearing rule, and must keep the
   `relay-os/contexts/relay/` contexts accurate.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

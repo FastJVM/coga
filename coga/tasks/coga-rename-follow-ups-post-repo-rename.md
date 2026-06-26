@@ -32,7 +32,7 @@ holds the code changes that become correct only *after* those ops land — they
 were intentionally NOT made in the rename PR. See that PR's blackboard
 "Follow-up — flip repo URLs" and "Structural decisions C/D".
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 ## Pending items (gated on the repo rename)
 

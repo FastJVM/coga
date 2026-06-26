@@ -84,6 +84,6 @@ and the token-budget idle-execution proposal both want a way to run
 work off the developer's machine. Worth designing once for both
 rather than bolting on twice.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

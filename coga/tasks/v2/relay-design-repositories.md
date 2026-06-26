@@ -51,6 +51,6 @@ lean on: `relay init` already creates repos, and `bootstrap/ticket` already
 runs an interview-and-create flow; this is closer to the latter applied at
 repo scope.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

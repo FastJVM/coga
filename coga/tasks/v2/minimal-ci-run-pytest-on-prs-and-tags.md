@@ -56,6 +56,6 @@ RC release-gate item (see `relay/roadmap`). Gives the release tag a green-checks
 guarantee and protects every later Wave PR. Pairs with `one-line-install` (the
 publish path) and the testing expectations in `relay/codebase`.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

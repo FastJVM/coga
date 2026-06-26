@@ -79,6 +79,6 @@ review) for the analysis that motivated splitting this out — especially the no
 that the agent-side output-capture + done-notification path is novel engineering
 with no existing machinery, which is why it's its own ticket.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

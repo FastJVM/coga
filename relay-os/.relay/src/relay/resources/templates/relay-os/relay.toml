@@ -1,0 +1,135 @@
+version = 1
+
+# Default status for new tasks. Tickets stay `draft` until approved —
+# `relay launch` activates a draft inline, or `relay mark active` activates
+# it without launching.
+default_status = "draft"
+
+# --- Agents ---
+# Agent types. Each defines the CLI binary and how to invoke it.
+# Permission-skip policy for `autonomy: auto` launches (`skip_permissions`,
+# `skip_permissions_argv`) is machine-local and belongs in a partial
+# `[agents.<name>]` table in relay.local.toml — committing those keys
+# here fails config load.
+
+[agents.claude]
+cli = "claude"
+auto = "-p"
+file = "CLAUDE.md"
+mode = "local"
+# `claude -n <name>` sets the session display name shown in the /resume
+# picker, the prompt box, and the terminal title. Skipped in discussion
+# launches so the human's first ask names the session.
+name_flag = "-n"
+# `claude --session-id <uuid>` lets Relay deterministically recover the
+# transcript usage for exactly the session it launched.
+session_id_flag = "--session-id"
+# `discussion` rides the composed prompt as system context for discussion
+# sessions (`relay chat`, `relay ticket`) so the human's first ask becomes
+# the session title instead of a 20KB Relay prompt.
+discussion = "--append-system-prompt {prompt}"
+
+[agents.codex]
+cli = "codex"
+auto = "exec"
+file = "AGENTS.md"
+mode = "local"
+discussion = "-c developer_instructions={prompt}"
+
+# --- Notification channels ---
+# Relay's notification system is the team sync point. It is optional on first
+# run: a fresh repo ships with no channels selected, so a brand-new user can
+# run draft/mark/launch/bump without configuring anything. Turn it on when you
+# start coordinating with other people.
+#
+# Slack is the first channel: urgent/manual events post through the Slack
+# webhook, while outcome events may spool into the daily digest before that
+# digest posts to Slack. Relaunching an already-in-progress ticket does not
+# post. Once Slack is selected it is fail-loud — a missing/revoked/unreachable
+# webhook crashes the command rather than dropping the message silently.
+#
+# To opt in, select the channel and point it at a webhook. Use `env:`
+# indirection so the URL (a bearer token) stays out of this committed file —
+# export SLACK_WEBHOOK_URL locally and relay resolves it:
+#
+#   [notification]
+#   channels = ["slack"]
+#
+#   [notification.slack]
+#   webhook = "env:SLACK_WEBHOOK_URL"
+#
+# A machine-specific webhook can override this in relay.local.toml (local wins),
+# e.g. a literal URL there for a personal channel. Never commit a real URL.
+# `relay validate --check-slack` probes the webhook so dead URLs surface
+# at config time, not at first bump. A bare exported SLACK_WEBHOOK_URL with no
+# `webhook` key is only a deprecated compatibility fallback.
+#
+# Already opted in but want Slack temporarily silent (solo runs, dev/test, CI
+# without notifications)? Keep the channel selected and set in relay.local.toml:
+#   [notification.slack]
+#   enabled = false
+[notification]
+channels = []
+
+# Optional Slack extras, active once you opt in above:
+#
+# Attach a GIF to milestone events. One URL is picked at random
+# per post. Skip a kind (or leave its list empty) to keep that event
+# text-only. Example:
+#   [notification.slack.gifs]
+#   done  = ["https://media.giphy.com/media/<id>/giphy.gif"]
+#   panic = [
+#     "https://media.giphy.com/media/<id-a>/giphy.gif",
+#     "https://media.giphy.com/media/<id-b>/giphy.gif",
+#   ]
+#
+# Optional: map a relay name (the token used in a ticket's `owner` /
+# `watchers` fields) to a Slack member ID. With a mapping, that person
+# gets a real `<@…>` ping on posts about their ticket — owners inline,
+# watchers cc'd. Without one they're still named, just in plain text (no
+# ping). An incoming webhook can't look an ID up itself, so it has to be
+# listed here. Grab an ID from Slack: profile → ⋮ (More) → Copy member ID.
+#   [notification.slack.users]
+#   marc = "U01ABC234"
+#   ada  = "U05XYZ789"
+
+# --- Git sync ---
+# The git analogue of Slack: every command that mutates ticket state commits
+# the resolved task directory under `relay-os/tasks/` and pushes it to the
+# control branch, so the git-backed repo never drifts from the team's live state.
+# Always-on — these defaults apply even with no `[git]` table.
+#
+# When HEAD is the control branch the task files are committed and pushed; on
+# a feature branch (or detached HEAD) the same files are landed on the control
+# branch via a working-tree-free plumbing path. A failed commit/push is
+# non-fatal: it is surfaced to stderr + the task's log.md, but never aborts the
+# local state transition (the on-disk markdown is the source of truth; git is
+# only the sync layer, so a push that can't reach a protected/remote control
+# branch must not block a `bump` / `mark` / launch).
+#
+# Defaults: enabled = true, remote = "origin", control_branch = "main".
+# To opt out (a repo with no remote: dev/test, CI, solo branches), set
+# `enabled = false` here or in relay.local.toml (local overrides shared,
+# like [notification.slack]):
+#   [git]
+#   enabled = false
+
+# --- Aliases ---
+# Thin sugar for often-used commands. Each entry maps a name to an
+# expanded relay command (free-form string). Positional args after the
+# alias name are forwarded to the expansion. Alias names cannot collide
+# with built-in commands.
+
+[aliases]
+chat = "launch bootstrap/orient"
+# `build` is first-run onboarding — it launches the packaged `relay-build`
+# ticket (one question → agent-led chat → vision → starter tickets). Requires
+# an already-init'd repo; `relay init` captures your name beforehand.
+build = "launch relay-build"
+# `dream` creates the `recurring/dream/` cleanup task and launches it now —
+# the same path `relay recurring launch dream` takes.
+dream = "recurring launch dream"
+# Uncomment to add per-agent shortcuts. The --agent value must match an
+# `[agents.*]` block above.
+# claude = "launch bootstrap/orient --agent claude"
+# codex = "launch bootstrap/orient --agent codex"

@@ -63,7 +63,7 @@ fresh-directory onboarding path (`marketing/readme-and-docs`).
   failed run leaves nothing behind, is optional and at the implementing agent's
   discretion.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 ## Dev
 branch: init-requires-git-repo

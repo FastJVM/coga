@@ -8,9 +8,9 @@ human: zach
 agent: claude
 assignee: claude
 contexts:
-- relay/extension-model
-- relay/architecture
-- relay/codebase
+- coga/extension-model
+- coga/architecture
+- coga/codebase
 skills: []
 workflow:
   name: direct/body
@@ -98,7 +98,7 @@ the shim runner / moving the heads can be follow-ups gated on the shim design.
 **Out of scope:** the `→ external` work (Pass 1), and anything touching the kernel
 carve-outs (secret resolution and the `mark`/`bump` state-writes stay core).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

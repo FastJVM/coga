@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/architecture
-- relay/codebase
+- coga/architecture
+- coga/codebase
 skills: []
 workflow:
   name: code/design-then-implement
@@ -92,6 +92,6 @@ behavior — this is a pure rename, no semantic change.
 
 ## Context
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

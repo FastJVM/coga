@@ -54,6 +54,6 @@ than a pure alias — draft-on-the-fly, post-exit validate, git-sync, TTY guard
 (see `docs/cli-extension-audit.md`) — must be preserved in whatever shape the
 design lands on. Keep `python -m pytest` green.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

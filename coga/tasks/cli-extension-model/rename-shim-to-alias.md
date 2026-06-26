@@ -8,9 +8,9 @@ human: zach
 agent: claude
 assignee: claude
 contexts:
-- relay/extension-model
-- relay/architecture
-- relay/codebase
+- coga/extension-model
+- coga/architecture
+- coga/codebase
 skills: []
 workflow: null
 secrets: null
@@ -50,6 +50,6 @@ Considerations:
   Either rename within #425 before it merges, or sweep right after it lands, so
   the new names don't immediately go stale.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

@@ -36,7 +36,7 @@ Having this in place will help folks try it when they know it's easily removed i
 
 ## Context
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

@@ -9,7 +9,7 @@ agent: claude
 assignee: zach
 contexts:
 - marketing/positioning
-- relay/principles
+- coga/principles
 skills: []
 workflow:
   name: code/design-then-implement
@@ -157,7 +157,7 @@ ticket, and both files are correct and consistent with `relay/principles`.
   (Decided with zach 2026-06-20, design step.)
 - License string is the precise SPDX `AGPL-3.0-or-later`, not a bare `AGPL-3.0`.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 # Blackboard — readme-and-docs
 

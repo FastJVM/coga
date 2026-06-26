@@ -8,9 +8,9 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/principles
-- relay/architecture
-- relay/codebase
+- coga/principles
+- coga/architecture
+- coga/codebase
 skills: []
 workflow:
   name: code/with-review
@@ -99,7 +99,7 @@ to the recurring `autoclose-merged` sweep, drop the launch-time freshness
 check). This ticket is only the launch-restart guard and is independent of
 where merge-detection lives.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 ## Dev
 

@@ -33,6 +33,6 @@ in the module docstring, `git.py:29-40`), which is why it exits 0 and is easy to
 miss. Left to Nick to pick the direction (detect the actual default branch,
 warn at init, document it, etc.).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

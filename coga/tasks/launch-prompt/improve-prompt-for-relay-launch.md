@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/architecture
-- relay/principles
+- coga/architecture
+- coga/principles
 skills: []
 workflow:
   name: code/with-review
@@ -93,7 +93,7 @@ before/after token measurement.
   prove rules were preserved, so re-read the prompt-text assertions there and
   diff old-vs-new rule coverage by hand, don't rely on pytest alone.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

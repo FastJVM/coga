@@ -8,9 +8,9 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-- relay/codebase
-- relay/current-direction
-- relay/project-stage
+- coga/codebase
+- coga/current-direction
+- coga/project-stage
 - dev/code
 skills: []
 workflow:
@@ -129,6 +129,6 @@ Open design questions for the interview:
       network/`gh` call mocked (no live network in tests).
 - [ ] `python -m pytest` and `relay validate --json` are green.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

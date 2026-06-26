@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-- relay/codebase
-- relay/architecture
+- coga/codebase
+- coga/architecture
 skills: []
 workflow:
   name: direct/body
@@ -92,7 +92,7 @@ Reconnaissance already done during ticket authoring (verify, don't trust):
 (that's the follow-up the ticket 3 proposal sets up). This ticket only audits
 and documents.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 # Audit CLI extension mechanisms — blackboard
 

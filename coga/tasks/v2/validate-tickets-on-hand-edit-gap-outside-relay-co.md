@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-  - relay/architecture
-  - relay/principles
+  - coga/architecture
+  - coga/principles
 skills: []
 workflow:
   name: code/design-then-implement
@@ -79,6 +79,6 @@ git hooks were deliberately removed). Respect that direction when choosing the
 mechanism. Validation logic lives in `src/relay/commands/validate.py`; the
 relay-command call sites that already validate are the model to follow.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

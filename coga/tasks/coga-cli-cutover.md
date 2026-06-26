@@ -51,6 +51,6 @@ CLI, so the cutover has to be coordinated. Launch this immediately after the mer
   re-sync first — `git merge origin/main` in the worktree, relocate any new
   `relay-os/tasks/*` adds to `coga/tasks/`, then push.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

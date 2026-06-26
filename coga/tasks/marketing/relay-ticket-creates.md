@@ -202,7 +202,7 @@ do not whole-file sync. Leave `[agents.codex]` alone in every copy.
 - Committing edits into the gitignored `relay-os/.relay/` install — local
   smoke-test only.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

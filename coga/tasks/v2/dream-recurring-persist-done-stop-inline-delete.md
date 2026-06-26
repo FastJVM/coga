@@ -8,9 +8,9 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-- relay/recurring
-- relay/architecture
-- relay/current-direction
+- coga/recurring
+- coga/architecture
+- coga/current-direction
 skills: []
 workflow:
   name: code/with-review
@@ -156,7 +156,7 @@ See `relay/current-direction` → "Open redesign (recurring lifecycle)" for the
 full rationale and the never-runs bug this closes. `relay/recurring` documents
 the current (to-be-replaced) create/ledger/debug behavior.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

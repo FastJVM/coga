@@ -1,6 +1,6 @@
 ---
 slug: v2/document-interactive-recurring-sweep-hazard-in-rel
-title: Document interactive-recurring sweep hazard in relay/recurring context
+title: Document interactive-recurring sweep hazard in coga/recurring context
 status: draft
 autonomy: interactive
 owner: nick
@@ -64,6 +64,6 @@ not a mandate to add prose that the enforcement work would contradict.
 
 ## Context
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

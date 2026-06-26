@@ -42,6 +42,6 @@ them; stuck-detection and `last_activity` agree on "last activity"; tested.
 Code: `src/relay/logfile.py` (`append_log` :13-24, format :20; `last_activity`
 :26-47), `src/relay/validate.py:312-323` (mtime-based stuck detection).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

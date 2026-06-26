@@ -8,14 +8,14 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-- relay/period-task
+- coga/period-task
 skills: []
 workflow:
   name: autoclose-merged/sweep
   steps:
   - name: sweep
     skills:
-    - relay/autoclose/sweep
+    - coga/autoclose/sweep
     assignee: agent
 secrets: null
 script: null
@@ -48,6 +48,6 @@ no merged final-step tickets exits successfully and changes nothing.
 
 ## Context
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

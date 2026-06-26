@@ -136,7 +136,7 @@ These map arbitrary user-chosen names to values; their *keys* are data:
   `tests/test_config.py` with both accept (every known key) and reject (a typo
   at each level) cases. Run `python -m pytest` and `relay validate --json`.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

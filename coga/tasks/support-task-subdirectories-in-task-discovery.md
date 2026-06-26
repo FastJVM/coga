@@ -8,7 +8,7 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/codebase
+- coga/codebase
 skills: []
 workflow:
   name: code/with-review
@@ -83,7 +83,7 @@ reference. As the first real use, move the existing
   and the auto-mode output-streaming work itself (separate ticket:
   `stream-agent-progress-in-auto-mode-and-recurring-l`).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
