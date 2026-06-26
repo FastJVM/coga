@@ -2,6 +2,12 @@
 # (Root-only; the bundled `example/` ships a non-secret template.)
 /coga.local.toml
 
+# Stale pre-rename workspace. Renamed to `coga/` in #454; any `relay-os/`
+# on disk is leftover local install state (vendored CLI, agent-skill
+# symlinks, machine-local toml). Guard against a stray `git add` re-committing
+# it until each host deletes its local copy during the CLI cutover.
+/relay-os/
+
 # Personal reference copies of the spec/vision docs live at repo root.
 /coga-spec-updated*.md
 /coga-vision-updated*.md

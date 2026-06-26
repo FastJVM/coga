@@ -779,7 +779,7 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
         if command[:4] == ["gh", "pr", "create", "--draft"]:
             body_file = Path(command[command.index("--body-file") + 1])
             assert "`tools/example`: updated" in body_file.read_text()
-            return _completed(command, stdout="https://github.com/FastJVM/relay/pull/143\n")
+            return _completed(command, stdout="https://github.com/FastJVM/coga/pull/143\n")
         if command == ["git", "checkout", "main"]:
             return _completed(command)
         raise AssertionError(f"unexpected command: {command}")
@@ -792,7 +792,7 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
         runner=runner,
     )
 
-    assert result.pr_url == "https://github.com/FastJVM/relay/pull/143"
+    assert result.pr_url == "https://github.com/FastJVM/coga/pull/143"
     assert result.verification[0].returncode == 0
     # Updates are committed onto the dedicated branch and the checkout is
     # restored to where the caller left it (`main`), never committed there.
@@ -859,7 +859,7 @@ def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
             return _completed(command, stdout="")
         if command[:4] == ["gh", "pr", "create", "--draft"]:
             return _completed(
-                command, stdout="https://github.com/FastJVM/relay/pull/143\n"
+                command, stdout="https://github.com/FastJVM/coga/pull/143\n"
             )
         if command == ["git", "checkout", "main"]:
             return _completed(command)
@@ -873,7 +873,7 @@ def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
         runner=runner,
     )
 
-    assert result.pr_url == "https://github.com/FastJVM/relay/pull/143"
+    assert result.pr_url == "https://github.com/FastJVM/coga/pull/143"
     # The configured `[git].remote` flows through to the push, not a hardcoded
     # `origin` — the whole point of the ticket.
     assert [
@@ -905,7 +905,7 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
         ]
     )
     commands: list[list[str]] = []
-    existing_url = "https://github.com/FastJVM/relay/pull/143"
+    existing_url = "https://github.com/FastJVM/coga/pull/143"
 
     def runner(args, cwd=None):
         command = list(args)
