@@ -35,14 +35,14 @@ no in-memory state.
   trail is not in the task file — it lives in one repo-global `coga/log.md`
   (written by CLI commands only), each line tagged with its task ref.
 - **Contexts** are domain knowledge — what's true about the world.
-  Project-local contexts live in `coga/contexts/`; bundled Coga
-  batteries live in `coga/bootstrap/contexts/`. Attached to tickets via
-  `contexts:` frontmatter list. Local contexts override bundled contexts with
-  the same ref.
+  Project-local contexts live in `coga/contexts/`; bundled Coga batteries live
+  in the installed package's `bootstrap/contexts/` resources. Attached to
+  tickets via `contexts:` frontmatter list. Local contexts override bundled
+  contexts with the same ref.
 - **Skills** are process knowledge — how to do a thing. Project-local skills
-  live in `coga/skills/`; bundled Coga batteries live in
-  `coga/bootstrap/skills/`. Attached to **workflow steps**, not tickets.
-  Local skills override bundled skills with the same ref. The `skills:`
+  live in `coga/skills/`; bundled Coga batteries live in the installed
+  package's `bootstrap/skills/` resources. Attached to **workflow steps**, not
+  tickets. Local skills override bundled skills with the same ref. The `skills:`
   ticket-level frontmatter field exists for skill refs that apply to the
   ticket as a whole; `bootstrap/ticket` is the authoring interview and must
   never appear there — `coga ticket` injects it into the launch prompt
@@ -50,7 +50,7 @@ no in-memory state.
 - **Workflows** are ordered step definitions. A repo's own workflows live in
   `coga/workflows/`; package-backed reusable workflows (the core `code/*`
   loop, `dev/with-self-review`, `docs/create-google-doc`, the Dream child
-  workflows, `digest/post`) live under `coga/bootstrap/workflows/`.
+  workflows, `digest/post`) live in package `bootstrap/workflows/` resources.
   Resolution is local-first, exactly like skills and contexts: a local
   `workflows/<ref>.md` overrides a bundled `bootstrap/workflows/<ref>.md`.
   Frozen into a ticket's frontmatter at
@@ -67,21 +67,21 @@ no in-memory state.
   records the serviced period as `last_serviced_period` in the template
   blackboard, and launches the due ones. The created tasks then use the same
   ticket, workflow, launch, bump, and blackboard machinery as any other task.
-- **Bootstrap tickets** in `coga/bootstrap/<name>/ticket.md` are
-  stateless launch targets for skills. No status, no workflow. Used for
-  ticket-less re-entry points like `coga launch bootstrap/orient`
-  (the `chat` alias). They are never factories — `coga launch` no
-  longer creates new tickets from them; use `coga create` for that.
+- **Bootstrap tickets** in package `bootstrap/<name>/ticket.md` resources
+  are stateless launch targets for skills. No status, no workflow. Used for
+  ticket-less re-entry points like `coga launch bootstrap/orient` (the `chat`
+  alias). They are never factories — `coga launch` no longer creates new
+  tickets from them; use `coga create` for that.
 - **Bundled batteries** are package-backed core skills, contexts, reusable
-  workflows, hooks, and launch targets materialized under `coga/bootstrap/`
-  by `coga init` and `coga init --update`. `pip install coga` puts them in the wheel; init
-  materializes them into each repo. They are inspectable local files, but
-  edits under `bootstrap/` are overwritten on update. Optional domain skills
-  declared in Coga's managed-skill manifest install into `coga/skills/`
-  through the public skill installer instead of being copied from templates;
-  install failures for optional skills warn without breaking offline init.
-  Copy a skill or context to the matching `coga/skills/` or
-  `coga/contexts/` ref to override it.
+  workflows, hooks, and launch targets shipped in the installed package.
+  `pip install coga` puts them in the wheel; `coga init` and
+  `coga init --update` do not materialize them into `coga/bootstrap/`.
+  Runtime resolvers read package resources directly after checking local
+  overrides. Optional domain skills declared in Coga's managed-skill manifest
+  install into `coga/skills/` through the public skill installer instead of
+  being copied from templates; install failures for optional skills warn
+  without breaking offline init. Copy a skill or context to the matching
+  `coga/skills/` or `coga/contexts/` ref to override it.
 - **Dream** is Coga's generic ticket cleanup pass. It is a recurring task
   template (`coga/recurring/dream/`) plus a `dream` alias — not a
   built-in command. `coga recurring` scaffolds and launches it when its
@@ -370,13 +370,14 @@ A Dream worker is a plain skill. The shipped Coga workers live under
 `src/coga/resources/templates/coga/bootstrap/skills/bootstrap/dream/tasks/<name>/`
 as a `SKILL.md` (standard `name` + `description` frontmatter, plus an
 optional `script: <filename>` entry point) alongside that script. `coga
-init` materializes them into `coga/bootstrap/skills/...`, so a workflow
-step references the worker by ref `bootstrap/dream/tasks/<name>`. Running a
-worker is just a script-step Coga task whose one workflow step names that
-skill — it gets a normal ticket, blackboard, and log. There is no separate
-"Dream worker" Python shape, no `worker.main()` import from `coga.commands`,
-and no in-process call path; the worker runs end-to-end through the same
-launch machinery as any other script step.
+init` ships those resources in the package rather than materializing a repo
+copy; a workflow still references the worker by ref
+`bootstrap/dream/tasks/<name>`. Running a worker is just a script-step Coga
+task whose one workflow step names that skill — it gets a normal ticket,
+blackboard, and log. There is no separate "Dream worker" Python shape, no
+`worker.main()` import from `coga.commands`, and no in-process call path; the
+worker runs end-to-end through the same launch machinery as any other script
+step.
 
 Dream's decide-half subagent scans (the knowledge scan and the contract
 audit) are skills too, but **prompt-only**: they live under
@@ -389,9 +390,9 @@ script workers and is the wrong archetype to copy for a subagent scan. The
 Dream template body delegates each scan phase to a subagent running the
 skill and keeps only the delegation framing plus the `## Findings` write
 target inline. Known limitation: the contract audit's own corpus globs
-(`coga/contexts/**`, `coga/skills/**`) do not cover
-`coga/bootstrap/skills/**`, so the bundled Dream skills — the scan
-skills included — sit outside the surface that audit reads.
+(`coga/contexts/**`, `coga/skills/**`) do not cover package-backed
+`bootstrap/skills/**`, so the bundled Dream skills — the scan skills included
+— sit outside the surface that audit reads.
 
 A script-step launch injects task and skill metadata as environment
 variables instead of CLI argument plumbing — a worker script reads these, not

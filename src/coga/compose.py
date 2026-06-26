@@ -264,6 +264,8 @@ def _resource(name: str) -> str:
 
 
 def _task_path_for_prompt(cfg: Config, task_ref: TargetRef) -> str:
+    if isinstance(task_ref, BootstrapRef):
+        return task_ref.id_slug
     path = task_ref.path.resolve(strict=False)
     try:
         rel = path.relative_to(cfg.repo_root.resolve(strict=False))

@@ -3,6 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from coga.paths import (
+    bootstrap_context_path,
+    bootstrap_skill_path,
+    bootstrap_workflow_path,
     resolve_context_path,
     resolve_skill_path,
     resolve_workflow_path,
@@ -12,20 +15,16 @@ from coga.paths import (
 
 def test_resolve_skill_path_falls_back_to_bootstrap(tmp_path):
     cfg = SimpleNamespace(repo_root=tmp_path)
-    bundled = tmp_path / "bootstrap" / "skills" / "tools" / "example" / "SKILL.md"
-    bundled.parent.mkdir(parents=True)
-    bundled.write_text("bundled\n")
 
-    assert resolve_skill_path(cfg, "tools/example") == bundled
+    assert resolve_skill_path(cfg, "bootstrap/ticket") == bootstrap_skill_path(
+        cfg, "bootstrap/ticket"
+    )
 
 
 def test_resolve_skill_path_prefers_local_over_bootstrap(tmp_path):
     cfg = SimpleNamespace(repo_root=tmp_path)
-    bundled = tmp_path / "bootstrap" / "skills" / "tools" / "example" / "SKILL.md"
     local = tmp_path / "skills" / "tools" / "example" / "SKILL.md"
-    bundled.parent.mkdir(parents=True)
     local.parent.mkdir(parents=True)
-    bundled.write_text("bundled\n")
     local.write_text("local\n")
 
     assert resolve_skill_path(cfg, "tools/example") == local
@@ -33,32 +32,33 @@ def test_resolve_skill_path_prefers_local_over_bootstrap(tmp_path):
 
 def test_resolve_context_path_prefers_local_over_bootstrap(tmp_path):
     cfg = SimpleNamespace(repo_root=tmp_path)
-    bundled = tmp_path / "bootstrap" / "contexts" / "coga" / "sync" / "SKILL.md"
     local = tmp_path / "contexts" / "coga" / "sync" / "SKILL.md"
-    bundled.parent.mkdir(parents=True)
     local.parent.mkdir(parents=True)
-    bundled.write_text("bundled\n")
     local.write_text("local\n")
 
     assert resolve_context_path(cfg, "coga/sync") == local
 
 
+def test_resolve_context_path_falls_back_to_packaged_bootstrap(tmp_path):
+    cfg = SimpleNamespace(repo_root=tmp_path)
+
+    assert resolve_context_path(cfg, "coga/sync") == bootstrap_context_path(
+        cfg, "coga/sync"
+    )
+
+
 def test_resolve_workflow_path_falls_back_to_bootstrap(tmp_path):
     cfg = SimpleNamespace(repo_root=tmp_path)
-    bundled = tmp_path / "bootstrap" / "workflows" / "code" / "with-review.md"
-    bundled.parent.mkdir(parents=True)
-    bundled.write_text("bundled\n")
 
-    assert resolve_workflow_path(cfg, "code/with-review") == bundled
+    assert resolve_workflow_path(cfg, "code/with-review") == bootstrap_workflow_path(
+        cfg, "code/with-review"
+    )
 
 
 def test_resolve_workflow_path_prefers_local_over_bootstrap(tmp_path):
     cfg = SimpleNamespace(repo_root=tmp_path)
-    bundled = tmp_path / "bootstrap" / "workflows" / "code" / "with-review.md"
     local = tmp_path / "workflows" / "code" / "with-review.md"
-    bundled.parent.mkdir(parents=True)
     local.parent.mkdir(parents=True)
-    bundled.write_text("bundled\n")
     local.write_text("local\n")
 
     assert resolve_workflow_path(cfg, "code/with-review") == local

@@ -88,7 +88,7 @@ class TaskRef:
 
 @dataclass(frozen=True)
 class BootstrapRef:
-    """A persistent bootstrap ticket under `coga/bootstrap/<name>/`.
+    """A package-backed bootstrap ticket under `bootstrap/<name>/`.
 
     Bootstrap tickets are stateless re-entry points (no status flips, no lock).
     `id_slug` matches the launch arg form so logs read naturally.
@@ -293,8 +293,8 @@ def resolve_bootstrap(cfg: Config, name: str) -> BootstrapRef:
     path = bootstrap_path(cfg, name)
     if not (path / "ticket.md").is_file():
         raise TaskNotFoundError(
-            f"No bootstrap ticket at {path / 'ticket.md'} "
-            f"(expected for `bootstrap/{name}`)"
+            f"Installed coga package is missing bootstrap ticket "
+            f"`bootstrap/{name}` at {path / 'ticket.md'}."
         )
     return BootstrapRef(name=name, path=path)
 

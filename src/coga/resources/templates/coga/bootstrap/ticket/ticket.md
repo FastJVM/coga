@@ -22,9 +22,9 @@ launch is independent. Don't edit the ticket itself except to swap the
 ## Context
 
 The actual instruction set lives at
-`coga/bootstrap/skills/bootstrap/ticket/SKILL.md` unless a local
-`coga/skills/bootstrap/ticket/SKILL.md` override exists. This ticket routes bare
-`coga launch bootstrap/ticket` sessions to that skill — read the skill if
+package `bootstrap/skills/bootstrap/ticket/SKILL.md` resources unless a local
+`coga/skills/bootstrap/ticket/SKILL.md` override exists. This ticket routes
+bare `coga launch bootstrap/ticket` sessions to that skill — read the skill if
 you're debugging the bootstrap flow.
 
 `assignee` must match an `[agents.<type>]` block in `coga.toml`. The

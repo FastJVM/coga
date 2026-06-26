@@ -52,9 +52,9 @@ table above.
 - Recommendations must be grounded. Name only files, workflows,
   contexts, or commands that actually exist. Before suggesting
   `--workflow X` or `contexts: [X]`, verify `X` is in
-  `coga/workflows/` or `coga/bootstrap/workflows/` (bundled
+  `coga/workflows/` or package `bootstrap/workflows/` (bundled
   batteries like `code/with-review` live under the latter), or in
-  `coga/contexts/` or `coga/bootstrap/contexts/`. If nothing
+  `coga/contexts/` or package `bootstrap/contexts/`. If nothing
   existing fits, recommend creating a new one and name the path it would
   live at (e.g. `coga/workflows/code/<name>.md`). Never invent
   plausible-sounding names from memory.

@@ -100,12 +100,16 @@ def build_script_env(
 
 
 def build_script_command(script_path: Path) -> list[str]:
-    """argv for running a skill script — honor the executable bit, else
-    interpret by suffix. POC-friendly: a non-executable `.py` still runs."""
-    if os.access(script_path, os.X_OK):
-        return [str(script_path)]
+    """argv for running a skill script.
+
+    Python skill scripts always run under the active Coga interpreter so they
+    can import the installed package. Other executable scripts keep their
+    shebang behavior; non-executable scripts fall back to `sh`.
+    """
     if script_path.suffix == ".py":
         return [sys.executable, str(script_path)]
+    if os.access(script_path, os.X_OK):
+        return [str(script_path)]
     return ["sh", str(script_path)]
 
 

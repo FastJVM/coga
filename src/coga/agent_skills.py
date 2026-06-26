@@ -7,6 +7,8 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from coga.paths import packaged_template_path
+
 
 AGENT_SKILLS_DIRNAME = ".agent-skills"
 
@@ -22,8 +24,8 @@ def refresh_agent_skill_view(coga_os: Path) -> AgentSkillViewResult:
     """Rebuild `coga/.agent-skills` from local + bundled skills.
 
     The generated view is what Claude Code and Codex scan. Local skills under
-    `coga/skills` win over bundled package-backed batteries under
-    `coga/bootstrap/skills`.
+    `coga/skills` win over bundled package-backed batteries in the installed
+    package.
     """
     view_dir = coga_os / AGENT_SKILLS_DIRNAME
     _remove_existing(view_dir)
@@ -31,7 +33,7 @@ def refresh_agent_skill_view(coga_os: Path) -> AgentSkillViewResult:
 
     refs: dict[str, Path] = {}
     # Bootstrap first, local second: local overrides exact bundled refs.
-    refs.update(_skill_refs(coga_os / "bootstrap" / "skills"))
+    refs.update(_skill_refs(packaged_template_path("bootstrap", "skills")))
     refs.update(_skill_refs(coga_os / "skills"))
 
     linked: list[str] = []

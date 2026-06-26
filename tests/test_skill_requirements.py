@@ -1,8 +1,8 @@
 """Tests for per-skill dependency installation at bootstrap.
 
-`install_skill_requirements` is what makes a bootstrapped skill bring its own
-Python deps: it pip-installs every `coga/skills/**/requirements.txt` into
-the `.coga/.venv`. Tests fake `subprocess.run` so nothing is actually
+`install_skill_requirements` is what makes a skill bring its own Python deps:
+it pip-installs every project-local and bundled-package `requirements.txt`
+into the `.coga/.venv`. Tests fake `subprocess.run` so nothing is actually
 installed.
 """
 
@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+import coga.commands.update as update_cmd
 from coga.commands.update import install_skill_requirements
 
 
@@ -29,11 +30,25 @@ def _mk_req(skills_dir: Path, ref: str, body: str = "somedep>=1\n") -> Path:
     return req
 
 
-def test_no_skills_dir_is_noop(tmp_path: Path) -> None:
+def test_no_skills_dir_is_noop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    empty_package_skills = tmp_path / "package-skills"
+    empty_package_skills.mkdir()
+    monkeypatch.setattr(
+        update_cmd, "packaged_bootstrap_skills_dir", lambda: empty_package_skills
+    )
     assert install_skill_requirements(tmp_path, tmp_path / ".venv") == []
 
 
-def test_skills_dir_without_requirements_is_noop(tmp_path: Path) -> None:
+def test_skills_dir_without_requirements_is_noop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    empty_package_skills = tmp_path / "package-skills"
+    empty_package_skills.mkdir()
+    monkeypatch.setattr(
+        update_cmd, "packaged_bootstrap_skills_dir", lambda: empty_package_skills
+    )
     (tmp_path / "skills" / "coga" / "x").mkdir(parents=True)
     assert install_skill_requirements(tmp_path, tmp_path / ".venv") == []
 
@@ -41,8 +56,9 @@ def test_skills_dir_without_requirements_is_noop(tmp_path: Path) -> None:
 def test_installs_each_requirements_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # Both roots are scanned: project-local skills/ and bundled bootstrap/skills/.
-    req_a = _mk_req(tmp_path / "bootstrap" / "skills", "coga/google-calendar")
+    # Both roots are scanned: project-local skills/ and bundled package skills.
+    package_skills = tmp_path / "package-skills"
+    req_a = _mk_req(package_skills, "coga/google-calendar")
     req_b = _mk_req(tmp_path / "skills", "team/other")
 
     calls: list[list[str]] = []
@@ -52,6 +68,9 @@ def test_installs_each_requirements_file(
         return _ok()
 
     monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        update_cmd, "packaged_bootstrap_skills_dir", lambda: package_skills
+    )
     venv = tmp_path / ".venv"
     installed = install_skill_requirements(tmp_path, venv)
 

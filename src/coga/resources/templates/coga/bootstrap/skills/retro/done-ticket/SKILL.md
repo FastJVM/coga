@@ -31,9 +31,9 @@ PR, no `## Retro` marker, and no `## Pruned` bookkeeping. Recovery is via
   chooses one exact done ticket, or Dream passes every eligible done ticket in
   one run. The run partitions them into coherent PR batches itself.
 - Inputs: each source task's `ticket.md` (body + blackboard region) and its history in the repo-global `coga/log.md`, plus
-  every local and bundled context/skill file under `coga/contexts/`,
-  `coga/bootstrap/contexts/`, `coga/skills/`, and
-  `coga/bootstrap/skills/`, loaded once per run before ticket-by-ticket
+  every local and bundled context/skill file under local `coga/contexts/`,
+  package `bootstrap/contexts/`, local `coga/skills/`, and package
+  `bootstrap/skills/`, loaded once per run before ticket-by-ticket
   extraction.
 - May change: warranted context files, warranted skill files, and the exact
   resolved source task directories under `coga/tasks/` for every processed
@@ -61,10 +61,10 @@ PR, no `## Retro` marker, and no `## Pruned` bookkeeping. Recovery is via
 Do:
 
 - read the done ticket directory for each slug passed to this skill;
-- read every context file under `coga/contexts/**/SKILL.md` and
-  `coga/bootstrap/contexts/**/SKILL.md`;
-- read every skill file under `coga/skills/**/SKILL.md` and
-  `coga/bootstrap/skills/**/SKILL.md`;
+- read every context file under local `coga/contexts/**/SKILL.md` and package
+  `bootstrap/contexts/**/SKILL.md`;
+- read every skill file under local `coga/skills/**/SKILL.md` and package
+  `bootstrap/skills/**/SKILL.md`;
 - decide whether each ticket contains new, useful durable knowledge;
 - maintain a running in-memory delta across the whole run — every ticket and
   every PR batch — so later tickets compare against the original corpus plus
@@ -105,8 +105,8 @@ covered by an existing skill, do not duplicate it.
 
 The baseline you compare ticket evidence against is the **current working-tree
 state** of the local roots (`coga/contexts/**`, `coga/skills/**`) plus
-the bundled roots (`coga/bootstrap/contexts/**`,
-`coga/bootstrap/skills/**`). Load that corpus once at the start of the run.
+the bundled package roots (`bootstrap/contexts/**`,
+`bootstrap/skills/**`). Load that corpus once at the start of the run.
 The final state of the local files is the editable learning record; bundled
 files are package-backed baseline knowledge. Durable knowledge that was already
 captured by prior source tasks lives in those files now — not in commit
@@ -136,10 +136,16 @@ Required files:
 - `<task-dir>/ticket.md` for each selected slug
 - the blackboard region of each selected slug's `ticket.md`
 - `<task-dir>/log.md` for each selected slug
-- `coga/contexts/**/SKILL.md`
-- `coga/bootstrap/contexts/**/SKILL.md`
-- `coga/skills/**/SKILL.md`
-- `coga/bootstrap/skills/**/SKILL.md`
+- local `coga/contexts/**/SKILL.md`
+- package `bootstrap/contexts/**/SKILL.md`
+- local `coga/skills/**/SKILL.md`
+- package `bootstrap/skills/**/SKILL.md`
+
+If you need the filesystem path for the installed package bootstrap root, run:
+
+```bash
+python -c "from importlib.resources import files; print(files('coga.resources').joinpath('templates', 'coga', 'bootstrap'))"
+```
 
 Stop and ask if any task slug is ambiguous, any task is not `status: done`, any
 required task evidence file is missing, a single coherent theme cannot be kept
@@ -149,17 +155,17 @@ within the per-PR hard limits below, or there is already an open PR adding a
 ## Workflow
 
 1. **Inventory contexts once.**
-   Read all `coga/contexts/**/SKILL.md` and
-   `coga/bootstrap/contexts/**/SKILL.md`. For each context, note its path,
-   `name`, `description`, headings, and the knowledge it already covers. This
-   inventory is the baseline for deciding whether ticket knowledge is new.
+   Read all local `coga/contexts/**/SKILL.md` and package
+   `bootstrap/contexts/**/SKILL.md`. For each context, note its path, `name`,
+   `description`, headings, and the knowledge it already covers. This inventory
+   is the baseline for deciding whether ticket knowledge is new.
 
 2. **Inventory skills once.**
-   Read all `coga/skills/**/SKILL.md` and
-   `coga/bootstrap/skills/**/SKILL.md`. For each skill, note its path,
-   `name`, `description`, headings, and the process it already covers. This
-   inventory is the baseline for deciding whether ticket knowledge belongs in a
-   skill and whether the process is already covered.
+   Read all local `coga/skills/**/SKILL.md` and package
+   `bootstrap/skills/**/SKILL.md`. For each skill, note its path, `name`,
+   `description`, headings, and the process it already covers. This inventory is
+   the baseline for deciding whether ticket knowledge belongs in a skill and
+   whether the process is already covered.
 
 3. **Read ticket evidence one ticket at a time.**
    For each selected slug, read its `ticket.md` (body + blackboard region) and its lines in the repo-global `coga/log.md`.

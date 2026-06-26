@@ -25,6 +25,14 @@ VALIDATE_DRIFT = (
 )
 
 
+def _source_pythonpath() -> str:
+    src_path = str(Path(__file__).resolve().parents[1] / "src")
+    existing_pythonpath = os.environ.get("PYTHONPATH")
+    if not existing_pythonpath:
+        return src_path
+    return src_path + os.pathsep + existing_pythonpath
+
+
 def _load_validate_drift_module():
     spec = importlib.util.spec_from_file_location(
         "validate_drift_skill", VALIDATE_DRIFT / "run.py"
@@ -177,6 +185,7 @@ def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
             "COGA_TASK_BLACKBOARD": str(blackboard.resolve()),
             "COGA_COGA_OS_ROOT": str(coga_os.resolve()),
             "COGA_REPO_ROOT": str(tmp_path.resolve()),
+            "PYTHONPATH": _source_pythonpath(),
         }
     )
 
@@ -221,6 +230,7 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
             "COGA_TASK_BLACKBOARD": str(report.resolve()),
             "COGA_COGA_OS_ROOT": str(coga_os.resolve()),
             "COGA_REPO_ROOT": str(tmp_path.resolve()),
+            "PYTHONPATH": _source_pythonpath(),
         }
     )
 

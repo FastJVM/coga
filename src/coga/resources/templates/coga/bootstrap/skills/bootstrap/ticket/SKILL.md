@@ -87,14 +87,17 @@ the human expected the interview, point them at `coga ticket <slug>`.
 
 Before suggesting anything, ground yourself in what actually exists:
 
-- `ls coga/workflows/ coga/bootstrap/workflows/` (and one level
-  deeper) — known workflows. Repo-local workflows live under
-  `coga/workflows/`; bundled batteries (e.g. `code/with-review`) under
-  `coga/bootstrap/workflows/`. A local file overrides a bundled one
-  with the same ref.
-- `ls coga/contexts/*/` — known contexts (path shape:
-  `coga/contexts/<namespace>/<name>/SKILL.md`; reference shape in
-  tickets: `<namespace>/<name>`).
+- Locate the installed package bootstrap root if you need to inspect bundled
+  batteries:
+  `python -c "from importlib.resources import files; print(files('coga.resources').joinpath('templates', 'coga', 'bootstrap'))"`
+- `ls coga/workflows/ <package-bootstrap>/workflows/` (and one level deeper)
+  — known workflows. Repo-local workflows live under `coga/workflows/`;
+  bundled batteries (e.g. `code/with-review`) under package
+  `bootstrap/workflows/`. A local file overrides a bundled one with the same
+  ref.
+- `ls coga/contexts/*/ <package-bootstrap>/contexts/*/` — known contexts
+  (path shape: `<namespace>/<name>/SKILL.md`; reference shape in tickets:
+  `<namespace>/<name>`).
 - `ls coga/skills/*/` — known skills (same path/reference shape).
 - `coga.toml` `[agents.*]` — known agent types (e.g. `claude`, `codex`).
 
@@ -163,8 +166,8 @@ answer.
      or `auto` = `script` + `claude -p`), but do not set `mode` semantics or
      encode a tier↔mode mapping here — that's a separate ticket.
 4. **Workflow** — which workflow fits? `ls coga/workflows/
-   coga/bootstrap/workflows/` for the options (e.g. `code/with-review`
-   for a code change shipped via PR — a bundled `bootstrap/workflows/`
+   <package-bootstrap>/workflows/` for the options (e.g. `code/with-review`
+   for a code change shipped via PR — a bundled package `bootstrap/workflows/`
    battery). Let the
    triage tier above advise this choice, but never override a workflow the
    human explicitly picks. Every ticket needs one before activation — a
@@ -285,7 +288,7 @@ step will run, and the autonomy tier you landed on (so the human validates the
 classification before launch).
 
 Read `coga/workflows/<name>.md` (or
-`coga/bootstrap/workflows/<name>.md` for a bundled battery) for the
+package `bootstrap/workflows/<name>.md` for a bundled battery) for the
 workflow you picked and pull its step list (each step's `name:` and
 `skills:`). Then print:
 

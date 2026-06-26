@@ -11,6 +11,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from importlib.resources import files
 from pathlib import Path
 
 import yaml
@@ -146,15 +147,25 @@ def find_candidates(coga_os: Path) -> list[Candidate]:
 def delete_skill_path(coga_os: Path) -> Path:
     """Resolve the delete-task skill: project-local override before bundled.
 
-    A repo may override the skill under `coga/skills/`; otherwise it is
-    materialized into `coga/bootstrap/skills/` by `coga init`. Mirrors
-    Coga's standard local-then-bootstrap resolution. When neither exists the
-    bundled path is returned so the caller's `is_file()` gate reports missing.
+    A repo may override the skill under `coga/skills/`; otherwise it is read
+    from the installed package's bootstrap skill resources. Mirrors Coga's
+    standard local-then-package resolution. When neither exists the bundled
+    path is returned so the caller's `is_file()` gate reports missing.
     """
     local = coga_os / "skills" / "bootstrap" / "delete-task" / "SKILL.md"
     if local.is_file():
         return local
-    return coga_os / "bootstrap" / "skills" / "bootstrap" / "delete-task" / "SKILL.md"
+    return Path(
+        files("coga.resources").joinpath(
+            "templates",
+            "coga",
+            "bootstrap",
+            "skills",
+            "bootstrap",
+            "delete-task",
+            "SKILL.md",
+        )
+    )
 
 
 def open_pr_state(repo: Path) -> OpenPrState:

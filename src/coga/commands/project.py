@@ -56,8 +56,8 @@ def project(
         ref = resolve_bootstrap(cfg, "project")
     except TaskNotFoundError as exc:
         _bail(
-            f"{exc}\nThe bootstrap/project ticket ships with the package — run "
-            "`coga init --update` to vendor it."
+            f"{exc}\nThe bootstrap/project ticket ships with the package — "
+            "reinstall or update coga so the packaged launch target is present."
         )
     bootstrap_ticket = read_ticket(ref)
 
