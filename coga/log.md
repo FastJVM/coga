@@ -320,3 +320,4 @@
 2026-06-26 14:26 [rename-relay-to-coga] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-26 14:56 [rename-relay-to-coga] [human:nicktoper] task done
 2026-06-26 14:57 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-26 16:48 [anonymous-install-telemetry-opt-out-no-pii] [agent:nick] advanced to step 3 (implement) → assigned to claude
