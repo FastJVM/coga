@@ -294,3 +294,5 @@
 2026-06-25 20:05 [rename-relay-to-coga] [agent:claude] advanced to step 3 (pr)
 2026-06-25 20:05 [rename-relay-to-coga] [human:zach] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-25 20:09 [rename-relay-to-coga] [agent:claude] advanced to step 4 (review) → assigned to zach — PR opened: https://github.com/FastJVM/relay/pull/454
+2026-06-24 22:05 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-25 20:35 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
