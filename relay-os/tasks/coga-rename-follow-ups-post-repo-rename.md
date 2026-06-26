@@ -55,6 +55,12 @@ were intentionally NOT made in the rename PR. See that PR's blackboard
 
 **Publish:**
 - [ ] Publish `coga 0.2.0` via the trusted-publishing workflow (`.github/workflows/release.yml`) under the `coga` name.
+- [ ] After publish, switch the README install from the clone+editable stopgap to
+  `pipx install coga` / `pipx upgrade coga` in ~4 spots: the step-1 install block,
+  the upgrade note, the "picking up a new release" line, and the bundled-skills
+  update path. This was drafted (as `relay-os`) in **closed PR #453** (branch
+  `docs/readme-pypi-install`, commit `08674ad8`) — deferred behind the rename +
+  publish; redo it as `coga` rather than reviving that branch.
 
 ## Post-merge cutover → tracked separately
 
