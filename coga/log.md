@@ -319,3 +319,4 @@
 2026-06-26 14:27 [mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field] [human:nicktoper] started (active → in_progress) via coga launch
 2026-06-26 14:26 [rename-relay-to-coga] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-26 14:56 [rename-relay-to-coga] [human:nicktoper] task done
+2026-06-26 14:57 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
