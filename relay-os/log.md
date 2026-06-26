@@ -301,3 +301,5 @@
 2026-06-25 21:13 [improve-prompt-for-relay-ticket] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-25 21:29 [improve-prompt-for-relay-ticket] [human:nick] activated (draft → active) — auto on launch
 2026-06-25 21:29 [improve-prompt-for-relay-ticket] [human:nick] started (active → in_progress) via relay launch
+2026-06-25 21:05 [fresh-repo-default-branch-mismatch-git-init-master] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-25 21:51 [fix-stale-relay-sync-context-git-failures-swallowe] [human:nick] created (autonomy=interactive, status=draft)
