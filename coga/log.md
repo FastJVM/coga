@@ -310,3 +310,4 @@
 2026-06-26 12:37 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-26 12:38 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-26 12:39 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-26 12:40 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
