@@ -310,7 +310,7 @@ def fake_managed_skill_sync(monkeypatch: pytest.MonkeyPatch):
 def test_clone_upstream_uses_coga_repo_url_env(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    repo_url = "git@github.com:FastJVM/relay.git"
+    repo_url = "git@github.com:FastJVM/coga.git"
     commands: list[list[str]] = []
 
     def fake_run(cmd, **kwargs):
@@ -339,7 +339,7 @@ def test_clone_upstream_strips_pip_git_prefix_from_env(
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     monkeypatch.setenv(
-        "COGA_REPO_URL", "git+ssh://git@github.com/FastJVM/relay.git"
+        "COGA_REPO_URL", "git+ssh://git@github.com/FastJVM/coga.git"
     )
     monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
 
@@ -350,7 +350,7 @@ def test_clone_upstream_strips_pip_git_prefix_from_env(
             "git",
             "clone",
             "--depth=1",
-            "ssh://git@github.com/FastJVM/relay.git",
+            "ssh://git@github.com/FastJVM/coga.git",
             str(tmp_path / "repo"),
         ]
     ]
@@ -359,7 +359,7 @@ def test_clone_upstream_strips_pip_git_prefix_from_env(
 def test_clone_upstream_redacts_credentialed_url_in_output(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    repo_url = "https://coga:TOKEN@github.com/FastJVM/relay.git"
+    repo_url = "https://coga:TOKEN@github.com/FastJVM/coga.git"
     commands: list[list[str]] = []
 
     def fake_run(cmd, **kwargs):
@@ -376,7 +376,7 @@ def test_clone_upstream_redacts_credentialed_url_in_output(
         ["git", "clone", "--depth=1", repo_url, str(tmp_path / "repo")]
     ]
     captured = capsys.readouterr()
-    assert "https://github.com/FastJVM/relay.git" in captured.out
+    assert "https://github.com/FastJVM/coga.git" in captured.out
     assert "TOKEN" not in captured.out
     assert "coga:TOKEN" not in captured.out
 
@@ -384,7 +384,7 @@ def test_clone_upstream_redacts_credentialed_url_in_output(
 def test_resolve_coga_repo_url_detects_matching_ssh_remote(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    repo_url = "git@github.com:FastJVM/relay.git"
+    repo_url = "git@github.com:FastJVM/coga.git"
     commands: list[list[str]] = []
 
     def fake_run(cmd, **kwargs):
@@ -411,8 +411,8 @@ def test_resolve_coga_repo_url_detects_matching_ssh_remote(
 def test_resolve_coga_repo_url_prefers_matching_ssh_remote_over_https(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    https_url = "https://github.com/FastJVM/relay.git"
-    ssh_url = "git@github.com:FastJVM/relay.git"
+    https_url = "https://github.com/FastJVM/coga.git"
+    ssh_url = "git@github.com:FastJVM/coga.git"
     commands: list[list[str]] = []
 
     def fake_run(cmd, **kwargs):
@@ -440,7 +440,7 @@ def test_write_pin_records_resolved_ssh_repo_url(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     coga_os = tmp_path / "coga"
-    repo_url = "git@github.com:FastJVM/relay.git"
+    repo_url = "git@github.com:FastJVM/coga.git"
     monkeypatch.setenv("COGA_REPO_URL", repo_url)
 
     update_cmd.write_pin(coga_os, FAKE_SHA)
@@ -456,13 +456,13 @@ def test_write_pin_redacts_credentialed_repo_url(
 ) -> None:
     coga_os = tmp_path / "coga"
     monkeypatch.setenv(
-        "COGA_REPO_URL", "https://coga:TOKEN@github.com/FastJVM/relay.git"
+        "COGA_REPO_URL", "https://coga:TOKEN@github.com/FastJVM/coga.git"
     )
 
     update_cmd.write_pin(coga_os, FAKE_SHA)
 
     assert (coga_os / ".coga" / "COGA_PIN").read_text().splitlines() == [
-        "https://github.com/FastJVM/relay.git",
+        "https://github.com/FastJVM/coga.git",
         FAKE_SHA,
     ]
 
@@ -470,11 +470,11 @@ def test_write_pin_redacts_credentialed_repo_url(
 def test_coga_pip_git_source_converts_scp_ssh_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("COGA_REPO_URL", "git@github.com:FastJVM/relay.git")
+    monkeypatch.setenv("COGA_REPO_URL", "git@github.com:FastJVM/coga.git")
 
     assert (
         update_cmd.coga_pip_git_source()
-        == "git+ssh://git@github.com/FastJVM/relay.git"
+        == "git+ssh://git@github.com/FastJVM/coga.git"
     )
 
 
@@ -482,12 +482,12 @@ def test_coga_pip_git_source_redacts_credentialed_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv(
-        "COGA_REPO_URL", "https://coga:TOKEN@github.com/FastJVM/relay.git"
+        "COGA_REPO_URL", "https://coga:TOKEN@github.com/FastJVM/coga.git"
     )
 
     assert (
         update_cmd.coga_pip_git_source()
-        == "git+https://github.com/FastJVM/relay.git"
+        == "git+https://github.com/FastJVM/coga.git"
     )
 
 
