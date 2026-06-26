@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 from textwrap import dedent
@@ -29,6 +30,14 @@ TEMPLATES = (
 )
 
 
+def _source_pythonpath() -> str:
+    src_path = str(Path(__file__).resolve().parents[1] / "src")
+    existing_pythonpath = os.environ.get("PYTHONPATH")
+    if not existing_pythonpath:
+        return src_path
+    return src_path + os.pathsep + existing_pythonpath
+
+
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
@@ -36,6 +45,7 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.setenv("PYTHONPATH", _source_pythonpath())
     coga_os = tmp_path / "coga"
     _write(
         coga_os / "coga.toml",
@@ -167,7 +177,7 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
     blackboard = read_blackboard(refs["cleanup-orphan-markers"].ticket_path)
     assert "## Dream Skill: cleanup-orphan-markers" in blackboard
     assert "Result: human-needed." in blackboard
-    assert "Required delete skill is missing" in blackboard
+    assert "Required delete skill is missing" not in blackboard
     assert "`processed-ticket`: processed marker present; deletion skipped." in blackboard
     assert (repo / "tasks" / "processed-ticket").is_dir()
 

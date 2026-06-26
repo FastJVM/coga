@@ -22,7 +22,7 @@ whichever agent type you have configured in `coga.toml`.
 ## Context
 
 The actual instruction set lives at
-`coga/bootstrap/skills/bootstrap/project/SKILL.md` unless a local
+package `bootstrap/skills/bootstrap/project/SKILL.md` resources unless a local
 `coga/skills/bootstrap/project/SKILL.md` override exists. This ticket routes
 bare `coga launch bootstrap/project` sessions to that skill — read the skill
 if you're debugging the planning flow.

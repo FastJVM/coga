@@ -29,10 +29,11 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "delete every processed source task" in text
     assert "`pr-required` for knowledge edits and the source-task deletions" in text
     assert "`direct-delete` for no-durable-knowledge source tasks" in text
-    assert "read every context file under `coga/contexts/**/SKILL.md` and" in text
-    assert "`coga/bootstrap/contexts/**/SKILL.md`" in text
-    assert "read every skill file under `coga/skills/**/SKILL.md` and" in text
-    assert "`coga/bootstrap/skills/**/SKILL.md`" in text
+    assert "read every context file under local `coga/contexts/**/SKILL.md`" in text
+    assert "package\n  `bootstrap/contexts/**/SKILL.md`" in text
+    assert "read every skill file under local `coga/skills/**/SKILL.md`" in text
+    assert "package\n  `bootstrap/skills/**/SKILL.md`" in text
+    assert "from importlib.resources import files" in text
     assert "loaded once per run before ticket-by-ticket\n  extraction" in text
     assert "This skill is invoked with one or more parameters: exact done ticket slugs" in text
     assert "the skill partitions them into coherent PR" in text

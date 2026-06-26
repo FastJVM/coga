@@ -26,7 +26,7 @@ event operations; this skill only assembles the request bodies per the
 conventions below and shells out. Invoke via Bash:
 
 ```bash
-python "$COGA_COGA_OS_ROOT/bootstrap/skills/coga/google-calendar/gcal.py" <verb> ...
+python "$COGA_SKILL_DIR/../google-calendar/gcal.py" <verb> ...
 ```
 
 The script speaks the Google event resource as JSON in and out. Exit
@@ -138,7 +138,7 @@ Convention applied to the event body:
 Call shape (monthly reminder, shared reminders calendar):
 
 ```bash
-python "$COGA_COGA_OS_ROOT/bootstrap/skills/coga/google-calendar/gcal.py" create \
+python "$COGA_SKILL_DIR/../google-calendar/gcal.py" create \
   --calendar-id "<calendar-id>" \
   --body '{
     "summary": "Brex — review Missing GL Account charges",
@@ -171,7 +171,7 @@ acting on an assumption that the event exists.
 1. Read `calendar_reminder_event_id` from the ticket's frontmatter.
 2. Call:
    ```bash
-   python "$COGA_COGA_OS_ROOT/bootstrap/skills/coga/google-calendar/gcal.py" get \
+   python "$COGA_SKILL_DIR/../google-calendar/gcal.py" get \
      --calendar-id "<calendar-id>" --event-id "<id>"
    ```
    Exit code `3` means the event is gone — surface that and offer to
@@ -193,7 +193,7 @@ Use when the schedule, title, or description needs to change (e.g.
 2. Re-apply the create convention with the new inputs.
 3. Call:
    ```bash
-   python "$COGA_COGA_OS_ROOT/bootstrap/skills/coga/google-calendar/gcal.py" update \
+   python "$COGA_SKILL_DIR/../google-calendar/gcal.py" update \
      --calendar-id "<calendar-id>" --event-id "<id>" \
      --body '{ <only the fields that changed> }'
    ```
@@ -210,7 +210,7 @@ no longer needed) or when a ticket is being retired entirely.
 1. Read `calendar_reminder_event_id` from the ticket's frontmatter.
 2. Call:
    ```bash
-   python "$COGA_COGA_OS_ROOT/bootstrap/skills/coga/google-calendar/gcal.py" delete \
+   python "$COGA_SKILL_DIR/../google-calendar/gcal.py" delete \
      --calendar-id "<calendar-id>" --event-id "<id>"
    ```
    A successful delete prints `{}` (exit `0`). Exit `3` means the

@@ -17,8 +17,11 @@ the coga-managed bits in the current repo.
 
 - `coga init mycompany` — fresh scaffold; refuses if `coga/` exists.
 - `coga init --update` — refresh the vendored CLI from upstream and
-  package-owned `_*` templates, `bootstrap/`, and coga-owned recurring
-  batteries (`recurring/dream/`) from the installed Coga package. Leaves
+  package-owned `_*` templates and coga-owned recurring batteries
+  (`recurring/dream/`) from the installed Coga package. Stale repo-local
+  `coga/bootstrap/` mirrors are pruned; bootstrap tickets, bundled skills,
+  bundled contexts, and bundled reusable workflows resolve directly from the
+  installed package. Leaves
   `coga.toml`, `rules.md`, user contexts, user skills, and repo-specific
   recurring loops (REM) untouched.
 - `coga init --update --all [PATH]` — sweep mode. Scan `PATH` (default the
@@ -33,8 +36,9 @@ the coga-managed bits in the current repo.
 
 `pip install coga` installs bundled batteries into the wheel as package
 resources. It does not modify a repo. `coga init` and `coga init --update`
-materialize those package resources into `coga/bootstrap/`, where Coga
-resolves them after project-local `coga/skills` and `coga/contexts`.
+do not materialize those package resources into `coga/bootstrap/`; Coga
+resolves them directly from the installed package after checking project-local
+`coga/skills`, `coga/contexts`, and `coga/workflows`.
 
 ## coga uninstall [--yes] [--purge]
 

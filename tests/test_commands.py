@@ -7,6 +7,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from coga.commands import delete as delete_cmd
 from coga.cli import app
 from coga.create import create_task
 from coga.config import load_config
@@ -412,10 +413,13 @@ def test_delete_unknown_task_exits_nonzero(repo: Path) -> None:
     assert result.exit_code == 2
 
 
-def test_delete_missing_skill_exits_nonzero(repo: Path) -> None:
+def test_delete_missing_skill_exits_nonzero(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # The skill is the implementation; without it `coga delete` fails loud
     # rather than silently falling back to a private rmtree.
     slug, task_path = _make_task(repo, force_directory=True)
+    monkeypatch.setattr(delete_cmd, "resolve_skill_path", lambda cfg, ref: None)
     result = CliRunner().invoke(app, ["delete", slug])
     assert result.exit_code == 2
     assert task_path.is_dir()

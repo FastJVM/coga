@@ -11,6 +11,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+import coga.skill_manager as skill_manager
 from coga.cli import app
 from coga.config import load_config
 from coga.github_source import github_owner_repo
@@ -38,6 +39,15 @@ from coga.skill_manager import (
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
+
+
+def _package_skill_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    root = tmp_path / "package-skills"
+    root.mkdir(parents=True)
+    monkeypatch.setattr(skill_manager, "bundled_skills_root", lambda _cfg: root)
+    return root
 
 
 def _repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
@@ -520,8 +530,9 @@ def test_status_reports_bundled_bootstrap_skills(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(_repo(tmp_path, monkeypatch))
+    bundled_root = _package_skill_root(tmp_path, monkeypatch)
     _write(
-        cfg.repo_root / "bootstrap" / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md",
+        bundled_root / "eval" / "ticket-diagnostic" / "SKILL.md",
         "---\nname: eval/ticket-diagnostic\n---\nbundled\n",
     )
 
@@ -536,8 +547,9 @@ def test_status_marks_local_skill_that_overrides_bundled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(_repo(tmp_path, monkeypatch))
+    bundled_root = _package_skill_root(tmp_path, monkeypatch)
     _write(
-        cfg.repo_root / "bootstrap" / "skills" / "tools" / "example" / "SKILL.md",
+        bundled_root / "tools" / "example" / "SKILL.md",
         "---\nname: tools/example\n---\nbundled\n",
     )
     _write(
@@ -555,8 +567,9 @@ def test_update_all_skips_bundled_bootstrap_skills(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(_repo(tmp_path, monkeypatch))
+    bundled_root = _package_skill_root(tmp_path, monkeypatch)
     _write(
-        cfg.repo_root / "bootstrap" / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md",
+        bundled_root / "eval" / "ticket-diagnostic" / "SKILL.md",
         "---\nname: eval/ticket-diagnostic\n---\nbundled\n",
     )
 
@@ -575,8 +588,9 @@ def test_update_one_bundled_skill_reports_package_update_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(_repo(tmp_path, monkeypatch))
+    bundled_root = _package_skill_root(tmp_path, monkeypatch)
     _write(
-        cfg.repo_root / "bootstrap" / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md",
+        bundled_root / "eval" / "ticket-diagnostic" / "SKILL.md",
         "---\nname: eval/ticket-diagnostic\n---\nbundled\n",
     )
 

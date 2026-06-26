@@ -290,10 +290,11 @@ uninstall too.
 
 **Batteries and skill discovery.** The installed Coga package carries bundled
 skills, contexts, hooks, and bootstrap tickets as package resources. `pip install`
-puts those resources in the wheel; `coga init` / `coga init --update`
-materializes them into `coga/bootstrap/`. Project-local
-`coga/skills/` and `coga/contexts/` still win when they define the same
-ref.
+puts those resources in the wheel; `coga init` / `coga init --update` do not
+materialize a repo-local `coga/bootstrap/` mirror. Runtime resolution reads
+the package resources directly after checking project-local `coga/skills/`,
+`coga/contexts/`, and `coga/workflows/`, so local overrides still win when
+they define the same ref.
 
 Init also builds an ignored `coga/.agent-skills/` view that merges
 project-local skills with bundled bootstrap skills, then wires that view into
@@ -558,8 +559,8 @@ useful for running an `auto` ticket `interactive`ly.
 
 `bootstrap/<name>` tickets are stateless re-entry points for skills.
 Concurrent launches are safe — they have no status, no log of state changes,
-and no lock. The `coga/bootstrap/` tree is upstream-managed and refreshed
-wholesale by `coga init --update`, so don't add custom bootstrap tickets there — write
+and no lock. They are package-backed resources, not files materialized into
+the repo. Don't add custom bootstrap tickets under `coga/bootstrap/`; write
 your own launch wrappers elsewhere.
 
 For autonomous runs, an operator can opt an agent into skipping its CLI's

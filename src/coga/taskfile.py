@@ -29,9 +29,9 @@ Two write paths share one file without clobbering each other:
   after the fence and leaves the frontmatter + body bytes above it untouched —
   so a blackboard write never reformats the frontmatter.
 
-Bootstrap tickets (`coga/bootstrap/<name>/ticket.md`) are stateless launch
-targets with no blackboard; they legitimately have no fence. Pass
-`blackboard_required=False` to parse them without failing loud.
+Bootstrap tickets (package `bootstrap/<name>/ticket.md` resources) are
+stateless launch targets with no blackboard; they legitimately have no fence.
+Pass `blackboard_required=False` to parse them without failing loud.
 """
 
 from __future__ import annotations

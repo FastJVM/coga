@@ -37,7 +37,7 @@ TEMPLATE_RESOURCE_PACKAGE = "coga.resources"
 TEMPLATE_RESOURCE_PATH = ("templates", "coga")
 
 # Paths (relative to coga/) that earlier upstreams shipped but no longer do.
-# `init --update` prunes these from existing repos so removed creating doesn't
+# `init --update` prunes these from existing repos so removed content doesn't
 # linger after a migration. Keep entries narrow — only files we know we shipped
 # and now want gone, never user-owned paths.
 #
@@ -52,6 +52,7 @@ OBSOLETE_PATHS: tuple[str, ...] = (
     "rules.md",  # global prompt rules layer removed; use contexts/base prompt
     "scripts/cron.sh",  # v1 ships no recurring scheduler entry point
     "meta",  # renamed to bootstrap/ — pre-bootstrap upstreams shipped meta/
+    "bootstrap",  # bundled batteries now resolve from the installed package
     "skills/bootstrap/create",  # renamed to bootstrap/ticket in 350c4ed
     "skills/bootstrap/ticket",  # consolidated under bootstrap/skills/bootstrap/ticket
     "skills/bootstrap/dream/tasks/validate-drift",  # consolidated under bootstrap/skills
@@ -72,8 +73,8 @@ OBSOLETE_PATHS: tuple[str, ...] = (
 # these are live Coga batteries such as `recurring/dream/` and
 # `recurring/skill-update/`; their bodies are upstream-managed, not per-repo.
 # They carry no `_` prefix (used as-is, not copied-and-renamed) and don't live under
-# `bootstrap/`, so neither `_copy_templates` nor `_copy_vendored_bootstrap`
-# would otherwise refresh them — leaving repos that predate a template, or lost
+# `bootstrap/`, so neither `_copy_templates` nor the package-backed bootstrap
+# resolvers would refresh them — leaving repos that predate a template, or lost
 # them, permanently broken (`coga dream` or the skill updater has nothing to
 # create).
 #
@@ -281,9 +282,18 @@ def packaged_template_root() -> Traversable:
     return root
 
 
+def packaged_bootstrap_skills_dir() -> Path:
+    """Return the bundled package skill root."""
+    return Path(
+        files(TEMPLATE_RESOURCE_PACKAGE).joinpath(
+            *TEMPLATE_RESOURCE_PATH, "bootstrap", "skills"
+        )
+    )
+
+
 def copy_fresh_templates(src_root: Traversable, coga_os: Path) -> None:
     """Copy the full packaged coga template tree into a fresh repo."""
-    _copy_resource_tree(src_root, coga_os)
+    _copy_resource_tree(src_root, coga_os, skip_top={"bootstrap"})
     _chmod_packaged_executables(coga_os)
 
 
@@ -294,13 +304,6 @@ def refresh_templates(
 
     Five things are treated as upstream-owned (always overwritten on update):
       - `_*` template creates (`_template/` etc.)
-      - `bootstrap/` — the coga-vendored umbrella. Holds launch targets plus
-        package-backed core skills and contexts
-        (`bootstrap/skills/`, `bootstrap/contexts/*`). Optional domain skills
-        are installed into `skills/` through the managed-skill manifest instead
-        of being mirrored from templates. `_copy_vendored_bootstrap` mirrors
-        the package-backed bootstrap tree as one unit. Runtime resolvers read
-        local user roots first and this bundled root second.
       - `VENDORED_RECURRING_TEMPLATES` — named coga-owned recurring batteries
         (for example `recurring/dream/ticket.md`) that sit outside `bootstrap/` and carry
         no `_` prefix, refreshed by `_copy_vendored_recurring`. The sibling
@@ -332,20 +335,18 @@ def refresh_gitignored_mirrors(
     """Refresh the package-backed mirrors that don't collide with the Coga
     source checkout's git-tracked fixtures.
 
-    `bootstrap/` and the `VENDORED_RECURRING_TEMPLATES` are gitignored under
-    `coga/` in Coga's own repo — their source of truth lives in
-    `src/coga/resources/templates/coga/`. They still need to be
-    materialized into `coga/` for runtime resolution; without them
-    `coga launch bootstrap/orient` (i.e. `coga chat`) and `coga dream`
-    have nothing to find in a fresh source clone.
+    The `VENDORED_RECURRING_TEMPLATES` are gitignored under `coga/` in Coga's
+    own repo — their source of truth lives in `src/coga/resources/templates/coga/`.
+    They still need to be materialized into `coga/` because recurring templates
+    carry per-repo state in their blackboards. Package-backed `bootstrap/`
+    batteries are not materialized; runtime resolvers read them from the
+    installed package.
 
     `refresh_templates` calls this alongside the tracked-fixture work; the
     source-checkout path in `init._refresh_one` calls it on its own.
     """
     src_root = src_root or packaged_template_root()
-    copied = _copy_vendored_bootstrap(src_root, coga_os)
-    copied.extend(_copy_vendored_recurring(src_root, coga_os))
-    return copied
+    return _copy_vendored_recurring(src_root, coga_os)
 
 
 def prune_obsolete(coga_os: Path) -> list[str]:
@@ -595,9 +596,9 @@ def install_skill_requirements(coga_os: Path, venv_dir: Path) -> list[Path]:
 
     A skill declares its own Python dependencies in a top-level
     `requirements.txt`; this pass is what actually puts those deps in the venv
-    the skills run under, so a *bootstrapped* skill brings its own deps with it
+    the skills run under, so a packaged skill brings its own deps with it
     (there is no other per-skill install hook). Scans both skill roots:
-    project-local `coga/skills/` and bundled `coga/bootstrap/skills/`.
+    project-local `coga/skills/` and packaged bundled skills.
     Called at the tail of `install_venv`, so both `coga init` (fresh) and
     `coga init --update` pick up newly added skill requirements.
 
@@ -606,7 +607,10 @@ def install_skill_requirements(coga_os: Path, venv_dir: Path) -> list[Path]:
     Returns the requirement files that were installed (sorted), for callers
     and tests.
     """
-    roots = [coga_os / "skills", coga_os / "bootstrap" / "skills"]
+    roots = [
+        coga_os / "skills",
+        packaged_bootstrap_skills_dir(),
+    ]
     req_files = sorted(
         req
         for root in roots
@@ -617,7 +621,11 @@ def install_skill_requirements(coga_os: Path, venv_dir: Path) -> list[Path]:
         return []
     venv_python = venv_dir / "bin" / "python"
     for req in req_files:
-        typer.echo(f"Installing skill deps from {req.relative_to(coga_os)}…")
+        try:
+            label = req.relative_to(coga_os)
+        except ValueError:
+            label = req
+        typer.echo(f"Installing skill deps from {label}…")
         result = subprocess.run(
             [
                 str(venv_python),
@@ -887,26 +895,6 @@ def _drop_matching_lines(text: str, drop: set[str]) -> str:
     return "".join(kept)
 
 
-def _copy_vendored_bootstrap(src_root: Traversable, dst_root: Path) -> list[str]:
-    """Mirror the `bootstrap/` umbrella — wipe, copy fresh.
-
-    `bootstrap/` is the single home for package-backed control-plane batteries
-    Coga vendors and updates wholesale: launch targets
-    (`bootstrap/<name>/ticket.md`), the core skills they reference
-    (`bootstrap/skills/`), and canonical contexts (`bootstrap/contexts/*`).
-    Optional domain skills are installed into `skills/` by the managed-skill
-    manifest and updater, not copied through this mirror.
-    Runtime resolution reads local roots first, then this package-backed tree.
-
-    Wholesale replacement means renames and removals propagate cleanly. Don't
-    put custom content under `bootstrap/` — it'll be wiped. Custom skills
-    belong in `skills/<your-ns>/`, custom contexts in `contexts/<your-ns>/`.
-    """
-    copied = _wholesale_mirror(src_root, dst_root, ("bootstrap",))
-    _chmod_packaged_executables(dst_root)
-    return copied
-
-
 def _copy_vendored_recurring(src_root: Traversable, dst_root: Path) -> list[str]:
     """Refresh the named coga-owned recurring templates listed in
     `VENDORED_RECURRING_TEMPLATES`.
@@ -1014,9 +1002,14 @@ def _walk_resource_files(
     return [(rel, node) for rel, node in _walk_resources(root, base) if node.is_file()]
 
 
-def _copy_resource_tree(src: Traversable, dst: Path) -> None:
+def _copy_resource_tree(
+    src: Traversable, dst: Path, *, skip_top: set[str] | None = None
+) -> None:
     dst.mkdir(parents=True, exist_ok=True)
+    skip_top = skip_top or set()
     for child in src.iterdir():
+        if child.name in skip_top:
+            continue
         child_dst = dst / child.name
         if child.is_dir():
             _copy_resource_tree(child, child_dst)

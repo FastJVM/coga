@@ -20,6 +20,7 @@ from typing import Any
 
 from coga.config import Config
 from coga.github_source import github_owner_repo
+from coga.paths import packaged_template_path
 from coga.skill import Skill
 
 
@@ -90,7 +91,7 @@ def skills_root(cfg: Config) -> Path:
 
 
 def bundled_skills_root(cfg: Config) -> Path:
-    return cfg.repo_root / "bootstrap" / "skills"
+    return packaged_template_path("bootstrap", "skills")
 
 
 def install_github_skill(

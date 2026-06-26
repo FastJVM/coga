@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 from typer.testing import CliRunner
 
+import coga.agent_skills as agent_skills
 from coga.cli import app
 from coga.commands import init as init_cmd
 from coga.commands import update as update_cmd
@@ -27,15 +28,23 @@ _PACKAGED_COGA_TOML = (
 )
 
 
+def _fake_package_skill_root(
+    monkeypatch: pytest.MonkeyPatch, root: Path, missing: Path
+) -> None:
+    def fake_packaged_template_path(*parts: str) -> Path:
+        if parts == ("bootstrap", "skills"):
+            return root
+        return missing
+
+    monkeypatch.setattr(
+        agent_skills, "packaged_template_path", fake_packaged_template_path
+    )
+
+
 EXPECTED_FILES = {
     "coga/.gitignore",
     "coga/coga.toml",
     "coga/context.md",
-    "coga/bootstrap/contexts/dev/code/SKILL.md",
-    "coga/bootstrap/contexts/coga/sync/SKILL.md",
-    "coga/bootstrap/skills/eval/ticket-diagnostic/SKILL.md",
-    "coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md",
-    "coga/bootstrap/skills/coga/autoclose/sweep/run.py",
     "coga/contexts/_template/SKILL.md",
     "coga/skills/_template/SKILL.md",
     "coga/skills/direct/body/SKILL.md",
@@ -75,16 +84,22 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     templates = clone_dir / update_cmd.TEMPLATE_SUBPATH
     templates.mkdir(parents=True)
     (templates / ".gitignore").write_text(
-        "coga.local.toml\n.coga/\nbootstrap/\n.agent-skills/\n"
+        "coga.local.toml\n.coga/\n.agent-skills/\n"
         "**/_template/\n**/_template.md\n"
     )
     (templates / "coga.toml").write_text("version = 1\n")
     (templates / "context.md").write_text("context\n")
-    # Vendored skills + canonical coga/* contexts both live under bootstrap/.
+    # Packaged skills + canonical coga/* contexts live under bootstrap/ in the
+    # package resource tree, not in initialized repos.
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text(
         "bootstrap/ticket skill\n"
     )
+    for name in ("orient", "project", "ticket"):
+        (templates / "bootstrap" / name).mkdir(parents=True)
+        (templates / "bootstrap" / name / "ticket.md").write_text(
+            f"{name} bootstrap ticket\n"
+        )
     (templates / "bootstrap" / "skills" / "retro" / "done-ticket").mkdir(parents=True)
     (templates / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
         "retro/done-ticket skill\n"
@@ -507,32 +522,14 @@ def test_init_into_empty_dir(
 
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
+    assert not (target / "coga" / "bootstrap").exists()
     assert not (target / "coga" / "skills" / "eval").exists()
     assert not (target / "coga" / "skills" / "coga").exists()
     assert not (target / "coga" / "contexts" / "dev").exists()
     assert not (target / "coga" / "contexts" / "coga").exists()
     assert (
-        target
-        / "coga"
-        / "bootstrap"
-        / "skills"
-        / "eval"
-        / "ticket-diagnostic"
-        / "SKILL.md"
-    ).read_text().startswith("---\nname: eval/ticket-diagnostic\n")
-    assert (
         target / "coga" / ".agent-skills" / "eval" / "ticket-diagnostic"
     ).is_symlink()
-    assert (
-        target
-        / "coga"
-        / "bootstrap"
-        / "skills"
-        / "coga"
-        / "autoclose"
-        / "sweep"
-        / "SKILL.md"
-    ).read_text().startswith("---\nname: coga/autoclose/sweep\n")
     assert (
         target / "coga" / ".agent-skills" / "coga" / "autoclose" / "sweep"
     ).is_symlink()
@@ -1126,9 +1123,12 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     (templates / "workflows" / "skill-update" / "run.md").write_text(
         "NEW skill update workflow\n"
     )
-    (templates / "bootstrap" / "create").mkdir(parents=True)
-    (templates / "bootstrap" / "create" / "ticket.md").write_text("NEW bootstrap ticket\n")
-    # All vendored skills and contexts now live under `bootstrap/`.
+    for name in ("orient", "project", "ticket"):
+        (templates / "bootstrap" / name).mkdir(parents=True)
+        (templates / "bootstrap" / name / "ticket.md").write_text(
+            f"NEW {name} bootstrap ticket\n"
+        )
+    # Packaged skills and contexts live under `bootstrap/` in package resources.
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
     (templates / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text(
         "NEW bootstrap/ticket skill\n"
@@ -1183,7 +1183,7 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
         "NEW dev/code context\n"
     )
     (templates / ".gitignore").write_text(
-        "coga.local.toml\n.coga/\nbootstrap/\n.agent-skills/\n"
+        "coga.local.toml\n.coga/\n.agent-skills/\n"
         "**/_template/\n**/_template.md\n"
     )
 
@@ -1242,37 +1242,9 @@ def test_init_update_refreshes_cli_and_underscore_templates(
 
     assert (coga_os / "skills" / "_template" / "SKILL.md").read_text() == "NEW skill template\n"
     assert (coga_os / "tasks" / "_template" / "ticket.md").read_text() == "NEW ticket template\n"
-    # Bootstrap tickets are infra — the whole tree mirrors upstream on --update.
-    assert (coga_os / "bootstrap" / "create" / "ticket.md").read_text() == "NEW bootstrap ticket\n"
-    # Vendored skills + canonical contexts live under bootstrap/.
-    assert (
-        (coga_os / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").read_text()
-        == "NEW bootstrap/ticket skill\n"
-    )
-    assert (
-        (coga_os / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").read_text()
-        == "NEW retro/done-ticket skill\n"
-    )
-    assert (
-        (coga_os / "bootstrap" / "skills" / "eval" / "ticket-diagnostic" / "SKILL.md").read_text()
-        == "NEW eval/ticket-diagnostic skill\n"
-    )
-    assert (
-        coga_os / "bootstrap" / "skills" / "coga" / "autoclose" / "sweep" / "SKILL.md"
-    ).read_text() == "NEW coga/autoclose/sweep skill\n"
-    for ctx in ("architecture", "principles", "cli"):
-        assert (
-            (coga_os / "bootstrap" / "contexts" / "coga" / ctx / "SKILL.md").read_text()
-            == f"NEW coga/{ctx} context\n"
-        )
-    assert (
-        (coga_os / "bootstrap" / "contexts" / "coga" / "sync" / "SKILL.md").read_text()
-        == "NEW coga/sync context\n"
-    )
-    assert (
-        (coga_os / "bootstrap" / "contexts" / "dev" / "code" / "SKILL.md").read_text()
-        == "NEW dev/code context\n"
-    )
+    # Package-backed bootstrap batteries resolve from the installed package,
+    # not from a repo-local mirror.
+    assert not (coga_os / "bootstrap").exists()
     # Generated agent view exposes the effective skill set without claiming
     # namespaces in coga/skills.
     assert (coga_os / ".agent-skills" / "bootstrap" / "ticket").is_symlink()
@@ -1281,8 +1253,8 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert (coga_os / ".agent-skills" / "coga" / "autoclose" / "sweep").is_symlink()
     assert (coga_os / ".agent-skills" / "coga" / "calendar-reminder").is_symlink()
     assert (coga_os / ".agent-skills" / "_template").is_symlink()
-    # Shims dropped upstream (renamed/removed) are pruned locally.
-    assert not (coga_os / "bootstrap" / "stale").exists()
+    # The old generated bootstrap mirror is pruned locally.
+    assert not (coga_os / "bootstrap").exists()
     # Top-level paths upstream once shipped but no longer does are pruned.
     assert not (coga_os / "counter").exists()
     assert not (coga_os / "meta").exists()
@@ -1296,6 +1268,7 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     # Per-update prune count includes only narrow known Coga-owned paths plus
     # the underscore-template prune. Local namespace roots are preserved.
     assert "Pruned" in result.output
+    assert "  bootstrap" in result.output
     assert "  counter" in result.output
     assert "  meta" in result.output
     assert "  skills/bootstrap/create" in result.output
@@ -1426,13 +1399,13 @@ def test_init_update_refreshes_vendored_recurring_template(
     assert "skills/direct/body/SKILL.md" in result.output
 
 
-def test_init_update_in_coga_source_checkout_materializes_gitignored_mirrors(
+def test_init_update_in_coga_source_checkout_materializes_recurring_only(
     tmp_path: Path, fake_venv, fake_managed_skill_sync, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """`init --update` in Coga's own repo must leave git-tracked fixtures
-    alone but still materialize the gitignored package-backed mirrors
-    (`bootstrap/` and `recurring/dream/`) — otherwise `coga chat` and
-    `coga dream` fail in a fresh source clone.
+    alone but still materialize gitignored recurring templates, whose
+    blackboards carry per-repo state. Package-backed bootstrap batteries are
+    resolved from the installed package and are not copied into coga/.
     """
     coga_os = _seed_local_coga_os(tmp_path)
     shutil.rmtree(coga_os / "bootstrap")
@@ -1488,7 +1461,7 @@ def test_init_update_in_coga_source_checkout_materializes_gitignored_mirrors(
     )
     assert fake_venv == [coga_os]
     assert "Skipped tracked-fixture refresh/prune in Coga source checkout" in result.output
-    assert "Refreshed gitignored mirrors" in result.output
+    assert "Refreshed gitignored recurring templates" in result.output
     assert "skipped managed skill reconciliation" in result.output
     assert "Pruned" not in result.output
     assert fake_managed_skill_sync.reconcile_calls == []
@@ -1505,16 +1478,8 @@ def test_init_update_in_coga_source_checkout_materializes_gitignored_mirrors(
     assert (coga_os / "counter").read_text() == "SOURCE counter\n"
     assert not (coga_os / "recurring" / "_rem.md").exists()
 
-    # Gitignored mirrors must still land — that's the whole point of this path.
-    assert (
-        coga_os / "bootstrap" / "create" / "ticket.md"
-    ).read_text() == "NEW bootstrap ticket\n"
-    assert (
-        coga_os / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md"
-    ).read_text() == "NEW bootstrap/ticket skill\n"
-    assert (
-        coga_os / "bootstrap" / "skills" / "coga" / "autoclose" / "sweep" / "SKILL.md"
-    ).read_text() == "NEW coga/autoclose/sweep skill\n"
+    # Bootstrap batteries must not be materialized in source checkouts either.
+    assert not (coga_os / "bootstrap").exists()
     assert (
         coga_os / "recurring" / "dream" / "ticket.md"
     ).read_text() == "NEW dream template\n"
@@ -1635,20 +1600,16 @@ def test_init_link_skills_is_idempotent(tmp_path: Path) -> None:
 # --- generated agent skill view ---------------------------------------------
 
 
-def test_agent_skill_view_includes_bootstrap_and_local_skills(tmp_path: Path) -> None:
+def test_agent_skill_view_includes_bootstrap_and_local_skills(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     target = tmp_path / "company"
     coga_os = target / "coga"
-    (coga_os / "bootstrap" / "skills" / "eval" / "ticket-diagnostic").mkdir(
-        parents=True
-    )
-    (
-        coga_os
-        / "bootstrap"
-        / "skills"
-        / "eval"
-        / "ticket-diagnostic"
-        / "SKILL.md"
-    ).write_text("bundled eval\n")
+    bundled_root = tmp_path / "package-skills"
+    bundled = bundled_root / "eval" / "ticket-diagnostic"
+    bundled.mkdir(parents=True)
+    (bundled / "SKILL.md").write_text("bundled eval\n")
+    _fake_package_skill_root(monkeypatch, bundled_root, tmp_path / "missing")
     (coga_os / "skills" / "team" / "local").mkdir(parents=True)
     (coga_os / "skills" / "team" / "local" / "SKILL.md").write_text("local\n")
 
@@ -1663,15 +1624,19 @@ def test_agent_skill_view_includes_bootstrap_and_local_skills(tmp_path: Path) ->
     )
 
 
-def test_agent_skill_view_prefers_local_skill_over_bootstrap(tmp_path: Path) -> None:
+def test_agent_skill_view_prefers_local_skill_over_bootstrap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     target = tmp_path / "company"
     coga_os = target / "coga"
-    bundled = coga_os / "bootstrap" / "skills" / "tools" / "example"
+    bundled_root = tmp_path / "package-skills"
+    bundled = bundled_root / "tools" / "example"
     local = coga_os / "skills" / "tools" / "example"
     bundled.mkdir(parents=True)
     local.mkdir(parents=True)
     (bundled / "SKILL.md").write_text("bundled\n")
     (local / "SKILL.md").write_text("local\n")
+    _fake_package_skill_root(monkeypatch, bundled_root, tmp_path / "missing")
 
     init_cmd._link_skills_for_agents(target, coga_os)
 
@@ -1954,7 +1919,7 @@ def test_init_update_refreshes_inner_gitignore(
     # Stale pre-marker gitignore: some upstream entries copied directly,
     # plus a user-added rule that should survive the update.
     (coga_os / ".gitignore").write_text(
-        "coga.local.toml\n.coga/\nbootstrap/\nmy-custom-ignore/\n"
+        "coga.local.toml\n.coga/\n.agent-skills/\nmy-custom-ignore/\n"
     )
     monkeypatch.chdir(coga_os)
 
@@ -1981,7 +1946,7 @@ def test_init_update_refreshes_inner_gitignore(
     # Marker block present and contains all upstream-managed entries.
     assert update_cmd.COGA_GITIGNORE_BEGIN in gi
     assert update_cmd.COGA_GITIGNORE_END in gi
-    assert "bootstrap/" in gi
+    assert "bootstrap/" not in gi
     assert ".agent-skills/" in gi
     # Bootstrap no longer claims user-facing skill/context namespaces.
     assert "skills/eval" not in gi
@@ -1995,16 +1960,16 @@ def test_init_update_refreshes_inner_gitignore(
     assert "my-custom-ignore/" in gi
     # Duplicates of managed entries that were in the user area get removed.
     after_block = gi.split(update_cmd.COGA_GITIGNORE_END, 1)[1]
-    assert "bootstrap/" not in after_block
     assert "coga.local.toml" not in after_block
     assert ".coga/" not in after_block
+    assert ".agent-skills/" not in after_block
 
 
 def test_refresh_coga_gitignore_is_idempotent(tmp_path: Path) -> None:
     """Running the refresh twice on the same input is a no-op."""
     src_root = tmp_path / "upstream"
     src_root.mkdir()
-    (src_root / ".gitignore").write_text("bootstrap/\n.coga/\n")
+    (src_root / ".gitignore").write_text(".agent-skills/\n.coga/\n")
     dst_root = tmp_path / "coga"
     dst_root.mkdir()
 
@@ -2018,7 +1983,7 @@ def test_refresh_coga_gitignore_replaces_existing_block(tmp_path: Path) -> None:
     """An existing marker block is replaced wholesale; user content outside is kept."""
     src_root = tmp_path / "upstream"
     src_root.mkdir()
-    (src_root / ".gitignore").write_text("bootstrap/\n.coga/\nnew-entry/\n")
+    (src_root / ".gitignore").write_text(".agent-skills/\n.coga/\nnew-entry/\n")
     dst_root = tmp_path / "coga"
     dst_root.mkdir()
     # Existing file: stale marker block + user-area content.
@@ -2473,10 +2438,7 @@ def test_update_all_refreshes_every_repo(
             (coga_os / ".coga" / "src" / "coga" / "cli.py").read_text()
             == "# NEW vendored cli\n"
         )
-        assert (
-            (coga_os / "bootstrap" / "create" / "ticket.md").read_text()
-            == "NEW bootstrap ticket\n"
-        )
+        assert not (coga_os / "bootstrap").exists()
         assert (coga_os / ".coga" / "COGA_PIN").is_file()
     # install_venv ran exactly once per repo.
     assert sorted(fake_venv) == sorted([repo_a, repo_b])

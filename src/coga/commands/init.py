@@ -622,11 +622,11 @@ def _refresh_one(
     source_checkout = is_coga_source_checkout(coga_os)
     refresh_cli(clone_dir, coga_os)
     if source_checkout:
-        # Source checkouts have their `_*` creates, `.gitignore`, and
-        # canonical contexts/skills tracked in git — refresh_templates would
-        # clobber them. But `bootstrap/` and `recurring/dream/` are
-        # gitignored here, so they must still be materialized from package
-        # resources or `coga chat` / `coga dream` have nothing to launch.
+        # Source checkouts have their `_*` creates and `.gitignore` tracked in
+        # git — refresh_templates would clobber them. Recurring templates are
+        # gitignored here and carry per-repo state, so they still need
+        # materialization. Package-backed `bootstrap/` batteries resolve from
+        # the installed package and are deliberately not copied into coga/.
         copied = refresh_gitignored_mirrors(coga_os)
         pruned_templates: list[str] = []
     else:
@@ -700,8 +700,8 @@ def _print_update_result(coga_os: Path, result: _UpdateResult) -> None:
     if result.source_checkout:
         typer.echo(
             "Skipped tracked-fixture refresh/prune in Coga source checkout "
-            "(source files are managed by git). Refreshed gitignored "
-            "mirrors (bootstrap/, recurring/dream/) from package resources; "
+            "(source files are managed by git). Refreshed gitignored recurring "
+            "templates from package resources; "
             "skipped managed skill reconciliation."
         )
     if result.pruned:

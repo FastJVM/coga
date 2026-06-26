@@ -40,8 +40,9 @@ Deduplicated silently, order preserved (first occurrence wins). If any context r
 writes the raw default frontmatter.
 
 The judgment about *which* workflow / contexts / assignee fit is in the
-`bootstrap/ticket` skill (`coga/bootstrap/skills/bootstrap/ticket/SKILL.md`,
-unless shadowed by a local skill under `coga/skills/`). A
+`bootstrap/ticket` skill (package
+`bootstrap/skills/bootstrap/ticket/SKILL.md`, unless shadowed by a local skill
+under `coga/skills/`). A
 human invokes that skill through `coga ticket`: with no argument it asks for
 a title, with a title it drafts then edits, and with an existing slug it edits
 that ticket in place at any lifecycle status. Editing leaves the status

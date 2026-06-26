@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from importlib.resources import files
 from pathlib import Path
 
 from coga.config import Config
+
+
+def packaged_template_path(*parts: str) -> Path:
+    """Path to a packaged template resource inside the installed coga package."""
+    return Path(files("coga.resources").joinpath("templates", "coga", *parts))
 
 
 def workflow_path(cfg: Config, name: str) -> Path:
@@ -12,7 +18,7 @@ def workflow_path(cfg: Config, name: str) -> Path:
 
 
 def bootstrap_workflow_path(cfg: Config, name: str) -> Path:
-    return cfg.repo_root / "bootstrap" / "workflows" / f"{name}.md"
+    return packaged_template_path("bootstrap", "workflows", f"{name}.md")
 
 
 def resolve_workflow_path(cfg: Config, name: str) -> Path:
@@ -43,11 +49,11 @@ def skill_dir(cfg: Config, ref: str) -> Path:
 
 
 def bootstrap_skill_path(cfg: Config, ref: str) -> Path:
-    return cfg.repo_root / "bootstrap" / "skills" / ref / "SKILL.md"
+    return packaged_template_path("bootstrap", "skills", *ref.split("/"), "SKILL.md")
 
 
 def bootstrap_skill_dir(cfg: Config, ref: str) -> Path:
-    return cfg.repo_root / "bootstrap" / "skills" / ref
+    return packaged_template_path("bootstrap", "skills", *ref.split("/"))
 
 
 def resolve_skill_path(cfg: Config, ref: str) -> Path | None:
@@ -74,11 +80,11 @@ def context_dir(cfg: Config, ref: str) -> Path:
 
 
 def bootstrap_context_path(cfg: Config, ref: str) -> Path:
-    return cfg.repo_root / "bootstrap" / "contexts" / ref / "SKILL.md"
+    return packaged_template_path("bootstrap", "contexts", *ref.split("/"), "SKILL.md")
 
 
 def bootstrap_context_dir(cfg: Config, ref: str) -> Path:
-    return cfg.repo_root / "bootstrap" / "contexts" / ref
+    return packaged_template_path("bootstrap", "contexts", *ref.split("/"))
 
 
 def resolve_context_path(cfg: Config, ref: str) -> Path | None:
@@ -119,14 +125,15 @@ def tasks_dir(cfg: Config) -> Path:
 
 
 def bootstrap_dir(cfg: Config) -> Path:
-    return cfg.repo_root / "bootstrap"
+    return packaged_template_path("bootstrap")
 
 
 def bootstrap_path(cfg: Config, name: str) -> Path:
-    return bootstrap_dir(cfg) / name
+    return packaged_template_path("bootstrap", name)
 
 
 __all__ = [
+    "packaged_template_path",
     "workflow_path",
     "bootstrap_workflow_path",
     "resolve_workflow_path",

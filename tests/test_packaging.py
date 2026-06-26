@@ -11,6 +11,9 @@ import tomllib
 
 EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/managed-skills.toml",
+    "coga/resources/templates/coga/bootstrap/orient/ticket.md",
+    "coga/resources/templates/coga/bootstrap/project/ticket.md",
+    "coga/resources/templates/coga/bootstrap/ticket/ticket.md",
     "coga/resources/templates/coga/bootstrap/skills/bootstrap/"
     "ticket/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/eval/"

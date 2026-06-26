@@ -30,10 +30,10 @@ the `coga/cli` *context*. Read this for the worked classification; read
 2. **Built-in commands** — `src/coga/commands/*.py`, registered in
    `cli.py:74-93`. These hold real pre/post logic.
 
-3. **Bootstrap launch tickets / recurring launches** — tickets at
-   `coga/bootstrap/<name>/ticket.md` (stateless launch targets) and templates at
-   `coga/recurring/<name>/` launched via `recurring launch <name>`. These
-   are the only place pure passthroughs actually live.
+3. **Bootstrap launch tickets / recurring launches** — package-backed tickets
+   at `bootstrap/<name>/ticket.md` (stateless launch targets) and templates at
+   `coga/recurring/<name>/` launched via `recurring launch <name>`. These are
+   the only place pure passthroughs actually live.
 
 ## The rule
 
@@ -84,7 +84,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 **No CLI verb is an alias-able pure passthrough.** Each is its own
 implementation, not a fixed rewrite to another command.
 
-### Bootstrap launch tickets (`coga/bootstrap/<name>/ticket.md`)
+### Bootstrap Launch Tickets (`bootstrap/<name>/ticket.md` Package Resources)
 
 | Bootstrap ticket | Mechanism today | Alias-able? | Why |
 |------|-----------------|-------------|-----|
@@ -238,6 +238,6 @@ the audit's path to it.
 - digest consumer: `src/coga/commands/digest.py`.
 - autoclose sweep + module: `coga/workflows/autoclose-merged/sweep.md`,
   `coga.autoclose.sweep_merged`.
-- Bootstrap tickets: `coga/bootstrap/{orient,project,ticket}/ticket.md`.
+- Bootstrap tickets: package `bootstrap/{orient,project,ticket}/ticket.md`.
 - Recurring templates: `coga/recurring/{autoclose-merged,digest,dream,skill-update}/`.
 - Alias test coverage (not `coga validate`): `tests/test_aliases.py`.

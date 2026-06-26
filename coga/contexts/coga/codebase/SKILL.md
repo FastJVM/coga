@@ -42,69 +42,60 @@ coga/
   recurring/<name>/      ← recurring task template directories
                            (single-file ticket.md; history in the
                            repo-global coga/log.md)
-  bootstrap/<name>/      ← stateless launch targets
-  bootstrap/skills/      ← package-backed core skills (overwritten on update)
-  bootstrap/contexts/    ← package-backed bundled contexts (overwritten on update)
-  bootstrap/workflows/   ← package-backed reusable workflows (overwritten on update)
   tasks/<slug>/          ← live tickets (top-level: bare leaf slug)
   tasks/<dir>/.../<slug>/ ← tickets in sub-dirs at any depth (ref'd by path)
   skills/<ns>/<name>/    ← project-local process knowledge / overrides
   contexts/<ns>/<name>/  ← project-local domain knowledge / overrides
   workflows/<ns>/<name>.md ← step definitions (local-first over bootstrap/workflows/)
+  .agent-skills/         ← generated local-plus-bundled skill view for agents
 ```
 
 Coga resolves skills and contexts from project-local roots first, then from
-the package-backed bootstrap roots. Claude Code and Codex are pointed at the
-generated `coga/.agent-skills/` view, which exposes the same effective
-local-plus-bundled skill set. Optional Coga-owned domain skills are declared
-in `src/coga/resources/managed-skills.toml` and installed into
-`coga/skills/` through the public skill installer during init/update; they
-are not copied from the template tree.
+the package-backed bootstrap roots inside the installed `coga` package. It
+does the same for bundled reusable workflows and stateless bootstrap launch
+tickets. `coga/bootstrap/` is not materialized into working repos. Claude Code
+and Codex are pointed at the generated `coga/.agent-skills/` view, which
+exposes the same effective local-plus-bundled skill set. Optional Coga-owned
+domain skills are declared in `src/coga/resources/managed-skills.toml` and
+installed into `coga/skills/` through the public skill installer during
+init/update; they are not copied from the template tree.
 
 ## Authoring bundled batteries
 
 Bundled (package-backed) core skills, contexts, and reusable workflows are
 authored in the *source* tree under
 `src/coga/resources/templates/coga/bootstrap/{skills,contexts,workflows}/`,
-not in the live `coga/bootstrap/` of a working repo — that copy is
-gitignored and overwritten wholesale on `coga init --update`. Optional domain
-skills belong in a published skill source plus
-`src/coga/resources/managed-skills.toml`, not under the packaged template
-payload.
+not in a live `coga/bootstrap/` working-tree mirror. The packaged resources
+are the source of truth and runtime resolvers read them directly after checking
+project-local overrides. Optional domain skills belong in a published skill
+source plus `src/coga/resources/managed-skills.toml`, not under the packaged
+template payload.
 
 Three sharp gotchas live here:
 
-- **Force-add every battery edit, not just new files.**
-  `src/coga/resources/templates/coga/.gitignore` ignores `bootstrap/` (it
-  is the `.gitignore` shipped *into* generated repos, where `bootstrap/` is
-  materialized, not committed — but it also sits inside the source template dir,
-  so it applies there too). A new bundled skill or context file must be added
-  with `git add -f`, or it silently never commits and ships nothing despite
-  passing local validation and tests. The same trap bites **already-tracked**
-  files: a plain edit to a committed `bootstrap/**` template silently drops from
-  the commit, and `git mv` is worse — it stages the rename (so the file looks
-  handled) but *subsequent content edits* to the renamed file vanish. Always
-  `git add -f` every `bootstrap/**` template path you touch, edits included, and
-  verify the diff is actually staged before committing.
-- **Deliver new required workflows/skills through the vendored refresh lists.**
-  Putting a new battery file in the packaged tree ships it to *fresh* `coga
-  init` repos, but `coga init --update` only refreshes a fixed set: `_`
-  creates, `bootstrap/`, and the hard-coded vendored template lists. A new
-  *required* workflow or skill (e.g. one that recurring/retire now depend on)
-  must be added to `VENDORED_WORKFLOW_TEMPLATES` / `VENDORED_SKILL_TEMPLATES`
-  (and a new recurring template to the vendored recurring-refresh list) in
-  `src/coga/commands/update.py`, or existing repos break on upgrade — the
-  dependency is referenced but its file was never delivered. Extend the
-  `init`/update/packaging tests to cover the new path.
+- **Do not repair bundled bootstrap by copying it into `coga/bootstrap/`.**
+  If `bootstrap/orient`, `bootstrap/ticket`, a bundled skill, a bundled
+  context, or a bundled `bootstrap/workflows/*` workflow cannot be found, the
+  fix belongs in package resources, package data, or the local-then-package
+  resolver. A repo-local mirror hides the packaging bug and will drift.
+- **Deliver non-bootstrap recurring dependencies through vendored refresh lists.**
+  Package-backed bootstrap batteries ship directly from the package, but
+  recurring templates are still materialized because their tickets carry
+  per-repo blackboard state. If a materialized recurring template depends on a
+  coga-owned workflow or skill outside `bootstrap/`, add it to
+  `VENDORED_WORKFLOW_TEMPLATES` / `VENDORED_SKILL_TEMPLATES` (and add new
+  recurring templates to `VENDORED_RECURRING_TEMPLATES`) in
+  `src/coga/commands/update.py`, or existing repos break on upgrade. Extend
+  the `init`/update/packaging tests to cover the new path.
 - **Skill Python deps via `requirements.txt`.** A skill declares its
   dependencies in a `requirements.txt` beside its `SKILL.md`.
   `install_skill_requirements` (the tail of `install_venv` in
-  `src/coga/commands/update.py`) pip-installs every
-  `coga/**/skills/**/requirements.txt` into `.coga/.venv` on `coga init`
-  and `coga init --update`, after package-backed batteries are materialized
-  into `coga/bootstrap/` and after managed optional skills have had a
-  chance to install into `coga/skills/`. That ordering is what makes a
-  bootstrapped or managed skill's deps land.
+  `src/coga/commands/update.py`) pip-installs every project-local
+  `coga/skills/**/requirements.txt` and package-backed
+  `bootstrap/skills/**/requirements.txt` into `.coga/.venv` on `coga init`
+  and `coga init --update`, after managed optional skills have had a chance
+  to install into `coga/skills/`. That ordering is what makes a bundled or
+  managed skill's deps land.
 
 ## Wheel packaging: force-include vs the package walk
 

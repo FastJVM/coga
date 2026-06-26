@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
-import shutil
+import os
 import sys
 from pathlib import Path
 from textwrap import dedent
@@ -245,15 +245,23 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return coga_os
 
 
-def test_skill_update_runs_as_script_skill_and_reports_no_op(repo: Path) -> None:
+def test_skill_update_runs_as_script_skill_and_reports_no_op(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     # No imported skills under `skills/`: `coga skill update --all --pr` finds
     # nothing clean to update, so it commits nothing and opens no PR (never
-    # touching git), and the skill reports a clean no-op on the task
-    # blackboard. Install into the bundled bootstrap root rather than the
-    # project-local `skills/` tree so the skill being tested does not look
-    # like an imported, gh-backed local skill.
-    shutil.copytree(
-        SKILL_UPDATE, repo / "bootstrap" / "skills" / "bootstrap" / "skill-update"
+    # touching git), and the package-backed script skill reports a clean no-op
+    # on the task blackboard.
+    src_path = str(Path(__file__).resolve().parents[1] / "src")
+    existing_pythonpath = os.environ.get("PYTHONPATH")
+    pythonpath = (
+        src_path
+        if not existing_pythonpath
+        else src_path + os.pathsep + existing_pythonpath
+    )
+    monkeypatch.setenv(
+        "PYTHONPATH",
+        pythonpath,
     )
     _write(
         repo / "workflows" / "skill-update" / "run.md",

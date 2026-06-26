@@ -47,7 +47,7 @@ def delete(
         checked = ", ".join(str(p) for p in skill_resolution_paths(cfg, DELETE_SKILL_REF))
         _bail(
             f"Delete skill {DELETE_SKILL_REF!r} not found. Checked: {checked}. "
-            "Run `coga init --update` to materialize bundled skills."
+            "Reinstall or update coga so the packaged bundled skills are present."
         )
     skill = Skill.load(skill_file)
     if not skill.script:
