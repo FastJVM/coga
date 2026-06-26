@@ -101,7 +101,7 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
 
-    [wheel] = wheel_dir.glob("coga_os-*.whl")
+    [wheel] = wheel_dir.glob("coga-*.whl")
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
 

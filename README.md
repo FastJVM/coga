@@ -27,7 +27,7 @@ It's the substrate FastJVM uses to run the company. **Try it now ↓** — then 
 **1. Install the CLI (once).**
 
 ```sh
-git clone https://github.com/FastJVM/relay
+git clone https://github.com/FastJVM/relay coga
 cd coga
 python -m pip install -e .
 ```
