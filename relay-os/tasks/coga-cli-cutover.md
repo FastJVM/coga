@@ -6,7 +6,7 @@ autonomy: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: zach
+assignee: claude
 contexts: []
 skills: []
 workflow:
