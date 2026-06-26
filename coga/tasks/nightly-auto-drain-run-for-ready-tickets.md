@@ -318,3 +318,7 @@ sibling merges. Recorded as an explicit blocker in Acceptance Criteria.
 - **Sequencing/gate**: build the template + selection + adaptive loop +
   reattribution + unit tests now (engine mocked); hold the *live* auto-launch
   verification until the streaming gate clears and the engine sibling merges.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":250162,"cache_read_input_tokens":752832,"cli":"claude","input_tokens":11601,"model":"claude-opus-4-8","output_tokens":14459,"provider":"anthropic","schema":1,"session_id":"79a9e25a-71c3-4941-90dd-31c620f9f65a","slug":"nightly-auto-drain-run-for-ready-tickets","step":"design","title":"Nightly auto-drain run for ready tickets","ts":"2026-06-25T14:48:03.449816Z","usage_status":"ok"}
