@@ -316,3 +316,4 @@
 2026-06-26 12:51 [add-ci-to-generate-package-update-automatically-or] [human:nicktoper] created (autonomy=interactive, status=draft)
 2026-06-26 12:54 [remove-relay-migration-script] [human:nicktoper] created (autonomy=interactive, status=draft)
 2026-06-26 12:57 [udpate-skill-in-recurring-with-a-flag] [human:nicktoper] created (autonomy=interactive, status=draft)
+2026-06-26 14:27 [mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field] [human:nicktoper] started (active → in_progress) via coga launch

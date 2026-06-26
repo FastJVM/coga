@@ -1,7 +1,7 @@
 ---
 slug: mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field
 title: Represent autonomy tier in ticket mode field
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
