@@ -304,3 +304,4 @@
 2026-06-25 21:05 [fresh-repo-default-branch-mismatch-git-init-master] [human:nick] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-25 21:51 [fix-stale-relay-sync-context-git-failures-swallowe] [human:nick] created (autonomy=interactive, status=draft)
 2026-06-25 21:56 [coga-cli-cutover] [human:zach] created (autonomy=interactive, status=draft)
+2026-06-26 10:16 [bootstrap/orient] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
