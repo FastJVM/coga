@@ -3,7 +3,7 @@
 **Status:** design only. This doc does not implement the verify hook, extract a
 command, or change the CLI.
 
-**Home:** `docs/`, paired with `coga-os/contexts/coga/extension-model/`. The
+**Home:** `docs/`, paired with `coga/contexts/coga/extension-model/`. The
 context is the durable rule agents should follow at launch; this document is the
 design rationale and implementation contract for the open mechanism that context
 names. The split matches `docs/cli-extension-audit.md`: evidence and design live
@@ -19,7 +19,7 @@ Coga's kernel remains `launch` and its dependency closure:
 - Secret injection at launch time.
 - Notification dispatch used by launch/state transitions.
 - The ticket factory `create` / `draft`, because `launch` runs on tickets.
-- Fresh `init`, because no launch can run before `coga-os/` exists.
+- Fresh `init`, because no launch can run before `coga/` exists.
 - Skill verify-at-compose, because trust is enforced at the moment a skill is
   loaded for use.
 
@@ -33,7 +33,7 @@ For Coga-authored stateless capabilities outside the kernel and ticket model,
 the first-class surface is a local external CLI. For the lead case, the skill
 acquirer, that CLI should be a `gh`-style extension because it wraps `gh skill`
 and the README already makes `gh` a normal operator dependency. This is not a
-general plugin registry and not a `coga-os/scripts/` dispatcher.
+general plugin registry and not a `coga/scripts/` dispatcher.
 
 ## Core boundary
 
@@ -107,7 +107,7 @@ It belongs here when all of these are true:
 - **Coga-authored:** Coga owns the wrapper logic, even if it shells out to
   `gh`, `git`, `op`, or another operator tool.
 - **Not bootstrap/kernel:** `launch` does not call it mid-flight, and a fresh
-  `coga-os/` does not need it to exist before launch can run.
+  `coga/` does not need it to exist before launch can run.
 - **Not a trust hook:** it may acquire a capability, but verification or secret
   injection at use stays in the kernel.
 
@@ -128,7 +128,7 @@ Use the other homes when one of those tests fails:
 Shape: ship the Coga-authored acquirer as an installable GitHub CLI extension,
 for example a future `gh coga-skill ...` command. The extension owns its argv,
 shells out to `gh skill`, writes Coga provenance, and leaves normal git-visible
-file changes in `coga-os/skills/`.
+file changes in `coga/skills/`.
 
 Strengths:
 
@@ -164,7 +164,7 @@ Costs:
 - If the package imports too much of `coga`, the extraction is mostly cosmetic;
   if it duplicates too much, the schema and path logic drift.
 
-### `coga-os/scripts/` dispatch target
+### `coga/scripts/` dispatch target
 
 Shape: put scripts in the repo and add a Coga dispatcher, or let `launch` call
 script targets directly.
@@ -192,7 +192,7 @@ This is deliberately narrow. The general external-script rule is "a normal local
 CLI outside the launch kernel"; when the script exists to wrap an operator CLI,
 ship it beside that CLI. The skill acquirer wraps `gh skill`, so a `gh`
 extension is the least surprising home. A separate package remains available for
-future non-GitHub helpers, and repo-local `coga-os/scripts/` remains just a
+future non-GitHub helpers, and repo-local `coga/scripts/` remains just a
 directory the operator can run directly, not a Coga command system.
 
 The Coga CLI may keep a temporary compatibility shim, but only as raw argv
@@ -282,7 +282,7 @@ without weakening the moment-of-use check.
   normalize externally acquired skills into one Coga sidecar and define what
   "no sidecar" means: repo-authored or package-backed content, not externally
   managed content.
-- **Generic dispatcher creep.** `coga-os/scripts/` is tempting because it is
+- **Generic dispatcher creep.** `coga/scripts/` is tempting because it is
   local and legible. Turning it into a command registry recreates Typer badly and
   encourages hidden launch params. Mitigation: keep repo scripts directly
   runnable, and use tickets when work needs state.

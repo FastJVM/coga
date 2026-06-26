@@ -1,6 +1,6 @@
 """Bootstrap helpers used by `coga init` (with or without --update).
 
-Pulls upstream CLI source into `coga-os/.coga/`, refreshes coga templates
+Pulls upstream CLI source into `coga/.coga/`, refreshes coga templates
 from the installed package resources, and stands up the self-contained venv
 the vendored CLI runs out of. No Typer commands live here.
 """
@@ -31,18 +31,18 @@ from coga.github_source import (
 COGA_REPO_URL = "https://github.com/FastJVM/relay"
 COGA_REPO_URL_ENV = "COGA_REPO_URL"
 COGA_REMOTE_NAMES = ("upstream", "origin")
-TEMPLATE_SUBPATH = Path("src/coga/resources/templates/coga-os")
+TEMPLATE_SUBPATH = Path("src/coga/resources/templates/coga")
 CLI_SRC_SUBPATH = Path("src/coga")
 TEMPLATE_RESOURCE_PACKAGE = "coga.resources"
-TEMPLATE_RESOURCE_PATH = ("templates", "coga-os")
+TEMPLATE_RESOURCE_PATH = ("templates", "coga")
 
-# Paths (relative to coga-os/) that earlier upstreams shipped but no longer do.
+# Paths (relative to coga/) that earlier upstreams shipped but no longer do.
 # `init --update` prunes these from existing repos so removed creating doesn't
 # linger after a migration. Keep entries narrow — only files we know we shipped
 # and now want gone, never user-owned paths.
 #
 # Note on the bootstrap-consolidation entries below: those paths used to be
-# shipped directly at the coga-os/ root and are now package-backed batteries
+# shipped directly at the coga/ root and are now package-backed batteries
 # under `bootstrap/`. Existing repos need those narrow, known Coga-owned paths
 # pruned so local-first resolution can fall through to bootstrap. Do not add
 # broad namespace entries here; user-owned `skills/<namespace>` and
@@ -79,7 +79,7 @@ OBSOLETE_PATHS: tuple[str, ...] = (
 #
 # A recurring task is a ticket-format directory; only the upstream-managed
 # `ticket.md` is refreshed. Its blackboard region (last-run state) is per-repo
-# content inside that file; run history lives in the repo-global `coga-os/log.md`.
+# content inside that file; run history lives in the repo-global `coga/log.md`.
 # A template refresh rewrites the upstream-owned parts of `ticket.md` only.
 VENDORED_RECURRING_TEMPLATES: tuple[str, ...] = (
     "recurring/autoclose-merged/ticket.md",
@@ -174,7 +174,7 @@ def write_pin(
     *,
     repo_url: str | None = None,
 ) -> Path | None:
-    """Record the upstream commit `coga-os/.coga/` was vendored from.
+    """Record the upstream commit `coga/.coga/` was vendored from.
 
     Skips the write if `sha` is None (clone-without-git in tests, mostly).
     Returns the pin path on success.
@@ -243,7 +243,7 @@ def coga_pip_git_source(*, coga_os: Path | None = None) -> str:
 
 
 def refresh_cli(clone_dir: Path, coga_os: Path) -> None:
-    """Replace `coga-os/.coga/src/coga/` (+ pyproject + requirements) from the clone."""
+    """Replace `coga/.coga/src/coga/` (+ pyproject + requirements) from the clone."""
     src = clone_dir / CLI_SRC_SUBPATH
     if not src.is_dir():
         typer.secho(
@@ -267,11 +267,11 @@ def refresh_cli(clone_dir: Path, coga_os: Path) -> None:
 
 
 def packaged_template_root() -> Traversable:
-    """Return the coga-os template tree embedded in the installed package."""
+    """Return the coga template tree embedded in the installed package."""
     root = files(TEMPLATE_RESOURCE_PACKAGE).joinpath(*TEMPLATE_RESOURCE_PATH)
     if not root.is_dir():
         typer.secho(
-            "Installed coga package is missing templates/coga-os resources.",
+            "Installed coga package is missing templates/coga resources.",
             fg=typer.colors.RED,
             err=True,
         )
@@ -280,7 +280,7 @@ def packaged_template_root() -> Traversable:
 
 
 def copy_fresh_templates(src_root: Traversable, coga_os: Path) -> None:
-    """Copy the full packaged coga-os template tree into a fresh repo."""
+    """Copy the full packaged coga template tree into a fresh repo."""
     _copy_resource_tree(src_root, coga_os)
     _chmod_packaged_executables(coga_os)
 
@@ -303,7 +303,7 @@ def refresh_templates(
         (for example `recurring/dream/ticket.md`) that sit outside `bootstrap/` and carry
         no `_` prefix, refreshed by `_copy_vendored_recurring`. The sibling
         per-repo blackboard region inside each template `ticket.md` is left untouched;
-        history lives in the repo-global `coga-os/log.md`.
+        history lives in the repo-global `coga/log.md`.
       - `VENDORED_WORKFLOW_TEMPLATES` — named coga-owned workflows referenced
         by those batteries, refreshed by `_copy_vendored_workflows`.
       - `VENDORED_SKILL_TEMPLATES` — named coga-owned skills required by
@@ -331,9 +331,9 @@ def refresh_gitignored_mirrors(
     source checkout's git-tracked fixtures.
 
     `bootstrap/` and the `VENDORED_RECURRING_TEMPLATES` are gitignored under
-    `coga-os/` in Coga's own repo — their source of truth lives in
-    `src/coga/resources/templates/coga-os/`. They still need to be
-    materialized into `coga-os/` for runtime resolution; without them
+    `coga/` in Coga's own repo — their source of truth lives in
+    `src/coga/resources/templates/coga/`. They still need to be
+    materialized into `coga/` for runtime resolution; without them
     `coga launch bootstrap/orient` (i.e. `coga chat`) and `coga dream`
     have nothing to find in a fresh source clone.
 
@@ -411,7 +411,7 @@ def is_coga_source_checkout(coga_os: Path) -> bool:
     return (
         (root / "src" / "coga" / "commands" / "init.py").is_file()
         and (root / "src" / "coga" / "commands" / "update.py").is_file()
-        and (root / "src" / "coga" / "resources" / "templates" / "coga-os").is_dir()
+        and (root / "src" / "coga" / "resources" / "templates" / "coga").is_dir()
     )
 
 
@@ -595,7 +595,7 @@ def install_skill_requirements(coga_os: Path, venv_dir: Path) -> list[Path]:
     `requirements.txt`; this pass is what actually puts those deps in the venv
     the skills run under, so a *bootstrapped* skill brings its own deps with it
     (there is no other per-skill install hook). Scans both skill roots:
-    project-local `coga-os/skills/` and bundled `coga-os/bootstrap/skills/`.
+    project-local `coga/skills/` and bundled `coga/bootstrap/skills/`.
     Called at the tail of `install_venv`, so both `coga init` (fresh) and
     `coga init --update` pick up newly added skill requirements.
 
@@ -794,7 +794,7 @@ def _copy_upstream_files(src_root: Traversable, dst_root: Path) -> list[str]:
 
 
 def _refresh_gitattributes(src_root: Traversable, dst_root: Path) -> bool:
-    """Copy the packaged `coga-os/.gitattributes` verbatim if it differs.
+    """Copy the packaged `coga/.gitattributes` verbatim if it differs.
 
     Returns True iff the file was written. Whole-file ownership (no marker
     block): the only entry is the coga-managed `log.md merge=union` rule.
@@ -811,7 +811,7 @@ def _refresh_gitattributes(src_root: Traversable, dst_root: Path) -> bool:
 
 
 def _refresh_coga_gitignore(src_root: Traversable, dst_root: Path) -> bool:
-    """Insert/refresh the coga-managed block in `coga-os/.gitignore`.
+    """Insert/refresh the coga-managed block in `coga/.gitignore`.
 
     Pattern mirrors `ensure_host_gitignore`: the block is fenced by markers
     and replaced wholesale on each update; lines outside the markers are

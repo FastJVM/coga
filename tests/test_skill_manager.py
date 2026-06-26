@@ -41,7 +41,7 @@ def _write(path: Path, text: str) -> None:
 
 
 def _repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     _write(
         coga_os / "coga.toml",
         """
@@ -1123,7 +1123,7 @@ def test_dream_pr_summary_fails_loud_on_unmerged_paths(
         command = list(args)
         commands.append(command)
         if command == ["git", "diff", "--name-only", "--diff-filter=U"]:
-            return _completed(command, stdout="coga-os/recurring/digest/blackboard.md\n")
+            return _completed(command, stdout="coga/recurring/digest/blackboard.md\n")
         raise AssertionError(f"unexpected command after precheck: {command}")
 
     with pytest.raises(SkillManagerError) as excinfo:
@@ -1137,7 +1137,7 @@ def test_dream_pr_summary_fails_loud_on_unmerged_paths(
 
     message = str(excinfo.value)
     assert "unmerged paths" in message
-    assert "coga-os/recurring/digest/blackboard.md" in message
+    assert "coga/recurring/digest/blackboard.md" in message
     # Failed before any branch switch — only the precheck ran.
     assert commands == [["git", "diff", "--name-only", "--diff-filter=U"]]
     assert not any(command[:3] == ["git", "checkout", "-B"] for command in commands)

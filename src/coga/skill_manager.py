@@ -808,7 +808,7 @@ def _bundled_status_result(ref: str) -> SkillResult:
         source_type="bundled",
         status="package-backed",
         message=(
-            "bundled with coga; update by upgrading coga-os and running "
+            "bundled with coga; update by upgrading coga and running "
             "`coga init --update`"
         ),
     )

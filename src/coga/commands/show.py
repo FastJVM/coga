@@ -51,7 +51,7 @@ def show(
         return
 
     console.print()
-    console.print(Rule(f"{ref.id_slug} — log (from coga-os/log.md)"))
+    console.print(Rule(f"{ref.id_slug} — log (from coga/log.md)"))
     console.print()
     lines = task_log_lines(cfg, ref.id_slug)
     if not lines:

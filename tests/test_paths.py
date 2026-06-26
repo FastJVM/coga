@@ -67,7 +67,7 @@ def test_resolve_workflow_path_prefers_local_over_bootstrap(tmp_path):
 def test_resolve_workflow_path_falls_back_to_local_when_neither_exists(tmp_path):
     # When neither a local nor a bundled workflow exists, resolution returns the
     # conventional local path so a caller's Workflow.load(...) raises a
-    # not-found error naming coga-os/workflows/ rather than bootstrap/.
+    # not-found error naming coga/workflows/ rather than bootstrap/.
     cfg = SimpleNamespace(repo_root=tmp_path)
 
     assert resolve_workflow_path(cfg, "code/nope") == workflow_path(cfg, "code/nope")

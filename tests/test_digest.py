@@ -23,7 +23,7 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     _write(
         coga_os / "coga.toml",
         """
@@ -454,25 +454,25 @@ def test_run_digest_posts_also_merged_from_git_high_water(
 
     _commit_and_push(
         git_repo,
-        "coga-os/docs/state-sync.md",
+        "coga/docs/state-sync.md",
         "sync\n",
         "Ticket: sync-task-state — done",
     )
     _commit_and_push(
         git_repo,
-        "coga-os/docs/pr-42.md",
+        "coga/docs/pr-42.md",
         "done\n",
         "Improve digest rendering (#42)",
     )
     reported_sha = _commit_and_push(
         git_repo,
-        "coga-os/docs/no-ticket.md",
+        "coga/docs/no-ticket.md",
         "merged\n",
         "Fix typo in compose docstring",
     )
     _commit_and_push(
         git_repo,
-        "coga-os/docs/sync-helper.md",
+        "coga/docs/sync-helper.md",
         "sync\n",
         "Sync task state: add-coga-skill-search-with-candidate-eval",
     )
@@ -508,7 +508,7 @@ def test_run_digest_posts_git_commits_even_with_empty_spool(
     cfg = load_config(git_repo.coga_os)
     sha = _commit_and_push(
         git_repo,
-        "coga-os/docs/commit-only.md",
+        "coga/docs/commit-only.md",
         "merged\n",
         "Add digest high-water scan",
     )
@@ -560,7 +560,7 @@ def test_run_digest_skips_filtered_commits_but_advances_high_water(
     cfg = load_config(git_repo.coga_os)
     _commit_and_push(
         git_repo,
-        "coga-os/docs/filtered.md",
+        "coga/docs/filtered.md",
         "sync\n",
         "Ticket: filtered — active",
     )

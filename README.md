@@ -35,13 +35,13 @@ python -m pip install -e .
 That puts `coga` on your PATH against the source. Keep it current later with a
 periodic `git pull && pip install -e .`.
 
-**2. Set up a project.** One `coga-os/` per repo — the repo *is* the project.
+**2. Set up a project.** One `coga/` per repo — the repo *is* the project.
 For a fresh project:
 
 ```sh
 mkdir ~/work/myproject && cd ~/work/myproject
 git init
-coga init --user "<your name>"        # creates coga-os/ and records you as the owner
+coga init --user "<your name>"        # creates coga/ and records you as the owner
 ```
 
 `--user` is required on a fresh init; it stamps who owns the work and seeds a
@@ -64,7 +64,7 @@ coga status                 # see the drafted tickets
 coga launch <slug>          # activate + start work on one
 ```
 
-**What you end up with:** a `coga-os/` in your repo, a product-vision context,
+**What you end up with:** a `coga/` in your repo, a product-vision context,
 a handful of draft tickets, and one of them in progress with an agent.
 
 From there:
@@ -89,14 +89,14 @@ has a **receipt** — the feature that proves it.
 
 | Principle | What it means | The feature that proves it |
 |---|---|---|
-| **1. Hackable** | change anything, directly — no plugin fence | edit any markdown under `coga-os/` → next `coga launch` uses it; the ~2-min correction loop (edit → commit → fixed) |
+| **1. Hackable** | change anything, directly — no plugin fence | edit any markdown under `coga/` → next `coga launch` uses it; the ~2-min correction loop (edit → commit → fixed) |
 | **2. Agents do, humans think** | offload everything mechanizable; humans spend attention on judgment | no webUI — the CLI + files are the whole surface; modes (`interactive`/`auto` vs `script`) and per-step `assignee` route each step to agent, script, or human |
 | **3. Obvious** | boring, standard, immediately understandable | the substrate is just markdown + Python + `SKILL.md` (the Claude Code / Codex format); no DB, no DSL |
 | **4. Memory via PR** | thinking compounds, human-gated, never opaque | **Dream** reads execution history and opens *proposal PRs* — propose, human disposes; the blackboard region (in `ticket.md`) = working memory, `contexts/` = long-term |
 | **5. Yours** | own the substrate, swap the vendors | git-backed markdown, local, no cloud; `claude` ↔ `codex` interchangeable; `SKILL.md` is an open standard |
 | **6. Fail loud** | surface every failure | missing context/skill → raise; `coga validate` errors; failures never swallowed; `coga panic` hands back to a human |
 
-The full canon is [`coga-os/contexts/coga/principles/SKILL.md`](coga-os/contexts/coga/principles/SKILL.md);
+The full canon is [`coga/contexts/coga/principles/SKILL.md`](coga/contexts/coga/principles/SKILL.md);
 the *why* essay is [`docs/vision.md`](docs/vision.md); the market/strategy
 read is [`docs/market-thesis.md`](docs/market-thesis.md). The rest of this
 README is the **reference** for the features above — layout, task lifecycle, and
@@ -106,11 +106,11 @@ a one-screen entry per CLI command.
 
 A few things worth knowing once you run more than one project:
 
-- **One `coga-os/` per repo.** The repo is the project, so run `coga init` in
+- **One `coga/` per repo.** The repo is the project, so run `coga init` in
   each operational repo.
 
 - **Vendored CLI.** Each `coga init` also vendors a self-contained copy of the
-  CLI into that repo's `coga-os/.coga/` (its own venv) — there for bootstrap
+  CLI into that repo's `coga/.coga/` (its own venv) — there for bootstrap
   (a fresh clone runs without `pip install`) and as a known-good copy agents can
   target. Refresh it with `coga init --update`.
 
@@ -182,7 +182,7 @@ the only thing that makes `coga validate` touch the network; plain
 `coga validate`, `coga status`, and `coga show` stay offline and read-only.
 
 Multi-surface companies (e.g. an admin repo + a code repo) run multiple
-coga-os/ side by side — coordinate them by giving each repo a
+coga/ side by side — coordinate them by giving each repo a
 `[notification.slack].webhook = "env:SLACK_WEBHOOK_URL"` entry whose env var
 resolves to the same channel webhook.
 
@@ -191,7 +191,7 @@ resolves to the same channel webhook.
 ```
 mycompany/
 ├── .git/
-└── coga-os/
+└── coga/
     ├── coga.toml              # shared config (committed)
     ├── coga.local.toml        # per-machine: user, paths, secrets (gitignored)
     ├── context.md              # company context shared by every task
@@ -248,7 +248,7 @@ coga mark done add-retry-to-webhook-handler   # finish on the final step
 
 ### `coga init [PATH] [--user <name>] [--update] [--all]`
 
-Create `coga-os/` inside `PATH` (default: the current dir). A fresh init
+Create `coga/` inside `PATH` (default: the current dir). A fresh init
 requires `--user <name>` (the name tickets and agents refer to you by), and
 `PATH` must already be a git repo — coga is git-backed, so init commits the
 new create into your repo; run `git init` there first if it isn't one. Copies
@@ -267,7 +267,7 @@ coga init --update --all ~/code   # sweep: refresh every coga repo under ~/code
 Because each repo vendors its own batteries, picking up a new Coga release
 means `pip install -U coga` once, then `coga init --update` per repo. The
 `--all` sweep does that last step in bulk — it requires an explicit scan root,
-then scans that path for every `coga-os/coga.toml`, refreshes each (sharing
+then scans that path for every `coga/coga.toml`, refreshes each (sharing
 one upstream clone), reports per-repo results, and exits non-zero if any repo
 failed.
 
@@ -276,7 +276,7 @@ symlink so the vendored copy is usable from any cwd in a new shell.
 
 ### `coga uninstall [--yes] [--purge]`
 
-Remove the Coga footprint from the current repo: `coga-os/`, the agent skill
+Remove the Coga footprint from the current repo: `coga/`, the agent skill
 symlinks in `.claude/` and `.codex/`, unmodified Coga orientation guides
 (`CLAUDE.md` / `AGENTS.md`), the coga-managed `.gitignore` block, and the
 `~/.local/bin/coga` shim if it points back into this repo.
@@ -291,11 +291,11 @@ uninstall too.
 **Batteries and skill discovery.** The installed Coga package carries bundled
 skills, contexts, hooks, and bootstrap tickets as package resources. `pip install`
 puts those resources in the wheel; `coga init` / `coga init --update`
-materializes them into `coga-os/bootstrap/`. Project-local
-`coga-os/skills/` and `coga-os/contexts/` still win when they define the same
+materializes them into `coga/bootstrap/`. Project-local
+`coga/skills/` and `coga/contexts/` still win when they define the same
 ref.
 
-Init also builds an ignored `coga-os/.agent-skills/` view that merges
+Init also builds an ignored `coga/.agent-skills/` view that merges
 project-local skills with bundled bootstrap skills, then wires that view into
 the project-level skill dirs of the agents that follow the `SKILL.md` standard:
 
@@ -304,13 +304,13 @@ the project-level skill dirs of the agents that follow the `SKILL.md` standard:
 
 That covers our two daily drivers. Other agents (e.g. OpenCode) don't have a
 matching project-level skill convention yet — point them at
-`coga-os/.agent-skills/` yourself if you use them. If init finds something
+`coga/.agent-skills/` yourself if you use them. If init finds something
 non-directory in the way (e.g. an empty `.codex` sentinel file from an older
 setup), it skips that agent and prints what to clear.
 
 ### `coga create "<title>"`
 
-Create a new raw `draft` ticket under `coga-os/tasks/<slug>/` (slug
+Create a new raw `draft` ticket under `coga/tasks/<slug>/` (slug
 derived from the title). Does **not** spawn an agent
 and does **not** run the guided authoring interview. The new ticket is empty
 — title, owner, mode, and timestamp set; workflow, contexts, assignee, and
@@ -385,9 +385,9 @@ broadcast — one post instead of two.
 
 ### `coga recurring`
 
-Scan `coga-os/recurring/` and launch the templates that are due. Coga keeps
+Scan `coga/recurring/` and launch the templates that are due. Coga keeps
 **one live task per template**: a generated task is identified by the stable
-group-qualified ref `recurring/<name>` (`coga-os/tasks/recurring/<name>/`),
+group-qualified ref `recurring/<name>` (`coga/tasks/recurring/<name>/`),
 and if it is already `active` or orphaned `in_progress`, that one is
 launched/resumed and no duplicate is created. Only when none is live does
 `coga recurring` get-or-create the current run at that stable path and update
@@ -405,7 +405,7 @@ Only the current period is considered; `coga recurring` never chases missed
 periods, so a template runs at most once per period no matter how long since
 the last invocation. Dedup after a completed run is deleted comes from
 `last_serviced_period >= current period_key` in the template blackboard. The
-the repo-global `coga-os/log.md` stays append-only human history; it is not parsed for dedup.
+the repo-global `coga/log.md` stays append-only human history; it is not parsed for dedup.
 
 Recurring creating goes through `create_task()` in `coga.create`
 directly with the template's full frontmatter. Recurring tasks are created
@@ -444,8 +444,8 @@ mid-week reuses that task rather than creating a second one.
 
 ### Dream and REM
 
-Dream is Coga's generic ticket cleanup pass for one `coga-os/`. It ships as a
-recurring task template, `coga-os/recurring/dream/`: a weekly `coga
+Dream is Coga's generic ticket cleanup pass for one `coga/`. It ships as a
+recurring task template, `coga/recurring/dream/`: a weekly `coga
 recurring` run creates and launches it when its schedule is due, and the
 `coga dream` alias creates and launches it on demand. A Dream task scans all tickets, runs fixed Coga
 housekeeping skills such as `validate-drift` and `retro/done-ticket`, proposes
@@ -456,14 +456,14 @@ running knowledge delta, and opens one small PR per coherent theme (at most
 five source tickets each) only when durable knowledge changed.
 
 REM is repo/user-specific recurring maintenance. It is opt-in user space: copy
-the inert `coga-os/recurring/_rem/` template, give it a schedule and
+the inert `coga/recurring/_rem/` template, give it a schedule and
 workflow, and define the operational checks that matter to that repo. Stale
 branch cleanup belongs in a dev maintenance loop, not in Dream's generic ticket
 cleanup pass.
 
 ### `coga skill`
 
-Manage project-local skills under `coga-os/skills/` without inventing a second
+Manage project-local skills under `coga/skills/` without inventing a second
 package manager. GitHub-backed installs and updates delegate to GitHub CLI's
 public preview `gh skill` command; Coga adds exact removal, URL-backed
 provenance, local-adaptation checks, and a PR-ready update summary for Dream.
@@ -485,11 +485,11 @@ coga skill status --check
 
 URL-backed installs are downloaded into a temporary directory, validated for a
 `SKILL.md`, installed through `gh skill install --from-local`, then recorded in
-`coga-os/skills/<name>/.coga-source.json` with the original URL and content
+`coga/skills/<name>/.coga-source.json` with the original URL and content
 digests. URL-backed updates re-fetch that source and skip locally adapted
 skills instead of overwriting them. Removal is exact-name only and leaves a
 normal git delete for review. To customize a bundled skill, copy it to the same
-ref under `coga-os/skills/`; the local copy shadows the bundled one and becomes
+ref under `coga/skills/`; the local copy shadows the bundled one and becomes
 your repo-owned skill.
 
 ### `coga launch <target>`
@@ -558,7 +558,7 @@ useful for running an `auto` ticket `interactive`ly.
 
 `bootstrap/<name>` tickets are stateless re-entry points for skills.
 Concurrent launches are safe — they have no status, no log of state changes,
-and no lock. The `coga-os/bootstrap/` tree is upstream-managed and refreshed
+and no lock. The `coga/bootstrap/` tree is upstream-managed and refreshed
 wholesale by `coga init --update`, so don't add custom bootstrap tickets there — write
 your own launch wrappers elsewhere.
 
@@ -598,7 +598,7 @@ coga status --all
 
 ### `coga show <slug>`
 
-Print a task's `ticket.md` (body + blackboard region) and its history from the repo-global `coga-os/log.md` to the
+Print a task's `ticket.md` (body + blackboard region) and its history from the repo-global `coga/log.md` to the
 terminal, rendered as markdown. Same prefix matching as `bump`/`launch`.
 Bootstrap tickets show only `ticket.md`. For grep/pipe use, read the
 files directly — `show` is for human eyes.
@@ -759,7 +759,7 @@ the same URL locally; `coga.local.toml` may override
 Run `coga validate --check-slack` to probe the webhook (POSTs an
 empty-text payload that Slack rejects without posting to the channel)
 so a dead URL surfaces at config time, not at first `bump`. Failures
-during runtime posts also append a line (tagged by task ref) to the repo-global `coga-os/log.md` so
+during runtime posts also append a line (tagged by task ref) to the repo-global `coga/log.md` so
 daemon / cron / launched-script runs leave a recoverable trace.
 
 **Temporarily silence a repo that already opted in (solo dev / CI / dry
@@ -810,7 +810,7 @@ and blackboard-bloat warnings.
 
 ### `coga --version`
 
-Print the coga package version, plus — when run from inside a `coga-os/` —
+Print the coga package version, plus — when run from inside a `coga/` —
 the upstream commit SHA `.coga/` was vendored from. Useful for "is this
 fixed in your copy?" questions.
 
@@ -858,8 +858,8 @@ coga validate --json               # validate the bundled example/ fixture
 coga validate --fix                # add a missing blackboard fence only
 ```
 
-The dogfood coga-os/ for this very repo lives at `coga-os/`. Tasks tracked
-under `coga-os/tasks/` are real — they're how we drive work on coga itself.
+The dogfood coga/ for this very repo lives at `coga/`. Tasks tracked
+under `coga/tasks/` are real — they're how we drive work on coga itself.
 
 ## License
 

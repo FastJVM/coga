@@ -1,4 +1,4 @@
-"""Canonical paths inside a Coga repo's `coga-os/`."""
+"""Canonical paths inside a Coga repo's `coga/`."""
 
 from __future__ import annotations
 
@@ -105,10 +105,10 @@ def repo_context_path(cfg: Config) -> Path:
 
 
 def log_path(cfg: Config) -> Path:
-    """The repo-global append-only audit log (`coga-os/log.md`).
+    """The repo-global append-only audit log (`coga/log.md`).
 
     One file per repo, never a prompt-composition layer, marked `merge=union`
-    via `coga-os/.gitattributes` so concurrent appends across branches merge
+    via `coga/.gitattributes` so concurrent appends across branches merge
     cleanly. Each line is tagged with its task ref; see `coga.logfile`.
     """
     return cfg.repo_root / "log.md"

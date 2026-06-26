@@ -35,7 +35,7 @@ def _prompt_arg(cmd: list[str]) -> str:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     _write(
         coga_os / "coga.toml",
         """

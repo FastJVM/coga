@@ -1,6 +1,6 @@
 # Agent Tool Buckets — Is Coga Better?
 
-> Source: [Google Doc](https://docs.google.com/document/d/1IbQ4qh17rK2SZNFIGrMZVkvc_qSSHHiAFvANs7a60eU/edit), produced by the `bucket-comparison-document` task (`coga-os/tasks/bucket-comparison-document/`). The Doc is the editable original; this is a repo snapshot.
+> Source: [Google Doc](https://docs.google.com/document/d/1IbQ4qh17rK2SZNFIGrMZVkvc_qSSHHiAFvANs7a60eU/edit), produced by the `bucket-comparison-document` task (`coga/tasks/bucket-comparison-document/`). The Doc is the editable original; this is a repo snapshot.
 
 This doc sorts the agent tools I've tested into three buckets — agent replacements, overlays, and autonomous tools — and then answers the question: is Coga better?
 

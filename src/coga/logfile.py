@@ -1,6 +1,6 @@
 """The repo-global append-only log, written exclusively by CLI commands.
 
-Coga keeps one audit log per repo at `coga-os/log.md` (not one per task). Each
+Coga keeps one audit log per repo at `coga/log.md` (not one per task). Each
 line is tagged with the task ref it belongs to::
 
     YYYY-MM-DD HH:MM [<task-ref>] [<actor>] <message>
@@ -13,7 +13,7 @@ Why global rather than per-task: the log is the one thing that grows without
 bound, and it is deliberately **never** a prompt-composition layer. Pulling it
 out of the task directory keeps every per-task `ticket.md` small and bounded
 (frontmatter + body + blackboard), so compose can read the small file and
-ignore the log entirely. `coga-os/.gitattributes` marks `log.md` `merge=union`
+ignore the log entirely. `coga/.gitattributes` marks `log.md` `merge=union`
 so concurrent appends across branches merge without conflict — readers sort on
 display, so union's possible duplicate/unsorted lines are harmless for an
 append-only audit trail.
@@ -33,7 +33,7 @@ _LINE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}) \[([^\]]*)\]")
 
 
 def append_log(cfg: Config, task_ref: str, actor: str, message: str) -> None:
-    """Append one line to the repo-global `coga-os/log.md`, tagged `task_ref`."""
+    """Append one line to the repo-global `coga/log.md`, tagged `task_ref`."""
     path = log_path(cfg)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     line = f"{timestamp} [{task_ref}] [{actor}] {message}\n"

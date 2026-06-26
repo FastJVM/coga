@@ -9,7 +9,7 @@ TEMPLATES = (
     / "coga"
     / "resources"
     / "templates"
-    / "coga-os"
+    / "coga"
     / "bootstrap"
     / "skills"
     / "bootstrap"
@@ -21,7 +21,7 @@ DREAM = TEMPLATES.parent
 SCAN_TEMPLATES = DREAM / "scan"
 RESOURCES = Path(__file__).resolve().parents[1] / "src" / "coga" / "resources"
 RECURRING_TEMPLATES = (
-    RESOURCES / "templates" / "coga-os" / "recurring"
+    RESOURCES / "templates" / "coga" / "recurring"
 )
 # Dream is a recurring task template, not a built-in command. Its body lives
 # in the recurring template's `## Description` section.
@@ -85,7 +85,7 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "coga create" in text
     assert "no per-run ticket cap" in text
     assert "Extract durable knowledge from done tickets, then delete every one of them." in text
-    assert "its resolved task directory under `coga-os/tasks/` still exists" in text
+    assert "its resolved task directory under `coga/tasks/` still exists" in text
     assert "Retro never leaves a processed done ticket on" in text
     # Knowledge-less tickets are direct-deleted, not bundled into a prune PR.
     assert "is direct-deleted with" in text
@@ -98,7 +98,7 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "Dream Run Summary" in text
     assert "coga slack --task <this-dream-task>" in text
     assert "stale branch" not in text.lower()
-    assert "coga-os/skills/dream/orchestrate/SKILL.md" not in text
+    assert "coga/skills/dream/orchestrate/SKILL.md" not in text
     assert "tasks/**/SKILL.md" not in text
 
 
@@ -180,7 +180,7 @@ def test_dream_documents_the_contract_audit_phase() -> None:
     assert "referenced artifacts" in skill_text
     assert "copy divergence" in skill_text
     # Frozen task artifacts are not contracts.
-    assert "Frozen task artifacts under `coga-os/tasks/` are historical" in skill_text
+    assert "Frozen task artifacts under `coga/tasks/` are historical" in skill_text
     assert "script:" not in skill_text
     assert "## Known Skill Contract" not in skill_text
     # Phase 6 disposition routes `drift` findings to a proposal PR.

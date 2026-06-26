@@ -28,7 +28,7 @@ Everything below is reference for the steps in that loop.
 
 ## Your task file
 
-Tasks live under `coga-os/tasks/`, as either a bare `tasks/<slug>.md` file or
+Tasks live under `coga/tasks/`, as either a bare `tasks/<slug>.md` file or
 a `tasks/<slug>/` directory holding `ticket.md` plus any siblings (a `script:`
 file, attachments). The composed prompt header gives the exact path for this
 launch; use it, don't reconstruct it from the slug. Either way the ticket is
@@ -45,7 +45,7 @@ line `<!-- coga:blackboard -->`:
   small — it is composed into every launch prompt.
 
 The append-only audit trail is **not** in your task file: it lives in one
-repo-global `coga-os/log.md`, each line tagged with its task ref. **Don't
+repo-global `coga/log.md`, each line tagged with its task ref. **Don't
 write to it** — the CLI commands (`coga create`, `ticket`, `mark`, `launch`,
 `bump`, `panic`) are its only writers. Put observations in the blackboard
 instead. Because the log lives outside the task file, the per-task `ticket.md`

@@ -20,7 +20,7 @@ SKILL_UPDATE = (
     / "coga"
     / "resources"
     / "templates"
-    / "coga-os"
+    / "coga"
     / "bootstrap"
     / "skills"
     / "bootstrap"
@@ -222,7 +222,7 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     _write(
         coga_os / "coga.toml",
         """

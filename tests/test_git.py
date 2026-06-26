@@ -44,7 +44,7 @@ def _cfg(repo_root: Path, **over) -> Config:
 
 
 def _global_log(cfg: Config) -> str:
-    """Read the repo-global audit log (`coga-os/log.md`) where sync failures
+    """Read the repo-global audit log (`coga/log.md`) where sync failures
     are now recorded (the per-task `log.md` is gone in the single-file format)."""
     log = cfg.repo_root / "log.md"
     return log.read_text() if log.is_file() else ""
@@ -59,7 +59,7 @@ def _task_dir(parent: Path, slug: str = "demo") -> Path:
 
 
 def _write_config(tmp_path: Path, *, shared_extra: str = "", local_extra: str = "") -> Path:
-    root = tmp_path / "coga-os"
+    root = tmp_path / "coga"
     root.mkdir()
     (root / "coga.toml").write_text(f"version = 1\n{shared_extra}")
     (root / "coga.local.toml").write_text(f'user = "marc"\n{local_extra}')
@@ -117,7 +117,7 @@ def test_sync_commits_and_pushes_on_control_branch(git_repo):
 
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
-    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
     assert "Ticket: demo — created" in git_repo.origin_subjects()
 
 
@@ -158,7 +158,7 @@ def test_sync_lands_on_main_from_feature_branch(git_repo):
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
     # Landed on the shared control branch...
-    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
     assert "Ticket: demo — created" in git_repo.origin_subjects()
     # ...and committed on the feature branch (clean tree, reflects ticket state).
     assert "tasks/" not in git_repo.git("status", "--porcelain")
@@ -182,7 +182,7 @@ def test_sync_log_commits_and_pushes_the_log_on_control_branch(git_repo):
 
     # Committed (clean tree) and pushed to the shared control branch.
     assert "log.md" not in git_repo.git("status", "--porcelain")
-    assert git_repo.origin_tracks("coga-os/log.md")
+    assert git_repo.origin_tracks("coga/log.md")
     assert "Log: bootstrap/orient" in git_repo.origin_subjects()
 
 
@@ -211,7 +211,7 @@ def test_sync_log_commits_locally_only_on_feature_branch(git_repo):
     assert "log.md" not in git_repo.git("status", "--porcelain")
     assert "Log: bootstrap/orient" in git_repo.git("log", "--format=%s", "feature/x")
     # Not landed on the control branch (no overlay that could clobber appends).
-    assert not git_repo.origin_tracks("coga-os/log.md")
+    assert not git_repo.origin_tracks("coga/log.md")
     assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
 
 
@@ -248,7 +248,7 @@ def test_sync_feature_branch_relands_existing_task_after_local_change(git_repo):
 
     # First land: the task now exists on origin/main (created on an earlier run).
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
-    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
 
     # Now, from a feature branch, change the task and sync again.
     git_repo.checkout_branch("feature/x")
@@ -257,9 +257,9 @@ def test_sync_feature_branch_relands_existing_task_after_local_change(git_repo):
     git.sync_task_state(cfg, task, message="Ticket: demo — panic")
 
     assert "Ticket: demo — panic" in git_repo.origin_subjects()
-    assert git_repo.origin_tracks("coga-os/tasks/demo/blackboard.md")
+    assert git_repo.origin_tracks("coga/tasks/demo/blackboard.md")
     landed = git_repo.git(
-        "show", "main:coga-os/tasks/demo/blackboard.md", cwd=git_repo.origin
+        "show", "main:coga/tasks/demo/blackboard.md", cwd=git_repo.origin
     )
     assert "stuck" in landed
 
@@ -302,7 +302,7 @@ def test_sync_feature_branch_retries_on_non_fast_forward(git_repo):
 
     # Both the competing file and our task file are on origin/main — anti-clobber.
     assert git_repo.origin_tracks("RIVAL.txt")
-    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
     subjects = git_repo.origin_subjects()
     assert "Ticket: demo — created" in subjects
     assert "competing: RIVAL.txt" in subjects
@@ -336,7 +336,7 @@ def test_sync_feature_branch_retry_loop_survives_mid_flight_race(git_repo, monke
 
     assert calls["n"] >= 2  # first push rejected, retried
     assert git_repo.origin_tracks("RIVAL.txt")
-    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
 
 
 def test_sync_feature_branch_noop_when_identical(git_repo):
@@ -380,7 +380,7 @@ def test_sync_detached_head_lands_without_local_commit(git_repo, capsys):
 
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
-    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
     # No local commit was made — the task dir is still uncommitted on disk.
     assert "tasks/" in git_repo.git("status", "--porcelain")
     assert "detached HEAD" in capsys.readouterr().err
@@ -390,7 +390,7 @@ def test_sync_noop_when_not_a_git_repo(tmp_path, capsys, real_git):
     cfg = _cfg(tmp_path)
     task = _task_dir(tmp_path)
 
-    # Must not raise — a non-git coga-os checkout is a soft no-op.
+    # Must not raise — a non-git coga checkout is a soft no-op.
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
     assert "not a git repo" in capsys.readouterr().err
@@ -454,7 +454,7 @@ def test_sync_control_branch_retries_on_non_fast_forward(git_repo):
 
     # Both the competing file and our task file are on origin/main — anti-clobber.
     assert git_repo.origin_tracks("RIVAL.txt")
-    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
     subjects = git_repo.origin_subjects()
     assert "Ticket: demo — created" in subjects
     assert "competing: RIVAL.txt" in subjects
@@ -471,7 +471,7 @@ def test_sync_control_branch_nonff_preserves_dirty_worktree(git_repo):
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
     # Pushed despite the moved origin...
-    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
     assert git_repo.origin_tracks("RIVAL.txt")
     # ...and the user's uncommitted file survived the rebase, still uncommitted.
     assert stray.read_text() == "uncommitted user work\n"
@@ -501,7 +501,7 @@ def test_sync_control_branch_unpoppable_dirty_change_leaves_no_markers_or_stash(
     # ...and a rival edit to the SAME file on origin/main → the stash pop, after
     # the task commit rebases onto the rival tip, cannot apply cleanly.
     git_repo.push_competing_commit(
-        "coga-os/workflows/direct/body.md", original + "\nrival edit\n"
+        "coga/workflows/direct/body.md", original + "\nrival edit\n"
     )
 
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
@@ -540,7 +540,7 @@ def test_sync_control_branch_retry_loop_survives_mid_flight_race(git_repo, monke
 
     assert calls["n"] >= 2  # first push rejected, rebased, retried
     assert git_repo.origin_tracks("RIVAL.txt")
-    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
 
 
 def test_sync_control_branch_nonfatal_on_rebase_conflict(git_repo, capsys):
@@ -556,7 +556,7 @@ def test_sync_control_branch_nonfatal_on_rebase_conflict(git_repo, capsys):
     # Local coga commit writes the task's ticket; the rival writes the SAME path
     # with different content on origin/main → guaranteed rebase conflict.
     git_repo.push_competing_commit(
-        "coga-os/tasks/demo/ticket.md", "rival content\n"
+        "coga/tasks/demo/ticket.md", "rival content\n"
     )
 
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
@@ -596,7 +596,7 @@ def test_cli_create_then_activate_sync_to_origin(git_repo):
     subjects = git_repo.origin_subjects()
     assert f"Ticket: {slug} — created" in subjects
     assert f"Ticket: {slug} — active" in subjects
-    assert git_repo.origin_tracks(f"coga-os/tasks/{slug}.md")
+    assert git_repo.origin_tracks(f"coga/tasks/{slug}.md")
 
 
 def test_cli_bump_syncs_step_to_origin(git_repo):
@@ -644,7 +644,7 @@ def test_cli_panic_syncs_blocker_to_origin(git_repo):
     # The blocker is appended to the blackboard region of the single-file
     # ticket (the file-form `tasks/<slug>.md`; no separate blackboard.md).
     ticket = git_repo.git(
-        "show", f"main:coga-os/tasks/{slug}.md", cwd=git_repo.origin
+        "show", f"main:coga/tasks/{slug}.md", cwd=git_repo.origin
     )
     assert "retry ceiling unspecified" in ticket
 
@@ -768,7 +768,7 @@ def test_cli_ticket_authoring_syncs_edits_to_origin(git_repo, monkeypatch):
         for s in git_repo.origin_subjects()
     )
     body = git_repo.git(
-        "show", f"main:coga-os/tasks/{slug}.md", cwd=git_repo.origin
+        "show", f"main:coga/tasks/{slug}.md", cwd=git_repo.origin
     )
     assert "Authored during the session." in body
 
@@ -794,13 +794,13 @@ def test_cli_ticket_authoring_syncs_a_newly_created_task(git_repo, monkeypatch):
     result = runner.invoke(app, ["ticket", "Fresh idea"])
     assert result.exit_code == 0, result.output
 
-    assert git_repo.origin_tracks("coga-os/tasks/fresh-idea.md")
+    assert git_repo.origin_tracks("coga/tasks/fresh-idea.md")
     assert any(
         s.startswith("Ticket: fresh-idea — authored")
         for s in git_repo.origin_subjects()
     )
     body = git_repo.git(
-        "show", "main:coga-os/tasks/fresh-idea.md", cwd=git_repo.origin
+        "show", "main:coga/tasks/fresh-idea.md", cwd=git_repo.origin
     )
     assert "Fleshed out during authoring." in body
 
@@ -827,10 +827,10 @@ def test_cli_ticket_authoring_records_session_without_ticket_edits(git_repo, mon
         s.startswith(f"Ticket: {slug} — authored")
         for s in git_repo.origin_subjects()
     )
-    # The authoring line lands in the repo-global `coga-os/log.md` now, which
+    # The authoring line lands in the repo-global `coga/log.md` now, which
     # rides the same-branch commit+push on `main` to origin.
     log = git_repo.git(
-        "show", "main:coga-os/log.md", cwd=git_repo.origin
+        "show", "main:coga/log.md", cwd=git_repo.origin
     )
     assert "ticket authoring launched" in log
 
@@ -844,7 +844,7 @@ def test_cli_ticket_authoring_records_session_without_ticket_edits(git_repo, mon
 
 _DELETE_SKILL_SRC = (
     Path(__file__).resolve().parents[1]
-    / "src" / "coga" / "resources" / "templates" / "coga-os"
+    / "src" / "coga" / "resources" / "templates" / "coga"
     / "bootstrap" / "skills" / "bootstrap" / "delete-task"
 )
 
@@ -866,7 +866,7 @@ def test_cli_delete_syncs_removal_to_origin(git_repo):
     _install_delete_skill(git_repo.coga_os)
     created = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = created.output.split(":", 1)[0].strip()
-    assert git_repo.origin_tracks(f"coga-os/tasks/{slug}.md")
+    assert git_repo.origin_tracks(f"coga/tasks/{slug}.md")
 
     deleted = runner.invoke(app, ["delete", slug])
     assert deleted.exit_code == 0, deleted.output
@@ -874,7 +874,7 @@ def test_cli_delete_syncs_removal_to_origin(git_repo):
     # The removal landed: a deletion commit on origin, and the path is gone from
     # the control-branch tree — not merely from the local working copy.
     assert f"Ticket: {slug} — deleted" in git_repo.origin_subjects()
-    assert not git_repo.origin_tracks(f"coga-os/tasks/{slug}.md")
+    assert not git_repo.origin_tracks(f"coga/tasks/{slug}.md")
     # And nothing is left dirty in the working tree (the bug's symptom).
     status = git_repo.git("status", "--porcelain", cwd=git_repo.root)
     assert slug not in status

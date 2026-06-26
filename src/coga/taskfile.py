@@ -12,7 +12,7 @@ The body and the blackboard are separated by exactly one fence line::
 
 The fence is machine-findable and HTML-comment-shaped, so it renders invisibly
 in any markdown viewer while staying trivially greppable. The append-only audit
-log is **not** a region here: it lives in one repo-global `coga-os/log.md`
+log is **not** a region here: it lives in one repo-global `coga/log.md`
 (see `coga.logfile`). That is the whole point of the single-file format — the
 unbounded thing (history) is the one file compose never reads, so the per-task
 file stays small and bounded (frontmatter + body + blackboard) and the prompt
@@ -29,7 +29,7 @@ Two write paths share one file without clobbering each other:
   after the fence and leaves the frontmatter + body bytes above it untouched —
   so a blackboard write never reformats the frontmatter.
 
-Bootstrap tickets (`coga-os/bootstrap/<name>/ticket.md`) are stateless launch
+Bootstrap tickets (`coga/bootstrap/<name>/ticket.md`) are stateless launch
 targets with no blackboard; they legitimately have no fence. Pass
 `blackboard_required=False` to parse them without failing loud.
 """

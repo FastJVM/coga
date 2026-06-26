@@ -1,7 +1,7 @@
 """Tests for per-skill dependency installation at bootstrap.
 
 `install_skill_requirements` is what makes a bootstrapped skill bring its own
-Python deps: it pip-installs every `coga-os/skills/**/requirements.txt` into
+Python deps: it pip-installs every `coga/skills/**/requirements.txt` into
 the `.coga/.venv`. Tests fake `subprocess.run` so nothing is actually
 installed.
 """

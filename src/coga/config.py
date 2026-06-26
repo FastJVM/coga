@@ -124,8 +124,8 @@ class Config:
 
     @property
     def project_name(self) -> str:
-        """Display name of the host repo. Parent of `coga-os/` when nested."""
-        if self.repo_root.name == "coga-os":
+        """Display name of the host repo. Parent of `coga/` when nested."""
+        if self.repo_root.name == "coga":
             return self.repo_root.parent.name
         return self.repo_root.name
 
@@ -170,15 +170,15 @@ class Config:
 def find_repo_root(start: Path | None = None) -> Path:
     """Walk up from `start` (default cwd) until a `coga.toml` is found.
 
-    Also descends into a sibling `coga-os/` subdir at each level — so
+    Also descends into a sibling `coga/` subdir at each level — so
     `coga` works from a company repo's root, not just from inside
-    `coga-os/`.
+    `coga/`.
     """
     cur = (start or Path.cwd()).resolve()
     for candidate in [cur, *cur.parents]:
         if (candidate / "coga.toml").is_file():
             return candidate
-        nested = candidate / "coga-os"
+        nested = candidate / "coga"
         if (nested / "coga.toml").is_file():
             return nested
     raise ConfigError(
@@ -605,7 +605,7 @@ def _parse_ticket_fields(raw: dict | None) -> dict[str, TicketField]:
             raise ConfigError(
                 f"[ticket.fields.{name}] collides with the canonical ticket "
                 f"frontmatter key {name!r}. Pick a different name. "
-                "See `coga-os/contexts/coga/architecture/SKILL.md` for the "
+                "See `coga/contexts/coga/architecture/SKILL.md` for the "
                 "reserved set."
             )
         bad_keys = sorted(set(data) - _ALLOWED_TICKET_FIELD_KEYS)

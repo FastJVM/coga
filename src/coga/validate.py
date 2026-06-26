@@ -7,7 +7,7 @@ directly as a module:
     python -m coga.validate [--json] [--task <slug>] [--fix] [--max-blackboard-kb N] [--check-slack] [--check-github]
 
 Two entry points:
-- `run(cfg, ...)` — whole-repo sweep (every task under `coga-os/tasks/`).
+- `run(cfg, ...)` — whole-repo sweep (every task under `coga/tasks/`).
 - `validate_task(cfg, slug, ...)` — single task. Used by the `--task` flag
   and by every Coga-owned command that mutates a task file.
 
@@ -299,7 +299,7 @@ def _check_one_task(
 
     # Required file — single-file format: just ticket.md (which carries the
     # body and the blackboard region). The audit log is the repo-global
-    # coga-os/log.md, not a per-task file.
+    # coga/log.md, not a per-task file.
     if not (ref.ticket_path).is_file():
         out.append(Issue(
             kind="missing-file",

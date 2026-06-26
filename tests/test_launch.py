@@ -31,7 +31,7 @@ def _write(path: Path, text: str) -> None:
 
 
 def _read_log(repo: Path) -> str:
-    """The repo-global audit log (`coga-os/log.md`)."""
+    """The repo-global audit log (`coga/log.md`)."""
     return (repo / "log.md").read_text()
 
 
@@ -158,7 +158,7 @@ def test_build_command_discussion_skips_name_flag() -> None:
         agent,
         mode="interactive",
         prompt="orient body",
-        name="Orient an agent in this coga-os/ repo",
+        name="Orient an agent in this coga/ repo",
         discussion=True,
     )
     assert cmd == ["my-cli", "--append-system-prompt", "orient body"]
@@ -386,7 +386,7 @@ def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
 
     # The append is committed (clean tree) and pushed to the control branch.
     assert "log.md" not in git_repo.git("status", "--porcelain")
-    assert git_repo.origin_tracks("coga-os/log.md")
+    assert git_repo.origin_tracks("coga/log.md")
     assert "Log: bootstrap/orient" in git_repo.origin_subjects()
 
 
@@ -571,7 +571,7 @@ def test_skip_policy_fails_loud_without_argv() -> None:
 
 @pytest.fixture
 def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
     _write(
         company / "coga.toml",
         """
@@ -1645,8 +1645,8 @@ def test_launch_prompt_report_prints_layers_without_launching(
 
 @pytest.fixture
 def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A coga-os/ with a bootstrap/ticket launch target and a stub skill, no tasks."""
-    company = tmp_path / "coga-os"
+    """A coga/ with a bootstrap/ticket launch target and a stub skill, no tasks."""
+    company = tmp_path / "coga"
     _write(
         company / "coga.toml",
         """

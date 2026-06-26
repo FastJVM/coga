@@ -1,4 +1,4 @@
-"""Workflow definitions — parsed from markdown files under coga-os/workflows/."""
+"""Workflow definitions — parsed from markdown files under coga/workflows/."""
 
 from __future__ import annotations
 

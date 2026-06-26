@@ -113,7 +113,7 @@ _BUILTIN_COMMANDS = frozenset(
 # where the user dropped the section.
 #
 # `dream` is a default alias rather than a built-in command: a Dream run is an
-# ordinary recurring task (`coga-os/recurring/dream/`), and `coga dream`
+# ordinary recurring task (`coga/recurring/dream/`), and `coga dream`
 # just creates and launches it on demand — the same path `coga recurring
 # launch dream` takes. Shipping it as a default keeps `coga dream` working in
 # repos init'd before the recurring template landed.

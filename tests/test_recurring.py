@@ -31,7 +31,7 @@ _TEMPLATES_COGA_OS = (
     / "coga"
     / "resources"
     / "templates"
-    / "coga-os"
+    / "coga"
 )
 
 SHIPPED_DREAM_DIR = _TEMPLATES_COGA_OS / "recurring" / "dream"
@@ -108,9 +108,9 @@ def _template_ticket_with_blackboard(company: Path, name: str, region: str) -> s
 
 
 def _seed_global_log(git_repo) -> None:
-    """Seed the repo-global `coga-os/log.md` and its union-merge attribute.
+    """Seed the repo-global `coga/log.md` and its union-merge attribute.
 
-    The `git_repo` conftest fixture seeds `coga-os/` but no global log or
+    The `git_repo` conftest fixture seeds `coga/` but no global log or
     `.gitattributes`. Period history (`created recurring/<name> for <period>`)
     now lands in this single repo-global log, which is committed locally and
     pushed on the same branch (not via the cross-branch task overlay), and is
@@ -120,7 +120,7 @@ def _seed_global_log(git_repo) -> None:
     coga_os = git_repo.coga_os
     (coga_os / "log.md").write_text("")
     (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
-    git_repo.git("add", "coga-os/log.md", "coga-os/.gitattributes")
+    git_repo.git("add", "coga/log.md", "coga/.gitattributes")
 
 
 def _freeze_recurring_now(monkeypatch, when: datetime) -> None:
@@ -293,7 +293,7 @@ def _finish_period_task(coga_os: Path, slug: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path):
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
     _write(
         company / "coga.toml",
         """
@@ -984,7 +984,7 @@ def dream_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     `coga recurring launch` and a bare `coga recurring` are the two entry
     points into the same create path; these tests prove they converge.
     """
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
     _write(
         company / "coga.toml",
         """
@@ -1072,7 +1072,7 @@ def test_recurring_launch_syncs_period_task_and_high_water(
     )
     _seed_template_blackboard(coga_os, "weekly-check", "cursor: old\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -1085,9 +1085,9 @@ def test_recurring_launch_syncs_period_task_and_high_water(
     ref = list_tasks(cfg)[0]
     # Period history now lands in the repo-global log; the high-water mark lives
     # in the template ticket's blackboard region.
-    log_rel = "coga-os/log.md"
-    template_rel = "coga-os/recurring/weekly-check/ticket.md"
-    ticket_rel = f"coga-os/tasks/{ref.id_slug}/ticket.md"
+    log_rel = "coga/log.md"
+    template_rel = "coga/recurring/weekly-check/ticket.md"
+    ticket_rel = f"coga/tasks/{ref.id_slug}/ticket.md"
     assert git_repo.origin_tracks(ticket_rel)
     assert git_repo.origin_tracks(log_rel)
     assert git_repo.origin_tracks(template_rel)
@@ -1128,8 +1128,8 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
     )
     log.write_text(seed_line)
     (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
-    git_repo.git("add", "coga-os/log.md", "coga-os/.gitattributes")
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/log.md", "coga/.gitattributes")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -1139,7 +1139,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
         "recurring/weekly-check for 2026-W22\n"
     )
     git_repo.push_competing_commit(
-        "coga-os/log.md",
+        "coga/log.md",
         log.read_text() + remote_line,
     )
 
@@ -1151,10 +1151,10 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
     ref = list_tasks(cfg)[0]
     # The repo-global log is union-merged across branches: the concurrent
     # remote append and this run's create line both survive on control.
-    ledger = git_repo.git("show", "main:coga-os/log.md", cwd=git_repo.origin)
+    ledger = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
     assert remote_line in ledger
     assert f"created {ref.id_slug}" in ledger
-    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
+    assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
 
 
 def test_recurring_launch_does_not_publish_feature_only_template_log(
@@ -1163,7 +1163,7 @@ def test_recurring_launch_does_not_publish_feature_only_template_log(
     """A feature-only recurring template does not become a malformed main dir."""
     coga_os = git_repo.coga_os
     _seed_period_task_context(coga_os)
-    git_repo.git("add", "coga-os/contexts")
+    git_repo.git("add", "coga/contexts")
     git_repo.git("commit", "-m", "seed recurring context")
     git_repo.git("push", "origin", "main")
 
@@ -1186,7 +1186,7 @@ def test_recurring_launch_does_not_publish_feature_only_template_log(
         """,
     )
     _seed_template_blackboard(coga_os, "new-weekly", "state\n")
-    git_repo.git("add", "coga-os/recurring/new-weekly")
+    git_repo.git("add", "coga/recurring/new-weekly")
     git_repo.git("commit", "-m", "add new recurring template")
 
     monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
@@ -1195,12 +1195,12 @@ def test_recurring_launch_does_not_publish_feature_only_template_log(
     assert result.exit_code == 0, result.output
     cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
-    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
+    assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
     # The feature-only template ticket must not be published to control.
-    assert not git_repo.origin_tracks("coga-os/recurring/new-weekly/ticket.md")
+    assert not git_repo.origin_tracks("coga/recurring/new-weekly/ticket.md")
     # The create history lands in the repo-global log, committed locally on the
     # feature branch (it reaches control the union-safe way at PR merge).
-    local_ledger = git_repo.git("show", "HEAD:coga-os/log.md")
+    local_ledger = git_repo.git("show", "HEAD:coga/log.md")
     assert f"created {ref.id_slug}" in local_ledger
     assert git_repo.git("status", "--porcelain") == ""
 
@@ -1236,8 +1236,8 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
     )
     log.write_text(seed_line)
     (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
-    git_repo.git("add", "coga-os/log.md", "coga-os/.gitattributes")
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/log.md", "coga/.gitattributes")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -1246,7 +1246,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
         "recurring/weekly-check for 2026-W22\n"
     )
     git_repo.push_competing_commit(
-        "coga-os/log.md",
+        "coga/log.md",
         log.read_text() + remote_line,
     )
 
@@ -1256,10 +1256,10 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
     assert result.exit_code == 0, result.output
     cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
-    ledger = git_repo.git("show", "main:coga-os/log.md", cwd=git_repo.origin)
+    ledger = git_repo.git("show", "main:coga/log.md", cwd=git_repo.origin)
     assert remote_line in ledger
     assert f"created {ref.id_slug}" in ledger
-    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
+    assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
     assert git_repo.git("status", "--porcelain") == ""
 
 
@@ -1288,7 +1288,7 @@ def test_recurring_launch_does_not_resurrect_remote_deleted_period_from_stale_ma
     )
     _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
@@ -1306,9 +1306,9 @@ def test_recurring_launch_does_not_resurrect_remote_deleted_period_from_stale_ma
     ticket = Ticket.read(ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(ref.path / "ticket.md")
-    git_repo.git("add", f"coga-os/tasks/{ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
-    git_repo.git("rm", "-r", f"coga-os/tasks/{ref.id_slug}")
+    git_repo.git("rm", "-r", f"coga/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "delete completed recurring period")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
@@ -1321,11 +1321,11 @@ def test_recurring_launch_does_not_resurrect_remote_deleted_period_from_stale_ma
 
     assert second.exit_code == 0, second.output
     assert launch_calls == []
-    assert not git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
+    assert not git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
     assert not ref.path.exists()
     ledger = git_repo.git(
         "show",
-        "main:coga-os/log.md",
+        "main:coga/log.md",
         cwd=git_repo.origin,
     )
     assert f"created {ref.id_slug}" in ledger
@@ -1357,7 +1357,7 @@ def test_recurring_launch_explicit_rerun_bypasses_handled_period_ledger(
     )
     _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -1374,9 +1374,9 @@ def test_recurring_launch_explicit_rerun_bypasses_handled_period_ledger(
     ticket = Ticket.read(ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(ref.path / "ticket.md")
-    git_repo.git("add", f"coga-os/tasks/{ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
-    git_repo.git("rm", "-r", f"coga-os/tasks/{ref.id_slug}")
+    git_repo.git("rm", "-r", f"coga/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "delete completed recurring period")
     git_repo.git("push", "origin", "main")
     (coga_os / "tasks").mkdir(exist_ok=True)
@@ -1386,7 +1386,7 @@ def test_recurring_launch_explicit_rerun_bypasses_handled_period_ledger(
     assert second.exit_code == 0, second.output
     assert launch_calls == [(ref.id_slug,)]
     assert (coga_os / "tasks" / ref.id_slug / "ticket.md").is_file()
-    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
+    assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
 
 
 def test_recurring_create_sync_restores_control_ledger_for_handled_period(
@@ -1415,7 +1415,7 @@ def test_recurring_create_sync_restores_control_ledger_for_handled_period(
     _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     log = coga_os / "log.md"
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
@@ -1426,9 +1426,9 @@ def test_recurring_create_sync_restores_control_ledger_for_handled_period(
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
-    git_repo.git("add", f"coga-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
-    git_repo.git("rm", "-r", f"coga-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("rm", "-r", f"coga/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "delete completed recurring period")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
@@ -1471,7 +1471,7 @@ def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
     )
     _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
@@ -1482,9 +1482,9 @@ def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
-    git_repo.git("add", f"coga-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
-    git_repo.git("rm", "-r", f"coga-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("rm", "-r", f"coga/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "delete completed recurring period")
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/stale",)
@@ -1529,7 +1529,7 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
     )
     _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
@@ -1540,9 +1540,9 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
-    git_repo.git("add", f"coga-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
-    git_repo.git("rm", "-r", f"coga-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("rm", "-r", f"coga/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "delete completed recurring period")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
@@ -1591,7 +1591,7 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
     )
     _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
@@ -1617,7 +1617,7 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
     # The period task's working state lives in its own ticket.md blackboard
     # region now (no separate blackboard.md).
     replace_blackboard(ref.path / "ticket.md", "\nremote done state\n")
-    git_repo.git("add", f"coga-os/tasks/{ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
@@ -1628,7 +1628,7 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
     assert f"Created {ref.id_slug}" not in second.output
     assert launch_calls == []
     assert notify_calls == []
-    ticket_rel = f"coga-os/tasks/{ref.id_slug}/ticket.md"
+    ticket_rel = f"coga/tasks/{ref.id_slug}/ticket.md"
     remote_ticket = git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
     assert "status: done" in remote_ticket
     assert "status: active" not in remote_ticket
@@ -1668,8 +1668,8 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
     )
     log.write_text(seed_line)
     (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
-    git_repo.git("add", "coga-os/log.md", "coga-os/.gitattributes")
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/log.md", "coga/.gitattributes")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -1683,7 +1683,7 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
         "recurring/weekly-check for 2026-W22\n"
     )
     git_repo.push_competing_commit(
-        "coga-os/log.md",
+        "coga/log.md",
         log.read_text() + remote_line,
     )
 
@@ -1695,12 +1695,12 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
     ref = list_tasks(cfg)[0]
     assert git_repo.origin_tracks("LOCAL.txt")
     assert git_repo.origin_tracks("UNRELATED.txt")
-    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
+    assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
     assert local_file.read_text() == "local\n"
     assert (git_repo.root / "UNRELATED.txt").read_text() == "remote\n"
     ledger = git_repo.git(
         "show",
-        "main:coga-os/log.md",
+        "main:coga/log.md",
         cwd=git_repo.origin,
     )
     assert remote_line in ledger
@@ -1739,8 +1739,8 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
     )
     log.write_text(seed_line)
     (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
-    git_repo.git("add", "coga-os/log.md", "coga-os/.gitattributes")
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/log.md", "coga/.gitattributes")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -1755,7 +1755,7 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
     def racing_commit(root, rels, message):
         committed = real_commit_paths(root, rels, message)
         git_repo.push_competing_commit(
-            "coga-os/log.md",
+            "coga/log.md",
             base_log + race_line,
         )
         return committed
@@ -1767,11 +1767,11 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
     assert result.exit_code == 0, result.output
     cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
-    ledger_rel = "coga-os/log.md"
+    ledger_rel = "coga/log.md"
     ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
     assert race_line in ledger
     assert f"created {ref.id_slug}" in ledger
-    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
+    assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
     local_ledger = git_repo.git("show", f"HEAD:{ledger_rel}")
     assert race_line not in local_ledger
     assert f"created {ref.id_slug}" in local_ledger
@@ -1803,7 +1803,7 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
     )
     _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/handled-race")
@@ -1824,7 +1824,7 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
         committed = real_commit_paths(root, rels, message)
         if not raced:
             git_repo.push_competing_commit(
-                "coga-os/recurring/weekly-check/ticket.md",
+                "coga/recurring/weekly-check/ticket.md",
                 handled_ticket,
             )
             raced = True
@@ -1836,14 +1836,14 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
 
     # The handled control state (its cursor and W24 high-water) lives in the
     # template ticket's blackboard region; the stale checkout adopts it.
-    ticket_rel = "coga-os/recurring/weekly-check/ticket.md"
+    ticket_rel = "coga/recurring/weekly-check/ticket.md"
     control_ticket = git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
     assert "remote_cursor: kept" in control_ticket
     assert "last_serviced_period: 2026-W24" in control_ticket
     local_template = coga_os / "recurring" / "weekly-check" / "ticket.md"
     assert "remote_cursor: kept" in read_blackboard(local_template)
     assert read_last_serviced_period(local_template) == "2026-W24"
-    assert not git_repo.origin_tracks(f"coga-os/tasks/{outcome.ref.id_slug}/ticket.md")
+    assert not git_repo.origin_tracks(f"coga/tasks/{outcome.ref.id_slug}/ticket.md")
     assert not outcome.ref.path.exists()
     assert git_repo.git("status", "--porcelain") == ""
 
@@ -1873,7 +1873,7 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
     )
     _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -1892,7 +1892,7 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
         real_fetch(cfg_arg, root)
         if fetch_calls == 2:
             git_repo.push_competing_commit(
-                "coga-os/recurring/weekly-check/ticket.md",
+                "coga/recurring/weekly-check/ticket.md",
                 handled_ticket,
             )
 
@@ -1902,8 +1902,8 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
 
     assert "sync failed" not in capsys.readouterr().err
     assert not outcome.ref.path.exists()
-    assert not git_repo.origin_tracks(f"coga-os/tasks/{outcome.ref.id_slug}/ticket.md")
-    ticket_rel = "coga-os/recurring/weekly-check/ticket.md"
+    assert not git_repo.origin_tracks(f"coga/tasks/{outcome.ref.id_slug}/ticket.md")
+    ticket_rel = "coga/recurring/weekly-check/ticket.md"
     assert "last_serviced_period: 2026-W24" in git_repo.git(
         "show", f"main:{ticket_rel}", cwd=git_repo.origin
     )
@@ -1952,7 +1952,7 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
     )
     _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     git_repo.git(
@@ -1968,8 +1968,8 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
     assert result.exit_code == 0, result.output
     cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
-    log_rel = "coga-os/log.md"
-    ticket_rel = f"coga-os/tasks/{ref.id_slug}/ticket.md"
+    log_rel = "coga/log.md"
+    ticket_rel = f"coga/tasks/{ref.id_slug}/ticket.md"
     assert git_repo.git("log", "--format=%s", "-1").strip() == (
         f"Ticket: {ref.id_slug} — recurring create"
     )
@@ -2199,10 +2199,10 @@ def test_recurring_all_syncs_forced_recreated_period_on_control_branch(
     _seed_global_log(git_repo)
     git_repo.git(
         "add",
-        "coga-os/contexts",
-        "coga-os/skills",
-        "coga-os/workflows",
-        "coga-os/recurring/weekly-check",
+        "coga/contexts",
+        "coga/skills",
+        "coga/workflows",
+        "coga/recurring/weekly-check",
     )
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
@@ -2214,9 +2214,9 @@ def test_recurring_all_syncs_forced_recreated_period_on_control_branch(
     ticket = Ticket.read(ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(ref.path / "ticket.md")
-    git_repo.git("add", f"coga-os/tasks/{ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
-    git_repo.git("rm", "-r", f"coga-os/tasks/{ref.id_slug}")
+    git_repo.git("rm", "-r", f"coga/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "delete completed recurring period")
     git_repo.git("push", "origin", "main")
 
@@ -2238,7 +2238,7 @@ def test_recurring_all_syncs_forced_recreated_period_on_control_branch(
     assert result.exit_code == 0, result.output
     assert launched == [ref.id_slug]
     assert (coga_os / "tasks" / ref.id_slug / "ticket.md").is_file()
-    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
+    assert git_repo.origin_tracks(f"coga/tasks/{ref.id_slug}/ticket.md")
 
 
 def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
@@ -2259,10 +2259,10 @@ def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
     _seed_global_log(git_repo)
     git_repo.git(
         "add",
-        "coga-os/contexts",
-        "coga-os/skills",
-        "coga-os/workflows",
-        "coga-os/recurring/weekly-check",
+        "coga/contexts",
+        "coga/skills",
+        "coga/workflows",
+        "coga/recurring/weekly-check",
     )
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
@@ -2275,7 +2275,7 @@ def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
     replace_blackboard(remote.ref.path / "ticket.md", "\nremote done state\n")
-    git_repo.git("add", f"coga-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
@@ -2299,13 +2299,13 @@ def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
     assert Ticket.read(remote.ref.path / "ticket.md").status == "done"
     remote_ticket = git_repo.git(
         "show",
-        f"main:coga-os/tasks/{remote.ref.id_slug}/ticket.md",
+        f"main:coga/tasks/{remote.ref.id_slug}/ticket.md",
         cwd=git_repo.origin,
     )
     assert _blackboard_of_text(remote_ticket) == "\nremote done state\n"
     control_template = git_repo.git(
         "show",
-        "main:coga-os/recurring/weekly-check/ticket.md",
+        "main:coga/recurring/weekly-check/ticket.md",
         cwd=git_repo.origin,
     )
     assert "last_serviced_period: 2026-W18" in control_template
@@ -2338,7 +2338,7 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
     )
     _seed_template_blackboard(coga_os, "weekly-check", "cursor: old\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -2351,7 +2351,7 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
     ticket.frontmatter["status"] = "done"
     ticket.write(stale.ref.path / "ticket.md")
     replace_blackboard(stale.ref.path / "ticket.md", "\nremote newer state\n")
-    git_repo.git("add", f"coga-os/tasks/{stale.ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{stale.ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period remotely")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
@@ -2377,13 +2377,13 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
     assert "status: done" in (stale.ref.path / "ticket.md").read_text()
     remote_ticket = git_repo.git(
         "show",
-        f"main:coga-os/tasks/{stale.ref.id_slug}/ticket.md",
+        f"main:coga/tasks/{stale.ref.id_slug}/ticket.md",
         cwd=git_repo.origin,
     )
     assert _blackboard_of_text(remote_ticket) == "\nremote newer state\n"
     control_template = git_repo.git(
         "show",
-        "main:coga-os/recurring/weekly-check/ticket.md",
+        "main:coga/recurring/weekly-check/ticket.md",
         cwd=git_repo.origin,
     )
     assert "last_serviced_period: 2026-W18" in control_template
@@ -2415,7 +2415,7 @@ def test_recurring_all_preserves_existing_local_task_state_during_force_sync(
     )
     _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -2474,7 +2474,7 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
     )
     _seed_template_blackboard(coga_os, "weekly-check", "cursor: old\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -2485,13 +2485,13 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
     ticket.frontmatter["status"] = "done"
     ticket.write(first.ref.path / "ticket.md")
     replace_blackboard(first.ref.path / "ticket.md", "\nlocal stale done state\n")
-    git_repo.git("add", f"coga-os/tasks/{first.ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{first.ref.id_slug}")
     git_repo.git("commit", "-m", "local done period")
     git_repo.git("push", "origin", "main")
     stale_done_head = git_repo.git("rev-parse", "HEAD").strip()
 
     replace_blackboard(first.ref.path / "ticket.md", "\nremote newer done state\n")
-    git_repo.git("add", f"coga-os/tasks/{first.ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{first.ref.id_slug}")
     git_repo.git("commit", "-m", "remote newer done state")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_done_head)
@@ -2516,7 +2516,7 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
     assert read_blackboard(first.ref.path / "ticket.md") == "\nremote newer done state\n"
     remote_ticket = git_repo.git(
         "show",
-        f"main:coga-os/tasks/{first.ref.id_slug}/ticket.md",
+        f"main:coga/tasks/{first.ref.id_slug}/ticket.md",
         cwd=git_repo.origin,
     )
     assert _blackboard_of_text(remote_ticket) == "\nremote newer done state\n"
@@ -2537,10 +2537,10 @@ def test_recurring_all_does_not_mark_new_period_for_control_live_task(
     _seed_global_log(git_repo)
     git_repo.git(
         "add",
-        "coga-os/contexts",
-        "coga-os/skills",
-        "coga-os/workflows",
-        "coga-os/recurring/weekly-check",
+        "coga/contexts",
+        "coga/skills",
+        "coga/workflows",
+        "coga/recurring/weekly-check",
     )
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
@@ -2553,7 +2553,7 @@ def test_recurring_all_does_not_mark_new_period_for_control_live_task(
     ticket.frontmatter["status"] = "in_progress"
     ticket.write(remote.ref.path / "ticket.md")
     replace_blackboard(remote.ref.path / "ticket.md", "\nremote live state\n")
-    git_repo.git("add", f"coga-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "remote live period")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
@@ -2574,7 +2574,7 @@ def test_recurring_all_does_not_mark_new_period_for_control_live_task(
     assert launched == [remote.ref.id_slug]
     control_template = git_repo.git(
         "show",
-        "main:coga-os/recurring/weekly-check/ticket.md",
+        "main:coga/recurring/weekly-check/ticket.md",
         cwd=git_repo.origin,
     )
     assert "last_serviced_period: 2026-W17" in control_template
@@ -2596,10 +2596,10 @@ def test_recurring_all_reconciles_existing_tasks_before_launch_order(
     _seed_global_log(git_repo)
     git_repo.git(
         "add",
-        "coga-os/contexts",
-        "coga-os/skills",
-        "coga-os/workflows",
-        "coga-os/recurring",
+        "coga/contexts",
+        "coga/skills",
+        "coga/workflows",
+        "coga/recurring",
     )
     git_repo.git("commit", "-m", "seed recurring templates")
     git_repo.git("push", "origin", "main")
@@ -2615,7 +2615,7 @@ def test_recurring_all_reconciles_existing_tasks_before_launch_order(
     ticket = Ticket.read(live.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(live.ref.path / "ticket.md")
-    git_repo.git("add", f"coga-os/tasks/{live.ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{live.ref.id_slug}")
     git_repo.git("commit", "-m", "local done live task")
     git_repo.git("push", "origin", "main")
     stale_done_head = git_repo.git("rev-parse", "HEAD").strip()
@@ -2624,7 +2624,7 @@ def test_recurring_all_reconciles_existing_tasks_before_launch_order(
     ticket.frontmatter["status"] = "in_progress"
     ticket.write(live.ref.path / "ticket.md")
     replace_blackboard(live.ref.path / "ticket.md", "\nremote live state\n")
-    git_repo.git("add", f"coga-os/tasks/{live.ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{live.ref.id_slug}")
     git_repo.git("commit", "-m", "remote live task")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_done_head)
@@ -2709,7 +2709,7 @@ def test_recurring_all_syncs_forced_existing_period_state(
     )
     _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
+    git_repo.git("add", "coga/contexts", "coga/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -2720,7 +2720,7 @@ def test_recurring_all_syncs_forced_existing_period_state(
     ticket = Ticket.read(ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(ref.path / "ticket.md")
-    git_repo.git("add", f"coga-os/tasks/{ref.id_slug}")
+    git_repo.git("add", f"coga/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
     git_repo.git("push", "origin", "main")
 
@@ -2742,7 +2742,7 @@ def test_recurring_all_syncs_forced_existing_period_state(
     assert "→ launch" in result.output
     control_template = git_repo.git(
         "show",
-        "main:coga-os/recurring/weekly-check/ticket.md",
+        "main:coga/recurring/weekly-check/ticket.md",
         cwd=git_repo.origin,
     )
     assert "last_serviced_period: 2026-W18" in control_template
@@ -3189,7 +3189,7 @@ def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
     Unattended runs can't be redirected by a human at the terminal, so a
     launched-but-unfinished task is a stuck task and stops the sweep.
     """
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
     _write(
         company / "coga.toml",
         """

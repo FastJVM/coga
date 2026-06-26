@@ -41,7 +41,7 @@ _BOOTSTRAP_PREFIX = "bootstrap/"
 
 @dataclass(frozen=True)
 class TaskRef:
-    """A task under `coga-os/tasks/`, in either of two interchangeable shapes.
+    """A task under `coga/tasks/`, in either of two interchangeable shapes.
 
     - **File form** (`file_form=True`): a single `tasks/<slug>.md` file; `path`
       is that file. Self-contained — no companion directory, so no sibling
@@ -88,7 +88,7 @@ class TaskRef:
 
 @dataclass(frozen=True)
 class BootstrapRef:
-    """A persistent bootstrap ticket under `coga-os/bootstrap/<name>/`.
+    """A persistent bootstrap ticket under `coga/bootstrap/<name>/`.
 
     Bootstrap tickets are stateless re-entry points (no status flips, no lock).
     `id_slug` matches the launch arg form so logs read naturally.
@@ -115,7 +115,7 @@ TargetRef = Union[TaskRef, BootstrapRef]
 
 
 def list_tasks(cfg: Config) -> list[TaskRef]:
-    """List all tasks under `coga-os/tasks/`, in either on-disk shape.
+    """List all tasks under `coga/tasks/`, in either on-disk shape.
 
     A task is either a directory containing a `ticket.md` (**directory form**,
     `tasks/<slug>/ticket.md`) or a bare `tasks/<slug>.md` file (**file form**),
@@ -196,7 +196,7 @@ class UnknownDirectoryError(Exception):
 
 
 def list_task_dirs(cfg: Config) -> list[str]:
-    """List the (non-task) directories under `coga-os/tasks/`, at any depth.
+    """List the (non-task) directories under `coga/tasks/`, at any depth.
 
     These are the plain directories you can filter on — every directory under
     `tasks/` that isn't itself a task (no `ticket.md`), returned as a path

@@ -60,11 +60,11 @@ def is_script_launch(cfg: Config, ticket: Ticket) -> bool:
 def script_repo_root(cfg: Config) -> Path:
     """Working directory for a script run.
 
-    The repo root for `coga-os/` inside a host repo is `repo/coga-os`;
+    The repo root for `coga/` inside a host repo is `repo/coga`;
     scripts almost always want the host repo (its parent), so prefer that
     when present.
     """
-    return cfg.repo_root.parent if cfg.repo_root.name == "coga-os" else cfg.repo_root
+    return cfg.repo_root.parent if cfg.repo_root.name == "coga" else cfg.repo_root
 
 
 def build_script_env(
@@ -120,7 +120,7 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
       sibling file in the task directory.
 
     The script runs with secrets from coga.local.toml as env vars. Working
-    directory = the host repo (parent of coga-os/), or repo_root if coga.toml
+    directory = the host repo (parent of coga/), or repo_root if coga.toml
     lives at the top level. Non-zero exit: task stays at current step; a Slack
     FYI is posted.
     """

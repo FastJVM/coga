@@ -1,4 +1,4 @@
-"""Recurring task templates under `coga-os/recurring/<name>/`."""
+"""Recurring task templates under `coga/recurring/<name>/`."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ class Template:
     `ticket.md` carries the schedule and run body; its blackboard region
     (below the fence) persists across runs for forward state, including the
     `last_serviced_period` high-water mark. Append-only history goes to the
-    repo-global `coga-os/log.md`, tagged `recurring/<name>`.
+    repo-global `coga/log.md`, tagged `recurring/<name>`.
     """
 
     path: Path  # the recurring task directory
@@ -220,7 +220,7 @@ def scan_due(
 ) -> DueScan:
     """Scan every recurring template and get-or-create its current-period task.
 
-    For each recurring task directory under `coga-os/recurring/` (skipping
+    For each recurring task directory under `coga/recurring/` (skipping
     `_`-prefixed directories), this resolves the most recent scheduled firing,
     get-or-creates the task for that period, and records its status.
     Idempotent: a template whose current-period task already exists is a
@@ -327,7 +327,7 @@ def create_named(
 ) -> CreateOutcome:
     """Create the named recurring task now, ignoring its schedule.
 
-    `name` is the directory name under `coga-os/recurring/`. The task slug is
+    `name` is the directory name under `coga/recurring/`. The task slug is
     the stable qualified `recurring/<name>`, so a manual `coga
     recurring launch <name>` and a bare `coga recurring` converge on one
     instantiated task directory.

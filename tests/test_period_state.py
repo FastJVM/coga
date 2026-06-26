@@ -114,7 +114,7 @@ def test_read_snapshot_valid_json_non_object_returns_none(
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
     _write(
         company / "coga.toml",
         """
@@ -220,7 +220,7 @@ def test_create_snapshots_declared_keys(repo: Path) -> None:
 
 
 def test_create_without_state_keys_writes_no_snapshot(tmp_path: Path) -> None:
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
     _write(
         company / "coga.toml",
         """

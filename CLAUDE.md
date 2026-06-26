@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Read First
-Treat [docs/vision.md](docs/vision.md) as the product thesis and the `coga-os/contexts/coga/` contexts as the behavioral contract. Read the relevant context before changing behavior; if behavior changes, update the matching context or source doc in the same PR. Coga is intentionally markdown-first, git-backed, locally operated, and legible to humans; changes that hide state, move logic into opaque services, or blur the correction loop are usually the wrong direction.
+Treat [docs/vision.md](docs/vision.md) as the product thesis and the `coga/contexts/coga/` contexts as the behavioral contract. Read the relevant context before changing behavior; if behavior changes, update the matching context or source doc in the same PR. Coga is intentionally markdown-first, git-backed, locally operated, and legible to humans; changes that hide state, move logic into opaque services, or blur the correction loop are usually the wrong direction.
 
 Canonical Coga contexts:
 
@@ -13,9 +13,9 @@ Canonical Coga contexts:
 Do not leave the durable explanation only in chat, PR comments, or task notes when it belongs in a context, template, README, or spec.
 
 ## Project Structure & Module Organization
-Core code lives in `src/coga/`. Keep CLI entrypoints thin in `src/coga/commands/` and move reusable behavior into focused modules such as `config.py`, `compose.py`, `tasks.py`, and `validate.py`. Prompt/protocol templates live in `src/coga/resources/`. Tests live in `tests/`. Use `example/coga-os/` as the seeded fixture for end-to-end behavior.
+Core code lives in `src/coga/`. Keep CLI entrypoints thin in `src/coga/commands/` and move reusable behavior into focused modules such as `config.py`, `compose.py`, `tasks.py`, and `validate.py`. Prompt/protocol templates live in `src/coga/resources/`. Tests live in `tests/`. Use `example/coga/` as the seeded fixture for end-to-end behavior.
 
-When changing shipped Coga OS contexts or templates, check both the live repo copy under `coga-os/` and the packaged copy under `src/coga/resources/templates/coga-os/`. Keep them in sync unless the difference is intentional and documented.
+When changing shipped Coga OS contexts or templates, check both the live repo copy under `coga/` and the packaged copy under `src/coga/resources/templates/coga/`. Keep them in sync unless the difference is intentional and documented.
 
 ## Build, Test, and Development Commands
 - `python -m pip install -e .` installs the package in editable mode and exposes `coga`.

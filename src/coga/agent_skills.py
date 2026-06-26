@@ -19,11 +19,11 @@ class AgentSkillViewResult:
 
 
 def refresh_agent_skill_view(coga_os: Path) -> AgentSkillViewResult:
-    """Rebuild `coga-os/.agent-skills` from local + bundled skills.
+    """Rebuild `coga/.agent-skills` from local + bundled skills.
 
     The generated view is what Claude Code and Codex scan. Local skills under
-    `coga-os/skills` win over bundled package-backed batteries under
-    `coga-os/bootstrap/skills`.
+    `coga/skills` win over bundled package-backed batteries under
+    `coga/bootstrap/skills`.
     """
     view_dir = coga_os / AGENT_SKILLS_DIRNAME
     _remove_existing(view_dir)

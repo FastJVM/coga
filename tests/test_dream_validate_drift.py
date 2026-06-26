@@ -15,7 +15,7 @@ VALIDATE_DRIFT = (
     / "coga"
     / "resources"
     / "templates"
-    / "coga-os"
+    / "coga"
     / "bootstrap"
     / "skills"
     / "bootstrap"
@@ -55,7 +55,7 @@ def _write(path: Path, text: str) -> None:
 
 
 def _seed_repo(root: Path) -> Path:
-    coga_os = root / "coga-os"
+    coga_os = root / "coga"
     _write(
         coga_os / "coga.toml",
         """
@@ -248,7 +248,7 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
 
 def test_commit_and_push_refuses_main_branch(tmp_path: Path) -> None:
     subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True, capture_output=True)
-    fixed = tmp_path / "coga-os" / "tasks" / "x" / "log.md"
+    fixed = tmp_path / "coga" / "tasks" / "x" / "log.md"
     fixed.parent.mkdir(parents=True)
     fixed.write_text("")
 
@@ -270,7 +270,7 @@ def test_commit_and_push_refuses_main_branch(tmp_path: Path) -> None:
 def test_commit_and_push_uses_configured_remote_without_upstream(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    fixed = tmp_path / "coga-os" / "tasks" / "x" / "log.md"
+    fixed = tmp_path / "coga" / "tasks" / "x" / "log.md"
     fixed.parent.mkdir(parents=True)
     fixed.write_text("")
     commands: list[list[str]] = []
@@ -341,7 +341,7 @@ def test_commit_and_push_main_passes_configured_remote(
                         "kind": "missing-file",
                         "task": "x",
                         "message": "created log.md",
-                        "path": "coga-os/tasks/x/log.md",
+                        "path": "coga/tasks/x/log.md",
                     }
                 ],
                 "issues": [],

@@ -57,7 +57,7 @@ def _write_script_task(repo: Path, *, slug: str, title: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
     _write(
         company / "coga.toml",
         """

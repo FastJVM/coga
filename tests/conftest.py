@@ -20,7 +20,7 @@ import pytest
 
 _TEMPLATES_COGA_OS = (
     Path(__file__).resolve().parents[1]
-    / "src" / "coga" / "resources" / "templates" / "coga-os"
+    / "src" / "coga" / "resources" / "templates" / "coga"
 )
 
 
@@ -157,7 +157,7 @@ def real_git():
 # B and C reuse it: B extends with feature-branch assertions, C reuses it for
 # its bespoke call sites. The shape mirrors the live repo — a git worktree
 # whose `.git` is at the toplevel and whose `coga.toml` lives in a nested
-# `coga-os/`, with a **bare** `origin` so `push` works without a network.
+# `coga/`, with a **bare** `origin` so `push` works without a network.
 
 
 @dataclass
@@ -165,7 +165,7 @@ class GitRepo:
     """A real git working tree with a bare `origin`, laid out like the live repo.
 
     `root` is the git toplevel (holds `.git`); `coga_os` is the nested
-    `coga-os/` that holds `coga.toml` (and is the cwd commands run from);
+    `coga/` that holds `coga.toml` (and is the cwd commands run from);
     `origin` is the bare remote that pushes land in.
     """
 
@@ -224,7 +224,7 @@ class GitRepo:
 
 
 def init_git_repo(tmp_path: Path) -> GitRepo:
-    """Create a git working tree + bare `origin`, seeded with a coga-os layout.
+    """Create a git working tree + bare `origin`, seeded with a coga layout.
 
     The control branch is `main`. The initial commit lands the config and an
     empty `tasks/` dir, then is pushed to `origin` so later `push`es are
@@ -237,7 +237,7 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
     )
 
     root = tmp_path / "repo"
-    coga_os = root / "coga-os"
+    coga_os = root / "coga"
     coga_os.mkdir(parents=True)
 
     def _g(*args: str) -> None:
@@ -291,7 +291,7 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
 
     _g("remote", "add", "origin", str(origin))
     _g("add", "-A")
-    _g("commit", "-m", "init coga-os")
+    _g("commit", "-m", "init coga")
     _g("push", "-u", "origin", "main")
 
     return GitRepo(root=root, coga_os=coga_os, origin=origin)
@@ -299,7 +299,7 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
 
 @pytest.fixture
 def git_repo(tmp_path, monkeypatch) -> GitRepo:
-    """A real-git repo with the working tree on `main`, cwd set to `coga-os/`.
+    """A real-git repo with the working tree on `main`, cwd set to `coga/`.
 
     Requesting this fixture opts the test out of the `_stub_git` no-op, so
     `coga.git.sync_task_state` runs for real against this repo.

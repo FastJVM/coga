@@ -9,7 +9,7 @@ BOOTSTRAP_TICKET_SKILL = (
     / "coga"
     / "resources"
     / "templates"
-    / "coga-os"
+    / "coga"
     / "bootstrap"
     / "skills"
     / "bootstrap"

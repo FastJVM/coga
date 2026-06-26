@@ -15,8 +15,8 @@ from coga.ticket import Ticket
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LIVE_COGA_OS = ROOT / "coga-os"
-PACKAGED_COGA_OS = ROOT / "src" / "coga" / "resources" / "templates" / "coga-os"
+LIVE_COGA_OS = ROOT / "coga"
+PACKAGED_COGA_OS = ROOT / "src" / "coga" / "resources" / "templates" / "coga"
 PACKAGED_SKILL = (
     PACKAGED_COGA_OS / "bootstrap" / "skills" / "coga" / "autoclose" / "sweep"
 )
@@ -103,7 +103,7 @@ def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
             # blackboard region holds the `last_serviced_period:` high-water mark
             # a real run mutates — so this pair is tolerant (the serviced-period
             # line is stripped). The append-only log lives in the repo-global
-            # `coga-os/log.md`, not in this template, so there is no separate
+            # `coga/log.md`, not in this template, so there is no separate
             # blackboard.md / log.md to keep in sync anymore.
             LIVE_COGA_OS / "recurring" / "autoclose-merged" / "ticket.md",
             PACKAGED_COGA_OS / "recurring" / "autoclose-merged" / "ticket.md",
@@ -135,7 +135,7 @@ def test_autoclose_live_and_packaged_copies_stay_in_sync() -> None:
 
 
 def test_autoclose_recurring_template_creates_idempotently(tmp_path: Path) -> None:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     _write(
         coga_os / "coga.toml",
         """

@@ -11,50 +11,50 @@ import tomllib
 
 EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/managed-skills.toml",
-    "coga/resources/templates/coga-os/bootstrap/skills/bootstrap/"
+    "coga/resources/templates/coga/bootstrap/skills/bootstrap/"
     "ticket/SKILL.md",
-    "coga/resources/templates/coga-os/bootstrap/skills/eval/"
+    "coga/resources/templates/coga/bootstrap/skills/eval/"
     "ticket-diagnostic/SKILL.md",
-    "coga/resources/templates/coga-os/bootstrap/skills/coga/"
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
     "autoclose/sweep/SKILL.md",
-    "coga/resources/templates/coga-os/bootstrap/skills/coga/"
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
     "autoclose/sweep/run.py",
-    "coga/resources/templates/coga-os/bootstrap/contexts/coga/sync/SKILL.md",
-    "coga/resources/templates/coga-os/recurring/autoclose-merged/ticket.md",
-    "coga/resources/templates/coga-os/recurring/digest/ticket.md",
-    "coga/resources/templates/coga-os/recurring/digest/spool.md",
-    "coga/resources/templates/coga-os/recurring/skill-update/ticket.md",
-    "coga/resources/templates/coga-os/workflows/autoclose-merged/sweep.md",
-    "coga/resources/templates/coga-os/workflows/direct/body.md",
-    "coga/resources/templates/coga-os/workflows/skill-update/run.md",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
+    "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
+    "coga/resources/templates/coga/recurring/digest/ticket.md",
+    "coga/resources/templates/coga/recurring/digest/spool.md",
+    "coga/resources/templates/coga/recurring/skill-update/ticket.md",
+    "coga/resources/templates/coga/workflows/autoclose-merged/sweep.md",
+    "coga/resources/templates/coga/workflows/direct/body.md",
+    "coga/resources/templates/coga/workflows/skill-update/run.md",
     # Bundled reusable workflows ship under bootstrap/workflows/ (local-first
     # fallback) so a fresh repo can run the core code loop, the docs flow, the
     # Dream child workflows, and the digest battery without hand-copying.
-    "coga/resources/templates/coga-os/bootstrap/workflows/code/"
+    "coga/resources/templates/coga/bootstrap/workflows/code/"
     "with-review.md",
-    "coga/resources/templates/coga-os/bootstrap/workflows/code/"
+    "coga/resources/templates/coga/bootstrap/workflows/code/"
     "design-then-implement.md",
-    "coga/resources/templates/coga-os/bootstrap/workflows/dev/"
+    "coga/resources/templates/coga/bootstrap/workflows/dev/"
     "with-self-review.md",
-    "coga/resources/templates/coga-os/bootstrap/workflows/docs/"
+    "coga/resources/templates/coga/bootstrap/workflows/docs/"
     "create-google-doc.md",
-    "coga/resources/templates/coga-os/bootstrap/workflows/dream/"
+    "coga/resources/templates/coga/bootstrap/workflows/dream/"
     "validate-drift.md",
-    "coga/resources/templates/coga-os/bootstrap/workflows/dream/"
+    "coga/resources/templates/coga/bootstrap/workflows/dream/"
     "cleanup-orphan-markers.md",
-    "coga/resources/templates/coga-os/bootstrap/workflows/digest/post.md",
+    "coga/resources/templates/coga/bootstrap/workflows/digest/post.md",
     # …and the code/* and digest-flush skills those workflows reference.
-    "coga/resources/templates/coga-os/bootstrap/skills/code/design/SKILL.md",
-    "coga/resources/templates/coga-os/bootstrap/skills/code/implement/"
+    "coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/code/implement/"
     "SKILL.md",
-    "coga/resources/templates/coga-os/bootstrap/skills/code/open-pr/SKILL.md",
-    "coga/resources/templates/coga-os/bootstrap/skills/code/self-qa/SKILL.md",
-    "coga/resources/templates/coga-os/bootstrap/skills/coga/digest/flush/"
+    "coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/coga/digest/flush/"
     "SKILL.md",
-    "coga/resources/templates/coga-os/bootstrap/skills/coga/digest/flush/"
+    "coga/resources/templates/coga/bootstrap/skills/coga/digest/flush/"
     "run.py",
-    "coga/resources/templates/coga-os/skills/_template/SKILL.md",
-    "coga/resources/templates/coga-os/skills/direct/body/SKILL.md",
+    "coga/resources/templates/coga/skills/_template/SKILL.md",
+    "coga/resources/templates/coga/skills/direct/body/SKILL.md",
 )
 
 

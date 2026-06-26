@@ -21,7 +21,7 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
     _write(
         company / "coga.toml",
         """
@@ -95,7 +95,7 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     result = runner.invoke(app, ["launch", "check"])
     assert result.exit_code == 0, result.output
 
-    # Script wrote to the host repo (parent of coga-os/) with the secret
+    # Script wrote to the host repo (parent of coga/) with the secret
     output = (cfg.repo_root.parent / "script-output.txt").read_text()
     assert "token=secret-abc" in output
     # The raw source var `TEST_TOKEN` is scrubbed from the child env.

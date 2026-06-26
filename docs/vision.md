@@ -5,7 +5,7 @@
 
 ---
 
-> **Scope.** This is the public-facing essay — the *why*, written for humans reading about Coga (partners, collaborators, the open-source audience). The agent-loaded, distilled form of the same ideas lives in [`coga-os/contexts/coga/principles/`](../coga-os/contexts/coga/principles/SKILL.md), which is what tickets actually compose into prompts. When the two diverge, `principles` is canon and this doc is narrative.
+> **Scope.** This is the public-facing essay — the *why*, written for humans reading about Coga (partners, collaborators, the open-source audience). The agent-loaded, distilled form of the same ideas lives in [`coga/contexts/coga/principles/`](../coga/contexts/coga/principles/SKILL.md), which is what tickets actually compose into prompts. When the two diverge, `principles` is canon and this doc is narrative.
 
 ---
 

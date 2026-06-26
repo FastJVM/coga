@@ -25,7 +25,7 @@ def _seed_footprint(
     """Build the on-disk footprint `coga init` leaves behind, and return the
     host repo root (with cwd + HOME pointed at it)."""
     target = tmp_path / "company"
-    coga_os = target / "coga-os"
+    coga_os = target / "coga"
     coga_os.mkdir(parents=True)
     (coga_os / "coga.toml").write_text("version = 1\n")
     # Vendored CLI the shim points back into.
@@ -67,7 +67,7 @@ def test_uninstall_removes_full_footprint(
     result = CliRunner().invoke(app, ["uninstall", "--yes"])
     assert result.exit_code == 0, result.output
 
-    assert not (target / "coga-os").exists()
+    assert not (target / "coga").exists()
     assert not (target / ".claude").exists()  # pruned once empty
     assert not (target / ".codex").exists()
     assert not (target / "CLAUDE.md").exists()
@@ -88,7 +88,7 @@ def test_uninstall_aborts_on_no_confirmation(
     assert result.exit_code == 0, result.output
     assert "Aborted" in result.output
     # Nothing removed.
-    assert (target / "coga-os").is_dir()
+    assert (target / "coga").is_dir()
     assert (target / "CLAUDE.md").is_file()
 
 
@@ -99,7 +99,7 @@ def test_uninstall_confirm_yes_via_prompt(
 
     result = CliRunner().invoke(app, ["uninstall"], input="y\n")
     assert result.exit_code == 0, result.output
-    assert not (target / "coga-os").exists()
+    assert not (target / "coga").exists()
 
 
 def test_uninstall_backs_up_modified_guide(
@@ -225,7 +225,7 @@ def test_uninstall_errors_if_coga_os_remains(
     result = CliRunner().invoke(app, ["uninstall", "--yes"])
     assert result.exit_code == 2
     assert "path still exists" in result.output
-    assert (target / "coga-os").is_dir()
+    assert (target / "coga").is_dir()
     assert "Coga uninstalled" not in result.output
 
 
@@ -233,8 +233,8 @@ def test_main_uninstall_ignores_legacy_uninstall_alias(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     target = _seed_footprint(tmp_path, monkeypatch)
-    (target / "coga-os" / "coga.local.toml").write_text('user = "me"\n')
-    (target / "coga-os" / "coga.toml").write_text(
+    (target / "coga" / "coga.local.toml").write_text('user = "me"\n')
+    (target / "coga" / "coga.toml").write_text(
         'version = 1\n[aliases]\nuninstall = "status"\n'
     )
     monkeypatch.setattr(sys, "argv", ["coga", "uninstall", "--yes"])
@@ -245,7 +245,7 @@ def test_main_uninstall_ignores_legacy_uninstall_alias(
     assert exc.value.code == 0
     captured = capsys.readouterr()
     assert "ignoring legacy alias 'uninstall'" in captured.err
-    assert not (target / "coga-os").exists()
+    assert not (target / "coga").exists()
 
 
 def test_uninstall_outside_repo_errors(

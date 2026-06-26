@@ -59,7 +59,7 @@ review-gated.
 
 | Area | Paperclip | Coga |
 |---|---|---|
-| Source of truth | Server/API/database; local setup can use embedded Postgres and local storage | Markdown files under `coga-os/` plus git history |
+| Source of truth | Server/API/database; local setup can use embedded Postgres and local storage | Markdown files under `coga/` plus git history |
 | Work unit | Issue/task in Paperclip | Task directory with `ticket.md`, `blackboard.md`, and `log.md` |
 | Agent coordination | Agent org chart, roles, reporting lines, statuses | Workflow handoffs across human, agent, other-agent, and script steps |
 | Execution | Heartbeats wake agents on schedule, assignment, mention, or manual trigger | `coga launch`, `coga recurring`, `coga recurring launch`, and `mode: script` |
@@ -167,8 +167,8 @@ Coga:
 
 - [`docs/vision.md`](vision.md)
 - [`docs/market-thesis.md`](market-thesis.md)
-- [`coga-os/contexts/coga/principles/SKILL.md`](../coga-os/contexts/coga/principles/SKILL.md)
-- [`coga-os/contexts/coga/architecture/SKILL.md`](../coga-os/contexts/coga/architecture/SKILL.md)
+- [`coga/contexts/coga/principles/SKILL.md`](../coga/contexts/coga/principles/SKILL.md)
+- [`coga/contexts/coga/architecture/SKILL.md`](../coga/contexts/coga/architecture/SKILL.md)
 
 Paperclip:
 

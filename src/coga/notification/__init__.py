@@ -12,7 +12,7 @@ Slack preserves the previous crash-loud/no-retry semantics.
 `notify` is the **outcome digest** path, not a generic lifecycle broadcaster.
 Only ticket outcomes (`done`) and recurring scan errors enter the daily digest.
 Routine lifecycle churn (draft, active, bump, paused, retire, recurring
-create) is intentionally silent: the repo-global `coga-os/log.md` remains the audit trail,
+create) is intentionally silent: the repo-global `coga/log.md` remains the audit trail,
 while notifications carry outcomes and urgent exceptions. When the daily-digest
 recurring ticket is installed (`recurring/digest/spool.md` exists, or an older
 `recurring/digest/ticket.md` is present and can be migrated), `notify` spools a

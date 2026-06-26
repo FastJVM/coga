@@ -1,4 +1,4 @@
-"""`coga init` — creates coga-os/ from package templates, or refreshes one."""
+"""`coga init` — creates coga/ from package templates, or refreshes one."""
 
 from __future__ import annotations
 
@@ -23,44 +23,44 @@ from coga.skill_manager import SkillResult
 
 _PACKAGED_COGA_TOML = (
     Path(__file__).resolve().parents[1]
-    / "src" / "coga" / "resources" / "templates" / "coga-os" / "coga.toml"
+    / "src" / "coga" / "resources" / "templates" / "coga" / "coga.toml"
 )
 
 
 EXPECTED_FILES = {
-    "coga-os/.gitignore",
-    "coga-os/coga.toml",
-    "coga-os/context.md",
-    "coga-os/bootstrap/contexts/dev/code/SKILL.md",
-    "coga-os/bootstrap/contexts/coga/sync/SKILL.md",
-    "coga-os/bootstrap/skills/eval/ticket-diagnostic/SKILL.md",
-    "coga-os/bootstrap/skills/coga/autoclose/sweep/SKILL.md",
-    "coga-os/bootstrap/skills/coga/autoclose/sweep/run.py",
-    "coga-os/contexts/_template/SKILL.md",
-    "coga-os/skills/_template/SKILL.md",
-    "coga-os/skills/direct/body/SKILL.md",
-    "coga-os/workflows/_template.md",
-    "coga-os/recurring/_template/ticket.md",
-    "coga-os/recurring/autoclose-merged/ticket.md",
-    "coga-os/recurring/dream/ticket.md",
-    "coga-os/recurring/skill-update/ticket.md",
-    "coga-os/tasks/_template/ticket.md",
-    "coga-os/tasks/coga-build.md",
+    "coga/.gitignore",
+    "coga/coga.toml",
+    "coga/context.md",
+    "coga/bootstrap/contexts/dev/code/SKILL.md",
+    "coga/bootstrap/contexts/coga/sync/SKILL.md",
+    "coga/bootstrap/skills/eval/ticket-diagnostic/SKILL.md",
+    "coga/bootstrap/skills/coga/autoclose/sweep/SKILL.md",
+    "coga/bootstrap/skills/coga/autoclose/sweep/run.py",
+    "coga/contexts/_template/SKILL.md",
+    "coga/skills/_template/SKILL.md",
+    "coga/skills/direct/body/SKILL.md",
+    "coga/workflows/_template.md",
+    "coga/recurring/_template/ticket.md",
+    "coga/recurring/autoclose-merged/ticket.md",
+    "coga/recurring/dream/ticket.md",
+    "coga/recurring/skill-update/ticket.md",
+    "coga/tasks/_template/ticket.md",
+    "coga/tasks/coga-build.md",
     # Single-file format: the repo-global audit log + its union-merge attribute
-    # ship at the coga-os root; tasks no longer carry per-dir blackboard.md/log.md.
-    "coga-os/log.md",
-    "coga-os/.gitattributes",
-    "coga-os/workflows/autoclose-merged/sweep.md",
-    "coga-os/workflows/direct/body.md",
-    "coga-os/workflows/skill-update/run.md",
-    "coga-os/workflows/build/onboarding.md",
+    # ship at the coga root; tasks no longer carry per-dir blackboard.md/log.md.
+    "coga/log.md",
+    "coga/.gitattributes",
+    "coga/workflows/autoclose-merged/sweep.md",
+    "coga/workflows/direct/body.md",
+    "coga/workflows/skill-update/run.md",
+    "coga/workflows/build/onboarding.md",
 }
 
 
 def _make_git_repo(target: Path) -> Path:
     """Mark `target` as a git repo so it clears init's git-repo precondition.
 
-    `coga init` refuses to write coga-os/ into a non-git dir, so tests that
+    `coga init` refuses to write coga/ into a non-git dir, so tests that
     exercise a successful init must look like a repo. A bare `.git` dir is enough
     for the filesystem-level check — no real `git init` is needed for tests that
     don't assert the commit itself (those still init + configure git by hand).
@@ -218,7 +218,7 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         "notepad\n"
     )
     # Single-file format: the audit log + its union-merge attribute ship at the
-    # coga-os root, not as per-task siblings.
+    # coga root, not as per-task siblings.
     (templates / "log.md").write_text("")
     (templates / ".gitattributes").write_text("/log.md merge=union\n")
     (templates / "workflows" / "autoclose-merged").mkdir(
@@ -439,7 +439,7 @@ def test_resolve_coga_repo_url_prefers_matching_ssh_remote_over_https(
 def test_write_pin_records_resolved_ssh_repo_url(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     repo_url = "git@github.com:FastJVM/relay.git"
     monkeypatch.setenv("COGA_REPO_URL", repo_url)
 
@@ -454,7 +454,7 @@ def test_write_pin_records_resolved_ssh_repo_url(
 def test_write_pin_redacts_credentialed_repo_url(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     monkeypatch.setenv(
         "COGA_REPO_URL", "https://coga:TOKEN@github.com/FastJVM/relay.git"
     )
@@ -504,13 +504,13 @@ def test_init_into_empty_dir(
 
     for rel in EXPECTED_FILES:
         assert (target / rel).is_file(), f"missing {rel}"
-    assert not (target / "coga-os" / "skills" / "eval").exists()
-    assert not (target / "coga-os" / "skills" / "coga").exists()
-    assert not (target / "coga-os" / "contexts" / "dev").exists()
-    assert not (target / "coga-os" / "contexts" / "coga").exists()
+    assert not (target / "coga" / "skills" / "eval").exists()
+    assert not (target / "coga" / "skills" / "coga").exists()
+    assert not (target / "coga" / "contexts" / "dev").exists()
+    assert not (target / "coga" / "contexts" / "coga").exists()
     assert (
         target
-        / "coga-os"
+        / "coga"
         / "bootstrap"
         / "skills"
         / "eval"
@@ -518,11 +518,11 @@ def test_init_into_empty_dir(
         / "SKILL.md"
     ).read_text().startswith("---\nname: eval/ticket-diagnostic\n")
     assert (
-        target / "coga-os" / ".agent-skills" / "eval" / "ticket-diagnostic"
+        target / "coga" / ".agent-skills" / "eval" / "ticket-diagnostic"
     ).is_symlink()
     assert (
         target
-        / "coga-os"
+        / "coga"
         / "bootstrap"
         / "skills"
         / "coga"
@@ -531,11 +531,11 @@ def test_init_into_empty_dir(
         / "SKILL.md"
     ).read_text().startswith("---\nname: coga/autoclose/sweep\n")
     assert (
-        target / "coga-os" / ".agent-skills" / "coga" / "autoclose" / "sweep"
+        target / "coga" / ".agent-skills" / "coga" / "autoclose" / "sweep"
     ).is_symlink()
 
-    assert "version = 1" in (target / "coga-os" / "coga.toml").read_text()
-    assert fake_managed_skill_sync.install_calls == [target / "coga-os"]
+    assert "version = 1" in (target / "coga" / "coga.toml").read_text()
+    assert fake_managed_skill_sync.install_calls == [target / "coga"]
 
 
 @pytest.mark.parametrize(
@@ -547,7 +547,7 @@ def test_failed_init_rolls_back_partial_coga_os(
     monkeypatch: pytest.MonkeyPatch,
     exc: BaseException,
 ) -> None:
-    """A first init that dies after coga-os/ is created must leave nothing
+    """A first init that dies after coga/ is created must leave nothing
     behind — for a normal error and a Ctrl-C alike (hence `except BaseException`)
     — so re-running isn't wedged between "already exists — use --update" and an
     --update that then chokes on the half-built venv / missing user.
@@ -555,12 +555,12 @@ def test_failed_init_rolls_back_partial_coga_os(
     Ticket: install/init-does-not-persist-user-then-blocks-on-reinit.
     """
     target = _make_git_repo(tmp_path / "company")
-    coga_os = target / "coga-os"
+    coga_os = target / "coga"
 
     def boom(_coga_os: Path):
-        # copy_fresh_templates has already created coga-os/ by now — that's the
+        # copy_fresh_templates has already created coga/ by now — that's the
         # half-built state the old code stranded.
-        assert coga_os.exists(), "coga-os/ should exist before the failing step"
+        assert coga_os.exists(), "coga/ should exist before the failing step"
         raise exc
 
     monkeypatch.setattr(init_cmd, "install_venv", boom)
@@ -568,7 +568,7 @@ def test_failed_init_rolls_back_partial_coga_os(
     with pytest.raises(type(exc)):
         init_cmd._do_init(target, user="tester")
 
-    assert not coga_os.exists(), "partial coga-os/ left behind — rollback didn't fire"
+    assert not coga_os.exists(), "partial coga/ left behind — rollback didn't fire"
 
 
 def test_packaged_template_first_run_works_without_slack(
@@ -581,7 +581,7 @@ def test_packaged_template_first_run_works_without_slack(
     first-run posture: it selects no notification channels, `post()` is
     suppressed instead of crash-loud, and a first `coga create` succeeds.
     """
-    repo = tmp_path / "coga-os"
+    repo = tmp_path / "coga"
     repo.mkdir()
     shutil.copy(_PACKAGED_COGA_TOML, repo / "coga.toml")
     (repo / "coga.local.toml").write_text('user = "marc"\n')
@@ -635,9 +635,9 @@ def test_init_reports_installed_managed_skills(
 
     assert "Managed skills: installed=1" in result.output
     assert (
-        target / "coga-os" / ".agent-skills" / "coga" / "calendar-reminder"
+        target / "coga" / ".agent-skills" / "coga" / "calendar-reminder"
     ).is_symlink()
-    assert fake_managed_skill_sync.install_calls == [target / "coga-os"]
+    assert fake_managed_skill_sync.install_calls == [target / "coga"]
 
 
 def test_init_fails_loud_when_required_managed_skill_fails(
@@ -669,13 +669,13 @@ def test_init_vendors_cli_and_links_wrapper_to_venv(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    assert (target / "coga-os" / ".coga" / "src" / "coga" / "cli.py").is_file()
-    assert (target / "coga-os" / ".coga" / "pyproject.toml").is_file()
-    assert (target / "coga-os" / ".coga" / "requirements.txt").is_file()
-    assert fake_venv == [target / "coga-os"]  # install_venv called once
+    assert (target / "coga" / ".coga" / "src" / "coga" / "cli.py").is_file()
+    assert (target / "coga" / ".coga" / "pyproject.toml").is_file()
+    assert (target / "coga" / ".coga" / "requirements.txt").is_file()
+    assert fake_venv == [target / "coga"]  # install_venv called once
 
-    wrapper = target / "coga-os" / ".coga" / "bin" / "coga"
-    venv_coga = target / "coga-os" / ".coga" / ".venv" / "bin" / "coga"
+    wrapper = target / "coga" / ".coga" / "bin" / "coga"
+    venv_coga = target / "coga" / ".coga" / ".venv" / "bin" / "coga"
     assert wrapper.is_symlink()
     # Relative symlink so the repo is portable.
     assert Path(wrapper.readlink()) == Path("..") / ".venv" / "bin" / "coga"
@@ -695,7 +695,7 @@ def test_init_writes_captured_user_name_to_local_toml(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "  marc  "])
     assert result.exit_code == 0, result.output
 
-    local_toml = target / "coga-os" / "coga.local.toml"
+    local_toml = target / "coga" / "coga.local.toml"
     assert local_toml.is_file()
     text = local_toml.read_text()
     # The `--user` value lands in `user` — a fresh init never leaves it empty.
@@ -720,7 +720,7 @@ def test_init_without_user_defaults_to_machine_name(
     assert result.exit_code == 0, result.output
     assert "No --user given" in result.output
     assert "nicktoper" in result.output
-    local_toml = (target / "coga-os" / "coga.local.toml").read_text()
+    local_toml = (target / "coga" / "coga.local.toml").read_text()
     assert 'user = "nicktoper"' in local_toml
     assert 'user = ""' not in local_toml
 
@@ -735,7 +735,7 @@ def test_init_rejects_invalid_user(tmp_path: Path, fake_clone, fake_venv) -> Non
     result = CliRunner().invoke(app, ["init", str(target), "--user", 'a"b'])
     assert result.exit_code == 2
     assert "quotes or backslashes" in result.output
-    assert not (target / "coga-os").exists()
+    assert not (target / "coga").exists()
 
 
 def test_init_installs_shim_when_local_bin_on_path(
@@ -753,7 +753,7 @@ def test_init_installs_shim_when_local_bin_on_path(
 
     shim = local_bin / "coga"
     assert shim.is_symlink()
-    expected = (target / "coga-os" / ".coga" / ".venv" / "bin" / "coga").resolve()
+    expected = (target / "coga" / ".coga" / ".venv" / "bin" / "coga").resolve()
     assert shim.resolve() == expected
     assert "is on your PATH via" in result.output
     assert "Add the bin dir to your PATH" not in result.output
@@ -790,14 +790,14 @@ def test_init_into_non_empty_dir_is_fine(tmp_path: Path, fake_clone, fake_venv) 
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
-    assert (target / "coga-os" / "coga.toml").is_file()
+    assert (target / "coga" / "coga.toml").is_file()
     assert (target / "README.md").read_text() == "hi"
 
 
 def test_init_refuses_existing_coga_os(tmp_path: Path, fake_clone, fake_venv) -> None:
     target = tmp_path / "occupied"
     target.mkdir()
-    (target / "coga-os").mkdir()
+    (target / "coga").mkdir()
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2
@@ -834,7 +834,7 @@ def test_init_ships_build_ticket_template(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    tasks = target / "coga-os" / "tasks"
+    tasks = target / "coga" / "tasks"
     ticket = tasks / "coga-build.md"
     text = ticket.read_text()
     assert "status: active" in text
@@ -870,7 +870,7 @@ def test_init_stamps_new_user_out_of_every_delivered_ticket(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "marc"])
     assert result.exit_code == 0, result.output
 
-    tasks = target / "coga-os" / "tasks"
+    tasks = target / "coga" / "tasks"
     # File-form tasks are `<slug>.md`; dir-form (the `_template`) keep `ticket.md`.
     for ticket in tasks.glob("**/*.md"):
         assert "new-user" not in ticket.read_text(), f"new-user survived in {ticket}"
@@ -890,7 +890,7 @@ def test_init_empty_repo_seeds_onboarding_and_points_at_build(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    tasks = target / "coga-os" / "tasks"
+    tasks = target / "coga" / "tasks"
     assert (tasks / "coga-build.md").is_file()
     assert "Run `coga build`" in result.output
     assert 'coga ticket "' not in result.output
@@ -909,7 +909,7 @@ def test_init_filled_repo_skips_onboarding_and_points_at_ticket(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    tasks = target / "coga-os" / "tasks"
+    tasks = target / "coga" / "tasks"
     assert not (tasks / "coga-build.md").exists()  # onboarding pruned
     # Not gated — still delivered, and stamped (no placeholder survives).
     browser = tasks / "browser-automation.md"
@@ -934,7 +934,7 @@ def test_init_filled_repo_ignores_coga_managed_files(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    assert (target / "coga-os" / "tasks" / "coga-build.md").is_file()
+    assert (target / "coga" / "tasks" / "coga-build.md").is_file()
     assert "Run `coga build`" in result.output
 
 
@@ -966,7 +966,7 @@ def test_repo_is_empty_false_when_user_content_present(tmp_path: Path) -> None:
 def test_prune_onboarding_tickets_removes_build_ticket(tmp_path: Path) -> None:
     """The delivered onboarding ticket (coga-build) is pruned on a filled
     repo; other tasks are left alone."""
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     tasks = coga_os / "tasks"
     for name in ("coga-build", "browser-automation", "_template"):
         (tasks / name).mkdir(parents=True)
@@ -981,7 +981,7 @@ def test_prune_onboarding_tickets_removes_build_ticket(tmp_path: Path) -> None:
 
 
 def test_stamp_user_into_delivered_tickets(tmp_path: Path) -> None:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     tasks = coga_os / "tasks"
     (tasks / "alpha").mkdir(parents=True)
     (tasks / "alpha" / "ticket.md").write_text(
@@ -1017,7 +1017,7 @@ def test_stamp_user_into_delivered_tickets(tmp_path: Path) -> None:
 
 def _seed_local_coga_os(root: Path) -> Path:
     """Stand in for a previously-init'd repo."""
-    coga_os = root / "coga-os"
+    coga_os = root / "coga"
     (coga_os / "skills" / "_template").mkdir(parents=True)
     (coga_os / "tasks" / "_template").mkdir(parents=True)
     (coga_os / "skills" / "_template" / "SKILL.md").write_text("OLD skill template\n")
@@ -1077,7 +1077,7 @@ def _seed_coga_source_checkout(root: Path) -> None:
     (root / "src" / "coga" / "commands").mkdir(parents=True)
     (root / "src" / "coga" / "commands" / "init.py").write_text("# source init\n")
     (root / "src" / "coga" / "commands" / "update.py").write_text("# source update\n")
-    (root / "src" / "coga" / "resources" / "templates" / "coga-os").mkdir(
+    (root / "src" / "coga" / "resources" / "templates" / "coga").mkdir(
         parents=True
     )
 
@@ -1265,7 +1265,7 @@ def test_init_update_refreshes_cli_and_underscore_templates(
         == "NEW dev/code context\n"
     )
     # Generated agent view exposes the effective skill set without claiming
-    # namespaces in coga-os/skills.
+    # namespaces in coga/skills.
     assert (coga_os / ".agent-skills" / "bootstrap" / "ticket").is_symlink()
     assert (coga_os / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
     assert (coga_os / ".agent-skills" / "retro" / "done-ticket").is_symlink()
@@ -1532,20 +1532,20 @@ def test_init_commits_coga_os_when_target_is_git_repo(
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
-    assert "Committed coga-os/ as" in result.output
+    assert "Committed coga/ as" in result.output
 
     log = subprocess.run(
         ["git", "-C", str(target), "log", "--oneline"],
         capture_output=True, text=True, check=True,
     )
-    assert "Create coga-os via `coga init`" in log.stdout
+    assert "Create coga via `coga init`" in log.stdout
 
     # Upstream-managed paths and machine-local files are gitignored — none should be tracked.
     tracked = subprocess.run(
-        ["git", "-C", str(target), "ls-files", "coga-os"],
+        ["git", "-C", str(target), "ls-files", "coga"],
         capture_output=True, text=True, check=True,
     ).stdout.splitlines()
-    assert any(p.startswith("coga-os/coga.toml") for p in tracked)
+    assert any(p.startswith("coga/coga.toml") for p in tracked)
     assert not any(".coga/" in p for p in tracked)
     assert not any(p.endswith("coga.local.toml") for p in tracked)
     assert not any("/bootstrap/" in p for p in tracked)
@@ -1567,7 +1567,7 @@ def test_init_fails_loud_when_target_is_not_git_repo(
     assert result.exit_code == 2
     assert "not a git repository" in result.output
     assert "git init" in result.output
-    assert not (target / "coga-os").exists()
+    assert not (target / "coga").exists()
 
 
 # --- skill discovery wiring ---------------------------------------------------
@@ -1582,12 +1582,12 @@ def test_init_links_skills_into_agent_dirs(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    skills_src = (target / "coga-os" / ".agent-skills").resolve()
+    skills_src = (target / "coga" / ".agent-skills").resolve()
     for dirname in (".claude", ".codex"):
         link = target / dirname / "skills" / "coga"
         assert link.is_symlink(), f"missing symlink for {dirname}"
         assert link.resolve() == skills_src
-    assert (target / "coga-os" / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
+    assert (target / "coga" / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
     assert "Wired skill discovery for Claude Code, Codex" in result.output
 
 
@@ -1612,7 +1612,7 @@ def test_init_skips_skill_link_when_agent_marker_is_a_file(
 
 def test_init_link_skills_is_idempotent(tmp_path: Path) -> None:
     target = tmp_path / "company"
-    coga_os = target / "coga-os"
+    coga_os = target / "coga"
     (coga_os / "skills").mkdir(parents=True)
 
     wired1, blocked1 = init_cmd._link_skills_for_agents(target, coga_os)
@@ -1627,7 +1627,7 @@ def test_init_link_skills_is_idempotent(tmp_path: Path) -> None:
 
 def test_agent_skill_view_includes_bootstrap_and_local_skills(tmp_path: Path) -> None:
     target = tmp_path / "company"
-    coga_os = target / "coga-os"
+    coga_os = target / "coga"
     (coga_os / "bootstrap" / "skills" / "eval" / "ticket-diagnostic").mkdir(
         parents=True
     )
@@ -1649,13 +1649,13 @@ def test_agent_skill_view_includes_bootstrap_and_local_skills(tmp_path: Path) ->
     assert (coga_os / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
     assert (coga_os / ".agent-skills" / "team" / "local").is_symlink()
     assert os.readlink(target / ".codex" / "skills" / "coga") == (
-        "../../coga-os/.agent-skills"
+        "../../coga/.agent-skills"
     )
 
 
 def test_agent_skill_view_prefers_local_skill_over_bootstrap(tmp_path: Path) -> None:
     target = tmp_path / "company"
-    coga_os = target / "coga-os"
+    coga_os = target / "coga"
     bundled = coga_os / "bootstrap" / "skills" / "tools" / "example"
     local = coga_os / "skills" / "tools" / "example"
     bundled.mkdir(parents=True)
@@ -1673,7 +1673,7 @@ def test_agent_skill_view_prefers_local_skill_over_bootstrap(tmp_path: Path) -> 
 def test_prune_obsolete_removes_old_bootstrap_exposure_symlinks_only(
     tmp_path: Path,
 ) -> None:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     (coga_os / "bootstrap" / "skills" / "eval").mkdir(parents=True)
     (coga_os / "skills").mkdir(parents=True)
     old_generated = coga_os / "skills" / "eval"
@@ -1692,16 +1692,16 @@ def test_prune_obsolete_removes_old_bootstrap_exposure_symlinks_only(
 
 def test_link_skills_for_agents_replaces_old_raw_skills_link(tmp_path: Path) -> None:
     target = tmp_path / "company"
-    coga_os = target / "coga-os"
+    coga_os = target / "coga"
     (coga_os / "skills" / "team" / "local").mkdir(parents=True)
     (coga_os / "skills" / "team" / "local" / "SKILL.md").write_text("local\n")
     old = target / ".claude" / "skills" / "coga"
     old.parent.mkdir(parents=True)
-    old.symlink_to("../../coga-os/skills")
+    old.symlink_to("../../coga/skills")
 
     init_cmd._link_skills_for_agents(target, coga_os)
 
-    assert os.readlink(old) == "../../coga-os/.agent-skills"
+    assert os.readlink(old) == "../../coga/.agent-skills"
 
 
 # --- agent-guide files (CLAUDE.md / AGENTS.md) -------------------------------
@@ -1722,7 +1722,7 @@ def test_init_writes_agent_guides(
         body = path.read_text()
         # Identical content for both — orientation that points at canonical contexts.
         assert body == init_cmd.AGENT_GUIDE_TEMPLATE
-        assert "coga-os/contexts/coga/" in body
+        assert "coga/contexts/coga/" in body
         assert "coga launch bootstrap/orient" in body
 
     assert "Wrote CLAUDE.md, AGENTS.md" in result.output
@@ -1811,7 +1811,7 @@ def test_init_writes_pin_file(
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 0, result.output
 
-    pin = target / "coga-os" / ".coga" / "COGA_PIN"
+    pin = target / "coga" / ".coga" / "COGA_PIN"
     assert pin.is_file()
     lines = pin.read_text().splitlines()
     assert lines[0] == update_cmd.COGA_REPO_URL
@@ -1821,7 +1821,7 @@ def test_init_writes_pin_file(
 
 def test_version_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """`coga --version` prints the package version and (when present) the pin."""
-    # chdir somewhere with no coga-os/ so `find_repo_root` returns nothing.
+    # chdir somewhere with no coga/ so `find_repo_root` returns nothing.
     monkeypatch.chdir(tmp_path)
     result = CliRunner().invoke(app, ["--version"])
     assert result.exit_code == 0, result.output
@@ -1832,7 +1832,7 @@ def test_version_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_version_flag_includes_pin_when_in_repo(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     (coga_os / ".coga").mkdir(parents=True)
     (coga_os / "coga.toml").write_text("version = 1\n")
     (coga_os / ".coga" / "COGA_PIN").write_text(
@@ -1868,7 +1868,7 @@ def test_init_writes_host_gitignore_block_in_git_repo(
     assert ".claude/skills/coga" in host_gi
     assert ".codex/skills/coga" in host_gi
 
-    # Block was committed alongside coga-os/ in the init commit.
+    # Block was committed alongside coga/ in the init commit.
     tracked = subprocess.run(
         ["git", "-C", str(target), "ls-files"],
         capture_output=True, text=True, check=True,
@@ -1995,7 +1995,7 @@ def test_refresh_coga_gitignore_is_idempotent(tmp_path: Path) -> None:
     src_root = tmp_path / "upstream"
     src_root.mkdir()
     (src_root / ".gitignore").write_text("bootstrap/\n.coga/\n")
-    dst_root = tmp_path / "coga-os"
+    dst_root = tmp_path / "coga"
     dst_root.mkdir()
 
     assert update_cmd._refresh_coga_gitignore(src_root, dst_root) is True
@@ -2009,7 +2009,7 @@ def test_refresh_coga_gitignore_replaces_existing_block(tmp_path: Path) -> None:
     src_root = tmp_path / "upstream"
     src_root.mkdir()
     (src_root / ".gitignore").write_text("bootstrap/\n.coga/\nnew-entry/\n")
-    dst_root = tmp_path / "coga-os"
+    dst_root = tmp_path / "coga"
     dst_root.mkdir()
     # Existing file: stale marker block + user-area content.
     (dst_root / ".gitignore").write_text(
@@ -2065,7 +2065,7 @@ def test_install_venv_recreates_on_python_version_mismatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A venv built against a different Python X.Y gets blown away and rebuilt."""
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     dst_coga = coga_os / ".coga"
     dst_coga.mkdir(parents=True)
     (dst_coga / "pyproject.toml").write_text("[project]\nname = 'coga'\n")
@@ -2112,7 +2112,7 @@ def test_install_venv_keeps_matching_venv(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A venv that already matches the running Python isn't recreated."""
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     dst_coga = coga_os / ".coga"
     dst_coga.mkdir(parents=True)
     (dst_coga / "pyproject.toml").write_text("[project]\nname = 'coga'\n")
@@ -2161,7 +2161,7 @@ def _stub_executable_in(venv: Path) -> Path:
 def test_running_cli_location_detects_vendored(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     venv = coga_os / ".coga" / ".venv"
     py = _stub_executable_in(venv)
     monkeypatch.setattr(update_cmd.sys, "executable", str(py))
@@ -2174,7 +2174,7 @@ def test_running_cli_location_detects_vendored(
 def test_running_cli_location_detects_pipx(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    coga_os = tmp_path / "project" / "coga-os"
+    coga_os = tmp_path / "project" / "coga"
     coga_os.mkdir(parents=True)
     pipx_venv = tmp_path / "home" / ".local" / "share" / "pipx" / "venvs" / "coga"
     py = _stub_executable_in(pipx_venv)
@@ -2189,7 +2189,7 @@ def test_running_cli_location_detects_pipx(
 def test_running_cli_location_falls_through_to_other(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    coga_os = tmp_path / "project" / "coga-os"
+    coga_os = tmp_path / "project" / "coga"
     coga_os.mkdir(parents=True)
     other_venv = tmp_path / "some-other-venv"
     py = _stub_executable_in(other_venv)
@@ -2210,7 +2210,7 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
     the host Python's framework dir, which doesn't have `pipx_metadata.json`.
     Detection must work off the unresolved venv path.
     """
-    coga_os = tmp_path / "project" / "coga-os"
+    coga_os = tmp_path / "project" / "coga"
     coga_os.mkdir(parents=True)
 
     # Mimic Homebrew's framework Python at a totally unrelated path.
@@ -2394,10 +2394,10 @@ def test_discover_coga_repos_finds_nested_and_skips_non_repos(tmp_path: Path) ->
     """Discovery finds real coga repos at any depth and ignores look-alikes."""
     repo_a = _seed_local_coga_os(tmp_path / "alpha")
     repo_b = _seed_local_coga_os(tmp_path / "nested" / "beta")
-    # A directory literally named `coga-os` but with no coga.toml: not a repo.
-    (tmp_path / "decoy" / "coga-os").mkdir(parents=True)
+    # A directory literally named `coga` but with no coga.toml: not a repo.
+    (tmp_path / "decoy" / "coga").mkdir(parents=True)
     # A coga repo buried in a skipped noise dir is never descended into.
-    buried = tmp_path / "alpha" / "node_modules" / "pkg" / "coga-os"
+    buried = tmp_path / "alpha" / "node_modules" / "pkg" / "coga"
     buried.mkdir(parents=True)
     (buried / "coga.toml").write_text("version = 1\n")
 
@@ -2407,20 +2407,20 @@ def test_discover_coga_repos_finds_nested_and_skips_non_repos(tmp_path: Path) ->
 
 
 def test_discover_coga_repos_does_not_descend_into_found_repo(tmp_path: Path) -> None:
-    """A coga-os nested inside a real coga repo is part of that repo, not a sibling.
+    """A coga nested inside a real coga repo is part of that repo, not a sibling.
 
     Catches the case where scanning ~/Code surfaces the Coga source repo's own
-    fixture (`example/coga-os/`) and packaged template
-    (`src/coga/resources/templates/coga-os/`) as if they were standalone repos.
+    fixture (`example/coga/`) and packaged template
+    (`src/coga/resources/templates/coga/`) as if they were standalone repos.
     """
     repo = _seed_local_coga_os(tmp_path / "coga")
     # Fixture seeded under the repo — looks like a coga repo (has coga.toml)
     # but is part of the parent repo's source tree.
-    fixture = tmp_path / "coga" / "example" / "coga-os"
+    fixture = tmp_path / "coga" / "example" / "coga"
     fixture.mkdir(parents=True)
     (fixture / "coga.toml").write_text("version = 1\n")
     # Packaged template at a deeper path under the same parent repo.
-    template = tmp_path / "coga" / "src" / "coga" / "resources" / "templates" / "coga-os"
+    template = tmp_path / "coga" / "src" / "coga" / "resources" / "templates" / "coga"
     template.mkdir(parents=True)
     (template / "coga.toml").write_text("version = 1\n")
 
@@ -2592,4 +2592,4 @@ def test_init_bails_before_scaffolding_when_required_dep_missing(
 
     assert result.exit_code == 2
     assert "gh" in result.output
-    assert not (target / "coga-os").exists()  # bailed before scaffolding
+    assert not (target / "coga").exists()  # bailed before scaffolding

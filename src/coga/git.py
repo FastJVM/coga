@@ -96,7 +96,7 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
     completes (the on-disk markdown is the source of truth; the push just
     didn't land). See the module docstring's failure model.
 
-    `task_path` is the resolved task directory under `coga-os/tasks/`; only
+    `task_path` is the resolved task directory under `coga/tasks/`; only
     files under it are staged, never `git add -A`, so unrelated working-tree
     changes are not swept in.
     """
@@ -192,7 +192,7 @@ def sync_paths(
         rels = [_relative_to_root(root, path) for path in selected]
         branch = _current_branch(root)
 
-        # The repo-global `coga-os/log.md` is `merge=union`, so it must NOT
+        # The repo-global `coga/log.md` is `merge=union`, so it must NOT
         # ride the cross-branch overlay — an overlay replaces the file wholesale
         # on the control tip, dropping log lines another branch appended
         # concurrently. Instead it is folded into the *local* commit only and
@@ -655,7 +655,7 @@ def _toplevel(start: Path) -> Path | None:
 
     Uses `git rev-parse --show-toplevel` so worktrees and nested checkouts
     resolve correctly — unlike `cfg.repo_root`, which walks for `coga.toml`
-    and may itself be `coga-os/`, not the git root.
+    and may itself be `coga/`, not the git root.
 
     `git -C` needs a directory, but the anchor may now be a file-form task's
     `tasks/<slug>.md` file; resolve to its parent directory first.

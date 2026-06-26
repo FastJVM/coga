@@ -25,7 +25,7 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
     company.mkdir()
 
     _write(

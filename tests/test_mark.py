@@ -21,7 +21,7 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
     _write(
         company / "coga.toml",
         """
@@ -64,7 +64,7 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "draf
 
 
 def _read_log(repo: Path) -> str:
-    """The repo-global audit log (`coga-os/log.md`)."""
+    """The repo-global audit log (`coga/log.md`)."""
     return (repo / "log.md").read_text()
 
 

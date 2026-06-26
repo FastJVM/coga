@@ -21,7 +21,7 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     coga_os.mkdir()
     _write(
         coga_os / "coga.toml",
@@ -209,7 +209,7 @@ def test_retire_launches_after_create(
     assert "(active)" in result.output
     assert "Retire: launching retire-fix-retry-logic" in result.output
     assert "fake launch called" in result.output
-    # The audit log is the repo-global `coga-os/log.md` now; filter it to the
+    # The audit log is the repo-global `coga/log.md` now; filter it to the
     # retire task's ref instead of reading a per-task log.md (which is gone).
     from coga.config import load_config
     from coga.logfile import task_log_lines

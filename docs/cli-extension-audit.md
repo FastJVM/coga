@@ -9,7 +9,7 @@ consume — so its classification has to be right, not assumed.
 verb-by-verb *evidence* — design/audit rationale for the cli-extension-model work,
 not a rule an agent follows at launch. The durable *rule* it produced — the
 three-homes extension model — lives as the `coga/extension-model` context
-(`coga-os/contexts/coga/extension-model/SKILL.md`), authored project-local
+(`coga/contexts/coga/extension-model/SKILL.md`), authored project-local
 (sibling to `coga/architecture`/`coga/codebase`), so no bundled-battery
 dual-copy sync is incurred. The split mirrors `docs/vision.md` (rationale) vs
 `coga/principles` (contract). The operator command reference stays where it is,
@@ -31,8 +31,8 @@ the `coga/cli` *context*. Read this for the worked classification; read
    `cli.py:74-93`. These hold real pre/post logic.
 
 3. **Bootstrap launch tickets / recurring launches** — tickets at
-   `coga-os/bootstrap/<name>/ticket.md` (stateless launch targets) and templates at
-   `coga-os/recurring/<name>/` launched via `recurring launch <name>`. These
+   `coga/bootstrap/<name>/ticket.md` (stateless launch targets) and templates at
+   `coga/recurring/<name>/` launched via `recurring launch <name>`. These
    are the only place pure passthroughs actually live.
 
 ## The rule
@@ -61,7 +61,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 
 | Verb | Mechanism | Alias-able? | Why |
 |------|-----------|-------------|-----|
-| `init` | built-in | No | Scaffolds/refreshes `coga-os/`, clones upstream, installs venv deps. Heavy side effects. |
+| `init` | built-in | No | Scaffolds/refreshes `coga/`, clones upstream, installs venv deps. Heavy side effects. |
 | `create` / `draft` | built-in | No | Scaffolds a `draft` ticket dir + posts `✨` to Slack + post-write validate. |
 | `ticket` | built-in | No | **Canonical proof.** Drafts-on-fly, validates after agent exits, git-syncs, TTY guard. |
 | `project` | built-in | No | Interview → scaffold many drafts → post-validate; TTY guard. |
@@ -84,7 +84,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 **No CLI verb is an alias-able pure passthrough.** Each is its own
 implementation, not a fixed rewrite to another command.
 
-### Bootstrap launch tickets (`coga-os/bootstrap/<name>/ticket.md`)
+### Bootstrap launch tickets (`coga/bootstrap/<name>/ticket.md`)
 
 | Bootstrap ticket | Mechanism today | Alias-able? | Why |
 |------|-----------------|-------------|-----|
@@ -236,8 +236,8 @@ the audit's path to it.
 - Command registration: `src/coga/cli.py:74-93`.
 - `coga ticket` promotion rationale: `src/coga/commands/ticket.py`.
 - digest consumer: `src/coga/commands/digest.py`.
-- autoclose sweep + module: `coga-os/workflows/autoclose-merged/sweep.md`,
+- autoclose sweep + module: `coga/workflows/autoclose-merged/sweep.md`,
   `coga.autoclose.sweep_merged`.
-- Bootstrap tickets: `coga-os/bootstrap/{orient,project,ticket}/ticket.md`.
-- Recurring templates: `coga-os/recurring/{autoclose-merged,digest,dream,skill-update}/`.
+- Bootstrap tickets: `coga/bootstrap/{orient,project,ticket}/ticket.md`.
+- Recurring templates: `coga/recurring/{autoclose-merged,digest,dream,skill-update}/`.
 - Alias test coverage (not `coga validate`): `tests/test_aliases.py`.

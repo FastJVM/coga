@@ -1,7 +1,7 @@
 """`coga uninstall` — the symmetric inverse of `coga init`.
 
 `coga init` writes a self-contained coga footprint into a host repo: the
-`coga-os/` tree (with its own vendored venv), agent skill symlinks, root-level
+`coga/` tree (with its own vendored venv), agent skill symlinks, root-level
 `CLAUDE.md`/`AGENTS.md` orientation guides, a coga-managed `.gitignore` block,
 a `~/.local/bin/coga` shim, and the global `coga` pip/pipx package.
 `coga uninstall` removes that footprint so trying Coga is a reversible
@@ -89,13 +89,13 @@ def uninstall(
     except ConfigError as exc:
         _bail(str(exc))
 
-    # `find_repo_root` returns either a `coga-os/` dir or a repo root that has a
+    # `find_repo_root` returns either a `coga/` dir or a repo root that has a
     # `coga.toml` directly. Uninstall only knows how to undo the standard
-    # init layout (a `coga-os/` subdir); refuse anything else loudly.
-    if coga_os.name != "coga-os":
+    # init layout (a `coga/` subdir); refuse anything else loudly.
+    if coga_os.name != "coga":
         _bail(
             f"{coga_os} doesn't look like a `coga init` layout (expected a "
-            "`coga-os/` directory). Refusing to guess what to remove."
+            "`coga/` directory). Refusing to guess what to remove."
         )
     target = coga_os.parent
 
@@ -181,7 +181,7 @@ def _print_plan(target: Path, coga_os: Path, plan: _Plan, purge: bool) -> None:
         if kind == "vendored":
             typer.echo(
                 "  - (--purge) the running `coga` is this repo's vendored copy, "
-                "removed with coga-os/ — nothing else to uninstall"
+                "removed with coga/ — nothing else to uninstall"
             )
         else:
             typer.echo(f"  - (--purge) uninstall the global `{COGA_PIPX_PACKAGE}` package")

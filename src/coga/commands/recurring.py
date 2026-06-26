@@ -84,7 +84,7 @@ def main(
     """Scan every recurring template and launch any due tasks, sequentially.
 
     Bare `coga recurring` is the default action. For each template under
-    `coga-os/recurring/` it get-or-creates the current period's task, then
+    `coga/recurring/` it get-or-creates the current period's task, then
     launches every one still `active` or orphaned `in_progress` —
     most-overdue first, one at a time. A period task left `in_progress` by a
     sweep whose supervisor died mid-run (laptop sleep, SSH drop) is **resumed**
@@ -173,7 +173,7 @@ def main(
 def launch(
     name: str = typer.Argument(
         ...,
-        help="Recurring task name — the directory under coga-os/recurring/.",
+        help="Recurring task name — the directory under coga/recurring/.",
     ),
     interactive: bool = typer.Option(
         False,
@@ -386,7 +386,7 @@ def _sync_recurring_create(
     # Single-file format: the template's working state (the `last_serviced_period`
     # high-water line) lives in the blackboard region of its `ticket.md`. There is
     # no per-template `log.md` to merge anymore — period history is appended to the
-    # repo-global, union-merged `coga-os/log.md` (by `_record_run`), which never
+    # repo-global, union-merged `coga/log.md` (by `_record_run`), which never
     # rides the cross-branch overlay. So the only cross-branch state this sync
     # reconciles is the template ticket.md's high-water mark.
     template_ticket = template_dir / "ticket.md"
@@ -453,7 +453,7 @@ def _sync_recurring_create_paths(
     """Sync create paths while merging the template ticket's high-water mark.
 
     The cross-branch overlay carries the period task dir and the template
-    `ticket.md` (`rels`). The repo-global `coga-os/log.md` is union-merged and
+    `ticket.md` (`rels`). The repo-global `coga/log.md` is union-merged and
     rides only the *local* commit (`_local_commit_rels`), never the overlay —
     mirroring `coga.git.sync_paths`.
     """
@@ -631,7 +631,7 @@ def _sync_recurring_create_paths(
 def _local_commit_rels(cfg: Config, root: Path, rels: list[str]) -> list[str]:
     """The overlay `rels` plus the repo-global log for the *local* commit only.
 
-    The global `coga-os/log.md` is `merge=union`, so it must never ride the
+    The global `coga/log.md` is `merge=union`, so it must never ride the
     cross-branch overlay (which replaces files wholesale). It is committed
     locally and reaches control via the same-branch push / PR merge.
     """
@@ -643,7 +643,7 @@ def _local_commit_rels(cfg: Config, root: Path, rels: list[str]) -> list[str]:
 
 
 def _commit_global_log(cfg: Config, root: Path, message: str) -> None:
-    """Commit only the repo-global `coga-os/log.md`, if it has changes.
+    """Commit only the repo-global `coga/log.md`, if it has changes.
 
     The union-merge global log rides the *local* commit and never the
     cross-branch overlay, so every control-branch return path that may have left
@@ -809,7 +809,7 @@ def _sync_recurring_create_on_checked_out_control_branch(
     _rebase_checked_out_branch_onto(root, landed)
     # The overlay already landed (and the rebase pulled in) the task dir +
     # template ticket; the only thing still uncommitted is the repo-global
-    # `coga-os/log.md` (union-merge, excluded from the overlay, appended by
+    # `coga/log.md` (union-merge, excluded from the overlay, appended by
     # `_record_run`). Commit just that file so origin and the local control
     # branch reflect the history line and the tree is left clean.
     _commit_global_log(cfg, root, message)

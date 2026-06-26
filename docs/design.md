@@ -40,8 +40,8 @@ Deduplicated silently, order preserved (first occurrence wins). If any context r
 writes the raw default frontmatter.
 
 The judgment about *which* workflow / contexts / assignee fit is in the
-`bootstrap/ticket` skill (`coga-os/bootstrap/skills/bootstrap/ticket/SKILL.md`,
-unless shadowed by a local skill under `coga-os/skills/`). A
+`bootstrap/ticket` skill (`coga/bootstrap/skills/bootstrap/ticket/SKILL.md`,
+unless shadowed by a local skill under `coga/skills/`). A
 human invokes that skill through `coga ticket`: with no argument it asks for
 a title, with a title it drafts then edits, and with an existing slug it edits
 that ticket in place at any lifecycle status. Editing leaves the status
@@ -65,7 +65,7 @@ Confirmed: skills are **not** composed into the prompt at creation. They are loa
 
 Mechanism: naming convention on created tasks, not `last_run` in the template.
 
-1. Walk `coga-os/recurring/<name>/ticket.md` template directories. Bare
+1. Walk `coga/recurring/<name>/ticket.md` template directories. Bare
    `recurring/<name>.md` files are a legacy shape and the scanner errors
    on them.
 2. For each template, parse the cron-style `schedule` field (5 fields).
@@ -84,10 +84,10 @@ Mechanism: naming convention on created tasks, not `last_run` in the template.
    from its current step) and do **not** create a duplicate.
 6. Only when none is live, consider the current period: if
    `last_serviced_period >= current period_key` in the blackboard region of
-   `coga-os/recurring/<name>/ticket.md` and the task dir is gone, it's
+   `coga/recurring/<name>/ticket.md` and the task dir is gone, it's
    handled — skip. Otherwise create it using the template's frontmatter (mode,
    workflow, assignee, owner, contexts, description), write the high-water
-   mark, and append human-readable history to the repo-global `coga-os/log.md`
+   mark, and append human-readable history to the repo-global `coga/log.md`
    (tagged `recurring/<name>`).
 
 This is idempotent — running `coga recurring` twice inside the same period is a no-op.
@@ -118,5 +118,5 @@ We tried a `task.lock` file-existence mutex first. It cost a module of acquisiti
 ## Scope notes for the POC build
 
 - Full Slack integration: webhook POST is implemented; offline/test mode falls back to stdout when no webhook is configured.
-- `bootstrap/ticket` ships with SKILL.md content and templates, while Dream is a recurring task template (`coga-os/recurring/dream/`) whose body scans tickets and runs fixed housekeeping skills; `coga dream` is an alias that creates and launches it on demand. REM is the opt-in repo/user-specific recurring-maintenance template. Their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
+- `bootstrap/ticket` ships with SKILL.md content and templates, while Dream is a recurring task template (`coga/recurring/dream/`) whose body scans tickets and runs fixed housekeeping skills; `coga dream` is an alias that creates and launches it on demand. REM is the opt-in repo/user-specific recurring-maintenance template. Their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
 - `status` starts scoped to "one project per invocation"; cross-project scan lands in M3 if trivial, otherwise deferred.

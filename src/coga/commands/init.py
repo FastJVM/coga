@@ -1,6 +1,6 @@
 """`coga init` — create a new coga repo, or refresh an existing one.
 
-Default mode (`coga init`) writes everything from scratch into `<path>/coga-os/`
+Default mode (`coga init`) writes everything from scratch into `<path>/coga/`
 and refuses to overwrite if it already exists. Templates come from the installed
 coga package; `--update` mode refreshes the vendored CLI in `.coga/` plus
 package-owned template creates, leaving user-edited config (`coga.toml`,
@@ -111,7 +111,7 @@ def _require_user_name(user: str | None) -> str:
             "user.name / OS username). This is the name tickets you create are "
             "owned by and attributed to; set a different one with "
             "`coga init --user NAME` (e.g. `coga init --user marc`), or edit "
-            "`user` in coga-os/coga.local.toml.",
+            "`user` in coga/coga.local.toml.",
             fg=typer.colors.YELLOW,
             err=True,
         )
@@ -142,7 +142,7 @@ def render_local_toml(name: str) -> str:
 # itself creates. Anything else present before init runs marks the repo as
 # already-filled (a real project), which suppresses onboarding-ticket seeding.
 _INIT_IGNORE: frozenset[str] = frozenset(
-    {".git", ".DS_Store", "coga-os", "CLAUDE.md", "AGENTS.md", ".claude", ".codex", ".gitignore"}
+    {".git", ".DS_Store", "coga", "CLAUDE.md", "AGENTS.md", ".claude", ".codex", ".gitignore"}
 )
 
 
@@ -238,7 +238,7 @@ AGENT_GUIDE_TEMPLATE = """\
 
 This repo uses [coga](https://github.com/FastJVM/relay) to coordinate shared
 task and context state between humans and agents. Everything coordinated lives
-under `coga-os/`.
+under `coga/`.
 
 ## Start here
 
@@ -263,7 +263,7 @@ workflow step are loaded too.
 
 ## Mental model
 
-The canonical contexts live in `coga-os/contexts/coga/` — read in order:
+The canonical contexts live in `coga/contexts/coga/` — read in order:
 
 - `principles/SKILL.md` — non-negotiables (markdown-first, fail-loud, classical mode)
 - `architecture/SKILL.md` — primitives, planes, prompt composition, locking
@@ -276,7 +276,7 @@ disagree with anything else in the repo, they win.
 
 - Don't hand-edit `status` / `step` / `workflow` in ticket frontmatter — the
   CLI manages them. Use `coga bump` / `coga panic` instead.
-- Don't write to the repo-global `coga-os/log.md` — also CLI-managed.
+- Don't write to the repo-global `coga/log.md` — also CLI-managed.
   Working notes go in the blackboard region of `ticket.md`.
 - Don't commit secrets. Use `coga.local.toml` (gitignored) for machine-local
   values, and `env:VAR_NAME` references in `coga.toml` for shared ones.
@@ -332,7 +332,7 @@ def init(
     update: bool = typer.Option(
         False,
         "--update",
-        help="Refresh vendored CLI + package templates in the current coga-os/. Leaves user config alone.",
+        help="Refresh vendored CLI + package templates in the current coga/. Leaves user config alone.",
     ),
     all_repos: bool = typer.Option(
         False,
@@ -340,7 +340,7 @@ def init(
         help="With --update: refresh every coga repo found under PATH, not just the current one.",
     ),
 ) -> None:
-    """Create `coga-os/` from package templates, or refresh it with --update."""
+    """Create `coga/` from package templates, or refresh it with --update."""
     _check_external_dependencies()
     if all_repos and not update:
         typer.secho(
@@ -369,7 +369,7 @@ def init(
 
 def _do_init(path: Path, *, user: str | None = None) -> None:
     target = path.resolve()
-    coga_os = target / "coga-os"
+    coga_os = target / "coga"
 
     if coga_os.exists():
         typer.secho(
@@ -387,16 +387,16 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # invocation leaves nothing on disk.
     name = _require_user_name(user)
 
-    # Coga is git-backed: `coga init` commits coga-os/ into the host repo.
+    # Coga is git-backed: `coga init` commits coga/ into the host repo.
     # If the target isn't a git repo, fail loud (principle 6) instead of writing
-    # coga-os/ and silently skipping the commit further down. We don't run
+    # coga/ and silently skipping the commit further down. We don't run
     # `git init` ourselves — the user does, which keeps branch naming in their
     # hands. Checked here, before any writes, so a bad invocation leaves nothing
     # behind and we fail before the slow clone/venv.
     if not _is_git_repo(target):
         typer.secho(
             f"{target} is not a git repository — coga is git-backed and "
-            f"`coga init` commits coga-os/ into your repo.\n"
+            f"`coga init` commits coga/ into your repo.\n"
             f"Run `git init` in {target} first, then re-run `coga init`.",
             fg=typer.colors.RED,
             err=True,
@@ -405,9 +405,9 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
 
     target.mkdir(parents=True, exist_ok=True)
 
-    # Init is atomic. The check above guarantees coga-os/ did not exist before
+    # Init is atomic. The check above guarantees coga/ did not exist before
     # this run, so if any step below fails — clone, template copy, venv build, a
-    # Ctrl-C, even a sys.exit — we remove the half-built coga-os/ and re-raise.
+    # Ctrl-C, even a sys.exit — we remove the half-built coga/ and re-raise.
     # A partial init must never survive: it is the dead end where `coga init`
     # refuses ("already exists — use --update") while `coga init --update` then
     # chokes on the broken venv / missing user (the re-init wedge).
@@ -450,7 +450,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             target, coga_os, host_gitignore_changed, written_guides
         )
     except BaseException:
-        # Roll back the partial coga-os/ this run created (only this run — a
+        # Roll back the partial coga/ this run created (only this run — a
         # pre-existing one is refused far above and never reaches here), then
         # re-raise so the original error / exit code / Ctrl-C is preserved.
         if coga_os.exists():
@@ -492,7 +492,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             f"Wrote {', '.join(written_guides)} (agent orientation — Claude Code / Codex)."
         )
     if commit_sha is not None:
-        typer.echo(f"Committed coga-os/ as {commit_sha[:12]} (push when ready).")
+        typer.echo(f"Committed coga/ as {commit_sha[:12]} (push when ready).")
 
     # Whether the user already has a working `coga` they can run as-is.
     # `shutil.which` honors the executable bit, so a stale non-executable
@@ -721,7 +721,7 @@ def _print_update_result(coga_os: Path, result: _UpdateResult) -> None:
 
 
 # Directories the `--all` scan never descends into: noise trees that can't
-# hold a coga repo we care about. A found `coga-os/` is pruned separately
+# hold a coga repo we care about. A found `coga/` is pruned separately
 # (a coga repo never nests another inside one).
 _SCAN_SKIP_DIRS: frozenset[str] = frozenset(
     {".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".mypy_cache"}
@@ -729,26 +729,30 @@ _SCAN_SKIP_DIRS: frozenset[str] = frozenset(
 
 
 def _discover_coga_repos(root: Path) -> list[Path]:
-    """Return every coga repo's `coga-os/` dir at or below `root`.
+    """Return every coga repo's `coga/` dir at or below `root`.
 
-    A coga repo is identified by a `coga-os/` directory holding a
+    A coga repo is identified by a `coga/` directory holding a
     `coga.toml`. The walk skips `_SCAN_SKIP_DIRS`. Once a coga repo is
     found, the walker stops descending into the repo's subtree — a coga
     repo is a unit, so nested fixtures and packaged templates under it
-    (e.g. `example/coga-os/`, `src/coga/resources/templates/coga-os/`
+    (e.g. `example/coga/`, `src/coga/resources/templates/coga/`
     in the Coga source checkout itself) are not surfaced as separate
     repos. Results are sorted for deterministic output.
+
+    A `coga/` dir *without* a `coga.toml` is not pruned: it may be a host
+    repo that merely happens to be named `coga` (e.g. the Coga source repo
+    cloned as `coga/`, whose workspace sits one level deeper at
+    `coga/coga/`). Descend so that deeper workspace is still found.
     """
     found: list[Path] = []
     for dirpath, dirnames, _ in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in _SCAN_SKIP_DIRS]
-        if "coga-os" in dirnames:
-            coga_os = Path(dirpath) / "coga-os"
+        if "coga" in dirnames:
+            coga_os = Path(dirpath) / "coga"
             if (coga_os / "coga.toml").is_file():
                 found.append(coga_os)
                 dirnames[:] = []
                 continue
-            dirnames.remove("coga-os")
     return sorted(found)
 
 
@@ -778,7 +782,7 @@ def _do_update_all(scan_root: Path) -> None:
     if not repos:
         typer.secho(
             f"No coga repos found under {root} "
-            f"(looked for coga-os/ directories with a coga.toml).",
+            f"(looked for coga/ directories with a coga.toml).",
             fg=typer.colors.YELLOW,
             err=True,
         )
@@ -891,7 +895,7 @@ def _print_global_cli_status(
 # Agents we wire skill discovery for. Each entry is the project-level dir
 # that the agent's CLI scans for skills (e.g. Claude Code reads `.claude/skills/`,
 # Codex reads `.codex/skills/`). We symlink `<agent>/skills/coga` ->
-# `coga-os/.agent-skills`, a generated merged view of local skills plus
+# `coga/.agent-skills`, a generated merged view of local skills plus
 # bundled bootstrap batteries. Other agents (OpenCode etc.) need manual wiring.
 _AGENT_SKILL_DIRS: tuple[tuple[str, str], ...] = (
     ("Claude Code", ".claude"),
@@ -905,7 +909,7 @@ def _link_skills_for_agents(
     """Symlink the generated Coga skill view into known agent skill paths.
 
     Creates `<target>/<agent-dir>/skills/coga` ->
-    `<target>/coga-os/.agent-skills` for Claude Code and Codex. Idempotent:
+    `<target>/coga/.agent-skills` for Claude Code and Codex. Idempotent:
     refreshes the generated view and leaves a correct link alone,
     if the agent dir is something we shouldn't touch (e.g. a non-directory
     marker file), or if the OS doesn't support symlinks.
@@ -1012,7 +1016,7 @@ def _git_commit_coga_os(
     include_host_gitignore: bool,
     extra_host_paths: list[str] | None = None,
 ) -> str | None:
-    """If `target` is a git repo, stage coga-os/ (+ host .gitignore + extras) and commit.
+    """If `target` is a git repo, stage coga/ (+ host .gitignore + extras) and commit.
 
     Returns the new commit SHA on success, None if we skipped (not a git repo,
     nothing to stage, or git invocation failed). Never raises.
@@ -1020,7 +1024,7 @@ def _git_commit_coga_os(
     if not _is_git_repo(target):
         return None
     try:
-        paths = ["coga-os"]
+        paths = ["coga"]
         if include_host_gitignore and (target / ".gitignore").is_file():
             paths.append(".gitignore")
         for extra in extra_host_paths or []:
@@ -1040,7 +1044,7 @@ def _git_commit_coga_os(
         if diff.returncode == 0:
             return None
         subprocess.run(
-            ["git", "-C", str(target), "commit", "-m", "Create coga-os via `coga init`"],
+            ["git", "-C", str(target), "commit", "-m", "Create coga via `coga init`"],
             check=True,
             capture_output=True,
             text=True,

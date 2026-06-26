@@ -181,7 +181,7 @@ def test_parse_codex_rollout_ignores_matches_outside_launch_window(
 
 
 def test_append_and_load_records_from_usage_section(tmp_path: Path) -> None:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     blackboard = coga_os / "tasks" / "work" / "blackboard.md"
     _write(blackboard, "Notes before usage\n")
     record = UsageRecord(
@@ -268,7 +268,7 @@ def test_rollup_filters_and_groups_records() -> None:
 
 
 def test_usage_command_outputs_json(tmp_path: Path, monkeypatch) -> None:
-    coga_os = tmp_path / "coga-os"
+    coga_os = tmp_path / "coga"
     _write(
         coga_os / "coga.toml",
         """

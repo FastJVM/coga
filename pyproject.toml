@@ -70,7 +70,7 @@ exclude = [
   "**/.coga/**",
   "**/.venv/**",
   "**/__pycache__/**",
-  "**/coga-os/bootstrap/**",
+  "**/coga/bootstrap/**",
   # Paired with the `skills/_template` force-include below, exactly like
   # `bootstrap/`. On a clean checkout (no `coga init` symlinks under the
   # templates tree) the `packages` walk DOES grab `_template/SKILL.md`, which
@@ -79,13 +79,13 @@ exclude = [
   # The symlink views in a dev tree only dedup that collision away by accident,
   # so we exclude the leaf from the walk and let the force-include be its single
   # deterministic shipper — matching the bootstrap exclude+force-include pairing.
-  "**/coga-os/skills/_template/**",
+  "**/coga/skills/_template/**",
 ]
 
 [tool.hatch.build.targets.wheel.force-include]
-"src/coga/resources/templates/coga-os/bootstrap" = "coga/resources/templates/coga-os/bootstrap"
+"src/coga/resources/templates/coga/bootstrap" = "coga/resources/templates/coga/bootstrap"
 # `skills/_template` is the same pure-data drop (a setup stub `coga init
 # --update` refreshes); force-include it too. Scoped to the leaf so hatchling's
 # walk never reaches the `.agent-skills`/`.claude`/`.codex` symlink views (which,
 # when traversed, resolve to the real skill dirs and dedup them away).
-"src/coga/resources/templates/coga-os/skills/_template" = "coga/resources/templates/coga-os/skills/_template"
+"src/coga/resources/templates/coga/skills/_template" = "coga/resources/templates/coga/skills/_template"

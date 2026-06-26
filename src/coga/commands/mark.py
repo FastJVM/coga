@@ -67,7 +67,7 @@ def active(
             f"Cannot activate {ref.id_slug}: ticket has no workflow. A "
             "workflow-less ticket has no steps and can't be advanced via "
             "`coga bump`. Set `workflow: <name>` in `ticket.md` (see "
-            f"coga-os/workflows/) or run `coga ticket {ref.id_slug}` to "
+            f"coga/workflows/) or run `coga ticket {ref.id_slug}` to "
             "fill it in, then retry."
         )
     except WorkflowError as exc:

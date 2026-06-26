@@ -1,4 +1,4 @@
-"""`coga skill` — manage project-local Coga skills under coga-os/skills."""
+"""`coga skill` — manage project-local Coga skills under coga/skills."""
 
 from __future__ import annotations
 

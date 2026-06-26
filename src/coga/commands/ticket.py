@@ -242,7 +242,7 @@ def _validate_authored_task(cfg: Config, ref: TaskRef) -> None:
             f"Ticket authoring left {ref.id_slug} with no workflow. "
             "Every ticket needs one to be activated — relaunch "
             f"`coga ticket {ref.id_slug}` and pick a workflow "
-            "(see coga-os/workflows/).",
+            "(see coga/workflows/).",
             fg=typer.colors.RED,
             err=True,
         )

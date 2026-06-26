@@ -63,7 +63,7 @@ def _write_workflow_less_task(
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
 
     _write(
         company / "coga.toml",
@@ -125,7 +125,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
 
     # Header
     assert "Coga task — fix-retry-logic" in prompt
-    assert "Task directory: coga-os/tasks/fix-retry-logic" in prompt
+    assert "Task directory: coga/tasks/fix-retry-logic" in prompt
     # Base prompt
     assert "You are an agent working on a ticket inside Coga" in prompt
     # Interactive prompt
@@ -155,7 +155,7 @@ def test_compose_header_uses_resolved_nested_task_directory(repo: Path) -> None:
 
     # A nested task is identified by its path under `tasks/`.
     assert "Coga task — auto/fix-retry-logic" in prompt
-    assert "Task directory: coga-os/tasks/auto/fix-retry-logic" in prompt
+    assert "Task directory: coga/tasks/auto/fix-retry-logic" in prompt
 
 
 def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:

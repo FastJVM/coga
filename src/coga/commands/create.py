@@ -32,7 +32,7 @@ def create(
         None,
         "--workflow",
         help=(
-            "Workflow name (path under coga-os/workflows/) to attach. "
+            "Workflow name (path under coga/workflows/) to attach. "
             "Optional, but a workflow-less draft can't be activated until "
             "one is added."
         ),

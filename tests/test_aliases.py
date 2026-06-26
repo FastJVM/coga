@@ -19,7 +19,7 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
     company.mkdir()
     _write(
         company / "coga.toml",
@@ -254,8 +254,8 @@ def test_user_alias_overrides_default(
 def test_default_chat_alias_registers_outside_repo(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`coga --help` from a non-coga-os dir still shows `chat`."""
-    monkeypatch.chdir(tmp_path)  # no coga-os here
+    """`coga --help` from a non-coga dir still shows `chat`."""
+    monkeypatch.chdir(tmp_path)  # no coga here
     monkeypatch.setattr("sys.argv", ["coga", "chat"])
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
 

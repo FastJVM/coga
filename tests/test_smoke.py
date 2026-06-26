@@ -48,8 +48,8 @@ def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         ignore=shutil.ignore_patterns(".claude", ".codex", ".git", ".venv*", "venv"),
         ignore_dangling_symlinks=True,
     )
-    monkeypatch.chdir(dest / "coga-os")
-    return dest / "coga-os"
+    monkeypatch.chdir(dest / "coga")
+    return dest / "coga"
 
 
 def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:

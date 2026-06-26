@@ -526,7 +526,7 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         _bail(
             f"Cannot launch {ref.id_slug}: it is {prior!r} and has no workflow, "
             "so there is nothing to activate or advance. Set `workflow: <name>` "
-            "in `ticket.md` (see coga-os/workflows/) or run "
+            "in `ticket.md` (see coga/workflows/) or run "
             f"`coga ticket {ref.id_slug}` to fill it in, then retry."
         )
     except WorkflowError as exc:

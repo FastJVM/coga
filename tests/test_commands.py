@@ -21,7 +21,7 @@ def _log_text(repo: Path, ref: str) -> str:
     """The repo-global log filtered to one task ref, joined back into text.
 
     The single-file format moves per-task history into one repo-global
-    `coga-os/log.md`; a task's history is the subset of lines tagged with its
+    `coga/log.md`; a task's history is the subset of lines tagged with its
     ref. Tests that used to read `tasks/<slug>/log.md` read this instead.
     """
     return "\n".join(task_log_lines(load_config(repo), ref))
@@ -36,7 +36,7 @@ DELETE_SKILL_SRC = (
     / "coga"
     / "resources"
     / "templates"
-    / "coga-os"
+    / "coga"
     / "bootstrap"
     / "skills"
     / "bootstrap"
@@ -55,7 +55,7 @@ def _install_delete_skill(repo: Path) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "coga-os"
+    company = tmp_path / "coga"
     _write(
         company / "coga.toml",
         """
@@ -1151,7 +1151,7 @@ def _set_log_timestamp(repo: Path, slug: str, when: str) -> None:
     """Append one line for `slug` to the repo-global log at the given timestamp.
 
     Activity time now comes from the last line tagged with the task's ref in
-    `coga-os/log.md`. Appending after the `created` line makes this the task's
+    `coga/log.md`. Appending after the `created` line makes this the task's
     most-recent line, so it drives the `updated` column / ordering.
     """
     path = log_path(load_config(repo))

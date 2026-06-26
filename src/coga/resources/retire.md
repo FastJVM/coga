@@ -22,13 +22,13 @@ for the human watching the run.
 Run these in order. Stop and ask if any precondition fails — do not improvise.
 
 1. **Run `retro/done-ticket` against `{slug}`.** Read the skill at
-   `coga-os/bootstrap/skills/retro/done-ticket/SKILL.md` unless a local
-   `coga-os/skills/retro/done-ticket/SKILL.md` override exists, and follow
+   `coga/bootstrap/skills/retro/done-ticket/SKILL.md` unless a local
+   `coga/skills/retro/done-ticket/SKILL.md` override exists, and follow
    it. The skill stops and asks if the slug is ambiguous, the task is not `status: done`,
    or any required evidence file is missing. When new durable knowledge exists,
    it opens a PR that records the `## Retro` marker, edits the knowledge base,
-   and deletes `coga-os/tasks/{slug}/` in the same PR. When no new durable
-   knowledge exists, it direct-deletes `coga-os/tasks/{slug}/` via
+   and deletes `coga/tasks/{slug}/` in the same PR. When no new durable
+   knowledge exists, it direct-deletes `coga/tasks/{slug}/` via
    `coga delete` — a working-tree `git rm` plus a direct
    `Ticket: {slug} — deleted` commit, with no PR and no marker. Recovery is via
    `git restore`.

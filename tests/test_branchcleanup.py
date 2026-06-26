@@ -28,7 +28,7 @@ def _commit(root: Path, name: str, content: str, message: str) -> None:
 def repo(tmp_path: Path) -> Path:
     """A git working tree on `main` with a pushable bare `origin`.
 
-    Also drops a minimal `coga-os/coga.toml` so `load_config` resolves with
+    Also drops a minimal `coga/coga.toml` so `load_config` resolves with
     the default control branch `main` and remote `origin`.
     """
     remote = tmp_path / "origin.git"
@@ -50,7 +50,7 @@ def repo(tmp_path: Path) -> Path:
     _git(root, "config", "user.name", "Tester")
     _git(root, "remote", "add", "origin", str(remote))
 
-    coga_os = root / "coga-os"
+    coga_os = root / "coga"
     coga_os.mkdir()
     (coga_os / "coga.toml").write_text('version = 1\ndefault_status = "draft"\n')
     (coga_os / "coga.local.toml").write_text('user = "marc"\n[slack]\nenabled = false\n')
@@ -61,7 +61,7 @@ def repo(tmp_path: Path) -> Path:
 
 
 def _cfg(repo: Path):
-    return load_config(repo / "coga-os")
+    return load_config(repo / "coga")
 
 
 def _dev_blackboard(branch: str | None = None, pr: str | None = None) -> str:
