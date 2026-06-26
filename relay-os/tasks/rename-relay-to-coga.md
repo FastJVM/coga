@@ -27,7 +27,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -72,6 +72,37 @@ published package, the command, and the brand are all consistent.
 
 <!-- relay:blackboard -->
 
+## Dev
+
+- branch: `rename/relay-to-coga`
+- worktree: `/private/tmp/relay-coga`
+
+## Execution decisions (this session, refining the plan)
+
+- **Boss handles the GitHub repo rename + PyPI trusted-publisher** (decision C ops).
+  So this PR **preserves `FastJVM/relay` URLs** (README, `COGA_REPO_URL` default in
+  `update.py`, docs, tests) — they keep working via GitHub redirect; a follow-up flips
+  them to `FastJVM/coga` once the repo is actually renamed. Sweep does `relay→coga` then
+  reverses `FastJVM/coga`→`FastJVM/relay`.
+- **`relay-os` is overloaded** today: it is BOTH the on-disk dir AND the PyPI dist name.
+  The rename un-overloads it — dir → `coga-os`, but the dist name (`pyproject name=`,
+  `cli.py _pkg_version(...)`) → bare **`coga`**. Two hand-fixes after the sweep.
+- **Workspace dir keeps the `-os`** (`coga-os`, confirmed w/ owner): unambiguous workspace
+  marker inside host repos, avoids `coga/` vs `src/coga/` self-collision. Only the
+  command/package/import collapse to bare `coga`.
+- **Brand namespaces rename**: `contexts/relay/`→`contexts/coga/`, `skills/relay/`→`skills/coga/`.
+- **History preserved (decision D)**: `git mv relay-os coga-os` moves the 139 task records +
+  `log.md` + `recurring/digest/spool.md`; their *content* is NOT swept. Task dirs/files whose
+  names contain "relay" (e.g. `tasks/install/relay-help-...`) keep their names.
+- **`update.py` cleanup literals**: swept wholesale EXCEPT `tasks/relay-setup` (targets a
+  relay-named leftover the migrate script doesn't rename — preserved). Other entries
+  (`contexts/relay/*`, `skills/relay`) sweep correctly since `--update` only runs on
+  already-migrated repos.
+- **Migrate helper + per-repo tracking**: deferred — agreed to circle back after the rename
+  lands. Leaning: one-shot `scripts/migrate-to-coga.sh` + a SINGLE tracking ticket with a
+  per-repo checklist (NOT one ticket per repo — chicken-and-egg: a ticket can't cleanly rename
+  the repo it lives in). Not built yet.
+
 ## Plan (one PR on `rename/relay-to-coga`, careful passes, suite green before push)
 
 1. **Import package** — `git mv src/relay src/coga`; fix every `import relay` / `from relay.x`.
@@ -94,6 +125,41 @@ published package, the command, and the brand are all consistent.
   GitHub auto-redirects the old URL. (PyPI name `coga` is already owned — repo rename can't affect it.)
 - **D — history:** do **not** rewrite done-task logs/blackboards (revisionist, buries the real
   diff, and git history keeps "relay" anyway). Rename active + shipping pieces only.
+
+## Progress / verification (implement step)
+
+- **Done:** `git mv` of all structural `relay`→`coga` paths (`src/coga`, `coga-os`,
+  `contexts/coga`, `skills/coga`, templates, `example/coga-os`, 3 brand docs); content
+  sweep of 259 files; 157 historical files left untouched (decision D); `FastJVM/relay`
+  URLs preserved via post-sweep reversal.
+- **Dist-name collisions caught & fixed** (`relay-os` was both dir AND PyPI name → these
+  must be bare `coga`, not `coga-os`): `pyproject name`, `cli.py _pkg_version`,
+  `COGA_PIPX_PACKAGE`, `skill_manager` pip msg, `uninstall.py` prose, `update.py` comment,
+  **`release.yml` PyPI env URLs** (`pypi.org/p/coga`), README install/uninstall commands,
+  `docs/releasing.md` PyPI Project Name, and test fixtures/assertions. Audited: no
+  dist-name `coga-os` remains; every remaining `coga-os` is a directory path.
+- **Tests:** full suite green — 923 pass / 1 skip. NOTE: 4 script-skill tests shell out to
+  `python -m coga.cli`; they need `coga` importable in the subprocess. They pass with
+  `PYTHONPATH=<worktree>/src` (and will pass in CI, which pip-installs `coga`); they "fail"
+  only in a bare local env where the editable install is still the old `relay`. Same test
+  design as pre-rename (those needed `relay` installed too) — not a regression.
+- `coga --help` / `coga validate --json` on the `coga-os/` fixture both clean.
+- `test_packaging.py` (builds a real wheel, checks it ships `coga/` + `coga-os/` templates)
+  is green → wheel packaging verified.
+- **Real rename bug found & fixed:** `is_coga_source_checkout` matched the pyproject name
+  against `"coga-os"` — must be bare `"coga"` (the dist name). Surfaced once the test fixture
+  was made realistic; fixed in source (`update.py`).
+- **Committed** on `rename/relay-to-coga` as `cc2f6843` (442 files: 250 renames, 192
+  rename+edit, 67 edits). Tree clean. **NOT pushed, no PR, no bump** — awaiting Zach's review.
+  Decision D verified: `log.md` / digest spool / historical tasks are byte-identical renames.
+
+## Follow-up — flip repo URLs (do WITH the boss's `FastJVM/relay`→`FastJVM/coga` rename)
+
+Deferred deliberately (decision C sequencing): `FastJVM/relay` URLs are kept so they keep
+working — incl. the functional `COGA_REPO_URL` default that `coga init --update` clones from.
+Once the GitHub repo is renamed, flip `FastJVM/relay`→`FastJVM/coga` in these 6 files:
+`docs/vision.md`, `README.md`, `src/coga/commands/init.py`, `src/coga/commands/update.py`,
+`tests/test_init.py`, `tests/test_skill_manager.py`. (One sed, mirror of the reversal this PR did.)
 
 ## Out of scope
 
