@@ -243,7 +243,7 @@ def coga_pip_git_source(*, coga_os: Path | None = None) -> str:
 
 
 def refresh_cli(clone_dir: Path, coga_os: Path) -> None:
-    """Replace `coga/.coga/src/coga/` (+ pyproject + requirements) from the clone."""
+    """Replace `coga/.coga/src/coga/` (+ pyproject + requirements + readme) from the clone."""
     src = clone_dir / CLI_SRC_SUBPATH
     if not src.is_dir():
         typer.secho(
@@ -260,7 +260,9 @@ def refresh_cli(clone_dir: Path, coga_os: Path) -> None:
     dst_src.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(src, dst_src)
 
-    for fname in ("pyproject.toml", "requirements.txt"):
+    # README.md is required: pyproject.toml declares `readme = "README.md"`, so
+    # the vendored copy fails to build/install without it.
+    for fname in ("pyproject.toml", "requirements.txt", "README.md"):
         upstream_file = clone_dir / fname
         if upstream_file.is_file():
             shutil.copy2(upstream_file, dst_coga / fname)

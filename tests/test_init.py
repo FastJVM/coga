@@ -233,8 +233,11 @@ def _seed_fake_clone(clone_dir: Path) -> None:
     (cli_src / "__init__.py").write_text("")
     (cli_src / "cli.py").write_text("# fake cli\n")
 
-    (clone_dir / "pyproject.toml").write_text("[project]\nname = 'coga'\n")
+    (clone_dir / "pyproject.toml").write_text(
+        "[project]\nname = 'coga'\nreadme = 'README.md'\n"
+    )
     (clone_dir / "requirements.txt").write_text("typer>=0.12\nPyYAML>=6\n")
+    (clone_dir / "README.md").write_text("# coga\n")
 
 
 FAKE_SHA = "deadbeefcafe1234567890abcdef1234567890ab"
@@ -672,6 +675,9 @@ def test_init_vendors_cli_and_links_wrapper_to_venv(
     assert (target / "coga" / ".coga" / "src" / "coga" / "cli.py").is_file()
     assert (target / "coga" / ".coga" / "pyproject.toml").is_file()
     assert (target / "coga" / ".coga" / "requirements.txt").is_file()
+    # README.md must be vendored too — pyproject declares `readme = "README.md"`,
+    # so the vendored copy fails to build without it.
+    assert (target / "coga" / ".coga" / "README.md").is_file()
     assert fake_venv == [target / "coga"]  # install_venv called once
 
     wrapper = target / "coga" / ".coga" / "bin" / "coga"
@@ -1185,8 +1191,11 @@ def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
     cli_src.mkdir(parents=True, exist_ok=True)
     (cli_src / "cli.py").write_text("# NEW vendored cli\n")
 
-    (clone_dir / "pyproject.toml").write_text("[project]\nname = 'coga'\n")
+    (clone_dir / "pyproject.toml").write_text(
+        "[project]\nname = 'coga'\nreadme = 'README.md'\n"
+    )
     (clone_dir / "requirements.txt").write_text("typer>=0.12\nPyYAML>=6\n")
+    (clone_dir / "README.md").write_text("# coga\n")
 
 
 def test_init_update_refreshes_cli_and_underscore_templates(
@@ -1311,6 +1320,7 @@ def test_init_update_refreshes_cli_and_underscore_templates(
     assert (coga_os / ".coga" / "src" / "coga" / "cli.py").read_text() == "# NEW vendored cli\n"
     assert (coga_os / ".coga" / "pyproject.toml").is_file()
     assert (coga_os / ".coga" / "requirements.txt").is_file()
+    assert (coga_os / ".coga" / "README.md").is_file()
     assert fake_venv == [coga_os]  # install_venv called once
 
     wrapper = coga_os / ".coga" / "bin" / "coga"
