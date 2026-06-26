@@ -1,7 +1,7 @@
 ---
 slug: improve-prompt-for-relay-ticket
 title: improve prompt for relay ticket
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
