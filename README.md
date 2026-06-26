@@ -42,12 +42,7 @@ To reinstall a packaged build from GitHub instead of using a source checkout
 pipx install --force "git+https://github.com/FastJVM/coga.git@<branch-or-tag>"
 ```
 
-Use `main` after a PR lands, or the PR branch name while testing it. Then
-refresh any repo-local vendored Coga copy:
-
-```sh
-coga init --update
-```
+Use `main` after a PR lands, or the PR branch name while testing it.
 
 **2. Set up a project.** One `coga/` per repo — the repo *is* the project.
 For a fresh project:
@@ -126,7 +121,7 @@ A few things worth knowing once you run more than one project:
 - **Vendored CLI.** Each `coga init` also vendors a self-contained copy of the
   CLI into that repo's `coga/.coga/` (its own venv) — there for bootstrap
   (a fresh clone runs without `pip install`) and as a known-good copy agents can
-  target. Refresh it with `coga init --update`.
+  target.
 
 - **Your global `coga` runs day-to-day.** Coga deliberately doesn't
   auto-activate the vendored copy per-repo (no PATH munging, no rbenv-style
@@ -260,7 +255,7 @@ coga mark done add-retry-to-webhook-handler   # finish on the final step
 
 ## Commands
 
-### `coga init [PATH] [--user <name>] [--update] [--all]`
+### `coga init [PATH] [--user <name>]`
 
 Create `coga/` inside `PATH` (default: the current dir). A fresh init
 requires `--user <name>` (the name tickets and agents refer to you by), and
@@ -273,17 +268,7 @@ auto-stages and commits the new create (push is left to you).
 ```sh
 coga init --user marc             # fresh init in the current dir (PATH defaults to .)
 coga init mycompany --user marc   # or: create + init a new mycompany/ dir
-coga init --update                # refresh .coga/ + package templates in current repo
-                                   # (never touches your coga.toml, custom skills, etc.)
-coga init --update --all ~/code   # sweep: refresh every coga repo under ~/code
 ```
-
-Because each repo vendors its own batteries, picking up a new Coga release
-means `pip install -U coga` once, then `coga init --update` per repo. The
-`--all` sweep does that last step in bulk — it requires an explicit scan root,
-then scans that path for every `coga/coga.toml`, refreshes each (sharing
-one upstream clone), reports per-repo results, and exits non-zero if any repo
-failed.
 
 If `~/.local/bin` is on your `PATH`, init also drops a `~/.local/bin/coga`
 symlink so the vendored copy is usable from any cwd in a new shell.
@@ -304,7 +289,7 @@ uninstall too.
 
 **Batteries and skill discovery.** The installed Coga package carries bundled
 skills, contexts, hooks, and bootstrap tickets as package resources. `pip install`
-puts those resources in the wheel; `coga init` / `coga init --update` do not
+puts those resources in the wheel; `coga init` does not
 materialize a repo-local `coga/bootstrap/` mirror. Runtime resolution reads
 the package resources directly after checking project-local `coga/skills/`,
 `coga/contexts/`, and `coga/workflows/`, so local overrides still win when
@@ -484,8 +469,7 @@ public preview `gh skill` command; Coga adds exact removal, URL-backed
 provenance, local-adaptation checks, and a PR-ready update summary for Dream.
 Bundled bootstrap skills are package-backed batteries: `coga skill status`
 shows them, but `coga skill update --all` skips them and points you at the
-package update path (`pip install --upgrade coga`, then
-`coga init --update`).
+package update path (`pip install --upgrade coga`).
 
 ```sh
 coga skill install owner/repo skill-name
@@ -668,8 +652,8 @@ Throw away an abandoned ticket. Removes the whole task directory —
 ticket, blackboard, log. Recovery is via `git restore`; the git
 history is the audit trail, no Slack broadcast.
 
-Bootstrap tickets aren't user-deletable — they're managed by
-`coga init --update`.
+Bootstrap tickets aren't user-deletable — they're package-backed batteries
+managed by the installed Coga package.
 
 ```sh
 coga delete add-retry

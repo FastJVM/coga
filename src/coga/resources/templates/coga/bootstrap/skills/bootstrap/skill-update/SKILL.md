@@ -12,8 +12,8 @@ the script body of the `recurring/skill-update/` task. It runs
 dedicated branch, while any skill that cannot be updated cleanly — a local
 adaptation, a provenance conflict, a fetch failure — is left untouched and
 reported so a human can follow up. Bundled (package-backed) skills are not
-updated here; they ship with the coga package and refresh on
-`coga init --update`.
+updated here; they ship with the coga package and refresh when the package
+is upgraded.
 
 The skill never decides *what* a conflicting skill should become. It only
 applies the clean updates and records the buckets; the conflicts and skips

@@ -71,29 +71,20 @@ project-local overrides. Optional domain skills belong in a published skill
 source plus `src/coga/resources/managed-skills.toml`, not under the packaged
 template payload.
 
-Three sharp gotchas live here:
+Two sharp gotchas live here:
 
 - **Do not repair bundled bootstrap by copying it into `coga/bootstrap/`.**
   If `bootstrap/orient`, `bootstrap/ticket`, a bundled skill, a bundled
   context, or a bundled `bootstrap/workflows/*` workflow cannot be found, the
   fix belongs in package resources, package data, or the local-then-package
   resolver. A repo-local mirror hides the packaging bug and will drift.
-- **Deliver non-bootstrap recurring dependencies through vendored refresh lists.**
-  Package-backed bootstrap batteries ship directly from the package, but
-  recurring templates are still materialized because their tickets carry
-  per-repo blackboard state. If a materialized recurring template depends on a
-  coga-owned workflow or skill outside `bootstrap/`, add it to
-  `VENDORED_WORKFLOW_TEMPLATES` / `VENDORED_SKILL_TEMPLATES` (and add new
-  recurring templates to `VENDORED_RECURRING_TEMPLATES`) in
-  `src/coga/commands/update.py`, or existing repos break on upgrade. Extend
-  the `init`/update/packaging tests to cover the new path.
 - **Skill Python deps via `requirements.txt`.** A skill declares its
   dependencies in a `requirements.txt` beside its `SKILL.md`.
   `install_skill_requirements` (the tail of `install_venv` in
   `src/coga/commands/update.py`) pip-installs every project-local
   `coga/skills/**/requirements.txt` and package-backed
-  `bootstrap/skills/**/requirements.txt` into `.coga/.venv` on `coga init`
-  and `coga init --update`, after managed optional skills have had a chance
+  `bootstrap/skills/**/requirements.txt` into `.coga/.venv` on `coga init`,
+  after managed optional skills have had a chance
   to install into `coga/skills/`. That ordering is what makes a bundled or
   managed skill's deps land.
 

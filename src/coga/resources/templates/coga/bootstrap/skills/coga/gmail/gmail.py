@@ -117,7 +117,8 @@ def build_service(config: dict[str, str]) -> Any:
         _bail(
             "google-api-python-client / google-auth not installed: "
             f"{exc}. They are declared in this skill's requirements.txt; run "
-            "`coga init --update` to install skill deps into .coga/.venv."
+            "`.coga/.venv/bin/pip install -r requirements.txt` from this skill's "
+            "dir to install skill deps (a fresh `coga init` does this automatically)."
         )
     creds = Credentials(
         token=None,
@@ -296,7 +297,8 @@ def op_authorize(client_secret_file: Path) -> dict[str, Any]:
         _bail(
             "google-auth-oauthlib not installed: "
             f"{exc}. Declared in this skill's requirements.txt; run "
-            "`coga init --update` to install skill deps into .coga/.venv."
+            "`.coga/.venv/bin/pip install -r requirements.txt` from this skill's "
+            "dir to install skill deps (a fresh `coga init` does this automatically)."
         )
     if not client_secret_file.is_file():
         _bail(

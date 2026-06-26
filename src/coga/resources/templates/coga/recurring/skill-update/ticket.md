@@ -29,8 +29,7 @@ and its script step runs `coga skill update --all --pr`, which:
 Local adaptations are never overwritten: a skill whose local copy diverged, a
 provenance conflict, or a fetch failure is left untouched and listed under the
 report's follow-up heading for a human to resolve. Bundled (package-backed)
-skills are not touched here — they refresh with the coga package on
-`coga init --update`.
+skills are not touched here — they refresh when the coga package is upgraded.
 
 A week with no upstream changes is a quiet no-op: nothing is committed and no
 PR is opened. A week with only follow-up statuses is intentionally loud: after

@@ -159,7 +159,7 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         path = templates / kind / fname
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"# {kind} template\n")
-    # Coga-owned recurring battery — no `_` prefix, refreshed on --update.
+    # Coga-owned recurring battery — no `_` prefix.
     # Recurring tasks are ticket-format directories; only `ticket.md` is vendored.
     (templates / "recurring" / "autoclose-merged").mkdir(parents=True, exist_ok=True)
     (templates / "recurring" / "autoclose-merged" / "ticket.md").write_text(
@@ -307,21 +307,14 @@ def fake_venv(monkeypatch: pytest.MonkeyPatch):
 def fake_managed_skill_sync(monkeypatch: pytest.MonkeyPatch):
     state = SimpleNamespace(
         install_calls=[],
-        reconcile_calls=[],
         install_summary=ManagedSkillSummary(),
-        reconcile_summary=ManagedSkillSummary(),
     )
 
     def fake_install(coga_os: Path) -> ManagedSkillSummary:
         state.install_calls.append(coga_os)
         return state.install_summary
 
-    def fake_reconcile(coga_os: Path) -> ManagedSkillSummary:
-        state.reconcile_calls.append(coga_os)
-        return state.reconcile_summary
-
     monkeypatch.setattr(init_cmd, "install_managed_skills", fake_install)
-    monkeypatch.setattr(init_cmd, "reconcile_managed_skills", fake_reconcile)
     return state
 
 
@@ -485,30 +478,6 @@ def test_write_pin_redacts_credentialed_repo_url(
     ]
 
 
-def test_coga_pip_git_source_converts_scp_ssh_url(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("COGA_REPO_URL", "git@github.com:FastJVM/coga.git")
-
-    assert (
-        update_cmd.coga_pip_git_source()
-        == "git+ssh://git@github.com/FastJVM/coga.git"
-    )
-
-
-def test_coga_pip_git_source_redacts_credentialed_url(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(
-        "COGA_REPO_URL", "https://coga:TOKEN@github.com/FastJVM/coga.git"
-    )
-
-    assert (
-        update_cmd.coga_pip_git_source()
-        == "git+https://github.com/FastJVM/coga.git"
-    )
-
-
 # --- fresh init ---------------------------------------------------------------
 
 
@@ -549,8 +518,8 @@ def test_failed_init_rolls_back_partial_coga_os(
 ) -> None:
     """A first init that dies after coga/ is created must leave nothing
     behind — for a normal error and a Ctrl-C alike (hence `except BaseException`)
-    — so re-running isn't wedged between "already exists — use --update" and an
-    --update that then chokes on the half-built venv / missing user.
+    — so re-running isn't wedged behind an "already exists" refusal sitting on
+    a half-built venv / missing user.
 
     Ticket: install/init-does-not-persist-user-then-blocks-on-reinit.
     """
@@ -804,7 +773,7 @@ def test_init_refuses_existing_coga_os(tmp_path: Path, fake_clone, fake_venv) ->
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2
-    assert "use `coga init --update`" in result.output
+    assert "already exists" in result.output
 
 
 def test_init_into_missing_dir_errors_not_git_repo(
@@ -1015,7 +984,7 @@ def test_stamp_user_into_delivered_tickets(tmp_path: Path) -> None:
     assert "replace-with-human-name" in template  # left alone
 
 
-# --- --update mode ------------------------------------------------------------
+# --- vendored-CLI location, pin, and host gitignore --------------------------
 
 
 def _seed_local_coga_os(root: Path) -> Path:
@@ -1072,426 +1041,6 @@ def _seed_local_coga_os(root: Path) -> Path:
     vendored.mkdir(parents=True)
     (vendored / "cli.py").write_text("# OLD vendored cli\n")
     return coga_os
-
-
-def _seed_coga_source_checkout(root: Path) -> None:
-    """Add the source-tree markers `init --update` uses to protect this repo."""
-    (root / "pyproject.toml").write_text('[project]\nname = "coga"\n')
-    (root / "src" / "coga" / "commands").mkdir(parents=True)
-    (root / "src" / "coga" / "commands" / "init.py").write_text("# source init\n")
-    (root / "src" / "coga" / "commands" / "update.py").write_text("# source update\n")
-    (root / "src" / "coga" / "resources" / "templates" / "coga").mkdir(
-        parents=True
-    )
-
-
-def _seed_fake_upstream_for_update(clone_dir: Path) -> None:
-    templates = clone_dir / update_cmd.TEMPLATE_SUBPATH
-    (templates / "skills" / "_template").mkdir(parents=True)
-    (templates / "tasks" / "_template").mkdir(parents=True)
-    (templates / "skills" / "_template" / "SKILL.md").write_text("NEW skill template\n")
-    (templates / "tasks" / "_template" / "ticket.md").write_text("NEW ticket template\n")
-    # Coga-owned recurring battery — refreshed wholesale on --update.
-    # Recurring tasks are ticket-format directories; only `ticket.md` is vendored.
-    (templates / "recurring" / "dream").mkdir(parents=True, exist_ok=True)
-    (templates / "recurring" / "dream" / "ticket.md").write_text("NEW dream template\n")
-    (templates / "recurring" / "autoclose-merged").mkdir(
-        parents=True, exist_ok=True
-    )
-    (templates / "recurring" / "autoclose-merged" / "ticket.md").write_text(
-        "NEW autoclose merged template\n"
-    )
-    (templates / "recurring" / "skill-update").mkdir(parents=True, exist_ok=True)
-    (templates / "recurring" / "skill-update" / "ticket.md").write_text(
-        "NEW skill update template\n"
-    )
-    (templates / "skills" / "direct" / "body").mkdir(parents=True, exist_ok=True)
-    (templates / "skills" / "direct" / "body" / "SKILL.md").write_text(
-        "NEW direct body skill\n"
-    )
-    (templates / "workflows" / "direct").mkdir(parents=True, exist_ok=True)
-    (templates / "workflows" / "direct" / "body.md").write_text(
-        "NEW direct body workflow\n"
-    )
-    (templates / "workflows" / "autoclose-merged").mkdir(
-        parents=True, exist_ok=True
-    )
-    (templates / "workflows" / "autoclose-merged" / "sweep.md").write_text(
-        "NEW autoclose merged workflow\n"
-    )
-    (templates / "workflows" / "skill-update").mkdir(parents=True, exist_ok=True)
-    (templates / "workflows" / "skill-update" / "run.md").write_text(
-        "NEW skill update workflow\n"
-    )
-    for name in ("orient", "project", "ticket"):
-        (templates / "bootstrap" / name).mkdir(parents=True)
-        (templates / "bootstrap" / name / "ticket.md").write_text(
-            f"NEW {name} bootstrap ticket\n"
-        )
-    # Packaged skills and contexts live under `bootstrap/` in package resources.
-    (templates / "bootstrap" / "skills" / "bootstrap" / "ticket").mkdir(parents=True)
-    (templates / "bootstrap" / "skills" / "bootstrap" / "ticket" / "SKILL.md").write_text(
-        "NEW bootstrap/ticket skill\n"
-    )
-    (templates / "bootstrap" / "skills" / "retro" / "done-ticket").mkdir(parents=True)
-    (templates / "bootstrap" / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
-        "NEW retro/done-ticket skill\n"
-    )
-    (templates / "bootstrap" / "skills" / "eval" / "ticket-diagnostic").mkdir(
-        parents=True
-    )
-    (
-        templates
-        / "bootstrap"
-        / "skills"
-        / "eval"
-        / "ticket-diagnostic"
-        / "SKILL.md"
-    ).write_text("NEW eval/ticket-diagnostic skill\n")
-    (templates / "bootstrap" / "skills" / "coga" / "autoclose" / "sweep").mkdir(
-        parents=True
-    )
-    (
-        templates
-        / "bootstrap"
-        / "skills"
-        / "coga"
-        / "autoclose"
-        / "sweep"
-        / "SKILL.md"
-    ).write_text("NEW coga/autoclose/sweep skill\n")
-    (
-        templates
-        / "bootstrap"
-        / "skills"
-        / "coga"
-        / "autoclose"
-        / "sweep"
-        / "run.py"
-    ).write_text("#!/usr/bin/env python3\n")
-    for ctx in ("architecture", "principles", "cli"):
-        (templates / "bootstrap" / "contexts" / "coga" / ctx).mkdir(parents=True)
-        (templates / "bootstrap" / "contexts" / "coga" / ctx / "SKILL.md").write_text(
-            f"NEW coga/{ctx} context\n"
-        )
-    (templates / "bootstrap" / "contexts" / "coga" / "sync").mkdir(parents=True)
-    (templates / "bootstrap" / "contexts" / "coga" / "sync" / "SKILL.md").write_text(
-        "NEW coga/sync context\n"
-    )
-    (templates / "bootstrap" / "contexts" / "dev" / "code").mkdir(parents=True)
-    (templates / "bootstrap" / "contexts" / "dev" / "code" / "SKILL.md").write_text(
-        "NEW dev/code context\n"
-    )
-    (templates / ".gitignore").write_text(
-        "coga.local.toml\n.coga/\n.agent-skills/\n"
-        "**/_template/\n**/_template.md\n"
-    )
-
-    cli_src = clone_dir / update_cmd.CLI_SRC_SUBPATH
-    cli_src.mkdir(parents=True, exist_ok=True)
-    (cli_src / "cli.py").write_text("# NEW vendored cli\n")
-
-    (clone_dir / "pyproject.toml").write_text(
-        "[project]\nname = 'coga'\nreadme = 'README.md'\n"
-    )
-    (clone_dir / "requirements.txt").write_text("typer>=0.12\nPyYAML>=6\n")
-    (clone_dir / "README.md").write_text("# coga\n")
-
-
-def test_init_update_refreshes_cli_and_underscore_templates(
-    tmp_path: Path, fake_venv, fake_managed_skill_sync, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    coga_os = _seed_local_coga_os(tmp_path)
-    package_clone = tmp_path / "package"
-    _seed_fake_upstream_for_update(package_clone)
-    monkeypatch.setattr(
-        update_cmd,
-        "packaged_template_root",
-        lambda: package_clone / update_cmd.TEMPLATE_SUBPATH,
-    )
-    monkeypatch.chdir(coga_os)
-
-    real_run = subprocess.run
-
-    def fake_run(cmd, **kwargs):
-        if cmd[:2] == ["git", "clone"]:
-            _seed_fake_upstream_for_update(Path(cmd[-1]))
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if (
-            cmd[:2] == ["git", "-C"]
-            and cmd[3:] == ["rev-parse", "HEAD"]
-            and "coga-init-update-" in cmd[2]
-        ):
-            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
-        return real_run(cmd, **kwargs)
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-    fake_managed_skill_sync.reconcile_summary = ManagedSkillSummary(
-        [
-            SkillResult(
-                name="coga/calendar-reminder",
-                source_type="github",
-                status="delegated",
-                message="delegated update to gh skill",
-            )
-        ]
-    )
-
-    result = CliRunner().invoke(app, ["init", "--update"])
-    assert result.exit_code == 0, result.output
-
-    assert (coga_os / "skills" / "_template" / "SKILL.md").read_text() == "NEW skill template\n"
-    assert (coga_os / "tasks" / "_template" / "ticket.md").read_text() == "NEW ticket template\n"
-    # Package-backed bootstrap batteries resolve from the installed package,
-    # not from a repo-local mirror.
-    assert not (coga_os / "bootstrap").exists()
-    # Generated agent view exposes the effective skill set without claiming
-    # namespaces in coga/skills.
-    assert (coga_os / ".agent-skills" / "bootstrap" / "ticket").is_symlink()
-    assert (coga_os / ".agent-skills" / "eval" / "ticket-diagnostic").is_symlink()
-    assert (coga_os / ".agent-skills" / "retro" / "done-ticket").is_symlink()
-    assert (coga_os / ".agent-skills" / "coga" / "autoclose" / "sweep").is_symlink()
-    assert (coga_os / ".agent-skills" / "coga" / "calendar-reminder").is_symlink()
-    assert (coga_os / ".agent-skills" / "_template").is_symlink()
-    # The old generated bootstrap mirror is pruned locally.
-    assert not (coga_os / "bootstrap").exists()
-    # Top-level paths upstream once shipped but no longer does are pruned.
-    assert not (coga_os / "counter").exists()
-    assert not (coga_os / "meta").exists()
-    # Stale bootstrap-namespace nested skill goes away, but local namespace
-    # roots are not replaced by generated symlinks.
-    legacy_bootstrap_skill = coga_os / "skills" / "bootstrap"
-    assert legacy_bootstrap_skill.is_dir() and not legacy_bootstrap_skill.is_symlink()
-    assert (legacy_bootstrap_skill / "create").exists() is False
-    # `_*` creates upstream no longer ships are also pruned.
-    assert not (coga_os / "recurring" / "_template_old.md").exists()
-    # Per-update prune count includes only narrow known Coga-owned paths plus
-    # the underscore-template prune. Local namespace roots are preserved.
-    assert "Pruned" in result.output
-    assert "  bootstrap" in result.output
-    assert "  counter" in result.output
-    assert "  meta" in result.output
-    assert "  skills/bootstrap/create" in result.output
-    assert "  skills/coga/calendar-reminder" not in result.output
-    assert "  skills/eval" not in result.output
-    assert "  contexts/dev/code" in result.output
-    assert "  contexts/coga/sync" in result.output
-    assert "  contexts/dev\n" not in result.output
-    assert "  contexts/coga\n" not in result.output
-    assert "recurring/_template_old.md" in result.output
-    # User-owned content untouched; removed upstream surface is pruned.
-    assert (coga_os / "skills" / "myteam" / "real-skill" / "SKILL.md").read_text() == "user content\n"
-    assert (
-        (coga_os / "skills" / "coga" / "calendar-reminder" / "SKILL.md").read_text()
-        == "OLD coga/calendar-reminder skill\n"
-    )
-    assert not (coga_os / "rules.md").exists()
-    assert not (coga_os / "scripts" / "cron.sh").exists()
-    assert fake_managed_skill_sync.reconcile_calls == [coga_os]
-    assert "Managed skills: delegated=1" in result.output
-
-    assert (coga_os / ".coga" / "src" / "coga" / "cli.py").read_text() == "# NEW vendored cli\n"
-    assert (coga_os / ".coga" / "pyproject.toml").is_file()
-    assert (coga_os / ".coga" / "requirements.txt").is_file()
-    assert (coga_os / ".coga" / "README.md").is_file()
-    assert fake_venv == [coga_os]  # install_venv called once
-
-    wrapper = coga_os / ".coga" / "bin" / "coga"
-    assert wrapper.is_symlink()
-    assert wrapper.resolve() == (coga_os / ".coga" / ".venv" / "bin" / "coga").resolve()
-
-    pin = coga_os / ".coga" / "COGA_PIN"
-    assert pin.is_file()
-    assert FAKE_SHA in pin.read_text()
-    assert f"Pinned to upstream {FAKE_SHA[:12]}" in result.output
-
-
-@pytest.mark.parametrize(
-    "preexisting",
-    [None, "STALE dream template — old known-skill list\n"],
-    ids=["missing", "stale"],
-)
-def test_init_update_refreshes_vendored_recurring_template(
-    tmp_path: Path,
-    fake_venv,
-    monkeypatch: pytest.MonkeyPatch,
-    preexisting: str | None,
-) -> None:
-    """Coga-owned live batteries are no-prefix files outside `bootstrap/`.
-
-    `init --update` must restore them when missing (repos predating the
-    template) and overwrite them when stale, or their launch paths have nothing
-    to create.
-    """
-    coga_os = _seed_local_coga_os(tmp_path)
-    autoclose = coga_os / "recurring" / "autoclose-merged" / "ticket.md"
-    dream = coga_os / "recurring" / "dream" / "ticket.md"
-    skill_update = coga_os / "recurring" / "skill-update" / "ticket.md"
-    autoclose_workflow = coga_os / "workflows" / "autoclose-merged" / "sweep.md"
-    direct_workflow = coga_os / "workflows" / "direct" / "body.md"
-    skill_update_workflow = coga_os / "workflows" / "skill-update" / "run.md"
-    direct_skill = coga_os / "skills" / "direct" / "body" / "SKILL.md"
-    if preexisting is None:
-        assert not autoclose.exists()
-        assert not dream.exists()
-        assert not skill_update.exists()
-        assert not autoclose_workflow.exists()
-        assert not direct_workflow.exists()
-        assert not skill_update_workflow.exists()
-        assert not direct_skill.exists()
-    else:
-        autoclose.parent.mkdir(parents=True, exist_ok=True)
-        autoclose.write_text("STALE autoclose merged template\n")
-        dream.parent.mkdir(parents=True, exist_ok=True)
-        dream.write_text(preexisting)
-        skill_update.parent.mkdir(parents=True, exist_ok=True)
-        skill_update.write_text("STALE skill update template\n")
-        autoclose_workflow.parent.mkdir(parents=True, exist_ok=True)
-        autoclose_workflow.write_text("STALE autoclose merged workflow\n")
-        direct_workflow.parent.mkdir(parents=True, exist_ok=True)
-        direct_workflow.write_text("STALE direct body workflow\n")
-        skill_update_workflow.parent.mkdir(parents=True, exist_ok=True)
-        skill_update_workflow.write_text("STALE skill update workflow\n")
-        direct_skill.parent.mkdir(parents=True, exist_ok=True)
-        direct_skill.write_text("STALE direct body skill\n")
-
-    package_clone = tmp_path / "package"
-    _seed_fake_upstream_for_update(package_clone)
-    monkeypatch.setattr(
-        update_cmd,
-        "packaged_template_root",
-        lambda: package_clone / update_cmd.TEMPLATE_SUBPATH,
-    )
-    monkeypatch.chdir(coga_os)
-
-    real_run = subprocess.run
-
-    def fake_run(cmd, **kwargs):
-        if cmd[:2] == ["git", "clone"]:
-            _seed_fake_upstream_for_update(Path(cmd[-1]))
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if (
-            cmd[:2] == ["git", "-C"]
-            and cmd[3:] == ["rev-parse", "HEAD"]
-            and "coga-init-update-" in cmd[2]
-        ):
-            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
-        return real_run(cmd, **kwargs)
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    result = CliRunner().invoke(app, ["init", "--update"])
-    assert result.exit_code == 0, result.output
-
-    assert autoclose.read_text() == "NEW autoclose merged template\n"
-    assert dream.read_text() == "NEW dream template\n"
-    assert skill_update.read_text() == "NEW skill update template\n"
-    assert autoclose_workflow.read_text() == "NEW autoclose merged workflow\n"
-    assert direct_workflow.read_text() == "NEW direct body workflow\n"
-    assert skill_update_workflow.read_text() == "NEW skill update workflow\n"
-    assert direct_skill.read_text() == "NEW direct body skill\n"
-    assert "recurring/autoclose-merged/ticket.md" in result.output
-    assert "recurring/dream/ticket.md" in result.output
-    assert "recurring/skill-update/ticket.md" in result.output
-    assert "workflows/autoclose-merged/sweep.md" in result.output
-    assert "workflows/direct/body.md" in result.output
-    assert "workflows/skill-update/run.md" in result.output
-    assert "skills/direct/body/SKILL.md" in result.output
-
-
-def test_init_update_in_coga_source_checkout_materializes_recurring_only(
-    tmp_path: Path, fake_venv, fake_managed_skill_sync, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`init --update` in Coga's own repo must leave git-tracked fixtures
-    alone but still materialize gitignored recurring templates, whose
-    blackboards carry per-repo state. Package-backed bootstrap batteries are
-    resolved from the installed package and are not copied into coga/.
-    """
-    coga_os = _seed_local_coga_os(tmp_path)
-    shutil.rmtree(coga_os / "bootstrap")
-    _seed_coga_source_checkout(tmp_path)
-    for ctx in ("architecture", "principles", "cli"):
-        path = coga_os / "contexts" / "coga" / ctx
-        path.mkdir(parents=True)
-        (path / "SKILL.md").write_text(f"SOURCE coga/{ctx}\n")
-    (coga_os / "skills" / "retro" / "done-ticket").mkdir(parents=True)
-    (coga_os / "skills" / "retro" / "done-ticket" / "SKILL.md").write_text(
-        "SOURCE retro/done-ticket\n"
-    )
-    (coga_os / "workflows" / "skill-update").mkdir(parents=True)
-    (coga_os / "workflows" / "skill-update" / "run.md").write_text(
-        "SOURCE skill update workflow\n"
-    )
-    # An obsolete top-level path (prune-listed) must survive in a source
-    # checkout, where pruning is skipped entirely.
-    (coga_os / "counter").write_text("SOURCE counter\n")
-
-    package_clone = tmp_path / "package"
-    _seed_fake_upstream_for_update(package_clone)
-    monkeypatch.setattr(
-        update_cmd,
-        "packaged_template_root",
-        lambda: package_clone / update_cmd.TEMPLATE_SUBPATH,
-    )
-
-    monkeypatch.chdir(coga_os)
-
-    real_run = subprocess.run
-
-    def fake_run(cmd, **kwargs):
-        if cmd[:2] == ["git", "clone"]:
-            _seed_fake_upstream_for_update(Path(cmd[-1]))
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if (
-            cmd[:2] == ["git", "-C"]
-            and cmd[3:] == ["rev-parse", "HEAD"]
-            and "coga-init-update-" in cmd[2]
-        ):
-            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
-        return real_run(cmd, **kwargs)
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    result = CliRunner().invoke(app, ["init", "--update"])
-    assert result.exit_code == 0, result.output
-
-    assert (
-        (coga_os / ".coga" / "src" / "coga" / "cli.py").read_text()
-        == "# NEW vendored cli\n"
-    )
-    assert fake_venv == [coga_os]
-    assert "Skipped tracked-fixture refresh/prune in Coga source checkout" in result.output
-    assert "Refreshed gitignored recurring templates" in result.output
-    assert "skipped managed skill reconciliation" in result.output
-    assert "Pruned" not in result.output
-    assert fake_managed_skill_sync.reconcile_calls == []
-
-    for ctx in ("architecture", "principles", "cli"):
-        path = coga_os / "contexts" / "coga" / ctx
-        assert path.is_dir() and not path.is_symlink()
-        assert (path / "SKILL.md").read_text() == f"SOURCE coga/{ctx}\n"
-    retro = coga_os / "skills" / "retro"
-    assert retro.is_dir() and not retro.is_symlink()
-    assert (
-        coga_os / "skills" / "retro" / "done-ticket" / "SKILL.md"
-    ).read_text() == "SOURCE retro/done-ticket\n"
-    assert (coga_os / "counter").read_text() == "SOURCE counter\n"
-    assert not (coga_os / "recurring" / "_rem.md").exists()
-
-    # Bootstrap batteries must not be materialized in source checkouts either.
-    assert not (coga_os / "bootstrap").exists()
-    assert (
-        coga_os / "recurring" / "dream" / "ticket.md"
-    ).read_text() == "NEW dream template\n"
-    assert (
-        coga_os / "recurring" / "autoclose-merged" / "ticket.md"
-    ).read_text() == "NEW autoclose merged template\n"
-    assert (
-        coga_os / "recurring" / "skill-update" / "ticket.md"
-    ).read_text() == "NEW skill update template\n"
-    assert (
-        coga_os / "workflows" / "skill-update" / "run.md"
-    ).read_text() == "SOURCE skill update workflow\n"
 
 
 def test_init_commits_coga_os_when_target_is_git_repo(
@@ -1645,26 +1194,6 @@ def test_agent_skill_view_prefers_local_skill_over_bootstrap(
     assert link.resolve() == local.resolve()
 
 
-def test_prune_obsolete_removes_old_bootstrap_exposure_symlinks_only(
-    tmp_path: Path,
-) -> None:
-    coga_os = tmp_path / "coga"
-    (coga_os / "bootstrap" / "skills" / "eval").mkdir(parents=True)
-    (coga_os / "skills").mkdir(parents=True)
-    old_generated = coga_os / "skills" / "eval"
-    old_generated.symlink_to("../bootstrap/skills/eval")
-    real_local = coga_os / "skills" / "google"
-    real_local.mkdir()
-    (real_local / "SKILL.md").write_text("local\n")
-
-    pruned = update_cmd.prune_obsolete(coga_os)
-
-    assert "skills/eval" in pruned
-    assert not old_generated.exists()
-    assert real_local.is_dir()
-    assert "skills/google" not in pruned
-
-
 def test_link_skills_for_agents_replaces_old_raw_skills_link(tmp_path: Path) -> None:
     target = tmp_path / "company"
     coga_os = target / "coga"
@@ -1718,40 +1247,6 @@ def test_init_preserves_existing_agent_guides(
     assert (target / "AGENTS.md").read_text() == init_cmd.AGENT_GUIDE_TEMPLATE
     assert "Wrote AGENTS.md" in result.output
     assert "CLAUDE.md" not in result.output.split("Wrote ", 1)[1].splitlines()[0]
-
-
-def test_init_update_tops_up_missing_agent_guides(
-    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    coga_os = _seed_local_coga_os(tmp_path)
-    monkeypatch.chdir(coga_os)
-    # Simulate a repo init'd before agent guides shipped: CLAUDE.md absent,
-    # AGENTS.md user-written. Update should create the missing one and
-    # leave the existing one alone.
-    (tmp_path / "AGENTS.md").write_text("# pre-existing AGENTS\n")
-
-    real_run = subprocess.run
-
-    def fake_run(cmd, **kwargs):
-        if cmd[:2] == ["git", "clone"]:
-            _seed_fake_upstream_for_update(Path(cmd[-1]))
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if (
-            cmd[:2] == ["git", "-C"]
-            and cmd[3:] == ["rev-parse", "HEAD"]
-            and "coga-init-update-" in cmd[2]
-        ):
-            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
-        return real_run(cmd, **kwargs)
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    result = CliRunner().invoke(app, ["init", "--update"])
-    assert result.exit_code == 0, result.output
-
-    assert (tmp_path / "AGENTS.md").read_text() == "# pre-existing AGENTS\n"
-    assert (tmp_path / "CLAUDE.md").read_text() == init_cmd.AGENT_GUIDE_TEMPLATE
-    assert "Wrote CLAUDE.md" in result.output
 
 
 def test_init_commits_agent_guides_in_git_repo(
@@ -1902,69 +1397,6 @@ def test_ensure_host_gitignore_replaces_malformed_block(tmp_path: Path) -> None:
     assert update_cmd.HOST_GITIGNORE_END in text
 
 
-def test_init_update_refreshes_inner_gitignore(
-    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`--update` writes the coga-managed marker block, dropping any duplicates
-    of managed entries the user copied in before the marker convention existed,
-    while leaving non-managed user lines alone."""
-    coga_os = _seed_local_coga_os(tmp_path)
-    package_clone = tmp_path / "package"
-    _seed_fake_upstream_for_update(package_clone)
-    monkeypatch.setattr(
-        update_cmd,
-        "packaged_template_root",
-        lambda: package_clone / update_cmd.TEMPLATE_SUBPATH,
-    )
-    # Stale pre-marker gitignore: some upstream entries copied directly,
-    # plus a user-added rule that should survive the update.
-    (coga_os / ".gitignore").write_text(
-        "coga.local.toml\n.coga/\n.agent-skills/\nmy-custom-ignore/\n"
-    )
-    monkeypatch.chdir(coga_os)
-
-    real_run = subprocess.run
-
-    def fake_run(cmd, **kwargs):
-        if cmd[:2] == ["git", "clone"]:
-            _seed_fake_upstream_for_update(Path(cmd[-1]))
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if (
-            cmd[:2] == ["git", "-C"]
-            and cmd[3:] == ["rev-parse", "HEAD"]
-            and "coga-init-update-" in cmd[2]
-        ):
-            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
-        return real_run(cmd, **kwargs)
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    result = CliRunner().invoke(app, ["init", "--update"])
-    assert result.exit_code == 0, result.output
-
-    gi = (coga_os / ".gitignore").read_text()
-    # Marker block present and contains all upstream-managed entries.
-    assert update_cmd.COGA_GITIGNORE_BEGIN in gi
-    assert update_cmd.COGA_GITIGNORE_END in gi
-    assert "bootstrap/" not in gi
-    assert ".agent-skills/" in gi
-    # Bootstrap no longer claims user-facing skill/context namespaces.
-    assert "skills/eval" not in gi
-    assert "skills/retro" not in gi
-    assert "skills/coga" not in gi
-    assert "contexts/dev" not in gi
-    assert "contexts/coga" not in gi
-    assert "_template/" in gi
-    assert "_template.md" in gi
-    # User-added rule survives outside the block.
-    assert "my-custom-ignore/" in gi
-    # Duplicates of managed entries that were in the user area get removed.
-    after_block = gi.split(update_cmd.COGA_GITIGNORE_END, 1)[1]
-    assert "coga.local.toml" not in after_block
-    assert ".coga/" not in after_block
-    assert ".agent-skills/" not in after_block
-
-
 def test_refresh_coga_gitignore_is_idempotent(tmp_path: Path) -> None:
     """Running the refresh twice on the same input is a no-op."""
     src_root = tmp_path / "upstream"
@@ -1997,22 +1429,6 @@ def test_refresh_coga_gitignore_replaces_existing_block(tmp_path: Path) -> None:
     assert "old-stale-entry/" not in text
     assert "new-entry/" in text
     assert "user-rule/" in text
-
-
-def test_init_update_fails_loudly_if_clone_fails(
-    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    coga_os = _seed_local_coga_os(tmp_path)
-    monkeypatch.chdir(coga_os)
-
-    def fake_run(cmd, **kwargs):
-        return subprocess.CompletedProcess(cmd, 128, stdout="", stderr="fatal: nope\n")
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    result = CliRunner().invoke(app, ["init", "--update"])
-    assert result.exit_code == 2
-    assert "git clone failed" in result.output
 
 
 # --- venv recreation ----------------------------------------------------------
@@ -2208,284 +1624,6 @@ def test_running_cli_location_detects_pipx_when_python_is_a_symlink(
         "stay on the unresolved venv path so pipx_metadata.json is found"
     )
     assert where == pipx_venv.absolute()
-
-
-def test_upgrade_global_cli_vendored_is_noop() -> None:
-    assert update_cmd.upgrade_global_cli("vendored") == ("vendored", None)
-
-
-def test_upgrade_global_cli_other_is_noop() -> None:
-    assert update_cmd.upgrade_global_cli("other") == ("other", None)
-
-
-def test_upgrade_global_cli_pipx_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(update_cmd.shutil, "which", lambda name: "/usr/bin/pipx")
-    captured: list[list[str]] = []
-
-    def fake_run(cmd, **kwargs):
-        captured.append(list(cmd))
-        return subprocess.CompletedProcess(cmd, 0, stdout="upgraded coga 0.2.0 -> 0.3.0\n", stderr="")
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    status, detail = update_cmd.upgrade_global_cli("pipx")
-    assert status == "pipx-upgraded"
-    assert detail == "upgraded coga 0.2.0 -> 0.3.0"
-    assert captured == [["/usr/bin/pipx", "upgrade", "coga"]]
-
-
-def test_upgrade_global_cli_pipx_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(update_cmd.shutil, "which", lambda name: "/usr/bin/pipx")
-
-    def fake_run(cmd, **kwargs):
-        return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="boom\n")
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    status, detail = update_cmd.upgrade_global_cli("pipx")
-    assert status == "pipx-failed"
-    assert detail == "boom"
-
-
-def test_upgrade_global_cli_pipx_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(update_cmd.shutil, "which", lambda name: None)
-    assert update_cmd.upgrade_global_cli("pipx") == ("pipx-missing", None)
-
-
-def test_init_update_warns_when_running_coga_is_not_vendored(
-    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The colleague-on-macOS bug: pipx install runs the same `init --update`,
-    but `sys.executable` lives in the pipx venv, not the vendored one. We must
-    surface that — and try to upgrade the pipx install for them."""
-    coga_os = _seed_local_coga_os(tmp_path)
-    monkeypatch.chdir(coga_os)
-
-    pipx_venv = tmp_path / "home" / ".local" / "share" / "pipx" / "venvs" / "coga"
-    py = _stub_executable_in(pipx_venv)
-    (pipx_venv / "pipx_metadata.json").write_text("{}\n")
-    monkeypatch.setattr(update_cmd.sys, "executable", str(py))
-
-    real_run = subprocess.run
-
-    def fake_run(cmd, **kwargs):
-        if cmd[:2] == ["git", "clone"]:
-            _seed_fake_upstream_for_update(Path(cmd[-1]))
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if (
-            cmd[:2] == ["git", "-C"]
-            and cmd[3:] == ["rev-parse", "HEAD"]
-            and "coga-init-update-" in cmd[2]
-        ):
-            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
-        if cmd[:1] == ["/usr/bin/pipx"]:
-            return subprocess.CompletedProcess(cmd, 0, stdout="upgraded\n", stderr="")
-        return real_run(cmd, **kwargs)
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-    monkeypatch.setattr(update_cmd.shutil, "which", lambda name: "/usr/bin/pipx")
-
-    result = CliRunner().invoke(app, ["init", "--update"])
-    assert result.exit_code == 0, result.output
-    assert "Upgraded global `coga` (pipx)" in result.output
-
-
-def test_init_update_silent_when_running_vendored(
-    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """When sys.executable is the vendored venv, no warning, no pipx call."""
-    coga_os = _seed_local_coga_os(tmp_path)
-    monkeypatch.chdir(coga_os)
-
-    vendored_venv = coga_os / ".coga" / ".venv"
-    py = _stub_executable_in(vendored_venv)
-    monkeypatch.setattr(update_cmd.sys, "executable", str(py))
-
-    real_run = subprocess.run
-
-    def fake_run(cmd, **kwargs):
-        if cmd[:2] == ["git", "clone"]:
-            _seed_fake_upstream_for_update(Path(cmd[-1]))
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if (
-            cmd[:2] == ["git", "-C"]
-            and cmd[3:] == ["rev-parse", "HEAD"]
-            and "coga-init-update-" in cmd[2]
-        ):
-            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
-        return real_run(cmd, **kwargs)
-
-    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
-
-    result = CliRunner().invoke(app, ["init", "--update"])
-    assert result.exit_code == 0, result.output
-    assert "global `coga`" not in result.output
-    assert "pipx" not in result.output
-
-
-# --- coga init --update --all (multi-repo sweep) -----------------------------
-
-
-def _make_update_fake_run(real_run):
-    """A `subprocess.run` stub that seeds a fake upstream on `git clone`.
-
-    Mirrors the inline `fake_run` the single-repo update tests use, including
-    the shared `coga-init-update-` clone-dir prefix (the `--all` sweep clones
-    into `coga-init-update-all-`, which still matches that substring).
-    """
-
-    def fake_run(cmd, **kwargs):
-        if cmd[:2] == ["git", "clone"]:
-            _seed_fake_upstream_for_update(Path(cmd[-1]))
-            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
-        if (
-            cmd[:2] == ["git", "-C"]
-            and cmd[3:] == ["rev-parse", "HEAD"]
-            and "coga-init-update-" in cmd[2]
-        ):
-            return subprocess.CompletedProcess(cmd, 0, stdout=f"{FAKE_SHA}\n", stderr="")
-        return real_run(cmd, **kwargs)
-
-    return fake_run
-
-
-def test_all_flag_requires_update(tmp_path: Path) -> None:
-    """`--all` without `--update` is a loud error — there is no bulk create."""
-    result = CliRunner().invoke(app, ["init", "--all", str(tmp_path)])
-    assert result.exit_code == 2
-    assert "--all only applies with --update" in result.output
-    assert "coga init --update --all <path>" in result.output
-
-
-def test_update_all_requires_explicit_path() -> None:
-    """`--all` must name its scan root; defaulting to cwd is too easy to misuse."""
-    result = CliRunner().invoke(app, ["init", "--update", "--all"])
-    assert result.exit_code == 2
-    assert "--all requires an explicit PATH" in result.output
-    assert "coga init --update --all <path>" in result.output
-
-
-def test_discover_coga_repos_finds_nested_and_skips_non_repos(tmp_path: Path) -> None:
-    """Discovery finds real coga repos at any depth and ignores look-alikes."""
-    repo_a = _seed_local_coga_os(tmp_path / "alpha")
-    repo_b = _seed_local_coga_os(tmp_path / "nested" / "beta")
-    # A directory literally named `coga` but with no coga.toml: not a repo.
-    (tmp_path / "decoy" / "coga").mkdir(parents=True)
-    # A coga repo buried in a skipped noise dir is never descended into.
-    buried = tmp_path / "alpha" / "node_modules" / "pkg" / "coga"
-    buried.mkdir(parents=True)
-    (buried / "coga.toml").write_text("version = 1\n")
-
-    found = init_cmd._discover_coga_repos(tmp_path)
-
-    assert found == sorted([repo_a, repo_b])
-
-
-def test_discover_coga_repos_does_not_descend_into_found_repo(tmp_path: Path) -> None:
-    """A coga nested inside a real coga repo is part of that repo, not a sibling.
-
-    Catches the case where scanning ~/Code surfaces the Coga source repo's own
-    fixture (`example/coga/`) and packaged template
-    (`src/coga/resources/templates/coga/`) as if they were standalone repos.
-    """
-    repo = _seed_local_coga_os(tmp_path / "coga")
-    # Fixture seeded under the repo — looks like a coga repo (has coga.toml)
-    # but is part of the parent repo's source tree.
-    fixture = tmp_path / "coga" / "example" / "coga"
-    fixture.mkdir(parents=True)
-    (fixture / "coga.toml").write_text("version = 1\n")
-    # Packaged template at a deeper path under the same parent repo.
-    template = tmp_path / "coga" / "src" / "coga" / "resources" / "templates" / "coga"
-    template.mkdir(parents=True)
-    (template / "coga.toml").write_text("version = 1\n")
-
-    found = init_cmd._discover_coga_repos(tmp_path)
-
-    assert found == [repo]
-
-
-def test_update_all_no_repos_found_exits_nonzero(tmp_path: Path) -> None:
-    """An empty scan root is a loud failure, not a silent no-op."""
-    result = CliRunner().invoke(app, ["init", "--update", "--all", str(tmp_path)])
-    assert result.exit_code == 1
-    assert "No coga repos found" in result.output
-
-
-def test_update_all_refreshes_every_repo(
-    tmp_path: Path, fake_venv, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """`init --update --all` refreshes every coga repo found under PATH."""
-    repo_a = _seed_local_coga_os(tmp_path / "a")
-    repo_b = _seed_local_coga_os(tmp_path / "sub" / "b")
-    package_clone = tmp_path / "package"
-    _seed_fake_upstream_for_update(package_clone)
-    monkeypatch.setattr(
-        update_cmd,
-        "packaged_template_root",
-        lambda: package_clone / update_cmd.TEMPLATE_SUBPATH,
-    )
-    monkeypatch.setattr(
-        update_cmd.subprocess, "run", _make_update_fake_run(subprocess.run)
-    )
-
-    result = CliRunner().invoke(app, ["init", "--update", "--all", str(tmp_path)])
-    assert result.exit_code == 0, result.output
-
-    assert "Found 2 coga repo(s)" in result.output
-    assert "Updated 2 of 2 repo(s)." in result.output
-    for coga_os in (repo_a, repo_b):
-        assert (
-            (coga_os / ".coga" / "src" / "coga" / "cli.py").read_text()
-            == "# NEW vendored cli\n"
-        )
-        assert not (coga_os / "bootstrap").exists()
-        assert (coga_os / ".coga" / "COGA_PIN").is_file()
-    # install_venv ran exactly once per repo.
-    assert sorted(fake_venv) == sorted([repo_a, repo_b])
-
-
-def test_update_all_continues_past_a_failing_repo(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """One repo's failure is reported but does not abort the sweep."""
-    repo_a = _seed_local_coga_os(tmp_path / "a")
-    repo_b = _seed_local_coga_os(tmp_path / "b")
-    monkeypatch.setattr(
-        update_cmd.subprocess, "run", _make_update_fake_run(subprocess.run)
-    )
-
-    swept: list[Path] = []
-
-    def flaky_refresh(
-        coga_os: Path,
-        clone_dir: Path,
-        *,
-        repo_url: str | None = None,
-    ) -> init_cmd._UpdateResult:
-        swept.append(coga_os)
-        if coga_os == repo_a:
-            raise RuntimeError("boom")
-        return init_cmd._UpdateResult(
-            sha=FAKE_SHA,
-            source_checkout=False,
-            copied=[],
-            pruned=[],
-            wired_agents=[],
-            blocked_agents=[],
-            host_gitignore_changed=False,
-            written_guides=[],
-            retrofitted=[],
-            managed_skills=ManagedSkillSummary(),
-        )
-
-    monkeypatch.setattr(init_cmd, "_refresh_one", flaky_refresh)
-
-    result = CliRunner().invoke(app, ["init", "--update", "--all", str(tmp_path)])
-
-    assert result.exit_code == 1
-    assert swept == sorted([repo_a, repo_b])  # both attempted despite the failure
-    assert "boom" in result.output
-    assert "Updated 1 of 2 repo(s)." in result.output
 
 
 # --- external dependency check --------------------------------------------------

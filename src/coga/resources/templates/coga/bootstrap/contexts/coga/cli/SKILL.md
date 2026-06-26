@@ -10,33 +10,24 @@ else is a flag or subcommand. The model beneath them lives in
 `coga/architecture` — read that for primitives and prompt composition.
 This context is just the operator's reference.
 
-## coga init [PATH] [--update] [--all]
+## coga init [PATH] [--user <name>]
 
-Scaffold `coga/` in `PATH` (default `.`), or with `--update` refresh
-the coga-managed bits in the current repo.
+Scaffold `coga/` in `PATH` (default `.`).
 
 - `coga init mycompany` — fresh scaffold; refuses if `coga/` exists.
-- `coga init --update` — refresh the vendored CLI from upstream and
-  package-owned `_*` templates and coga-owned recurring batteries
-  (`recurring/dream/`) from the installed Coga package. Stale repo-local
-  `coga/bootstrap/` mirrors are pruned; bootstrap tickets, bundled skills,
-  bundled contexts, and bundled reusable workflows resolve directly from the
-  installed package. Leaves
-  `coga.toml`, `rules.md`, user contexts, user skills, and repo-specific
-  recurring loops (REM) untouched.
-- `coga init --update --all [PATH]` — sweep mode. Scan `PATH` (default the
-  current dir) for every coga repo below it — directories holding a
-  `coga/coga.toml` — and run the `--update` refresh in each. One
-  upstream clone is shared across all repos; a failure in one repo is
-  reported and the sweep continues; the `coga` on PATH is upgraded once at
-  the end. Exits non-zero if any repo failed. `--all` without `--update` is
-  an error — there is no bulk fresh-scaffold. Search roots are passed on the
-  command line, not stored: a multi-repo sweep can't read per-repo config,
-  so it stays stateless by design.
+
+It clones the upstream CLI into the repo's `coga/.coga/`, copies the
+package's coga templates, builds the self-contained venv the vendored CLI
+runs out of, writes a starter `coga.local.toml`, and commits the new `coga/`.
+There is no in-place refresh command: bootstrap tickets, bundled skills,
+bundled contexts, and bundled reusable workflows resolve directly from the
+installed package, so picking up a new release is `pip install --upgrade coga`
+(or `git pull && pip install -e .` against a source checkout), not a
+per-repo refresh.
 
 `pip install coga` installs bundled batteries into the wheel as package
-resources. It does not modify a repo. `coga init` and `coga init --update`
-do not materialize those package resources into `coga/bootstrap/`; Coga
+resources. It does not modify a repo. `coga init`
+does not materialize those package resources into `coga/bootstrap/`; Coga
 resolves them directly from the installed package after checking project-local
 `coga/skills`, `coga/contexts`, and `coga/workflows`.
 
@@ -362,8 +353,8 @@ git history is the audit trail, no Slack broadcast. The removal itself
 runs through the `bootstrap/delete-task` skill, so the command is a thin
 resolver and the same deletion is reachable as a script step.
 
-Bootstrap tickets aren't user-deletable — they're managed by
-`coga init --update`.
+Bootstrap tickets aren't user-deletable — they're package-backed batteries
+managed by the installed Coga package.
 
 ## coga retire \<slug\> [--mode interactive] [--agent <type>] [--no-launch]
 
@@ -392,7 +383,7 @@ skills are package-backed batteries. `coga skill status` reports bundled
 bootstrap skills as `package-backed`, and reports a project-local skill with
 the same ref as a `local-override`. `coga skill update --all` updates
 project-local managed skills and skips bundled skills with the package update
-path: upgrade `coga`, then run `coga init --update`.
+path: upgrade the `coga` package.
 
 The subcommands cover three source types: `install <owner/repo-or-url> [skill]`
 for GitHub, `install-url <url>` for an arbitrary URL downloaded locally first,

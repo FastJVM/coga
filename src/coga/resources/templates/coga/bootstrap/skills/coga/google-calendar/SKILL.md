@@ -68,8 +68,9 @@ as a separate ticket.)
 
 `requirements.txt` declares `google-api-python-client` and `google-auth`.
 Coga's bootstrap installs every `coga/skills/**/requirements.txt` into
-`.coga/.venv` (during `coga init` / `coga init --update`), so a bootstrapped
-skill brings its own deps. If they're missing, run `coga init --update`.
+`.coga/.venv` (during `coga init`), so a bootstrapped skill brings its own
+deps. If they're missing, pip-install this skill's `requirements.txt` into
+`.coga/.venv`.
 
 ## Out of scope
 
