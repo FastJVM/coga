@@ -89,6 +89,12 @@ pr: https://github.com/FastJVM/relay/pull/436
 - `/home/n/Code/codex/relay`: `PYTHONPATH=/tmp/relay-optioninfo-timeouts/src python -m relay.cli validate --task fix-optioninfo-sentinel-crash-in-on-demand-recurri --json` -> ok_count 1, no issues.
 - `/home/n/Code/codex/relay`: `PYTHONPATH=/tmp/relay-optioninfo-timeouts/src python -m relay.cli validate --task fix-optioninfo-sentinel-crash-in-on-demand-recurri --json` after lifecycle recovery -> ok_count 1, no issues.
 
+## Owner review assist
+
+- 2026-06-24: Codex review-gate check found PR #436 open and ready for owner review; local `optioninfo-timeouts` is clean at `9d38df3` and matches `origin/optioninfo-timeouts`. `origin/main...HEAD` is `6 2`, but the newer `main` commits only touch Relay task-state/log files; merge simulation reports no conflicts.
+- Fresh verification: `git diff --check origin/main...HEAD` clean; `gh pr checks 436` reports no checks; `/tmp/relay-optioninfo-timeouts` `python -m pytest tests/test_recurring.py -q` -> 82 passed; `/tmp/relay-optioninfo-timeouts` `python -m pytest -q` -> 884 passed, 1 skipped; primary checkout `PYTHONPATH=/tmp/relay-optioninfo-timeouts/src python -m relay.cli validate --task fix-optioninfo-sentinel-crash-in-on-demand-recurri --json` -> ok_count 1, no issues.
+- Recommendation: code/docs/tests look ready to merge. Do not advance or close the task here; owner merge/autoclose should handle the review gate.
+
 ## Blocker
 
 - 2026-06-24: Implementation is committed on `optioninfo-timeouts` (`94a938d`), but `relay bump fix-optioninfo-sentinel-crash-in-on-demand-recurri` refused with `Task fix-optioninfo-sentinel-crash-in-on-demand-recurri is 'draft'. Cannot advance.` The composed prompt assigned the current step as `implement`, but the ticket frontmatter still has `status: draft`; CLI-owned status should not be hand-edited.
@@ -105,3 +111,7 @@ pr: https://github.com/FastJVM/relay/pull/436
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":144640,"cli":"codex","input_tokens":76040,"model":"gpt-5.5","output_tokens":4103,"provider":"openai","schema":1,"session_id":"019efbb0-c7e9-7701-a9ac-5b3d91e745c2","slug":"fix-optioninfo-sentinel-crash-in-on-demand-recurri","step":"implement","title":"Fix OptionInfo sentinel crash in on-demand recurring launchers","ts":"2026-06-24T22:13:38.529272Z","usage_status":"ok"}
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1717632,"cli":"codex","input_tokens":90947,"model":"gpt-5.5","output_tokens":7927,"provider":"openai","schema":1,"session_id":"019efbb2-2d46-7452-b1d2-33db51e334e1","slug":"fix-optioninfo-sentinel-crash-in-on-demand-recurri","step":"peer-review","title":"Fix OptionInfo sentinel crash in on-demand recurring launchers","ts":"2026-06-24T22:23:12.011338Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":73612,"cache_read_input_tokens":790797,"cli":"claude","input_tokens":16285,"model":"claude-opus-4-8","output_tokens":16429,"provider":"anthropic","schema":1,"session_id":"77bd2f96-d3ee-4cf3-8921-e7542dbe6b17","slug":"fix-optioninfo-sentinel-crash-in-on-demand-recurri","step":"open-pr","title":"Fix OptionInfo sentinel crash in on-demand recurring launchers","ts":"2026-06-24T22:25:00.879924Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":470528,"cli":"codex","input_tokens":55323,"model":"gpt-5.5","output_tokens":8117,"provider":"openai","schema":1,"session_id":"019efbbf-9527-7012-b80b-12f16c0dd3b5","slug":"fix-optioninfo-sentinel-crash-in-on-demand-recurri","step":"review","title":"Fix OptionInfo sentinel crash in on-demand recurring launchers","ts":"2026-06-24T22:46:45.089547Z","usage_status":"ok"}
