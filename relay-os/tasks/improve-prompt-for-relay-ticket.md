@@ -1,7 +1,7 @@
 ---
 slug: improve-prompt-for-relay-ticket
 title: improve prompt for relay ticket
-status: draft
+status: active
 autonomy: interactive
 owner: nick
 human: nick
@@ -9,7 +9,19 @@ agent: codex
 assignee: codex
 contexts: []
 skills: []
-workflow: autonomy/assist-only
+workflow:
+  name: autonomy/assist-only
+  steps:
+  - name: agent-produces
+    skills: []
+    assignee: agent
+  - name: human-owns-and-finishes
+    skills: []
+    assignee: human
+  - name: report-to-relay
+    skills: []
+    assignee: agent
+step: 1 (agent-produces)
 ---
 
 ## Description
