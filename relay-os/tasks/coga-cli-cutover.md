@@ -14,7 +14,7 @@ workflow:
   steps:
   - name: cutover
     skills: []
-    assignee: owner
+    assignee: agent
   - name: verify
     skills: []
     assignee: agent

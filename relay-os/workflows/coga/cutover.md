@@ -3,7 +3,7 @@ name: coga/cutover
 description: Post-merge cutover from the `relay` CLI to `coga` after the rename PR (#454) lands. Owner reinstalls + switches every invocation to `coga`, an agent verifies no `relay-os/` resurrected and the suite is green, then the owner closes the rename ticket and fans out to the sibling branches + host-repo migration.
 steps:
   - name: cutover
-    assignee: owner
+    assignee: agent
   - name: verify
     assignee: agent
   - name: fan-out
@@ -15,6 +15,11 @@ steps:
 Cut every actor that runs the CLI over to `coga`. Order matters — a
 pre-rename `relay` push between the merge and the reinstall re-creates a
 stray `relay-os/` on the fresh `coga` main.
+
+Drive this interactively with the present human: the reinstall and shell
+changes happen on their machine(s), so walk them through each action and
+confirm it's done rather than running it yourself. Bump only once they
+confirm every checkout is reinstalled and on `coga`.
 
 - Pull the renamed `main`, then reinstall so the `coga` command exists:
   `pip install -e .` (editable) or `pipx install --force .`. The old
