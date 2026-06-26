@@ -1,11 +1,8 @@
-"""`coga init` — create a new coga repo, or refresh an existing one.
+"""`coga init` — create a new coga repo.
 
-Default mode (`coga init`) writes everything from scratch into `<path>/coga/`
-and refuses to overwrite if it already exists. Templates come from the installed
-coga package; `--update` mode refreshes the vendored CLI in `.coga/` plus
-package-owned template creates, leaving user-edited config (`coga.toml`,
-custom skills, etc.) untouched. Both modes (re)build the self-contained venv that
-backs the `coga` console script.
+`coga init` writes everything from scratch into `<path>/coga/` and refuses to
+overwrite if it already exists. Templates come from the installed coga package.
+It builds the self-contained venv that backs the `coga` console script.
 """
 
 from __future__ import annotations
@@ -16,7 +13,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
 from pathlib import Path
 
 import typer
@@ -28,29 +24,20 @@ from coga.commands.update import (
     copy_fresh_templates,
     ensure_host_gitignore,
     install_venv,
-    is_coga_source_checkout,
     packaged_template_root,
-    prune_obsolete,
     refresh_cli,
-    refresh_gitignored_mirrors,
-    refresh_templates,
-    coga_pip_git_source,
     resolve_coga_repo_url,
-    running_cli_location,
-    upgrade_global_cli,
     upstream_sha,
     write_bin_wrapper,
     write_pin,
 )
-from coga.config import ConfigError, _default_user, find_repo_root, load_config
+from coga.config import _default_user
 from coga.dependencies import DEPENDENCIES
 from coga.managed_skills import (
     ManagedSkillError,
     ManagedSkillSummary,
     install_managed_skills,
-    reconcile_managed_skills,
 )
-from coga.retrofit import backfill_role_fields
 
 
 LOCAL_TOML_TEMPLATE = """\
@@ -232,7 +219,7 @@ def _stamp_user_into_delivered_tickets(coga_os: Path, name: str) -> list[str]:
 # it there (Claude Code reads CLAUDE.md, Codex reads AGENTS.md, and recent
 # Claude Code also picks up AGENTS.md). Identical content in both — three
 # similar lines beats a clever symlink that breaks on Windows. Created only
-# when missing; user edits are preserved across `coga init --update`.
+# when missing; a user's hand-edited guide is never overwritten.
 AGENT_GUIDE_TEMPLATE = """\
 # Agent guide
 
@@ -314,57 +301,20 @@ def _check_external_dependencies() -> None:
 def init(
     path: Path | None = typer.Argument(
         None,
-        help=(
-            "Fresh init: target dir for the new repo (created if missing). "
-            "Under --update: ignored. Under --update --all: the directory "
-            "tree scanned for coga repos to refresh (required)."
-        ),
+        help="Target dir for the new repo (created if missing). Defaults to the current dir.",
     ),
     user: str | None = typer.Option(
         None,
         "--user",
         help=(
             "Your name — becomes `user` in coga.local.toml, the name tickets "
-            "and agents refer to you by (e.g. marc). Required for a fresh init; "
-            "ignored under --update."
+            "and agents refer to you by (e.g. marc)."
         ),
     ),
-    update: bool = typer.Option(
-        False,
-        "--update",
-        help="Refresh vendored CLI + package templates in the current coga/. Leaves user config alone.",
-    ),
-    all_repos: bool = typer.Option(
-        False,
-        "--all",
-        help="With --update: refresh every coga repo found under PATH, not just the current one.",
-    ),
 ) -> None:
-    """Create `coga/` from package templates, or refresh it with --update."""
+    """Create `coga/` from package templates."""
     _check_external_dependencies()
-    if all_repos and not update:
-        typer.secho(
-            "--all only applies with --update — it refreshes existing repos, and "
-            "there is no bulk fresh-create. Re-run as "
-            "`coga init --update --all <path>`.",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        sys.exit(2)
-    if update and all_repos:
-        if path is None:
-            typer.secho(
-                "--all requires an explicit PATH so the sweep scope is deliberate. "
-                "Re-run as `coga init --update --all <path>`.",
-                fg=typer.colors.RED,
-                err=True,
-            )
-            sys.exit(2)
-        _do_update_all(path)
-    elif update:
-        _do_update()
-    else:
-        _do_init(path or Path("."), user=user)
+    _do_init(path or Path("."), user=user)
 
 
 def _do_init(path: Path, *, user: str | None = None) -> None:
@@ -373,7 +323,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
 
     if coga_os.exists():
         typer.secho(
-            f"{coga_os} already exists — use `coga init --update` to refresh.",
+            f"{coga_os} already exists.",
             fg=typer.colors.RED,
             err=True,
         )
@@ -408,9 +358,9 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     # Init is atomic. The check above guarantees coga/ did not exist before
     # this run, so if any step below fails — clone, template copy, venv build, a
     # Ctrl-C, even a sys.exit — we remove the half-built coga/ and re-raise.
-    # A partial init must never survive: it is the dead end where `coga init`
-    # refuses ("already exists — use --update") while `coga init --update` then
-    # chokes on the broken venv / missing user (the re-init wedge).
+    # A partial init must never survive: it is the dead end where a re-run of
+    # `coga init` refuses ("already exists") yet the leftover coga/ has a broken
+    # venv / missing user (the re-init wedge).
     try:
         with tempfile.TemporaryDirectory(prefix="coga-init-") as tmp:
             repo_url = resolve_coga_repo_url()
@@ -418,8 +368,8 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             template_root = packaged_template_root()
             copy_fresh_templates(template_root, coga_os)
             # `.gitignore` shipped verbatim by copytree; wrap it in the
-            # coga-managed marker block so `init --update` later only touches
-            # the fenced region and leaves user additions alone.
+            # coga-managed marker block so the fenced region stays distinct
+            # from user additions.
             _refresh_coga_gitignore(template_root, coga_os)
             refresh_cli(clone_dir, coga_os)
             sha = upstream_sha(clone_dir)
@@ -482,7 +432,7 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
     for label, path in blocked_agents:
         typer.secho(
             f"Skipped {label} skill wiring — {path} exists but isn't a directory. "
-            f"Remove or convert it, then rerun `coga init --update`.",
+            f"Remove or convert it so skill wiring can complete.",
             fg=typer.colors.YELLOW,
         )
     if host_gitignore_changed:
@@ -590,307 +540,6 @@ def _print_managed_skill_summary(summary: ManagedSkillSummary) -> None:
             typer.secho(f"  Remediation: {remediation}", fg=typer.colors.YELLOW, err=True)
 
 
-@dataclass
-class _UpdateResult:
-    """What one repo's `--update` refresh did — enough to print a report."""
-
-    sha: str | None
-    source_checkout: bool
-    copied: list[str]
-    pruned: list[str]
-    wired_agents: list[str]
-    blocked_agents: list[tuple[str, Path]]
-    host_gitignore_changed: bool
-    written_guides: list[str]
-    retrofitted: list[str]
-    managed_skills: ManagedSkillSummary
-
-
-def _refresh_one(
-    coga_os: Path,
-    clone_dir: Path,
-    *,
-    repo_url: str | None = None,
-) -> _UpdateResult:
-    """Apply one repo's `--update` refresh from an already-cloned upstream.
-
-    The mutating half of `coga init --update`, factored out so the
-    single-repo update and the `--all` sweep share one code path and one
-    upstream clone. Deliberately does *not* touch the global `coga` install
-    on PATH — that is a once-per-invocation concern the callers own.
-    """
-    source_checkout = is_coga_source_checkout(coga_os)
-    refresh_cli(clone_dir, coga_os)
-    if source_checkout:
-        # Source checkouts have their `_*` creates and `.gitignore` tracked in
-        # git — refresh_templates would clobber them. Recurring templates are
-        # gitignored here and carry per-repo state, so they still need
-        # materialization. Package-backed `bootstrap/` batteries resolve from
-        # the installed package and are deliberately not copied into coga/.
-        copied = refresh_gitignored_mirrors(coga_os)
-        pruned_templates: list[str] = []
-    else:
-        copied, pruned_templates = refresh_templates(coga_os)
-    sha = upstream_sha(clone_dir)
-
-    if source_checkout:
-        pruned = []
-        managed_skills = ManagedSkillSummary()
-    else:
-        pruned = prune_obsolete(coga_os) + pruned_templates
-        managed_skills = reconcile_managed_skills(coga_os)
-    install_venv(coga_os)
-    write_bin_wrapper(coga_os / ".coga" / "bin")
-    write_pin(coga_os, sha, repo_url=repo_url)
-    wired_agents, blocked_agents = _link_skills_for_agents(coga_os.parent, coga_os)
-    host_gitignore_changed = ensure_host_gitignore(coga_os.parent)
-    written_guides = _write_agent_guides(coga_os.parent)
-    retrofitted = _run_retrofits(coga_os)
-    return _UpdateResult(
-        sha=sha,
-        source_checkout=source_checkout,
-        copied=copied,
-        pruned=pruned,
-        wired_agents=wired_agents,
-        blocked_agents=blocked_agents,
-        host_gitignore_changed=host_gitignore_changed,
-        written_guides=written_guides,
-        retrofitted=retrofitted,
-        managed_skills=managed_skills,
-    )
-
-
-def _do_update() -> None:
-    coga_os = find_repo_root()
-    with tempfile.TemporaryDirectory(prefix="coga-init-update-") as tmp:
-        repo_url = resolve_coga_repo_url(coga_os=coga_os)
-        clone_dir = clone_upstream(Path(tmp) / "repo", repo_url=repo_url)
-        try:
-            result = _refresh_one(coga_os, clone_dir, repo_url=repo_url)
-        except ManagedSkillError as exc:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-            sys.exit(2)
-
-    _print_update_result(coga_os, result)
-    cli_kind, cli_venv = running_cli_location(coga_os)
-    cli_status, cli_detail = upgrade_global_cli(cli_kind)
-    _print_global_cli_status(cli_status, cli_detail, cli_venv, coga_os=coga_os)
-
-
-def _print_update_result(coga_os: Path, result: _UpdateResult) -> None:
-    """Verbose single-repo report for `coga init --update`."""
-    typer.echo("")
-    typer.echo(f"Refreshed CLI at {coga_os / '.coga'}")
-    if result.sha is not None:
-        typer.echo(f"Pinned to upstream {result.sha[:12]}.")
-    if result.wired_agents:
-        names = ", ".join(result.wired_agents)
-        typer.echo(f"Wired skill discovery for {names}.")
-    for label, path in result.blocked_agents:
-        typer.secho(
-            f"Skipped {label} skill wiring — {path} isn't a directory. "
-            f"Remove or convert it, then rerun this command.",
-            fg=typer.colors.YELLOW,
-        )
-    if result.copied:
-        typer.echo(f"Refreshed {len(result.copied)} template file(s):")
-        for rel in result.copied:
-            typer.echo(f"  {rel}")
-    _print_managed_skill_summary(result.managed_skills)
-    if result.source_checkout:
-        typer.echo(
-            "Skipped tracked-fixture refresh/prune in Coga source checkout "
-            "(source files are managed by git). Refreshed gitignored recurring "
-            "templates from package resources; "
-            "skipped managed skill reconciliation."
-        )
-    if result.pruned:
-        typer.echo(f"Pruned {len(result.pruned)} obsolete path(s):")
-        for rel in result.pruned:
-            typer.echo(f"  {rel}")
-    if result.host_gitignore_changed:
-        typer.echo(f"Updated {coga_os.parent / '.gitignore'} (coga-managed block).")
-    if result.written_guides:
-        typer.echo(
-            f"Wrote {', '.join(result.written_guides)} (agent orientation — Claude Code / Codex)."
-        )
-    if result.retrofitted:
-        typer.echo(f"Backfilled canonical ticket fields on {len(result.retrofitted)} ticket(s):")
-        for slug in result.retrofitted:
-            typer.echo(f"  {slug}")
-
-
-# Directories the `--all` scan never descends into: noise trees that can't
-# hold a coga repo we care about. A found `coga/` is pruned separately
-# (a coga repo never nests another inside one).
-_SCAN_SKIP_DIRS: frozenset[str] = frozenset(
-    {".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", ".mypy_cache"}
-)
-
-
-def _discover_coga_repos(root: Path) -> list[Path]:
-    """Return every coga repo's `coga/` dir at or below `root`.
-
-    A coga repo is identified by a `coga/` directory holding a
-    `coga.toml`. The walk skips `_SCAN_SKIP_DIRS`. Once a coga repo is
-    found, the walker stops descending into the repo's subtree — a coga
-    repo is a unit, so nested fixtures and packaged templates under it
-    (e.g. `example/coga/`, `src/coga/resources/templates/coga/`
-    in the Coga source checkout itself) are not surfaced as separate
-    repos. Results are sorted for deterministic output.
-
-    A `coga/` dir *without* a `coga.toml` is not pruned: it may be a host
-    repo that merely happens to be named `coga` (e.g. the Coga source repo
-    cloned as `coga/`, whose workspace sits one level deeper at
-    `coga/coga/`). Descend so that deeper workspace is still found.
-    """
-    found: list[Path] = []
-    for dirpath, dirnames, _ in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in _SCAN_SKIP_DIRS]
-        if "coga" in dirnames:
-            coga_os = Path(dirpath) / "coga"
-            if (coga_os / "coga.toml").is_file():
-                found.append(coga_os)
-                dirnames[:] = []
-                continue
-    return sorted(found)
-
-
-def _repo_label(coga_os: Path, root: Path) -> str:
-    """Sweep-output name for a repo — its path relative to the scan root."""
-    repo = coga_os.parent
-    try:
-        rel = repo.relative_to(root)
-    except ValueError:
-        return str(repo)
-    return repo.name if rel == Path(".") else str(rel)
-
-
-def _do_update_all(scan_root: Path) -> None:
-    """Refresh every coga repo found under `scan_root`.
-
-    Shares one upstream clone across all repos. A failure in one repo is
-    reported and the sweep continues; the global `coga` on PATH is upgraded
-    once at the end. Exits non-zero if any repo failed.
-    """
-    root = scan_root.resolve()
-    if not root.is_dir():
-        typer.secho(f"{root} is not a directory.", fg=typer.colors.RED, err=True)
-        sys.exit(2)
-
-    repos = _discover_coga_repos(root)
-    if not repos:
-        typer.secho(
-            f"No coga repos found under {root} "
-            f"(looked for coga/ directories with a coga.toml).",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-        sys.exit(1)
-
-    typer.echo(f"Found {len(repos)} coga repo(s) under {root}:")
-    for coga_os in repos:
-        typer.echo(f"  {_repo_label(coga_os, root)}")
-    typer.echo("")
-
-    updated: list[Path] = []
-    failed: list[tuple[str, str]] = []
-    with tempfile.TemporaryDirectory(prefix="coga-init-update-all-") as tmp:
-        repo_url = resolve_coga_repo_url(coga_os=repos[0], cwd=root)
-        clone_dir = clone_upstream(Path(tmp) / "repo", repo_url=repo_url)
-        for coga_os in repos:
-            label = _repo_label(coga_os, root)
-            try:
-                result = _refresh_one(coga_os, clone_dir, repo_url=repo_url)
-            except Exception as exc:  # noqa: BLE001 — one repo must not abort the sweep
-                typer.secho(f"  ✗ {label} — {exc}", fg=typer.colors.RED)
-                failed.append((label, str(exc)))
-                continue
-            pin = result.sha[:12] if result.sha else "unknown"
-            notes: list[str] = []
-            if result.copied:
-                notes.append(f"{len(result.copied)} file(s)")
-            if result.pruned:
-                notes.append(f"{len(result.pruned)} pruned")
-            skill_counts = result.managed_skills.counts()
-            if skill_counts:
-                notes.append(
-                    "skills "
-                    + ", ".join(
-                        f"{key}={value}" for key, value in sorted(skill_counts.items())
-                    )
-                )
-            suffix = f" — {', '.join(notes)}" if notes else ""
-            typer.secho(f"  ✓ {label} → {pin}{suffix}", fg=typer.colors.GREEN)
-            updated.append(coga_os)
-
-    typer.echo("")
-    typer.echo(f"Updated {len(updated)} of {len(repos)} repo(s).")
-    if failed:
-        typer.secho(f"{len(failed)} repo(s) failed — see above.", fg=typer.colors.YELLOW, err=True)
-
-    # The `coga` on PATH is one install no matter how many repos we swept —
-    # upgrade it once, not per repo.
-    if updated:
-        cli_kind, cli_venv = running_cli_location(updated[0])
-        cli_status, cli_detail = upgrade_global_cli(cli_kind)
-        _print_global_cli_status(cli_status, cli_detail, cli_venv, coga_os=updated[0])
-
-    if failed:
-        sys.exit(1)
-
-
-def _print_global_cli_status(
-    status: str,
-    detail: str | None,
-    venv: Path,
-    *,
-    coga_os: Path | None = None,
-) -> None:
-    """Surface what `--update` did (or didn't) about the running `coga` itself.
-
-    `init --update` always refreshes the vendored copy in `.coga/`, but the
-    `coga` on the user's PATH is usually a separate install (pipx is the
-    macOS default; pip-editable on Linux). Silently leaving that one stale
-    is the bug colleagues actually hit.
-    """
-    if status == "vendored":
-        return
-    if status == "pipx-upgraded":
-        typer.secho(
-            "Upgraded global `coga` (pipx).",
-            fg=typer.colors.GREEN,
-        )
-        if detail:
-            typer.echo(detail)
-        return
-    if status == "pipx-failed":
-        typer.secho(
-            "Tried to upgrade your pipx-installed `coga` but it failed:\n"
-            f"{detail or '(no output)'}\n"
-            "Try `pipx upgrade coga` (or `pipx reinstall coga`) by hand.",
-            fg=typer.colors.YELLOW,
-        )
-        return
-    if status == "pipx-missing":
-        typer.secho(
-            f"Your `coga` looks pipx-installed (venv at {venv}), but `pipx`\n"
-            f"isn't on PATH so we can't upgrade it. Install pipx and run\n"
-            f"`pipx upgrade coga`.",
-            fg=typer.colors.YELLOW,
-        )
-        return
-    typer.secho(
-        f"Heads-up: your `coga` on PATH lives in {venv}, not the vendored\n"
-        f"copy this command just refreshed. The vendored .coga/ is up-to-date,\n"
-        f"but the binary you actually run isn't. Upgrade it however you\n"
-        f"installed it — e.g.\n"
-        f"  pipx upgrade coga\n"
-        f"  cd <your coga source clone> && git pull && pip install -e .\n"
-        f"  pip install --upgrade {coga_pip_git_source(coga_os=coga_os)}",
-        fg=typer.colors.YELLOW,
-    )
-
 
 # Agents we wire skill discovery for. Each entry is the project-level dir
 # that the agent's CLI scans for skills (e.g. Claude Code reads `.claude/skills/`,
@@ -956,15 +605,6 @@ def _link_skills_for_agents(
             continue
         wired.append(label)
     return wired, blocked
-
-
-def _run_retrofits(coga_os: Path) -> list[str]:
-    """Best-effort migrations on existing tickets. Skip silently if config can't load."""
-    try:
-        cfg = load_config(coga_os)
-    except ConfigError:
-        return []
-    return backfill_role_fields(cfg)
 
 
 def _try_install_shim(wrapper: Path) -> Path | None:

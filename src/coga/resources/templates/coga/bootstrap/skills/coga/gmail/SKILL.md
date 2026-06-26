@@ -51,4 +51,4 @@ mailbox to read) and paste the printed `[gmail]` block into `coga.local.toml`.
 
 `google-api-python-client`, `google-auth`, `google-auth-oauthlib` (in
 `requirements.txt`), installed into `.coga/.venv` by coga's per-skill install
-pass at bootstrap / `coga init --update`.
+pass at `coga init`.

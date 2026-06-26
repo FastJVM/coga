@@ -105,7 +105,7 @@ def digest_spool_path(cfg: Config) -> Path | None:
     Existing repos may have the digest ticket but not the newer sibling
     `spool.md` yet. Treat that as an installed digest and create the dedicated
     file from the legacy ticket's old spool section so outcomes keep batching
-    instead of silently falling back to live posts until `coga init --update`.
+    instead of silently falling back to live posts.
     """
     digest_dir = recurring_dir(cfg) / DIGEST_RECURRING_NAME
     path = digest_dir / "spool.md"

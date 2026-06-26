@@ -540,7 +540,7 @@ def test_status_reports_bundled_bootstrap_skills(
 
     assert results["eval/ticket-diagnostic"].source_type == "bundled"
     assert results["eval/ticket-diagnostic"].status == "package-backed"
-    assert "coga init --update" in results["eval/ticket-diagnostic"].message
+    assert "upgrading the coga package" in results["eval/ticket-diagnostic"].message
 
 
 def test_status_marks_local_skill_that_overrides_bundled(

@@ -74,8 +74,8 @@ no in-memory state.
   tickets from them; use `coga create` for that.
 - **Bundled batteries** are package-backed core skills, contexts, reusable
   workflows, hooks, and launch targets shipped in the installed package.
-  `pip install coga` puts them in the wheel; `coga init` and
-  `coga init --update` do not materialize them into `coga/bootstrap/`.
+  `pip install coga` puts them in the wheel; `coga init` does not
+  materialize them into `coga/bootstrap/`.
   Runtime resolvers read package resources directly after checking local
   overrides. Optional domain skills declared in Coga's managed-skill manifest
   install into `coga/skills/` through the public skill installer instead of

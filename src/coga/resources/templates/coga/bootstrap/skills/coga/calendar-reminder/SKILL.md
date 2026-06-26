@@ -40,8 +40,7 @@ SKILL.md — read it. In short: create a Google service account + JSON
 key, enable the Calendar API, **share the reminders calendar with the
 service account's email** (grant "Make changes to events"), and point
 `[calendar].service_account_file` in `coga.local.toml` at the key. The
-Google client libs install into `.coga/.venv` automatically on
-`coga init` / `coga init --update`.
+Google client libs install into `.coga/.venv` automatically on `coga init`.
 
 ### Calendar target — NOT `primary`
 
@@ -259,7 +258,7 @@ Why this location:
 - Anyone reading the ticket immediately sees there's an external
   reminder.
 - The skill locates the event without an external registry.
-- A future `coga init --update` that strips unknown frontmatter
+- A future migration that strips unknown frontmatter
   would remove the line — that's recoverable; the skill can re-emit
   it on the next `verify` or recreate the event.
 

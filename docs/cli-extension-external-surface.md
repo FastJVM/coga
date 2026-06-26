@@ -24,7 +24,7 @@ Coga's kernel remains `launch` and its dependency closure:
   loaded for use.
 
 Everything a human, cron job, or alias calls to start work is movable unless it
-is in that closure. `init --update` is therefore movable; fresh `init` is not.
+is in that closure. Fresh `init` is not movable.
 `skill install` is movable; verifying a loaded skill before composing or running
 it is not. `secret get` is movable; injecting scoped secret values into a task
 process is not.
@@ -255,13 +255,10 @@ without weakening the moment-of-use check.
    companion plan. The acquirer may expose a status/debug command because it owns
    provenance, but the Coga CLI's read-view cleanup should stay with
    `status`/`show`/`recurring list` unless explicitly greenlit.
-5. **Consider `init --update` after the acquirer moves.** Fresh `init` stays
-   kernel. `init --update` is movable in principle because it refreshes an
-   existing install, but it has broader packaging responsibilities: vendored
-   templates, managed-skill reconciliation, venv dependency installation, and
-   agent skill links. Move it only if a local external package can own those
-   resources without hiding state or weakening update tests. Do not make it a
-   hosted service.
+5. **`init --update` was removed.** Fresh `init` stays kernel; there is no
+   longer an in-place repo-refresh command to externalize. Picking up a new
+   release is a package upgrade (`pip install --upgrade coga` / `git pull &&
+   pip install -e .`), which is outside the Coga CLI surface entirely.
 6. **Do not move trust hooks or task-state writes.** Secret injection, skill
    verification, `mark`, `bump`, and launch notifications stay in the kernel.
 

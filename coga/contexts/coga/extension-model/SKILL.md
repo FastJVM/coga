@@ -177,7 +177,7 @@ actively fights the capability boundary.
 | --- | --- |
 | **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · *(hooks)* secret-inject, skill-verify-at-compose |
 | **Tickets** | already out: `automerge`→sweep, `digest`→post, `delete`→delete-task · move target: `recurring` (scan) · fused, authoring moving to tickets: `ticket`, `project`, `retire` |
-| **External / command** | reads: `status`, `show`, `recurring list`, `skill status`, `validate` · external CLI: `skill install/install-local/install-url/update/remove`, `init --update` · notify/escape: `slack`, `panic` · `secret get` |
+| **External / command** | reads: `status`, `show`, `recurring list`, `skill status`, `validate` · external CLI: `skill install/install-local/install-url/update/remove` · notify/escape: `slack`, `panic` · `secret get` |
 | **Alias (sugar)** | `chat`, `dream`, `build` · (proposed) `skill-update`, `autoclose` |
 
 ## Sequenced externalization, not a redesign

@@ -280,12 +280,12 @@ def test_main_lets_init_run_through_broken_config(
 ) -> None:
     """`coga init` must dispatch even when the config is legacy/broken — it's
     the recovery command. A stale CLI + migrated `coga.toml` would otherwise
-    deadlock the very update that fixes it."""
+    deadlock the very re-init that fixes it."""
     (repo / "coga.toml").write_text(
         (repo / "coga.toml").read_text() + '\n[assignees.marc]\n'
     )
     monkeypatch.chdir(repo)
-    monkeypatch.setattr("sys.argv", ["coga", "init", "--update"])
+    monkeypatch.setattr("sys.argv", ["coga", "init"])
     monkeypatch.setattr("coga.cli._register_alias_placeholder", lambda *_: None)
 
     captured: dict[str, list[str]] = {}
@@ -296,7 +296,7 @@ def test_main_lets_init_run_through_broken_config(
 
     monkeypatch.setattr("coga.cli.app", fake_app)
     main()
-    assert captured["argv"] == ["coga", "init", "--update"]
+    assert captured["argv"] == ["coga", "init"]
     assert "ignoring config error" in capsys.readouterr().err
 
 

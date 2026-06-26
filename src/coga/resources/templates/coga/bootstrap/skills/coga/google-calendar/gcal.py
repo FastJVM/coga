@@ -110,7 +110,8 @@ def build_service(credentials_path: str) -> Any:
         _bail(
             "google-api-python-client / google-auth not installed: "
             f"{exc}. They are declared in this skill's requirements.txt; run "
-            "`coga init --update` to install skill deps into .coga/.venv."
+            "`.coga/.venv/bin/pip install -r requirements.txt` from this skill's "
+            "dir to install skill deps (a fresh `coga init` does this automatically)."
         )
     try:
         creds = service_account.Credentials.from_service_account_file(

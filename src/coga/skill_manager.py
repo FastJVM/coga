@@ -809,8 +809,7 @@ def _bundled_status_result(ref: str) -> SkillResult:
         source_type="bundled",
         status="package-backed",
         message=(
-            "bundled with coga; update by upgrading coga and running "
-            "`coga init --update`"
+            "bundled with coga; update by upgrading the coga package"
         ),
     )
 
@@ -822,7 +821,7 @@ def _bundled_update_result(ref: str) -> SkillResult:
         status="skipped-bundled",
         message=(
             "bundled skill updates come from the coga package; run "
-            "`pip install --upgrade coga` then `coga init --update`"
+            "`pip install --upgrade coga`"
         ),
     )
 

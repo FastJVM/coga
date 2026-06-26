@@ -43,10 +43,7 @@ ln -sf "$PWD/.venv/bin/coga" ~/.local/bin/coga
 rm -f ~/.local/bin/relay              # retire the old shim
 #    also delete any `relay()` function / `alias relay=` in your shell profile
 
-# 4. Refresh batteries + the vendored CLI copy
-coga init --update
-
-# 5. Verify, then delete the stale workspace leftover
+# 4. Verify, then delete the stale workspace leftover
 coga --version && coga validate && coga status
 rm -rf relay-os/                       # old vendored CLI + symlinks; regenerated as coga/
 ```
@@ -74,7 +71,6 @@ historical PR URLs, and source paths are left alone); flips `RELAY_REPO_URL` →
 
 ```sh
 pip install -e .        # (or pipx install --force .) — reinstall the CLI
-coga init --update      # refresh vendored CLI + batteries
 coga validate && coga status
 git add -A && git commit -m "Migrate relay -> coga"   # review the diff first
 ```

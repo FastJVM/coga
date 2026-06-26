@@ -1,8 +1,8 @@
-"""Bootstrap helpers used by `coga init` (with or without --update).
+"""Bootstrap helpers used by `coga init`.
 
-Pulls upstream CLI source into `coga/.coga/`, refreshes coga templates
-from the installed package resources, and stands up the self-contained venv
-the vendored CLI runs out of. No Typer commands live here.
+Pulls upstream CLI source into `coga/.coga/`, copies coga templates from the
+installed package resources, and stands up the self-contained venv the vendored
+CLI runs out of. No Typer commands live here.
 """
 
 from __future__ import annotations
@@ -13,8 +13,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
-import tomllib
 from pathlib import Path
 
 import typer
@@ -22,7 +20,6 @@ import typer
 from coga.github_source import (
     git_clone_source,
     is_ssh_git_source,
-    pip_git_source,
     redacted_git_source,
     same_github_repo,
 )
@@ -35,79 +32,6 @@ TEMPLATE_SUBPATH = Path("src/coga/resources/templates/coga")
 CLI_SRC_SUBPATH = Path("src/coga")
 TEMPLATE_RESOURCE_PACKAGE = "coga.resources"
 TEMPLATE_RESOURCE_PATH = ("templates", "coga")
-
-# Paths (relative to coga/) that earlier upstreams shipped but no longer do.
-# `init --update` prunes these from existing repos so removed content doesn't
-# linger after a migration. Keep entries narrow — only files we know we shipped
-# and now want gone, never user-owned paths.
-#
-# Note on the bootstrap-consolidation entries below: those paths used to be
-# shipped directly at the coga/ root and are now package-backed batteries
-# under `bootstrap/`. Existing repos need those narrow, known Coga-owned paths
-# pruned so local-first resolution can fall through to bootstrap. Do not add
-# broad namespace entries here; user-owned `skills/<namespace>` and
-# `contexts/<namespace>` directories must be preserved.
-OBSOLETE_PATHS: tuple[str, ...] = (
-    "counter",  # numeric task ID counter, dropped in the slug-only migration
-    "rules.md",  # global prompt rules layer removed; use contexts/base prompt
-    "scripts/cron.sh",  # v1 ships no recurring scheduler entry point
-    "meta",  # renamed to bootstrap/ — pre-bootstrap upstreams shipped meta/
-    "bootstrap",  # bundled batteries now resolve from the installed package
-    "skills/bootstrap/create",  # renamed to bootstrap/ticket in 350c4ed
-    "skills/bootstrap/ticket",  # consolidated under bootstrap/skills/bootstrap/ticket
-    "skills/bootstrap/dream/tasks/validate-drift",  # consolidated under bootstrap/skills
-    "skills/bootstrap/dream/tasks/cleanup-orphan-markers",  # consolidated under bootstrap/skills
-    "skills/retro/done-ticket",  # consolidated under bootstrap/skills/retro/done-ticket
-    "contexts/coga/architecture",  # consolidated under bootstrap/contexts/coga/architecture
-    "contexts/coga/principles",  # consolidated under bootstrap/contexts/coga/principles
-    "contexts/coga/cli",  # consolidated under bootstrap/contexts/coga/cli
-    "contexts/coga/sync",  # consolidated under bootstrap/contexts/coga/sync
-    "contexts/dev/code",  # consolidated under bootstrap/contexts/dev/code
-    "hooks",  # legacy pre-bootstrap post-merge hook dir, now removed
-    "tasks/relay-setup",  # `relay setup` retired; replaced by `coga build` (tasks/coga-build)
-    "workflows/init",  # init/setup workflow retired; replaced by build/onboarding (dir entry so no empty init/ is left)
-)
-
-# Recurring-template files Coga vendors and keeps fresh on every `--update`.
-# Unlike `_*` sample creates and user-authored repo-specific loops (REM),
-# these are live Coga batteries such as `recurring/dream/` and
-# `recurring/skill-update/`; their bodies are upstream-managed, not per-repo.
-# They carry no `_` prefix (used as-is, not copied-and-renamed) and don't live under
-# `bootstrap/`, so neither `_copy_templates` nor the package-backed bootstrap
-# resolvers would refresh them — leaving repos that predate a template, or lost
-# them, permanently broken (`coga dream` or the skill updater has nothing to
-# create).
-#
-# A recurring task is a ticket-format directory; only the upstream-managed
-# `ticket.md` is refreshed. Its blackboard region (last-run state) is per-repo
-# content inside that file; run history lives in the repo-global `coga/log.md`.
-# A template refresh rewrites the upstream-owned parts of `ticket.md` only.
-VENDORED_RECURRING_TEMPLATES: tuple[str, ...] = (
-    "recurring/autoclose-merged/ticket.md",
-    "recurring/digest/ticket.md",
-    # The digest spool moved out of the ticket into its own `merge=union` file;
-    # vendored so repos predating it gain `spool.md` on `--update` (the runtime
-    # path also lazily migrates an older installed digest ticket on first use).
-    "recurring/digest/spool.md",
-    "recurring/dream/ticket.md",
-    "recurring/skill-update/ticket.md",
-)
-
-# Narrow set of upstream-owned workflows that must be present in existing repos
-# because a vendored recurring template references them. Do not broad-copy
-# workflows: most named workflows are repo-owned playbooks.
-VENDORED_WORKFLOW_TEMPLATES: tuple[str, ...] = (
-    "workflows/autoclose-merged/sweep.md",
-    "workflows/direct/body.md",
-    "workflows/skill-update/run.md",
-)
-
-# Narrow set of upstream-owned skills that vendored workflows require. Most
-# skills remain user-owned or managed through `managed-skills.toml`; these files
-# are copied because core Coga batteries call them unconditionally.
-VENDORED_SKILL_TEMPLATES: tuple[str, ...] = (
-    "skills/direct/body/SKILL.md",
-)
 
 _LEGACY_COGA_GITIGNORE_ENTRIES: set[str] = {
     "skills/bootstrap",
@@ -237,12 +161,6 @@ def _git_remote_url(cwd: Path, remote: str) -> str | None:
     return result.stdout.strip() or None
 
 
-def coga_pip_git_source(*, coga_os: Path | None = None) -> str:
-    return pip_git_source(
-        redacted_git_source(resolve_coga_repo_url(coga_os=coga_os))
-    )
-
-
 def refresh_cli(clone_dir: Path, coga_os: Path) -> None:
     """Replace `coga/.coga/src/coga/` (+ pyproject + requirements + readme) from the clone."""
     src = clone_dir / CLI_SRC_SUBPATH
@@ -297,132 +215,11 @@ def copy_fresh_templates(src_root: Traversable, coga_os: Path) -> None:
     _chmod_packaged_executables(coga_os)
 
 
-def refresh_templates(
-    coga_os: Path, src_root: Traversable | None = None
-) -> tuple[list[str], list[str]]:
-    """Refresh coga-owned creates under `coga_os` from package resources.
-
-    Five things are treated as upstream-owned (always overwritten on update):
-      - `_*` template creates (`_template/` etc.)
-      - `VENDORED_RECURRING_TEMPLATES` — named coga-owned recurring batteries
-        (for example `recurring/dream/ticket.md`) that sit outside `bootstrap/` and carry
-        no `_` prefix, refreshed by `_copy_vendored_recurring`. The sibling
-        per-repo blackboard region inside each template `ticket.md` is left untouched;
-        history lives in the repo-global `coga/log.md`.
-      - `VENDORED_WORKFLOW_TEMPLATES` — named coga-owned workflows referenced
-        by those batteries, refreshed by `_copy_vendored_workflows`.
-      - `VENDORED_SKILL_TEMPLATES` — named coga-owned skills required by
-        those workflows, refreshed by `_copy_vendored_skills`.
-      - `.gitignore` — must track upstream so new ignore entries land in
-        existing repos without manual edits.
-
-    Returns `(copied, pruned)`: `pruned` lists `_*` creates removed because
-    upstream no longer ships them (renames, deletions).
-    """
-    src_root = src_root or packaged_template_root()
-    copied = _copy_templates(src_root, coga_os)
-    copied.extend(refresh_gitignored_mirrors(coga_os, src_root))
-    copied.extend(_copy_vendored_workflows(src_root, coga_os))
-    copied.extend(_copy_vendored_skills(src_root, coga_os))
-    copied.extend(_copy_upstream_files(src_root, coga_os))
-    pruned = _prune_removed_templates(src_root, coga_os)
-    return copied, pruned
-
-
-def refresh_gitignored_mirrors(
-    coga_os: Path, src_root: Traversable | None = None
-) -> list[str]:
-    """Refresh the package-backed mirrors that don't collide with the Coga
-    source checkout's git-tracked fixtures.
-
-    The `VENDORED_RECURRING_TEMPLATES` are gitignored under `coga/` in Coga's
-    own repo — their source of truth lives in `src/coga/resources/templates/coga/`.
-    They still need to be materialized into `coga/` because recurring templates
-    carry per-repo state in their blackboards. Package-backed `bootstrap/`
-    batteries are not materialized; runtime resolvers read them from the
-    installed package.
-
-    `refresh_templates` calls this alongside the tracked-fixture work; the
-    source-checkout path in `init._refresh_one` calls it on its own.
-    """
-    src_root = src_root or packaged_template_root()
-    return _copy_vendored_recurring(src_root, coga_os)
-
-
-def prune_obsolete(coga_os: Path) -> list[str]:
-    """Remove paths upstream once shipped but no longer does. Returns relative paths pruned."""
-    pruned: list[str] = []
-    rels = list(OBSOLETE_PATHS)
-    rels.extend(_bootstrap_symlink_paths(coga_os))
-    for rel in dict.fromkeys(rels):
-        target = coga_os / rel
-        if target.is_symlink() or target.is_file():
-            target.unlink()
-            pruned.append(rel)
-        elif target.is_dir():
-            shutil.rmtree(target)
-            pruned.append(rel)
-    return pruned
-
-
-def _bootstrap_symlink_paths(coga_os: Path) -> list[str]:
-    """Existing generated bootstrap exposure links are obsolete; real dirs are not."""
-    out: list[str] = []
-    for root_name, bootstrap_name in (("skills", "skills"), ("contexts", "contexts")):
-        root = coga_os / root_name
-        bootstrap_root = (coga_os / "bootstrap" / bootstrap_name).resolve()
-        if not root.is_dir():
-            continue
-        for child in root.iterdir():
-            if not child.is_symlink():
-                continue
-            try:
-                target = child.resolve(strict=False)
-            except OSError:
-                continue
-            try:
-                target.relative_to(bootstrap_root)
-            except ValueError:
-                continue
-            out.append(child.relative_to(coga_os).as_posix())
-    return sorted(out)
-
-
-def is_coga_source_checkout(coga_os: Path) -> bool:
-    """Return True when `coga_os` belongs to Coga's own source checkout.
-
-    `coga init --update` is also the installer refresh command developers run
-    from this repo. In installed repos, obsolete upstream-managed paths should
-    be pruned and replaced by bootstrap/ compat symlinks. In the Coga source
-    repo, those same paths are source fixtures tracked by git, so pruning them
-    damages the checkout.
-    """
-    root = coga_os.parent
-    pyproject = root / "pyproject.toml"
-    if not pyproject.is_file():
-        return False
-
-    try:
-        data = tomllib.loads(pyproject.read_text())
-    except (OSError, tomllib.TOMLDecodeError):
-        return False
-
-    project = data.get("project")
-    if not isinstance(project, dict) or project.get("name") != "coga":
-        return False
-
-    return (
-        (root / "src" / "coga" / "commands" / "init.py").is_file()
-        and (root / "src" / "coga" / "commands" / "update.py").is_file()
-        and (root / "src" / "coga" / "resources" / "templates" / "coga").is_dir()
-    )
-
-
 HOST_GITIGNORE_BEGIN = "# >>> coga-managed >>>"
 HOST_GITIGNORE_END = "# <<< coga-managed <<<"
 _HOST_GITIGNORE_BODY = (
     f"{HOST_GITIGNORE_BEGIN}\n"
-    "# Managed by `coga init [--update]`. Don't edit between these markers —\n"
+    "# Managed by `coga init`. Don't edit between these markers —\n"
     "# they will be overwritten. Symlinks below are created by `coga init` so\n"
     "# agent CLIs (Claude Code, Codex) can discover Coga's generated skill view.\n"
     ".claude/skills/coga\n"
@@ -599,8 +396,8 @@ def install_skill_requirements(coga_os: Path, venv_dir: Path) -> list[Path]:
     the skills run under, so a packaged skill brings its own deps with it
     (there is no other per-skill install hook). Scans both skill roots:
     project-local `coga/skills/` and packaged bundled skills.
-    Called at the tail of `install_venv`, so both `coga init` (fresh) and
-    `coga init --update` pick up newly added skill requirements.
+    Called at the tail of `install_venv`, so `coga init` picks up the
+    skill requirements present at init time.
 
     Idempotent — pip skips already-satisfied requirements. Exits with a clear
     error on a failed install, matching `install_venv`'s fail-loud contract.
@@ -656,7 +453,7 @@ def running_cli_location(coga_os: Path) -> tuple[str, Path]:
 
     Returns `(kind, venv_root)`:
       - `("vendored", <coga_os>/.coga/.venv)` — running the vendored copy
-        the just-completed `init --update` already refreshed.
+        `coga init` installed into this repo.
       - `("pipx", <pipx-venv>)` — installed via pipx; we can offer to upgrade.
       - `("other", <venv_root>)` — pip / system python / something else; the
         caller should print a manual-upgrade hint.
@@ -678,34 +475,6 @@ def running_cli_location(coga_os: Path) -> tuple[str, Path]:
     return ("other", venv)
 
 
-def upgrade_global_cli(kind: str) -> tuple[str, str | None]:
-    """Best-effort upgrade of the running `coga` install. Never raises.
-
-    Returns `(status, detail)`:
-      - `("vendored", None)` — running the vendored copy; no-op.
-      - `("pipx-upgraded", stdout)` — `pipx upgrade coga` succeeded.
-      - `("pipx-failed", stderr)` — pipx ran but returned non-zero.
-      - `("pipx-missing", None)` — looked like pipx but `pipx` isn't on PATH.
-      - `("other", None)` — caller prints manual instructions.
-    """
-    if kind == "vendored":
-        return ("vendored", None)
-    if kind == "other":
-        return ("other", None)
-    pipx = shutil.which("pipx")
-    if pipx is None:
-        return ("pipx-missing", None)
-    typer.echo(f"Upgrading your global `coga` (pipx upgrade {COGA_PIPX_PACKAGE})…")
-    result = subprocess.run(
-        [pipx, "upgrade", COGA_PIPX_PACKAGE],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return ("pipx-failed", (result.stderr or result.stdout).strip() or None)
-    return ("pipx-upgraded", result.stdout.strip() or None)
-
-
 def _venv_python_version(venv_dir: Path) -> tuple[int, int] | None:
     """Read `pyvenv.cfg` and return the (major, minor) Python the venv was built with."""
     cfg = venv_dir / "pyvenv.cfg"
@@ -721,103 +490,13 @@ def _venv_python_version(venv_dir: Path) -> tuple[int, int] | None:
     return None
 
 
-def _copy_templates(src_root: Traversable, dst_root: Path) -> list[str]:
-    """Copy every `_*` create under `src_root` into `dst_root`.
-
-    Always overwrites; matches nested under another `_*` ancestor are skipped
-    so each create is processed once.
-    """
-    copied: list[str] = []
-    for rel, src in _walk_resources(src_root):
-        if not rel.name.startswith("_"):
-            continue
-        if any(part.startswith("_") for part in rel.parts[:-1]):
-            continue
-
-        dst = dst_root / rel
-        if src.is_dir():
-            _remove_existing(dst)
-            _copy_resource_tree(src, dst)
-            copied.extend(str(file_rel) for file_rel, _ in _walk_resource_files(src, rel))
-        else:
-            _copy_resource_file(src, dst)
-            copied.append(str(rel))
-
-    return copied
-
-
-def _prune_removed_templates(src_root: Traversable, dst_root: Path) -> list[str]:
-    """Remove top-level `_*` creates in `dst_root` that upstream no longer ships.
-
-    Catches renames and deletions: a `_template/` removed from package resources
-    stays in user repos forever otherwise, since `_copy_templates` is purely
-    additive. Only inspects top-level `_*` matches (same convention as
-    `_copy_templates`) so nested entries inside a create are owned by their
-    parent. Skips trees that are managed by a different mechanism — `.coga/` is
-    vendored wholesale by `refresh_cli` and ships its own template fixtures, and
-    `bootstrap/` is mirrored as a unit by `_copy_bootstrap`.
-    """
-    if not dst_root.is_dir():
-        return []
-    candidates: list[Path] = []
-    for dst in dst_root.rglob("_*"):
-        rel = dst.relative_to(dst_root)
-        if any(part.startswith("_") for part in rel.parts[:-1]):
-            continue
-        if rel.parts and rel.parts[0] in (".coga", "bootstrap"):
-            continue
-        candidates.append(dst)
-
-    pruned: list[str] = []
-    for dst in candidates:
-        rel = dst.relative_to(dst_root)
-        if _resource_exists(src_root, rel):
-            continue
-        _remove_existing(dst)
-        pruned.append(str(rel))
-    return pruned
-
-
 COGA_GITIGNORE_BEGIN = "# >>> coga-managed >>>"
 COGA_GITIGNORE_END = "# <<< coga-managed <<<"
 _COGA_GITIGNORE_HEADER = (
-    "# Managed by `coga init [--update]`. Don't edit between these markers —\n"
-    "# they will be overwritten on update. Add your own ignore rules below the\n"
+    "# Managed by `coga init`. Don't edit between these markers —\n"
+    "# they will be overwritten. Add your own ignore rules below the\n"
     "# end marker.\n"
 )
-
-
-def _copy_upstream_files(src_root: Traversable, dst_root: Path) -> list[str]:
-    """Refresh upstream-managed root files inside `dst_root`.
-
-    `.gitignore` is merged into a coga-managed marker block — preserving any
-    user-added entries outside the block. `.gitattributes` is shipped verbatim
-    so existing repos pick up the `log.md merge=union` rule on update (the
-    single-file format's repo-global log needs it to merge cleanly).
-    """
-    copied: list[str] = []
-    if _refresh_coga_gitignore(src_root, dst_root):
-        copied.append(".gitignore")
-    if _refresh_gitattributes(src_root, dst_root):
-        copied.append(".gitattributes")
-    return copied
-
-
-def _refresh_gitattributes(src_root: Traversable, dst_root: Path) -> bool:
-    """Copy the packaged `coga/.gitattributes` verbatim if it differs.
-
-    Returns True iff the file was written. Whole-file ownership (no marker
-    block): the only entry is the coga-managed `log.md merge=union` rule.
-    """
-    src = _resource_join(src_root, Path(".gitattributes"))
-    if not src.is_file():
-        return False
-    content = src.read_text()
-    dst = dst_root / ".gitattributes"
-    if dst.is_file() and dst.read_text() == content:
-        return False
-    dst.write_text(content)
-    return True
 
 
 def _refresh_coga_gitignore(src_root: Traversable, dst_root: Path) -> bool:
@@ -895,111 +574,11 @@ def _drop_matching_lines(text: str, drop: set[str]) -> str:
     return "".join(kept)
 
 
-def _copy_vendored_recurring(src_root: Traversable, dst_root: Path) -> list[str]:
-    """Refresh the named coga-owned recurring templates listed in
-    `VENDORED_RECURRING_TEMPLATES`.
-
-    These are live Coga
-    batteries, not `_*` samples and not under `bootstrap/`, so the other
-    refresh passes skip them. Overwrite wholesale: the file is upstream-managed
-    (e.g. Dream's known-skill list), not per-repo customizable — REM is the
-    repo-specific recurring loop. This also restores the file in repos that
-    predate it. Only `ticket.md` is listed, so a recurring task's per-repo
-    the per-repo blackboard region inside each `ticket.md` survives the refresh untouched.
-
-    Missing srcs are skipped — a template the package no longer ships isn't an
-    error here.
-    """
-    copied: list[str] = []
-    for rel in VENDORED_RECURRING_TEMPLATES:
-        src = _resource_join(src_root, Path(rel))
-        if not src.is_file():
-            continue
-        _copy_resource_file(src, dst_root / rel)
-        copied.append(rel)
-    return copied
-
-
-def _copy_vendored_workflows(src_root: Traversable, dst_root: Path) -> list[str]:
-    """Refresh the named coga-owned workflows listed in
-    `VENDORED_WORKFLOW_TEMPLATES`.
-
-    These are workflow files that a vendored recurring template needs in order
-    to launch. Missing srcs are skipped so older package resources remain
-    tolerable during development.
-    """
-    copied: list[str] = []
-    for rel in VENDORED_WORKFLOW_TEMPLATES:
-        src = _resource_join(src_root, Path(rel))
-        if not src.is_file():
-            continue
-        _copy_resource_file(src, dst_root / rel)
-        copied.append(rel)
-    return copied
-
-
-def _copy_vendored_skills(src_root: Traversable, dst_root: Path) -> list[str]:
-    """Refresh the named coga-owned skills listed in
-    `VENDORED_SKILL_TEMPLATES`.
-
-    These are skill files that vendored workflows need in order to launch.
-    Missing srcs are skipped so older package resources remain tolerable during
-    development.
-    """
-    copied: list[str] = []
-    for rel in VENDORED_SKILL_TEMPLATES:
-        src = _resource_join(src_root, Path(rel))
-        if not src.is_file():
-            continue
-        _copy_resource_file(src, dst_root / rel)
-        copied.append(rel)
-    return copied
-
-
-def _wholesale_mirror(
-    src_root: Traversable, dst_root: Path, rels: tuple[str, ...]
-) -> list[str]:
-    """Wipe-and-copy each `rel` from `src_root` into `dst_root`. Skip missing srcs."""
-    copied: list[str] = []
-    for rel in rels:
-        src = _resource_join(src_root, Path(rel))
-        if not src.is_dir():
-            continue
-        dst = dst_root / rel
-        _remove_existing(dst)
-        _copy_resource_tree(src, dst)
-        copied.extend(str(file_rel) for file_rel, _ in _walk_resource_files(src, Path(rel)))
-    return copied
-
-
 def _resource_join(root: Traversable, rel: Path) -> Traversable:
     node = root
     for part in rel.parts:
         node = node.joinpath(part)
     return node
-
-
-def _resource_exists(root: Traversable, rel: Path) -> bool:
-    node = _resource_join(root, rel)
-    return node.is_dir() or node.is_file()
-
-
-def _walk_resources(
-    root: Traversable, base: Path = Path()
-) -> list[tuple[Path, Traversable]]:
-    found: list[tuple[Path, Traversable]] = []
-    for child in root.iterdir():
-        rel = base / child.name
-        found.append((rel, child))
-        if child.is_dir():
-            found.extend(_walk_resources(child, rel))
-    return found
-
-
-def _walk_resource_files(
-    root: Traversable, base: Path = Path()
-) -> list[tuple[Path, Traversable]]:
-    return [(rel, node) for rel, node in _walk_resources(root, base) if node.is_file()]
 
 
 def _copy_resource_tree(
