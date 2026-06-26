@@ -6,7 +6,7 @@ autonomy: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -76,6 +76,19 @@ published package, the command, and the brand are all consistent.
 
 - branch: `rename/relay-to-coga`
 - worktree: `/private/tmp/relay-coga`
+- pr: https://github.com/FastJVM/relay/pull/454
+
+## PR step (pushed + opened)
+
+Pushed `rename/relay-to-coga` and opened PR #454 (base `main`). gh auth green
+(lilfedor, `repo`+`workflow` scopes). **No CI checks configured** on the repo —
+"no checks reported on the branch" — so nothing to be green; verification rests
+on the local suite (924 pass) recorded above. **Merge caveat surfaced in the PR
+body:** main advanced 7 commits since the branch was cut — all relay-os
+bookkeeping (task records / `log.md` / step bumps), no source — and they land in
+`relay-os/`, which this branch renamed to `coga-os/`. They must be re-homed into
+`coga-os/` at merge time or they resurrect a stray `relay-os/` dir. No source is
+missing; rename is complete as-is. Merge reconciliation is the human's next step.
 
 ## Execution decisions (this session, refining the plan)
 
@@ -197,3 +210,5 @@ Tests: full suite **924 pass**; `coga validate --json` clean on `example/coga-os
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":569781,"cache_read_input_tokens":38943937,"cli":"claude","input_tokens":39111,"model":"claude-opus-4-8","output_tokens":410662,"provider":"anthropic","schema":1,"session_id":"4caf93c5-6417-4422-85a6-b763e45b5b22","slug":"rename-relay-to-coga","step":"implement","title":"Rename relay to coga (full rebrand)","ts":"2026-06-26T02:38:20.026874Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":307610,"cache_read_input_tokens":6301433,"cli":"claude","input_tokens":33255,"model":"claude-opus-4-8","output_tokens":161862,"provider":"anthropic","schema":1,"session_id":"ab985f7d-0141-4c3e-a195-d564f23a83b0","slug":"rename-relay-to-coga","step":"self-qa","title":"Rename relay to coga (full rebrand)","ts":"2026-06-26T03:05:34.685368Z","usage_status":"ok"}
