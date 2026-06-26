@@ -1,6 +1,0 @@
-typer>=0.12
-rich>=13
-PyYAML>=6
-tomli-w>=1
-croniter>=2
-requests>=2.31
