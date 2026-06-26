@@ -57,6 +57,6 @@ terminal's detected size — see Context for the root cause.
   forcing `width=200` unconditionally (which would hard-wrap narrow terminals
   and make that branch dead code).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

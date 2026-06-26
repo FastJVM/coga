@@ -34,6 +34,6 @@ covered by a test.
 
 Code: `src/relay/compose.py:242-253` (`write_prompt_file`).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

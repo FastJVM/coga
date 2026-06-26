@@ -143,7 +143,7 @@ Out of scope here: trigger evaluator implementation, frontmatter
 syntax, migration of existing recurring templates, event/webhook
 trigger design.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

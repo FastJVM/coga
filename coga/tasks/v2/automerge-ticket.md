@@ -106,7 +106,7 @@ rewriting live in `src/relay/bump.py`; the `architecture` context documents
 prompt composition, `assignee` role tokens, and the agent-rotation model if
 the implementer needs deeper grounding (read it, don't attach it).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

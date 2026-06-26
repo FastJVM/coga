@@ -239,7 +239,7 @@ Grouped worklist:
 - **Unrelated doc drift** (e.g. the `relay/cli` Aliases section listing only
   `chat` + `dream`) — separate follow-up noted in the audit.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 # remove-the-shim-concept — design notes
 

@@ -8,10 +8,10 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-- relay/architecture
-- relay/principles
-- relay/codebase
-- relay/project-stage
+- coga/architecture
+- coga/principles
+- coga/codebase
+- coga/project-stage
 skills: []
 workflow:
   name: code/design-then-implement
@@ -88,7 +88,7 @@ code is written.
   may *note* the broader pattern but should not expand to it without owner
   sign-off.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

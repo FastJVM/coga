@@ -8,10 +8,10 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-- relay/recurring
-- relay/codebase
+- coga/recurring
+- coga/codebase
 - dev/code
-- relay/sync
+- coga/sync
 skills: []
 workflow:
   name: code/design-then-implement
@@ -395,7 +395,7 @@ crashes the sweep.
 - Concurrency / parallel draining — the drain is sequential like the sweep.
 - Changing the recurring sweep's own launch/stop semantics.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

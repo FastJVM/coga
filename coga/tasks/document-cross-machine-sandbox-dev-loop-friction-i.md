@@ -1,6 +1,6 @@
 ---
 slug: document-cross-machine-sandbox-dev-loop-friction-i
-title: Document cross-machine/sandbox dev-loop friction in relay/codebase
+title: Document cross-machine/sandbox dev-loop friction in coga/codebase
 status: draft
 autonomy: interactive
 owner: nick
@@ -50,6 +50,6 @@ This is a doc task for a human to design and place the wording.
 
 ## Context
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

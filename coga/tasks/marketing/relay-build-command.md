@@ -164,7 +164,7 @@ mirroring the `dream`/`chat` alias handling.
 - Companions: `marketing/relay-build-onboarding-flow` (the flow this launches),
   `marketing/relay-init-captures-name` (the init-side name capture this relies on).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 # Blackboard — relay-build-command (design step)
 

@@ -83,6 +83,6 @@ touch `rules.md`; keep the concerns separate.
 - `relay/principles` context — the filter for whether each rule earns its
   place.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

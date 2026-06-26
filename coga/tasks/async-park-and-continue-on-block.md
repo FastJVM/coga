@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-  - relay/architecture
-  - relay/cli
+  - coga/architecture
+  - coga/cli
 skills: []
 workflow:
   name: code/with-review
@@ -73,6 +73,6 @@ panic." Read `relay/architecture` on stateless sessions and the recurring
 sweep's sequential, one-live-task-per-template behavior before changing the
 sweep loop (`src/relay/commands/recurring.py`).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

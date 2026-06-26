@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/sync
-- relay/recurring
+- coga/sync
+- coga/recurring
 skills: []
 workflow:
   name: code/with-review
@@ -97,7 +97,7 @@ triggers remain to remove, plus dead artifacts to clean up:
 - [ ] `drift-…-auto-bump-merged` (and hook draft) reconciled/closed.
 - [ ] `python -m pytest` green and `relay validate --json` clean.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

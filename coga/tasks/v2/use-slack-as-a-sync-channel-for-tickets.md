@@ -74,6 +74,6 @@ multi-machine story today).
 - Probably wants a small spike doc before any code lands — pick one of
   the three shapes above (or a fourth) before designing the schema.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

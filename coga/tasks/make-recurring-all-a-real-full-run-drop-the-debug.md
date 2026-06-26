@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/architecture
-- relay/cli
+- coga/architecture
+- coga/cli
 skills: []
 workflow:
   name: code/with-review
@@ -120,7 +120,7 @@ this ticket.
 See `relay/architecture` (recurring primitive + the `--all` description) and
 `relay/cli` (`relay recurring --all`) for the behavior being changed.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 # make-recurring-all-a-real-full-run-drop-the-debug
 

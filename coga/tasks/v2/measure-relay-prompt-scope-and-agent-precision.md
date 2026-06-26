@@ -8,8 +8,8 @@ human: nick
 agent: codex
 assignee: codex
 contexts:
-- relay/principles
-- relay/codebase
+- coga/principles
+- coga/codebase
 - dev/code
 skills: []
 workflow:
@@ -130,7 +130,7 @@ Cut (do not attempt under this ticket):
 - Replacing ticket-selected contexts with a global context dump as the desired
   long-term behavior.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 ## Dev
 

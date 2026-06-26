@@ -1,6 +1,6 @@
 ---
 slug: v2/document-parent-orchestrates-child-script-tasks-pa
-title: Document parent-orchestrates-child-script-tasks pattern in relay/patterns
+title: Document parent-orchestrates-child-script-tasks pattern in coga/patterns
 status: draft
 autonomy: interactive
 owner: nick
@@ -58,6 +58,6 @@ and whether the live + packaged copies both carry it.
 
 ## Context
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

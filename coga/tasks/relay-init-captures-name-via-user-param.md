@@ -180,7 +180,7 @@ plus their tests. No changes to `config.py`, templates, or the `--update` path.
 - The `relay init --update` / `--update --all` behavior.
 - Opening a new PR or changing #391's branch/base.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

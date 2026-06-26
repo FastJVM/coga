@@ -53,6 +53,6 @@ freeze the period. Human design judgment needed on the right approach.
 
 ## Context
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

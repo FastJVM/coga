@@ -8,9 +8,9 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-- relay/codebase
-- relay/architecture
-- relay/recurring
+- coga/codebase
+- coga/architecture
+- coga/recurring
 - dev/code
 skills: []
 workflow:
@@ -111,7 +111,7 @@ The previous `relay dream` run left a `dream` ticket stuck at
 `in_progress` with an empty blackboard; no live process exists for it.
 See chat history 2026-05-17.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

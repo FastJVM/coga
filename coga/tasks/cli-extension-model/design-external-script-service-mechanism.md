@@ -8,9 +8,9 @@ human: zach
 agent: claude
 assignee: claude
 contexts:
-- relay/extension-model
-- relay/architecture
-- relay/codebase
+- coga/extension-model
+- coga/architecture
+- coga/codebase
 skills: []
 workflow:
   name: direct/body
@@ -91,7 +91,7 @@ gated on greenlight.
 **Out of scope:** implementing the surface or the verify hook, migrating any
 command, and the `→ ticket` move work (Pass 2). Design only.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

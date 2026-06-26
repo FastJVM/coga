@@ -48,6 +48,6 @@ core code, and if already clean, close with that finding. Depends on the
 shim-concept removal landing first (`remove-the-shim-concept`). (`dream` is also
 a default alias if you want the same check applied to it.)
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

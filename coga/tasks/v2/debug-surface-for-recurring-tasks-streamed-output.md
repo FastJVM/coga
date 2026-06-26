@@ -105,6 +105,6 @@ Depends on `enforce-mode-auto-for-recurring-templates` landing first so the
 problem space is well-defined (no live recurring templates running
 `interactive` to muddy the design).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

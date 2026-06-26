@@ -57,6 +57,6 @@ template producing its expected output (e.g. a digest post) unattended.
   separate.
 - Related: `enforce-mode-auto-for-recurring-templates` (no-TTY safety).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

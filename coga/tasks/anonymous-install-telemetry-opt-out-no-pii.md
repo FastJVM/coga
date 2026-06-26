@@ -275,7 +275,7 @@ default) and the legibility ethos. The mitigations are non-negotiable: opt-out
 the agent/human can read exactly what's sent. If the design can't keep those, it
 should fall back to the no-phone-home PyPI/GitHub estimate instead.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

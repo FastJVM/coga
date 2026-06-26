@@ -8,8 +8,8 @@ human: nick
 agent: claude
 assignee: claude
 contexts:
-- relay/architecture
-- relay/codebase
+- coga/architecture
+- coga/codebase
 skills: []
 workflow:
   name: code/design-then-implement
@@ -71,7 +71,7 @@ solving it:
 
 1. **Format** — one `ticket.md` per task: YAML frontmatter, the body sections
    (`## Description`, `## Context`, plus spec sections), then a single
-   machine-findable fence `<!-- relay:blackboard -->` followed by the freeform
+   machine-findable fence `<!-- coga:blackboard -->` followed by the freeform
    blackboard region. Exactly two regions after frontmatter (body above the
    fence, blackboard below); the log is *not* a region.
 2. **Global log** — `relay-os/log.md`, append-only, one per repo. Each line
@@ -123,7 +123,7 @@ ticket already requires behavior + docs in the same PR). See
   migration. Existing auxiliary dotfiles such as `.state-snapshot.json` keep
   their current meaning.
 - [ ] `ticket.md` for a task has: frontmatter, a body region, a single
-  `<!-- relay:blackboard -->` fence, and a blackboard region. A bootstrap shim
+  `<!-- coga:blackboard -->` fence, and a blackboard region. A bootstrap shim
   has frontmatter + body and no fence.
 - [ ] `relay-os/log.md` exists, is append-only, and every line carries
   `YYYY-MM-DD HH:MM [<task-ref>] [<actor>] <message>`. `.gitattributes` marks
@@ -153,7 +153,7 @@ ticket already requires behavior + docs in the same PR). See
 ## Proposed Shape
 
 **New module `src/relay/task_file.py`** (the single legible seam):
-- `BLACKBOARD_FENCE = "<!-- relay:blackboard -->"`.
+- `BLACKBOARD_FENCE = "<!-- coga:blackboard -->"`.
 - `read_task_file(path, *, blackboard_required: bool) -> TaskFile(frontmatter:
   dict, body: str, blackboard: str | None)` — reuse `Ticket.parse` for the
   frontmatter/body split, then split the body on the fence. Exactly zero fences
@@ -232,7 +232,7 @@ Source layout and test expectations are in `relay/codebase`. Keep the live
 `relay-os/` copy and the packaged `src/relay/resources/templates/relay-os/`
 copy of any touched contexts/templates in sync (see CLAUDE.md).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 # Design notes — single-file task format
 
@@ -266,7 +266,7 @@ plan (the ticket is still at the `implement` step).
 
 - Task file stays named `ticket.md` (discovery marker in `tasks.py:116`
   unchanged).
-- Two regions after frontmatter, split by one fence `<!-- relay:blackboard -->`:
+- Two regions after frontmatter, split by one fence `<!-- coga:blackboard -->`:
   body (above) + blackboard (below). No log region.
 - Fail-loud: task ticket missing/duplicating the fence → error. Bootstrap
   shims (BootstrapRef) legitimately have no fence/blackboard.
@@ -289,7 +289,7 @@ plan (the ticket is still at the `implement` step).
 
 ## Open Questions — RESOLVED (design session, owner present)
 
-1. **Fence syntax** → `<!-- relay:blackboard -->` (HTML comment). RESOLVED.
+1. **Fence syntax** → `<!-- coga:blackboard -->` (HTML comment). RESOLVED.
 2. **Global log path** → top-level `relay-os/log.md` (repo-scoped, not a
    task). My recommendation; no objection raised. RESOLVED (revisit at
    review-design if owner disagrees).
@@ -338,7 +338,7 @@ on 2026-06-20 when execution was deferred. Start a fresh worktree next session.)
 ## Implementation plan (2026-06-20, Claude, implement step)
 
 Core API in new module `src/relay/taskfile.py`:
-- `BLACKBOARD_FENCE = "<!-- relay:blackboard -->"`
+- `BLACKBOARD_FENCE = "<!-- coga:blackboard -->"`
 - `split_body(body, *, blackboard_required) -> (body_above, blackboard_below)` (fail-loud on 0/>1 fence when required)
 - `read_task_file(path, *, blackboard_required=True) -> TaskFile(ticket, body, blackboard)`
 - `read_blackboard(path, *, blackboard_required=True) -> str`

@@ -230,7 +230,7 @@ is authoritative.
   vision context — the old `init/setup` ambition, deliberately dropped here.
 - `tests/test_setup.py` updates → land with the command rename ticket.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 # Blackboard — relay-build-onboarding-flow (design step)
 

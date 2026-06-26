@@ -11,7 +11,7 @@
 
 We run FastJVM, a two-person deeptech startup making the JVM faster — a field dominated by Oracle and Google. Pre-revenue, post-reset. Coga is the methodology and tooling we built to run the company after the reset, and it's how we plan to keep running it.
 
-This document describes what Coga is, why it works for us, and why it's hard to duplicate even though we're publishing it in full. Open source, AGPL-3.0-or-later: [github.com/FastJVM/relay](https://github.com/FastJVM/relay).
+This document describes what Coga is, why it works for us, and why it's hard to duplicate even though we're publishing it in full. Open source, AGPL-3.0-or-later: [github.com/FastJVM/coga](https://github.com/FastJVM/coga).
 
 ---
 

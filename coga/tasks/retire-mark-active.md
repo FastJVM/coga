@@ -92,7 +92,7 @@ Scope (decided 2026-06-16, interactive with zach):
   `marketing/relay-build-onboarding-flow`. That flow is already correct; this
   ticket makes the docs match it.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 # Blackboard — retire-mark-active
 

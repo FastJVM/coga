@@ -36,6 +36,6 @@ blackboard "Out of scope" + follow-up specs). Relevant code: `launch.py`,
 `git.py` (`sync_task_state`, `_rebase_onto_remote`). The cross-clone fix is the
 companion already shipped.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

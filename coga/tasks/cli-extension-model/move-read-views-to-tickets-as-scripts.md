@@ -8,9 +8,9 @@ human: zach
 agent: claude
 assignee: claude
 contexts:
-- relay/extension-model
-- relay/architecture
-- relay/codebase
+- coga/extension-model
+- coga/architecture
+- coga/codebase
 skills: []
 workflow:
   name: code/design-then-implement
@@ -103,6 +103,6 @@ coordinate on one arg-materialization mechanism rather than inventing two.
 Resolve that, then `relay show` (a pure render of one task's files) is the
 simplest first conversion.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

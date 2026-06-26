@@ -8,9 +8,9 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/principles
-- relay/architecture
-- relay/codebase
+- coga/principles
+- coga/architecture
+- coga/codebase
 skills: []
 workflow:
   name: code/with-review
@@ -105,7 +105,7 @@ Dependency state on 2026-06-17: PR #382 is merged on `main`, and this checkout
 contains `SecretValue`, `select_launch_secrets`, `build_launch_env`,
 `validate._check_secrets`, and `secrets: null` in both task templates.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

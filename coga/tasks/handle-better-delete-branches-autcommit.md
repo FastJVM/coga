@@ -83,7 +83,7 @@ autoclose. Cover the squash-merge case (PR merged but tip not an ancestor of
 template under `relay-os/`, keep the packaged
 `src/relay/resources/templates/relay-os/` copy in sync (see CLAUDE.md).
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

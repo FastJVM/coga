@@ -8,11 +8,11 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/principles
-- relay/sync
-- relay/codebase
-- relay/current-direction
-- relay/roadmap
+- coga/principles
+- coga/sync
+- coga/codebase
+- coga/current-direction
+- coga/roadmap
 skills: []
 workflow:
   name: code/design-then-implement
@@ -165,7 +165,7 @@ stranger getting from install to first task without hitting a wall. Relates to
 refactor); this ticket is the narrow "don't block first run" slice, not that
 refactor.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

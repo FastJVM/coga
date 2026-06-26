@@ -71,7 +71,7 @@ whatever is accepted. **Do not edit the skill in this ticket.**
   interview's fault; a thin answer or a skipped step can cause the same, and
   the proposal should distinguish them.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

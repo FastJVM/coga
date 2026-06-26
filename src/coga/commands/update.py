@@ -28,7 +28,7 @@ from coga.github_source import (
 )
 
 
-COGA_REPO_URL = "https://github.com/FastJVM/relay"
+COGA_REPO_URL = "https://github.com/FastJVM/coga"
 COGA_REPO_URL_ENV = "COGA_REPO_URL"
 COGA_REMOTE_NAMES = ("upstream", "origin")
 TEMPLATE_SUBPATH = Path("src/coga/resources/templates/coga")

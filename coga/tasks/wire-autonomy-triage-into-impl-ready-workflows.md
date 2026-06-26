@@ -177,7 +177,7 @@ This wiring is authoring-time and general; it is independent of
 `browser/build-automation`, whose 3-outcome failure-radius triage is a separate,
 narrower concern and is left untouched.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

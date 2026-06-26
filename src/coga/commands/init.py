@@ -236,7 +236,7 @@ def _stamp_user_into_delivered_tickets(coga_os: Path, name: str) -> list[str]:
 AGENT_GUIDE_TEMPLATE = """\
 # Agent guide
 
-This repo uses [coga](https://github.com/FastJVM/relay) to coordinate shared
+This repo uses [coga](https://github.com/FastJVM/coga) to coordinate shared
 task and context state between humans and agents. Everything coordinated lives
 under `coga/`.
 

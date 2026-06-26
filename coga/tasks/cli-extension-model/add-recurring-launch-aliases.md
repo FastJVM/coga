@@ -8,7 +8,7 @@ human: nick
 agent: claude
 assignee: nick
 contexts:
-- relay/codebase
+- coga/codebase
 skills: []
 workflow:
   name: code/with-review
@@ -76,7 +76,7 @@ the default-alias table.)
 built-ins — see the audit), and the declarative-shim mechanism (ticket 3's
 proposal + its follow-up). This ticket is ~4 lines of `cli.py` plus a test.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

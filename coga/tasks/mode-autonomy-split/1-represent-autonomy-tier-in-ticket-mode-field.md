@@ -157,7 +157,7 @@ dispatch (a later "when mature" ticket).
    `autonomy`), plus create/retire/recurring tests for the migrated vocabulary.
    Whole suite green; behavior unchanged.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 

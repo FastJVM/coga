@@ -70,7 +70,7 @@ published package, the command, and the brand are all consistent.
 - Work happens on branch `rename/relay-to-coga` (worktree `/tmp/relay-coga`), one PR.
 - This is a brand/PyPI-driven follow-on to the install-hardening + PyPI-publishing work.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 ## Dev
 

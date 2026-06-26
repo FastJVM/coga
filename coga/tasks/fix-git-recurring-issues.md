@@ -46,6 +46,6 @@ Confirm, and only close once each is true:
 - Pairs with `wire-recurring-sweep-into-system-cron` and
   `fix-recurring-templates-not-instantiated`.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.

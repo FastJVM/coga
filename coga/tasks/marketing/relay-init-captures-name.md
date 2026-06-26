@@ -175,7 +175,7 @@ Coordination with siblings:
   `owner: zach`); the empty/filled gate covers only the onboarding ticket.
 - `tests/test_setup.py` updates → land with the command rename.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 # relay-init-captures-name — design
 

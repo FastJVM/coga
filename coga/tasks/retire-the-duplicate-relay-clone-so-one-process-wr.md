@@ -32,6 +32,6 @@ Split out of `prevent-autostash-spool-conflicts-on-control-branc` (see its
 blackboard). The spool-merge + rebase-hardening fix makes the race *safe* when
 it happens; this ticket removes the source so it stops happening at all.
 
-<!-- relay:blackboard -->
+<!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
