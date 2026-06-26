@@ -55,3 +55,39 @@ were intentionally NOT made in the rename PR. See that PR's blackboard
 
 **Publish:**
 - [ ] Publish `coga 0.2.0` via the trusted-publishing workflow (`.github/workflows/release.yml`) under the `coga` name.
+
+## Post-merge checklist (landing the source rename, PR #454)
+
+Coordination steps for when PR #454 (the `relay`→`coga` source rename) merges to
+`main`. The diff is green (924 tests) — these are about *sequencing*, not code.
+Order matters.
+
+**Land it in a lull, or `relay-os/` comes back:**
+- [ ] Merge #454 during a quiet window — nothing pushing relay bookkeeping to `main`.
+  Any *pre-rename* `relay` process that pushes after the merge re-creates a stray
+  `relay-os/` next to `coga/` (this is exactly the churn that kept un-mergeable-ing the PR).
+- [ ] Immediately after merge, cut every CLI actor over to `coga` (details below) before
+  anyone launches/bumps again.
+
+**CLI cutover (the `relay`→`coga` switch):**
+- [ ] In each checkout that runs the CLI: `git pull` the renamed `main`, then reinstall —
+  `pip install -e .` (or `pipx install --force .`). Entry point is now `coga = coga.cli:main`;
+  the old `relay` console script `ImportError`s after pull (its `src/relay` target is gone),
+  which is the forcing function to reinstall.
+- [ ] Update anything that *invokes* the CLI by name from `relay …` to `coga …` — cron lines,
+  `scripts/cron.sh`, launchd plists, shell aliases, wrapper scripts.
+- [ ] Restart the scheduled jobs (digest / skill-update recurring) under the new command, and
+  have each human (you, Nick) reinstall their checkout so interactive launches use `coga`.
+- [ ] Run this ticket's `mark done` (and any bump) with the **`coga`** CLI *after* reinstalling —
+  a pre-rename `relay mark done` writes to `relay-os/tasks/` and resurrects the dir.
+
+**Fan-out (other in-flight work):**
+- [ ] Rebase/merge the ~15 sibling worktree branches (`relay-ci`, `relay-pkg`, `relay-init`,
+  `remove-shim-concept`, …) — each conflicts across the whole rename surface. Land the close
+  ones before #454 where practical; rebase the rest after.
+- [ ] Migrate the ~8–10 Desktop host repos (still `relay-os/` + `relay.toml`) — they break under
+  the `coga` CLI until migrated. This is the `migrate-to-coga.sh` work above.
+
+Note: the migrate item above still says `relay-os`→`coga-os`; **superseded** — the workspace dir
+is now bare `coga` (boss reversed `coga-os` mid-PR, commit `8e7b3f76`). migrate renames
+`relay-os`→`coga`, not `coga-os`.
