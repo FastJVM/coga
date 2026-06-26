@@ -7,8 +7,8 @@ import pytest
 import requests
 import typer
 
-from relay.config import load_config
-from relay.notification import post
+from coga.config import load_config
+from coga.notification import post
 
 
 def _write(path: Path, text: str) -> None:
@@ -18,7 +18,7 @@ def _write(path: Path, text: str) -> None:
 
 def _create_min(tmp_path: Path) -> None:
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -32,7 +32,7 @@ def _create_min(tmp_path: Path) -> None:
         webhook = "env:SLACK_WEBHOOK_URL"
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
 
 
 @pytest.fixture
@@ -55,7 +55,7 @@ def test_post_calls_webhook(cfg_with_webhook, monkeypatch: pytest.MonkeyPatch) -
         calls.append({"url": url, "json": json})
         return _SlackResponse()
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
     post(cfg_with_webhook, "task done")
     assert len(calls) == 1
     assert calls[0]["url"] == "https://hooks.slack.com/services/test"
@@ -67,7 +67,7 @@ def test_post_with_owner_prefixes_human(
 ) -> None:
     calls: list[dict] = []
     monkeypatch.setattr(
-        "relay.notification.slack.requests.post",
+        "coga.notification.slack.requests.post",
         lambda url, json=None, timeout=None: (calls.append({"json": json}), _SlackResponse())[1],
     )
     post(cfg_with_webhook, "task done", owner="marc")
@@ -85,7 +85,7 @@ def test_post_with_image_url_attaches(
         calls.append({"url": url, "json": json})
         return _SlackResponse()
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
     post(cfg_with_webhook, "🎉 done", image_url="https://media.giphy.com/x.gif")
     payload = calls[0]["json"]
     expected_text = f"[{cfg_with_webhook.project_name}] 🎉 done"
@@ -100,7 +100,7 @@ def test_post_without_image_url_omits_attachments(
 ) -> None:
     calls: list[dict] = []
     monkeypatch.setattr(
-        "relay.notification.slack.requests.post",
+        "coga.notification.slack.requests.post",
         lambda url, json=None, timeout=None: (calls.append({"json": json}), _SlackResponse())[1],
     )
     post(cfg_with_webhook, "plain")
@@ -116,7 +116,7 @@ def test_gif_for_returns_none_when_unconfigured(tmp_path: Path) -> None:
 
 def test_gif_for_picks_from_configured_list(tmp_path: Path) -> None:
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -129,7 +129,7 @@ def test_gif_for_picks_from_configured_list(tmp_path: Path) -> None:
         panic = ["https://media.giphy.com/panic-1.gif", "https://media.giphy.com/panic-2.gif"]
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     cfg = load_config(tmp_path)
     assert cfg.gif_for("done") == "https://media.giphy.com/done-1.gif"
     assert cfg.gif_for("panic") in {
@@ -140,10 +140,10 @@ def test_gif_for_picks_from_configured_list(tmp_path: Path) -> None:
 
 
 def test_gifs_invalid_shape_raises_config_error(tmp_path: Path) -> None:
-    from relay.config import ConfigError
+    from coga.config import ConfigError
 
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -155,7 +155,7 @@ def test_gifs_invalid_shape_raises_config_error(tmp_path: Path) -> None:
         done = "not-a-list"
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     with pytest.raises(ConfigError, match=r"\[notification\.slack\.gifs\]"):
         load_config(tmp_path)
 
@@ -177,7 +177,7 @@ def test_notification_channels_dispatch_enabled(
 ) -> None:
     calls: list[dict] = []
     monkeypatch.setattr(
-        "relay.notification.slack.requests.post",
+        "coga.notification.slack.requests.post",
         lambda url, json=None, timeout=None: (
             calls.append({"url": url, "json": json}),
             _SlackResponse(),
@@ -195,10 +195,10 @@ def test_notification_channels_dispatch_enabled(
 
 
 def test_unknown_notification_channel_raises_config_error(tmp_path: Path) -> None:
-    from relay.config import ConfigError
+    from coga.config import ConfigError
 
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -210,14 +210,14 @@ def test_unknown_notification_channel_raises_config_error(tmp_path: Path) -> Non
         channels = ["email"]
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     with pytest.raises(ConfigError, match="unsupported channel"):
         load_config(tmp_path)
 
 
 def test_notification_channels_dedupe(tmp_path: Path) -> None:
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -229,7 +229,7 @@ def test_notification_channels_dedupe(tmp_path: Path) -> None:
         channels = ["slack", "slack"]
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     cfg = load_config(tmp_path)
     assert cfg.notification_channels == ("slack",)
 
@@ -246,7 +246,7 @@ def test_no_notification_config_and_no_env_resolves_to_no_channels(
     takes the no-channel branch instead of crashing.
     """
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -256,7 +256,7 @@ def test_no_notification_config_and_no_env_resolves_to_no_channels(
         file = "CLAUDE.md"
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     cfg = load_config(tmp_path)
     assert cfg.notification_channels == ()
@@ -269,7 +269,7 @@ def test_notification_slack_table_without_channels_infers_slack(
 ) -> None:
     """A `[notification.slack]` table is opt-in evidence even with no `channels`."""
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -281,7 +281,7 @@ def test_notification_slack_table_without_channels_infers_slack(
         webhook = "env:SLACK_WEBHOOK_URL"
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
     cfg = load_config(tmp_path)
     assert cfg.notification_channels == ("slack",)
@@ -292,7 +292,7 @@ def test_bare_env_without_config_infers_slack(
 ) -> None:
     """A bare exported `SLACK_WEBHOOK_URL` is opt-in evidence on its own."""
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -302,7 +302,7 @@ def test_bare_env_without_config_infers_slack(
         file = "CLAUDE.md"
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/x")
     cfg = load_config(tmp_path)
     assert cfg.notification_channels == ("slack",)
@@ -312,7 +312,7 @@ def test_empty_notification_channels_suppresses_post(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -324,7 +324,7 @@ def test_empty_notification_channels_suppresses_post(
         channels = []
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     cfg = load_config(tmp_path)
     post(cfg, "no channel")
     assert "[notification] no channels configured" in capsys.readouterr().err
@@ -334,7 +334,7 @@ def test_legacy_slack_webhook_still_resolves_with_deprecation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -346,7 +346,7 @@ def test_legacy_slack_webhook_still_resolves_with_deprecation(
         webhook = "env:SLACK_WEBHOOK_URL"
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/legacy")
 
     cfg = load_config(tmp_path)
@@ -361,7 +361,7 @@ def test_bare_env_without_toml_key_is_deprecated_fallback(
 ) -> None:
     """A bare exported SLACK_WEBHOOK_URL remains a deprecated compatibility path."""
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -371,7 +371,7 @@ def test_bare_env_without_toml_key_is_deprecated_fallback(
         file = "CLAUDE.md"
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/from-env")
     cfg = load_config(tmp_path)
     assert cfg.slack_webhook == "https://hooks.slack.com/services/from-env"
@@ -391,7 +391,7 @@ def test_toml_env_indirection_unset_var_is_none(
 def test_toml_literal_webhook_accepted(tmp_path: Path) -> None:
     """A literal URL is accepted by the parser (docs steer to `env:`, but it works)."""
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -403,7 +403,7 @@ def test_toml_literal_webhook_accepted(tmp_path: Path) -> None:
         webhook = "https://hooks.slack.com/services/literal"
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     cfg = load_config(tmp_path)
     assert cfg.slack_webhook == "https://hooks.slack.com/services/literal"
 
@@ -413,7 +413,7 @@ def test_local_webhook_overrides_shared(
 ) -> None:
     """If both shared and local set `[notification.slack].webhook`, local wins."""
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -426,7 +426,7 @@ def test_local_webhook_overrides_shared(
         """,
     )
     _write(
-        tmp_path / "relay.local.toml",
+        tmp_path / "coga.local.toml",
         """
         user = "marc"
         [notification.slack]
@@ -439,10 +439,10 @@ def test_local_webhook_overrides_shared(
 
 
 def test_webhook_non_string_raises_config_error(tmp_path: Path) -> None:
-    from relay.config import ConfigError
+    from coga.config import ConfigError
 
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -454,7 +454,7 @@ def test_webhook_non_string_raises_config_error(tmp_path: Path) -> None:
         webhook = 123
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     with pytest.raises(ConfigError, match=r"\[notification\.slack\]\.webhook"):
         load_config(tmp_path)
 
@@ -467,7 +467,7 @@ def test_enabled_default_is_true(tmp_path: Path) -> None:
 
 def test_enabled_false_in_local_toml_opts_out(tmp_path: Path) -> None:
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -478,7 +478,7 @@ def test_enabled_false_in_local_toml_opts_out(tmp_path: Path) -> None:
         """,
     )
     _write(
-        tmp_path / "relay.local.toml",
+        tmp_path / "coga.local.toml",
         """
         user = "marc"
         [notification.slack]
@@ -491,7 +491,7 @@ def test_enabled_false_in_local_toml_opts_out(tmp_path: Path) -> None:
 
 def test_local_enabled_overrides_shared(tmp_path: Path) -> None:
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -504,7 +504,7 @@ def test_local_enabled_overrides_shared(tmp_path: Path) -> None:
         """,
     )
     _write(
-        tmp_path / "relay.local.toml",
+        tmp_path / "coga.local.toml",
         """
         user = "marc"
         [notification.slack]
@@ -519,7 +519,7 @@ def test_disabled_post_writes_to_stderr_no_crash(
     tmp_path: Path, capsys
 ) -> None:
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -531,7 +531,7 @@ def test_disabled_post_writes_to_stderr_no_crash(
         enabled = false
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     cfg = load_config(tmp_path)
     post(cfg, "muted hello", owner="marc")
     err = capsys.readouterr().err
@@ -558,7 +558,7 @@ def test_post_failure_crashes(
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise requests.ConnectionError("no network")
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
     with pytest.raises(typer.Exit) as exc:
         post(cfg_with_webhook, "lost message")
     assert exc.value.exit_code == 1
@@ -577,7 +577,7 @@ def test_post_failure_with_task_path_appends_to_log_then_crashes(
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise requests.ConnectionError("no network")
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
     with pytest.raises(typer.Exit):
         post(cfg_with_webhook, "daemon message", task_path=task_path)
 
@@ -602,7 +602,7 @@ def test_post_revoked_webhook_response_logs_then_crashes(
     def fake_post(*args, **kwargs):  # type: ignore[no-untyped-def]
         return _SlackResponse(404, "no_service")
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
     with pytest.raises(typer.Exit) as exc:
         post(cfg_with_webhook, "daemon message", task_path=task_path)
     assert exc.value.exit_code == 1
@@ -625,7 +625,7 @@ def _capture(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     """Stub requests.post and return the list it appends each call's json to."""
     calls: list[dict] = []
     monkeypatch.setattr(
-        "relay.notification.slack.requests.post",
+        "coga.notification.slack.requests.post",
         lambda url, json=None, timeout=None: (
             calls.append({"json": json}),
             _SlackResponse(),
@@ -637,7 +637,7 @@ def _capture(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 @pytest.fixture
 def cfg_with_users(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -652,7 +652,7 @@ def cfg_with_users(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         ada = "U02ADA"
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/test")
     return load_config(tmp_path)
 
@@ -668,10 +668,10 @@ def test_slack_users_load_and_strip(cfg_with_users) -> None:
 
 
 def test_slack_users_invalid_shape_raises_config_error(tmp_path: Path) -> None:
-    from relay.config import ConfigError
+    from coga.config import ConfigError
 
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -683,16 +683,16 @@ def test_slack_users_invalid_shape_raises_config_error(tmp_path: Path) -> None:
         users = "not-a-table"
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     with pytest.raises(ConfigError, match=r"\[notification\.slack\.users\]"):
         load_config(tmp_path)
 
 
 def test_slack_users_empty_id_raises_config_error(tmp_path: Path) -> None:
-    from relay.config import ConfigError
+    from coga.config import ConfigError
 
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -704,7 +704,7 @@ def test_slack_users_empty_id_raises_config_error(tmp_path: Path) -> None:
         marc = ""
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     with pytest.raises(ConfigError, match=r"\[notification\.slack\.users\]\.marc"):
         load_config(tmp_path)
 
@@ -748,10 +748,10 @@ def test_post_watchers_all_unmapped_omits_trailer(
 
 
 def test_invalid_enabled_type_raises_config_error(tmp_path: Path) -> None:
-    from relay.config import ConfigError
+    from coga.config import ConfigError
 
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -763,6 +763,6 @@ def test_invalid_enabled_type_raises_config_error(tmp_path: Path) -> None:
         enabled = "yes"
         """,
     )
-    _write(tmp_path / "relay.local.toml", 'user = "marc"\n')
+    _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     with pytest.raises(ConfigError):
         load_config(tmp_path)

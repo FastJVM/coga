@@ -8,31 +8,31 @@ consume — so its classification has to be right, not assumed.
 **Home: `docs/` (evidence), paired with a context (contract).** This doc is the
 verb-by-verb *evidence* — design/audit rationale for the cli-extension-model work,
 not a rule an agent follows at launch. The durable *rule* it produced — the
-three-homes extension model — lives as the `relay/extension-model` context
-(`relay-os/contexts/relay/extension-model/SKILL.md`), authored project-local
-(sibling to `relay/architecture`/`relay/codebase`), so no bundled-battery
+three-homes extension model — lives as the `coga/extension-model` context
+(`coga-os/contexts/coga/extension-model/SKILL.md`), authored project-local
+(sibling to `coga/architecture`/`coga/codebase`), so no bundled-battery
 dual-copy sync is incurred. The split mirrors `docs/vision.md` (rationale) vs
-`relay/principles` (contract). The operator command reference stays where it is,
-the `relay/cli` *context*. Read this for the worked classification; read
-`relay/extension-model` for the rule.
+`coga/principles` (contract). The operator command reference stays where it is,
+the `coga/cli` *context*. Read this for the worked classification; read
+`coga/extension-model` for the rule.
 
 ## The three extension mechanisms
 
 1. **Pure aliases** — argv rewrites in `_DEFAULT_ALIASES` (shipped to every
-   repo) merged with user `[aliases]` from `relay.toml`, user key winning
-   (`src/relay/cli.py:125`, `:237`). An alias is rewritten in `main()`
+   repo) merged with user `[aliases]` from `coga.toml`, user key winning
+   (`src/coga/cli.py:125`, `:237`). An alias is rewritten in `main()`
    *before* Typer dispatches (`cli.py:247-254`): `sys.argv` becomes
    `expansion + rest`. There is **no post-dispatch hook**. `_validate_aliases`
    (`cli.py:137-169`) rejects any alias whose name collides with a built-in or
    whose first expansion token isn't a known built-in, and soft-drops the
    legacy `create = "launch bootstrap/ticket"` line.
 
-2. **Built-in commands** — `src/relay/commands/*.py`, registered in
+2. **Built-in commands** — `src/coga/commands/*.py`, registered in
    `cli.py:74-93`. These hold real pre/post logic.
 
 3. **Bootstrap launch tickets / recurring launches** — tickets at
-   `relay-os/bootstrap/<name>/ticket.md` (stateless launch targets) and templates at
-   `relay-os/recurring/<name>/` launched via `recurring launch <name>`. These
+   `coga-os/bootstrap/<name>/ticket.md` (stateless launch targets) and templates at
+   `coga-os/recurring/<name>/` launched via `recurring launch <name>`. These
    are the only place pure passthroughs actually live.
 
 ## The rule
@@ -42,7 +42,7 @@ the `relay/cli` *context*. Read this for the worked classification; read
 > changed files**, or **guards a TTY** cannot be an alias — it needs a
 > built-in.
 
-`relay ticket` is the standing proof: it was promoted *out of* the old
+`coga ticket` is the standing proof: it was promoted *out of* the old
 `create = "launch bootstrap/ticket"` alias into a built-in precisely because it
 drafts a ticket on the fly, validates the authored ticket after the agent
 exits, git-syncs changed `tasks/`/`contexts/`/`skills/`, and enforces a TTY —
@@ -51,7 +51,7 @@ none of which an argv rewrite can express.
 The structural consequence: **aliases can only ever capture a `launch X` or
 `recurring launch X` shape, and only when X needs no pre/post logic.** Every
 existing default alias is exactly that — `chat` → `launch bootstrap/orient`,
-`dream` → `recurring launch dream`, `build` → `launch relay-build`. So the
+`dream` → `recurring launch dream`, `build` → `launch coga-build`. So the
 hunt for new alias candidates is entirely within the bootstrap-ticket /
 recurring-launch space; no top-level verb is a hidden passthrough.
 
@@ -61,7 +61,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 
 | Verb | Mechanism | Alias-able? | Why |
 |------|-----------|-------------|-----|
-| `init` | built-in | No | Scaffolds/refreshes `relay-os/`, clones upstream, installs venv deps. Heavy side effects. |
+| `init` | built-in | No | Scaffolds/refreshes `coga-os/`, clones upstream, installs venv deps. Heavy side effects. |
 | `create` / `draft` | built-in | No | Scaffolds a `draft` ticket dir + posts `✨` to Slack + post-write validate. |
 | `ticket` | built-in | No | **Canonical proof.** Drafts-on-fly, validates after agent exits, git-syncs, TTY guard. |
 | `project` | built-in | No | Interview → scaffold many drafts → post-validate; TTY guard. |
@@ -69,7 +69,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 | `status` | built-in | No | Reads tree + renders tables. Logic, not a passthrough to another command. |
 | `show` | built-in | No | Reads + Rich-renders ticket/blackboard/log. |
 | `bump` | built-in | No | Advances `step:`, appends `log.md`, post-write validate. |
-| `automerge` | ~~built-in~~ retired | — | Removed; merged-ticket auto-close is now solely the `autoclose-merged` recurring sweep (`relay/autoclose/sweep` skill → `relay.autoclose.sweep_merged`). (See gotcha.) |
+| `automerge` | ~~built-in~~ retired | — | Removed; merged-ticket auto-close is now solely the `autoclose-merged` recurring sweep (`coga/autoclose/sweep` skill → `coga.autoclose.sweep_merged`). (See gotcha.) |
 | `delete` | built-in | No | Resolves slug → runs `bootstrap/delete-task` skill with injected env. Thin, but resolves + executes a script. |
 | `retire` | built-in | No | Scaffolds a one-shot `retire-<slug>` task straight to `active` + launches it. |
 | `panic` | built-in | No | Writes blackboard marker + Slack + non-zero exit. |
@@ -84,13 +84,13 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 **No CLI verb is an alias-able pure passthrough.** Each is its own
 implementation, not a fixed rewrite to another command.
 
-### Bootstrap launch tickets (`relay-os/bootstrap/<name>/ticket.md`)
+### Bootstrap launch tickets (`coga-os/bootstrap/<name>/ticket.md`)
 
 | Bootstrap ticket | Mechanism today | Alias-able? | Why |
 |------|-----------------|-------------|-----|
 | `orient` | `chat` default alias → `launch bootstrap/orient` | Yes — already aliased | Pure `launch bootstrap/orient`; no pre/post logic. |
-| `ticket` | `relay ticket` built-in | No | The bootstrap ticket exists, but authoring needs draft-on-fly / post-exit validate / git-sync / TTY. |
-| `project` | `relay project` built-in | No | Interview + multi-draft scaffold + TTY guard; not a passthrough. |
+| `ticket` | `coga ticket` built-in | No | The bootstrap ticket exists, but authoring needs draft-on-fly / post-exit validate / git-sync / TTY. |
+| `project` | `coga project` built-in | No | Interview + multi-draft scaffold + TTY guard; not a passthrough. |
 
 Only `orient`, `project`, `ticket` are bootstrap tickets (`resolve_bootstrap`);
 `orient` is already the `chat` alias and the other two need built-ins. **No
@@ -103,9 +103,9 @@ un-aliased bootstrap-ticket passthrough remains.**
 | `dream` | interactive | `dream` default alias → `recurring launch dream` | Yes — already aliased | Pure passthrough. |
 | `skill-update` | script | none | **Yes — un-aliased candidate** | Pure `recurring launch skill-update`; no pre/post logic. |
 | `autoclose-merged` | script | none | **Yes — un-aliased candidate** | Pure `recurring launch autoclose-merged`; no pre/post logic. (Watch the naming gotcha.) |
-| `digest` | script | name occupied by `relay digest` built-in | **No — disqualified by name collision** | `recurring launch digest` *is* a pure passthrough, but the natural alias name `digest` is already a built-in (a different operation). See below. |
+| `digest` | script | name occupied by `coga digest` built-in | **No — disqualified by name collision** | `recurring launch digest` *is* a pure passthrough, but the natural alias name `digest` is already a built-in (a different operation). See below. |
 
-(`_rem` and `_template` are `_`-prefixed scaffolding that `relay recurring`
+(`_rem` and `_template` are `_`-prefixed scaffolding that `coga recurring`
 skips — not launchable templates.)
 
 ## The concrete finding (verified, not assumed)
@@ -128,7 +128,7 @@ disqualified. There is one: **`digest`**.
 natural name**, because `digest` is already a built-in command — and crucially
 that built-in is a *different operation*:
 
-- **`relay digest`** (built-in, `src/relay/commands/digest.py`) is the
+- **`coga digest`** (built-in, `src/coga/commands/digest.py`) is the
   **consumer** half of the daily-digest pipeline: read the spool → fetch
   `origin/main` → render Done + Also-merged → post via webhook → empty the
   spool → record the git high-water mark. It is what the digest recurring
@@ -144,9 +144,9 @@ pure-passthrough set for aliasing is exactly the two named above.
 ## Gotchas
 
 - **Merged-ticket auto-close has a single surface now.** The standalone
-  `relay automerge` command has been retired: the `autoclose-merged` recurring
-  sweep is the sole trigger. Its skill `relay/autoclose/sweep` calls
-  `relay.autoclose.sweep_merged` (renamed from `relay.automerge.auto_bump_merged`),
+  `coga automerge` command has been retired: the `autoclose-merged` recurring
+  sweep is the sole trigger. Its skill `coga/autoclose/sweep` calls
+  `coga.autoclose.sweep_merged` (renamed from `coga.automerge.auto_bump_merged`),
   which bumps final-step / workflow-less tickets whose linked PR has merged.
   Historical note: this used to be two surfaces (a manual command and the
   sweep) over the same module, one keystroke apart and easy to confuse — that
@@ -155,13 +155,13 @@ pure-passthrough set for aliasing is exactly the two named above.
 - **`bootstrap/import` and `bootstrap/delete-task` are *skills*, not launch
   tickets.** Neither has a `ticket.md`, so neither is a `resolve_bootstrap`
   target and neither can be an alias. `bootstrap/delete-task` is the single
-  implementation behind `relay delete` (also runnable as a `mode: script`
+  implementation behind `coga delete` (also runnable as a `mode: script`
   step); `bootstrap/import` is the judgment layer used during ticket authoring,
   not a launchable thing. Do not mistake a `bootstrap/skills/...` path for an
   aliasable bootstrap ticket.
 
 - **`_DEFAULT_ALIASES` already ships three, not two.** `chat`, `dream`, **and
-  `build`** (`build` → `launch relay-build`). The `relay/cli` context's
+  `build`** (`build` → `launch coga-build`). The `coga/cli` context's
   Aliases section still documents only `chat` + `dream` — pre-existing doc
   drift, out of scope for this ticket but worth a follow-up.
 
@@ -177,8 +177,8 @@ conclusion: the surface collapses to **three homes for logic, plus sugar**.
 2. **Tickets / workflows** — *stateful, reviewable* work as skills / `mode: script`
    steps on a ticket.
 3. **External scripts / tools** — *stateless, parameterized* invocations. Two kinds:
-   an **external tool** Relay shells out to (`gh`, `op`, `git` — exists, no design),
-   and a **Relay-authored external script / service** that lives outside both kernel
+   an **external tool** Coga shells out to (`gh`, `op`, `git` — exists, no design),
+   and a **Coga-authored external script / service** that lives outside both kernel
    and tickets — a *design target* (no mechanism today).
 4. **Aliases** are not a home — just argv sugar pointing at one of the three.
 
@@ -197,7 +197,7 @@ it *to start* a launch (movable)? Nothing else is kernel.
 
 **Most current built-ins are not kernel — they're fused or already external.**
 `automerge`/`digest`/`delete` already run as a sweep skill / post step /
-delete-task skill. `relay ticket` is the worked fused case: its authoring
+delete-task skill. `coga ticket` is the worked fused case: its authoring
 conversation is a workflow interactive step (the `bootstrap/ticket` launch target
 already), its post-exit validate + git-sync is a script step (same shape as the
 autoclose sweep), and the `arg → draft` head (`ticket.py:99-127`) is irreducible;
@@ -221,23 +221,23 @@ ticket/prompt/git machinery.
 
 **Guardrails:** (1) *No worse Typer* — no transient launch params, and an
 `arg → draft+workflow → launch` authoring command stays that single fixed shape;
-conditionals or computed args make it an illegible `relay.toml` DSL. (2) *No inversion* —
+conditionals or computed args make it an illegible `coga.toml` DSL. (2) *No inversion* —
 relocating logic out of the kernel moves the substance unchanged (tested
 `mode: script` Python), never rewrites a deterministic check as agent judgment.
 
-The ratified rule lives in the `relay/extension-model` context; this section is
+The ratified rule lives in the `coga/extension-model` context; this section is
 the audit's path to it.
 
 ## Source references
 
-- Alias mechanism + validation: `src/relay/cli.py:125` (`_DEFAULT_ALIASES`),
+- Alias mechanism + validation: `src/coga/cli.py:125` (`_DEFAULT_ALIASES`),
   `:137-169` (`_validate_aliases`), `:247-254` (argv rewrite in `main()`),
   `:99-105` (`_BUILTIN_COMMANDS`).
-- Command registration: `src/relay/cli.py:74-93`.
-- `relay ticket` promotion rationale: `src/relay/commands/ticket.py`.
-- digest consumer: `src/relay/commands/digest.py`.
-- autoclose sweep + module: `relay-os/workflows/autoclose-merged/sweep.md`,
-  `relay.autoclose.sweep_merged`.
-- Bootstrap tickets: `relay-os/bootstrap/{orient,project,ticket}/ticket.md`.
-- Recurring templates: `relay-os/recurring/{autoclose-merged,digest,dream,skill-update}/`.
-- Alias test coverage (not `relay validate`): `tests/test_aliases.py`.
+- Command registration: `src/coga/cli.py:74-93`.
+- `coga ticket` promotion rationale: `src/coga/commands/ticket.py`.
+- digest consumer: `src/coga/commands/digest.py`.
+- autoclose sweep + module: `coga-os/workflows/autoclose-merged/sweep.md`,
+  `coga.autoclose.sweep_merged`.
+- Bootstrap tickets: `coga-os/bootstrap/{orient,project,ticket}/ticket.md`.
+- Recurring templates: `coga-os/recurring/{autoclose-merged,digest,dream,skill-update}/`.
+- Alias test coverage (not `coga validate`): `tests/test_aliases.py`.

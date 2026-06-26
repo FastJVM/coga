@@ -6,11 +6,11 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay import autoclose as am
-from relay.cli import app
-from relay.config import load_config
-from relay.create import create_task
-from relay.ticket import Ticket
+from coga import autoclose as am
+from coga.cli import app
+from coga.config import load_config
+from coga.create import create_task
+from coga.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -43,7 +43,7 @@ def _write_workflow_less_task(
 
         ## Description
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         # Blackboard
     """).lstrip())
@@ -52,9 +52,9 @@ def _write_workflow_less_task(
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga-os"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -66,7 +66,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _write(
         company / "workflows" / "code.md",
         """
@@ -117,7 +117,7 @@ def _make_task(
         t.frontmatter["step"] = f"{last} ({steps[last - 1]['name']})"
         t.write(ticket)
     if pr_url is not None:
-        from relay.taskfile import read_blackboard, replace_blackboard
+        from coga.taskfile import read_blackboard, replace_blackboard
 
         bb = read_blackboard(ticket, blackboard_required=False).rstrip()
         replace_blackboard(
@@ -233,7 +233,7 @@ def test_sweep_merged_bumps_final_step_with_merged_pr(
     assert count == 1
     t = Ticket.read(path)
     assert t.status == "done"
-    from relay.logfile import task_log_lines
+    from coga.logfile import task_log_lines
 
     log = "\n".join(task_log_lines(cfg, slug))
     assert "auto-bumped on merge of PR #7" in log
@@ -371,7 +371,7 @@ def test_sweep_merged_loud_raises_gh_error(
 # --- status stays read-only --------------------------------------------------
 
 
-def test_relay_status_does_not_auto_bump(
+def test_coga_status_does_not_auto_bump(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # `status` is read-only: a merged PR on a final-step ticket must NOT be
@@ -389,7 +389,7 @@ def test_relay_status_does_not_auto_bump(
     assert Ticket.read(path).status == "active"
 
 
-def test_relay_status_never_calls_gh(
+def test_coga_status_never_calls_gh(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # `status` must never hit the network — even a final-step ticket with a

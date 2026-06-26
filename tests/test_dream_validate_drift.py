@@ -12,10 +12,10 @@ import pytest
 VALIDATE_DRIFT = (
     Path(__file__).resolve().parents[1]
     / "src"
-    / "relay"
+    / "coga"
     / "resources"
     / "templates"
-    / "relay-os"
+    / "coga-os"
     / "bootstrap"
     / "skills"
     / "bootstrap"
@@ -55,9 +55,9 @@ def _write(path: Path, text: str) -> None:
 
 
 def _seed_repo(root: Path) -> Path:
-    relay_os = root / "relay-os"
+    coga_os = root / "coga-os"
     _write(
-        relay_os / "relay.toml",
+        coga_os / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -72,8 +72,8 @@ def _seed_repo(root: Path) -> Path:
 
         """,
     )
-    _write(relay_os / "relay.local.toml", 'user = "marc"\n')
-    task = relay_os / "tasks" / "broken-context"
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    task = coga_os / "tasks" / "broken-context"
     _write(
         task / "ticket.md",
         """
@@ -94,12 +94,12 @@ def _seed_repo(root: Path) -> Path:
     )
     _write(task / "blackboard.md", "Initial blackboard.\n")
     _write(task / "log.md", "")
-    return relay_os
+    return coga_os
 
 
 def test_build_validate_command_uses_deterministic_json_surface() -> None:
     cmd = build_validate_command(fix=True, idle_hours=48)
-    assert cmd[:4] == [sys.executable, "-m", "relay.validate", "--json"]
+    assert cmd[:4] == [sys.executable, "-m", "coga.validate", "--json"]
     assert "--fix" in cmd
     assert "--check-slack" not in cmd
     assert "--idle-hours" in cmd
@@ -107,7 +107,7 @@ def test_build_validate_command_uses_deterministic_json_surface() -> None:
 
 def test_classifies_blackboard_fence_as_direct_fix() -> None:
     # v2 single-file: the auto-fixable issue is a missing blackboard fence,
-    # which `relay validate --fix` appends to ticket.md. (There is no per-task
+    # which `coga validate --fix` appends to ticket.md. (There is no per-task
     # log.md / blackboard.md to recreate anymore.)
     classified = classify_issue(
         ValidationIssue(
@@ -119,7 +119,7 @@ def test_classifies_blackboard_fence_as_direct_fix() -> None:
     )
 
     assert classified.action == ACTION_DIRECT_FIX
-    assert "relay validate --fix" in classified.remediation
+    assert "coga validate --fix" in classified.remediation
 
 
 def test_classifies_missing_ticket_as_human_needed() -> None:
@@ -167,16 +167,16 @@ def test_classifies_recurring_state_stuck_as_human_needed() -> None:
 
 
 def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
-    relay_os = _seed_repo(tmp_path)
-    blackboard = relay_os / "tasks" / "broken-context" / "blackboard.md"
+    coga_os = _seed_repo(tmp_path)
+    blackboard = coga_os / "tasks" / "broken-context" / "blackboard.md"
     env = os.environ.copy()
     env.update(
         {
-            "RELAY_TASK_SLUG": "validate-drift-child",
-            "RELAY_TASK_DIR": str((relay_os / "tasks" / "broken-context").resolve()),
-            "RELAY_TASK_BLACKBOARD": str(blackboard.resolve()),
-            "RELAY_RELAY_OS_ROOT": str(relay_os.resolve()),
-            "RELAY_REPO_ROOT": str(tmp_path.resolve()),
+            "COGA_TASK_SLUG": "validate-drift-child",
+            "COGA_TASK_DIR": str((coga_os / "tasks" / "broken-context").resolve()),
+            "COGA_TASK_BLACKBOARD": str(blackboard.resolve()),
+            "COGA_COGA_OS_ROOT": str(coga_os.resolve()),
+            "COGA_REPO_ROOT": str(tmp_path.resolve()),
         }
     )
 
@@ -204,10 +204,10 @@ def test_worker_appends_validate_result_to_blackboard(tmp_path: Path) -> None:
 
 
 def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> None:
-    from relay.taskfile import fence_count
+    from coga.taskfile import fence_count
 
-    relay_os = _seed_repo(tmp_path)
-    task = relay_os / "tasks" / "broken-context"
+    coga_os = _seed_repo(tmp_path)
+    task = coga_os / "tasks" / "broken-context"
     # Single-file format: the deterministic drift `--fix` repairs is a ticket.md
     # missing its blackboard fence (there is no separate blackboard.md/log.md to
     # recreate). `_seed_repo` writes the body with no fence, so the fix adds one.
@@ -216,11 +216,11 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
     env = os.environ.copy()
     env.update(
         {
-            "RELAY_TASK_SLUG": "validate-drift-child",
-            "RELAY_TASK_DIR": str(task.resolve()),
-            "RELAY_TASK_BLACKBOARD": str(report.resolve()),
-            "RELAY_RELAY_OS_ROOT": str(relay_os.resolve()),
-            "RELAY_REPO_ROOT": str(tmp_path.resolve()),
+            "COGA_TASK_SLUG": "validate-drift-child",
+            "COGA_TASK_DIR": str(task.resolve()),
+            "COGA_TASK_BLACKBOARD": str(report.resolve()),
+            "COGA_COGA_OS_ROOT": str(coga_os.resolve()),
+            "COGA_REPO_ROOT": str(tmp_path.resolve()),
         }
     )
 
@@ -248,7 +248,7 @@ def test_worker_fix_repairs_missing_files_and_posts_summary(tmp_path: Path) -> N
 
 def test_commit_and_push_refuses_main_branch(tmp_path: Path) -> None:
     subprocess.run(["git", "init", "-b", "main"], cwd=tmp_path, check=True, capture_output=True)
-    fixed = tmp_path / "relay-os" / "tasks" / "x" / "log.md"
+    fixed = tmp_path / "coga-os" / "tasks" / "x" / "log.md"
     fixed.parent.mkdir(parents=True)
     fixed.write_text("")
 
@@ -270,7 +270,7 @@ def test_commit_and_push_refuses_main_branch(tmp_path: Path) -> None:
 def test_commit_and_push_uses_configured_remote_without_upstream(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    fixed = tmp_path / "relay-os" / "tasks" / "x" / "log.md"
+    fixed = tmp_path / "coga-os" / "tasks" / "x" / "log.md"
     fixed.parent.mkdir(parents=True)
     fixed.write_text("")
     commands: list[list[str]] = []
@@ -341,12 +341,12 @@ def test_commit_and_push_main_passes_configured_remote(
                         "kind": "missing-file",
                         "task": "x",
                         "message": "created log.md",
-                        "path": "relay-os/tasks/x/log.md",
+                        "path": "coga-os/tasks/x/log.md",
                     }
                 ],
                 "issues": [],
             },
-            ["relay", "validate", "--json", "--fix"],
+            ["coga", "validate", "--json", "--fix"],
         )
 
     def fake_commit_and_push_fixes(**kwargs):

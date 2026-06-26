@@ -7,8 +7,8 @@ from textwrap import dedent
 
 from typer.testing import CliRunner
 
-from relay.cli import app
-from relay.usage import UsageRecord, append_record, load_records, parse_session, rollup
+from coga.cli import app
+from coga.usage import UsageRecord, append_record, load_records, parse_session, rollup
 
 
 def _write(path: Path, text: str) -> None:
@@ -181,8 +181,8 @@ def test_parse_codex_rollout_ignores_matches_outside_launch_window(
 
 
 def test_append_and_load_records_from_usage_section(tmp_path: Path) -> None:
-    relay_os = tmp_path / "relay-os"
-    blackboard = relay_os / "tasks" / "work" / "blackboard.md"
+    coga_os = tmp_path / "coga-os"
+    blackboard = coga_os / "tasks" / "work" / "blackboard.md"
     _write(blackboard, "Notes before usage\n")
     record = UsageRecord(
         ts="2026-06-23T12:00:00Z",
@@ -205,7 +205,7 @@ def test_append_and_load_records_from_usage_section(tmp_path: Path) -> None:
     text = blackboard.read_text()
     _write(blackboard, text + "\nThis prose is ignored.\n")
 
-    assert load_records(relay_os) == [record]
+    assert load_records(coga_os) == [record]
 
 
 def test_rollup_filters_and_groups_records() -> None:
@@ -268,9 +268,9 @@ def test_rollup_filters_and_groups_records() -> None:
 
 
 def test_usage_command_outputs_json(tmp_path: Path, monkeypatch) -> None:
-    relay_os = tmp_path / "relay-os"
+    coga_os = tmp_path / "coga-os"
     _write(
-        relay_os / "relay.toml",
+        coga_os / "coga.toml",
         """
         version = 1
         [agents.claude]
@@ -279,8 +279,8 @@ def test_usage_command_outputs_json(tmp_path: Path, monkeypatch) -> None:
         file = "CLAUDE.md"
         """,
     )
-    _write(relay_os / "relay.local.toml", 'user = "marc"\n')
-    blackboard = relay_os / "tasks" / "work" / "blackboard.md"
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    blackboard = coga_os / "tasks" / "work" / "blackboard.md"
     _write(blackboard, "# Blackboard\n")
     append_record(
         blackboard,
@@ -301,7 +301,7 @@ def test_usage_command_outputs_json(tmp_path: Path, monkeypatch) -> None:
             usage_status="ok",
         ),
     )
-    monkeypatch.chdir(relay_os)
+    monkeypatch.chdir(coga_os)
 
     result = CliRunner().invoke(app, ["usage", "--json"])
 

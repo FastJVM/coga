@@ -8,14 +8,14 @@ import pytest
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
-from relay.cli import app
-from relay.create import create_task
-from relay.config import load_config
-from relay.logfile import task_log_lines
-from relay.paths import log_path
-from relay.taskfile import fence_count, read_blackboard
-from relay.tasks import list_tasks
-from relay.ticket import Ticket
+from coga.cli import app
+from coga.create import create_task
+from coga.config import load_config
+from coga.logfile import task_log_lines
+from coga.paths import log_path
+from coga.taskfile import fence_count, read_blackboard
+from coga.tasks import list_tasks
+from coga.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -25,11 +25,11 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga-os"
     company.mkdir()
 
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -44,7 +44,7 @@ def repo(tmp_path: Path) -> Path:
 
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
 
     _write(
         company / "workflows" / "code" / "with-review.md",
@@ -69,11 +69,11 @@ def repo(tmp_path: Path) -> Path:
     )
     _write(company / "skills" / "infra" / "testing-conventions" / "SKILL.md", "---\nname: x\n---\n")
     _write(company / "contexts" / "email" / "payment-flow" / "SKILL.md", "---\nname: x\n---\n")
-    # The recurring creator auto-attaches `relay/period-task` to every
+    # The recurring creator auto-attaches `coga/period-task` to every
     # period task, so any recurring test path needs a resolvable stub.
     _write(
-        company / "contexts" / "relay" / "period-task" / "SKILL.md",
-        "---\nname: relay/period-task\ndescription: stub\n---\n",
+        company / "contexts" / "coga" / "period-task" / "SKILL.md",
+        "---\nname: coga/period-task\ndescription: stub\n---\n",
     )
     return company
 
@@ -136,7 +136,7 @@ def test_create_preserves_secret_declaration(repo: Path, monkeypatch: pytest.Mon
 
 def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) -> None:
     _write(
-        repo / "relay.toml",
+        repo / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -176,7 +176,7 @@ def test_create_uses_first_configured_agent_for_multi_agent_owner(repo: Path) ->
 
 def test_create_requires_agent_before_writing_task_dir(repo: Path) -> None:
     _write(
-        repo / "relay.toml",
+        repo / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -243,7 +243,7 @@ def test_create_explicit_human_and_agent_overrides_defaults(repo: Path) -> None:
 
 
 def test_backfill_role_fields_adds_human_and_agent(repo: Path) -> None:
-    from relay.retrofit import backfill_role_fields
+    from coga.retrofit import backfill_role_fields
 
     # Seed a legacy ticket without `human:` / `agent:`.
     legacy = repo / "tasks" / "legacy"
@@ -261,7 +261,7 @@ def test_backfill_role_fields_adds_human_and_agent(repo: Path) -> None:
         ## Description
         old.
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
         """
     ).lstrip())
 
@@ -277,7 +277,7 @@ def test_backfill_role_fields_adds_human_and_agent(repo: Path) -> None:
 
 
 def test_backfill_uses_owner_lone_agent_when_assignee_unknown(repo: Path) -> None:
-    from relay.retrofit import backfill_role_fields
+    from coga.retrofit import backfill_role_fields
 
     legacy = repo / "tasks" / "legacy2"
     legacy.mkdir(parents=True)
@@ -290,7 +290,7 @@ def test_backfill_uses_owner_lone_agent_when_assignee_unknown(repo: Path) -> Non
         assignee: marc
         ---
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
         """
     ).lstrip())
 
@@ -303,9 +303,9 @@ def test_backfill_uses_owner_lone_agent_when_assignee_unknown(repo: Path) -> Non
 
 
 def test_backfill_freezes_legacy_workflow_and_fills_assignee(repo: Path) -> None:
-    from relay.retrofit import backfill_role_fields
-    from relay.tasks import TaskRef
-    from relay.validate import validate_task_dir
+    from coga.retrofit import backfill_role_fields
+    from coga.tasks import TaskRef
+    from coga.validate import validate_task_dir
 
     legacy = repo / "tasks" / "legacy3"
     legacy.mkdir(parents=True)
@@ -320,7 +320,7 @@ def test_backfill_freezes_legacy_workflow_and_fills_assignee(repo: Path) -> None
         step: 2 (pr)
         ---
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
         """
     ).lstrip())
 
@@ -487,7 +487,7 @@ def repo_with_bootstrap_ticket(repo: Path) -> Path:
         """
         ---
         name: bootstrap/ticket
-        description: Author a Relay task.
+        description: Author a Coga task.
         ---
 
         Interview, fill in the ticket. Stop.
@@ -502,7 +502,7 @@ def repo_with_bootstrap_ticket(repo: Path) -> Path:
 def test_recurring_creates_silently(
     repo_with_bootstrap_ticket: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Bare `relay recurring` scans and creates due tasks without lifecycle Slack."""
+    """Bare `coga recurring` scans and creates due tasks without lifecycle Slack."""
     _write(
         repo_with_bootstrap_ticket / "recurring" / "weekly-check" / "ticket.md",
         """
@@ -530,9 +530,9 @@ def test_recurring_creates_silently(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
     monkeypatch.setattr(
-        "relay.commands.recurring._interactive_stdio_has_tty", lambda: True
+        "coga.commands.recurring._interactive_stdio_has_tty", lambda: True
     )
     # The bare scan launches due tasks sequentially; mark the stubbed launch
     # done so the recurring sweep sees a completed run.
@@ -541,7 +541,7 @@ def test_recurring_creates_silently(
         ticket.frontmatter["status"] = "done"
         ticket.write(repo_with_bootstrap_ticket / "tasks" / task / "ticket.md")
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
     runner = CliRunner()
     result = runner.invoke(app, ["recurring"])
@@ -567,7 +567,7 @@ def test_recurring_posts_error_summary(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["recurring"])
@@ -577,13 +577,13 @@ def test_recurring_posts_error_summary(
     assert not any(str(repo_with_bootstrap_ticket) in m for m in slack_msgs)
 
 
-# --- `relay create` CLI ------------------------------------------------------
+# --- `coga create` CLI ------------------------------------------------------
 
 
 def test_cli_create_creates_draft_silently(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay create "<title>"` creates a draft ticket without Slack noise."""
+    """`coga create "<title>"` creates a draft ticket without Slack noise."""
     monkeypatch.chdir(repo)
     posts: list[str] = []
 
@@ -594,7 +594,7 @@ def test_cli_create_creates_draft_silently(
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -615,7 +615,7 @@ def test_cli_create_creates_draft_silently(
 def test_cli_create_does_not_spawn_agent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay create` only creates; it never spawns an agent."""
+    """`coga create` only creates; it never spawns an agent."""
     monkeypatch.chdir(repo)
     called = False
 
@@ -625,7 +625,7 @@ def test_cli_create_does_not_spawn_agent(
         class R: returncode = 0
         return R()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run, raising=False)
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run, raising=False)
 
     runner = CliRunner()
     result = runner.invoke(
@@ -660,10 +660,10 @@ def test_cli_create_rejects_empty_title(repo: Path, monkeypatch: pytest.MonkeyPa
 def test_cli_create_workflow_flag_attaches_workflow(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay create --workflow <name>` attaches the workflow to the draft."""
+    """`coga create --workflow <name>` attaches the workflow to the draft."""
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "relay.notification.slack.requests.post",
+        "coga.notification.slack.requests.post",
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
     runner = CliRunner()
@@ -680,9 +680,9 @@ def test_cli_create_workflow_flag_attaches_workflow(
 def test_cli_create_allows_no_workflow(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay create` without `--workflow` creates a workflow-less draft.
+    """`coga create` without `--workflow` creates a workflow-less draft.
 
-    `--workflow` is optional; `relay mark active` is the gate that refuses to
+    `--workflow` is optional; `coga mark active` is the gate that refuses to
     activate a workflow-less ticket.
     """
     monkeypatch.chdir(repo)
@@ -698,11 +698,11 @@ def test_create_draft_without_workflow(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`create_draft` with no workflow produces a workflow-less draft."""
-    from relay.commands.create import create_draft
+    from coga.commands.create import create_draft
 
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "relay.notification.slack.requests.post",
+        "coga.notification.slack.requests.post",
         lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
     )
     result = create_draft(title="Interview start", autonomy="interactive")
@@ -714,8 +714,8 @@ def test_create_draft_without_workflow(
 
 
 def test_create_writes_declared_extension_fields(repo: Path) -> None:
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + (
             "\n[ticket.fields.docket]\n"
             'description = "USPTO docket"\n'
@@ -768,8 +768,8 @@ def test_create_no_extensions_no_marker(repo: Path) -> None:
 
 
 def test_extension_fields_round_trip(repo: Path) -> None:
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + '\n[ticket.fields.docket]\ndescription = "d"\n'
     )
     cfg = load_config(repo)
@@ -795,7 +795,7 @@ def test_extension_fields_round_trip(repo: Path) -> None:
 
 def test_resolve_task_exact_then_prefix(repo: Path) -> None:
     """Resolve prefers exact slug match; falls back to unique prefix; errors on ambiguity."""
-    from relay.tasks import resolve_task, TaskNotFoundError
+    from coga.tasks import resolve_task, TaskNotFoundError
 
     cfg = load_config(repo)
     for slug in ("fix-retry", "fix-retry-logic"):

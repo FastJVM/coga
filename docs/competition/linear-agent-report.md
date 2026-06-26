@@ -1,4 +1,4 @@
-<!-- Exported from the Google Doc "Linear Agent Report" (Relay Competition Tests), 2026-06-06.
+<!-- Exported from the Google Doc "Linear Agent Report" (Coga Competition Tests), 2026-06-06.
      Source: https://docs.google.com/document/d/1bGjN_EuKrKlt41FqPNVG8UfhsJDqaHQTuHlbO4KU3oM -->
 
 # **Linear Agent Report**

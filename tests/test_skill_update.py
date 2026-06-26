@@ -9,18 +9,18 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay.cli import app
-from relay.config import load_config
-from relay.create import create_task
-from relay.tasks import list_tasks
+from coga.cli import app
+from coga.config import load_config
+from coga.create import create_task
+from coga.tasks import list_tasks
 
 SKILL_UPDATE = (
     Path(__file__).resolve().parents[1]
     / "src"
-    / "relay"
+    / "coga"
     / "resources"
     / "templates"
-    / "relay-os"
+    / "coga-os"
     / "bootstrap"
     / "skills"
     / "bootstrap"
@@ -130,7 +130,7 @@ def test_render_buckets_conflict_separately_from_skipped_local_adaptation() -> N
     report = render_blackboard_report(
         results,
         generated_at="2026-06-09T00:00:00+00:00",
-        command=["relay", "skill", "update", "--all", "--pr", "--json"],
+        command=["coga", "skill", "update", "--all", "--pr", "--json"],
         pr_url="https://example.com/pr/1",
         pr_requested=True,
         task_slug="skill-update",
@@ -156,7 +156,7 @@ def test_render_reports_no_pr_when_no_updates() -> None:
     report = render_blackboard_report(
         [_result("d/bundled", "skipped-bundled", source_type="bundled")],
         generated_at="2026-06-09T00:00:00+00:00",
-        command=["relay", "skill", "update", "--all", "--pr", "--json"],
+        command=["coga", "skill", "update", "--all", "--pr", "--json"],
         pr_url=None,
         pr_requested=True,
         task_slug="skill-update",
@@ -168,7 +168,7 @@ def test_render_handles_empty_results() -> None:
     report = render_blackboard_report(
         [],
         generated_at="2026-06-09T00:00:00+00:00",
-        command=["relay", "skill", "update", "--all", "--pr", "--json"],
+        command=["coga", "skill", "update", "--all", "--pr", "--json"],
         pr_url=None,
         pr_requested=True,
         task_slug="skill-update",
@@ -185,12 +185,12 @@ def test_skill_update_skill_declares_contract() -> None:
     assert "## Known Skill Contract" in text
     assert "- Purpose: update clean imported skills" in text
     assert "- Action: `pr-required`" in text
-    assert "relay skill update --all --pr" in text
-    assert "`relay/skill-update` branch" in norm
+    assert "coga skill update --all --pr" in text
+    assert "`coga/skill-update` branch" in norm
     assert "never the caller's branch" in norm
     assert "Bundled (package-backed) skills are not updated here" in norm
     assert "- Output: append `## Skill Update`" in text
-    assert "RELAY_TASK_BLACKBOARD" in text
+    assert "COGA_TASK_BLACKBOARD" in text
     assert "--blackboard" not in text
 
 
@@ -200,16 +200,16 @@ def test_skill_update_ships_as_a_recurring_template() -> None:
     `skill-update/run` workflow, whose one step runs `bootstrap/skill-update`;
     that script-backed step is what makes it run as a script (deduced at
     launch), so no `mode: script` is declared anymore."""
-    relay_os = SKILL_UPDATE.parents[3]
-    ticket = (relay_os / "recurring" / "skill-update" / "ticket.md").read_text()
-    workflow = (relay_os / "workflows" / "skill-update" / "run.md").read_text()
+    coga_os = SKILL_UPDATE.parents[3]
+    ticket = (coga_os / "recurring" / "skill-update" / "ticket.md").read_text()
+    workflow = (coga_os / "workflows" / "skill-update" / "run.md").read_text()
 
     assert ticket.startswith("---\n")
     assert "schedule:" in ticket
     assert 'title: "Skill update"' in ticket
     assert "autonomy: auto" in ticket
     assert "workflow: skill-update/run" in ticket
-    assert "relay skill update --all --pr" in ticket
+    assert "coga skill update --all --pr" in ticket
 
     assert "name: skill-update/run" in workflow
     assert "- bootstrap/skill-update" in workflow
@@ -222,9 +222,9 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    relay_os = tmp_path / "relay-os"
+    coga_os = tmp_path / "coga-os"
     _write(
-        relay_os / "relay.toml",
+        coga_os / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -239,14 +239,14 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         """,
     )
-    _write(relay_os / "relay.local.toml", 'user = "marc"\n')
-    (relay_os / "tasks").mkdir(parents=True)
-    monkeypatch.chdir(relay_os)
-    return relay_os
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    (coga_os / "tasks").mkdir(parents=True)
+    monkeypatch.chdir(coga_os)
+    return coga_os
 
 
 def test_skill_update_runs_as_script_skill_and_reports_no_op(repo: Path) -> None:
-    # No imported skills under `skills/`: `relay skill update --all --pr` finds
+    # No imported skills under `skills/`: `coga skill update --all --pr` finds
     # nothing clean to update, so it commits nothing and opens no PR (never
     # touching git), and the skill reports a clean no-op on the task
     # blackboard. Install into the bundled bootstrap root rather than the
@@ -285,9 +285,9 @@ def test_skill_update_runs_as_script_skill_and_reports_no_op(repo: Path) -> None
 
     assert result.exit_code == 0, result.output
     ref = list_tasks(cfg)[0]
-    # Single-file format: a script worker's RELAY_TASK_BLACKBOARD is its own
+    # Single-file format: a script worker's COGA_TASK_BLACKBOARD is its own
     # ticket.md, so its report lands in that ticket's blackboard region.
-    from relay.taskfile import read_blackboard
+    from coga.taskfile import read_blackboard
 
     blackboard = read_blackboard(ref.ticket_path)
     assert "## Skill Update" in blackboard
@@ -300,8 +300,8 @@ def test_skill_update_followup_without_pr_exits_nonzero_and_keeps_report(
 ) -> None:
     blackboard = repo / "tasks" / "skill-update" / "blackboard.md"
     blackboard.parent.mkdir(parents=True)
-    monkeypatch.setenv("RELAY_TASK_BLACKBOARD", str(blackboard))
-    monkeypatch.setenv("RELAY_TASK_SLUG", "skill-update")
+    monkeypatch.setenv("COGA_TASK_BLACKBOARD", str(blackboard))
+    monkeypatch.setenv("COGA_TASK_SLUG", "skill-update")
 
     def fake_run_update_json(*, cwd: Path | None, pr: bool, pr_title: str):
         assert pr is True
@@ -318,7 +318,7 @@ def test_skill_update_followup_without_pr_exits_nonzero_and_keeps_report(
                 ],
                 "pr_url": "",
             },
-            ["relay", "skill", "update", "--all", "--pr", "--json"],
+            ["coga", "skill", "update", "--all", "--pr", "--json"],
         )
 
     monkeypatch.setattr(skill_update, "run_update_json", fake_run_update_json)

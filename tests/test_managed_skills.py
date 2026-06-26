@@ -4,15 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from relay.config import Config
-from relay.managed_skills import (
+from coga.config import Config
+from coga.managed_skills import (
     ManagedSkillError,
     ManagedSkillSpec,
     install_managed_skills,
     load_managed_skill_manifest,
     reconcile_managed_skills,
 )
-from relay.skill_manager import SkillManagerError, SkillResult, SkillUpdateSummary
+from coga.skill_manager import SkillManagerError, SkillResult, SkillUpdateSummary
 
 
 def test_load_managed_skill_manifest(tmp_path: Path) -> None:
@@ -102,7 +102,7 @@ def test_required_managed_skill_install_failure_fails_loud(tmp_path: Path) -> No
         )
 
     assert "Required managed skill `tools/example` failed from owner/repo" in str(exc.value)
-    assert "Remediation: relay skill install owner/repo tools/example" in str(exc.value)
+    assert "Remediation: coga skill install owner/repo tools/example" in str(exc.value)
 
 
 def test_optional_managed_skill_install_failure_is_reported(tmp_path: Path) -> None:
@@ -118,7 +118,7 @@ def test_optional_managed_skill_install_failure_is_reported(tmp_path: Path) -> N
     assert summary.counts() == {"failed": 1}
     [result] = summary.results
     assert result.details["required"] is False
-    assert result.details["remediation"] == "relay skill install owner/repo tools/example"
+    assert result.details["remediation"] == "coga skill install owner/repo tools/example"
 
 
 def test_reconcile_managed_skills_uses_update_path_for_existing_skill(

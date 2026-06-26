@@ -1,4 +1,4 @@
-"""Tests for `relay.git` — the git analogue of Slack sync (ticket A).
+"""Tests for `coga.git` — the git analogue of Slack sync (ticket A).
 
 Covers config parsing of `[git]`, every branch of `sync_task_state`
 (commit+push on the control branch, no-op on a feature branch / non-git /
@@ -17,11 +17,11 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay import git
-from relay.cli import app
-from relay.config import Config, ConfigError, load_config
-from relay.logfile import append_log
-from relay.ticket import Ticket
+from coga import git
+from coga.cli import app
+from coga.config import Config, ConfigError, load_config
+from coga.logfile import append_log
+from coga.ticket import Ticket
 
 runner = CliRunner()
 
@@ -44,7 +44,7 @@ def _cfg(repo_root: Path, **over) -> Config:
 
 
 def _global_log(cfg: Config) -> str:
-    """Read the repo-global audit log (`relay-os/log.md`) where sync failures
+    """Read the repo-global audit log (`coga-os/log.md`) where sync failures
     are now recorded (the per-task `log.md` is gone in the single-file format)."""
     log = cfg.repo_root / "log.md"
     return log.read_text() if log.is_file() else ""
@@ -59,10 +59,10 @@ def _task_dir(parent: Path, slug: str = "demo") -> Path:
 
 
 def _write_config(tmp_path: Path, *, shared_extra: str = "", local_extra: str = "") -> Path:
-    root = tmp_path / "relay-os"
+    root = tmp_path / "coga-os"
     root.mkdir()
-    (root / "relay.toml").write_text(f"version = 1\n{shared_extra}")
-    (root / "relay.local.toml").write_text(f'user = "marc"\n{local_extra}')
+    (root / "coga.toml").write_text(f"version = 1\n{shared_extra}")
+    (root / "coga.local.toml").write_text(f'user = "marc"\n{local_extra}')
     return root
 
 
@@ -112,19 +112,19 @@ def test_git_remote_must_be_nonempty(tmp_path):
 
 
 def test_sync_commits_and_pushes_on_control_branch(git_repo):
-    cfg = load_config(git_repo.relay_os)
-    task = _task_dir(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
 
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
-    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
     assert "Ticket: demo — created" in git_repo.origin_subjects()
 
 
 def test_sync_scopes_commit_to_the_task_dir(git_repo):
     """An unrelated working-tree change is not swept into the task commit."""
-    cfg = load_config(git_repo.relay_os)
-    task = _task_dir(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
     stray = git_repo.root / "STRAY.txt"
     stray.write_text("unrelated\n")
 
@@ -137,8 +137,8 @@ def test_sync_scopes_commit_to_the_task_dir(git_repo):
 
 def test_sync_does_not_commit_unrelated_staged_changes(git_repo):
     """A pre-staged unrelated change stays staged and is not pushed."""
-    cfg = load_config(git_repo.relay_os)
-    task = _task_dir(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
     stray = git_repo.root / "STRAY.txt"
     stray.write_text("already staged by the user\n")
     git_repo.git("add", "STRAY.txt")
@@ -151,14 +151,14 @@ def test_sync_does_not_commit_unrelated_staged_changes(git_repo):
 
 def test_sync_lands_on_main_from_feature_branch(git_repo):
     """From a feature branch, task state lands on origin/main AND on HEAD."""
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     git_repo.checkout_branch("feature/x")
-    task = _task_dir(git_repo.relay_os)
+    task = _task_dir(git_repo.coga_os)
 
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
     # Landed on the shared control branch...
-    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
     assert "Ticket: demo — created" in git_repo.origin_subjects()
     # ...and committed on the feature branch (clean tree, reflects ticket state).
     assert "tasks/" not in git_repo.git("status", "--porcelain")
@@ -173,7 +173,7 @@ def test_sync_lands_on_main_from_feature_branch(git_repo):
 def test_sync_log_commits_and_pushes_the_log_on_control_branch(git_repo):
     """A bare log append is committed + pushed, never left dirty (the bootstrap
     launch hole that blocks the next `git pull` at the checkout gate)."""
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     append_log(cfg, "bootstrap/orient", "human:nick", "launched in interactive mode")
     # The append starts life uncommitted in the working tree.
     assert "log.md" in git_repo.git("status", "--porcelain")
@@ -182,13 +182,13 @@ def test_sync_log_commits_and_pushes_the_log_on_control_branch(git_repo):
 
     # Committed (clean tree) and pushed to the shared control branch.
     assert "log.md" not in git_repo.git("status", "--porcelain")
-    assert git_repo.origin_tracks("relay-os/log.md")
+    assert git_repo.origin_tracks("coga-os/log.md")
     assert "Log: bootstrap/orient" in git_repo.origin_subjects()
 
 
 def test_sync_log_scopes_commit_to_the_log_only(git_repo):
     """An unrelated dirty file is not swept into the log commit."""
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     append_log(cfg, "bootstrap/orient", "human:nick", "launched")
     stray = git_repo.root / "STRAY.txt"
     stray.write_text("unrelated\n")
@@ -202,7 +202,7 @@ def test_sync_log_scopes_commit_to_the_log_only(git_repo):
 def test_sync_log_commits_locally_only_on_feature_branch(git_repo):
     """On a feature branch the log is committed locally (not dirty) but never
     overlaid onto the control branch — it reaches it union-safely via PR merge."""
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     git_repo.checkout_branch("feature/x")
     append_log(cfg, "bootstrap/orient", "human:nick", "launched")
 
@@ -211,14 +211,14 @@ def test_sync_log_commits_locally_only_on_feature_branch(git_repo):
     assert "log.md" not in git_repo.git("status", "--porcelain")
     assert "Log: bootstrap/orient" in git_repo.git("log", "--format=%s", "feature/x")
     # Not landed on the control branch (no overlay that could clobber appends).
-    assert not git_repo.origin_tracks("relay-os/log.md")
+    assert not git_repo.origin_tracks("coga-os/log.md")
     assert git_repo.git("rev-parse", "--abbrev-ref", "HEAD").strip() == "feature/x"
 
 
 def test_sync_log_failure_does_not_redirty_the_log(git_repo, capsys):
     """A failed log sync surfaces to stderr but does NOT append to log.md —
     re-dirtying the file it failed to commit would recreate the dangling line."""
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     git_repo.git("remote", "remove", "origin")
     append_log(cfg, "bootstrap/orient", "human:nick", "launched")
     before = (cfg.repo_root / "log.md").read_text()
@@ -240,15 +240,15 @@ def test_sync_feature_branch_relands_existing_task_after_local_change(git_repo):
     fix that `rm` refused — the temp-index content differed from both the
     working file and the feature HEAD (which the local commit had just moved),
     tripping git's "staged content differs" guard — so the land crashed. This
-    is the common `relay panic` / re-author case: the ticket was created on a
+    is the common `coga panic` / re-author case: the ticket was created on a
     prior run, then edited again from a feature worktree.
     """
-    cfg = load_config(git_repo.relay_os)
-    task = _task_dir(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
 
     # First land: the task now exists on origin/main (created on an earlier run).
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
-    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
 
     # Now, from a feature branch, change the task and sync again.
     git_repo.checkout_branch("feature/x")
@@ -257,18 +257,18 @@ def test_sync_feature_branch_relands_existing_task_after_local_change(git_repo):
     git.sync_task_state(cfg, task, message="Ticket: demo — panic")
 
     assert "Ticket: demo — panic" in git_repo.origin_subjects()
-    assert git_repo.origin_tracks("relay-os/tasks/demo/blackboard.md")
+    assert git_repo.origin_tracks("coga-os/tasks/demo/blackboard.md")
     landed = git_repo.git(
-        "show", "main:relay-os/tasks/demo/blackboard.md", cwd=git_repo.origin
+        "show", "main:coga-os/tasks/demo/blackboard.md", cwd=git_repo.origin
     )
     assert "stuck" in landed
 
 
 def test_sync_feature_branch_leaves_working_tree_untouched(git_repo):
     """Pre-existing staged + unstaged code edits survive a cross-branch land."""
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     git_repo.checkout_branch("feature/x")
-    task = _task_dir(git_repo.relay_os)
+    task = _task_dir(git_repo.coga_os)
 
     # An unstaged edit and a separately staged edit, both outside the task dir.
     unstaged = git_repo.root / "UNSTAGED.txt"
@@ -291,9 +291,9 @@ def test_sync_feature_branch_leaves_working_tree_untouched(git_repo):
 
 def test_sync_feature_branch_retries_on_non_fast_forward(git_repo):
     """A competing push to origin/main is absorbed by the retry loop, not clobbered."""
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     git_repo.checkout_branch("feature/x")
-    task = _task_dir(git_repo.relay_os)
+    task = _task_dir(git_repo.coga_os)
 
     # Another process lands an unrelated file on origin/main first.
     git_repo.push_competing_commit("RIVAL.txt", "landed first\n")
@@ -302,7 +302,7 @@ def test_sync_feature_branch_retries_on_non_fast_forward(git_repo):
 
     # Both the competing file and our task file are on origin/main — anti-clobber.
     assert git_repo.origin_tracks("RIVAL.txt")
-    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
     subjects = git_repo.origin_subjects()
     assert "Ticket: demo — created" in subjects
     assert "competing: RIVAL.txt" in subjects
@@ -316,9 +316,9 @@ def test_sync_feature_branch_retry_loop_survives_mid_flight_race(git_repo, monke
     the retry branch, inject a competing commit on the first push attempt — so
     our push is rejected non-ff — then let the second attempt go through.
     """
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     git_repo.checkout_branch("feature/x")
-    task = _task_dir(git_repo.relay_os)
+    task = _task_dir(git_repo.coga_os)
 
     real_push = git._push_ref
     calls = {"n": 0}
@@ -336,14 +336,14 @@ def test_sync_feature_branch_retry_loop_survives_mid_flight_race(git_repo, monke
 
     assert calls["n"] >= 2  # first push rejected, retried
     assert git_repo.origin_tracks("RIVAL.txt")
-    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
 
 
 def test_sync_feature_branch_noop_when_identical(git_repo):
     """No second land when origin/main already has identical task content."""
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     git_repo.checkout_branch("feature/x")
-    task = _task_dir(git_repo.relay_os)
+    task = _task_dir(git_repo.coga_os)
 
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
     before = git_repo.origin_subjects()
@@ -360,10 +360,10 @@ def test_sync_feature_branch_nonfatal_on_push_failure(git_repo, capsys):
     A failed push must not abort a local state transition (it would break the
     supervised launch chain). The miss is surfaced to stderr + log.md.
     """
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     git_repo.checkout_branch("feature/x")
     git_repo.git("remote", "remove", "origin")
-    task = _task_dir(git_repo.relay_os)
+    task = _task_dir(git_repo.coga_os)
 
     # Must not raise.
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
@@ -374,13 +374,13 @@ def test_sync_feature_branch_nonfatal_on_push_failure(git_repo, capsys):
 
 def test_sync_detached_head_lands_without_local_commit(git_repo, capsys):
     """Detached HEAD: still lands on main, skips the (orphan-ish) local commit."""
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     git_repo.git("checkout", "--detach", "HEAD")
-    task = _task_dir(git_repo.relay_os)
+    task = _task_dir(git_repo.coga_os)
 
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
-    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
     # No local commit was made — the task dir is still uncommitted on disk.
     assert "tasks/" in git_repo.git("status", "--porcelain")
     assert "detached HEAD" in capsys.readouterr().err
@@ -390,7 +390,7 @@ def test_sync_noop_when_not_a_git_repo(tmp_path, capsys, real_git):
     cfg = _cfg(tmp_path)
     task = _task_dir(tmp_path)
 
-    # Must not raise — a non-git relay-os checkout is a soft no-op.
+    # Must not raise — a non-git coga-os checkout is a soft no-op.
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
     assert "not a git repo" in capsys.readouterr().err
@@ -424,8 +424,8 @@ def test_sync_suppressed_when_disabled(tmp_path, capsys, real_git):
 
 
 def test_sync_noop_when_nothing_changed(git_repo):
-    cfg = load_config(git_repo.relay_os)
-    task = _task_dir(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
 
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
     before = git_repo.origin_subjects()
@@ -441,11 +441,11 @@ def test_sync_control_branch_retries_on_non_fast_forward(git_repo):
 
     Regression: the same-branch path used a bare `git push` with no fetch-first
     and no retry, so any concurrent remote commit (a merged PR, another machine)
-    left every later relay push on `main` rejected and silently swallowed, with
+    left every later coga push on `main` rejected and silently swallowed, with
     the local branch accumulating unpushed commits.
     """
-    cfg = load_config(git_repo.relay_os)
-    task = _task_dir(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
 
     # Another process lands an unrelated file on origin/main first.
     git_repo.push_competing_commit("RIVAL.txt", "landed first\n")
@@ -454,7 +454,7 @@ def test_sync_control_branch_retries_on_non_fast_forward(git_repo):
 
     # Both the competing file and our task file are on origin/main — anti-clobber.
     assert git_repo.origin_tracks("RIVAL.txt")
-    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
     subjects = git_repo.origin_subjects()
     assert "Ticket: demo — created" in subjects
     assert "competing: RIVAL.txt" in subjects
@@ -462,8 +462,8 @@ def test_sync_control_branch_retries_on_non_fast_forward(git_repo):
 
 def test_sync_control_branch_nonff_preserves_dirty_worktree(git_repo):
     """The fetch+rebase recovery autostashes unrelated dirty changes, not loses them."""
-    cfg = load_config(git_repo.relay_os)
-    task = _task_dir(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
     stray = git_repo.root / "STRAY.txt"
     stray.write_text("uncommitted user work\n")
 
@@ -471,7 +471,7 @@ def test_sync_control_branch_nonff_preserves_dirty_worktree(git_repo):
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
     # Pushed despite the moved origin...
-    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
     assert git_repo.origin_tracks("RIVAL.txt")
     # ...and the user's uncommitted file survived the rebase, still uncommitted.
     assert stray.read_text() == "uncommitted user work\n"
@@ -491,17 +491,17 @@ def test_sync_control_branch_unpoppable_dirty_change_leaves_no_markers_or_stash(
     `<<<<<<<` markers in the working tree AND an undropped stash. The explicit
     stash dance must instead restore the pre-sync state.
     """
-    cfg = load_config(git_repo.relay_os)
-    task = _task_dir(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
 
-    shared = git_repo.relay_os / "workflows" / "direct" / "body.md"
+    shared = git_repo.coga_os / "workflows" / "direct" / "body.md"
     original = shared.read_text()
     # A dirty tracked edit locally...
     shared.write_text(original + "\nlocal dirty edit\n")
     # ...and a rival edit to the SAME file on origin/main → the stash pop, after
     # the task commit rebases onto the rival tip, cannot apply cleanly.
     git_repo.push_competing_commit(
-        "relay-os/workflows/direct/body.md", original + "\nrival edit\n"
+        "coga-os/workflows/direct/body.md", original + "\nrival edit\n"
     )
 
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
@@ -521,8 +521,8 @@ def test_sync_control_branch_unpoppable_dirty_change_leaves_no_markers_or_stash(
 
 def test_sync_control_branch_retry_loop_survives_mid_flight_race(git_repo, monkeypatch):
     """Force a non-ff *between* fetch and push on `main`: the loop rebases and succeeds."""
-    cfg = load_config(git_repo.relay_os)
-    task = _task_dir(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
 
     real_push = git._push_ref
     calls = {"n": 0}
@@ -540,23 +540,23 @@ def test_sync_control_branch_retry_loop_survives_mid_flight_race(git_repo, monke
 
     assert calls["n"] >= 2  # first push rejected, rebased, retried
     assert git_repo.origin_tracks("RIVAL.txt")
-    assert git_repo.origin_tracks("relay-os/tasks/demo/ticket.md")
+    assert git_repo.origin_tracks("coga-os/tasks/demo/ticket.md")
 
 
 def test_sync_control_branch_nonfatal_on_rebase_conflict(git_repo, capsys):
     """An unresolvable rebase during recovery aborts cleanly and is non-fatal.
 
-    The local relay commit and the competing remote commit touch the *same*
+    The local coga commit and the competing remote commit touch the *same*
     file, so the rebase conflicts. We must abort (no lingering rebase state) and
     surface the miss to stderr + log without crashing.
     """
-    cfg = load_config(git_repo.relay_os)
-    task = _task_dir(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
 
-    # Local relay commit writes the task's ticket; the rival writes the SAME path
+    # Local coga commit writes the task's ticket; the rival writes the SAME path
     # with different content on origin/main → guaranteed rebase conflict.
     git_repo.push_competing_commit(
-        "relay-os/tasks/demo/ticket.md", "rival content\n"
+        "coga-os/tasks/demo/ticket.md", "rival content\n"
     )
 
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
@@ -571,9 +571,9 @@ def test_sync_control_branch_nonfatal_on_rebase_conflict(git_repo, capsys):
 
 def test_sync_nonfatal_on_push_failure(git_repo, capsys):
     """A failed push is surfaced (stderr + log) but never crashes the command."""
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     git_repo.git("remote", "remove", "origin")
-    task = _task_dir(git_repo.relay_os)
+    task = _task_dir(git_repo.coga_os)
 
     # Must not raise.
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
@@ -596,7 +596,7 @@ def test_cli_create_then_activate_sync_to_origin(git_repo):
     subjects = git_repo.origin_subjects()
     assert f"Ticket: {slug} — created" in subjects
     assert f"Ticket: {slug} — active" in subjects
-    assert git_repo.origin_tracks(f"relay-os/tasks/{slug}.md")
+    assert git_repo.origin_tracks(f"coga-os/tasks/{slug}.md")
 
 
 def test_cli_bump_syncs_step_to_origin(git_repo):
@@ -606,7 +606,7 @@ def test_cli_bump_syncs_step_to_origin(git_repo):
 
     # Move to in_progress by hand (launch normally does this, but it spawns an
     # agent). The hand edit is swept into the bump's commit — fine for the test.
-    ticket = git_repo.relay_os / "tasks" / f"{slug}.md"
+    ticket = git_repo.coga_os / "tasks" / f"{slug}.md"
     ticket.write_text(ticket.read_text().replace("status: active", "status: in_progress"))
 
     bumped = runner.invoke(app, ["bump", slug])
@@ -621,13 +621,13 @@ def test_cli_bump_syncs_step_to_origin(git_repo):
 # --- bespoke call sites (ticket C): panic + ticket authoring -------------------
 #
 # A wired the clean finalizers (mark/bump/create/retire). C wires the two sites
-# that don't go through those: `relay panic` (blocker written straight to the
-# blackboard + log) and `relay ticket` authoring (the agent edits ticket.md in
-# a subprocess, so relay must commit the result after control returns).
+# that don't go through those: `coga panic` (blocker written straight to the
+# blackboard + log) and `coga ticket` authoring (the agent edits ticket.md in
+# a subprocess, so coga must commit the result after control returns).
 
 
 def test_cli_panic_syncs_blocker_to_origin(git_repo):
-    """`relay panic` lands the blocker (blackboard + log) on origin/main."""
+    """`coga panic` lands the blocker (blackboard + log) on origin/main."""
     result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = result.output.split(":", 1)[0].strip()
 
@@ -644,7 +644,7 @@ def test_cli_panic_syncs_blocker_to_origin(git_repo):
     # The blocker is appended to the blackboard region of the single-file
     # ticket (the file-form `tasks/<slug>.md`; no separate blackboard.md).
     ticket = git_repo.git(
-        "show", f"main:relay-os/tasks/{slug}.md", cwd=git_repo.origin
+        "show", f"main:coga-os/tasks/{slug}.md", cwd=git_repo.origin
     )
     assert "retry ceiling unspecified" in ticket
 
@@ -677,9 +677,9 @@ def test_cli_panic_from_feature_branch_leaves_code_untouched(git_repo):
     assert "wip.py" in git_repo.git("status", "--porcelain")
 
 
-def _seed_ticket_bootstrap(relay_os: Path) -> None:
-    """Add the `bootstrap/ticket` launch target + skill the `relay ticket` cmd launches."""
-    bootstrap_dir = relay_os / "bootstrap" / "ticket"
+def _seed_ticket_bootstrap(coga_os: Path) -> None:
+    """Add the `bootstrap/ticket` launch target + skill the `coga ticket` cmd launches."""
+    bootstrap_dir = coga_os / "bootstrap" / "ticket"
     bootstrap_dir.mkdir(parents=True)
     (bootstrap_dir / "ticket.md").write_text(
         dedent(
@@ -698,14 +698,14 @@ def _seed_ticket_bootstrap(relay_os: Path) -> None:
             """
         ).lstrip()
     )
-    skill = relay_os / "skills" / "bootstrap" / "ticket"
+    skill = coga_os / "skills" / "bootstrap" / "ticket"
     skill.mkdir(parents=True)
     (skill / "SKILL.md").write_text(
         dedent(
             """
             ---
             name: bootstrap/ticket
-            description: Author a Relay task.
+            description: Author a Coga task.
             ---
 
             Interview and fill the ticket.
@@ -738,20 +738,20 @@ def _fake_authoring_agent(monkeypatch, *, on_run=None) -> None:
         return _Result()
 
     monkeypatch.setattr(
-        "relay.commands.ticket._interactive_stdio_has_tty", lambda: True
+        "coga.commands.ticket._interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
-        "relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}"
     )
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
 
 def test_cli_ticket_authoring_syncs_edits_to_origin(git_repo, monkeypatch):
-    """The agent's external edits to ticket.md are committed + pushed by relay."""
-    _seed_ticket_bootstrap(git_repo.relay_os)
+    """The agent's external edits to ticket.md are committed + pushed by coga."""
+    _seed_ticket_bootstrap(git_repo.coga_os)
     result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = result.output.split(":", 1)[0].strip()
-    ticket_path = git_repo.relay_os / "tasks" / f"{slug}.md"
+    ticket_path = git_repo.coga_os / "tasks" / f"{slug}.md"
 
     def author():
         t = Ticket.read(ticket_path)
@@ -768,22 +768,22 @@ def test_cli_ticket_authoring_syncs_edits_to_origin(git_repo, monkeypatch):
         for s in git_repo.origin_subjects()
     )
     body = git_repo.git(
-        "show", f"main:relay-os/tasks/{slug}.md", cwd=git_repo.origin
+        "show", f"main:coga-os/tasks/{slug}.md", cwd=git_repo.origin
     )
     assert "Authored during the session." in body
 
 
 def test_cli_ticket_authoring_syncs_a_newly_created_task(git_repo, monkeypatch):
-    """`relay ticket "<title>"` with no existing task syncs the draft it creates.
+    """`coga ticket "<title>"` with no existing task syncs the draft it creates.
 
     The authoring flow creates a brand-new task mid-session, so there is no
     pre-resolved `TaskRef` to sync. `sync_paths` picks it up via the
     before/after snapshot of `tasks/`, then commits + pushes it as authored.
     """
-    _seed_ticket_bootstrap(git_repo.relay_os)
+    _seed_ticket_bootstrap(git_repo.coga_os)
 
     def author():
-        path = git_repo.relay_os / "tasks" / "fresh-idea.md"
+        path = git_repo.coga_os / "tasks" / "fresh-idea.md"
         t = Ticket.read(path)
         t.frontmatter["workflow"] = "code"  # a draft must land on a workflow
         t.body = t.body + "\n\nFleshed out during authoring.\n"
@@ -794,13 +794,13 @@ def test_cli_ticket_authoring_syncs_a_newly_created_task(git_repo, monkeypatch):
     result = runner.invoke(app, ["ticket", "Fresh idea"])
     assert result.exit_code == 0, result.output
 
-    assert git_repo.origin_tracks("relay-os/tasks/fresh-idea.md")
+    assert git_repo.origin_tracks("coga-os/tasks/fresh-idea.md")
     assert any(
         s.startswith("Ticket: fresh-idea — authored")
         for s in git_repo.origin_subjects()
     )
     body = git_repo.git(
-        "show", "main:relay-os/tasks/fresh-idea.md", cwd=git_repo.origin
+        "show", "main:coga-os/tasks/fresh-idea.md", cwd=git_repo.origin
     )
     assert "Fleshed out during authoring." in body
 
@@ -808,13 +808,13 @@ def test_cli_ticket_authoring_syncs_a_newly_created_task(git_repo, monkeypatch):
 def test_cli_ticket_authoring_records_session_without_ticket_edits(git_repo, monkeypatch):
     """Even when the agent edits no ticket fields, the session is still synced.
 
-    `relay ticket` appends a "ticket authoring launched" line to `log.md`
+    `coga ticket` appends a "ticket authoring launched" line to `log.md`
     *before* spawning the agent, so the task dir always has something to sync —
     the authoring attempt lands on origin even if the ticket body is untouched.
     (The genuine nothing-staged no-op is covered at the helper level by
     `test_sync_noop_when_nothing_changed`.)
     """
-    _seed_ticket_bootstrap(git_repo.relay_os)
+    _seed_ticket_bootstrap(git_repo.coga_os)
     result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = result.output.split(":", 1)[0].strip()
 
@@ -827,46 +827,46 @@ def test_cli_ticket_authoring_records_session_without_ticket_edits(git_repo, mon
         s.startswith(f"Ticket: {slug} — authored")
         for s in git_repo.origin_subjects()
     )
-    # The authoring line lands in the repo-global `relay-os/log.md` now, which
+    # The authoring line lands in the repo-global `coga-os/log.md` now, which
     # rides the same-branch commit+push on `main` to origin.
     log = git_repo.git(
-        "show", "main:relay-os/log.md", cwd=git_repo.origin
+        "show", "main:coga-os/log.md", cwd=git_repo.origin
     )
     assert "ticket authoring launched" in log
 
 
 # --- delete (the sync gap this fixes) -----------------------------------------
 #
-# `relay delete` removes the task dir through the `bootstrap/delete-task` skill
+# `coga delete` removes the task dir through the `bootstrap/delete-task` skill
 # but historically never synced — the lone state mutation that left an
 # uncommitted working-tree deletion. It now lands the removal on the control
 # branch like every other command.
 
 _DELETE_SKILL_SRC = (
     Path(__file__).resolve().parents[1]
-    / "src" / "relay" / "resources" / "templates" / "relay-os"
+    / "src" / "coga" / "resources" / "templates" / "coga-os"
     / "bootstrap" / "skills" / "bootstrap" / "delete-task"
 )
 
 
-def _install_delete_skill(relay_os: Path) -> None:
+def _install_delete_skill(coga_os: Path) -> None:
     import shutil
 
     shutil.copytree(
-        _DELETE_SKILL_SRC, relay_os / "skills" / "bootstrap" / "delete-task"
+        _DELETE_SKILL_SRC, coga_os / "skills" / "bootstrap" / "delete-task"
     )
 
 
 def test_cli_delete_syncs_removal_to_origin(git_repo):
-    """`relay delete` lands the directory removal on origin/main.
+    """`coga delete` lands the directory removal on origin/main.
 
     The created ticket is committed first; deleting it must produce a real
     deletion commit, not an orphaned working-tree change.
     """
-    _install_delete_skill(git_repo.relay_os)
+    _install_delete_skill(git_repo.coga_os)
     created = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = created.output.split(":", 1)[0].strip()
-    assert git_repo.origin_tracks(f"relay-os/tasks/{slug}.md")
+    assert git_repo.origin_tracks(f"coga-os/tasks/{slug}.md")
 
     deleted = runner.invoke(app, ["delete", slug])
     assert deleted.exit_code == 0, deleted.output
@@ -874,7 +874,7 @@ def test_cli_delete_syncs_removal_to_origin(git_repo):
     # The removal landed: a deletion commit on origin, and the path is gone from
     # the control-branch tree — not merely from the local working copy.
     assert f"Ticket: {slug} — deleted" in git_repo.origin_subjects()
-    assert not git_repo.origin_tracks(f"relay-os/tasks/{slug}.md")
+    assert not git_repo.origin_tracks(f"coga-os/tasks/{slug}.md")
     # And nothing is left dirty in the working tree (the bug's symptom).
     status = git_repo.git("status", "--porcelain", cwd=git_repo.root)
     assert slug not in status
@@ -882,7 +882,7 @@ def test_cli_delete_syncs_removal_to_origin(git_repo):
 
 # --- non-interactive git (no credential-prompt hangs) -------------------------
 #
-# Regression: relay's git sync runs unattended inside `relay launch` / `bump` /
+# Regression: coga's git sync runs unattended inside `coga launch` / `bump` /
 # `mark`. With an HTTPS remote and `gh` logged out (gh is the credential
 # helper), a push had no creds and git dropped into an interactive credential
 # prompt that hung the launch instead of failing loud. Every git invocation

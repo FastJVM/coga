@@ -9,20 +9,20 @@ from types import SimpleNamespace
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
-from relay.cli import app
-from relay.create import create_task
-from relay.commands.launch import (
+from coga.cli import app
+from coga.create import create_task
+from coga.commands.launch import (
     _preflight_push_auth,
     _skip_permissions_argv_for_launch,
     build_agent_command,
     spawn_agent_session,
 )
-from relay.config import AgentType, ConfigError, load_config
-from relay.github_preflight import CheckResult
-from relay.repl_supervisor import _TIMEOUT_EXIT_CODE, ReplOutcome
-from relay.taskfile import read_blackboard, upsert_blackboard
-from relay.tasks import BootstrapRef, TaskRef, list_tasks
-from relay.ticket import Ticket
+from coga.config import AgentType, ConfigError, load_config
+from coga.github_preflight import CheckResult
+from coga.repl_supervisor import _TIMEOUT_EXIT_CODE, ReplOutcome
+from coga.taskfile import read_blackboard, upsert_blackboard
+from coga.tasks import BootstrapRef, TaskRef, list_tasks
+from coga.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -31,7 +31,7 @@ def _write(path: Path, text: str) -> None:
 
 
 def _read_log(repo: Path) -> str:
-    """The repo-global audit log (`relay-os/log.md`)."""
+    """The repo-global audit log (`coga-os/log.md`)."""
     return (repo / "log.md").read_text()
 
 
@@ -45,11 +45,11 @@ def _capture_slack(sink: list[str], json_payload):
 
 def _prompt_arg(cmd: list[str]) -> str:
     for arg in cmd:
-        if isinstance(arg, str) and arg.startswith("# Relay task"):
+        if isinstance(arg, str) and arg.startswith("# Coga task"):
             return arg
-        if isinstance(arg, str) and arg.startswith("developer_instructions=# Relay task"):
+        if isinstance(arg, str) and arg.startswith("developer_instructions=# Coga task"):
             return arg.removeprefix("developer_instructions=")
-    raise AssertionError(f"No Relay prompt in argv: {cmd!r}")
+    raise AssertionError(f"No Coga prompt in argv: {cmd!r}")
 
 
 # --- unit: command construction ------------------------------------------------
@@ -158,7 +158,7 @@ def test_build_command_discussion_skips_name_flag() -> None:
         agent,
         mode="interactive",
         prompt="orient body",
-        name="Orient an agent in this relay-os/ repo",
+        name="Orient an agent in this coga-os/ repo",
         discussion=True,
     )
     assert cmd == ["my-cli", "--append-system-prompt", "orient body"]
@@ -272,10 +272,10 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
         return _Result()
 
     monkeypatch.setattr(
-        "relay.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Coga task\nbody",
     )
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
     result = spawn_agent_session(
         SimpleNamespace(repo_root=tmp_path),
@@ -298,7 +298,7 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
     )
 
     assert result.exit_code == 0
-    assert calls == [["claude", "--append-system-prompt", "# Relay task\nbody", "Begin"]]
+    assert calls == [["claude", "--append-system-prompt", "# Coga task\nbody", "Begin"]]
     assert "launched" in (tmp_path / "log.md").read_text()
 
 
@@ -317,10 +317,10 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
         return _Result()
 
     monkeypatch.setattr(
-        "relay.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Coga task\nbody",
     )
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
     spawn_agent_session(
         SimpleNamespace(repo_root=tmp_path),
@@ -342,7 +342,7 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
         kickoff="Begin",
     )
 
-    assert calls == [["codex", "-c", "developer_instructions=# Relay task\nbody", "Begin"]]
+    assert calls == [["codex", "-c", "developer_instructions=# Coga task\nbody", "Begin"]]
 
 
 def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
@@ -352,18 +352,18 @@ def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
     the checkout gate (merge=union only saves committed content). The launch
     command passes `commit_log=is_bootstrap`, so this is the bootstrap path.
     """
-    cfg = load_config(git_repo.relay_os)
-    ref = BootstrapRef(name="orient", path=git_repo.relay_os / "bootstrap" / "orient")
+    cfg = load_config(git_repo.coga_os)
+    ref = BootstrapRef(name="orient", path=git_repo.coga_os / "bootstrap" / "orient")
     ref.path.mkdir(parents=True)
 
     # Fake only the agent spawn (the PTY watcher) — leave real `subprocess.run`
     # for git so `sync_log` actually commits.
     monkeypatch.setattr(
-        "relay.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Coga task\nbody",
     )
     monkeypatch.setattr(
-        "relay.commands.launch.run_with_done_marker",
+        "coga.commands.launch.run_with_done_marker",
         lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
     )
 
@@ -386,23 +386,23 @@ def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
 
     # The append is committed (clean tree) and pushed to the control branch.
     assert "log.md" not in git_repo.git("status", "--porcelain")
-    assert git_repo.origin_tracks("relay-os/log.md")
+    assert git_repo.origin_tracks("coga-os/log.md")
     assert "Log: bootstrap/orient" in git_repo.origin_subjects()
 
 
 def test_spawn_leaves_log_dirty_when_commit_log_unset(git_repo, monkeypatch):
     """Default (commit_log=False) preserves today's behavior: the append stays
-    uncommitted so a later sync (`relay ticket`'s `sync_paths`) carries it."""
-    cfg = load_config(git_repo.relay_os)
-    ref = BootstrapRef(name="orient", path=git_repo.relay_os / "bootstrap" / "orient")
+    uncommitted so a later sync (`coga ticket`'s `sync_paths`) carries it."""
+    cfg = load_config(git_repo.coga_os)
+    ref = BootstrapRef(name="orient", path=git_repo.coga_os / "bootstrap" / "orient")
     ref.path.mkdir(parents=True)
 
     monkeypatch.setattr(
-        "relay.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Coga task\nbody",
     )
     monkeypatch.setattr(
-        "relay.commands.launch.run_with_done_marker",
+        "coga.commands.launch.run_with_done_marker",
         lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
     )
 
@@ -434,10 +434,10 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
         return _Result()
 
     monkeypatch.setattr(
-        "relay.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, autonomy_override=None: "# Relay task\nbody",
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Coga task\nbody",
     )
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
     spawn_agent_session(
         SimpleNamespace(repo_root=tmp_path),
@@ -458,7 +458,7 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
         discussion=True,
     )
 
-    assert calls == [["claude", "--append-system-prompt", "# Relay task\nbody"]]
+    assert calls == [["claude", "--append-system-prompt", "# Coga task\nbody"]]
 
 
 # --- unit: permission-skip argv -------------------------------------------------
@@ -534,7 +534,7 @@ def test_skip_policy_noop_without_agent_policy() -> None:
 
 
 def test_skip_policy_noop_for_bootstrap_ticket() -> None:
-    """`relay chat` / `relay ticket` launch targets never skip permissions, regardless
+    """`coga chat` / `coga ticket` launch targets never skip permissions, regardless
     of the selected agent's local policy."""
     agent = _agent(
         "-p",
@@ -571,9 +571,9 @@ def test_skip_policy_fails_loud_without_argv() -> None:
 
 @pytest.fixture
 def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga-os"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -589,7 +589,7 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "AGENTS.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
 
     seed_direct_body_workflow(company)
     monkeypatch.chdir(company)
@@ -606,7 +606,7 @@ def _allow_slack(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://slack.example.test")
     slack_msgs: list[str] = []
     monkeypatch.setattr(
-        "relay.notification.slack.requests.post",
+        "coga.notification.slack.requests.post",
         lambda url, json=None, timeout=None: _capture_slack(slack_msgs, json),
     )
     return slack_msgs
@@ -614,14 +614,14 @@ def _allow_slack(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 def _allow_interactive_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "relay.commands.launch._interactive_stdio_has_tty",
+        "coga.commands.launch._interactive_stdio_has_tty",
         lambda: True,
     )
 
 
 def _deny_interactive_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "relay.commands.launch._interactive_stdio_has_tty",
+        "coga.commands.launch._interactive_stdio_has_tty",
         lambda: False,
     )
 
@@ -691,8 +691,8 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
         calls.append(cmd)
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -703,7 +703,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert len(calls) == 1
     assert calls[0][0] == "claude"
     assert len(calls[0]) == 2
-    assert "Relay task" in calls[0][1]
+    assert "Coga task" in calls[0][1]
 
     # Log entry written
     cfg = load_config(active_task)
@@ -711,13 +711,13 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     ticket = Ticket.read(ref.ticket_path)
     assert ticket.status == "in_progress"
     log = _read_log(active_task)
-    assert "started (active → in_progress) via relay launch" in log
+    assert "started (active → in_progress) via coga launch" in log
     assert "launched in interactive mode" in log
 
 
 # --- push-auth gate -----------------------------------------------------------
 #
-# Relay drives the whole session through git/gh, so launch refuses to spawn an
+# Coga drives the whole session through git/gh, so launch refuses to spawn an
 # agent when push access to the configured remote is broken — fail loud at the
 # door, not after a long run that can't ship.
 
@@ -746,23 +746,23 @@ def test_preflight_skips_when_remote_unresolved(active_task, monkeypatch):
     ref = list_tasks(cfg)[0]
 
     monkeypatch.setattr(
-        "relay.commands.launch.check_git_remote",
+        "coga.commands.launch.check_git_remote",
         lambda remote: CheckResult("git-remote", False, "not a git repo"),
     )
 
     def _boom(_remote):
         raise AssertionError("check_git_auth must not run when remote unresolved")
 
-    monkeypatch.setattr("relay.commands.launch.check_git_auth", _boom)
+    monkeypatch.setattr("coga.commands.launch.check_git_auth", _boom)
     _preflight_push_auth(cfg, ref, is_bootstrap=False)  # must not raise
 
 
 def test_preflight_passes_when_push_authenticated(active_task, monkeypatch):
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    monkeypatch.setattr("relay.commands.launch.check_git_remote", _ok_remote)
+    monkeypatch.setattr("coga.commands.launch.check_git_remote", _ok_remote)
     monkeypatch.setattr(
-        "relay.commands.launch.check_git_auth",
+        "coga.commands.launch.check_git_auth",
         lambda remote: CheckResult("git-auth", True, "push access authenticated"),
     )
     _preflight_push_auth(cfg, ref, is_bootstrap=False)  # must not raise
@@ -771,9 +771,9 @@ def test_preflight_passes_when_push_authenticated(active_task, monkeypatch):
 def test_preflight_bails_when_push_auth_broken(active_task, monkeypatch):
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    monkeypatch.setattr("relay.commands.launch.check_git_remote", _ok_remote)
+    monkeypatch.setattr("coga.commands.launch.check_git_remote", _ok_remote)
     monkeypatch.setattr(
-        "relay.commands.launch.check_git_auth",
+        "coga.commands.launch.check_git_auth",
         lambda remote: CheckResult("git-auth", False, "could not authenticate push access"),
     )
     with pytest.raises(SystemExit):
@@ -786,9 +786,9 @@ def test_launch_refuses_and_stays_active_when_push_auth_broken(
     """End-to-end: a broken remote refuses the launch before flipping status
     or spawning — the ticket stays `active`, no agent process is started."""
     _allow_interactive_tty(monkeypatch)
-    monkeypatch.setattr("relay.commands.launch.check_git_remote", _ok_remote)
+    monkeypatch.setattr("coga.commands.launch.check_git_remote", _ok_remote)
     monkeypatch.setattr(
-        "relay.commands.launch.check_git_auth",
+        "coga.commands.launch.check_git_auth",
         lambda remote: CheckResult("git-auth", False, "could not authenticate push access"),
     )
 
@@ -802,8 +802,8 @@ def test_launch_refuses_and_stays_active_when_push_auth_broken(
 
         return _R()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
@@ -819,8 +819,8 @@ def test_launch_refuses_and_stays_active_when_push_auth_broken(
 def test_launch_captures_usage_with_session_id(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    text = (active_task / "relay.toml").read_text()
-    (active_task / "relay.toml").write_text(
+    text = (active_task / "coga.toml").read_text()
+    (active_task / "coga.toml").write_text(
         text.replace(
             'file = "CLAUDE.md"',
             'file = "CLAUDE.md"\nsession_id_flag = "--session-id"',
@@ -839,13 +839,13 @@ def test_launch_captures_usage_with_session_id(
         captures.append(kwargs)
 
     monkeypatch.setattr(
-        "relay.commands.launch.run_with_done_marker", fake_supervisor
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
     )
     monkeypatch.setattr(
-        "relay.commands.launch.usage_tracking.capture_session", fake_capture
+        "coga.commands.launch.usage_tracking.capture_session", fake_capture
     )
     monkeypatch.setattr(
-        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -877,11 +877,11 @@ def test_launch_fails_loud_on_unset_declared_secret(
 
     calls: list[list[str]] = []
     monkeypatch.setattr(
-        "relay.commands.launch.subprocess.run",
+        "coga.commands.launch.subprocess.run",
         lambda cmd, env=None, check=False: calls.append(cmd),
     )
     monkeypatch.setattr(
-        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -920,9 +920,9 @@ def test_launch_injects_only_declared_secret(
         captured.update(env or {})
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -949,8 +949,8 @@ def test_launch_fails_loud_on_op_read_error(
     t.frontmatter["secrets"] = [{"stripe_key": "op://vault/stripe/key"}]
     t.write(ref.ticket_path)
 
-    # `relay.config` and `relay.commands.launch` import the same `subprocess`
-    # module, so patching `relay.config.subprocess.run` covers both the `op read`
+    # `coga.config` and `coga.commands.launch` import the same `subprocess`
+    # module, so patching `coga.config.subprocess.run` covers both the `op read`
     # resolution and the agent spawn. The op read is mocked non-zero → SecretError
     # before any spawn, so `calls` stays empty.
     calls: list[list[str]] = []
@@ -963,9 +963,9 @@ def test_launch_fails_loud_on_op_read_error(
         calls.append(cmd)
         return type("R", (), {"returncode": 0})()
 
-    monkeypatch.setattr("relay.config.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.config.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -1000,9 +1000,9 @@ def test_launch_injects_op_secret(
         captured.update(kwargs.get("env") or {})
         return type("R", (), {"returncode": 0})()
 
-    monkeypatch.setattr("relay.config.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.config.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
@@ -1013,7 +1013,7 @@ def test_launch_injects_op_secret(
 def test_direct_launch_timeout_exits_non_zero(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A public `relay launch --idle-timeout` timeout must fail loud.
+    """A public `coga launch --idle-timeout` timeout must fail loud.
 
     Recurring gets an internal return-value path so it can record the watchdog
     timeout and continue its sweep, but the visible CLI should still propagate
@@ -1025,10 +1025,10 @@ def test_direct_launch_timeout_exits_non_zero(
         return ReplOutcome(_TIMEOUT_EXIT_CODE, "timeout")
 
     monkeypatch.setattr(
-        "relay.commands.launch.run_with_done_marker", fake_supervisor
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
     )
     monkeypatch.setattr(
-        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
 
     result = CliRunner().invoke(
@@ -1045,7 +1045,7 @@ def test_launch_interactive_ignores_local_skip_policy(
     """A `mode: interactive` launch never applies the agent's local
     permission-skip policy — the argv must not reach the spawned CLI."""
     _write(
-        active_task / "relay.local.toml",
+        active_task / "coga.local.toml",
         """
         user = "marc"
 
@@ -1064,8 +1064,8 @@ def test_launch_interactive_ignores_local_skip_policy(
         calls.append(cmd)
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -1090,8 +1090,8 @@ def test_launch_bails_on_missing_context(
     def fail_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
         raise AssertionError(f"agent must not be launched, got {cmd!r}")
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fail_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fail_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -1120,8 +1120,8 @@ def test_launch_handles_agent_self_deleting_task(
         ticket_md.unlink()
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -1133,7 +1133,7 @@ def test_launch_marks_interactive_session_supervised(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Interactive launches chain across agent-owned steps, so the child
-    inherits `RELAY_SUPERVISED=1`. `relay bump` keys its supervised-launch
+    inherits `COGA_SUPERVISED=1`. `coga bump` keys its supervised-launch
     hint off that env var."""
     envs: list[dict] = []
     _allow_interactive_tty(monkeypatch)
@@ -1145,15 +1145,15 @@ def test_launch_marks_interactive_session_supervised(
         envs.append(env or {})
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
 
     assert envs
-    assert envs[0].get("RELAY_SUPERVISED") == "1"
+    assert envs[0].get("COGA_SUPERVISED") == "1"
 
 
 def test_launch_in_progress_resumes_without_status_transition(
@@ -1174,14 +1174,14 @@ def test_launch_in_progress_resumes_without_status_transition(
         calls.append(cmd)
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
     log = _read_log(active_task)
-    assert "started (active → in_progress) via relay launch" not in log
+    assert "started (active → in_progress) via coga launch" not in log
 
 
 def test_launch_interactive_without_tty_fails_before_lock(
@@ -1196,8 +1196,8 @@ def test_launch_interactive_without_tty_fails_before_lock(
         called = True
         raise AssertionError("interactive launch should fail before spawning agent")
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
@@ -1217,7 +1217,7 @@ def test_launch_interactive_chains_consecutive_agent_steps(
 ) -> None:
     """Interactive launches chain while the next step is still the agent's.
 
-    After `relay bump` advances from step 1 (agent) to step 2 (also agent),
+    After `coga bump` advances from step 1 (agent) to step 2 (also agent),
     the launch loop re-composes the prompt and spawns a fresh REPL. The
     chain stops at the first human-assigned step (step 3 here).
     """
@@ -1239,8 +1239,8 @@ def test_launch_interactive_chains_consecutive_agent_steps(
         assert result.exit_code == 0, result.output
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -1248,7 +1248,7 @@ def test_launch_interactive_chains_consecutive_agent_steps(
     # so the loop stops without spawning a third.
     assert len(calls) == 2
 
-    from relay.ticket import Ticket
+    from coga.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]))
     assert ticket.step == "3 (review)"
 
@@ -1304,7 +1304,7 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
     )
     slug = str(ref["slug"])
 
-    from relay.ticket import Ticket
+    from coga.ticket import Ticket
     assert Ticket.read(Path(ref["path"])).skills == ["code/implement"]
 
     calls: list[list[str]] = []
@@ -1320,8 +1320,8 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
         assert result.exit_code == 0, result.output
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -1382,17 +1382,17 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
         assert result.exit_code == 0, result.output
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
     # Interactive does not chain — one agent run, then back to the caller.
-    # The assignee transition surfaces in `relay status`, not in launch
+    # The assignee transition surfaces in `coga status`, not in launch
     # output, because the human is the one driving step transitions.
     assert len(calls) == 1
 
-    from relay.ticket import Ticket
+    from coga.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]))
     assert ticket.step == "2 (human-check)"
     assert ticket.assignee == "marc"
@@ -1420,8 +1420,8 @@ def test_launch_harness_stops_on_agent_panic(
         assert result.exit_code == 1, result.output
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 1, result.output
@@ -1443,9 +1443,9 @@ def _launch_single_spawn(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
         calls.append(cmd)
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
     )
     return calls
 
@@ -1454,9 +1454,9 @@ def _launch_single_spawn(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 def test_launch_auto_activates_draft_and_paused(
     active_task: Path, monkeypatch: pytest.MonkeyPatch, prior: str
 ) -> None:
-    """`relay launch` is itself the readiness signal: a draft/paused ticket
+    """`coga launch` is itself the readiness signal: a draft/paused ticket
     with a workflow is activated inline, then flipped to in_progress."""
-    from relay.ticket import Ticket
+    from coga.ticket import Ticket
 
     ref = _create_chain_task(active_task, mode="interactive")
     slug = str(ref["slug"])
@@ -1484,7 +1484,7 @@ def test_launch_refuses_done_ticket(
     """Launching a `done` ticket must not restart its frozen workflow:
     re-activating would re-seed `step: 1` without re-resolving `assignee` and
     wedge the ticket. Launch refuses loud and leaves the ticket untouched."""
-    from relay.ticket import Ticket
+    from coga.ticket import Ticket
 
     ref = _create_chain_task(active_task, mode="interactive")
     slug = str(ref["slug"])
@@ -1514,8 +1514,8 @@ def test_launch_auto_activate_bails_without_workflow(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A workflow-less ticket still can't be activated — launch fails loud
-    (it can never be advanced by `relay bump`) and never spawns an agent."""
-    from relay.ticket import Ticket
+    (it can never be advanced by `coga bump`) and never spawns an agent."""
+    from coga.ticket import Ticket
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -1540,7 +1540,7 @@ def test_launch_auto_activate_bails_without_workflow(
 
 def test_launch_agent_not_in_path(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _allow_interactive_tty(monkeypatch)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: None)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
     assert result.exit_code == 2
@@ -1560,11 +1560,11 @@ def test_launch_warns_for_large_blackboard(
         returncode = 0
 
     monkeypatch.setattr(
-        "relay.commands.launch.subprocess.run",
+        "coga.commands.launch.subprocess.run",
         lambda cmd, env=None, check=False: _Result(),
     )
     monkeypatch.setattr(
-        "relay.commands.launch.shutil.which",
+        "coga.commands.launch.shutil.which",
         lambda name: f"/usr/bin/{name}",
     )
 
@@ -1621,9 +1621,9 @@ def test_launch_prompt_report_prints_layers_without_launching(
     def fail_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
         raise AssertionError("prompt report must not spawn an agent")
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fail_run)
-    monkeypatch.setattr("relay.commands.launch._interactive_stdio_has_tty", lambda: False)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: None)
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fail_run)
+    monkeypatch.setattr("coga.commands.launch._interactive_stdio_has_tty", lambda: False)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
 
     result = CliRunner().invoke(app, ["launch", str(ref["slug"]), "--prompt-report"])
     assert result.exit_code == 0, result.output
@@ -1634,7 +1634,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
     assert "code/implement" in result.output
     assert "Total composed prompt" in result.output
 
-    from relay.ticket import Ticket
+    from coga.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]))
     assert ticket.status == "draft"
     assert "launched in interactive mode" not in _read_log(active_task)
@@ -1645,10 +1645,10 @@ def test_launch_prompt_report_prints_layers_without_launching(
 
 @pytest.fixture
 def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """A relay-os/ with a bootstrap/ticket launch target and a stub skill, no tasks."""
-    company = tmp_path / "relay-os"
+    """A coga-os/ with a bootstrap/ticket launch target and a stub skill, no tasks."""
+    company = tmp_path / "coga-os"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -1664,7 +1664,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "AGENTS.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _write(
         company / "bootstrap" / "ticket" / "ticket.md",
         """
@@ -1686,7 +1686,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         name: bootstrap/ticket
-        description: Author a Relay task.
+        description: Author a Coga task.
         ---
 
         Interview, create, fill in the ticket. Stop.
@@ -1699,7 +1699,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_launch_bare_bootstrap_does_not_post_to_slack(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Bare bootstrap-ticket launches (e.g. `relay chat`) are stateless re-entry points,
+    """Bare bootstrap-ticket launches (e.g. `coga chat`) are stateless re-entry points,
     not "started work" events — they must not post to Slack."""
     posts: list[str] = []
     _allow_interactive_tty(monkeypatch)
@@ -1715,12 +1715,12 @@ def test_launch_bare_bootstrap_does_not_post_to_slack(
     class _Result:
         returncode = 0
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", fake_post)
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
     monkeypatch.setattr(
-        "relay.commands.launch.subprocess.run",
+        "coga.commands.launch.subprocess.run",
         lambda cmd, env=None, check=False: _Result(),
     )
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket"])
@@ -1742,8 +1742,8 @@ def test_launch_bootstrap_skips_status_and_lock(
         captured["prompt"] = _prompt_arg(cmd)
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket"])
@@ -1769,9 +1769,9 @@ def test_launch_discussion_bootstrap_uses_discussion_template(
 ) -> None:
     """Discussion tickets ride the composed prompt as system context instead of
     making it the first user message."""
-    # Rewrite the fixture's relay.toml to add a discussion template on claude.
+    # Rewrite the fixture's coga.toml to add a discussion template on claude.
     _write(
-        bootstrap_repo / "relay.toml",
+        bootstrap_repo / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -1799,8 +1799,8 @@ def test_launch_discussion_bootstrap_uses_discussion_template(
         captured["cmd"] = cmd
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket"])
@@ -1841,8 +1841,8 @@ def test_launch_orient_bootstrap_stays_silent(
         captured["cmd"] = cmd
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/orient"])
@@ -1857,7 +1857,7 @@ def test_launch_regular_task_does_not_use_discussion_template(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _write(
-        active_task / "relay.toml",
+        active_task / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -1880,8 +1880,8 @@ def test_launch_regular_task_does_not_use_discussion_template(
         captured["cmd"] = cmd
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
@@ -1905,8 +1905,8 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
         captured["cmd"] = cmd
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "bootstrap/ticket", "--agent", "codex"])
@@ -1936,8 +1936,8 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
         captured["cmd"] = cmd
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
@@ -1949,7 +1949,7 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
-    from relay.ticket import Ticket
+    from coga.ticket import Ticket
     ticket = Ticket.read(ref.ticket_path)
     assert ticket.frontmatter["assignee"] == "claude"
 
@@ -1990,7 +1990,7 @@ def _wf_ticket(step: str, assignee: str, status: str = "in_progress") -> Ticket:
 
 def test_harness_chains_across_agent_rotation(active_task: Path) -> None:
     """claude -> codex (assignee change to another agent) must NOT stop."""
-    from relay.commands.launch import _harness_stop_reason
+    from coga.commands.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -2000,7 +2000,7 @@ def test_harness_chains_across_agent_rotation(active_task: Path) -> None:
 
 
 def test_harness_chains_same_agent(active_task: Path) -> None:
-    from relay.commands.launch import _harness_stop_reason
+    from coga.commands.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -2011,7 +2011,7 @@ def test_harness_chains_same_agent(active_task: Path) -> None:
 
 def test_harness_stops_on_human_handoff(active_task: Path) -> None:
     """Next step assigned to a human (not a configured agent) returns control."""
-    from relay.commands.launch import _harness_stop_reason
+    from coga.commands.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -2023,7 +2023,7 @@ def test_harness_stops_on_human_handoff(active_task: Path) -> None:
 
 
 def test_harness_stops_on_done_and_paused(active_task: Path) -> None:
-    from relay.commands.launch import _harness_stop_reason
+    from coga.commands.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -2035,7 +2035,7 @@ def test_harness_stops_on_done_and_paused(active_task: Path) -> None:
 
 
 def test_harness_stops_when_no_progress(active_task: Path) -> None:
-    from relay.commands.launch import _harness_stop_reason
+    from coga.commands.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -2051,7 +2051,7 @@ def test_harness_stops_on_workflowless_task_without_marking_done(
 ) -> None:
     """A workflow-less task left in_progress reports 'no workflow to chain',
     not the misleading 'still on no workflow step' no-progress message."""
-    from relay.commands.launch import _harness_stop_reason
+    from coga.commands.launch import _harness_stop_reason
 
     cfg = load_config(active_task)
     ref = list_tasks(cfg)[0]
@@ -2076,7 +2076,7 @@ def test_launch_interactive_rotates_across_agents(
     """The supervisor relaunches the *next* agent across an assignee change.
 
     Workflow: implement (agent=claude) → peer (other-agent=codex) →
-    review (human). One `relay launch` should spawn claude, then — after the
+    review (human). One `coga launch` should spawn claude, then — after the
     claude→codex bump — auto-relaunch codex as a fresh process, then stop at
     the human review step. This is the cross-agent auto-relaunch.
     """
@@ -2122,8 +2122,8 @@ def test_launch_interactive_rotates_across_agents(
         assert result.exit_code == 0, result.output
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
     assert result.exit_code == 0, result.output
@@ -2134,7 +2134,7 @@ def test_launch_interactive_rotates_across_agents(
     assert calls[0][0] == "claude"
     assert calls[1][0] == "codex"
 
-    from relay.ticket import Ticket
+    from coga.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]))
     assert ticket.step == "3 (review)"
     assert ticket.assignee == "marc"
@@ -2186,9 +2186,9 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
         return _Result()
 
     # claude resolves, codex does not (simulate codex not on PATH).
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
     monkeypatch.setattr(
-        "relay.commands.launch.shutil.which",
+        "coga.commands.launch.shutil.which",
         lambda name: "/usr/bin/claude" if name == "claude" else None,
     )
 
@@ -2199,7 +2199,7 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     assert calls[0][0] == "claude"
     assert "not on PATH" in result.output
 
-    from relay.ticket import Ticket
+    from coga.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]))
     assert ticket.step == "2 (peer)"
     assert ticket.assignee == "codex"

@@ -6,10 +6,10 @@ from pathlib import Path
 TEMPLATES = (
     Path(__file__).resolve().parents[1]
     / "src"
-    / "relay"
+    / "coga"
     / "resources"
     / "templates"
-    / "relay-os"
+    / "coga-os"
     / "bootstrap"
     / "skills"
     / "bootstrap"
@@ -19,15 +19,15 @@ TEMPLATES = (
 
 DREAM = TEMPLATES.parent
 SCAN_TEMPLATES = DREAM / "scan"
-RESOURCES = Path(__file__).resolve().parents[1] / "src" / "relay" / "resources"
+RESOURCES = Path(__file__).resolve().parents[1] / "src" / "coga" / "resources"
 RECURRING_TEMPLATES = (
-    RESOURCES / "templates" / "relay-os" / "recurring"
+    RESOURCES / "templates" / "coga-os" / "recurring"
 )
 # Dream is a recurring task template, not a built-in command. Its body lives
 # in the recurring template's `## Description` section.
 DREAM_PROMPT = RECURRING_TEMPLATES / "dream" / "ticket.md"
 # Single-file format: the recurring template's blackboard is the region of
-# `ticket.md` below the `<!-- relay:blackboard -->` fence (no separate file).
+# `ticket.md` below the `<!-- coga:blackboard -->` fence (no separate file).
 DREAM_BLACKBOARD = DREAM_PROMPT
 REM_TEMPLATE = RECURRING_TEMPLATES / "_rem" / "ticket.md"
 
@@ -51,8 +51,8 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert not (DREAM / "SKILL.md").exists()
     assert not (DREAM / "scan.py").exists()
     assert not (TEMPLATES / "dev" / "stale-branches" / "SKILL.md").exists()
-    assert "Run the Dream cleanup pass for this Relay repo" in text
-    assert "Dream is Relay's generic cleanup pass" in text
+    assert "Run the Dream cleanup pass for this Coga repo" in text
+    assert "Dream is Coga's generic cleanup pass" in text
     assert "Dream is not REM" in text
     assert "### Console Progress" in text
     assert "Write short progress updates to the console" in text
@@ -82,23 +82,23 @@ def test_dream_documents_decide_then_execute_phases() -> None:
     assert "`extract`" in text
     assert "`stale`" in text
     assert "`gap`" in text
-    assert "relay create" in text
+    assert "coga create" in text
     assert "no per-run ticket cap" in text
     assert "Extract durable knowledge from done tickets, then delete every one of them." in text
-    assert "its resolved task directory under `relay-os/tasks/` still exists" in text
+    assert "its resolved task directory under `coga-os/tasks/` still exists" in text
     assert "Retro never leaves a processed done ticket on" in text
     # Knowledge-less tickets are direct-deleted, not bundled into a prune PR.
     assert "is direct-deleted with" in text
-    assert "`relay delete <slug>`" in text
+    assert "`coga delete <slug>`" in text
     assert "with no PR and no marker" in text
     assert "delete-only prune PR" not in text
     assert "## Pruned" not in text
-    assert "Dream-owned scripts\nare skills attached to Relay tasks" in text
+    assert "Dream-owned scripts\nare skills attached to Coga tasks" in text
     assert "--blackboard" not in text
     assert "Dream Run Summary" in text
-    assert "relay slack --task <this-dream-task>" in text
+    assert "coga slack --task <this-dream-task>" in text
     assert "stale branch" not in text.lower()
-    assert "relay-os/skills/dream/orchestrate/SKILL.md" not in text
+    assert "coga-os/skills/dream/orchestrate/SKILL.md" not in text
     assert "tasks/**/SKILL.md" not in text
 
 
@@ -123,10 +123,10 @@ def test_dream_is_the_single_deleter_of_done_recurring_tickets() -> None:
     assert "cleaned up by the next Dream run's Phase 4 retro pass" in norm
     assert "Dream is the single deleter of done recurring tickets" in norm
     # The old self-delete instruction is gone.
-    assert "relay delete <this-dream-task>" not in text
+    assert "coga delete <this-dream-task>" not in text
     assert "Dream cleans up after itself in the same run" not in text
 
-    from relay.taskfile import read_blackboard
+    from coga.taskfile import read_blackboard
 
     blackboard = read_blackboard(DREAM_BLACKBOARD)
     blackboard_norm = " ".join(blackboard.split())
@@ -180,7 +180,7 @@ def test_dream_documents_the_contract_audit_phase() -> None:
     assert "referenced artifacts" in skill_text
     assert "copy divergence" in skill_text
     # Frozen task artifacts are not contracts.
-    assert "Frozen task artifacts under `relay-os/tasks/` are historical" in skill_text
+    assert "Frozen task artifacts under `coga-os/tasks/` are historical" in skill_text
     assert "script:" not in skill_text
     assert "## Known Skill Contract" not in skill_text
     # Phase 6 disposition routes `drift` findings to a proposal PR.
@@ -194,10 +194,10 @@ def test_validate_drift_worker_declares_contract() -> None:
     assert "## Known Skill Contract" in text
     assert "- Purpose: deterministic repo-health validation" in text
     assert "- Action: `direct-fix`" in text
-    assert "- May change: a missing `<!-- relay:blackboard -->` fence + blackboard region" in text
-    assert "- Idempotency: `relay validate --fix`" in text
+    assert "- May change: a missing `<!-- coga:blackboard -->` fence + blackboard region" in text
+    assert "- Idempotency: `coga validate --fix`" in text
     assert "- Output: append `## Dream Skill: validate-drift`" in text
-    assert "RELAY_TASK_BLACKBOARD" in text
+    assert "COGA_TASK_BLACKBOARD" in text
     assert "--blackboard" not in text
 
 
@@ -222,8 +222,8 @@ def test_rem_template_documents_user_specific_recurring_maintenance() -> None:
 
     assert "REM is repo/user-specific recurring maintenance" in text
     assert "REM is not Dream" in text
-    assert "Dream is Relay's generic ticket cleanup pass" in text
+    assert "Dream is Coga's generic ticket cleanup pass" in text
     assert "copy or rename it to a non-underscore" in text
     assert "product or operations health checks" in text
     assert "domain-specific recurring reports" in text
-    assert "Do not put generic Relay cleanup here" in text
+    assert "Do not put generic Coga cleanup here" in text

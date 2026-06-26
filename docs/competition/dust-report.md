@@ -1,4 +1,4 @@
-<!-- Exported from the Google Doc "Dust Report" (Relay Competition Tests), 2026-06-06.
+<!-- Exported from the Google Doc "Dust Report" (Coga Competition Tests), 2026-06-06.
      Source: https://docs.google.com/document/d/1NizIofbDCDzKuMyds9UaAU5BPr1rylUexJ1qQEFWcvs -->
 
 # **Dust Report**

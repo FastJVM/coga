@@ -1,4 +1,4 @@
-<!-- Exported from the Google Doc "Superset Report" (Relay Competition Tests), 2026-06-06.
+<!-- Exported from the Google Doc "Superset Report" (Coga Competition Tests), 2026-06-06.
      Source: https://docs.google.com/document/d/1Q51IBIMgoctpoiMQtrmKAGRIwqrjqPr-R_siUnKqq1Y -->
 
 # **Superset Report**

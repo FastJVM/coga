@@ -1,0 +1,19 @@
+# Machine-local config — paths and secrets. Never commit.
+coga.local.toml
+
+# Vendored CLI — refreshed by `coga init --update` from upstream.
+.coga/
+
+# Single coga-vendored umbrella. Everything inside is upstream-managed and
+# overwritten on every `coga init --update` — your edits will be lost.
+# User content goes outside this dir (skills/<your-ns>/, contexts/<your-ns>/).
+bootstrap/
+
+# Generated merged skill view for agent CLIs. Rebuilt by `coga init`,
+# `coga init --update`, and `coga launch`.
+.agent-skills/
+
+# Per-domain scaffolding templates (bare `_template`, `_template.md`).
+# Refreshed wholesale on update.
+**/_template/
+**/_template.md

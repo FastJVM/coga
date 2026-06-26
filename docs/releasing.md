@@ -1,6 +1,6 @@
-# Releasing relay-os to PyPI
+# Releasing coga to PyPI
 
-relay-os publishes to PyPI via **Trusted Publishing** (OIDC) from
+coga publishes to PyPI via **Trusted Publishing** (OIDC) from
 [`.github/workflows/release.yml`](../.github/workflows/release.yml). GitHub
 authenticates to PyPI per-run over OIDC, so **no API token is created, stored, or
 pasted anywhere.**
@@ -17,9 +17,9 @@ using the "pending publisher" form (the project doesn't exist yet).
 3. Enter exactly:
    | Field | Value |
    |---|---|
-   | PyPI Project Name | `relay-os` |
+   | PyPI Project Name | `coga` |
    | Owner | `FastJVM` |
-   | Repository name | `relay` |
+   | Repository name | `coga` |
    | Workflow name | `release.yml` |
    | Environment name | `testpypi` |
 
@@ -29,9 +29,9 @@ Same form at <https://pypi.org> → **Account settings → Publishing → Add a 
 
 | Field | Value |
 |---|---|
-| PyPI Project Name | `relay-os` |
+| PyPI Project Name | `coga` |
 | Owner | `FastJVM` |
-| Repository name | `relay` |
+| Repository name | `coga` |
 | Workflow name | `release.yml` |
 | Environment name | `pypi` |
 
@@ -45,13 +45,13 @@ on first run). In **repo Settings → Environments → `pypi`** you can add a
 
 1. Confirm `version` in `pyproject.toml` is what you intend to publish.
 2. **Actions → Release → Run workflow** → target `testpypi`.
-3. Confirm it landed: <https://test.pypi.org/project/relay-os/>
+3. Confirm it landed: <https://test.pypi.org/project/coga/>
 4. Install it from TestPyPI to verify (deps resolve from real PyPI):
    ```sh
-   python3 -m venv /tmp/relay-test && source /tmp/relay-test/bin/activate
+   python3 -m venv /tmp/coga-test && source /tmp/coga-test/bin/activate
    pip install --index-url https://test.pypi.org/simple/ \
-       --extra-index-url https://pypi.org/simple/ relay-os
-   relay --version
+       --extra-index-url https://pypi.org/simple/ coga
+   coga --version
    ```
 
 ## Real release on PyPI
@@ -60,7 +60,7 @@ on first run). In **repo Settings → Environments → `pypi`** you can add a
 2. **Releases → Draft a new release** → tag `v<version>` (e.g. `v0.2.0`), target
    `main`, **Publish release**.
 3. The workflow builds and publishes to PyPI automatically.
-4. Verify: `pipx install relay-os && relay --version`.
+4. Verify: `pipx install coga && coga --version`.
 
 ## Notes
 

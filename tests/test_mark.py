@@ -1,4 +1,4 @@
-"""Tests for `relay mark <state>`."""
+"""Tests for `coga mark <state>`."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay.cli import app
-from relay.config import load_config
-from relay.create import create_task
-from relay.ticket import Ticket
+from coga.cli import app
+from coga.config import load_config
+from coga.create import create_task
+from coga.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -21,9 +21,9 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga-os"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -35,7 +35,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _write(
         company / "workflows" / "code.md",
         """
@@ -64,7 +64,7 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "draf
 
 
 def _read_log(repo: Path) -> str:
-    """The repo-global audit log (`relay-os/log.md`)."""
+    """The repo-global audit log (`coga-os/log.md`)."""
     return (repo / "log.md").read_text()
 
 
@@ -115,7 +115,7 @@ def test_mark_active_from_done_errors(repo: Path) -> None:
 
 def test_mark_active_refuses_workflow_less_ticket(repo: Path) -> None:
     """A draft with no workflow can't be activated — it would have no steps
-    and could never be advanced by `relay bump`."""
+    and could never be advanced by `coga bump`."""
     slug, task_path = _make_task(repo, workflow=None, status="draft")
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
@@ -164,8 +164,8 @@ def test_mark_active_refuses_unknown_string_workflow(repo: Path) -> None:
 def test_mark_active_blocks_on_required_extension_empty(repo: Path) -> None:
     """`mark active` refuses a draft whose `required = true` extension fields
     are empty."""
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + (
             "\n[ticket.fields.docket]\n"
             'description = "USPTO docket"\n'
@@ -183,8 +183,8 @@ def test_mark_active_blocks_on_required_extension_empty(repo: Path) -> None:
 
 
 def test_mark_active_allows_filled_required_extension(repo: Path) -> None:
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + (
             "\n[ticket.fields.docket]\n"
             'description = "USPTO docket"\n'
@@ -206,8 +206,8 @@ def test_mark_active_allows_filled_required_extension(repo: Path) -> None:
 
 def test_mark_active_ignores_required_when_not_required(repo: Path) -> None:
     """Empty non-required extension fields don't block activation."""
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + '\n[ticket.fields.docket]\ndescription = "x"\n'
     )
     slug, _ = _make_task(repo, status="draft")
@@ -373,7 +373,7 @@ def test_mark_active_is_silent(repo: Path, monkeypatch: pytest.MonkeyPatch) -> N
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
@@ -392,7 +392,7 @@ def test_mark_paused_is_silent(repo: Path, monkeypatch: pytest.MonkeyPatch) -> N
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "paused", slug])
@@ -411,7 +411,7 @@ def test_mark_done_slack_text(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
             text = "ok"
         return R()
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "done", slug])

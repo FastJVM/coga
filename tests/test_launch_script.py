@@ -7,11 +7,11 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay.cli import app
-from relay.create import create_task
-from relay.config import load_config
-from relay.tasks import list_tasks
-from relay.ticket import Ticket
+from coga.cli import app
+from coga.create import create_task
+from coga.config import load_config
+from coga.tasks import list_tasks
+from coga.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -21,9 +21,9 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga-os"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -35,7 +35,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _write(
         company / "workflows" / "ops.md",
         """
@@ -67,9 +67,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         "{\n"
         "  echo \"token=$token\"\n"
         "  echo \"source=$TEST_TOKEN\"\n"
-        "  echo \"slug=$RELAY_TASK_SLUG\"\n"
-        "  echo \"dir=$RELAY_TASK_DIR\"\n"
-        "  echo \"blackboard=$RELAY_TASK_BLACKBOARD\"\n"
+        "  echo \"slug=$COGA_TASK_SLUG\"\n"
+        "  echo \"dir=$COGA_TASK_DIR\"\n"
+        "  echo \"blackboard=$COGA_TASK_BLACKBOARD\"\n"
         "} > \"$PWD/script-output.txt\"\n"
     )
     script.chmod(0o755)
@@ -95,17 +95,17 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     result = runner.invoke(app, ["launch", "check"])
     assert result.exit_code == 0, result.output
 
-    # Script wrote to the host repo (parent of relay-os/) with the secret
+    # Script wrote to the host repo (parent of coga-os/) with the secret
     output = (cfg.repo_root.parent / "script-output.txt").read_text()
     assert "token=secret-abc" in output
     # The raw source var `TEST_TOKEN` is scrubbed from the child env.
     assert "source=\n" in output
     assert "slug=check" in output
-    # File-form task has no per-task directory, so RELAY_TASK_DIR is the
+    # File-form task has no per-task directory, so COGA_TASK_DIR is the
     # `tasks/` parent the ticket file lives in.
     assert f"dir={ref.path.parent.resolve()}" in output
     # Single-file format: the blackboard region lives in the ticket file, so
-    # RELAY_TASK_BLACKBOARD points at the ticket itself.
+    # COGA_TASK_BLACKBOARD points at the ticket itself.
     assert f"blackboard={ref.ticket_path.resolve()}" in output
 
     # Log records launch + exit (in the repo-global log)
@@ -166,7 +166,7 @@ def test_script_mode_least_privilege_empty_list_injects_nothing(
     assert "token=\n" in output
     # Scrubbing is tied to a ticket's inline `env:` refs; with none declared,
     # the operator's own `TEST_TOKEN` env var is not touched. The lockdown is
-    # that Relay injects no *scoped* secret, not that it sanitizes the whole env.
+    # that Coga injects no *scoped* secret, not that it sanitizes the whole env.
     assert "source=secret-abc\n" in output
 
 

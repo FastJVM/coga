@@ -1,4 +1,4 @@
-<!-- Exported from the Google Doc "Cursor Report" (Relay Competition Tests), 2026-06-06.
+<!-- Exported from the Google Doc "Cursor Report" (Coga Competition Tests), 2026-06-06.
      Source: https://docs.google.com/document/d/1BHT1URqFrCjbFXBtsi3XQl-zCTsexrTNIqqcOrR2dOI -->
 
 # **Cursor Report**

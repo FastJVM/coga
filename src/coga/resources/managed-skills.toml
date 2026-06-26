@@ -1,0 +1,49 @@
+# Coga-managed skills installed into coga-os/skills through `coga skill`.
+#
+# Skills bundled in the package live under coga-os/bootstrap/skills and need no
+# entry here (they work offline) — this includes the gmail / google-calendar /
+# calendar-reminder / browser capabilities. Entries below are optional domain
+# skills still fetched from a public source at init/update; a failed fetch warns
+# rather than failing init.
+
+[[skills]]
+ref = "google-agents-cli-workflow"
+source_type = "github"
+source = "google/agents-cli"
+required = false
+
+[[skills]]
+ref = "google-agents-cli-scaffold"
+source_type = "github"
+source = "google/agents-cli"
+required = false
+
+[[skills]]
+ref = "google-agents-cli-adk-code"
+source_type = "github"
+source = "google/agents-cli"
+required = false
+
+[[skills]]
+ref = "google-agents-cli-eval"
+source_type = "github"
+source = "google/agents-cli"
+required = false
+
+[[skills]]
+ref = "google-agents-cli-deploy"
+source_type = "github"
+source = "google/agents-cli"
+required = false
+
+[[skills]]
+ref = "google-agents-cli-publish"
+source_type = "github"
+source = "google/agents-cli"
+required = false
+
+[[skills]]
+ref = "google-agents-cli-observability"
+source_type = "github"
+source = "google/agents-cli"
+required = false

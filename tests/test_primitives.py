@@ -6,11 +6,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from relay.blackboard import render_blackboard
-from relay.logfile import append_log
-from relay.slugify import slugify
-from relay.ticket import Ticket, TicketError
-from relay.workflow import Workflow, WorkflowError
+from coga.blackboard import render_blackboard
+from coga.logfile import append_log
+from coga.slugify import slugify
+from coga.ticket import Ticket, TicketError
+from coga.workflow import Workflow, WorkflowError
 
 
 # --- slugify ------------------------------------------------------------------

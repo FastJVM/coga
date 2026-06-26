@@ -1,4 +1,4 @@
-"""`relay secret get <ref>` — resolve and print one secret reference on demand.
+"""`coga secret get <ref>` — resolve and print one secret reference on demand.
 
 Secrets are declared inline per-ticket (there is no `[secrets]` catalog), so
 `get` takes a reference directly — `op://vault/item/field` or `env:VAR` — and
@@ -15,7 +15,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay.cli import app
+from coga.cli import app
 
 
 def _write(path: Path, text: str) -> None:
@@ -25,7 +25,7 @@ def _write(path: Path, text: str) -> None:
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     _write(
-        tmp_path / "relay.toml",
+        tmp_path / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -38,7 +38,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """,
     )
     _write(
-        tmp_path / "relay.local.toml",
+        tmp_path / "coga.local.toml",
         """
         user = "marc"
         """,
@@ -52,7 +52,7 @@ def test_secret_get_resolves_op(repo: Path, monkeypatch: pytest.MonkeyPatch) -> 
         assert argv == ["op", "read", "op://Vault/item/field"]
         return subprocess.CompletedProcess(argv, 0, stdout="THEVALUE\n", stderr="")
 
-    monkeypatch.setattr("relay.config.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.config.subprocess.run", fake_run)
     result = CliRunner().invoke(app, ["secret", "get", "op://Vault/item/field"])
     assert result.exit_code == 0, result.output
     assert result.stdout.strip() == "THEVALUE"
@@ -83,7 +83,7 @@ def test_secret_get_fails_loud_on_op_error(
     def fake_run(argv, **kwargs):
         return subprocess.CompletedProcess(argv, 1, stdout="", stderr="boom")
 
-    monkeypatch.setattr("relay.config.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.config.subprocess.run", fake_run)
     result = CliRunner().invoke(app, ["secret", "get", "op://Vault/item/field"])
     assert result.exit_code == 2
     # The error names the reference, never a resolved value.

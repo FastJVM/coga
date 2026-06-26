@@ -8,8 +8,8 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from relay.cli import app
-from relay.ticket import Ticket
+from coga.cli import app
+from coga.ticket import Ticket
 
 from conftest import seed_direct_body_workflow
 
@@ -21,10 +21,10 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    relay_os = tmp_path / "relay-os"
-    relay_os.mkdir()
+    coga_os = tmp_path / "coga-os"
+    coga_os.mkdir()
     _write(
-        relay_os / "relay.toml",
+        coga_os / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -38,7 +38,7 @@ def repo(tmp_path: Path) -> Path:
         """,
     )
     _write(
-        relay_os / "relay.local.toml",
+        coga_os / "coga.local.toml",
         """
         user = "marc"
         [slack]
@@ -47,9 +47,9 @@ def repo(tmp_path: Path) -> Path:
     )
     # Retire creates its task with the `direct/body` workflow; the minimal
     # test repo needs that shipped workflow + skill present (real repos get it
-    # from `relay init`) or `create_task` fails to load the workflow.
-    seed_direct_body_workflow(relay_os)
-    return relay_os
+    # from `coga init`) or `create_task` fails to load the workflow.
+    seed_direct_body_workflow(coga_os)
+    return coga_os
 
 
 def _seed_done_task(repo: Path, slug: str = "fix-retry-logic") -> Path:
@@ -91,7 +91,7 @@ def test_retire_no_launch_creates_task_with_target_slug(
     assert "Retire: creating task 'Retire fix-retry-logic'" in result.output
     assert "Retire: created task retire-fix-retry-logic" in result.output
     assert "Retire: launch skipped (--no-launch)" in result.output
-    assert "relay launch retire-fix-retry-logic" in result.output
+    assert "coga launch retire-fix-retry-logic" in result.output
 
     new_task = repo / "tasks" / "retire-fix-retry-logic.md"
     assert new_task.is_file()
@@ -160,7 +160,7 @@ def test_retire_refuses_unknown_slug(
 def test_retire_refuses_auto_mode(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay retire <slug> --autonomy auto` is rejected while auto is disabled."""
+    """`coga retire <slug> --autonomy auto` is rejected while auto is disabled."""
     monkeypatch.chdir(repo)
     _seed_done_task(repo, "fix-retry-logic")
 
@@ -198,7 +198,7 @@ def test_retire_launches_after_create(
         )
         typer.echo("fake launch called")
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(
         app, ["retire", "fix-retry-logic", "--autonomy", "interactive"]
@@ -209,10 +209,10 @@ def test_retire_launches_after_create(
     assert "(active)" in result.output
     assert "Retire: launching retire-fix-retry-logic" in result.output
     assert "fake launch called" in result.output
-    # The audit log is the repo-global `relay-os/log.md` now; filter it to the
+    # The audit log is the repo-global `coga-os/log.md` now; filter it to the
     # retire task's ref instead of reading a per-task log.md (which is gone).
-    from relay.config import load_config
-    from relay.logfile import task_log_lines
+    from coga.config import load_config
+    from coga.logfile import task_log_lines
 
     cfg = load_config(repo)
     log = "\n".join(task_log_lines(cfg, "retire-fix-retry-logic"))
@@ -278,7 +278,7 @@ def test_retire_prunes_merged_branch_before_launch(
 
         Done.
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         ## Dev
         branch: fix-retry-branch

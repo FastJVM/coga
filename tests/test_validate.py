@@ -7,11 +7,11 @@ import pytest
 
 import requests
 
-from relay.create import create_task
-from relay.config import load_config
-from relay.tasks import list_tasks
-from relay.ticket import Ticket
-from relay.validate import apply_safe_fixes, probe_slack, run
+from coga.create import create_task
+from coga.config import load_config
+from coga.tasks import list_tasks
+from coga.ticket import Ticket
+from coga.validate import apply_safe_fixes, probe_slack, run
 
 
 def _write(path: Path, text: str) -> None:
@@ -21,9 +21,9 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path):
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga-os"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -33,7 +33,7 @@ def repo(tmp_path: Path):
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _write(company / "contexts" / "email" / "payment-flow" / "SKILL.md", "---\nname: x\n---\n")
     _write(company / "skills" / "infra" / "tests" / "SKILL.md", "---\nname: x\n---\n")
     _write(
@@ -208,7 +208,7 @@ def test_missing_blackboard_fence_is_error(repo: Path) -> None:
     ref = list_tasks(cfg)[0]
     ticket_path = ref.ticket_path
     ticket_path.write_text(
-        ticket_path.read_text().replace("<!-- relay:blackboard -->\n", "")
+        ticket_path.read_text().replace("<!-- coga:blackboard -->\n", "")
     )
     report = run(cfg)
     assert any(
@@ -229,14 +229,14 @@ def test_apply_safe_fixes_adds_missing_blackboard_fence(repo: Path) -> None:
     # fence-less; the safe fix re-appends a fence + rendered region.
     ticket_path = ref.ticket_path
     ticket_path.write_text(
-        ticket_path.read_text().replace("<!-- relay:blackboard -->\n", "")
+        ticket_path.read_text().replace("<!-- coga:blackboard -->\n", "")
     )
 
     fixes = apply_safe_fixes(cfg)
 
     assert [fix.message for fix in fixes] == ["added blackboard fence + region"]
     assert all(fix.kind == "blackboard-fence" for fix in fixes)
-    from relay.taskfile import fence_count
+    from coga.taskfile import fence_count
     assert fence_count(ticket_path.read_text()) == 1
 
 
@@ -252,7 +252,7 @@ def test_run_fix_repairs_before_reporting(repo: Path) -> None:
     # fix pass re-adds it before the issue scan runs.
     ticket_path = ref.ticket_path
     ticket_path.write_text(
-        ticket_path.read_text().replace("<!-- relay:blackboard -->\n", "")
+        ticket_path.read_text().replace("<!-- coga:blackboard -->\n", "")
     )
 
     report = run(cfg, fix=True)
@@ -273,7 +273,7 @@ def test_large_blackboard_warns(repo: Path) -> None:
     # Single-file format: the measured blackboard is the region below the fence
     # in ticket.md, not a sibling blackboard.md. The region content starts on its
     # own line after the fence (as every real blackboard writer leaves it).
-    from relay.taskfile import replace_blackboard
+    from coga.taskfile import replace_blackboard
     replace_blackboard(ref.ticket_path, "\n\n" + "x" * 2048 + "\n")
 
     report = run(cfg, max_blackboard_bytes=1024)
@@ -299,7 +299,7 @@ def _fake_post_factory(response: _FakeResponse | Exception):
 
 def test_probe_slack_live(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "relay.validate.requests.post",
+        "coga.validate.requests.post",
         _fake_post_factory(_FakeResponse(400, "no_text")),
     )
     status, detail = probe_slack("https://hooks.slack.com/services/x")
@@ -309,7 +309,7 @@ def test_probe_slack_live(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_probe_slack_revoked_by_status(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "relay.validate.requests.post",
+        "coga.validate.requests.post",
         _fake_post_factory(_FakeResponse(404, "no_service")),
     )
     status, _ = probe_slack("https://hooks.slack.com/services/x")
@@ -318,7 +318,7 @@ def test_probe_slack_revoked_by_status(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_probe_slack_unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "relay.validate.requests.post",
+        "coga.validate.requests.post",
         _fake_post_factory(requests.ConnectionError("dns fail")),
     )
     status, detail = probe_slack("https://hooks.slack.com/services/x")
@@ -330,12 +330,12 @@ def test_run_check_slack_emits_issue_for_revoked(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Add slack webhook to the repo's config.
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + '\n[slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
     )
     monkeypatch.setattr(
-        "relay.validate.requests.post",
+        "coga.validate.requests.post",
         _fake_post_factory(_FakeResponse(404, "no_service")),
     )
     cfg = load_config(repo)
@@ -348,8 +348,8 @@ def test_run_check_slack_misconfigured_when_selected_without_webhook(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Selecting Slack but leaving the webhook unset still fails loud."""
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + '\n[notification]\nchannels = ["slack"]\n'
         '[notification.slack]\nwebhook = "env:SLACK_WEBHOOK_URL"\n'
     )
@@ -358,7 +358,7 @@ def test_run_check_slack_misconfigured_when_selected_without_webhook(
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("must not probe the network with no webhook")
 
-    monkeypatch.setattr("relay.validate.requests.post", boom)
+    monkeypatch.setattr("coga.validate.requests.post", boom)
     cfg = load_config(repo)
     report = run(cfg, check_slack=True)
     misconfigured = [i for i in report.issues if i.kind == "slack-misconfigured"]
@@ -369,15 +369,15 @@ def test_run_check_slack_misconfigured_when_selected_without_webhook(
 def test_run_no_slack_check_by_default(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + '\n[slack]\nwebhook = "https://hooks.slack.com/services/dead"\n'
     )
 
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("network must not be called when --check-slack is off")
 
-    monkeypatch.setattr("relay.validate.requests.post", boom)
+    monkeypatch.setattr("coga.validate.requests.post", boom)
     cfg = load_config(repo)
     run(cfg)  # must not raise
 
@@ -417,7 +417,7 @@ def _github_kinds(report) -> list[str]:
 
 def test_check_github_success(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "relay.github_preflight.subprocess.run",
+        "coga.github_preflight.subprocess.run",
         _fake_subprocess_factory(
             {
                 ("git", "remote", "get-url", "origin"): _FakeProc(
@@ -442,7 +442,7 @@ def test_check_github_missing_remote(
     # No push entry: a missing remote must short-circuit before the auth probe
     # runs (the factory raises on any unexpected call).
     monkeypatch.setattr(
-        "relay.github_preflight.subprocess.run",
+        "coga.github_preflight.subprocess.run",
         _fake_subprocess_factory(
             {
                 ("git", "remote", "get-url", "origin"): _FakeProc(
@@ -465,7 +465,7 @@ def test_check_github_missing_gh(
 ) -> None:
     # `gh` absent (FileNotFoundError): gh-auth must be skipped.
     monkeypatch.setattr(
-        "relay.github_preflight.subprocess.run",
+        "coga.github_preflight.subprocess.run",
         _fake_subprocess_factory(
             {
                 ("git", "remote", "get-url", "origin"): _FakeProc(
@@ -487,7 +487,7 @@ def test_check_github_gh_unauthenticated(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "relay.github_preflight.subprocess.run",
+        "coga.github_preflight.subprocess.run",
         _fake_subprocess_factory(
             {
                 ("git", "remote", "get-url", "origin"): _FakeProc(
@@ -514,7 +514,7 @@ def test_check_github_push_auth_failure(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "relay.github_preflight.subprocess.run",
+        "coga.github_preflight.subprocess.run",
         _fake_subprocess_factory(
             {
                 ("git", "remote", "get-url", "origin"): _FakeProc(
@@ -544,7 +544,7 @@ def test_run_no_github_check_by_default(
     def boom(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("git/gh must not run when --check-github is off")
 
-    monkeypatch.setattr("relay.github_preflight.subprocess.run", boom)
+    monkeypatch.setattr("coga.github_preflight.subprocess.run", boom)
     cfg = load_config(repo)
     run(cfg)  # must not raise
 
@@ -553,8 +553,8 @@ def test_run_no_github_check_by_default(
 
 
 def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + '\n[ticket.fields.docket]\ndescription = "d"\n'
     )
     cfg = load_config(repo)
@@ -576,8 +576,8 @@ def test_validate_flags_missing_declared_extension(repo: Path) -> None:
     )
     # Add the declaration AFTER the ticket exists — simulates declaring a new
     # extension once tickets are already on disk.
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + '\n[ticket.fields.docket]\ndescription = "d"\n'
     )
     cfg = load_config(repo)
@@ -588,8 +588,8 @@ def test_validate_flags_missing_declared_extension(repo: Path) -> None:
 
 def test_validate_warns_orphan_extension(repo: Path) -> None:
     """A field present on disk but not declared in TOML → warn, not error."""
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + '\n[ticket.fields.docket]\ndescription = "d"\n'
     )
     cfg = load_config(repo)
@@ -599,8 +599,8 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
         watchers=[], status="draft",
     )
     # Now remove the declaration.
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text().replace(
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text().replace(
             '\n[ticket.fields.docket]\ndescription = "d"\n', ""
         )
     )
@@ -612,8 +612,8 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
 
 
 def test_validate_flags_enum_violation(repo: Path) -> None:
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + (
             "\n[ticket.fields.priority]\n"
             'description = "p"\n'
@@ -641,8 +641,8 @@ def test_validate_flags_enum_violation(repo: Path) -> None:
 def test_validate_allows_empty_extension_value(repo: Path) -> None:
     """Empty extension values are fine at validate time — they only block
     `mark active` when the field is `required = true`."""
-    (repo / "relay.toml").write_text(
-        (repo / "relay.toml").read_text()
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
         + (
             "\n[ticket.fields.priority]\n"
             'description = "p"\n'
@@ -695,7 +695,7 @@ def _write_workflow_less_task(repo: Path, slug: str, status: str) -> Path:
 
         ## Description
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         # Blackboard
     """).lstrip())
@@ -735,7 +735,7 @@ def test_stuck_in_progress_flagged(repo: Path) -> None:
     # the repo-global log (tagged by ref), not a per-task log.md mtime. Seed a
     # backdated activity line 100 hours ago.
     from datetime import datetime, timedelta
-    from relay.paths import log_path
+    from coga.paths import log_path
     stamp = (datetime.now() - timedelta(hours=100)).strftime("%Y-%m-%d %H:%M")
     log = log_path(cfg)
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -765,7 +765,7 @@ def _write_full_task(repo: Path, rel: str, title: str = "X") -> Path:
 
         ## Description
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         # Blackboard
     """).lstrip())

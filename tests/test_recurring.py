@@ -9,34 +9,34 @@ from types import SimpleNamespace
 import pytest
 from typer.testing import CliRunner
 
-from relay import git as relay_git
-from relay.commands import recurring as recurring_cmd
-from relay.cli import app
-from relay.config import load_config
-from relay.logfile import task_log_lines
-from relay.paths import tasks_dir
-from relay.recurring import (
+from coga import git as coga_git
+from coga.commands import recurring as recurring_cmd
+from coga.cli import app
+from coga.config import load_config
+from coga.logfile import task_log_lines
+from coga.paths import tasks_dir
+from coga.recurring import (
     read_last_serviced_period,
     create_named,
     scan_due,
 )
-from relay.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
-from relay.tasks import list_tasks
-from relay.ticket import Ticket
+from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
+from coga.tasks import list_tasks
+from coga.ticket import Ticket
 
 
-_TEMPLATES_RELAY_OS = (
+_TEMPLATES_COGA_OS = (
     Path(__file__).resolve().parents[1]
     / "src"
-    / "relay"
+    / "coga"
     / "resources"
     / "templates"
-    / "relay-os"
+    / "coga-os"
 )
 
-SHIPPED_DREAM_DIR = _TEMPLATES_RELAY_OS / "recurring" / "dream"
-SHIPPED_DIRECT_BODY_SKILL_DIR = _TEMPLATES_RELAY_OS / "skills" / "direct" / "body"
-SHIPPED_DIRECT_BODY_WORKFLOW = _TEMPLATES_RELAY_OS / "workflows" / "direct" / "body.md"
+SHIPPED_DREAM_DIR = _TEMPLATES_COGA_OS / "recurring" / "dream"
+SHIPPED_DIRECT_BODY_SKILL_DIR = _TEMPLATES_COGA_OS / "skills" / "direct" / "body"
+SHIPPED_DIRECT_BODY_WORKFLOW = _TEMPLATES_COGA_OS / "workflows" / "direct" / "body.md"
 
 
 def _write(path: Path, text: str) -> None:
@@ -80,7 +80,7 @@ def _blackboard_of_text(ticket_text: str) -> str:
     region out of a `git show`-ed ticket blob, so they can compare a period
     task's blackboard state that now lives inside its `ticket.md`.
     """
-    from relay.taskfile import _fence_matches
+    from coga.taskfile import _fence_matches
 
     matches = _fence_matches(ticket_text)
     if not matches:
@@ -96,8 +96,8 @@ def _template_ticket_with_blackboard(company: Path, name: str, region: str) -> s
     state is the blackboard region of `ticket.md`, so a competing commit must
     write the whole ticket with that region swapped in.
     """
-    from relay.taskfile import BLACKBOARD_FENCE, split_body
-    from relay.ticket import Ticket
+    from coga.taskfile import BLACKBOARD_FENCE, split_body
+    from coga.ticket import Ticket
 
     path = company / "recurring" / name / "ticket.md"
     ticket = Ticket.read(path)
@@ -108,27 +108,27 @@ def _template_ticket_with_blackboard(company: Path, name: str, region: str) -> s
 
 
 def _seed_global_log(git_repo) -> None:
-    """Seed the repo-global `relay-os/log.md` and its union-merge attribute.
+    """Seed the repo-global `coga-os/log.md` and its union-merge attribute.
 
-    The `git_repo` conftest fixture seeds `relay-os/` but no global log or
+    The `git_repo` conftest fixture seeds `coga-os/` but no global log or
     `.gitattributes`. Period history (`created recurring/<name> for <period>`)
     now lands in this single repo-global log, which is committed locally and
     pushed on the same branch (not via the cross-branch task overlay), and is
     marked `merge=union` so concurrent appends across branches merge cleanly.
     The caller stages/commits — this only writes the files.
     """
-    relay_os = git_repo.relay_os
-    (relay_os / "log.md").write_text("")
-    (relay_os / ".gitattributes").write_text("/log.md merge=union\n")
-    git_repo.git("add", "relay-os/log.md", "relay-os/.gitattributes")
+    coga_os = git_repo.coga_os
+    (coga_os / "log.md").write_text("")
+    (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
+    git_repo.git("add", "coga-os/log.md", "coga-os/.gitattributes")
 
 
 def _freeze_recurring_now(monkeypatch, when: datetime) -> None:
-    """Pin `relay.recurring`'s wall clock to `when`.
+    """Pin `coga.recurring`'s wall clock to `when`.
 
     The deterministic recurring tests inject `now=` straight into `scan_due`
-    / `create_named`, but the ones that exercise the CLI (`relay recurring`,
-    `relay recurring launch`) can't — the command derives the current period
+    / `create_named`, but the ones that exercise the CLI (`coga recurring`,
+    `coga recurring launch`) can't — the command derives the current period
     from `datetime.now()`. Without this the period key tracks the real ISO
     week, so a test asserting a specific `2026-Wnn` only passes during that
     calendar week. Subclassing keeps every other `datetime` use intact and
@@ -140,7 +140,7 @@ def _freeze_recurring_now(monkeypatch, when: datetime) -> None:
         def now(cls, tz=None):  # noqa: ARG003 - match datetime.now signature
             return when
 
-    monkeypatch.setattr("relay.recurring.datetime", _FixedNow)
+    monkeypatch.setattr("coga.recurring.datetime", _FixedNow)
 
 
 def _seed_direct_body_workflow(company: Path) -> None:
@@ -149,7 +149,7 @@ def _seed_direct_body_workflow(company: Path) -> None:
 
     Recurring tasks create straight to `active`, and every task past `draft`
     carries a workflow, so a template that declares none now runs through
-    `direct/body`. Real repos get the file from `relay init`; the minimal test
+    `direct/body`. Real repos get the file from `coga init`; the minimal test
     repos must copy it from the shipped templates or `create_task` fails to
     load the workflow.
     """
@@ -170,7 +170,7 @@ def _seed_script_workflow(company: Path) -> None:
 
     A recurring template that points its `workflow:` at this runs as a script:
     the single step's skill carries a `script:` entry, which is exactly what
-    `relay.recurring._is_script_template` (and `is_script_launch`) detect. That
+    `coga.recurring._is_script_template` (and `is_script_launch`) detect. That
     deduction is what lets a `autonomy: auto` template bypass the temporary
     auto/TTY recurring ban — script runs produce live console output, so they
     are safe to create and launch unattended. Tests that need a non-interactive
@@ -254,18 +254,18 @@ def _write_recurring_script(
 
 def _seed_period_task_context(company: Path) -> None:
     """Seed the prerequisites the creator needs for a period task:
-    the auto-attached `relay/period-task` context and the `direct/body`
+    the auto-attached `coga/period-task` context and the `direct/body`
     workflow (frozen onto workflow-less templates).
 
-    The creator appends `relay/period-task` to every period task's
+    The creator appends `coga/period-task` to every period task's
     `contexts:`, so the test repo needs a resolvable context file or
     `create_task` rejects the unknown ref.
     """
     _write(
-        company / "contexts" / "relay" / "period-task" / "SKILL.md",
+        company / "contexts" / "coga" / "period-task" / "SKILL.md",
         """
         ---
-        name: relay/period-task
+        name: coga/period-task
         description: stub
         ---
 
@@ -277,25 +277,25 @@ def _seed_period_task_context(company: Path) -> None:
 
 def _allow_interactive_recurring(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "relay.commands.recurring._interactive_stdio_has_tty", lambda: True
+        "coga.commands.recurring._interactive_stdio_has_tty", lambda: True
     )
 
 
-def _finish_period_task(relay_os: Path, slug: str) -> None:
-    ticket_path = relay_os / "tasks" / slug / "ticket.md"
+def _finish_period_task(coga_os: Path, slug: str) -> None:
+    ticket_path = coga_os / "tasks" / slug / "ticket.md"
     ticket = Ticket.read(ticket_path)
     ticket.frontmatter["status"] = "done"
     ticket.write(ticket_path)
-    relay_git.sync_task_state(
-        load_config(relay_os), ticket_path.parent, message=f"Ticket: {slug} — done"
+    coga_git.sync_task_state(
+        load_config(coga_os), ticket_path.parent, message=f"Ticket: {slug} — done"
     )
 
 
 @pytest.fixture
 def repo(tmp_path: Path):
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga-os"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -307,7 +307,7 @@ def repo(tmp_path: Path):
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _seed_period_task_context(company)
     _write_recurring(
         company,
@@ -329,7 +329,7 @@ def repo(tmp_path: Path):
     return company
 
 
-# --- relay recurring list: the read-only schedule view ------------------------
+# --- coga recurring list: the read-only schedule view ------------------------
 
 
 def test_recurring_list_is_read_only_and_shows_schedule(
@@ -359,7 +359,7 @@ def test_recurring_list_shows_picked_tasks(
     assert "recurring/weekly-check" in result.output
 
 
-# --- scan_due: the bare `relay recurring` library layer -----------------------
+# --- scan_due: the bare `coga recurring` library layer -----------------------
 
 
 def test_scan_due_creates_task(repo: Path) -> None:
@@ -389,23 +389,23 @@ def test_scan_due_creates_task(repo: Path) -> None:
 
 
 def test_create_auto_attaches_period_task_context(repo: Path) -> None:
-    """Every period task gets `relay/period-task` appended to its contexts.
+    """Every period task gets `coga/period-task` appended to its contexts.
 
     The recurring template above declares no contexts; after creating, the
-    period task should carry exactly `["relay/period-task"]`. This is what
+    period task should carry exactly `["coga/period-task"]`. This is what
     teaches the launched run that persistent state lives in the parent
     recurring task's blackboard, not the per-period one.
     """
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     ticket = Ticket.read(scan.tasks[0].ref.path / "ticket.md")
-    assert ticket.contexts == ["relay/period-task"]
+    assert ticket.contexts == ["coga/period-task"]
 
 
 def test_create_does_not_duplicate_explicit_period_task_context(
     repo: Path,
 ) -> None:
-    """A recurring task that already lists `relay/period-task` doesn't get
+    """A recurring task that already lists `coga/period-task` doesn't get
     it appended again — the append is idempotent."""
     _write_recurring(
         repo,
@@ -418,7 +418,7 @@ def test_create_does_not_duplicate_explicit_period_task_context(
         assignee: claude
         owner: marc
         contexts:
-          - relay/period-task
+          - coga/period-task
         ---
 
         ## Description
@@ -430,7 +430,7 @@ def test_create_does_not_duplicate_explicit_period_task_context(
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     task = next(t for t in scan.tasks if t.template == "explicit-period")
     ticket = Ticket.read(task.ref.path / "ticket.md")
-    assert ticket.contexts == ["relay/period-task"]
+    assert ticket.contexts == ["coga/period-task"]
 
 
 def test_create_preserves_non_description_template_sections(repo: Path) -> None:
@@ -585,9 +585,9 @@ def test_scan_due_does_not_recreate_after_period_task_deleted(
     """A completed-this-period task that has been deleted stays completed.
 
     A later Dream retro pass deletes done recurring period tickets; a human
-    `relay delete` is the other case. The recurring template's blackboard
+    `coga delete` is the other case. The recurring template's blackboard
     carries the `last_serviced_period` high-water mark, so a successful run
-    isn't silently re-launched by the next `relay recurring`.
+    isn't silently re-launched by the next `coga recurring`.
     """
     cfg = load_config(repo)
     now = datetime(2026, 4, 22, 10, 0, 0)  # a Wednesday after Monday 9am
@@ -800,7 +800,7 @@ def test_scan_due_skips_auto_mode_template(repo: Path, capsys) -> None:
 
     Auto runs buffer stdout until completion, so a scheduled run produces no
     live console signal. Until streaming lands, `scan_due` refuses to create
-    these — the error lands in `DueScan.errors` and `relay recurring` fires
+    these — the error lands in `DueScan.errors` and `coga recurring` fires
     its existing Slack scan-error summary.
     """
     _write_recurring(
@@ -838,7 +838,7 @@ def test_scan_due_skips_interactive_template_without_tty(
     """Unattended scans skip interactive templates before creating.
 
     This mirrors the `autonomy: auto` agent skip path: the error lands in
-    `DueScan.errors`, so `relay recurring` can post its scan-error summary and
+    `DueScan.errors`, so `coga recurring` can post its scan-error summary and
     still continue to other due templates. A script template bypasses the ban
     (it produces live output), so it still creates while the interactive one is
     skipped.
@@ -933,8 +933,8 @@ def test_scan_due_resumes_orphaned_in_progress_task(repo: Path) -> None:
 
     A sweep whose supervisor died mid-run (laptop sleep) leaves its in-flight
     period task frozen `in_progress`. There is no daemon and no concurrent
-    sweep, so the next bare `relay recurring` re-includes it in `.due` and
-    `relay launch` resumes it from its current step — rather than skipping it
+    sweep, so the next bare `coga recurring` re-includes it in `.due` and
+    `coga launch` resumes it from its current step — rather than skipping it
     forever (the old behavior, which stranded the orphan).
     """
     cfg = load_config(repo)
@@ -974,19 +974,19 @@ def test_scan_due_skips_paused_task(repo: Path) -> None:
     assert second.due == []
 
 
-# --- relay recurring launch / the `dream` alias path --------------------------
+# --- coga recurring launch / the `dream` alias path --------------------------
 
 
 @pytest.fixture
 def dream_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A repo carrying the real shipped `recurring/dream/` recurring task.
 
-    `relay recurring launch` and a bare `relay recurring` are the two entry
+    `coga recurring launch` and a bare `coga recurring` are the two entry
     points into the same create path; these tests prove they converge.
     """
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga-os"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -1000,7 +1000,7 @@ def dream_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _seed_period_task_context(company)
     (company / "tasks").mkdir(parents=True)
     (company / "recurring").mkdir(parents=True)
@@ -1012,7 +1012,7 @@ def dream_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_recurring_launch_creates_dream_task(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     result = CliRunner().invoke(app, ["recurring", "launch", "dream"])
 
     assert result.exit_code == 0, result.output
@@ -1033,7 +1033,7 @@ def test_recurring_launch_creates_dream_task(
     assert isinstance(ticket.workflow, dict)
     assert ticket.workflow["name"] == "direct/body"
     # The recurring template's `## Description` body composes into the ticket.
-    assert "Run the Dream cleanup pass for this Relay repo." in ticket.body
+    assert "Run the Dream cleanup pass for this Coga repo." in ticket.body
     # The task path carries recurring identity; the period lives in the
     # recurring template blackboard, not the slug.
     assert refs[0].id_slug != "dream"
@@ -1051,10 +1051,10 @@ def test_recurring_launch_syncs_period_task_and_high_water(
     idempotent only if another checkout can still see the advanced
     `last_serviced_period` after the task dir is gone.
     """
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1070,24 +1070,24 @@ def test_recurring_launch_syncs_period_task_and_high_water(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "cursor: old\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "cursor: old\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
     _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
     assert result.exit_code == 0, result.output
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
     # Period history now lands in the repo-global log; the high-water mark lives
     # in the template ticket's blackboard region.
-    log_rel = "relay-os/log.md"
-    template_rel = "relay-os/recurring/weekly-check/ticket.md"
-    ticket_rel = f"relay-os/tasks/{ref.id_slug}/ticket.md"
+    log_rel = "coga-os/log.md"
+    template_rel = "coga-os/recurring/weekly-check/ticket.md"
+    ticket_rel = f"coga-os/tasks/{ref.id_slug}/ticket.md"
     assert git_repo.origin_tracks(ticket_rel)
     assert git_repo.origin_tracks(log_rel)
     assert git_repo.origin_tracks(template_rel)
@@ -1101,10 +1101,10 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
     git_repo, monkeypatch
 ) -> None:
     """A stale checkout appends its create line without replacing main's log."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1120,16 +1120,16 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
-    log = relay_os / "log.md"
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
+    log = coga_os / "log.md"
     seed_line = (
         "2026-06-01 09:00 [recurring/weekly-check] [system] created "
         "recurring/weekly-check for 2026-W23\n"
     )
     log.write_text(seed_line)
-    (relay_os / ".gitattributes").write_text("/log.md merge=union\n")
-    git_repo.git("add", "relay-os/log.md", "relay-os/.gitattributes")
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
+    git_repo.git("add", "coga-os/log.md", "coga-os/.gitattributes")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -1139,37 +1139,37 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
         "recurring/weekly-check for 2026-W22\n"
     )
     git_repo.push_competing_commit(
-        "relay-os/log.md",
+        "coga-os/log.md",
         log.read_text() + remote_line,
     )
 
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
     assert result.exit_code == 0, result.output
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
     # The repo-global log is union-merged across branches: the concurrent
     # remote append and this run's create line both survive on control.
-    ledger = git_repo.git("show", "main:relay-os/log.md", cwd=git_repo.origin)
+    ledger = git_repo.git("show", "main:coga-os/log.md", cwd=git_repo.origin)
     assert remote_line in ledger
     assert f"created {ref.id_slug}" in ledger
-    assert git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
+    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
 
 
 def test_recurring_launch_does_not_publish_feature_only_template_log(
     git_repo, monkeypatch
 ) -> None:
     """A feature-only recurring template does not become a malformed main dir."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
-    git_repo.git("add", "relay-os/contexts")
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    git_repo.git("add", "coga-os/contexts")
     git_repo.git("commit", "-m", "seed recurring context")
     git_repo.git("push", "origin", "main")
 
     git_repo.checkout_branch("feature/new-recurring")
     _write_recurring(
-        relay_os,
+        coga_os,
         "new-weekly",
         """
         ---
@@ -1185,22 +1185,22 @@ def test_recurring_launch_does_not_publish_feature_only_template_log(
         Run the new weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "new-weekly", "state\n")
-    git_repo.git("add", "relay-os/recurring/new-weekly")
+    _seed_template_blackboard(coga_os, "new-weekly", "state\n")
+    git_repo.git("add", "coga-os/recurring/new-weekly")
     git_repo.git("commit", "-m", "add new recurring template")
 
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     result = CliRunner().invoke(app, ["recurring", "launch", "new-weekly"])
 
     assert result.exit_code == 0, result.output
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
-    assert git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
+    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
     # The feature-only template ticket must not be published to control.
-    assert not git_repo.origin_tracks("relay-os/recurring/new-weekly/ticket.md")
+    assert not git_repo.origin_tracks("coga-os/recurring/new-weekly/ticket.md")
     # The create history lands in the repo-global log, committed locally on the
     # feature branch (it reaches control the union-safe way at PR merge).
-    local_ledger = git_repo.git("show", "HEAD:relay-os/log.md")
+    local_ledger = git_repo.git("show", "HEAD:coga-os/log.md")
     assert f"created {ref.id_slug}" in local_ledger
     assert git_repo.git("status", "--porcelain") == ""
 
@@ -1209,10 +1209,10 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
     git_repo, monkeypatch
 ) -> None:
     """A local control branch behind origin rebases cleanly and preserves logs."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1228,16 +1228,16 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
-    log = relay_os / "log.md"
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
+    log = coga_os / "log.md"
     seed_line = (
         "2026-06-01 09:00 [recurring/weekly-check] [system] created "
         "recurring/weekly-check for 2026-W23\n"
     )
     log.write_text(seed_line)
-    (relay_os / ".gitattributes").write_text("/log.md merge=union\n")
-    git_repo.git("add", "relay-os/log.md", "relay-os/.gitattributes")
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
+    git_repo.git("add", "coga-os/log.md", "coga-os/.gitattributes")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -1246,20 +1246,20 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
         "recurring/weekly-check for 2026-W22\n"
     )
     git_repo.push_competing_commit(
-        "relay-os/log.md",
+        "coga-os/log.md",
         log.read_text() + remote_line,
     )
 
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
     assert result.exit_code == 0, result.output
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
-    ledger = git_repo.git("show", "main:relay-os/log.md", cwd=git_repo.origin)
+    ledger = git_repo.git("show", "main:coga-os/log.md", cwd=git_repo.origin)
     assert remote_line in ledger
     assert f"created {ref.id_slug}" in ledger
-    assert git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
+    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
     assert git_repo.git("status", "--porcelain") == ""
 
 
@@ -1267,10 +1267,10 @@ def test_recurring_launch_does_not_resurrect_remote_deleted_period_from_stale_ma
     git_repo, monkeypatch
 ) -> None:
     """A stale control checkout honors a remotely handled-and-deleted period."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1286,46 +1286,46 @@ def test_recurring_launch_does_not_resurrect_remote_deleted_period_from_stale_ma
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
 
     launch_calls: list[tuple[object, ...]] = []
     monkeypatch.setattr(
-        "relay.commands.launch.launch", lambda *a, **k: launch_calls.append(a)
+        "coga.commands.launch.launch", lambda *a, **k: launch_calls.append(a)
     )
     first = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
     assert first.exit_code == 0, first.output
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
     launch_calls.clear()
 
     ticket = Ticket.read(ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(ref.path / "ticket.md")
-    git_repo.git("add", f"relay-os/tasks/{ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
-    git_repo.git("rm", "-r", f"relay-os/tasks/{ref.id_slug}")
+    git_repo.git("rm", "-r", f"coga-os/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "delete completed recurring period")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
     monkeypatch.setattr(
-        "relay.commands.recurring._interactive_stdio_has_tty", lambda: True
+        "coga.commands.recurring._interactive_stdio_has_tty", lambda: True
     )
-    monkeypatch.setattr("relay.commands.recurring.notify", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.recurring.notify", lambda *a, **k: None)
 
     second = CliRunner().invoke(app, ["recurring"])
 
     assert second.exit_code == 0, second.output
     assert launch_calls == []
-    assert not git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
+    assert not git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
     assert not ref.path.exists()
     ledger = git_repo.git(
         "show",
-        "main:relay-os/log.md",
+        "main:coga-os/log.md",
         cwd=git_repo.origin,
     )
     assert f"created {ref.id_slug}" in ledger
@@ -1336,10 +1336,10 @@ def test_recurring_launch_explicit_rerun_bypasses_handled_period_ledger(
     git_repo, monkeypatch
 ) -> None:
     """Manual `recurring launch` is an explicit same-period rerun override."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1355,48 +1355,48 @@ def test_recurring_launch_explicit_rerun_bypasses_handled_period_ledger(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
     launch_calls: list[tuple[object, ...]] = []
     monkeypatch.setattr(
-        "relay.commands.launch.launch", lambda *a, **k: launch_calls.append(a)
+        "coga.commands.launch.launch", lambda *a, **k: launch_calls.append(a)
     )
     first = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
     assert first.exit_code == 0, first.output
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
     launch_calls.clear()
 
     ticket = Ticket.read(ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(ref.path / "ticket.md")
-    git_repo.git("add", f"relay-os/tasks/{ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
-    git_repo.git("rm", "-r", f"relay-os/tasks/{ref.id_slug}")
+    git_repo.git("rm", "-r", f"coga-os/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "delete completed recurring period")
     git_repo.git("push", "origin", "main")
-    (relay_os / "tasks").mkdir(exist_ok=True)
+    (coga_os / "tasks").mkdir(exist_ok=True)
 
     second = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
     assert second.exit_code == 0, second.output
     assert launch_calls == [(ref.id_slug,)]
-    assert (relay_os / "tasks" / ref.id_slug / "ticket.md").is_file()
-    assert git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
+    assert (coga_os / "tasks" / ref.id_slug / "ticket.md").is_file()
+    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
 
 
 def test_recurring_create_sync_restores_control_ledger_for_handled_period(
     git_repo,
 ) -> None:
     """A stale control checkout discards its attempted duplicate period state."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1412,28 +1412,28 @@ def test_recurring_create_sync_restores_control_ledger_for_handled_period(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
-    log = relay_os / "log.md"
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
+    log = coga_os / "log.md"
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     remote = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
-    git_repo.git("add", f"relay-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
-    git_repo.git("rm", "-r", f"relay-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("rm", "-r", f"coga-os/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "delete completed recurring period")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     stale = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", stale.ref)
 
@@ -1450,10 +1450,10 @@ def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
     git_repo, monkeypatch, capsys
 ) -> None:
     """A handled-period restore can remove the task before a later git error."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1469,34 +1469,34 @@ def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     remote = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
-    git_repo.git("add", f"relay-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
-    git_repo.git("rm", "-r", f"relay-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("rm", "-r", f"coga-os/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "delete completed recurring period")
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/stale",)
     git_repo.git("reset", "--hard", stale_head)
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     stale = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
 
     def fail_commit(*args, **kwargs):
         raise recurring_cmd.git.GitError("simulated index lock")
 
-    monkeypatch.setattr("relay.commands.recurring.git._commit_paths", fail_commit)
+    monkeypatch.setattr("coga.commands.recurring.git._commit_paths", fail_commit)
 
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", stale.ref)
 
@@ -1508,10 +1508,10 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
     git_repo, monkeypatch
 ) -> None:
     """The bare sweep does not launch a stale task removed during broadcast sync."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1527,22 +1527,22 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     remote = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
-    git_repo.git("add", f"relay-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
-    git_repo.git("rm", "-r", f"relay-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("rm", "-r", f"coga-os/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "delete completed recurring period")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
@@ -1550,19 +1550,19 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
     launch_calls: list[tuple[object, ...]] = []
     _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
     monkeypatch.setattr(
-        "relay.commands.recurring._interactive_stdio_has_tty", lambda: True
+        "coga.commands.recurring._interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
-        "relay.commands.launch.launch", lambda *a, **k: launch_calls.append(a)
+        "coga.commands.launch.launch", lambda *a, **k: launch_calls.append(a)
     )
-    monkeypatch.setattr("relay.commands.recurring.notify", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.recurring.notify", lambda *a, **k: None)
 
     result = CliRunner().invoke(app, ["recurring"])
 
     assert result.exit_code == 0, result.output
     assert launch_calls == []
     assert "No recurring tasks due." in result.output
-    assert not (relay_os / "tasks" / remote.ref.id_slug).exists()
+    assert not (coga_os / "tasks" / remote.ref.id_slug).exists()
     assert git_repo.git("status", "--porcelain") == ""
 
 
@@ -1570,10 +1570,10 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
     git_repo, monkeypatch
 ) -> None:
     """A stale control checkout does not replace a remote done task with active."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1589,9 +1589,9 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
@@ -1599,14 +1599,14 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
     launch_calls: list[tuple[object, ...]] = []
     notify_calls: list[tuple[object, ...]] = []
     monkeypatch.setattr(
-        "relay.commands.launch.launch", lambda *a, **k: launch_calls.append(a)
+        "coga.commands.launch.launch", lambda *a, **k: launch_calls.append(a)
     )
     monkeypatch.setattr(
-        "relay.commands.recurring.notify", lambda *a, **k: notify_calls.append(a)
+        "coga.commands.recurring.notify", lambda *a, **k: notify_calls.append(a)
     )
     first = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
     assert first.exit_code == 0, first.output
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
     launch_calls.clear()
     notify_calls.clear()
@@ -1617,7 +1617,7 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
     # The period task's working state lives in its own ticket.md blackboard
     # region now (no separate blackboard.md).
     replace_blackboard(ref.path / "ticket.md", "\nremote done state\n")
-    git_repo.git("add", f"relay-os/tasks/{ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
@@ -1628,7 +1628,7 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
     assert f"Created {ref.id_slug}" not in second.output
     assert launch_calls == []
     assert notify_calls == []
-    ticket_rel = f"relay-os/tasks/{ref.id_slug}/ticket.md"
+    ticket_rel = f"coga-os/tasks/{ref.id_slug}/ticket.md"
     remote_ticket = git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
     assert "status: done" in remote_ticket
     assert "status: active" not in remote_ticket
@@ -1641,10 +1641,10 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
     git_repo, monkeypatch
 ) -> None:
     """Checked-out main keeps local work and takes unrelated remote changes."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1660,16 +1660,16 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
-    log = relay_os / "log.md"
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
+    log = coga_os / "log.md"
     seed_line = (
         "2026-06-01 09:00 [recurring/weekly-check] [system] created "
         "recurring/weekly-check for 2026-W23\n"
     )
     log.write_text(seed_line)
-    (relay_os / ".gitattributes").write_text("/log.md merge=union\n")
-    git_repo.git("add", "relay-os/log.md", "relay-os/.gitattributes")
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
+    git_repo.git("add", "coga-os/log.md", "coga-os/.gitattributes")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -1683,24 +1683,24 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
         "recurring/weekly-check for 2026-W22\n"
     )
     git_repo.push_competing_commit(
-        "relay-os/log.md",
+        "coga-os/log.md",
         log.read_text() + remote_line,
     )
 
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
     assert result.exit_code == 0, result.output
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
     assert git_repo.origin_tracks("LOCAL.txt")
     assert git_repo.origin_tracks("UNRELATED.txt")
-    assert git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
+    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
     assert local_file.read_text() == "local\n"
     assert (git_repo.root / "UNRELATED.txt").read_text() == "remote\n"
     ledger = git_repo.git(
         "show",
-        "main:relay-os/log.md",
+        "main:coga-os/log.md",
         cwd=git_repo.origin,
     )
     assert remote_line in ledger
@@ -1712,10 +1712,10 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
     git_repo, monkeypatch
 ) -> None:
     """A log line pushed after local commit but before control landing survives."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1731,16 +1731,16 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
-    log = relay_os / "log.md"
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
+    log = coga_os / "log.md"
     seed_line = (
         "2026-06-01 09:00 [recurring/weekly-check] [system] created "
         "recurring/weekly-check for 2026-W23\n"
     )
     log.write_text(seed_line)
-    (relay_os / ".gitattributes").write_text("/log.md merge=union\n")
-    git_repo.git("add", "relay-os/log.md", "relay-os/.gitattributes")
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    (coga_os / ".gitattributes").write_text("/log.md merge=union\n")
+    git_repo.git("add", "coga-os/log.md", "coga-os/.gitattributes")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
@@ -1755,23 +1755,23 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
     def racing_commit(root, rels, message):
         committed = real_commit_paths(root, rels, message)
         git_repo.push_competing_commit(
-            "relay-os/log.md",
+            "coga-os/log.md",
             base_log + race_line,
         )
         return committed
 
-    monkeypatch.setattr("relay.commands.recurring.git._commit_paths", racing_commit)
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.recurring.git._commit_paths", racing_commit)
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
     assert result.exit_code == 0, result.output
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
-    ledger_rel = "relay-os/log.md"
+    ledger_rel = "coga-os/log.md"
     ledger = git_repo.git("show", f"main:{ledger_rel}", cwd=git_repo.origin)
     assert race_line in ledger
     assert f"created {ref.id_slug}" in ledger
-    assert git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
+    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
     local_ledger = git_repo.git("show", f"HEAD:{ledger_rel}")
     assert race_line not in local_ledger
     assert f"created {ref.id_slug}" in local_ledger
@@ -1782,10 +1782,10 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
     git_repo, monkeypatch
 ) -> None:
     """A same-slug handled-period race wins over the local active create."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1801,20 +1801,20 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     git_repo.checkout_branch("feature/handled-race")
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
     handled_region = (
         "\nstate\n\nremote_cursor: kept\n\nlast_serviced_period: 2026-W24\n"
     )
     handled_ticket = _template_ticket_with_blackboard(
-        relay_os, "weekly-check", handled_region
+        coga_os, "weekly-check", handled_region
     )
     real_commit_paths = recurring_cmd.git._commit_paths
     raced = False
@@ -1824,26 +1824,26 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
         committed = real_commit_paths(root, rels, message)
         if not raced:
             git_repo.push_competing_commit(
-                "relay-os/recurring/weekly-check/ticket.md",
+                "coga-os/recurring/weekly-check/ticket.md",
                 handled_ticket,
             )
             raced = True
         return committed
 
-    monkeypatch.setattr("relay.commands.recurring.git._commit_paths", racing_commit)
+    monkeypatch.setattr("coga.commands.recurring.git._commit_paths", racing_commit)
 
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
 
     # The handled control state (its cursor and W24 high-water) lives in the
     # template ticket's blackboard region; the stale checkout adopts it.
-    ticket_rel = "relay-os/recurring/weekly-check/ticket.md"
+    ticket_rel = "coga-os/recurring/weekly-check/ticket.md"
     control_ticket = git_repo.git("show", f"main:{ticket_rel}", cwd=git_repo.origin)
     assert "remote_cursor: kept" in control_ticket
     assert "last_serviced_period: 2026-W24" in control_ticket
-    local_template = relay_os / "recurring" / "weekly-check" / "ticket.md"
+    local_template = coga_os / "recurring" / "weekly-check" / "ticket.md"
     assert "remote_cursor: kept" in read_blackboard(local_template)
     assert read_last_serviced_period(local_template) == "2026-W24"
-    assert not git_repo.origin_tracks(f"relay-os/tasks/{outcome.ref.id_slug}/ticket.md")
+    assert not git_repo.origin_tracks(f"coga-os/tasks/{outcome.ref.id_slug}/ticket.md")
     assert not outcome.ref.path.exists()
     assert git_repo.git("status", "--porcelain") == ""
 
@@ -1852,10 +1852,10 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
     git_repo, monkeypatch, capsys
 ) -> None:
     """A checked-out control branch drops a new task if the remote handled it."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1871,17 +1871,17 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     outcome = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
     handled_region = "\nstate\n\nlast_serviced_period: 2026-W24\n"
     handled_ticket = _template_ticket_with_blackboard(
-        relay_os, "weekly-check", handled_region
+        coga_os, "weekly-check", handled_region
     )
     real_fetch = recurring_cmd._fetch_control_branch
     fetch_calls = 0
@@ -1892,7 +1892,7 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
         real_fetch(cfg_arg, root)
         if fetch_calls == 2:
             git_repo.push_competing_commit(
-                "relay-os/recurring/weekly-check/ticket.md",
+                "coga-os/recurring/weekly-check/ticket.md",
                 handled_ticket,
             )
 
@@ -1902,12 +1902,12 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
 
     assert "sync failed" not in capsys.readouterr().err
     assert not outcome.ref.path.exists()
-    assert not git_repo.origin_tracks(f"relay-os/tasks/{outcome.ref.id_slug}/ticket.md")
-    ticket_rel = "relay-os/recurring/weekly-check/ticket.md"
+    assert not git_repo.origin_tracks(f"coga-os/tasks/{outcome.ref.id_slug}/ticket.md")
+    ticket_rel = "coga-os/recurring/weekly-check/ticket.md"
     assert "last_serviced_period: 2026-W24" in git_repo.git(
         "show", f"main:{ticket_rel}", cwd=git_repo.origin
     )
-    local_template = relay_os / "recurring" / "weekly-check" / "ticket.md"
+    local_template = coga_os / "recurring" / "weekly-check" / "ticket.md"
     assert read_last_serviced_period(local_template) == "2026-W24"
     assert git_repo.git("status", "--porcelain") == ""
 
@@ -1931,10 +1931,10 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
     git_repo, monkeypatch
 ) -> None:
     """An unreachable control branch still leaves the create committed locally."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -1950,9 +1950,9 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     git_repo.git(
@@ -1962,14 +1962,14 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
         str(git_repo.origin.parent / "missing.git"),
     )
 
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
     assert result.exit_code == 0, result.output
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     ref = list_tasks(cfg)[0]
-    log_rel = "relay-os/log.md"
-    ticket_rel = f"relay-os/tasks/{ref.id_slug}/ticket.md"
+    log_rel = "coga-os/log.md"
+    ticket_rel = f"coga-os/tasks/{ref.id_slug}/ticket.md"
     assert git_repo.git("log", "--format=%s", "-1").strip() == (
         f"Ticket: {ref.id_slug} — recurring create"
     )
@@ -1981,10 +1981,10 @@ def test_recurring_launch_defaults_assignee_to_default_agent(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A recurring task (Dream) with no template `assignee:` defaults to the
-    repo's default agent, not the human owner — otherwise `relay launch` cannot
+    repo's default agent, not the human owner — otherwise `coga launch` cannot
     resolve the assignee to an agent type. (The `direct/body` step's
     `assignee: agent` resolves to that same default agent.)"""
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     CliRunner().invoke(app, ["recurring", "launch", "dream"])
 
     cfg = load_config(dream_repo)
@@ -1997,7 +1997,7 @@ def test_recurring_launch_defaults_assignee_to_default_agent(
 def test_recurring_launch_is_idempotent(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     runner = CliRunner()
     first = runner.invoke(app, ["recurring", "launch", "dream"])
     second = runner.invoke(app, ["recurring", "launch", "dream"])
@@ -2011,7 +2011,7 @@ def test_recurring_launch_is_idempotent(
 
 
 def test_recurring_launch_and_scan_converge(dream_repo: Path) -> None:
-    """A manual `launch dream` and a bare `relay recurring` produce one dir."""
+    """A manual `launch dream` and a bare `coga recurring` produce one dir."""
     cfg = load_config(dream_repo)
     now = datetime(2026, 5, 20, 10, 0, 0)  # a Wednesday
 
@@ -2025,7 +2025,7 @@ def test_recurring_launch_and_scan_converge(dream_repo: Path) -> None:
     assert len(list_tasks(cfg)) == 1
 
 
-# --- relay recurring --all (forced full run) ----------------------------------
+# --- coga recurring --all (forced full run) ----------------------------------
 
 
 def test_scan_due_force_reruns_already_done_period(repo: Path) -> None:
@@ -2052,7 +2052,7 @@ def test_scan_due_force_reruns_already_done_period(repo: Path) -> None:
     # The real period task is reused — same slug, no `-dbg-` scratch.
     assert run.ref.id_slug == period_slug
     assert "-dbg-" not in run.ref.id_slug
-    # `forced` includes the `done` task (relay launch re-activates it); the
+    # `forced` includes the `done` task (coga launch re-activates it); the
     # status-filtered `due` list still skips it.
     assert run.status == "done"
     assert forced.forced == [run]
@@ -2185,38 +2185,38 @@ def test_recurring_all_syncs_forced_recreated_period_on_control_branch(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`--all` must not let the control high-water discard a forced recreate."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
-    _seed_script_workflow(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _seed_script_workflow(coga_os)
     _write_recurring_script(
-        relay_os,
+        coga_os,
         "weekly-check",
         schedule="0 9 * * 1",
         title="Weekly check",
         extra="state_keys:\n- cursor",
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "cursor: old\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "cursor: old\n")
     _seed_global_log(git_repo)
     git_repo.git(
         "add",
-        "relay-os/contexts",
-        "relay-os/skills",
-        "relay-os/workflows",
-        "relay-os/recurring/weekly-check",
+        "coga-os/contexts",
+        "coga-os/skills",
+        "coga-os/workflows",
+        "coga-os/recurring/weekly-check",
     )
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     ref = first.tasks[0].ref
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", ref)
     ticket = Ticket.read(ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(ref.path / "ticket.md")
-    git_repo.git("add", f"relay-os/tasks/{ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
-    git_repo.git("rm", "-r", f"relay-os/tasks/{ref.id_slug}")
+    git_repo.git("rm", "-r", f"coga-os/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "delete completed recurring period")
     git_repo.git("push", "origin", "main")
 
@@ -2224,58 +2224,58 @@ def test_recurring_all_syncs_forced_recreated_period_on_control_branch(
 
     def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
         launched.append(slug)
-        path = relay_os / "tasks" / slug / "ticket.md"
+        path = coga_os / "tasks" / slug / "ticket.md"
         ticket = Ticket.read(path)
         ticket.frontmatter["status"] = "done"
         ticket.write(path)
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
-    monkeypatch.chdir(relay_os)
+    monkeypatch.chdir(coga_os)
 
     result = CliRunner().invoke(app, ["recurring", "--all"])
 
     assert result.exit_code == 0, result.output
     assert launched == [ref.id_slug]
-    assert (relay_os / "tasks" / ref.id_slug / "ticket.md").is_file()
-    assert git_repo.origin_tracks(f"relay-os/tasks/{ref.id_slug}/ticket.md")
+    assert (coga_os / "tasks" / ref.id_slug / "ticket.md").is_file()
+    assert git_repo.origin_tracks(f"coga-os/tasks/{ref.id_slug}/ticket.md")
 
 
 def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A forced stale local create must not overwrite a newer control task."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
-    _seed_script_workflow(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _seed_script_workflow(coga_os)
     _write_recurring_script(
-        relay_os,
+        coga_os,
         "weekly-check",
         schedule="0 9 * * 1",
         title="Weekly check",
         extra="state_keys:\n- cursor",
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "cursor: old\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "cursor: old\n")
     _seed_global_log(git_repo)
     git_repo.git(
         "add",
-        "relay-os/contexts",
-        "relay-os/skills",
-        "relay-os/workflows",
-        "relay-os/recurring/weekly-check",
+        "coga-os/contexts",
+        "coga-os/skills",
+        "coga-os/workflows",
+        "coga-os/recurring/weekly-check",
     )
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     remote = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
     replace_blackboard(remote.ref.path / "ticket.md", "\nremote done state\n")
-    git_repo.git("add", f"relay-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
@@ -2284,11 +2284,11 @@ def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
 
     def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
         launched.append(slug)
-        _finish_period_task(relay_os, slug)
+        _finish_period_task(coga_os, slug)
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
-    monkeypatch.chdir(relay_os)
+    monkeypatch.chdir(coga_os)
 
     result = CliRunner().invoke(app, ["recurring", "--all"])
 
@@ -2299,13 +2299,13 @@ def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
     assert Ticket.read(remote.ref.path / "ticket.md").status == "done"
     remote_ticket = git_repo.git(
         "show",
-        f"main:relay-os/tasks/{remote.ref.id_slug}/ticket.md",
+        f"main:coga-os/tasks/{remote.ref.id_slug}/ticket.md",
         cwd=git_repo.origin,
     )
     assert _blackboard_of_text(remote_ticket) == "\nremote done state\n"
     control_template = git_repo.git(
         "show",
-        "main:relay-os/recurring/weekly-check/ticket.md",
+        "main:coga-os/recurring/weekly-check/ticket.md",
         cwd=git_repo.origin,
     )
     assert "last_serviced_period: 2026-W18" in control_template
@@ -2315,10 +2315,10 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A clean local task dir may be stale; force mode should use control."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -2336,13 +2336,13 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "cursor: old\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "cursor: old\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     stale = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", stale.ref)
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
@@ -2351,23 +2351,23 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
     ticket.frontmatter["status"] = "done"
     ticket.write(stale.ref.path / "ticket.md")
     replace_blackboard(stale.ref.path / "ticket.md", "\nremote newer state\n")
-    git_repo.git("add", f"relay-os/tasks/{stale.ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{stale.ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period remotely")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
     _seed_template_blackboard(
-        relay_os, "weekly-check", "cursor: new\n\nlast_serviced_period: 2026-W17\n"
+        coga_os, "weekly-check", "cursor: new\n\nlast_serviced_period: 2026-W17\n"
     )
 
     launched: list[str] = []
 
     def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
         launched.append(slug)
-        _finish_period_task(relay_os, slug)
+        _finish_period_task(coga_os, slug)
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
-    monkeypatch.chdir(relay_os)
+    monkeypatch.chdir(coga_os)
 
     result = CliRunner().invoke(app, ["recurring", "--all"])
 
@@ -2377,13 +2377,13 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
     assert "status: done" in (stale.ref.path / "ticket.md").read_text()
     remote_ticket = git_repo.git(
         "show",
-        f"main:relay-os/tasks/{stale.ref.id_slug}/ticket.md",
+        f"main:coga-os/tasks/{stale.ref.id_slug}/ticket.md",
         cwd=git_repo.origin,
     )
     assert _blackboard_of_text(remote_ticket) == "\nremote newer state\n"
     control_template = git_repo.git(
         "show",
-        "main:relay-os/recurring/weekly-check/ticket.md",
+        "main:coga-os/recurring/weekly-check/ticket.md",
         cwd=git_repo.origin,
     )
     assert "last_serviced_period: 2026-W18" in control_template
@@ -2394,10 +2394,10 @@ def test_recurring_all_preserves_existing_local_task_state_during_force_sync(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Force-syncing an existing local task must not replace unsynced state."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -2413,13 +2413,13 @@ def test_recurring_all_preserves_existing_local_task_state_during_force_sync(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", first.ref)
     # The period task's unsynced working state lives in its ticket.md blackboard.
@@ -2436,9 +2436,9 @@ def test_recurring_all_preserves_existing_local_task_state_during_force_sync(
         ticket.frontmatter["status"] = "done"
         ticket.write(first.ref.path / "ticket.md")
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
-    monkeypatch.chdir(relay_os)
+    monkeypatch.chdir(coga_os)
 
     result = CliRunner().invoke(app, ["recurring", "--all"])
 
@@ -2451,10 +2451,10 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A generated state snapshot is not a local edit worth preserving."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -2472,42 +2472,42 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "cursor: old\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "cursor: old\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", first.ref)
     ticket = Ticket.read(first.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(first.ref.path / "ticket.md")
     replace_blackboard(first.ref.path / "ticket.md", "\nlocal stale done state\n")
-    git_repo.git("add", f"relay-os/tasks/{first.ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{first.ref.id_slug}")
     git_repo.git("commit", "-m", "local done period")
     git_repo.git("push", "origin", "main")
     stale_done_head = git_repo.git("rev-parse", "HEAD").strip()
 
     replace_blackboard(first.ref.path / "ticket.md", "\nremote newer done state\n")
-    git_repo.git("add", f"relay-os/tasks/{first.ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{first.ref.id_slug}")
     git_repo.git("commit", "-m", "remote newer done state")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_done_head)
     _seed_template_blackboard(
-        relay_os, "weekly-check", "cursor: new\n\nlast_serviced_period: 2026-W17\n"
+        coga_os, "weekly-check", "cursor: new\n\nlast_serviced_period: 2026-W17\n"
     )
 
     launched: list[str] = []
 
     def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
         launched.append(slug)
-        _finish_period_task(relay_os, slug)
+        _finish_period_task(coga_os, slug)
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
-    monkeypatch.chdir(relay_os)
+    monkeypatch.chdir(coga_os)
 
     result = CliRunner().invoke(app, ["recurring", "--all"])
 
@@ -2516,7 +2516,7 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
     assert read_blackboard(first.ref.path / "ticket.md") == "\nremote newer done state\n"
     remote_ticket = git_repo.git(
         "show",
-        f"main:relay-os/tasks/{first.ref.id_slug}/ticket.md",
+        f"main:coga-os/tasks/{first.ref.id_slug}/ticket.md",
         cwd=git_repo.origin,
     )
     assert _blackboard_of_text(remote_ticket) == "\nremote newer done state\n"
@@ -2527,33 +2527,33 @@ def test_recurring_all_does_not_mark_new_period_for_control_live_task(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A stale checkout must resume control's live task without W18 high-water."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
-    _seed_script_workflow(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _seed_script_workflow(coga_os)
     _write_recurring_script(
-        relay_os, "weekly-check", schedule="0 9 * * 1", title="Weekly check"
+        coga_os, "weekly-check", schedule="0 9 * * 1", title="Weekly check"
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
     git_repo.git(
         "add",
-        "relay-os/contexts",
-        "relay-os/skills",
-        "relay-os/workflows",
-        "relay-os/recurring/weekly-check",
+        "coga-os/contexts",
+        "coga-os/skills",
+        "coga-os/workflows",
+        "coga-os/recurring/weekly-check",
     )
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     remote = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "in_progress"
     ticket.write(remote.ref.path / "ticket.md")
     replace_blackboard(remote.ref.path / "ticket.md", "\nremote live state\n")
-    git_repo.git("add", f"relay-os/tasks/{remote.ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{remote.ref.id_slug}")
     git_repo.git("commit", "-m", "remote live period")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
@@ -2564,9 +2564,9 @@ def test_recurring_all_does_not_mark_new_period_for_control_live_task(
         launched.append(slug)
         assert read_blackboard(remote.ref.path / "ticket.md") == "\nremote live state\n"
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
-    monkeypatch.chdir(relay_os)
+    monkeypatch.chdir(coga_os)
 
     result = CliRunner().invoke(app, ["recurring", "--all"])
 
@@ -2574,7 +2574,7 @@ def test_recurring_all_does_not_mark_new_period_for_control_live_task(
     assert launched == [remote.ref.id_slug]
     control_template = git_repo.git(
         "show",
-        "main:relay-os/recurring/weekly-check/ticket.md",
+        "main:coga-os/recurring/weekly-check/ticket.md",
         cwd=git_repo.origin,
     )
     assert "last_serviced_period: 2026-W17" in control_template
@@ -2585,26 +2585,26 @@ def test_recurring_all_reconciles_existing_tasks_before_launch_order(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A control-branch orphan must resume before stale local fresh work."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
-    _seed_script_workflow(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
+    _seed_script_workflow(coga_os)
     for name in ("aaa-first", "zzz-live"):
         _write_recurring_script(
-            relay_os, name, schedule="0 9 * * 1", title=name
+            coga_os, name, schedule="0 9 * * 1", title=name
         )
-        _seed_template_blackboard(relay_os, name, "state\n")
+        _seed_template_blackboard(coga_os, name, "state\n")
     _seed_global_log(git_repo)
     git_repo.git(
         "add",
-        "relay-os/contexts",
-        "relay-os/skills",
-        "relay-os/workflows",
-        "relay-os/recurring",
+        "coga-os/contexts",
+        "coga-os/skills",
+        "coga-os/workflows",
+        "coga-os/recurring",
     )
     git_repo.git("commit", "-m", "seed recurring templates")
     git_repo.git("push", "origin", "main")
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     first_scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     for task in first_scan.tasks:
         assert task.ref is not None
@@ -2615,7 +2615,7 @@ def test_recurring_all_reconciles_existing_tasks_before_launch_order(
     ticket = Ticket.read(live.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(live.ref.path / "ticket.md")
-    git_repo.git("add", f"relay-os/tasks/{live.ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{live.ref.id_slug}")
     git_repo.git("commit", "-m", "local done live task")
     git_repo.git("push", "origin", "main")
     stale_done_head = git_repo.git("rev-parse", "HEAD").strip()
@@ -2624,7 +2624,7 @@ def test_recurring_all_reconciles_existing_tasks_before_launch_order(
     ticket.frontmatter["status"] = "in_progress"
     ticket.write(live.ref.path / "ticket.md")
     replace_blackboard(live.ref.path / "ticket.md", "\nremote live state\n")
-    git_repo.git("add", f"relay-os/tasks/{live.ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{live.ref.id_slug}")
     git_repo.git("commit", "-m", "remote live task")
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_done_head)
@@ -2634,9 +2634,9 @@ def test_recurring_all_reconciles_existing_tasks_before_launch_order(
     def fake_launch(slug: str, **kwargs) -> None:
         launched.append(slug)
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
-    monkeypatch.chdir(relay_os)
+    monkeypatch.chdir(coga_os)
 
     result = CliRunner().invoke(app, ["recurring", "--all"])
 
@@ -2670,7 +2670,7 @@ def test_recurring_all_does_not_service_unreached_existing_task(
         launched.append(slug)
         raise RuntimeError("stop sweep before second template")
 
-    monkeypatch.setattr("relay.commands.launch.launch", stop_after_first)
+    monkeypatch.setattr("coga.commands.launch.launch", stop_after_first)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(repo)
 
@@ -2688,10 +2688,10 @@ def test_recurring_all_syncs_forced_existing_period_state(
     git_repo, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A forced relaunch of an existing task still syncs parent period state."""
-    relay_os = git_repo.relay_os
-    _seed_period_task_context(relay_os)
+    coga_os = git_repo.coga_os
+    _seed_period_task_context(coga_os)
     _write_recurring(
-        relay_os,
+        coga_os,
         "weekly-check",
         """
         ---
@@ -2707,20 +2707,20 @@ def test_recurring_all_syncs_forced_existing_period_state(
         Run the weekly check.
         """,
     )
-    _seed_template_blackboard(relay_os, "weekly-check", "state\n")
+    _seed_template_blackboard(coga_os, "weekly-check", "state\n")
     _seed_global_log(git_repo)
-    git_repo.git("add", "relay-os/contexts", "relay-os/recurring/weekly-check")
+    git_repo.git("add", "coga-os/contexts", "coga-os/recurring/weekly-check")
     git_repo.git("commit", "-m", "seed recurring template")
     git_repo.git("push", "origin", "main")
 
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     ref = first.tasks[0].ref
     recurring_cmd._sync_recurring_create(cfg, "weekly-check", ref)
     ticket = Ticket.read(ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(ref.path / "ticket.md")
-    git_repo.git("add", f"relay-os/tasks/{ref.id_slug}")
+    git_repo.git("add", f"coga-os/tasks/{ref.id_slug}")
     git_repo.git("commit", "-m", "complete recurring period")
     git_repo.git("push", "origin", "main")
 
@@ -2728,11 +2728,11 @@ def test_recurring_all_syncs_forced_existing_period_state(
 
     def fake_launch(slug: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
         launched.append(slug)
-        _finish_period_task(relay_os, slug)
+        _finish_period_task(coga_os, slug)
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
-    monkeypatch.chdir(relay_os)
+    monkeypatch.chdir(coga_os)
 
     result = CliRunner().invoke(app, ["recurring", "--all"])
 
@@ -2742,7 +2742,7 @@ def test_recurring_all_syncs_forced_existing_period_state(
     assert "→ launch" in result.output
     control_template = git_repo.git(
         "show",
-        "main:relay-os/recurring/weekly-check/ticket.md",
+        "main:coga-os/recurring/weekly-check/ticket.md",
         cwd=git_repo.origin,
     )
     assert "last_serviced_period: 2026-W18" in control_template
@@ -2754,7 +2754,7 @@ def test_recurring_all_launches_every_template(
     launched: list[str] = []
     _allow_interactive_recurring(monkeypatch)
     monkeypatch.setattr(
-        "relay.commands.launch.launch",
+        "coga.commands.launch.launch",
         lambda slug, **k: launched.append(slug),
     )
     monkeypatch.chdir(repo)
@@ -2777,10 +2777,10 @@ def test_recurring_all_skips_interactive_template_without_tty(
 ) -> None:
     launched: list[str] = []
     monkeypatch.setattr(
-        "relay.commands.recurring._interactive_stdio_has_tty", lambda: False
+        "coga.commands.recurring._interactive_stdio_has_tty", lambda: False
     )
     monkeypatch.setattr(
-        "relay.commands.launch.launch",
+        "coga.commands.launch.launch",
         lambda slug, **k: launched.append(slug),
     )
     monkeypatch.chdir(repo)
@@ -2805,7 +2805,7 @@ def test_recurring_launch_unknown_template_fails(dream_repo: Path) -> None:
 def test_recurring_launch_invokes_launch(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay recurring launch` hands the created `active` task to launch."""
+    """`coga recurring launch` hands the created `active` task to launch."""
     calls: list[str] = []
 
     def fake_launch(
@@ -2824,7 +2824,7 @@ def test_recurring_launch_invokes_launch(
         assert ticket.status == "active"
         calls.append(task)
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring", "launch", "dream"])
 
@@ -2837,9 +2837,9 @@ def test_recurring_launch_threads_configured_timeout_limits(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """On-demand recurring launches pass concrete launch-limit values."""
-    relay_toml = dream_repo / "relay.toml"
-    relay_toml.write_text(
-        relay_toml.read_text() + "\n[launch]\nidle_timeout = 120\nmax_session = 3600\n"
+    coga_toml = dream_repo / "coga.toml"
+    coga_toml.write_text(
+        coga_toml.read_text() + "\n[launch]\nidle_timeout = 120\nmax_session = 3600\n"
     )
     seen: list[tuple[float | None, float | None, bool]] = []
 
@@ -2852,7 +2852,7 @@ def test_recurring_launch_threads_configured_timeout_limits(
             )
         )
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring", "launch", "dream"])
 
@@ -2863,15 +2863,15 @@ def test_recurring_launch_threads_configured_timeout_limits(
 def test_recurring_launch_resumes_in_progress_orphan(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay recurring launch <name>` resumes an orphaned `in_progress` task.
+    """`coga recurring launch <name>` resumes an orphaned `in_progress` task.
 
-    The on-demand path (the `relay dream` alias) follows the same rule as the
+    The on-demand path (the `coga dream` alias) follows the same rule as the
     bare sweep: an `in_progress` period task left by a dead supervisor is
     relaunched (resumed), not refused.
     """
     calls: list[str] = []
     monkeypatch.setattr(
-        "relay.commands.launch.launch", lambda task, **k: calls.append(task)
+        "coga.commands.launch.launch", lambda task, **k: calls.append(task)
     )
 
     # First call creates the period task (`active`); freeze it `in_progress`
@@ -2897,7 +2897,7 @@ def test_recurring_launch_refuses_done_task(
     """A `done` period task is left alone — re-running finished work is wrong."""
     calls: list[str] = []
     monkeypatch.setattr(
-        "relay.commands.launch.launch", lambda task, **k: calls.append(task)
+        "coga.commands.launch.launch", lambda task, **k: calls.append(task)
     )
 
     CliRunner().invoke(app, ["recurring", "launch", "dream"])
@@ -2921,7 +2921,7 @@ def test_recurring_launch_interactive_overrides_mode(
     """`--interactive` threads autonomy_override and leaves limits unarmed."""
     seen: list[tuple[str | None, float | None, float | None]] = []
     monkeypatch.setattr(
-        "relay.commands.launch.launch",
+        "coga.commands.launch.launch",
         lambda task, **k: seen.append(
             (k.get("autonomy_override"), k.get("idle_timeout"), k.get("max_session"))
         ),
@@ -2938,7 +2938,7 @@ def test_recurring_launch_interactive_overrides_mode(
 def test_bare_recurring_scans_and_launches_due(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Bare `relay recurring` creates the due task and launches it."""
+    """Bare `coga recurring` creates the due task and launches it."""
     calls: list[str] = []
     _allow_interactive_recurring(monkeypatch)
 
@@ -2948,7 +2948,7 @@ def test_bare_recurring_scans_and_launches_due(
         ticket.frontmatter["status"] = "done"
         ticket.write(dream_repo / "tasks" / task / "ticket.md")
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring"])
 
@@ -2968,7 +2968,7 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
     )
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "relay.commands.recurring._interactive_stdio_has_tty", lambda: False
+        "coga.commands.recurring._interactive_stdio_has_tty", lambda: False
     )
     calls: list[str] = []
     slack_msgs: list[str] = []
@@ -2988,8 +2988,8 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
 
         return R()
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
-    monkeypatch.setattr("relay.notification.slack.requests.post", capture_slack)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.notification.slack.requests.post", capture_slack)
 
     result = CliRunner().invoke(app, ["recurring"])
 
@@ -3065,8 +3065,8 @@ def test_bare_recurring_skips_malformed_schedule_and_continues(
 
         return R()
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
-    monkeypatch.setattr("relay.notification.slack.requests.post", capture_slack)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.notification.slack.requests.post", capture_slack)
 
     result = CliRunner().invoke(app, ["recurring"])
 
@@ -3116,7 +3116,7 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
         ticket.frontmatter["status"] = "in_progress"
         ticket.write(repo / "tasks" / task / "ticket.md")
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring"])
 
@@ -3157,7 +3157,7 @@ def test_bare_recurring_records_liveness_timeout_not_human_pause(
         ticket.write(repo / "tasks" / task / "ticket.md")
         return "timeout"
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring"])
 
@@ -3189,9 +3189,9 @@ def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
     Unattended runs can't be redirected by a human at the terminal, so a
     launched-but-unfinished task is a stuck task and stops the sweep.
     """
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga-os"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -3203,7 +3203,7 @@ def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _seed_period_task_context(company)
     _seed_script_workflow(company)
     _write_recurring_script(
@@ -3224,7 +3224,7 @@ def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
         ticket.frontmatter["status"] = "in_progress"
         ticket.write(company / "tasks" / task / "ticket.md")
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring"])
 
@@ -3238,7 +3238,7 @@ def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
 def test_bare_recurring_interactive_overrides_mode(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay recurring --interactive` threads autonomy_override to each launch."""
+    """`coga recurring --interactive` threads autonomy_override to each launch."""
     seen: list[str | None] = []
     _allow_interactive_recurring(monkeypatch)
 
@@ -3248,7 +3248,7 @@ def test_bare_recurring_interactive_overrides_mode(
         ticket.frontmatter["status"] = "done"
         ticket.write(dream_repo / "tasks" / task / "ticket.md")
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring", "--interactive"])
 
@@ -3269,7 +3269,7 @@ def test_bare_recurring_defaults_to_no_mode_override(
         ticket.frontmatter["status"] = "done"
         ticket.write(dream_repo / "tasks" / task / "ticket.md")
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
     result = CliRunner().invoke(app, ["recurring"])
 
@@ -3292,7 +3292,7 @@ def _capture_idle_timeout(
         ticket.frontmatter["status"] = "done"
         ticket.write(repo / "tasks" / task / "ticket.md")
 
-    monkeypatch.setattr("relay.commands.launch.launch", fake_launch)
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
     assert CliRunner().invoke(app, argv).exit_code == 0
     return seen
 
@@ -3308,8 +3308,8 @@ def test_bare_recurring_config_can_disarm_idle_timeout(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`[launch].idle_timeout = 0` explicitly disables the built-in default."""
-    relay_toml = dream_repo / "relay.toml"
-    relay_toml.write_text(relay_toml.read_text() + "\n[launch]\nidle_timeout = 0\n")
+    coga_toml = dream_repo / "coga.toml"
+    coga_toml.write_text(coga_toml.read_text() + "\n[launch]\nidle_timeout = 0\n")
 
     assert _capture_idle_timeout(dream_repo, monkeypatch, ["recurring"]) == [None]
 
@@ -3341,22 +3341,22 @@ def _timeout_cfg(
 def test_recurring_idle_timeout_env_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`RELAY_REPL_IDLE_TIMEOUT` overrides the default window; a `<= 0`,
+    """`COGA_REPL_IDLE_TIMEOUT` overrides the default window; a `<= 0`,
     non-finite, or unparseable value disarms the backstop."""
-    from relay.commands.recurring import (
+    from coga.commands.recurring import (
         _RECURRING_IDLE_TIMEOUT_SECONDS,
         _recurring_idle_timeout,
     )
 
     cfg = _timeout_cfg()
-    monkeypatch.delenv("RELAY_REPL_IDLE_TIMEOUT", raising=False)
+    monkeypatch.delenv("COGA_REPL_IDLE_TIMEOUT", raising=False)
     assert _recurring_idle_timeout(cfg) == _RECURRING_IDLE_TIMEOUT_SECONDS
 
-    monkeypatch.setenv("RELAY_REPL_IDLE_TIMEOUT", "30")
+    monkeypatch.setenv("COGA_REPL_IDLE_TIMEOUT", "30")
     assert _recurring_idle_timeout(cfg) == 30.0
 
     for disarm in ("0", "-5", "inf", "nan", "later"):
-        monkeypatch.setenv("RELAY_REPL_IDLE_TIMEOUT", disarm)
+        monkeypatch.setenv("COGA_REPL_IDLE_TIMEOUT", disarm)
         assert _recurring_idle_timeout(cfg) is None, disarm
 
 
@@ -3365,12 +3365,12 @@ def test_recurring_idle_timeout_config_precedence(
 ) -> None:
     """Precedence is env > `[launch].idle_timeout` > the built-in default; an
     env override wins even to disarm a committed config value."""
-    from relay.commands.recurring import (
+    from coga.commands.recurring import (
         _RECURRING_IDLE_TIMEOUT_SECONDS,
         _recurring_idle_timeout,
     )
 
-    monkeypatch.delenv("RELAY_REPL_IDLE_TIMEOUT", raising=False)
+    monkeypatch.delenv("COGA_REPL_IDLE_TIMEOUT", raising=False)
     # Config value used when no env override is set.
     assert (
         _recurring_idle_timeout(_timeout_cfg(idle=120.0, idle_present=True))
@@ -3380,12 +3380,12 @@ def test_recurring_idle_timeout_config_precedence(
     # No config and no env → built-in default.
     assert _recurring_idle_timeout(_timeout_cfg()) == _RECURRING_IDLE_TIMEOUT_SECONDS
     # Env beats config, including the disarm case.
-    monkeypatch.setenv("RELAY_REPL_IDLE_TIMEOUT", "45")
+    monkeypatch.setenv("COGA_REPL_IDLE_TIMEOUT", "45")
     assert (
         _recurring_idle_timeout(_timeout_cfg(idle=120.0, idle_present=True))
         == 45.0
     )
-    monkeypatch.setenv("RELAY_REPL_IDLE_TIMEOUT", "0")
+    monkeypatch.setenv("COGA_REPL_IDLE_TIMEOUT", "0")
     assert (
         _recurring_idle_timeout(_timeout_cfg(idle=120.0, idle_present=True)) is None
     )
@@ -3396,16 +3396,16 @@ def test_recurring_max_session_resolution(
 ) -> None:
     """Max-session has no built-in default — None unless config or env sets it.
     Precedence mirrors idle-timeout: env > `[launch].max_session` > None."""
-    from relay.commands.recurring import _recurring_max_session
+    from coga.commands.recurring import _recurring_max_session
 
-    monkeypatch.delenv("RELAY_REPL_MAX_SESSION", raising=False)
+    monkeypatch.delenv("COGA_REPL_MAX_SESSION", raising=False)
     assert _recurring_max_session(_timeout_cfg()) is None
     assert _recurring_max_session(_timeout_cfg(max_session=600.0)) == 600.0
 
-    monkeypatch.setenv("RELAY_REPL_MAX_SESSION", "90")
+    monkeypatch.setenv("COGA_REPL_MAX_SESSION", "90")
     assert _recurring_max_session(_timeout_cfg(max_session=600.0)) == 90.0
     for disarm in ("0", "-5", "inf", "nan", "later"):
-        monkeypatch.setenv("RELAY_REPL_MAX_SESSION", disarm)
+        monkeypatch.setenv("COGA_REPL_MAX_SESSION", disarm)
         assert _recurring_max_session(_timeout_cfg(max_session=600.0)) is None, disarm
 
 
@@ -3417,7 +3417,7 @@ def test_bare_recurring_nothing_due(
     (An `in_progress` task is no longer a no-op — it is resumed; see
     `test_scan_due_resumes_orphaned_in_progress_task`.)
     """
-    monkeypatch.setattr("relay.commands.launch.launch", lambda *a, **k: None)
+    monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     _allow_interactive_recurring(monkeypatch)
     runner = CliRunner()
     runner.invoke(app, ["recurring"])  # creates + "launches" (no-op stub)

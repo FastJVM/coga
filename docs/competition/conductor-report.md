@@ -1,4 +1,4 @@
-<!-- Exported from the Google Doc "Conductor Report" (Relay Competition Tests), 2026-06-06.
+<!-- Exported from the Google Doc "Conductor Report" (Coga Competition Tests), 2026-06-06.
      Source: https://docs.google.com/document/d/1cij60SgQAqeKxNt8QOFJ9R_sChlPS0OayMaOel7wZV4 -->
 
 # **Conductor Report**

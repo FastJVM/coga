@@ -1,4 +1,4 @@
-"""`relay project` — interview about a project, then create ordered drafts.
+"""`coga project` — interview about a project, then create ordered drafts.
 
 The agent session is mocked; tests cover the launcher's contract: it composes
 the bootstrap/project skill, threads an optional seed, requires a TTY, and
@@ -13,10 +13,10 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay.cli import app
-from relay.config import load_config
-from relay.create import create_task
-from relay.ticket import Ticket
+from coga.cli import app
+from coga.config import load_config
+from coga.create import create_task
+from coga.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -26,18 +26,18 @@ def _write(path: Path, text: str) -> None:
 
 def _prompt_arg(cmd: list[str]) -> str:
     for arg in cmd:
-        if isinstance(arg, str) and arg.startswith("# Relay task"):
+        if isinstance(arg, str) and arg.startswith("# Coga task"):
             return arg
-        if isinstance(arg, str) and arg.startswith("developer_instructions=# Relay task"):
+        if isinstance(arg, str) and arg.startswith("developer_instructions=# Coga task"):
             return arg.removeprefix("developer_instructions=")
-    raise AssertionError(f"No Relay prompt in argv: {cmd!r}")
+    raise AssertionError(f"No Coga prompt in argv: {cmd!r}")
 
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    relay_os = tmp_path / "relay-os"
+    coga_os = tmp_path / "coga-os"
     _write(
-        relay_os / "relay.toml",
+        coga_os / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -51,9 +51,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         mode = "local"
         """,
     )
-    _write(relay_os / "relay.local.toml", 'user = "marc"\n')
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
     _write(
-        relay_os / "bootstrap" / "project" / "ticket.md",
+        coga_os / "bootstrap" / "project" / "ticket.md",
         """
         ---
         title: Plan a project into tickets
@@ -69,7 +69,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """,
     )
     _write(
-        relay_os / "skills" / "bootstrap" / "project" / "SKILL.md",
+        coga_os / "skills" / "bootstrap" / "project" / "SKILL.md",
         """
         ---
         name: bootstrap/project
@@ -79,8 +79,8 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         Interview, propose, create ordered drafts.
         """,
     )
-    monkeypatch.chdir(relay_os)
-    return relay_os
+    monkeypatch.chdir(coga_os)
+    return coga_os
 
 
 def _allow_launch(
@@ -101,13 +101,13 @@ def _allow_launch(
         r.returncode = returncode
         return r
 
-    monkeypatch.setattr("relay.commands.project._interactive_stdio_has_tty", lambda: True)
-    monkeypatch.setattr("relay.commands.project.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.project._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.project.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
 
 def _create_drafts(*titles: str):  # type: ignore[no-untyped-def]
-    """Stand in for the agent calling `relay create` per step during the session."""
+    """Stand in for the agent calling `coga create` per step during the session."""
 
     def _run() -> None:
         cfg = load_config()
@@ -174,12 +174,12 @@ def test_project_threads_seed_into_prompt(
     assert "ship the killer demo video" in prompts[0]
 
 
-def test_project_planning_does_not_inject_relay_secrets(
+def test_project_planning_does_not_inject_coga_secrets(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Secrets are now declared inline per-ticket and flow only through the
-    # `relay launch` chokepoint. The project-planning ticket runs no task work and
-    # declares no `secrets:`, so it must never gain a scoped Relay secret alias
+    # `coga launch` chokepoint. The project-planning ticket runs no task work and
+    # declares no `secrets:`, so it must never gain a scoped Coga secret alias
     # in its env — even when a source env var the operator exported is present.
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live")
     captured_env: dict[str, str] = {}
@@ -191,9 +191,9 @@ def test_project_planning_does_not_inject_relay_secrets(
         captured_env.update(env or {})
         return _Result()
 
-    monkeypatch.setattr("relay.commands.project._interactive_stdio_has_tty", lambda: True)
-    monkeypatch.setattr("relay.commands.project.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.project._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.project.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["project"])
     assert result.exit_code == 0, result.output
@@ -206,7 +206,7 @@ def test_project_requires_tty(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(
-        "relay.commands.project._interactive_stdio_has_tty", lambda: False
+        "coga.commands.project._interactive_stdio_has_tty", lambda: False
     )
     result = CliRunner().invoke(app, ["project"])
     assert result.exit_code == 2

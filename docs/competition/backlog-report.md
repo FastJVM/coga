@@ -1,4 +1,4 @@
-<!-- Exported from the Google Doc "Backlog Report" (Relay Competition Tests), 2026-06-06.
+<!-- Exported from the Google Doc "Backlog Report" (Coga Competition Tests), 2026-06-06.
      Source: https://docs.google.com/document/d/14pUD0lC8wpAzK7KqDlemWhCLvqKF0v_yzmxnvpcR7wQ -->
 
 # **Backlog Report**

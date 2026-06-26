@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from relay.branchcleanup import delete_ticket_branch
-from relay.config import load_config
+from coga.branchcleanup import delete_ticket_branch
+from coga.config import load_config
 
 
 def _git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -28,7 +28,7 @@ def _commit(root: Path, name: str, content: str, message: str) -> None:
 def repo(tmp_path: Path) -> Path:
     """A git working tree on `main` with a pushable bare `origin`.
 
-    Also drops a minimal `relay-os/relay.toml` so `load_config` resolves with
+    Also drops a minimal `coga-os/coga.toml` so `load_config` resolves with
     the default control branch `main` and remote `origin`.
     """
     remote = tmp_path / "origin.git"
@@ -50,10 +50,10 @@ def repo(tmp_path: Path) -> Path:
     _git(root, "config", "user.name", "Tester")
     _git(root, "remote", "add", "origin", str(remote))
 
-    relay_os = root / "relay-os"
-    relay_os.mkdir()
-    (relay_os / "relay.toml").write_text('version = 1\ndefault_status = "draft"\n')
-    (relay_os / "relay.local.toml").write_text('user = "marc"\n[slack]\nenabled = false\n')
+    coga_os = root / "coga-os"
+    coga_os.mkdir()
+    (coga_os / "coga.toml").write_text('version = 1\ndefault_status = "draft"\n')
+    (coga_os / "coga.local.toml").write_text('user = "marc"\n[slack]\nenabled = false\n')
 
     _commit(root, "base.txt", "base", "base")
     _git(root, "push", "-u", "origin", "main")
@@ -61,7 +61,7 @@ def repo(tmp_path: Path) -> Path:
 
 
 def _cfg(repo: Path):
-    return load_config(repo / "relay-os")
+    return load_config(repo / "coga-os")
 
 
 def _dev_blackboard(branch: str | None = None, pr: str | None = None) -> str:
@@ -95,7 +95,7 @@ def test_clean_merge_deletes_local_and_remote(repo: Path, monkeypatch) -> None:
     _git(repo, "merge", "--ff-only", "feat")
     _git(repo, "push", "origin", "main")
 
-    monkeypatch.setattr("relay.branchcleanup.pr_state", lambda url: "MERGED")
+    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda url: "MERGED")
 
     result = delete_ticket_branch(
         _cfg(repo),
@@ -122,7 +122,7 @@ def test_squash_merge_force_deletes_local_and_logs_tip(repo: Path, monkeypatch) 
     _commit(repo, "feat.txt", "feat", "squashed feat")  # equivalent, different SHA
     _git(repo, "push", "origin", "main")
 
-    monkeypatch.setattr("relay.branchcleanup.pr_state", lambda url: "MERGED")
+    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda url: "MERGED")
     notes: list[str] = []
     result = delete_ticket_branch(
         _cfg(repo),
@@ -153,7 +153,7 @@ def test_unmerged_no_pr_is_skipped(repo: Path, monkeypatch) -> None:
     def _boom(url: str) -> str:
         raise AssertionError("pr_state should not be called without a pr: line")
 
-    monkeypatch.setattr("relay.branchcleanup.pr_state", _boom)
+    monkeypatch.setattr("coga.branchcleanup.pr_state", _boom)
 
     result = delete_ticket_branch(
         _cfg(repo), repo, _dev_blackboard("feat"), echo=lambda _m: None
@@ -172,7 +172,7 @@ def test_unmerged_pr_open_skips_both(repo: Path, monkeypatch) -> None:
     _git(repo, "push", "-u", "origin", "feat")
     _git(repo, "checkout", "main")
 
-    monkeypatch.setattr("relay.branchcleanup.pr_state", lambda url: "OPEN")
+    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda url: "OPEN")
     result = delete_ticket_branch(
         _cfg(repo),
         repo,
@@ -188,7 +188,7 @@ def test_unmerged_pr_open_skips_both(repo: Path, monkeypatch) -> None:
 
 def test_never_deletes_control_branch(repo: Path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "relay.branchcleanup.pr_state",
+        "coga.branchcleanup.pr_state",
         lambda url: (_ for _ in ()).throw(AssertionError("must not check PR for main")),
     )
     result = delete_ticket_branch(
@@ -212,7 +212,7 @@ def test_checked_out_branch_left_in_place(repo: Path, monkeypatch) -> None:
     # If retire is somehow run while the feature branch is checked out, refuse.
     _git(repo, "checkout", "-b", "feat")
     _commit(repo, "feat.txt", "feat", "feat work")
-    monkeypatch.setattr("relay.branchcleanup.pr_state", lambda url: "MERGED")
+    monkeypatch.setattr("coga.branchcleanup.pr_state", lambda url: "MERGED")
     result = delete_ticket_branch(
         _cfg(repo),
         repo,

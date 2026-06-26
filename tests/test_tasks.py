@@ -7,8 +7,8 @@ from textwrap import dedent
 
 import pytest
 
-from relay.config import load_config
-from relay.tasks import (
+from coga.config import load_config
+from coga.tasks import (
     TaskNotFoundError,
     list_tasks,
     resolve_task,
@@ -40,9 +40,9 @@ workflow: null
 
 @pytest.fixture
 def repo(tmp_path: Path):
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga-os"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -52,7 +52,7 @@ def repo(tmp_path: Path):
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     return company
 
 

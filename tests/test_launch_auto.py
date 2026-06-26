@@ -7,9 +7,9 @@ import pytest
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
-from relay.cli import app
-from relay.create import create_task
-from relay.config import load_config
+from coga.cli import app
+from coga.create import create_task
+from coga.config import load_config
 
 
 def _write(path: Path, text: str) -> None:
@@ -49,7 +49,7 @@ def _write_script_task(repo: Path, *, slug: str, title: str) -> None:
 
         ## Context
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         # Blackboard
     """).lstrip())
@@ -57,9 +57,9 @@ def _write_script_task(repo: Path, *, slug: str, title: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga-os"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -71,7 +71,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     seed_direct_body_workflow(company)
     monkeypatch.chdir(company)
     return company
@@ -84,7 +84,7 @@ def test_launch_auto_mode_is_blocked(
 
     Auto runs (claude -p, codex exec) buffer stdout until completion, so an
     unattended launch sits without any live console signal. The block lives
-    in `relay launch` itself and fires before the ticket flips to
+    in `coga launch` itself and fires before the ticket flips to
     `in_progress` or any agent process spawns.
     """
     cfg = load_config(repo)
@@ -103,8 +103,8 @@ def test_launch_auto_mode_is_blocked(
         calls.append(cmd)
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda n: f"/usr/bin/{n}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda n: f"/usr/bin/{n}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "auto-run"])
@@ -112,7 +112,7 @@ def test_launch_auto_mode_is_blocked(
     assert "autonomy=auto is temporarily disabled" in result.output
     # No agent spawned, ticket still active.
     assert calls == []
-    from relay.ticket import Ticket
+    from coga.ticket import Ticket
     ticket = Ticket.read(repo / "tasks" / "auto-run.md")
     assert ticket.status == "active"
 
@@ -138,7 +138,7 @@ def test_launch_mode_override_auto_is_blocked(
 def test_launch_mode_override_runs_auto_ticket_interactively(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`relay launch --autonomy interactive` runs an `autonomy: auto` ticket as
+    """`coga launch --autonomy interactive` runs an `autonomy: auto` ticket as
     an interactive session — and leaves the ticket file's `autonomy:`
     untouched."""
     cfg = load_config(repo)
@@ -157,11 +157,11 @@ def test_launch_mode_override_runs_auto_ticket_interactively(
         calls.append(cmd)
         return _Result()
 
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
-    monkeypatch.setattr("relay.commands.launch.shutil.which", lambda n: f"/usr/bin/{n}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda n: f"/usr/bin/{n}")
     # Interactive mode requires a TTY; the override path is no exception.
     monkeypatch.setattr(
-        "relay.commands.launch._interactive_stdio_has_tty", lambda: True
+        "coga.commands.launch._interactive_stdio_has_tty", lambda: True
     )
 
     runner = CliRunner()
@@ -175,7 +175,7 @@ def test_launch_mode_override_runs_auto_ticket_interactively(
     assert "-p" not in calls[0]
 
     # The override is ephemeral — the ticket file still says `autonomy: auto`.
-    from relay.ticket import Ticket
+    from coga.ticket import Ticket
     ticket = Ticket.read(repo / "tasks" / "auto-run.md")
     assert ticket.autonomy == "auto"
     assert ticket.status == "in_progress"

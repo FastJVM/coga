@@ -1,4 +1,4 @@
-"""Tests for atomic state-file writes (relay.atomicio + its call sites)."""
+"""Tests for atomic state-file writes (coga.atomicio + its call sites)."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ import stat
 
 import pytest
 
-from relay.atomicio import atomic_write_text
-from relay.ticket import Ticket
+from coga.atomicio import atomic_write_text
+from coga.ticket import Ticket
 
 
 def test_atomic_write_replaces_content(tmp_path) -> None:
@@ -74,7 +74,7 @@ def test_ticket_write_survives_interrupted_write(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """`Ticket.write` is atomic: an interrupted rewrite leaves the prior
-    ticket.md parseable rather than truncated for the next `relay validate`."""
+    ticket.md parseable rather than truncated for the next `coga validate`."""
     path = tmp_path / "ticket.md"
     Ticket.parse(
         "---\ntitle: First\nstatus: active\n---\n\nbody\n"

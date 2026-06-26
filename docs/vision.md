@@ -1,23 +1,23 @@
 
-# Relay
+# Coga
 
 **A company OS for small teams in the agentic era. Humanist tech for people who still want to understand their own machines.**
 
 ---
 
-> **Scope.** This is the public-facing essay — the *why*, written for humans reading about Relay (partners, collaborators, the open-source audience). The agent-loaded, distilled form of the same ideas lives in [`relay-os/contexts/relay/principles/`](../relay-os/contexts/relay/principles/SKILL.md), which is what tickets actually compose into prompts. When the two diverge, `principles` is canon and this doc is narrative.
+> **Scope.** This is the public-facing essay — the *why*, written for humans reading about Coga (partners, collaborators, the open-source audience). The agent-loaded, distilled form of the same ideas lives in [`coga-os/contexts/coga/principles/`](../coga-os/contexts/coga/principles/SKILL.md), which is what tickets actually compose into prompts. When the two diverge, `principles` is canon and this doc is narrative.
 
 ---
 
-We run FastJVM, a two-person deeptech startup making the JVM faster — a field dominated by Oracle and Google. Pre-revenue, post-reset. Relay is the methodology and tooling we built to run the company after the reset, and it's how we plan to keep running it.
+We run FastJVM, a two-person deeptech startup making the JVM faster — a field dominated by Oracle and Google. Pre-revenue, post-reset. Coga is the methodology and tooling we built to run the company after the reset, and it's how we plan to keep running it.
 
-This document describes what Relay is, why it works for us, and why it's hard to duplicate even though we're publishing it in full. Open source, AGPL-3.0-or-later: [github.com/FastJVM/relay](https://github.com/FastJVM/relay).
+This document describes what Coga is, why it works for us, and why it's hard to duplicate even though we're publishing it in full. Open source, AGPL-3.0-or-later: [github.com/FastJVM/relay](https://github.com/FastJVM/relay).
 
 ---
 
 ## What this is
 
-Relay is not a product. It's how we run our company.
+Coga is not a product. It's how we run our company.
 
 The substrate is markdown files in a git repo. The tooling is a small CLI. The methodology is how we use both — what we automate, what we don't, how we encode knowledge, how we divide work between us and the agents.
 
@@ -25,9 +25,9 @@ Pirsig drew a line in *Zen and the Art of Motorcycle Maintenance* between two wa
 
 Most software today is romantic. SaaS tools are black boxes you rent access to. Agent platforms hide their prompts, their rules, their decisions. You don't understand the machine; when it misbehaves, you file a ticket. When your own operations depend on that machine, you've outsourced understanding along with execution.
 
-Relay is classical. Every file the agent reads, you can read. Every rule the agent follows, you can edit. When it does something wrong, you open the context and fix it. You are in a maintenance relationship with your own operations — the same relationship Pirsig's narrator has with his motorcycle. That relationship is what produces Quality at a small company's scale. The alternative — outsourcing understanding to vendors — is what makes companies bloat, hire, and lose the thread of what they're actually doing.
+Coga is classical. Every file the agent reads, you can read. Every rule the agent follows, you can edit. When it does something wrong, you open the context and fix it. You are in a maintenance relationship with your own operations — the same relationship Pirsig's narrator has with his motorcycle. That relationship is what produces Quality at a small company's scale. The alternative — outsourcing understanding to vendors — is what makes companies bloat, hire, and lose the thread of what they're actually doing.
 
-This is the philosophical center of Relay, and it's load-bearing. Every design choice that follows — markdown over databases, CLIs over UIs, inline edits over PR cycles, discipline over enforcement — is downstream of the decision to stay in the classical mode. If you want romantic software that just works without asking you to understand it, this isn't for you. There are better romantic tools, well-funded and polished. Relay is for operators who want to keep their hands on the machine.
+This is the philosophical center of Coga, and it's load-bearing. Every design choice that follows — markdown over databases, CLIs over UIs, inline edits over PR cycles, discipline over enforcement — is downstream of the decision to stay in the classical mode. If you want romantic software that just works without asking you to understand it, this isn't for you. There are better romantic tools, well-funded and polished. Coga is for operators who want to keep their hands on the machine.
 
 ---
 
@@ -35,9 +35,9 @@ This is the philosophical center of Relay, and it's load-bearing. Every design c
 
 Six months ago, our research took longer than expected and funding was running out. Two options: shut down, or rebuild around what was working. We chose rebuild. That meant letting engineers go — the hardest thing either of us has done as founders — and reconstituting the company around one senior engineer, the two of us, and whatever leverage we could extract from frontier agents.
 
-Relay is what we built to make that reconstitution viable. Not a tool we adopted on top of an existing operation, but the operating substrate of the company from that point forward. Every recurring task, every workflow, every piece of institutional knowledge moved into it or got cut.
+Coga is what we built to make that reconstitution viable. Not a tool we adopted on top of an existing operation, but the operating substrate of the company from that point forward. Every recurring task, every workflow, every piece of institutional knowledge moved into it or got cut.
 
-The methodology depends on this reset having happened. A company that didn't do the reset — that has existing SaaS tools, established processes, accumulated tribal knowledge — can't layer Relay on top and get the same leverage. The substrate has to be the operating substrate, not a parallel one. That's why this works for us and wouldn't work for most companies past a certain size or age.
+The methodology depends on this reset having happened. A company that didn't do the reset — that has existing SaaS tools, established processes, accumulated tribal knowledge — can't layer Coga on top and get the same leverage. The substrate has to be the operating substrate, not a parallel one. That's why this works for us and wouldn't work for most companies past a certain size or age.
 
 ---
 
@@ -53,29 +53,29 @@ A two-person technical team can produce the output of a ten-person team if three
 
 Given those three conditions, the limiting factor is no longer "can we afford to automate this?" It's "do we have the substrate to capture the leverage?" Without a substrate, automations fragment across SaaS tools, scripts rot, context lives in people's heads, and the compounding breaks. With the right substrate, each automation reinforces the next.
 
-Relay is our substrate.
+Coga is our substrate.
 
 ---
 
 ## The substrate
 
-Everything Relay operates on is markdown in a git repo. Tasks, contexts, skills, workflows, rules, the base prompt agents are launched with, the blackboards where agents write their in-progress state. One file type. One versioning system. No database, no server, no vendor platform.
+Everything Coga operates on is markdown in a git repo. Tasks, contexts, skills, workflows, rules, the base prompt agents are launched with, the blackboards where agents write their in-progress state. One file type. One versioning system. No database, no server, no vendor platform.
 
 The property we're reaching for is the one Lisp had: homoiconicity. Code and data in the same structure, so a running program can inspect and modify its own behavior using the same primitives it uses to operate. No metalanguage gap. Lisp achieved this at the code level and paid for it with a steep learning curve; the payoff was a language where macros, metaprogramming, and self-modification were first-class rather than bolted on.
 
-Relay reaches for the same property at the operations level. The base prompt the agents start from, the rules they obey, the knowledge they draw on, the workflows they execute, and the workspace they operate in are all the same kind of file. Edited with the same tool. Versioned in the same history. Inspection and modification are the same action.
+Coga reaches for the same property at the operations level. The base prompt the agents start from, the rules they obey, the knowledge they draw on, the workflows they execute, and the workspace they operate in are all the same kind of file. Edited with the same tool. Versioned in the same history. Inspection and modification are the same action.
 
 The consequence is concrete: when we notice an agent getting something wrong, we open the relevant file, edit it, commit. The next run uses the new version. No PR cycle, no deploy, no vendor feature request, no support ticket. End-to-end latency from "saw a mistake" to "fix is live" is roughly two minutes.
 
-SaaS tools with editable rules still separate "the platform's behavior" from "your configuration" — you can tweak the exposed surface, not the underlying logic. Relay collapses that distinction. There is no underlying logic hidden from you; there is only the substrate, which you own end-to-end.
+SaaS tools with editable rules still separate "the platform's behavior" from "your configuration" — you can tweak the exposed surface, not the underlying logic. Coga collapses that distinction. There is no underlying logic hidden from you; there is only the substrate, which you own end-to-end.
 
-The tradeoff is the Lisp tradeoff: flexibility without structure means discipline substitutes for enforcement. Lisp codebases famously drift into dialects — every shop writes its own style, newcomers struggle to read other people's code, the substrate's power becomes the substrate's fragility. Relay has the same failure mode in waiting. At some team size, discipline breaks down and you need the structure you deliberately didn't build. We're far below that size and plan to stay there. For anyone past it, the tradeoff flips and Relay becomes the wrong tool.
+The tradeoff is the Lisp tradeoff: flexibility without structure means discipline substitutes for enforcement. Lisp codebases famously drift into dialects — every shop writes its own style, newcomers struggle to read other people's code, the substrate's power becomes the substrate's fragility. Coga has the same failure mode in waiting. At some team size, discipline breaks down and you need the structure you deliberately didn't build. We're far below that size and plan to stay there. For anyone past it, the tradeoff flips and Coga becomes the wrong tool.
 
 ---
 
 ## Where it runs
 
-Relay runs on our machines by default. Not on a hosted service, not on a remote cluster, not in a vendor's cloud. The agent's session is on the same hardware one of us is sitting at. When it works, we're there. When it panics, we're there. When it finishes and posts to Slack, we're usually still at our desks.
+Coga runs on our machines by default. Not on a hosted service, not on a remote cluster, not in a vendor's cloud. The agent's session is on the same hardware one of us is sitting at. When it works, we're there. When it panics, we're there. When it finishes and posts to Slack, we're usually still at our desks.
 
 This isn't about data sovereignty or infrastructure minimalism. It's about the correction loop. The loop only closes cheaply if the human and the agent are co-located in time and context. A cloud agent that runs overnight and reports in the morning has already broken the loop — by the time you see the mistake, you've lost the context of what the agent was trying to do and what you were doing. Reconstructing the situation before you can correct it is the cost that kills most automation programs. Co-location avoids that cost entirely. You're still *in* the context when the correction needs to happen.
 
@@ -101,13 +101,13 @@ That number is the engine. It isn't a convenience. It's the difference between a
 
 The SaaS world runs on a different loop. Observe error → file ticket or open config UI → edit exposed surface → test in staging → deploy → wait for next run. Latency measured in days for the fast cases, weeks for the normal ones, never for the corrections the platform doesn't expose. That latency doesn't just make corrections slow. It raises the cost of each correction high enough that people stop making marginal ones. Which means automations drift. Which means trust erodes. Which means you stop automating things that would have been worth automating if the correction loop were cheaper.
 
-Relay inverts this. Because corrections are cheap, we make them constantly, including the marginal ones. Because we make them constantly, the substrate gets better with use rather than worse. Because the substrate gets better with use, each new automation costs less than the last — it inherits a thicker library of corrected contexts, known-good patterns, calibrated thresholds. The system compounds.
+Coga inverts this. Because corrections are cheap, we make them constantly, including the marginal ones. Because we make them constantly, the substrate gets better with use rather than worse. Because the substrate gets better with use, each new automation costs less than the last — it inherits a thicker library of corrected contexts, known-good patterns, calibrated thresholds. The system compounds.
 
 This is what we mean when we say the methodology is a flywheel rather than a collection of tools. The substrate, the local execution, the Slack hub, and the classical-mode posture aren't independent design choices. They're the specific combination that collapses correction latency far enough that compounding becomes possible.
 
 Two consequences worth naming:
 
-**Context is the asset that appreciates.** Six months in, our context library is more valuable than the CLI, the scripts, the workflows, and the base prompt combined. Those are replaceable. The contexts are the encoded operating knowledge of a compiler company at month six, and they're only that good because we've corrected them hundreds of times in the flow of work. A competitor forking Relay gets nothing that matters. A competitor somehow acquiring our contexts gets years of expertise they'd have otherwise had to live through. The flywheel spins up slowly and the output is specific to the company that spun it.
+**Context is the asset that appreciates.** Six months in, our context library is more valuable than the CLI, the scripts, the workflows, and the base prompt combined. Those are replaceable. The contexts are the encoded operating knowledge of a compiler company at month six, and they're only that good because we've corrected them hundreds of times in the flow of work. A competitor forking Coga gets nothing that matters. A competitor somehow acquiring our contexts gets years of expertise they'd have otherwise had to live through. The flywheel spins up slowly and the output is specific to the company that spun it.
 
 **Marginal automation becomes worth doing.** Tasks that took four hours a month and would have taken thirty hours to automate used to not pencil out. At today's correction loop cost, those same tasks take three to five hours to automate, the automation stays sharp because the correction loop keeps it sharp, and the payback is weeks instead of years. A whole category of "just do it manually forever" tasks becomes worth building. This is what actually lets two people run the operational surface of a larger company.
 
@@ -127,7 +127,7 @@ Two consequences worth naming:
 
 **Three modes** per task: interactive (human sits with the agent), auto (agent runs alone, panics to a human when stuck), script (no agent, a script runs with secrets injected). The mode is declared per-task. Most recurring operational work is script or auto. Most novel work is interactive. Choice is per-task, not a global setting.
 
-**The base prompt** is a system prompt injected into every agent session. It teaches the agent how to operate within Relay — when to advance workflow steps, when to panic, how to use the blackboard, how to handle frontmatter. The base prompt lives as version-controlled markdown. Agents don't learn Relay through their own memory or config; they learn it fresh every session from a file we own.
+**The base prompt** is a system prompt injected into every agent session. It teaches the agent how to operate within Coga — when to advance workflow steps, when to panic, how to use the blackboard, how to handle frontmatter. The base prompt lives as version-controlled markdown. Agents don't learn Coga through their own memory or config; they learn it fresh every session from a file we own.
 
 ---
 
@@ -141,7 +141,7 @@ Not every task should be automated. The three-question framework:
 
 **Can we evaluate the result without raising the bar?** If we would review a contractor's output for this task with a certain rigor, we review the agent's with the same rigor. Not more, not less. If the evaluation requires expertise we don't have — if we can't tell whether the output is right — the task either needs redesign or shouldn't be automated.
 
-If all three answer yes, the task goes into Relay as auto or script mode. If one answers no, we either redesign it (split into sub-tasks that each pass) or keep doing it ourselves. The worst outcome is confident automation of a task where we can't evaluate the result — that's how silent errors ship.
+If all three answer yes, the task goes into Coga as auto or script mode. If one answers no, we either redesign it (split into sub-tasks that each pass) or keep doing it ourselves. The worst outcome is confident automation of a task where we can't evaluate the result — that's how silent errors ship.
 
 Most recurring operational work in a technical company passes all three questions once you decompose it finely enough. The decomposition is the work.
 
@@ -151,15 +151,15 @@ Most recurring operational work in a technical company passes all three question
 
 The methodology describes itself using its own primitives. Two self-bootstrapping mechanisms make this possible.
 
-**Dream** is Relay's generic cleanup pass. A Dream task walks the ticket set, runs known Relay housekeeping skills in order, finds done-ticket cleanup work, and looks for gaps in context coverage, workflows that should exist but don't, skills referenced but not written, and contexts that contradict recent blackboards. It is not a global service, daemon, workflow, standalone skill, or plugin registry. It writes proposals; we accept or reject. The contexts stay current not because we maintain them on a schedule, but because the system surfaces gaps in the flow of work.
+**Dream** is Coga's generic cleanup pass. A Dream task walks the ticket set, runs known Coga housekeeping skills in order, finds done-ticket cleanup work, and looks for gaps in context coverage, workflows that should exist but don't, skills referenced but not written, and contexts that contradict recent blackboards. It is not a global service, daemon, workflow, standalone skill, or plugin registry. It writes proposals; we accept or reject. The contexts stay current not because we maintain them on a schedule, but because the system surfaces gaps in the flow of work.
 
 **REM** is repo/user-specific recurring maintenance. A REM task owns its own schedule, ticket scan, domain skills, output conventions, and review gates. Customer follow-ups, payment checks, deployment reviews, and repo-specific reports belong in REM, not in Dream.
 
 **Ticket authoring** is a skill that runs during task creation. Give it a title and description, it asks clarifying questions, proposes which contexts and workflows apply, and drafts or edits the ticket. We review before confirming. Most of our task creation goes through this — it's how new work gets slotted into the existing substrate without us having to remember what's there.
 
-Hofstadter spent *Gödel, Escher, Bach* arguing that strange loops — systems that contain representations of themselves and can reason about their own structure — are where interesting things happen. Relay isn't intelligent in any Hofstadter sense, but the pattern is similar at a workaday level: the system's rules are files, the files can be read by the same agents the rules govern, and the agents can propose changes to the rules they're about to follow. Dream is Relay reasoning about Relay, using Relay. Create-suggest is Relay extending Relay, from within Relay.
+Hofstadter spent *Gödel, Escher, Bach* arguing that strange loops — systems that contain representations of themselves and can reason about their own structure — are where interesting things happen. Coga isn't intelligent in any Hofstadter sense, but the pattern is similar at a workaday level: the system's rules are files, the files can be read by the same agents the rules govern, and the agents can propose changes to the rules they're about to follow. Dream is Coga reasoning about Coga, using Coga. Create-suggest is Coga extending Coga, from within Coga.
 
-This is the reason the methodology doesn't rot. Without these self-bootstrapping mechanisms, Relay would be a task list with a documentation convention — useful but bound to drift. With them, the system is actively pushing us to maintain it, and the maintenance happens as a byproduct of using it, not as a separate activity. Quality, in Pirsig's sense, requires continuous attention to the machine. The strange loop is how we get that attention for free.
+This is the reason the methodology doesn't rot. Without these self-bootstrapping mechanisms, Coga would be a task list with a documentation convention — useful but bound to drift. With them, the system is actively pushing us to maintain it, and the maintenance happens as a byproduct of using it, not as a separate activity. Quality, in Pirsig's sense, requires continuous attention to the machine. The strange loop is how we get that attention for free.
 
 ---
 
@@ -181,7 +181,7 @@ Scripts get owned, not orphaned. Every script in a skill has a specific author w
 
 We ship first versions knowing they're wrong in small ways. This is the cultural commitment that makes the correction loop actually compound. In a SaaS world, the first version of any automation is expensive enough that "wrong in small ways" gets patched around with human workarounds, and the automation stays half-useful forever. With a two-minute correction loop, we ship early, fix what we see in the first week of use, and end up with something tight by week three. The tolerance for imperfect first versions is what separates teams that accumulate a library from teams that don't. Perfectionism on version one is a failure mode, not a virtue.
 
-These aren't aspirational practices. They're the methodology. Relay without them is Notion with worse UI.
+These aren't aspirational practices. They're the methodology. Coga without them is Notion with worse UI.
 
 ---
 
@@ -199,9 +199,9 @@ Each substitution has a tradeoff. Notion has a better UI. Linear has stronger co
 
 The methodology is published. The CLI is open source. Anyone can fork the repo. And yet:
 
-**The reset is the first barrier.** Most companies can't rebuild around this without breaking things that work. Established process, existing SaaS subscriptions, tribal knowledge distributed across team members — these are assets at normal scale and liabilities when adopting a substrate like Relay. The window for adopting this closes as companies ossify. Founders at the right moment can; founders past it usually can't.
+**The reset is the first barrier.** Most companies can't rebuild around this without breaking things that work. Established process, existing SaaS subscriptions, tribal knowledge distributed across team members — these are assets at normal scale and liabilities when adopting a substrate like Coga. The window for adopting this closes as companies ossify. Founders at the right moment can; founders past it usually can't.
 
-**The encoded expertise is the second barrier.** Our context library is years of work compressed into markdown. Forking Relay gets you the CLI, not the contexts. Another team building their own context library from scratch is doing the real work — the CLI is a tool in service of that work, not a substitute for it.
+**The encoded expertise is the second barrier.** Our context library is years of work compressed into markdown. Forking Coga gets you the CLI, not the contexts. Another team building their own context library from scratch is doing the real work — the CLI is a tool in service of that work, not a substitute for it.
 
 **The discipline is the third barrier.** Most teams adopt a methodology with enthusiasm and abandon it when maintenance friction compounds. The practices listed above look simple. Sustaining them for a year, then two, then five, while the company grows and priorities shift, is where most attempts fail. We haven't sustained them for five years yet — we've sustained them for six months. Ask us again in four years.
 
@@ -221,9 +221,9 @@ That's also why we're publishing at all. Articulating the methodology keeps us a
 
 **Skills-contexts conflation.** The distinction that's conceptually clean but practically leaky. When we notice a skill containing domain facts or a context containing process instructions, we split. If we stop noticing, the methodology degrades.
 
-**Scale ceiling.** One-task-one-worker, local locks, git as sync — these break around 10 people. We're at 2 and planning to stay small. If we ever scale past that, Relay's internals get rebuilt. The methodology survives; the infrastructure would need replacement.
+**Scale ceiling.** One-task-one-worker, local locks, git as sync — these break around 10 people. We're at 2 and planning to stay small. If we ever scale past that, Coga's internals get rebuilt. The methodology survives; the infrastructure would need replacement.
 
-**The market moving underneath us.** Editor vendors (Cursor, Windsurf) ship built-in task persistence and context scoping. Platform vendors (Linear) ship integrated agents. If the 80% of Relay's value gets absorbed into tools we're already using, the methodology remains but the bespoke tooling loses its justification. We monitor this; if it happens, we switch substrates and keep the methodology.
+**The market moving underneath us.** Editor vendors (Cursor, Windsurf) ship built-in task persistence and context scoping. Platform vendors (Linear) ship integrated agents. If the 80% of Coga's value gets absorbed into tools we're already using, the methodology remains but the bespoke tooling loses its justification. We monitor this; if it happens, we switch substrates and keep the methodology.
 
 ---
 
@@ -231,7 +231,7 @@ That's also why we're publishing at all. Articulating the methodology keeps us a
 
 Not a product. We don't sell it, we don't support it, we don't maintain it as a dependency anyone should take on.
 
-Not an agent. Relay doesn't generate code, make decisions, or run workflows autonomously. It's the substrate agents operate on.
+Not an agent. Coga doesn't generate code, make decisions, or run workflows autonomously. It's the substrate agents operate on.
 
 Not a platform. No vendor lock-in, no API to integrate with, no hosted service. Your data is markdown files; your infrastructure is git.
 
@@ -243,7 +243,7 @@ Not defensible by normal tech moats. No patents, no network effects, no switchin
 
 ## Status
 
-We've been running FastJVM on Relay since the reset — two founders and one senior engineer, with frontier agents carrying the recurring operational surface across code, research, and company operations. This is a report from inside the experiment, not a finished result: the methodology is holding so far, and the honest test is whether it still holds years from now. Ask us again then.
+We've been running FastJVM on Coga since the reset — two founders and one senior engineer, with frontier agents carrying the recurring operational surface across code, research, and company operations. This is a report from inside the experiment, not a finished result: the methodology is holding so far, and the honest test is whether it still holds years from now. Ask us again then.
 
 ---
 
