@@ -27,7 +27,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (self-qa)
+step: 3 (pr)
 ---
 
 ## Description
@@ -161,8 +161,39 @@ Once the GitHub repo is renamed, flip `FastJVM/relay`→`FastJVM/coga` in these 
 `docs/vision.md`, `README.md`, `src/coga/commands/init.py`, `src/coga/commands/update.py`,
 `tests/test_init.py`, `tests/test_skill_manager.py`. (One sed, mirror of the reversal this PR did.)
 
+**Now tracked as ticket `coga-rename-follow-ups-post-repo-rename`** (created this session, on
+main): captures these 6 URL flips + dropping the README stopgap clone target + the migrate
+tooling + the `update.py` OBSOLETE_PATHS decision below.
+
+## Self-QA (self-qa step)
+
+`/code-review` (xhigh) + `/simplify` ran against the branch diff vs `main`. The diff is a
+mechanical rename (512 files, balanced ins/del), so finders were scoped to the real-bug surface:
+leftover/wrong-direction tokens, import + entry-point integrity, the hand-edited source files, and
+test semantics. Imports/entry points clean (`import coga`, `coga --help`, wheel build all green).
+
+Two findings fixed + committed (`5893b1ad`):
+- `tests/test_packaging.py`: wheel glob `coga_os-*.whl` → bare dist name `coga-*.whl`. The build
+  produces `coga-0.2.0-*.whl`; the old glob matched nothing and `ValueError`'d on unpack in CI,
+  masked locally by the hatchling `importorskip`. With hatchling present the test now RUNS and
+  passes against a real wheel (suite went 923 pass/1 skip → **924 pass**).
+- `README.md`: clone `…/FastJVM/relay` into an explicit `coga` target so `cd coga` works while the
+  URL is still `relay` (stopgap; dropped when the URL flips — see tracking ticket).
+
+One finding DEFERRED (deliberately not flipped): `update.py` `OBSOLETE_PATHS` (~L60) +
+`_LEGACY_COGA_GITIGNORE_ENTRIES` (~L115) `contexts/coga/*` / `skills/coga` prune literals. Three QA
+agents flagged the sweep may have gone one token too far (these match on-disk paths in PRE-rename
+repos). Correctness depends on the unbuilt `migrate-to-coga.sh` — left as `coga` (the implement-step
+choice) and tracked in the follow-up ticket to co-design with the migrate script. Don't flip blind.
+
+Tests: full suite **924 pass**; `coga validate --json` clean on `example/coga-os`. Tree clean.
+
 ## Out of scope
 
 - Rewriting historical task records (decision D).
 - The actual `coga 0.2.0` PyPI publish — happens after this lands, via the trusted-publishing
   workflow under the `coga` name.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":569781,"cache_read_input_tokens":38943937,"cli":"claude","input_tokens":39111,"model":"claude-opus-4-8","output_tokens":410662,"provider":"anthropic","schema":1,"session_id":"4caf93c5-6417-4422-85a6-b763e45b5b22","slug":"rename-relay-to-coga","step":"implement","title":"Rename relay to coga (full rebrand)","ts":"2026-06-26T02:38:20.026874Z","usage_status":"ok"}
