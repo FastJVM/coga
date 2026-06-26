@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/relay-os
+      url: https://test.pypi.org/p/coga
     permissions:
       contents: read     # clone the repo
       id-token: write    # OIDC token for Trusted Publishing
@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/relay-os
+      url: https://pypi.org/p/coga
     permissions:
       contents: read
       id-token: write

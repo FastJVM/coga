@@ -1,10 +1,10 @@
-# Relay local config — paths and secret references. Never commit.
+# Coga local config — paths and secret references. Never commit.
 # (Root-only; the bundled `example/` ships a non-secret template.)
-/relay.local.toml
+/coga.local.toml
 
 # Personal reference copies of the spec/vision docs live at repo root.
-/relay-spec-updated*.md
-/relay-vision-updated*.md
+/coga-spec-updated*.md
+/coga-vision-updated*.md
 
 # Obsidian — per-machine workspace/theme/plugin config.
 .obsidian/
@@ -26,7 +26,7 @@ uv.lock
 .env*
 
 # Local secrets holding dir (interim home for SA keys etc. until the
-# first-class relay config directory lands — see the config-directory ticket).
+# first-class coga config directory lands — see the config-directory ticket).
 /.secrets/
 
 # Local agent / tooling state
@@ -35,10 +35,10 @@ uv.lock
 
 
 
-# >>> relay-managed >>>
-# Managed by `relay init [--update]`. Don't edit between these markers —
-# they will be overwritten. Symlinks below are created by `relay init` so
-# agent CLIs (Claude Code, Codex) can discover Relay's generated skill view.
-.claude/skills/relay
-.codex/skills/relay
-# <<< relay-managed <<<
+# >>> coga-managed >>>
+# Managed by `coga init [--update]`. Don't edit between these markers —
+# they will be overwritten. Symlinks below are created by `coga init` so
+# agent CLIs (Claude Code, Codex) can discover Coga's generated skill view.
+.claude/skills/coga
+.codex/skills/coga
+# <<< coga-managed <<<

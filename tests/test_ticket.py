@@ -7,11 +7,11 @@ import pytest
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
-from relay.cli import app
-from relay.config import load_config
-from relay.create import create_task
-from relay.logfile import task_log_lines
-from relay.ticket import Ticket
+from coga.cli import app
+from coga.config import load_config
+from coga.create import create_task
+from coga.logfile import task_log_lines
+from coga.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -21,18 +21,18 @@ def _write(path: Path, text: str) -> None:
 
 def _prompt_arg(cmd: list[str]) -> str:
     for arg in cmd:
-        if isinstance(arg, str) and arg.startswith("# Relay task"):
+        if isinstance(arg, str) and arg.startswith("# Coga task"):
             return arg
-        if isinstance(arg, str) and arg.startswith("developer_instructions=# Relay task"):
+        if isinstance(arg, str) and arg.startswith("developer_instructions=# Coga task"):
             return arg.removeprefix("developer_instructions=")
-    raise AssertionError(f"No Relay prompt in argv: {cmd!r}")
+    raise AssertionError(f"No Coga prompt in argv: {cmd!r}")
 
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    relay_os = tmp_path / "relay-os"
+    coga_os = tmp_path / "coga"
     _write(
-        relay_os / "relay.toml",
+        coga_os / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -47,9 +47,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         """,
     )
-    _write(relay_os / "relay.local.toml", 'user = "marc"\n')
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
     _write(
-        relay_os / "bootstrap" / "ticket" / "ticket.md",
+        coga_os / "bootstrap" / "ticket" / "ticket.md",
         """
         ---
         title: Create a new ticket
@@ -65,19 +65,19 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """,
     )
     _write(
-        relay_os / "skills" / "bootstrap" / "ticket" / "SKILL.md",
+        coga_os / "skills" / "bootstrap" / "ticket" / "SKILL.md",
         """
         ---
         name: bootstrap/ticket
-        description: Author a Relay task.
+        description: Author a Coga task.
         ---
 
         Interview and fill the ticket.
         """,
     )
-    seed_direct_body_workflow(relay_os)
-    monkeypatch.chdir(relay_os)
-    return relay_os
+    seed_direct_body_workflow(coga_os)
+    monkeypatch.chdir(coga_os)
+    return coga_os
 
 
 def _allow_ticket_launch(
@@ -95,9 +95,9 @@ def _allow_ticket_launch(
             on_run()
         return _Result()
 
-    monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
-    monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
 
 def test_ticket_title_creates_draft_and_launches_authoring(
@@ -109,7 +109,7 @@ def test_ticket_title_creates_draft_and_launches_authoring(
 
     def author_workflow() -> None:
         # Simulate the bootstrap/ticket skill picking a workflow: guided
-        # authoring of a draft must land on a workflow or `relay ticket`
+        # authoring of a draft must land on a workflow or `coga ticket`
         # hard-refuses the result.
         t = Ticket.read(ticket_path)
         t.frontmatter["workflow"] = "code/with-review"
@@ -128,18 +128,18 @@ def test_ticket_title_creates_draft_and_launches_authoring(
     assert "ticket authoring launched" in log
 
     assert len(prompts) == 1
-    assert "Relay task — investigate-retries" in prompts[0]
+    assert "Coga task — investigate-retries" in prompts[0]
     assert "Status: draft" in prompts[0]
     assert "Skill: bootstrap/ticket" in prompts[0]
 
 
-def test_ticket_authoring_does_not_inject_relay_secrets(
+def test_ticket_authoring_does_not_inject_coga_secrets(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Secrets are now declared inline per-ticket and flow only through the
-    # `relay launch` chokepoint. The authoring ticket runs no task work and
-    # declares no `secrets:`, so it must never gain a scoped Relay secret alias
+    # `coga launch` chokepoint. The authoring ticket runs no task work and
+    # declares no `secrets:`, so it must never gain a scoped Coga secret alias
     # in its env — even when a source env var the operator exported is present.
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live")
     ticket_path = repo / "tasks" / "investigate-retries.md"
@@ -155,9 +155,9 @@ def test_ticket_authoring_does_not_inject_relay_secrets(
         t.write(ticket_path)
         return _Result()
 
-    monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
-    monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
     assert result.exit_code == 0, result.output
@@ -171,7 +171,7 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _write(
-        repo / "relay.toml",
+        repo / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -200,9 +200,9 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
         t.write(ticket_path)
         return _Result()
 
-    monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
-    monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
     assert result.exit_code == 0, result.output
@@ -210,7 +210,7 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
     cmd = captured["cmd"]
     assert cmd[0] == "claude"
     assert cmd[1] == "--append-system-prompt"
-    assert "Relay task — investigate-retries" in cmd[2]
+    assert "Coga task — investigate-retries" in cmd[2]
     assert "Skill: bootstrap/ticket" in cmd[2]
     assert cmd[3] == "Begin"
 
@@ -220,7 +220,7 @@ def test_ticket_agent_override_codex_gets_kickoff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _write(
-        repo / "relay.toml",
+        repo / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -253,9 +253,9 @@ def test_ticket_agent_override_codex_gets_kickoff(
         t.write(ticket_path)
         return _Result()
 
-    monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
-    monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(
         app, ["ticket", "Investigate retries", "--agent", "codex"]
@@ -273,7 +273,7 @@ def test_ticket_refuses_draft_left_without_workflow(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """If guided authoring hands back a draft with no workflow, `relay ticket`
+    """If guided authoring hands back a draft with no workflow, `coga ticket`
     hard-refuses — a workflow-less draft can't be activated."""
     prompts: list[str] = []
     # No `on_run`: the fake agent session leaves the draft workflow-less.
@@ -343,9 +343,9 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
         nonlocal called
         called = True
 
-    monkeypatch.setattr("relay.commands.ticket._interactive_stdio_has_tty", lambda: True)
-    monkeypatch.setattr("relay.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("relay.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "broken-context"])
     assert result.exit_code == 2
@@ -394,6 +394,6 @@ def test_ticket_without_target_launches_bootstrap_interview(
     assert result.exit_code == 0, result.output
 
     assert len(prompts) == 1
-    assert "Relay task — bootstrap/ticket" in prompts[0]
+    assert "Coga task — bootstrap/ticket" in prompts[0]
     assert "Skill: bootstrap/ticket" in prompts[0]
 

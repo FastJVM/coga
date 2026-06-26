@@ -11,11 +11,11 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay.cli import app
-from relay.config import load_config
-from relay.github_source import github_owner_repo
-from relay.skill import Skill
-from relay.skill_manager import (
+from coga.cli import app
+from coga.config import load_config
+from coga.github_source import github_owner_repo
+from coga.skill import Skill
+from coga.skill_manager import (
     GH_SKILL_REQUIRED,
     SOURCE_SCHEMA,
     SkillManagerError,
@@ -41,9 +41,9 @@ def _write(path: Path, text: str) -> None:
 
 
 def _repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    relay_os = tmp_path / "relay-os"
+    coga_os = tmp_path / "coga"
     _write(
-        relay_os / "relay.toml",
+        coga_os / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -53,9 +53,9 @@ def _repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(relay_os / "relay.local.toml", 'user = "marc"\n')
-    monkeypatch.chdir(relay_os)
-    return relay_os
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    monkeypatch.chdir(coga_os)
+    return coga_os
 
 
 def _completed(
@@ -183,7 +183,7 @@ def test_update_all_delegates_github_backed_skills_to_gh_skill(
     ]
 
 
-def test_install_url_downloads_local_installs_and_records_relay_metadata(
+def test_install_url_downloads_local_installs_and_records_coga_metadata(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(_repo(tmp_path, monkeypatch))
@@ -493,7 +493,7 @@ def test_status_check_reports_conflict_when_local_and_upstream_changed(
     ]
 
 
-def test_status_labels_non_relay_skill_provenance(
+def test_status_labels_non_coga_skill_provenance(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     cfg = load_config(_repo(tmp_path, monkeypatch))
@@ -510,7 +510,7 @@ def test_status_labels_non_relay_skill_provenance(
 
     assert results["custom"].source_type == "unknown"
     assert results["custom"].status == "unmanaged"
-    assert results["custom"].message == "no Relay source metadata"
+    assert results["custom"].message == "no Coga source metadata"
     assert results["github-tool"].source_type == "github"
     assert results["github-tool"].status == "delegated"
     assert results["github-tool"].message == "managed by gh skill metadata"
@@ -529,7 +529,7 @@ def test_status_reports_bundled_bootstrap_skills(
 
     assert results["eval/ticket-diagnostic"].source_type == "bundled"
     assert results["eval/ticket-diagnostic"].status == "package-backed"
-    assert "relay init --update" in results["eval/ticket-diagnostic"].message
+    assert "coga init --update" in results["eval/ticket-diagnostic"].message
 
 
 def test_status_marks_local_skill_that_overrides_bundled(
@@ -568,7 +568,7 @@ def test_update_all_skips_bundled_bootstrap_skills(
 
     assert results["eval/ticket-diagnostic"].source_type == "bundled"
     assert results["eval/ticket-diagnostic"].status == "skipped-bundled"
-    assert "pip install --upgrade relay-os" in results["eval/ticket-diagnostic"].message
+    assert "pip install --upgrade coga" in results["eval/ticket-diagnostic"].message
 
 
 def test_update_one_bundled_skill_reports_package_update_path(
@@ -668,7 +668,7 @@ def test_install_github_multi_skill_repo_translates_gh_error(
 
     message = str(exc.value)
     assert "https://github.com/google/agents-cli" in message
-    assert "relay skill install https://github.com/google/agents-cli <skill>" in message
+    assert "coga skill install https://github.com/google/agents-cli <skill>" in message
     assert "gh api repos/google/agents-cli/contents/skills" in message
     assert "Usage:" not in message
 
@@ -700,7 +700,7 @@ def test_install_github_multi_skill_repo_translates_ssh_source(
 
     message = str(exc.value)
     assert "git@github.com:google/agents-cli.git" in message
-    assert "relay skill install git@github.com:google/agents-cli.git <skill>" in message
+    assert "coga skill install git@github.com:google/agents-cli.git <skill>" in message
     assert "gh api repos/google/agents-cli/contents/skills" in message
 
 
@@ -749,23 +749,23 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
     def runner(args, cwd=None):
         command = list(args)
         commands.append(command)
-        if command == ["relay", "validate", "--json"]:
+        if command == ["coga", "validate", "--json"]:
             return _completed(command, stdout='{"issues":[]}\n')
         if command == ["git", "diff", "--name-only", "--diff-filter=U"]:
             return _completed(command)
         if command == ["git", "branch", "--show-current"]:
             return _completed(command, stdout="main\n")
-        if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
+        if command == ["git", "checkout", "-B", "coga/skill-update", "main"]:
             return _completed(command)
         if command[:3] == ["git", "add", "--"]:
             return _completed(command)
         if command[:4] == ["git", "diff", "--cached", "--quiet"]:
             # returncode 1 == there are staged changes to commit.
             return _completed(command, returncode=1)
-        if command == ["git", "commit", "-m", "Update Relay-managed skills"]:
+        if command == ["git", "commit", "-m", "Update Coga-managed skills"]:
             return _completed(command)
         if command[:4] == ["gh", "pr", "list", "--head"]:
-            assert command[4] == "relay/skill-update"
+            assert command[4] == "coga/skill-update"
             return _completed(command, stdout="")
         if command == [
             "git",
@@ -773,7 +773,7 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
             "--force-with-lease",
             "-u",
             "origin",
-            "relay/skill-update",
+            "coga/skill-update",
         ]:
             return _completed(command, stdout="")
         if command[:4] == ["gh", "pr", "create", "--draft"]:
@@ -787,8 +787,8 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
     result = run_skill_update_pr_flow(
         cfg,
         summary,
-        title="Update Relay-managed skills",
-        verification_commands=["relay validate --json"],
+        title="Update Coga-managed skills",
+        verification_commands=["coga validate --json"],
         runner=runner,
     )
 
@@ -796,15 +796,15 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
     assert result.verification[0].returncode == 0
     # Updates are committed onto the dedicated branch and the checkout is
     # restored to where the caller left it (`main`), never committed there.
-    assert ["git", "checkout", "-B", "relay/skill-update", "main"] in commands
-    assert ["git", "commit", "-m", "Update Relay-managed skills"] in commands
+    assert ["git", "checkout", "-B", "coga/skill-update", "main"] in commands
+    assert ["git", "commit", "-m", "Update Coga-managed skills"] in commands
     assert [
         "git",
         "push",
         "--force-with-lease",
         "-u",
         "origin",
-        "relay/skill-update",
+        "coga/skill-update",
     ] in commands
     assert ["git", "checkout", "main"] in commands
 
@@ -812,10 +812,10 @@ def test_dream_pr_summary_path_runs_verification_and_opens_or_updates_pr(
 def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    relay_os = _repo(tmp_path, monkeypatch)
-    config_path = relay_os / "relay.toml"
+    coga_os = _repo(tmp_path, monkeypatch)
+    config_path = coga_os / "coga.toml"
     config_path.write_text(config_path.read_text() + '\n[git]\nremote = "upstream"\n')
-    cfg = load_config(relay_os)
+    cfg = load_config(coga_os)
     summary = SkillUpdateSummary(
         results=[
             SkillResult(
@@ -832,19 +832,19 @@ def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
     def runner(args, cwd=None):
         command = list(args)
         commands.append(command)
-        if command == ["relay", "validate", "--json"]:
+        if command == ["coga", "validate", "--json"]:
             return _completed(command, stdout='{"issues":[]}\n')
         if command == ["git", "diff", "--name-only", "--diff-filter=U"]:
             return _completed(command)
         if command == ["git", "branch", "--show-current"]:
             return _completed(command, stdout="main\n")
-        if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
+        if command == ["git", "checkout", "-B", "coga/skill-update", "main"]:
             return _completed(command)
         if command[:3] == ["git", "add", "--"]:
             return _completed(command)
         if command[:4] == ["git", "diff", "--cached", "--quiet"]:
             return _completed(command, returncode=1)
-        if command == ["git", "commit", "-m", "Update Relay-managed skills"]:
+        if command == ["git", "commit", "-m", "Update Coga-managed skills"]:
             return _completed(command)
         if command[:4] == ["gh", "pr", "list", "--head"]:
             return _completed(command, stdout="")
@@ -854,7 +854,7 @@ def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
             "--force-with-lease",
             "-u",
             "upstream",
-            "relay/skill-update",
+            "coga/skill-update",
         ]:
             return _completed(command, stdout="")
         if command[:4] == ["gh", "pr", "create", "--draft"]:
@@ -868,8 +868,8 @@ def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
     result = run_skill_update_pr_flow(
         cfg,
         summary,
-        title="Update Relay-managed skills",
-        verification_commands=["relay validate --json"],
+        title="Update Coga-managed skills",
+        verification_commands=["coga validate --json"],
         runner=runner,
     )
 
@@ -882,7 +882,7 @@ def test_dream_pr_summary_pushes_to_configured_non_origin_remote(
         "--force-with-lease",
         "-u",
         "upstream",
-        "relay/skill-update",
+        "coga/skill-update",
     ] in commands
     assert not any(
         command[:1] == ["git"] and "origin" in command for command in commands
@@ -910,19 +910,19 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
     def runner(args, cwd=None):
         command = list(args)
         commands.append(command)
-        if command == ["relay", "validate", "--json"]:
+        if command == ["coga", "validate", "--json"]:
             return _completed(command, stdout='{"issues":[]}\n')
         if command == ["git", "diff", "--name-only", "--diff-filter=U"]:
             return _completed(command)
         if command == ["git", "branch", "--show-current"]:
             return _completed(command, stdout="main\n")
-        if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
+        if command == ["git", "checkout", "-B", "coga/skill-update", "main"]:
             return _completed(command)
         if command[:3] == ["git", "add", "--"]:
             return _completed(command)
         if command[:4] == ["git", "diff", "--cached", "--quiet"]:
             return _completed(command, returncode=1)
-        if command == ["git", "commit", "-m", "Update Relay-managed skills"]:
+        if command == ["git", "commit", "-m", "Update Coga-managed skills"]:
             return _completed(command)
         if command == [
             "git",
@@ -930,7 +930,7 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
             "--force-with-lease",
             "-u",
             "origin",
-            "relay/skill-update",
+            "coga/skill-update",
         ]:
             return _completed(command)
         if command[:4] == ["gh", "pr", "list", "--head"]:
@@ -945,8 +945,8 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
     result = run_skill_update_pr_flow(
         cfg,
         summary,
-        title="Update Relay-managed skills",
-        verification_commands=["relay validate --json"],
+        title="Update Coga-managed skills",
+        verification_commands=["coga validate --json"],
         runner=runner,
     )
 
@@ -956,7 +956,7 @@ def test_dream_pr_summary_pushes_existing_pr_branch_before_edit(
         "--force-with-lease",
         "-u",
         "origin",
-        "relay/skill-update",
+        "coga/skill-update",
     ]
     edit = next(command for command in commands if command[:3] == ["gh", "pr", "edit"])
     assert result.pr_url == existing_url
@@ -988,13 +988,13 @@ def test_dream_pr_summary_restores_branch_when_commit_fails(
             return _completed(command)
         if command == ["git", "branch", "--show-current"]:
             return _completed(command, stdout="feature/work\n")
-        if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
+        if command == ["git", "checkout", "-B", "coga/skill-update", "main"]:
             return _completed(command)
         if command[:3] == ["git", "add", "--"]:
             return _completed(command)
         if command[:4] == ["git", "diff", "--cached", "--quiet"]:
             return _completed(command, returncode=1)
-        if command == ["git", "commit", "-m", "Update Relay-managed skills"]:
+        if command == ["git", "commit", "-m", "Update Coga-managed skills"]:
             return _completed(command, returncode=1, stderr="missing git identity")
         if command == ["git", "checkout", "feature/work"]:
             return _completed(command)
@@ -1004,8 +1004,8 @@ def test_dream_pr_summary_restores_branch_when_commit_fails(
         run_skill_update_pr_flow(
             cfg,
             summary,
-            title="Update Relay-managed skills",
-            verification_commands=["relay validate --json"],
+            title="Update Coga-managed skills",
+            verification_commands=["coga validate --json"],
             runner=runner,
         )
 
@@ -1024,7 +1024,7 @@ def test_dream_pr_summary_skips_pr_when_nothing_changed(
                 name="bootstrap/example",
                 source_type="bundled",
                 status="skipped-bundled",
-                message="bundled skill updates come from the relay package",
+                message="bundled skill updates come from the coga package",
                 changed=False,
             )
         ]
@@ -1036,8 +1036,8 @@ def test_dream_pr_summary_skips_pr_when_nothing_changed(
     result = run_skill_update_pr_flow(
         cfg,
         summary,
-        title="Update Relay-managed skills",
-        verification_commands=["relay validate --json"],
+        title="Update Coga-managed skills",
+        verification_commands=["coga validate --json"],
         runner=runner,
     )
 
@@ -1072,7 +1072,7 @@ def test_dream_pr_summary_skips_pr_when_commit_is_empty(
             return _completed(command)
         if command == ["git", "branch", "--show-current"]:
             return _completed(command, stdout="main\n")
-        if command == ["git", "checkout", "-B", "relay/skill-update", "main"]:
+        if command == ["git", "checkout", "-B", "coga/skill-update", "main"]:
             return _completed(command)
         if command[:3] == ["git", "add", "--"]:
             return _completed(command)
@@ -1086,8 +1086,8 @@ def test_dream_pr_summary_skips_pr_when_commit_is_empty(
     result = run_skill_update_pr_flow(
         cfg,
         summary,
-        title="Update Relay-managed skills",
-        verification_commands=["relay validate --json"],
+        title="Update Coga-managed skills",
+        verification_commands=["coga validate --json"],
         runner=runner,
     )
 
@@ -1095,7 +1095,7 @@ def test_dream_pr_summary_skips_pr_when_commit_is_empty(
     assert result.verification == []
     # No commit, no PR — but the dedicated branch was created and the checkout
     # restored to where the caller left it.
-    assert ["git", "commit", "-m", "Update Relay-managed skills"] not in commands
+    assert ["git", "commit", "-m", "Update Coga-managed skills"] not in commands
     assert ["git", "checkout", "main"] in commands
 
 
@@ -1123,21 +1123,21 @@ def test_dream_pr_summary_fails_loud_on_unmerged_paths(
         command = list(args)
         commands.append(command)
         if command == ["git", "diff", "--name-only", "--diff-filter=U"]:
-            return _completed(command, stdout="relay-os/recurring/digest/blackboard.md\n")
+            return _completed(command, stdout="coga/recurring/digest/blackboard.md\n")
         raise AssertionError(f"unexpected command after precheck: {command}")
 
     with pytest.raises(SkillManagerError) as excinfo:
         run_skill_update_pr_flow(
             cfg,
             summary,
-            title="Update Relay-managed skills",
-            verification_commands=["relay validate --json"],
+            title="Update Coga-managed skills",
+            verification_commands=["coga validate --json"],
             runner=runner,
         )
 
     message = str(excinfo.value)
     assert "unmerged paths" in message
-    assert "relay-os/recurring/digest/blackboard.md" in message
+    assert "coga/recurring/digest/blackboard.md" in message
     # Failed before any branch switch — only the precheck ran.
     assert commands == [["git", "diff", "--name-only", "--diff-filter=U"]]
     assert not any(command[:3] == ["git", "checkout", "-B"] for command in commands)
@@ -1162,7 +1162,7 @@ def test_update_cli_emits_json_summary(
             ]
         )
 
-    monkeypatch.setattr("relay.commands.skill.update_skills", fake_update_skills)
+    monkeypatch.setattr("coga.commands.skill.update_skills", fake_update_skills)
     result = CliRunner().invoke(app, ["skill", "update", "tools/example", "--json"])
 
     assert result.exit_code == 0, result.output
@@ -1193,7 +1193,7 @@ def test_install_url_cli_passes_force(
             message="installed tools/example from URL",
         )
 
-    monkeypatch.setattr("relay.commands.skill.install_url_skill", fake_install_url_skill)
+    monkeypatch.setattr("coga.commands.skill.install_url_skill", fake_install_url_skill)
     result = CliRunner().invoke(
         app,
         [

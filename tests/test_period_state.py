@@ -1,8 +1,8 @@
 """Tests for stale-cursor detection on recurring period tasks.
 
 A recurring task declares the blackboard keys it owns via `state_keys:`. The
-creator snapshots their values into each period task; `relay mark done` and
-`relay validate` flag a run that finished without advancing one.
+creator snapshots their values into each period task; `coga mark done` and
+`coga validate` flag a run that finished without advancing one.
 """
 
 from __future__ import annotations
@@ -15,9 +15,9 @@ import pytest
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
-from relay.cli import app
-from relay.config import load_config
-from relay.period_state import (
+from coga.cli import app
+from coga.config import load_config
+from coga.period_state import (
     SNAPSHOT_FILE,
     StateSnapshot,
     parse_keys,
@@ -25,9 +25,9 @@ from relay.period_state import (
     stale_keys,
     write_snapshot,
 )
-from relay.recurring import RecurringError, Template, scan_due
-from relay.taskfile import upsert_blackboard
-from relay.tasks import list_tasks
+from coga.recurring import RecurringError, Template, scan_due
+from coga.taskfile import upsert_blackboard
+from coga.tasks import list_tasks
 
 
 def _set_parent_state(repo: Path, region: str) -> None:
@@ -74,15 +74,15 @@ def test_snapshot_round_trip(tmp_path: Path) -> None:
     # blackboard region (below the fence), which `write_snapshot` reads.
     parent_ticket = tmp_path / "ticket.md"
     parent_ticket.write_text(
-        "## Description\n\n<!-- relay:blackboard -->\n\nlast_commit: AAA\nposted: yes\n"
+        "## Description\n\n<!-- coga:blackboard -->\n\nlast_commit: AAA\nposted: yes\n"
     )
     task_dir = tmp_path / "task"
     task_dir.mkdir()
 
-    write_snapshot(task_dir, "relay-dev-update", parent_ticket, ["last_commit"])
+    write_snapshot(task_dir, "coga-dev-update", parent_ticket, ["last_commit"])
 
     snap = read_snapshot(task_dir)
-    assert snap == StateSnapshot(parent="relay-dev-update", keys={"last_commit": "AAA"})
+    assert snap == StateSnapshot(parent="coga-dev-update", keys={"last_commit": "AAA"})
 
 
 def test_snapshot_missing_blackboard_records_none(tmp_path: Path) -> None:
@@ -114,9 +114,9 @@ def test_read_snapshot_valid_json_non_object_returns_none(
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -128,12 +128,12 @@ def repo(tmp_path: Path) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _write(
-        company / "contexts" / "relay" / "period-task" / "SKILL.md",
+        company / "contexts" / "coga" / "period-task" / "SKILL.md",
         """
         ---
-        name: relay/period-task
+        name: coga/period-task
         description: stub
         ---
 
@@ -157,7 +157,7 @@ def repo(tmp_path: Path) -> Path:
 
         Post the daily digest.
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         ### Dev Update State
 
@@ -205,7 +205,7 @@ def test_stale_keys_ignores_removed_parent(repo: Path) -> None:
 
 def _allow_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "relay.commands.recurring._interactive_stdio_has_tty", lambda: True
+        "coga.commands.recurring._interactive_stdio_has_tty", lambda: True
     )
 
 
@@ -220,9 +220,9 @@ def test_create_snapshots_declared_keys(repo: Path) -> None:
 
 
 def test_create_without_state_keys_writes_no_snapshot(tmp_path: Path) -> None:
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -232,10 +232,10 @@ def test_create_without_state_keys_writes_no_snapshot(tmp_path: Path) -> None:
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _write(
-        company / "contexts" / "relay" / "period-task" / "SKILL.md",
-        "---\nname: relay/period-task\ndescription: stub\n---\n\n# p\n",
+        company / "contexts" / "coga" / "period-task" / "SKILL.md",
+        "---\nname: coga/period-task\ndescription: stub\n---\n\n# p\n",
     )
     _write(
         company / "recurring" / "plain" / "ticket.md",
@@ -338,8 +338,8 @@ def test_mark_done_syncs_parent_blackboard_when_cursor_advanced(
     def _unexpected_task_sync(*args, **kwargs):
         raise AssertionError("state-keyed period tasks should sync explicit paths")
 
-    monkeypatch.setattr("relay.git.sync_paths", _capture_sync)
-    monkeypatch.setattr("relay.git.sync_task_state", _unexpected_task_sync)
+    monkeypatch.setattr("coga.git.sync_paths", _capture_sync)
+    monkeypatch.setattr("coga.git.sync_task_state", _unexpected_task_sync)
 
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
@@ -377,7 +377,7 @@ def test_validate_flags_done_stuck_cursor(repo: Path, monkeypatch) -> None:
     slug = _create_period(repo)
     CliRunner().invoke(app, ["mark", "done", slug])  # cursor never advanced
 
-    from relay import validate as validate_mod
+    from coga import validate as validate_mod
 
     cfg = load_config(repo)
     report = validate_mod.run(cfg)
@@ -393,7 +393,7 @@ def test_validate_quiet_when_cursor_advanced(repo: Path, monkeypatch) -> None:
     _set_parent_state(repo, "### Dev Update State\n\nlast_commit: BBB\n")
     CliRunner().invoke(app, ["mark", "done", slug])
 
-    from relay import validate as validate_mod
+    from coga import validate as validate_mod
 
     cfg = load_config(repo)
     report = validate_mod.run(cfg)

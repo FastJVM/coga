@@ -6,10 +6,10 @@ from pathlib import Path
 BOOTSTRAP_TICKET_SKILL = (
     Path(__file__).resolve().parents[1]
     / "src"
-    / "relay"
+    / "coga"
     / "resources"
     / "templates"
-    / "relay-os"
+    / "coga"
     / "bootstrap"
     / "skills"
     / "bootstrap"

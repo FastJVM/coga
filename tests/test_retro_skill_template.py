@@ -6,10 +6,10 @@ from pathlib import Path
 RETRO_SKILL = (
     Path(__file__).resolve().parents[1]
     / "src"
-    / "relay"
+    / "coga"
     / "resources"
     / "templates"
-    / "relay-os"
+    / "coga"
     / "bootstrap"
     / "skills"
     / "retro"
@@ -29,10 +29,10 @@ def test_retro_done_ticket_is_prompt_only_knowledge_extraction_skill() -> None:
     assert "delete every processed source task" in text
     assert "`pr-required` for knowledge edits and the source-task deletions" in text
     assert "`direct-delete` for no-durable-knowledge source tasks" in text
-    assert "read every context file under `relay-os/contexts/**/SKILL.md` and" in text
-    assert "`relay-os/bootstrap/contexts/**/SKILL.md`" in text
-    assert "read every skill file under `relay-os/skills/**/SKILL.md` and" in text
-    assert "`relay-os/bootstrap/skills/**/SKILL.md`" in text
+    assert "read every context file under `coga/contexts/**/SKILL.md` and" in text
+    assert "`coga/bootstrap/contexts/**/SKILL.md`" in text
+    assert "read every skill file under `coga/skills/**/SKILL.md` and" in text
+    assert "`coga/bootstrap/skills/**/SKILL.md`" in text
     assert "loaded once per run before ticket-by-ticket\n  extraction" in text
     assert "This skill is invoked with one or more parameters: exact done ticket slugs" in text
     assert "the skill partitions them into coherent PR" in text
@@ -64,7 +64,7 @@ def test_retro_deletes_every_processed_done_ticket() -> None:
     routes. A ticket that carries durable knowledge is deleted inside its
     theme's reviewable knowledge PR (the marker recorded in the same PR). A
     ticket with no durable knowledge has no PR to bundle the deletion into, so
-    it is direct-deleted via `relay delete` — no PR, no marker, no `## Pruned`
+    it is direct-deleted via `coga delete` — no PR, no marker, no `## Pruned`
     bookkeeping. A processed done ticket never survives the run on disk."""
     text = RETRO_SKILL.read_text()
 
@@ -74,8 +74,8 @@ def test_retro_deletes_every_processed_done_ticket() -> None:
 
     # Knowledge-less tickets are direct-deleted, not bundled into any PR.
     assert "A source task with no new durable knowledge is still deleted" in text
-    assert "is direct-deleted via `relay delete`" in text
-    assert "`relay delete <slug>`" in text
+    assert "is direct-deleted via `coga delete`" in text
+    assert "`coga delete <slug>`" in text
     assert "no marker, no PR" in text
     assert "gets **no** marker" in text
     assert "git restore" in text

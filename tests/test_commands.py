@@ -7,36 +7,36 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay.cli import app
-from relay.create import create_task
-from relay.config import load_config
-from relay.logfile import task_log_lines
-from relay.paths import log_path
-from relay.taskfile import join_task_body, read_blackboard
-from relay.tasks import list_tasks
-from relay.ticket import Ticket
+from coga.cli import app
+from coga.create import create_task
+from coga.config import load_config
+from coga.logfile import task_log_lines
+from coga.paths import log_path
+from coga.taskfile import join_task_body, read_blackboard
+from coga.tasks import list_tasks
+from coga.ticket import Ticket
 
 
 def _log_text(repo: Path, ref: str) -> str:
     """The repo-global log filtered to one task ref, joined back into text.
 
     The single-file format moves per-task history into one repo-global
-    `relay-os/log.md`; a task's history is the subset of lines tagged with its
+    `coga/log.md`; a task's history is the subset of lines tagged with its
     ref. Tests that used to read `tasks/<slug>/log.md` read this instead.
     """
     return "\n".join(task_log_lines(load_config(repo), ref))
 
 
-# Source of the bundled `bootstrap/delete-task` skill — `relay delete` and a
+# Source of the bundled `bootstrap/delete-task` skill — `coga delete` and a
 # `mode: script` step both dispatch into it. Test repos are hand-built and do
-# not run `relay init`, so tests materialize it explicitly.
+# not run `coga init`, so tests materialize it explicitly.
 DELETE_SKILL_SRC = (
     Path(__file__).resolve().parents[1]
     / "src"
-    / "relay"
+    / "coga"
     / "resources"
     / "templates"
-    / "relay-os"
+    / "coga"
     / "bootstrap"
     / "skills"
     / "bootstrap"
@@ -55,9 +55,9 @@ def _install_delete_skill(repo: Path) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -69,7 +69,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _write(
         company / "workflows" / "code.md",
         """
@@ -141,7 +141,7 @@ def _write_workflow_less_task(
 
         ## Description
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         # Blackboard
     """).lstrip())
@@ -252,12 +252,12 @@ def test_bump_rewind_refuses_supervised_agent(repo: Path) -> None:
     result = runner.invoke(
         app,
         ["bump", slug, "--backward"],
-        env={"RELAY_SUPERVISED": "1"},
+        env={"COGA_SUPERVISED": "1"},
     )
 
     assert result.exit_code == 2, result.output
     assert "Agents cannot rewind" in result.output
-    assert "relay panic" in result.output
+    assert "coga panic" in result.output
     t = Ticket.read(task_path)
     assert t.step == "2 (pr)"
 
@@ -280,7 +280,7 @@ def test_bump_supervised_prints_handoff_hint_when_assignee_changes(repo: Path) -
     )
     slug, _ = _make_task(repo, workflow="handoff")
     runner = CliRunner()
-    result = runner.invoke(app, ["bump", slug], env={"RELAY_SUPERVISED": "1"})
+    result = runner.invoke(app, ["bump", slug], env={"COGA_SUPERVISED": "1"})
     assert result.exit_code == 0, result.output
     assert "Supervised launch" in result.output
     # owner is a human, not a configured agent → the supervisor stops.
@@ -304,7 +304,7 @@ def test_bump_supervised_prints_chain_hint_on_agent_rotation(repo: Path) -> None
     )
     slug = ref["slug"]
     runner = CliRunner()
-    result = runner.invoke(app, ["bump", slug], env={"RELAY_SUPERVISED": "1"})
+    result = runner.invoke(app, ["bump", slug], env={"COGA_SUPERVISED": "1"})
     assert result.exit_code == 0, result.output
     assert "Supervised launch" in result.output
     # claude → codex is a rotation between two configured agents → chains.
@@ -318,7 +318,7 @@ def test_bump_supervised_prints_chain_hint_when_assignee_unchanged(repo: Path) -
     # No skills on the next step is fine; chain is gated on assignee, not skills.
     slug, _ = _make_task(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["bump", slug], env={"RELAY_SUPERVISED": "1"})
+    result = runner.invoke(app, ["bump", slug], env={"COGA_SUPERVISED": "1"})
     assert result.exit_code == 0, result.output
     assert "Supervised launch" in result.output
     assert "spawn a fresh agent session" in result.output
@@ -341,7 +341,7 @@ def test_bump_past_final_step_errors_with_mark_done_hint(repo: Path) -> None:
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 2, result.output
     assert "final step" in result.output
-    assert f"relay mark done {slug}" in result.output
+    assert f"coga mark done {slug}" in result.output
     # Ticket stays in progress — bump does not mark done.
     t = Ticket.read(task_path)
     assert t.status == "in_progress"
@@ -360,7 +360,7 @@ def test_bump_no_workflow_errors_with_mark_done_hint(repo: Path) -> None:
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 2, result.output
     assert "no workflow" in result.output
-    assert f"relay mark done {slug}" in result.output
+    assert f"coga mark done {slug}" in result.output
     t = Ticket.read(task_path)
     assert t.status == "in_progress"
 
@@ -413,7 +413,7 @@ def test_delete_unknown_task_exits_nonzero(repo: Path) -> None:
 
 
 def test_delete_missing_skill_exits_nonzero(repo: Path) -> None:
-    # The skill is the implementation; without it `relay delete` fails loud
+    # The skill is the implementation; without it `coga delete` fails loud
     # rather than silently falling back to a private rmtree.
     slug, task_path = _make_task(repo, force_directory=True)
     result = CliRunner().invoke(app, ["delete", slug])
@@ -423,9 +423,9 @@ def test_delete_missing_skill_exits_nonzero(repo: Path) -> None:
 
 
 def test_delete_skill_runs_as_script_step(repo: Path) -> None:
-    # The same skill `relay delete` dispatches into is independently
+    # The same skill `coga delete` dispatches into is independently
     # launchable: a `mode: script` task whose one step references it deletes
-    # its own directory on `relay launch`.
+    # its own directory on `coga launch`.
     _install_delete_skill(repo)
     _write(
         repo / "workflows" / "delete-self.md",
@@ -701,7 +701,7 @@ def test_bump_role_token_with_missing_field_fails_loud(repo: Path) -> None:
 
 def _add_codex_agent(repo: Path) -> None:
     """Append a second agent type so `other-agent` has a peer to resolve to."""
-    toml = repo / "relay.toml"
+    toml = repo / "coga.toml"
     toml.write_text(
         toml.read_text()
         + dedent(
@@ -879,7 +879,7 @@ def test_bump_freezes_bare_string_workflow_then_advances(repo: Path) -> None:
         workflow: code
         ---
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
         """
     ).lstrip())
 
@@ -913,8 +913,8 @@ def test_bump_handoff_appears_in_slack_text(repo: Path) -> None:
 
 
 def test_show_prints_ticket_blackboard_and_log(repo: Path) -> None:
-    from relay.logfile import append_log
-    from relay.taskfile import upsert_blackboard
+    from coga.logfile import append_log
+    from coga.taskfile import upsert_blackboard
 
     slug, task_path = _make_task(repo)
     # Blackboard now lives inside ticket.md; history lives in the global log.
@@ -940,7 +940,7 @@ def test_show_resolves_prefix(repo: Path) -> None:
 
 
 def test_show_handles_missing_blackboard_and_log(repo: Path) -> None:
-    from relay.taskfile import replace_blackboard
+    from coga.taskfile import replace_blackboard
 
     slug, task_path = _make_task(repo)
     # Empty the blackboard region and drop the global log entirely, so the task
@@ -1054,14 +1054,14 @@ def test_validate_json_emits_payload(repo: Path) -> None:
 
 
 def test_validate_fix_json_repairs_missing_workspace_file(repo: Path) -> None:
-    from relay.taskfile import fence_count
+    from coga.taskfile import fence_count
 
     _, task_path = _make_task(repo)
     # Single-file equivalent of a missing workspace file: a ticket.md whose
     # blackboard fence is gone. The safe fix re-appends the fence + region.
     ticket_path = task_path
     text = ticket_path.read_text()
-    above, _, _ = text.partition("\n<!-- relay:blackboard -->")
+    above, _, _ = text.partition("\n<!-- coga:blackboard -->")
     ticket_path.write_text(above + "\n")
     assert fence_count(ticket_path.read_text()) == 0
 
@@ -1077,7 +1077,7 @@ def test_validate_fix_json_repairs_missing_workspace_file(repo: Path) -> None:
 
 
 def test_validate_warns_for_large_blackboard(repo: Path) -> None:
-    from relay.taskfile import replace_blackboard
+    from coga.taskfile import replace_blackboard
 
     _, task_path = _make_task(repo)
     # The blackboard region now lives inside ticket.md; inflate it there. The
@@ -1151,7 +1151,7 @@ def _set_log_timestamp(repo: Path, slug: str, when: str) -> None:
     """Append one line for `slug` to the repo-global log at the given timestamp.
 
     Activity time now comes from the last line tagged with the task's ref in
-    `relay-os/log.md`. Appending after the `created` line makes this the task's
+    `coga/log.md`. Appending after the `created` line makes this the task's
     most-recent line, so it drives the `updated` column / ordering.
     """
     path = log_path(load_config(repo))

@@ -7,20 +7,20 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay.cli import app
-from relay.config import load_config
-from relay.create import create_task
-from relay.taskfile import read_blackboard
-from relay.tasks import list_tasks
+from coga.cli import app
+from coga.config import load_config
+from coga.create import create_task
+from coga.taskfile import read_blackboard
+from coga.tasks import list_tasks
 
 
 TEMPLATES = (
     Path(__file__).resolve().parents[1]
     / "src"
-    / "relay"
+    / "coga"
     / "resources"
     / "templates"
-    / "relay-os"
+    / "coga"
     / "bootstrap"
     / "skills"
     / "bootstrap"
@@ -36,9 +36,9 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    relay_os = tmp_path / "relay-os"
+    coga_os = tmp_path / "coga"
     _write(
-        relay_os / "relay.toml",
+        coga_os / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -53,20 +53,20 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         """,
     )
-    _write(relay_os / "relay.local.toml", 'user = "marc"\n')
-    (relay_os / "tasks").mkdir(parents=True)
-    monkeypatch.chdir(relay_os)
-    return relay_os
+    _write(coga_os / "coga.local.toml", 'user = "marc"\n')
+    (coga_os / "tasks").mkdir(parents=True)
+    monkeypatch.chdir(coga_os)
+    return coga_os
 
 
-def _install_dream_skill(relay_os: Path, name: str) -> None:
-    dst = relay_os / "skills" / "bootstrap" / "dream" / "tasks" / name
+def _install_dream_skill(coga_os: Path, name: str) -> None:
+    dst = coga_os / "skills" / "bootstrap" / "dream" / "tasks" / name
     shutil.copytree(TEMPLATES / name, dst)
 
 
-def _write_workflow(relay_os: Path, name: str, skill: str) -> None:
+def _write_workflow(coga_os: Path, name: str, skill: str) -> None:
     _write(
-        relay_os / "workflows" / f"{name}.md",
+        coga_os / "workflows" / f"{name}.md",
         f"""
         ---
         name: {name}
@@ -100,7 +100,7 @@ def test_validate_drift_runs_as_script_skill(repo: Path) -> None:
 
     assert result.exit_code == 0, result.output
     ref = list_tasks(cfg)[0]
-    # Single-file format: a script worker's RELAY_TASK_BLACKBOARD is its own
+    # Single-file format: a script worker's COGA_TASK_BLACKBOARD is its own
     # ticket.md, so its appended notes land in that ticket's blackboard region.
     blackboard = read_blackboard(ref.ticket_path)
     assert "## Dream Skill: validate-drift" in blackboard
@@ -115,7 +115,7 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
         "bootstrap/dream/tasks/cleanup-orphan-markers",
     )
     # A genuine cleanup-eligible orphan: a `status: done` ticket whose blackboard
-    # region (below the `<!-- relay:blackboard -->` fence in ticket.md) carries a
+    # region (below the `<!-- coga:blackboard -->` fence in ticket.md) carries a
     # `## Retro` marker recording a knowledge-PR processing pass (NOT
     # `no-new-durable-knowledge`). Single-file v2: the cleanup worker reads the
     # marker from the ticket.md blackboard region, not a sibling blackboard.md.
@@ -135,7 +135,7 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
 
         Already processed.
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         Notes.
 
@@ -195,7 +195,7 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
 
         Already processed.
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         Notes.
 
@@ -259,7 +259,7 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> Non
 
         Built the marker-detection skill.
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         Notes on the design.
 

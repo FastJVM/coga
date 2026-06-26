@@ -1,4 +1,4 @@
-<!-- Exported from the Google Doc "OpenClaw Report" (Relay Competition Tests), 2026-06-06.
+<!-- Exported from the Google Doc "OpenClaw Report" (Coga Competition Tests), 2026-06-06.
      Source: https://docs.google.com/document/d/1p3Ip1V7DP4rUa9uvXeV8etoRZKu5Zz45UlWq-Z8zZCA -->
 
 # **OpenClaw Report**

@@ -1,4 +1,4 @@
-<!-- Exported from the Google Doc "Paperclip Report" (Relay Competition Tests), 2026-06-06.
+<!-- Exported from the Google Doc "Paperclip Report" (Coga Competition Tests), 2026-06-06.
      Source: https://docs.google.com/document/d/1Ql5XiCpyVsWsWrnY8hHGktVnQOJTJ_pVPNRx6PNXK-o -->
 
 # **Paperclip Report**

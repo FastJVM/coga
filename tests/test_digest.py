@@ -1,5 +1,5 @@
 """Tests for the daily-digest pipeline: spool primitive, notify routing,
-outcome rendering, git high-water scanning, and the `relay digest` flush."""
+outcome rendering, git high-water scanning, and the `coga digest` flush."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ from textwrap import dedent
 
 import pytest
 
-from relay import notification, spool
-from relay.commands.digest import run_digest
-from relay.config import load_config
+from coga import notification, spool
+from coga.commands.digest import run_digest
+from coga.config import load_config
 
 
 # --- repo fixture -------------------------------------------------------------
@@ -23,9 +23,9 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    relay_os = tmp_path / "relay-os"
+    coga_os = tmp_path / "coga"
     _write(
-        relay_os / "relay.toml",
+        coga_os / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -46,13 +46,13 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(relay_os / "relay.local.toml", 'user = "nick"\n')
-    (relay_os / "tasks").mkdir(parents=True)
-    monkeypatch.chdir(relay_os)
-    return relay_os
+    _write(coga_os / "coga.local.toml", 'user = "nick"\n')
+    (coga_os / "tasks").mkdir(parents=True)
+    monkeypatch.chdir(coga_os)
+    return coga_os
 
 
-def _install_digest(relay_os: Path) -> Path:
+def _install_digest(coga_os: Path) -> Path:
     """Install the recurring/digest spool + ticket; return the `spool.md` path.
 
     The pending-record spool lives in the dedicated, `merge=union`
@@ -60,7 +60,7 @@ def _install_digest(relay_os: Path) -> Path:
     lives in the sibling `ticket.md`. Most assertions read the spool, so the
     spool path is returned; the state file is `_state_path(spool_path)`.
     """
-    digest = relay_os / "recurring" / "digest"
+    digest = coga_os / "recurring" / "digest"
     _write(
         digest / "spool.md",
         "# Digest spool\n\n## Spool (pending)\n\nconsumed_through:\n",
@@ -68,7 +68,7 @@ def _install_digest(relay_os: Path) -> Path:
     _write(
         digest / "ticket.md",
         "## Description\n\n"
-        "<!-- relay:blackboard -->\n\n"
+        "<!-- coga:blackboard -->\n\n"
         "Digest state.\n\n### Digest State\n\nlast_commit:\nrange:\nposted:\n",
     )
     return digest / "spool.md"
@@ -93,7 +93,7 @@ def captured_posts(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 
         return R()
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", _capture)
+    monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
     return posts
 
 
@@ -260,7 +260,7 @@ def test_notify_migrates_legacy_digest_ticket_spool(
         """
         ## Description
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         Digest state.
 
@@ -272,7 +272,7 @@ def test_notify_migrates_legacy_digest_ticket_spool(
 
         ## Spool (pending)
 
-        {"ts":"2026-06-18T14:53","project":"relay","kind":"done","detail":"old done","ticket":"old","owner":"nick"}
+        {"ts":"2026-06-18T14:53","project":"coga","kind":"done","detail":"old done","ticket":"old","owner":"nick"}
         """,
     )
 
@@ -363,11 +363,11 @@ def test_dedupe_collapses_same_event_from_two_clones() -> None:
     # Two clones recorded the same done event: distinct random ids, ts seconds
     # apart, identical content. id alone can't collapse them; the content key does.
     records = [
-        {"id": "a", "project": "relay", "kind": "done", "ticket": "t",
+        {"id": "a", "project": "coga", "kind": "done", "ticket": "t",
          "detail": "→ done ✅", "ts": "2026-06-24T11:00"},
-        {"id": "b", "project": "relay", "kind": "done", "ticket": "t",
+        {"id": "b", "project": "coga", "kind": "done", "ticket": "t",
          "detail": "→ done ✅", "ts": "2026-06-24T11:01"},
-        {"id": "c", "project": "relay", "kind": "done", "ticket": "u",
+        {"id": "c", "project": "coga", "kind": "done", "ticket": "u",
          "detail": "→ done ✅", "ts": "2026-06-24T11:00"},
     ]
     out = notification.dedupe_records(records)
@@ -432,12 +432,12 @@ def _commit_and_push(git_repo, relpath: str, text: str, subject: str) -> str:
     return sha
 
 
-def _install_digest_with_state(relay_os: Path, last_commit: str) -> Path:
+def _install_digest_with_state(coga_os: Path, last_commit: str) -> Path:
     """Install the spool + ticket and seed `### Digest State` with `last_commit`.
 
     Returns the spool.md path; the high-water mark lives in `_state_path(bb)`.
     """
-    bb = _install_digest(relay_os)
+    bb = _install_digest(coga_os)
     state = _state_path(bb)
     state.write_text(
         state.read_text().replace("last_commit:\n", f"last_commit: {last_commit}\n")
@@ -449,32 +449,32 @@ def test_run_digest_posts_also_merged_from_git_high_water(
     git_repo, captured_posts: list[dict]
 ) -> None:
     start = git_repo.git("rev-parse", "HEAD").strip()
-    bb = _install_digest_with_state(git_repo.relay_os, start)
-    cfg = load_config(git_repo.relay_os)
+    bb = _install_digest_with_state(git_repo.coga_os, start)
+    cfg = load_config(git_repo.coga_os)
 
     _commit_and_push(
         git_repo,
-        "relay-os/docs/state-sync.md",
+        "coga/docs/state-sync.md",
         "sync\n",
         "Ticket: sync-task-state — done",
     )
     _commit_and_push(
         git_repo,
-        "relay-os/docs/pr-42.md",
+        "coga/docs/pr-42.md",
         "done\n",
         "Improve digest rendering (#42)",
     )
     reported_sha = _commit_and_push(
         git_repo,
-        "relay-os/docs/no-ticket.md",
+        "coga/docs/no-ticket.md",
         "merged\n",
         "Fix typo in compose docstring",
     )
     _commit_and_push(
         git_repo,
-        "relay-os/docs/sync-helper.md",
+        "coga/docs/sync-helper.md",
         "sync\n",
-        "Sync task state: add-relay-skill-search-with-candidate-eval",
+        "Sync task state: add-coga-skill-search-with-candidate-eval",
     )
     notification.notify(
         cfg,
@@ -504,11 +504,11 @@ def test_run_digest_posts_git_commits_even_with_empty_spool(
     git_repo, captured_posts: list[dict]
 ) -> None:
     start = git_repo.git("rev-parse", "HEAD").strip()
-    bb = _install_digest_with_state(git_repo.relay_os, start)
-    cfg = load_config(git_repo.relay_os)
+    bb = _install_digest_with_state(git_repo.coga_os, start)
+    cfg = load_config(git_repo.coga_os)
     sha = _commit_and_push(
         git_repo,
-        "relay-os/docs/commit-only.md",
+        "coga/docs/commit-only.md",
         "merged\n",
         "Add digest high-water scan",
     )
@@ -525,12 +525,12 @@ def test_run_digest_posts_git_commits_even_with_empty_spool(
 def test_run_digest_flushes_done_when_git_disabled(
     git_repo, captured_posts: list[dict]
 ) -> None:
-    bb = _install_digest(git_repo.relay_os)
+    bb = _install_digest(git_repo.coga_os)
     _write(
-        git_repo.relay_os / "relay.local.toml",
+        git_repo.coga_os / "coga.local.toml",
         'user = "nick"\n[git]\nenabled = false\n',
     )
-    cfg = load_config(git_repo.relay_os)
+    cfg = load_config(git_repo.coga_os)
     git_repo.git("remote", "remove", "origin")
     notification.notify(
         cfg,
@@ -556,11 +556,11 @@ def test_run_digest_skips_filtered_commits_but_advances_high_water(
     git_repo, captured_posts: list[dict]
 ) -> None:
     start = git_repo.git("rev-parse", "HEAD").strip()
-    bb = _install_digest_with_state(git_repo.relay_os, start)
-    cfg = load_config(git_repo.relay_os)
+    bb = _install_digest_with_state(git_repo.coga_os, start)
+    cfg = load_config(git_repo.coga_os)
     _commit_and_push(
         git_repo,
-        "relay-os/docs/filtered.md",
+        "coga/docs/filtered.md",
         "sync\n",
         "Ticket: filtered — active",
     )

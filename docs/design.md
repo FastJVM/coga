@@ -1,16 +1,16 @@
-# Relay — design decisions (M1)
+# Coga — design decisions (M1)
 
-Resolves the "must resolve before building" items flagged in `relay-spec-updated (2).md`.
+Resolves the "must resolve before building" items flagged in `coga-spec-updated (2).md`.
 
 ---
 
-## `relay create` / `relay ticket` — CLI + behavior
+## `coga create` / `coga ticket` — CLI + behavior
 
 ### CLI
 
 ```
-relay create "<title>" [--mode interactive|auto|script]
-relay ticket [<title-or-slug>] [--agent <type>]
+coga create "<title>" [--mode interactive|auto|script]
+coga ticket [<title-or-slug>] [--agent <type>]
 
 Options
   --mode [interactive|auto|script]
@@ -36,13 +36,13 @@ Deduplicated silently, order preserved (first occurrence wins). If any context r
 
 ### Raw creating and guided authoring are separate
 
-`relay create` is intentionally mechanical — it creates the directory and
+`coga create` is intentionally mechanical — it creates the directory and
 writes the raw default frontmatter.
 
 The judgment about *which* workflow / contexts / assignee fit is in the
-`bootstrap/ticket` skill (`relay-os/bootstrap/skills/bootstrap/ticket/SKILL.md`,
-unless shadowed by a local skill under `relay-os/skills/`). A
-human invokes that skill through `relay ticket`: with no argument it asks for
+`bootstrap/ticket` skill (`coga/bootstrap/skills/bootstrap/ticket/SKILL.md`,
+unless shadowed by a local skill under `coga/skills/`). A
+human invokes that skill through `coga ticket`: with no argument it asks for
 a title, with a title it drafts then edits, and with an existing slug it edits
 that ticket in place at any lifecycle status. Editing leaves the status
 unchanged; revising an `in_progress` or `done` ticket prints a heads-up first
@@ -54,18 +54,18 @@ When one fact from a broad context is enough, that fact belongs in the ticket's
 inline `## Context` body; repeated narrow needs should become smaller focused
 contexts. Reusable process knowledge stays in workflow step `skill:` refs.
 
-There's no `--suggest` flag. If you want the authoring flow, run `relay
-ticket`. If you just want bytes on disk, call `relay create`.
+There's no `--suggest` flag. If you want the authoring flow, run `coga
+ticket`. If you just want bytes on disk, call `coga create`.
 
 ### Skills at creation time
 
 Confirmed: skills are **not** composed into the prompt at creation. They are loaded at launch time for the current workflow step. Ticket frontmatter never references skills. The workflow snapshot carries the per-step `skill:` references forward.
 
-### `relay recurring`
+### `coga recurring`
 
 Mechanism: naming convention on created tasks, not `last_run` in the template.
 
-1. Walk `relay-os/recurring/<name>/ticket.md` template directories. Bare
+1. Walk `coga/recurring/<name>/ticket.md` template directories. Bare
    `recurring/<name>.md` files are a legacy shape and the scanner errors
    on them.
 2. For each template, parse the cron-style `schedule` field (5 fields).
@@ -84,13 +84,13 @@ Mechanism: naming convention on created tasks, not `last_run` in the template.
    from its current step) and do **not** create a duplicate.
 6. Only when none is live, consider the current period: if
    `last_serviced_period >= current period_key` in the blackboard region of
-   `relay-os/recurring/<name>/ticket.md` and the task dir is gone, it's
+   `coga/recurring/<name>/ticket.md` and the task dir is gone, it's
    handled — skip. Otherwise create it using the template's frontmatter (mode,
    workflow, assignee, owner, contexts, description), write the high-water
-   mark, and append human-readable history to the repo-global `relay-os/log.md`
+   mark, and append human-readable history to the repo-global `coga/log.md`
    (tagged `recurring/<name>`).
 
-This is idempotent — running `relay recurring` twice inside the same period is a no-op.
+This is idempotent — running `coga recurring` twice inside the same period is a no-op.
 Across periods, a template does not start a new run while an older period run
 is still `active`/`in_progress`: that stuck run is resumed first and **defers**
 the next period until it reaches `done`/`paused`.
@@ -106,8 +106,8 @@ resumes first, then fresh launches, each most-overdue first.
 There is no filesystem mutex. The ticket's `status` field is the only signal that a task is in flight.
 
 - `draft` means unapproved, `active` means approved/queued, and `in_progress` means launched work.
-- `relay launch` accepts `status: active` or `status: in_progress`. Launching active work marks it `in_progress`; launching already-in-progress work resumes it.
-- `relay bump` moves only `in_progress` workflow tasks.
+- `coga launch` accepts `status: active` or `status: in_progress`. Launching active work marks it `in_progress`; launching already-in-progress work resumes it.
+- `coga bump` moves only `in_progress` workflow tasks.
 - Bootstrap tickets are stateless and exempt — they are re-entry points, not units of work.
 - Dream's `validate-drift` skill flags tasks stuck in `in_progress` with no recent log activity. Recovery is human-initiated.
 
@@ -118,5 +118,5 @@ We tried a `task.lock` file-existence mutex first. It cost a module of acquisiti
 ## Scope notes for the POC build
 
 - Full Slack integration: webhook POST is implemented; offline/test mode falls back to stdout when no webhook is configured.
-- `bootstrap/ticket` ships with SKILL.md content and templates, while Dream is a recurring task template (`relay-os/recurring/dream/`) whose body scans tickets and runs fixed housekeeping skills; `relay dream` is an alias that creates and launches it on demand. REM is the opt-in repo/user-specific recurring-maintenance template. Their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
+- `bootstrap/ticket` ships with SKILL.md content and templates, while Dream is a recurring task template (`coga/recurring/dream/`) whose body scans tickets and runs fixed housekeeping skills; `coga dream` is an alias that creates and launches it on demand. REM is the opt-in repo/user-specific recurring-maintenance template. Their actual agent flows are exercised manually during M7 smoke testing — we don't write automated tests for LLM behavior.
 - `status` starts scoped to "one project per invocation"; cross-project scan lands in M3 if trivial, otherwise deferred.

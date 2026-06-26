@@ -1,9 +1,9 @@
 """Tests for the session-done signal on session-ending commands.
 
-`relay bump`, `relay mark done`, and `relay panic` signal the supervising
-`relay launch` that the session is over so it can SIGTERM the agent's REPL
-(see `relay.repl_supervisor`). The signal travels over the *sentinel file*
-(`$RELAY_DONE_SENTINEL`) and nothing else: a success writes the task's
+`coga bump`, `coga mark done`, and `coga panic` signal the supervising
+`coga launch` that the session is over so it can SIGTERM the agent's REPL
+(see `coga.repl_supervisor`). The signal travels over the *sentinel file*
+(`$COGA_DONE_SENTINEL`) and nothing else: a success writes the task's
 resolved path into the file, scoped to this session. Other transitions
 (`mark active`, `mark paused`, or any error path) must NOT write it at all
 — the session is not over.
@@ -17,10 +17,10 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay.cli import app
-from relay.config import load_config
-from relay.repl_supervisor import SENTINEL_ENV
-from relay.create import create_task
+from coga.cli import app
+from coga.config import load_config
+from coga.repl_supervisor import SENTINEL_ENV
+from coga.create import create_task
 
 
 def _write(path: Path, text: str) -> None:
@@ -30,9 +30,9 @@ def _write(path: Path, text: str) -> None:
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -44,7 +44,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _write(
         company / "workflows" / "code.md",
         """
@@ -100,7 +100,7 @@ def _write_workflow_less_task(
 
         ## Description
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
         # Blackboard
     """).lstrip())
     return slug, task_dir
@@ -108,9 +108,9 @@ def _write_workflow_less_task(
 
 @pytest.fixture
 def sentinel(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Pretend a `relay launch` supervisor is watching: advertise the sentinel
+    """Pretend a `coga launch` supervisor is watching: advertise the sentinel
     file path the way `run_with_done_marker` does for its child."""
-    path = tmp_path / "relay-done" / "sentinel"
+    path = tmp_path / "coga-done" / "sentinel"
     path.parent.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv(SENTINEL_ENV, str(path))
     return path

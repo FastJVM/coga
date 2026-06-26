@@ -10,69 +10,69 @@ import tomllib
 
 
 EXPECTED_BOOTSTRAP_RESOURCES = (
-    "relay/resources/managed-skills.toml",
-    "relay/resources/templates/relay-os/bootstrap/skills/bootstrap/"
+    "coga/resources/managed-skills.toml",
+    "coga/resources/templates/coga/bootstrap/skills/bootstrap/"
     "ticket/SKILL.md",
-    "relay/resources/templates/relay-os/bootstrap/skills/eval/"
+    "coga/resources/templates/coga/bootstrap/skills/eval/"
     "ticket-diagnostic/SKILL.md",
-    "relay/resources/templates/relay-os/bootstrap/skills/relay/"
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
     "autoclose/sweep/SKILL.md",
-    "relay/resources/templates/relay-os/bootstrap/skills/relay/"
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
     "autoclose/sweep/run.py",
-    "relay/resources/templates/relay-os/bootstrap/contexts/relay/sync/SKILL.md",
-    "relay/resources/templates/relay-os/recurring/autoclose-merged/ticket.md",
-    "relay/resources/templates/relay-os/recurring/digest/ticket.md",
-    "relay/resources/templates/relay-os/recurring/digest/spool.md",
-    "relay/resources/templates/relay-os/recurring/skill-update/ticket.md",
-    "relay/resources/templates/relay-os/workflows/autoclose-merged/sweep.md",
-    "relay/resources/templates/relay-os/workflows/direct/body.md",
-    "relay/resources/templates/relay-os/workflows/skill-update/run.md",
+    "coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
+    "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
+    "coga/resources/templates/coga/recurring/digest/ticket.md",
+    "coga/resources/templates/coga/recurring/digest/spool.md",
+    "coga/resources/templates/coga/recurring/skill-update/ticket.md",
+    "coga/resources/templates/coga/workflows/autoclose-merged/sweep.md",
+    "coga/resources/templates/coga/workflows/direct/body.md",
+    "coga/resources/templates/coga/workflows/skill-update/run.md",
     # Bundled reusable workflows ship under bootstrap/workflows/ (local-first
     # fallback) so a fresh repo can run the core code loop, the docs flow, the
     # Dream child workflows, and the digest battery without hand-copying.
-    "relay/resources/templates/relay-os/bootstrap/workflows/code/"
+    "coga/resources/templates/coga/bootstrap/workflows/code/"
     "with-review.md",
-    "relay/resources/templates/relay-os/bootstrap/workflows/code/"
+    "coga/resources/templates/coga/bootstrap/workflows/code/"
     "design-then-implement.md",
-    "relay/resources/templates/relay-os/bootstrap/workflows/dev/"
+    "coga/resources/templates/coga/bootstrap/workflows/dev/"
     "with-self-review.md",
-    "relay/resources/templates/relay-os/bootstrap/workflows/docs/"
+    "coga/resources/templates/coga/bootstrap/workflows/docs/"
     "create-google-doc.md",
-    "relay/resources/templates/relay-os/bootstrap/workflows/dream/"
+    "coga/resources/templates/coga/bootstrap/workflows/dream/"
     "validate-drift.md",
-    "relay/resources/templates/relay-os/bootstrap/workflows/dream/"
+    "coga/resources/templates/coga/bootstrap/workflows/dream/"
     "cleanup-orphan-markers.md",
-    "relay/resources/templates/relay-os/bootstrap/workflows/digest/post.md",
+    "coga/resources/templates/coga/bootstrap/workflows/digest/post.md",
     # …and the code/* and digest-flush skills those workflows reference.
-    "relay/resources/templates/relay-os/bootstrap/skills/code/design/SKILL.md",
-    "relay/resources/templates/relay-os/bootstrap/skills/code/implement/"
+    "coga/resources/templates/coga/bootstrap/skills/code/design/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/code/implement/"
     "SKILL.md",
-    "relay/resources/templates/relay-os/bootstrap/skills/code/open-pr/SKILL.md",
-    "relay/resources/templates/relay-os/bootstrap/skills/code/self-qa/SKILL.md",
-    "relay/resources/templates/relay-os/bootstrap/skills/relay/digest/flush/"
+    "coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/coga/digest/flush/"
     "SKILL.md",
-    "relay/resources/templates/relay-os/bootstrap/skills/relay/digest/flush/"
+    "coga/resources/templates/coga/bootstrap/skills/coga/digest/flush/"
     "run.py",
-    "relay/resources/templates/relay-os/skills/_template/SKILL.md",
-    "relay/resources/templates/relay-os/skills/direct/body/SKILL.md",
+    "coga/resources/templates/coga/skills/_template/SKILL.md",
+    "coga/resources/templates/coga/skills/direct/body/SKILL.md",
 )
 
 
-def test_package_includes_relay_resources() -> None:
+def test_package_includes_coga_resources() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text())
 
-    # Resources live inside the `relay` package (`src/relay/resources/...`), so
-    # declaring `packages = ["src/relay"]` ships them — no separate
+    # Resources live inside the `coga` package (`src/coga/resources/...`), so
+    # declaring `packages = ["src/coga"]` ships them — no separate
     # `force-include` is needed (#259 dropped that duplicate). Guard that the
     # package is still declared and that the bootstrap battery sources exist on
     # disk to be shipped. `test_wheel_includes_bootstrap_batteries` proves they
     # actually land in a built wheel.
     packages = pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"]
-    assert "src/relay" in packages
+    assert "src/coga" in packages
     for wheel_name in EXPECTED_BOOTSTRAP_RESOURCES:
-        source_name = wheel_name.removeprefix("relay/resources/")
-        assert (repo_root / "src" / "relay" / "resources" / source_name).is_file()
+        source_name = wheel_name.removeprefix("coga/resources/")
+        assert (repo_root / "src" / "coga" / "resources" / source_name).is_file()
 
 
 def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
@@ -101,7 +101,7 @@ def test_wheel_includes_bootstrap_batteries(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stderr
 
-    [wheel] = wheel_dir.glob("relay_os-*.whl")
+    [wheel] = wheel_dir.glob("coga-*.whl")
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
 

@@ -1,6 +1,6 @@
-"""The Python-version guard in `relay/__init__.py`.
+"""The Python-version guard in `coga/__init__.py`.
 
-Relay targets 3.11+ and imports the stdlib `tomllib`. The guard turns the
+Coga targets 3.11+ and imports the stdlib `tomllib`. The guard turns the
 cryptic `ModuleNotFoundError: No module named 'tomllib'` an older interpreter
 would raise deep in an import chain into one actionable message, raised the
 moment the package is imported.
@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import pytest
 
-from relay import _require_supported_python
+from coga import _require_supported_python
 
 
 @pytest.mark.parametrize("version", [(3, 9, 0), (3, 10, 9), (3, 0), (2, 7, 18)])
 def test_guard_rejects_old_python(version):
-    with pytest.raises(RuntimeError, match=r"Relay requires Python 3\.11 or newer"):
+    with pytest.raises(RuntimeError, match=r"Coga requires Python 3\.11 or newer"):
         _require_supported_python(version)
 
 

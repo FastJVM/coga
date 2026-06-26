@@ -1,8 +1,8 @@
 """Tests for per-skill dependency installation at bootstrap.
 
 `install_skill_requirements` is what makes a bootstrapped skill bring its own
-Python deps: it pip-installs every `relay-os/skills/**/requirements.txt` into
-the `.relay/.venv`. Tests fake `subprocess.run` so nothing is actually
+Python deps: it pip-installs every `coga/skills/**/requirements.txt` into
+the `.coga/.venv`. Tests fake `subprocess.run` so nothing is actually
 installed.
 """
 
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from relay.commands.update import install_skill_requirements
+from coga.commands.update import install_skill_requirements
 
 
 def _ok(*args, **kwargs):  # type: ignore[no-untyped-def]
@@ -34,7 +34,7 @@ def test_no_skills_dir_is_noop(tmp_path: Path) -> None:
 
 
 def test_skills_dir_without_requirements_is_noop(tmp_path: Path) -> None:
-    (tmp_path / "skills" / "relay" / "x").mkdir(parents=True)
+    (tmp_path / "skills" / "coga" / "x").mkdir(parents=True)
     assert install_skill_requirements(tmp_path, tmp_path / ".venv") == []
 
 
@@ -42,7 +42,7 @@ def test_installs_each_requirements_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Both roots are scanned: project-local skills/ and bundled bootstrap/skills/.
-    req_a = _mk_req(tmp_path / "bootstrap" / "skills", "relay/google-calendar")
+    req_a = _mk_req(tmp_path / "bootstrap" / "skills", "coga/google-calendar")
     req_b = _mk_req(tmp_path / "skills", "team/other")
 
     calls: list[list[str]] = []
@@ -69,7 +69,7 @@ def test_installs_each_requirements_file(
 def test_failed_install_exits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _mk_req(tmp_path / "skills", "relay/google-calendar")
+    _mk_req(tmp_path / "skills", "coga/google-calendar")
 
     def fake_run(cmd, capture_output=False, text=False):  # type: ignore[no-untyped-def]
         return subprocess.CompletedProcess(args=cmd, returncode=1, stdout="", stderr="boom")

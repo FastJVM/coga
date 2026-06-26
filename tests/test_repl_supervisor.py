@@ -10,7 +10,7 @@ import time
 
 import pytest
 
-from relay.repl_supervisor import (
+from coga.repl_supervisor import (
     SENTINEL_ENV,
     _TIMEOUT_EXIT_CODE,
     _TTY_SANITIZE,
@@ -154,8 +154,8 @@ def test_idle_timeout_terminates_silent_child(
     `timeout` — NOT a clean done.
 
     This is the stuck-agent case — an agent that stalls or crashes before
-    reaching `relay bump` / `mark done` / `panic` — that would otherwise block
-    a `relay recurring` sweep forever. Without the timeout the `sleep 30` here
+    reaching `coga bump` / `mark done` / `panic` — that would otherwise block
+    a `coga recurring` sweep forever. Without the timeout the `sleep 30` here
     would hang the test; we assert it returns promptly instead. The non-zero
     classification is what lets the sweep record the wedge instead of pausing it
     as a deliberate human park.
@@ -205,7 +205,7 @@ def test_max_session_terminates_output_producing_child(
 def test_sentinel_file_terminates_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Child that writes $RELAY_DONE_SENTINEL → supervisor SIGTERMs it.
+    """Child that writes $COGA_DONE_SENTINEL → supervisor SIGTERMs it.
 
     This is the only done channel, and it survives TUI agents (Claude Code,
     Codex) which capture bash subprocess stdout into a private pipe rather
@@ -236,8 +236,8 @@ def test_session_id_mismatch_is_ignored(
 ) -> None:
     """Sentinel content naming a *different* ticket → no teardown.
 
-    This is the leak that killed sessions: a nested `relay bump`/`mark done`
-    (e.g. a test fixture in a tempdir) inherited `RELAY_DONE_SENTINEL` and
+    This is the leak that killed sessions: a nested `coga bump`/`mark done`
+    (e.g. a test fixture in a tempdir) inherited `COGA_DONE_SENTINEL` and
     wrote it. With session scoping the supervisor ignores the stray write and
     the child runs to its own exit — here exit 5, proving we did NOT SIGTERM.
     """

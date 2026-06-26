@@ -5,17 +5,17 @@ from textwrap import dedent
 
 import pytest
 
-from relay.create import create_task
-from relay.slugify import slugify
-from relay.compose import (
+from coga.create import create_task
+from coga.slugify import slugify
+from coga.compose import (
     ComposeError,
     compose_prompt,
     compose_prompt_report,
     write_prompt_file,
 )
-from relay.config import load_config
-from relay.tasks import list_tasks, read_ticket
-from relay.ticket import Ticket
+from coga.config import load_config
+from coga.tasks import list_tasks, read_ticket
+from coga.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -54,7 +54,7 @@ def _write_workflow_less_task(
 
         ## Context
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         # Blackboard
     """).lstrip())
@@ -63,10 +63,10 @@ def _write_workflow_less_task(
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga"
 
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -76,7 +76,7 @@ def repo(tmp_path: Path) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _write(
         company / "workflows" / "code" / "with-review.md",
         """
@@ -124,10 +124,10 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     prompt = compose_prompt(cfg, ref, ticket)
 
     # Header
-    assert "Relay task — fix-retry-logic" in prompt
-    assert "Task directory: relay-os/tasks/fix-retry-logic" in prompt
+    assert "Coga task — fix-retry-logic" in prompt
+    assert "Task directory: coga/tasks/fix-retry-logic" in prompt
     # Base prompt
-    assert "You are an agent working on a ticket inside Relay" in prompt
+    assert "You are an agent working on a ticket inside Coga" in prompt
     # Interactive prompt
     assert "Interactive mode" in prompt
     # Repo context
@@ -154,8 +154,8 @@ def test_compose_header_uses_resolved_nested_task_directory(repo: Path) -> None:
     prompt = compose_prompt(cfg, ref, ticket)
 
     # A nested task is identified by its path under `tasks/`.
-    assert "Relay task — auto/fix-retry-logic" in prompt
-    assert "Task directory: relay-os/tasks/auto/fix-retry-logic" in prompt
+    assert "Coga task — auto/fix-retry-logic" in prompt
+    assert "Task directory: coga/tasks/auto/fix-retry-logic" in prompt
 
 
 def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
@@ -179,19 +179,19 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
     assert "After bumping, exit cleanly" in prompt
     assert "One step, one session" in prompt
     assert "API/manual sessions don't chain" in prompt
-    assert "relay mark done" in prompt
+    assert "coga mark done" in prompt
     assert "Never stop silently" in prompt
     # Supervisor respawn/teardown mechanics are reference the agent can't act
-    # on; they live in relay/architecture now (loaded only when a ticket
+    # on; they live in coga/architecture now (loaded only when a ticket
     # attaches it), not in every base prompt. This ticket has no contexts, so
     # those phrases are absent here.
-    assert "How the supervisor chains steps is in `relay/architecture`" in prompt
+    assert "How the supervisor chains steps is in `coga/architecture`" in prompt
     assert "respawns the next agent step" not in prompt
     assert "clean prompt scope" not in prompt
     # Old continue-in-same-session rule must be gone.
     assert "After bumping, inspect the new state" not in prompt
     assert "continue that next step in this same session" not in prompt
-    assert "relay bump` marks the task `done`" not in prompt
+    assert "coga bump` marks the task `done`" not in prompt
 
 
 def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
@@ -307,7 +307,7 @@ def test_compose_raises_on_missing_step_skill(repo: Path) -> None:
             },
             "step": "1 (implement)",
         },
-        body="## Description\n\nDo the thing.\n\n<!-- relay:blackboard -->\n\n# Blackboard\n",
+        body="## Description\n\nDo the thing.\n\n<!-- coga:blackboard -->\n\n# Blackboard\n",
     )
 
     with pytest.raises(ComposeError) as exc:
@@ -324,4 +324,4 @@ def test_write_prompt_file(repo: Path, tmp_path: Path) -> None:
     out = write_prompt_file(prompt, ref, dest_dir=tmp_path)
     assert out.exists()
     assert out.read_text() == prompt
-    assert out.name.startswith("relay-x-")
+    assert out.name.startswith("coga-x-")

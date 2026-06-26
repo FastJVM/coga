@@ -3,14 +3,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "relay-os"
+name = "coga"
 version = "0.2.0"
 description = "A way to organize agent work — a git-backed, markdown-first CLI for humans and AI agents."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "AGPL-3.0-or-later" }
 authors = [
-  { name = "Relay contributors" },
+  { name = "Coga contributors" },
 ]
 keywords = ["agents", "cli", "workflow", "task-management", "markdown"]
 classifiers = [
@@ -35,7 +35,7 @@ dependencies = [
 # Dev/test-only. `hatchling` is the build backend; it is required so
 # `tests/test_packaging.py::test_wheel_includes_bootstrap_batteries` actually
 # builds a wheel instead of `importorskip`-skipping (which masked the clean-
-# checkout wheel build failure). Relay never imports hatchling at runtime, so
+# checkout wheel build failure). Coga never imports hatchling at runtime, so
 # it stays out of `requirements.txt` / `[project.dependencies]`.
 test = [
   "pytest>=8",
@@ -43,18 +43,18 @@ test = [
 ]
 
 [project.scripts]
-relay = "relay.cli:main"
+coga = "coga.cli:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/relay"]
+packages = ["src/coga"]
 # Never ship local build artifacts that appear under the packaged template
-# tree when `relay init` is run inside the fixture: a vendored CLI/venv
-# (.relay, .venv) and bytecode caches. Without this, a wheel built from a
+# tree when `coga init` is run inside the fixture: a vendored CLI/venv
+# (.coga, .venv) and bytecode caches. Without this, a wheel built from a
 # dirty working tree drags in ~40MB of stale venv — which copy_fresh_templates
-# would then replicate into every fresh `relay init`.
+# would then replicate into every fresh `coga init`.
 #
 # The `bootstrap/` exclude is paired with the force-include below: hatchling's
 # package-aware file selection (`packages`) silently drops pure-data
@@ -65,27 +65,27 @@ packages = ["src/relay"]
 # it back wholesale (a literal copy that ships every dir) — which also correctly
 # ships `bootstrap/` even though the template `.gitignore` marks it ignored
 # (it's upstream-managed: gitignored in instantiated repos, but must ride in the
-# wheel so `relay init` can lay it down).
+# wheel so `coga init` can lay it down).
 exclude = [
-  "**/.relay/**",
+  "**/.coga/**",
   "**/.venv/**",
   "**/__pycache__/**",
-  "**/relay-os/bootstrap/**",
+  "**/coga/bootstrap/**",
   # Paired with the `skills/_template` force-include below, exactly like
-  # `bootstrap/`. On a clean checkout (no `relay init` symlinks under the
+  # `bootstrap/`. On a clean checkout (no `coga init` symlinks under the
   # templates tree) the `packages` walk DOES grab `_template/SKILL.md`, which
   # then collides with the force-include and aborts the wheel build
   # ("A second file is being added to the wheel archive at the same path").
   # The symlink views in a dev tree only dedup that collision away by accident,
   # so we exclude the leaf from the walk and let the force-include be its single
   # deterministic shipper — matching the bootstrap exclude+force-include pairing.
-  "**/relay-os/skills/_template/**",
+  "**/coga/skills/_template/**",
 ]
 
 [tool.hatch.build.targets.wheel.force-include]
-"src/relay/resources/templates/relay-os/bootstrap" = "relay/resources/templates/relay-os/bootstrap"
-# `skills/_template` is the same pure-data drop (a setup stub `relay init
+"src/coga/resources/templates/coga/bootstrap" = "coga/resources/templates/coga/bootstrap"
+# `skills/_template` is the same pure-data drop (a setup stub `coga init
 # --update` refreshes); force-include it too. Scoped to the leaf so hatchling's
 # walk never reaches the `.agent-skills`/`.claude`/`.codex` symlink views (which,
 # when traversed, resolve to the real skill dirs and dedup them away).
-"src/relay/resources/templates/relay-os/skills/_template" = "relay/resources/templates/relay-os/skills/_template"
+"src/coga/resources/templates/coga/skills/_template" = "coga/resources/templates/coga/skills/_template"

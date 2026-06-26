@@ -3,10 +3,10 @@
 Verifies:
 - task creating creates a task with a frozen workflow snapshot.
 - Prompt composition includes every expected section.
-- `relay bump` advances; `relay mark done` finishes the final step.
-- `relay panic` writes to blackboard + releases the lock.
-- `relay slack` logs a message.
-- `relay status` lists the task queue.
+- `coga bump` advances; `coga mark done` finishes the final step.
+- `coga panic` writes to blackboard + releases the lock.
+- `coga slack` logs a message.
+- `coga status` lists the task queue.
 - The validator runs cleanly against a healthy repo.
 """
 
@@ -18,14 +18,14 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from relay.cli import app
-from relay.create import create_task
-from relay.compose import compose_prompt
-from relay.config import load_config
-from relay.logfile import task_log_lines
-from relay.taskfile import fence_count, read_blackboard
-from relay.tasks import list_tasks, read_ticket
-from relay.validate import run as validate_run
+from coga.cli import app
+from coga.create import create_task
+from coga.compose import compose_prompt
+from coga.config import load_config
+from coga.logfile import task_log_lines
+from coga.taskfile import fence_count, read_blackboard
+from coga.tasks import list_tasks, read_ticket
+from coga.validate import run as validate_run
 
 
 EXAMPLE = Path(__file__).parent.parent / "example"
@@ -36,9 +36,9 @@ def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Copy the seeded example repo into tmp_path so the test doesn't mutate the source.
 
     `.claude/` and `.codex/` are gitignored, agent-skill materializations that
-    relay regenerates on demand — not part of the seeded fixture. They contain
-    `skills/relay` symlinks into `.agent-skills`, which may be stale/dangling on
-    a developer's machine after running relay against `example/`. Excluding them
+    coga regenerates on demand — not part of the seeded fixture. They contain
+    `skills/coga` symlinks into `.agent-skills`, which may be stale/dangling on
+    a developer's machine after running coga against `example/`. Excluding them
     keeps the copy reproducible (and avoids `shutil` choking on a dead symlink).
     """
     dest = tmp_path / "example"
@@ -48,8 +48,8 @@ def seeded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         ignore=shutil.ignore_patterns(".claude", ".codex", ".git", ".venv*", "venv"),
         ignore_dangling_symlinks=True,
     )
-    monkeypatch.chdir(dest / "relay-os")
-    return dest / "relay-os"
+    monkeypatch.chdir(dest / "coga")
+    return dest / "coga"
 
 
 def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -95,7 +95,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Blackboard" in prompt
 
     # 3. Advance steps. Workflow has 4 steps; 3 bumps walk to the last step,
-    #    then `relay mark done` finishes the ticket.
+    #    then `coga mark done` finishes the ticket.
     runner = CliRunner()
     slug = ref["slug"]
     for _ in range(3):

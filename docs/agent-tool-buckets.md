@@ -1,8 +1,8 @@
-# Agent Tool Buckets — Is Relay Better?
+# Agent Tool Buckets — Is Coga Better?
 
-> Source: [Google Doc](https://docs.google.com/document/d/1IbQ4qh17rK2SZNFIGrMZVkvc_qSSHHiAFvANs7a60eU/edit), produced by the `bucket-comparison-document` task (`relay-os/tasks/bucket-comparison-document/`). The Doc is the editable original; this is a repo snapshot.
+> Source: [Google Doc](https://docs.google.com/document/d/1IbQ4qh17rK2SZNFIGrMZVkvc_qSSHHiAFvANs7a60eU/edit), produced by the `bucket-comparison-document` task (`coga/tasks/bucket-comparison-document/`). The Doc is the editable original; this is a repo snapshot.
 
-This doc sorts the agent tools I've tested into three buckets — agent replacements, overlays, and autonomous tools — and then answers the question: is Relay better?
+This doc sorts the agent tools I've tested into three buckets — agent replacements, overlays, and autonomous tools — and then answers the question: is Coga better?
 
 ## Bucket 1: Tools that try to replace the agent — Linear Agent, Dust, Cursor
 
@@ -20,10 +20,10 @@ These tools provided the best testing result, but also with some variance. OpenC
 
 Paperclip provided the best project outcome. It tested the selectors at the right time, it handled issues in parallel — making for a much faster workable automation — and it flagged issues as blocking. In comparison, Paperclip needed less human intervention than any other tool while producing the best (and fastest) project outcome.
 
-## Is Relay Better?
+## Is Coga Better?
 
-Relay isn't trying to replace agents. My testing showed that that was consistently a losing game. Claude Code was always better at structuring projects than the agent replacements. What Relay offers is opportunities for the human to identify better ways of completing a task, and guide the agent in that direction.
+Coga isn't trying to replace agents. My testing showed that that was consistently a losing game. Claude Code was always better at structuring projects than the agent replacements. What Coga offers is opportunities for the human to identify better ways of completing a task, and guide the agent in that direction.
 
-Every part of Relay's system is viewable and editable therefore it allows the human to fill gaps and remove the variance that I saw in bucket 3. When a human finds a better way to guide AI through a task, not only does it increase productivity for the human that found it — that value (a new skill, a new context block, a new workflow) can then be reused by other teammates.
+Every part of Coga's system is viewable and editable therefore it allows the human to fill gaps and remove the variance that I saw in bucket 3. When a human finds a better way to guide AI through a task, not only does it increase productivity for the human that found it — that value (a new skill, a new context block, a new workflow) can then be reused by other teammates.
 
-I think Relay is better than other services because there's no black box. No unseen project structure that can lead to inconsistent outcomes when AI alone is asked to build the same project twice. Keeping the human in the loop — in every loop — gives the opportunity to attach workflows that largely remove variance.
+I think Coga is better than other services because there's no black box. No unseen project structure that can lead to inconsistent outcomes when AI alone is asked to build the same project twice. Keeping the human in the loop — in every loop — gives the opportunity to attach workflows that largely remove variance.

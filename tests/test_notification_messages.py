@@ -21,13 +21,13 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from relay import autoclose as am
-from relay import spool
-from relay.cli import app
-from relay.config import load_config
-from relay.create import create_task
-from relay.taskfile import read_blackboard, replace_blackboard
-from relay.ticket import Ticket
+from coga import autoclose as am
+from coga import spool
+from coga.cli import app
+from coga.config import load_config
+from coga.create import create_task
+from coga.taskfile import read_blackboard, replace_blackboard
+from coga.ticket import Ticket
 
 
 def _write(path: Path, text: str) -> None:
@@ -64,7 +64,7 @@ def _write_workflow_less_task(
 
         ## Description
 
-        <!-- relay:blackboard -->
+        <!-- coga:blackboard -->
 
         # Blackboard
     """).lstrip())
@@ -73,9 +73,9 @@ def _write_workflow_less_task(
 
 @pytest.fixture
 def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    company = tmp_path / "relay-os"
+    company = tmp_path / "coga"
     _write(
-        company / "relay.toml",
+        company / "coga.toml",
         """
         version = 1
         default_status = "draft"
@@ -89,7 +89,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         file = "CLAUDE.md"
         """,
     )
-    _write(company / "relay.local.toml", 'user = "marc"\n')
+    _write(company / "coga.local.toml", 'user = "marc"\n')
     _write(
         company / "workflows" / "code.md",
         """
@@ -165,7 +165,7 @@ def _capture(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
         return R()
 
-    monkeypatch.setattr("relay.notification.slack.requests.post", fake)
+    monkeypatch.setattr("coga.notification.slack.requests.post", fake)
     return posts
 
 
@@ -347,9 +347,9 @@ def test_automerge_digest_preserves_transition_and_pr_link(
 def test_recurring_create_is_silent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from relay.commands.recurring import _broadcast_scan
-    from relay.recurring import DueScan, DueTask
-    from relay.tasks import TaskRef
+    from coga.commands.recurring import _broadcast_scan
+    from coga.recurring import DueScan, DueTask
+    from coga.tasks import TaskRef
 
     slug, path = _make_task(repo, status="active")
     posts = _capture(monkeypatch)
