@@ -35,6 +35,20 @@ python -m pip install -e .
 That puts `coga` on your PATH against the source. Keep it current later with a
 periodic `git pull && pip install -e .`.
 
+To reinstall a packaged build from GitHub instead of using a source checkout
+(useful for testing a PR branch before it lands), use `pipx`:
+
+```sh
+pipx install --force "git+https://github.com/FastJVM/coga.git@<branch-or-tag>"
+```
+
+Use `main` after a PR lands, or the PR branch name while testing it. Then
+refresh any repo-local vendored Coga copy:
+
+```sh
+coga init --update
+```
+
 **2. Set up a project.** One `coga/` per repo — the repo *is* the project.
 For a fresh project:
 
