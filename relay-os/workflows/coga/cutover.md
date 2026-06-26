@@ -28,12 +28,20 @@ confirm every checkout is reinstalled and on `coga`.
 - Switch every `relay …` invocation to `coga …`: the `relay()` shell
   function wrapper in your shell profile (rename it to `coga()` or delete
   it), plus any scripts, recurring-job triggers, and aliases.
-- Every machine/person that runs the CLI (you, Nick, any other host) does
-  the same pull + reinstall + invocation switch. There is no central
-  registry — it is per-checkout.
-- Until everyone has reinstalled, nobody launches or bumps with the old
-  `relay`. Once you have reinstalled, use `coga` for everything from here;
-  finish this step with `coga bump <slug>`.
+- **Coordinate every other host before bumping** — there is no central
+  registry, so each machine cuts over itself. For the boss (Nick) and any
+  other host that runs the CLI, run this handshake and don't proceed until
+  it closes:
+  1. Ping them that `main` is renamed and the old `relay` is now dead.
+  2. They `git pull` the renamed `main`, reinstall (`pip install -e .` or
+     `pipx install --force .`), and rename/delete their `relay()` shell
+     wrapper.
+  3. They confirm back that `coga --help` works and `relay` is gone.
+  4. Mark that host done on the blackboard.
+- Nobody launches or bumps with the old `relay` until every host has
+  confirmed — a stray pre-rename push resurrects `relay-os/`. Once you've
+  reinstalled, use `coga` for everything here; `coga bump <slug>` only
+  after you and Nick (and any other host) have each confirmed.
 
 ## verify
 
