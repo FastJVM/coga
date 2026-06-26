@@ -289,3 +289,5 @@
 2026-06-25 18:34 [rename-relay-to-coga] [human:zach] started (active → in_progress) via relay launch
 2026-06-25 18:34 [rename-relay-to-coga] [human:zach] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-25 19:38 [rename-relay-to-coga] [agent:claude] advanced to step 2 (self-qa)
+2026-06-25 19:38 [rename-relay-to-coga] [human:zach] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-25 19:59 [coga-rename-follow-ups-post-repo-rename] [human:zach] created (autonomy=interactive, status=draft)
