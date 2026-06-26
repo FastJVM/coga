@@ -1,7 +1,7 @@
 ---
 slug: rename-relay-to-coga
 title: Rename relay to coga (full rebrand)
-status: draft
+status: active
 autonomy: interactive
 owner: zach
 human: zach
@@ -27,7 +27,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: "1 (implement)"
+step: 1 (implement)
 ---
 
 ## Description

@@ -285,3 +285,4 @@
 2026-06-24 22:25 [nightly-auto-drain-run-for-ready-tickets] [human:nick] started (active → in_progress) via relay launch
 2026-06-24 22:25 [nightly-auto-drain-run-for-ready-tickets] [human:nick] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-25 07:48 [nightly-auto-drain-run-for-ready-tickets] [agent:claude] advanced to step 2 (review-design) → assigned to nick — Design spec complete — Description/Acceptance/Proposed Shape/Out of Scope written; 4 decisions resolved on blackboard. Two gates flagged for review: cross-ticket scope agreement (decision #1) + implement hard-gate on auto-streaming + engine sibling.
+2026-06-25 18:33 [rename-relay-to-coga] [human:zach] activated (draft → active)
