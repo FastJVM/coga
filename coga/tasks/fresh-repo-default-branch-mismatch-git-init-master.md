@@ -1,7 +1,7 @@
 ---
 slug: fresh-repo-default-branch-mismatch-git-init-master
 title: 'Fresh-repo default branch mismatch: git init master vs control_branch main'
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick

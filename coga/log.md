@@ -357,3 +357,4 @@
 2026-06-26 22:08 [async-park-and-continue-on-block] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
 2026-06-26 22:08 [fresh-repo-default-branch-mismatch-git-init-master] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-27 15:03 [fresh-repo-default-branch-mismatch-git-init-master] [human:nicktoper] activated (draft → active) — auto on launch
+2026-06-27 15:03 [fresh-repo-default-branch-mismatch-git-init-master] [human:nicktoper] started (active → in_progress) via coga launch
