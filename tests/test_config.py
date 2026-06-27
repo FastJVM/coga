@@ -1006,3 +1006,38 @@ def test_ticket_fields_required_must_be_bool(repo: Path) -> None:
     )
     with pytest.raises(ConfigError, match="required must be a boolean"):
         load_config(repo)
+
+
+def test_extensions_freeform_passthrough(repo: Path) -> None:
+    """`[extensions]` is a repo-owned namespace coga accepts verbatim — nested
+    tables and arbitrary scalars pass through to `Config.extensions`."""
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
+        + (
+            "\n[extensions]\n"
+            "feature_flag = true\n"
+            "\n[extensions.patent]\n"
+            'calendar_id = "abc123@group.calendar.google.com"\n'
+        )
+    )
+    cfg = load_config(repo)
+    assert cfg.extensions["feature_flag"] is True
+    assert (
+        cfg.extensions["patent"]["calendar_id"]
+        == "abc123@group.calendar.google.com"
+    )
+
+
+def test_extensions_absent_defaults_empty(repo: Path) -> None:
+    assert load_config(repo).extensions == {}
+
+
+def test_extensions_non_table_rejected(repo: Path) -> None:
+    # insert as a top-level scalar (before any table header) so it's the
+    # `[extensions]` section, not a key inside the trailing [agents.*] table
+    text = (repo / "coga.toml").read_text().replace(
+        "version = 1", 'version = 1\nextensions = "nope"', 1
+    )
+    (repo / "coga.toml").write_text(text)
+    with pytest.raises(ConfigError, match=r"\[extensions\] must be a table"):
+        load_config(repo)
