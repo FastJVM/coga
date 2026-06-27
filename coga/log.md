@@ -330,3 +330,4 @@
 2026-06-26 21:50 [document-the-automerge-bare-pr-line-format-require] [human:nicktoper] task done — Closed obsolete: automerge already parses bulleted '- pr:' lines (fixed in #444 / ec325300); requested doc would contradict the code.
 2026-06-26 21:52 [decouple-autoclose-sweep-test-from-baked-in-period] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-26 21:57 [decouple-autoclose-sweep-test-from-baked-in-period] [human:nicktoper] activated (draft → active)
+2026-06-26 21:57 [decouple-autoclose-sweep-test-from-baked-in-period] [human:nicktoper] task done

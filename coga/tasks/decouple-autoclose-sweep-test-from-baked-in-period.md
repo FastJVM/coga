@@ -1,7 +1,7 @@
 ---
 slug: decouple-autoclose-sweep-test-from-baked-in-period
 title: Decouple autoclose sweep test from baked-in period date
-status: active
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -27,7 +27,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
 ---
 
 ## Description
