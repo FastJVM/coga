@@ -1,7 +1,7 @@
 ---
 slug: change-log-format-union-merge-in-git
 title: change log format + union merge in git
-status: active
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -17,7 +17,6 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
-step: 1 (execute)
 ---
 
 ## Description

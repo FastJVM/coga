@@ -349,3 +349,4 @@
 2026-06-26 22:03 [async-park-and-continue-on-block] [agent:claude] panic: Implementation is committed on branch async-park-continue at d92bd679, but coga bump cannot advance because the live ticket frontmatter is status: draft. Launch/activate the task into in_progress, then rerun coga bump to hand off to peer-review.
 2026-06-26 21:59 [change-log-format-union-merge-in-git] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-26 22:06 [change-log-format-union-merge-in-git] [human:nicktoper] activated (draft → active)
+2026-06-26 22:06 [change-log-format-union-merge-in-git] [human:nicktoper] task done
