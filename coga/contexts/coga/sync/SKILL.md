@@ -32,7 +32,9 @@ out of notifications entirely:
 
 Live (urgent) surface — still posts immediately:
 
-- `coga panic` — blocker, owner named.
+- `coga panic` — blocker, owner named; leaves the task `in_progress` at its
+  current step for a later stateless resume after the owner answers in the
+  blackboard.
 - `coga slack` — explicit FYI (manual broadcast escape hatch); an
   intentional human broadcast, so batching it would surprise the sender.
 - `coga bump --message "<FYI>"` — explicit FYI attached to step movement.
@@ -365,6 +367,8 @@ Current surface:
 - `coga recurring` and `coga retire` creates.
 - `coga panic` — the blocker written to the blackboard + log, synced before
   the teardown signal so the commit lands while the process still owns itself.
+  In a recurring sweep, that new blocker is the handshake that distinguishes an
+  async park (continue to the next due task) from an arbitrary launch failure.
 - `coga ticket` authoring — the edits the launched agent makes to `ticket.md`
   (and the blackboard) inside the subprocess, committed once control returns
   and the result passes validation. coga never calls `ticket.write()` for

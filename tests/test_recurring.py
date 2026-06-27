@@ -10,6 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from coga import git as coga_git
+from coga.blackboard import append_blocker
 from coga.commands import recurring as recurring_cmd
 from coga.cli import app
 from coga.config import load_config
@@ -3179,6 +3180,97 @@ def test_bare_recurring_records_liveness_timeout_not_human_pause(
     assert all("[system:watchdog]" in line for line in pause_lines)
     assert any("timed out before signalling done" in line for line in pause_lines)
     assert all(f"[human:{cfg.current_user}]" not in line for line in pause_lines)
+
+
+@pytest.mark.parametrize(
+    ("panic_exit_code", "expected_output"),
+    [
+        (1, "launch exited 1 after writing a blocker"),
+        (None, "launch returned after writing a blocker"),
+    ],
+)
+def test_bare_recurring_continues_past_panicked_task(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    panic_exit_code: int | None,
+    expected_output: str,
+) -> None:
+    """An agent panic parks one task without aborting the sweep.
+
+    `coga panic` appends a blocker and exits non-zero. The launch supervisor
+    can surface that non-zero exit directly, or report a clean return when the
+    done-marker watcher tore down the REPL. Either way, the recurring sweep
+    should treat the new blocker as an intentional async park: leave the task
+    `in_progress` for a later stateless resume, then continue to the next due
+    task.
+    """
+    company = tmp_path / "coga"
+    _write(
+        company / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(company / "coga.local.toml", 'user = "marc"\n')
+    _seed_period_task_context(company)
+    _seed_script_workflow(company)
+    _write_recurring_script(
+        company, "nightly-check", schedule="0 9 * * *", title="Nightly diagnostic"
+    )
+    _write_recurring_script(
+        company,
+        "z-nightly-check",
+        schedule="0 9 * * *",
+        title="Second nightly check",
+    )
+    monkeypatch.chdir(company)
+    calls: list[str] = []
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        assert kwargs.get("return_timeout") is True
+        calls.append(task)
+        ticket_path = company / "tasks" / task / "ticket.md"
+        ticket = Ticket.read(ticket_path)
+        if task == "recurring/nightly-check":
+            ticket.frontmatter["status"] = "in_progress"
+            ticket.write(ticket_path)
+            append_blocker(
+                ticket_path,
+                "agent:claude",
+                "Need owner to choose the retry ceiling before continuing",
+            )
+            if panic_exit_code is not None:
+                raise SystemExit(panic_exit_code)
+            return
+        ticket.frontmatter["status"] = "done"
+        ticket.write(ticket_path)
+
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 0, result.output
+    assert calls == ["recurring/nightly-check", "recurring/z-nightly-check"]
+    combined = result.output + (result.stderr or "")
+    assert expected_output in combined
+    assert "continuing to next due task" in combined
+
+    first = Ticket.read(company / "tasks" / "recurring/nightly-check" / "ticket.md")
+    second = Ticket.read(
+        company / "tasks" / "recurring/z-nightly-check" / "ticket.md"
+    )
+    assert first.status == "in_progress"
+    assert second.status == "done"
+    assert "Need owner to choose the retry ceiling" in read_blackboard(
+        company / "tasks" / "recurring/nightly-check" / "ticket.md"
+    )
 
 
 def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(

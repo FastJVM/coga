@@ -20,7 +20,7 @@ from coga.commands.launch import _interactive_stdio_has_tty
 from coga.config import Config, ConfigError, load_config
 from coga.logfile import append_log, ref_tag_for_path, task_log_lines
 from coga.paths import log_path
-from coga.taskfile import read_blackboard
+from coga.taskfile import TaskFileError, read_blackboard
 from coga.recurring import (
     DueTask,
     DueScan,
@@ -155,15 +155,28 @@ def main(
         # the liveness backstops release any that launch but then stall. `launch`
         # returns "timeout" when a backstop fired so we record the wedge honestly
         # below instead of pausing it as a human would.
-        kind = launch_cmd(
-            task.ref.id_slug,
-            agent_override=None,
-            prompt_report=False,
-            autonomy_override=autonomy_override,
-            idle_timeout=idle_timeout,
-            max_session=max_session,
-            return_timeout=True,
-        )
+        blackboard_before_launch = _read_blackboard_if_present(task.ref)
+        try:
+            kind = launch_cmd(
+                task.ref.id_slug,
+                agent_override=None,
+                prompt_report=False,
+                autonomy_override=autonomy_override,
+                idle_timeout=idle_timeout,
+                max_session=max_session,
+                return_timeout=True,
+            )
+        except SystemExit as exc:
+            code = _system_exit_code(exc)
+            if code != 0 and _launch_parked_with_blocker(
+                task.ref, blackboard_before_launch
+            ):
+                _echo_parked_panic(task.ref, code)
+                continue
+            raise
+        if _launch_parked_with_blocker(task.ref, blackboard_before_launch):
+            _echo_parked_panic(task.ref, None)
+            continue
         _stop_if_unfinished_after_launch(
             cfg, task.ref, interactive=interactive, timed_out=(kind == "timeout")
         )
@@ -1205,6 +1218,80 @@ def _stop_if_unfinished_after_launch(
         err=True,
     )
     sys.exit(1)
+
+
+def _system_exit_code(exc: SystemExit) -> int:
+    """Normalize `SystemExit.code` to the process status shells observe."""
+    if exc.code is None:
+        return 0
+    if isinstance(exc.code, int):
+        return exc.code
+    return 1
+
+
+def _read_blackboard_if_present(ref: TaskRef) -> str:
+    try:
+        return read_blackboard(ref.ticket_path)
+    except (FileNotFoundError, OSError, TaskFileError):
+        return ""
+
+
+def _launch_parked_with_blocker(ref: TaskRef, before: str) -> bool:
+    """True when a launch's non-zero exit was an intentional panic park.
+
+    `coga panic` is the blocker channel: it appends a `## Blockers` entry and
+    then exits non-zero. In a supervised interactive REPL the done-marker
+    teardown can make that same panic look like a clean launch return. A random
+    launch failure must still fail loud, so the recurring sweep only treats a
+    launch as parked work when a new blocker entry appeared during that launch
+    and the task is still resumable.
+    """
+    after = _read_blackboard_if_present(ref)
+    if _blocker_entry_count(after) <= _blocker_entry_count(before):
+        return False
+    if not ref.ticket_path.exists():
+        return False
+    try:
+        ticket = read_ticket(ref)
+    except TicketError:
+        return False
+    return ticket.status == "in_progress"
+
+
+def _blocker_entry_count(region: str) -> int:
+    in_blockers = False
+    count = 0
+    for line in region.splitlines():
+        if line.startswith("## "):
+            in_blockers = line.strip() == "## Blockers"
+            continue
+        if in_blockers and line.lstrip().startswith("- "):
+            count += 1
+    return count
+
+
+def _echo_parked_panic(ref: TaskRef, code: int | None) -> None:
+    status = "unknown"
+    title = ""
+    if ref.ticket_path.exists():
+        try:
+            ticket = read_ticket(ref)
+        except TicketError:
+            pass
+        else:
+            status = ticket.status or status
+            title = f' "{ticket.title}"' if ticket.title else ""
+    exit_text = (
+        f"launch exited {code} after writing a blocker"
+        if code is not None
+        else "launch returned after writing a blocker"
+    )
+    typer.secho(
+        f"{ref.id_slug}{title}: {exit_text}; parked with status={status!r} "
+        "and continuing to next due task. Answer the blocker in the blackboard, "
+        f"then run `coga launch {ref.id_slug}` or `coga recurring` to resume.",
+        fg=typer.colors.YELLOW,
+    )
 
 
 # --- scan reporting -----------------------------------------------------------

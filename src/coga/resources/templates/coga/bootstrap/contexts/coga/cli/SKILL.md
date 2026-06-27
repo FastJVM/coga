@@ -434,7 +434,10 @@ README `External CLI Tools` list, never in `requirements.txt`.
 
 Agent gives up. Writes a panic marker on the blackboard and posts a
 Slack notification naming the task owner. Exits non-zero. Reserved for
-genuinely stuck states, not routine handoffs.
+genuinely stuck states, not routine handoffs. Panic leaves the task
+`in_progress` at its current step so a later `coga launch` can resume after the
+owner answers in the blackboard; recurring sweeps treat the launch as parked
+only when it wrote a new blocker.
 
 ## coga slack --task \<slug\> --message "..."
 
@@ -497,6 +500,15 @@ each set most-overdue first, one finishing before the next starts. It prints
 a scan table (`→ resume` / `→ launch` / `ready` vs `overdue Nd`) before
 launching. `done` and `paused` tasks are skipped — never relaunched; a stuck
 `in_progress` run defers the next period until it reaches one of those.
+
+If a launched task calls `coga panic`, the sweep detects the new `## Blockers`
+entry as an async park: panic has already posted and synced the blocker, the
+task stays `in_progress` at its current step, and the sweep continues to the
+next ready task whether the launch surfaces panic as non-zero or as a
+done-marker return. After the owner answers in the blackboard, the next
+`coga launch recurring/<name>` or sweep resumes the same step from the files on
+disk. Launch failures without a new blocker still fail loud instead of being
+treated as parked work.
 
 Current period only: it does not chase missed periods. Running `coga
 recurring` once a month for a weekly template produces one run (this

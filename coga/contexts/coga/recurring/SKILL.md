@@ -48,8 +48,14 @@ scanner skips it. That is how the starter templates ship without firing.
   `done` (finished work) and `paused` (a human parked it) stay skipped. A
   stale leftover under `tasks/recurring/<name>/` is resumed before any new
   period work for that template; there is only one instantiated path per
-  template. If a non-interactive launched task
-  returns still unfinished, the sweep stops before the next due task.
+  template. If a launched task calls `coga panic`, the panic command writes a
+  new `## Blockers` entry, posts/syncs it, and leaves the period task
+  `in_progress`; the sweep treats that new blocker as an async park and
+  continues to the next due task, whether the launch surfaces panic as non-zero
+  or as a done-marker return. Once the owner answers in the blackboard, the
+  next `coga launch recurring/<name>` or sweep resumes the same step from the
+  files on disk. A non-interactive launch that returns still unfinished without
+  a new blocker is not parked; the sweep stops before the next due task.
 - `coga recurring launch <name>` — creates one named recurring task now,
   ignoring its schedule. `<name>` is the directory name. Unless
   `--interactive` is set, the launched REPL receives the same concrete
