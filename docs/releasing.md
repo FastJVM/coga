@@ -7,8 +7,16 @@ pasted anywhere.**
 
 ## One-time setup (per index)
 
-A trusted publisher must be registered on each index *before* the first upload,
-using the "pending publisher" form (the project doesn't exist yet).
+A trusted publisher must be registered on each index *before* the workflow can
+publish. **Which form to use depends on whether the project already exists on
+that index:**
+
+- **Name not yet registered** → the account-level **"pending publisher"** form
+  (Account settings → Publishing). This is the case for TestPyPI below.
+- **Project already exists** → the project-level form under **Manage →
+  Publishing → Add a trusted publisher**. This is the case for **PyPI**: the
+  `coga` name was reserved with a `0.0.1` placeholder, so the project already
+  exists and the pending-publisher form does **not** apply.
 
 ### 1. TestPyPI — the dry-run sandbox (do this first)
 
@@ -25,11 +33,14 @@ using the "pending publisher" form (the project doesn't exist yet).
 
 ### 2. PyPI — the real index
 
-Same form at <https://pypi.org> → **Account settings → Publishing → Add a pending publisher**:
+`coga` **already exists on PyPI** (the `0.0.1` placeholder), so use the
+*project-level* form, not the account-level pending-publisher one:
+<https://pypi.org> → **Your projects → `coga` → Manage → Publishing → Add a
+trusted publisher** (GitHub). The project name is implied by the page, so you
+only enter:
 
 | Field | Value |
 |---|---|
-| PyPI Project Name | `coga` |
 | Owner | `FastJVM` |
 | Repository name | `coga` |
 | Workflow name | `release.yml` |
@@ -42,6 +53,10 @@ on first run). In **repo Settings → Environments → `pypi`** you can add a
 *required reviewer* so a human must approve every real publish.
 
 ## Dry run on TestPyPI
+
+Optional — recommended for a *first-ever* release, but you can skip straight to
+the real release below. PyPI uploads are immutable, so the dry run is the only
+no-cost way to catch a packaging problem before it's permanent.
 
 1. Confirm `version` in `pyproject.toml` is what you intend to publish.
 2. **Actions → Release → Run workflow** → target `testpypi`.
