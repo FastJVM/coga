@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: nick
 contexts:
 - coga/architecture
 - coga/cli
@@ -28,7 +28,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (peer-review)
+step: 4 (review)
 ---
 
 ## Description
@@ -81,6 +81,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: async-park-continue
 worktree: /tmp/coga-async-park
+pr: https://github.com/FastJVM/coga/pull/468
 
 Notes:
 - Implementation launched from prompt step `implement`, but the live ticket frontmatter still says `status: draft`; verify before final `coga bump`.
@@ -98,6 +99,11 @@ Verification:
 - `git diff --check` — passed.
 - `PYTHONPATH=/tmp/coga-async-park/src python -m coga.cli validate --json` — failed on existing unrelated repo task drift (bad install/README frontmatter, install/* missing blackboard fences/autonomy, several missing-step/unknown-assignee warnings); no new validation issue tied to this change identified.
 
+Peer review:
+- [2026-06-26 22:32] [agent:codex] `codex review --base main` found one must-fix: if a launch returns `"timeout"` after writing a blocker, the new blocker-detection path classifies it as an async park before the watchdog timeout path can pause/log it. Fixing by preserving timeout handling ahead of async-park classification.
+- [2026-06-26 22:39] [agent:codex] Applied peer-review fix in commit ed76ced8 (`peer-review: preserve recurring timeout handling`): post-launch async-park classification now skips watchdog timeouts, and `tests/test_recurring.py` covers timeout-after-blocker as a pause/logged timeout rather than an in-progress park.
+- [2026-06-26 22:39] [agent:codex] Verification after review fix: `python -m pytest tests/test_recurring.py -q` — 85 passed; `python -m pytest` — 900 passed, 1 skipped; `git diff --check` — passed.
+
 ---
 
 ## Blockers
@@ -105,3 +111,7 @@ Verification:
 - [2026-06-26 21:59] [agent:claude] Implementation is committed on branch async-park-continue at d92bd679, but coga bump cannot advance because the live ticket frontmatter is status: draft. Launch/activate the task into in_progress, then rerun coga bump to hand off to peer-review.
 
 - [2026-06-26 22:03] [agent:claude] Implementation is committed on branch async-park-continue at d92bd679, but coga bump cannot advance because the live ticket frontmatter is status: draft. Launch/activate the task into in_progress, then rerun coga bump to hand off to peer-review.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":2934400,"cli":"codex","input_tokens":154521,"model":"gpt-5.5","output_tokens":7115,"provider":"openai","schema":1,"session_id":"019f077c-30e3-7d92-82f1-ccb41abd64e2","slug":"async-park-and-continue-on-block","step":"peer-review","title":"Async park-and-continue on block","ts":"2026-06-27T05:24:44.583580Z","usage_status":"ok"}

@@ -358,3 +358,8 @@
 2026-06-26 22:08 [fresh-repo-default-branch-mismatch-git-init-master] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-27 15:03 [fresh-repo-default-branch-mismatch-git-init-master] [human:nicktoper] activated (draft → active) — auto on launch
 2026-06-27 15:03 [fresh-repo-default-branch-mismatch-git-init-master] [human:nicktoper] started (active → in_progress) via coga launch
+2026-06-26 22:10 [async-park-and-continue-on-block] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-26 22:24 [async-park-and-continue-on-block] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-06-26 22:24 [async-park-and-continue-on-block] [git] sync failed: `git add -- coga/tasks/async-park-and-continue-on-block.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-26 22:24 [async-park-and-continue-on-block] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-27 15:05 [async-park-and-continue-on-block] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/468
