@@ -24,6 +24,7 @@ from coga.commands import show as show_cmd
 from coga.commands import slack as slack_cmd
 from coga.commands import status as status_cmd
 from coga.commands import skill as skill_cmd
+from coga.commands import telemetry as telemetry_cmd
 from coga.commands import ticket as ticket_cmd
 from coga.commands import bump as bump_cmd
 from coga.commands import uninstall as uninstall_cmd
@@ -92,6 +93,7 @@ app.add_typer(skill_cmd.app, name="skill")
 app.add_typer(mark_cmd.app, name="mark")
 app.add_typer(recurring_cmd.app, name="recurring")
 app.add_typer(secret_cmd.app, name="secret")
+app.add_typer(telemetry_cmd.app, name="telemetry")
 
 
 # Names of commands registered above. Used to validate that user-defined
@@ -102,6 +104,7 @@ _BUILTIN_COMMANDS = frozenset(
         "init", "uninstall", "create", "launch", "status", "show", "bump",
         "delete", "retire", "panic", "slack", "digest", "usage",
         "skill", "mark", "recurring", "ticket", "project", "validate", "secret",
+        "telemetry",
     }
 )
 

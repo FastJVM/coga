@@ -90,6 +90,33 @@ def _stub_slack(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _stub_telemetry(tmp_path_factory, monkeypatch):
+    """Keep the anonymous install ping inert and machine-isolated in tests.
+
+    The telemetry analogue of `_stub_slack`: point the install-id state dir at a
+    disposable tmp path (so no test reads or writes the developer's real
+    `~/.local/state/coga`), and stub `requests.post` to a no-op 204 so no test
+    can emit a real ping even with telemetry enabled. Tests that exercise the
+    sender re-monkeypatch `coga.telemetry.requests.post` (autouse runs first, so
+    a test-local setattr wins)."""
+    state_dir = tmp_path_factory.mktemp("telemetry-state")
+    monkeypatch.setenv("XDG_STATE_HOME", str(state_dir))
+    # No disable env leaking in from the host — tests assert the default-on path.
+    monkeypatch.delenv("COGA_TELEMETRY_DISABLE", raising=False)
+    monkeypatch.delenv("DO_NOT_TRACK", raising=False)
+    monkeypatch.delenv("COGA_TELEMETRY_URL", raising=False)
+
+    def _noop_post(*args, **kwargs):
+        class R:
+            status_code = 204
+            text = ""
+
+        return R()
+
+    monkeypatch.setattr("coga.telemetry.requests.post", _noop_post, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _clear_supervised_session_env(monkeypatch):
     """Detach the test run from any supervising `coga launch`.
 

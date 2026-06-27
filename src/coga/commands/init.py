@@ -483,6 +483,27 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         typer.echo(f"  {i}. {step}")
 
     _print_notification_state()
+    _print_telemetry_state()
+
+
+def _print_telemetry_state() -> None:
+    """End-of-init disclosure: telemetry is on by default, what's sent, how to stop.
+
+    Loud and explicit — phoning home is opt-out, so the one non-negotiable is
+    that the user is told plainly at install time exactly what leaves the
+    machine and the one-line way to turn it off."""
+    typer.echo("")
+    typer.secho(
+        "ⓘ Anonymous telemetry: ON by default (opt-out). Once a day a recurring\n"
+        "  task sends three fields and nothing else — a random install id, your\n"
+        "  ticket count, and the date of your last run — to gauge install health.\n"
+        "  No repo, path, name, or ticket content is ever sent. See exactly what\n"
+        "  would be sent with `coga telemetry show`. Turn it off any of three ways:\n"
+        "      [telemetry]\n"
+        "      enabled = false      # in coga.toml or coga.local.toml\n"
+        "  or export COGA_TELEMETRY_DISABLE=1, or the standard DO_NOT_TRACK=1.",
+        fg=typer.colors.CYAN,
+    )
 
 
 def _print_notification_state() -> None:

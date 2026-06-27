@@ -337,9 +337,14 @@ committed to git.
   transport uses the user's configured remote; GitHub PR/API operations use
   `gh` auth.
 - **Repo / install identity.** The repo is identified by the git checkout and
-  `coga/` config. An install may additionally carry an anonymous telemetry
-  identity, generated locally and stored only in gitignored local config/state —
-  it counts active installs, it never names a person, repo, or path.
+  `coga/` config. An install additionally carries an anonymous telemetry
+  identity — a random uuid4 generated locally and stored in machine-local state
+  (`$XDG_STATE_HOME/coga/instance-id`), outside any repo. It counts active
+  installs; it never names a person, repo, or path. The opt-out daily ping
+  (`coga/recurring/telemetry/`, `coga telemetry send`) carries only that id, a
+  `ticket.md` count, and a coarse `last_run` date — see `coga.telemetry` and
+  `docs/telemetry.md`. Disable via `[telemetry] enabled = false`,
+  `COGA_TELEMETRY_DISABLE=1`, or `DO_NOT_TRACK=1`.
 - **Skill / task capability.** A task's capabilities are its ticket-level
   `secrets:` list, declared **inline** — each entry is a single-key map
   `NAME: <ref>` whose `<ref>` is an `env:VAR` or `op://vault/item/field`
@@ -355,8 +360,11 @@ committed to git.
   not a provider registry: a future provider is another explicit branch on the
   same shared secret path.
 - **Hosted endpoint.** v1 has at most one hosted crossing — the anonymous
-  telemetry sink, with a trivial opt-out. Coga does **not** ship a hosted
-  account, signup/login flow, API-token store, or sync backend in v1.
+  telemetry sink, with a trivial opt-out. It is a tiny GCP relay
+  (`telemetry-endpoint/`) that drops the client IP at the edge and forwards a
+  one-line message to internal Slack; there is no datastore. Coga does **not**
+  ship a hosted account, signup/login flow, API-token store, or sync backend in
+  v1.
 
 ## Command Surface
 

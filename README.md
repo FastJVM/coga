@@ -788,6 +788,32 @@ coga digest                    # post the spool; stay silent if it's empty (defa
 coga digest --announce-empty   # post a one-line "nothing to report" note instead
 ```
 
+### `coga telemetry [show | send]`
+
+Anonymous, **opt-out** install telemetry — a once-a-day product-market-fit
+signal sent by the `recurring/telemetry/` task. The complete wire payload is
+three fields and **nothing else**:
+
+```json
+{"instance_id": "<uuid4>", "tickets_total": 12, "last_run": "2026-06-19"}
+```
+
+`instance_id` is a random UUID in machine-local state (`$XDG_STATE_HOME/coga`),
+`tickets_total` is a bare count of `ticket.md` files, and `last_run` is a coarse
+UTC date. No repo, path, cwd, hostname, username, git remote, or ticket
+slug/title/content is ever sent. See [docs/telemetry.md](docs/telemetry.md) for
+the full design and the GCP relay that drops the client IP.
+
+```sh
+coga telemetry show    # print status, instance id, endpoint, and the exact payload — sends nothing
+coga telemetry send    # build + send one ping (what the recurring task runs); no-op if disabled
+```
+
+**On by default; disable any of three ways** — `[telemetry] enabled = false` in
+`coga.toml`/`coga.local.toml`, `COGA_TELEMETRY_DISABLE=1`, or the cross-tool
+standard `DO_NOT_TRACK=1`. Any one results in zero network calls; env beats
+config.
+
 ### `coga validate`
 
 Static diagnostic for the repo and config: it checks task files, frontmatter

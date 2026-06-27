@@ -107,6 +107,12 @@ class Config:
     git_enabled: bool = True
     git_remote: str = "origin"
     git_control_branch: str = "main"
+    # Anonymous install telemetry — on by default (opt-out). `telemetry_enabled`
+    # follows the same local-overrides-shared resolution as `git_enabled`
+    # (`_resolve_telemetry_enabled`). The env kill switches `COGA_TELEMETRY_DISABLE`
+    # / `DO_NOT_TRACK` are evaluated at send time in `coga.telemetry`, not here,
+    # so they win over whatever this resolves to. See `coga/recurring/telemetry/`.
+    telemetry_enabled: bool = True
     # Liveness limits for the interactive REPLs `coga recurring` spawns, from
     # the shared `[launch]` table. None = no limit from config. The idle timeout
     # also keeps a presence flag because that limit has a built-in default:
@@ -280,6 +286,9 @@ def load_config(repo_root: Path | None = None) -> Config:
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
     git_enabled = _resolve_git_enabled(shared.get("git"), local.get("git"))
     git_remote, git_control_branch = _parse_git(shared.get("git"))
+    telemetry_enabled = _resolve_telemetry_enabled(
+        shared.get("telemetry"), local.get("telemetry")
+    )
     launch_idle_timeout, launch_idle_timeout_present, launch_max_session = (
         _parse_launch(shared.get("launch"))
     )
@@ -307,6 +316,7 @@ def load_config(repo_root: Path | None = None) -> Config:
         git_enabled=git_enabled,
         git_remote=git_remote,
         git_control_branch=git_control_branch,
+        telemetry_enabled=telemetry_enabled,
         launch_idle_timeout=launch_idle_timeout,
         launch_idle_timeout_present=launch_idle_timeout_present,
         launch_max_session=launch_max_session,
@@ -362,6 +372,7 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "launch",
     "ticket",
     "aliases",
+    "telemetry",
 })
 _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "user",
@@ -369,6 +380,7 @@ _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "notification",
     "slack",
     "git",
+    "telemetry",
 })
 _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
     "cli",
@@ -396,6 +408,9 @@ _ALLOWED_SHARED_GIT_KEYS: frozenset[str] = frozenset({
 _ALLOWED_LOCAL_GIT_KEYS: frozenset[str] = frozenset({"enabled"})
 _ALLOWED_LAUNCH_KEYS: frozenset[str] = frozenset({"idle_timeout", "max_session"})
 _ALLOWED_TICKET_KEYS: frozenset[str] = frozenset({"fields"})
+# `enabled` is the only `[telemetry]` key, honored from either file (local
+# overriding shared, like `[git].enabled`).
+_ALLOWED_TELEMETRY_KEYS: frozenset[str] = frozenset({"enabled"})
 
 
 def _reject_unknown_sections(shared: dict, local: dict) -> None:
@@ -430,6 +445,12 @@ def _reject_unknown_sections(shared: dict, local: dict) -> None:
     )
     _reject_unknown_keys(
         local.get("git"), _ALLOWED_LOCAL_GIT_KEYS, "[git] in coga.local.toml"
+    )
+    _reject_unknown_keys(
+        shared.get("telemetry"), _ALLOWED_TELEMETRY_KEYS, "[telemetry] in coga.toml"
+    )
+    _reject_unknown_keys(
+        local.get("telemetry"), _ALLOWED_TELEMETRY_KEYS, "[telemetry] in coga.local.toml"
     )
 
 
@@ -1010,6 +1031,27 @@ def _resolve_git_enabled(shared: dict | None, local: dict | None) -> bool:
             if not isinstance(value, bool):
                 raise ConfigError(
                     f"[git].enabled must be a boolean (got {type(value).__name__})"
+                )
+            return value
+    return True
+
+
+def _resolve_telemetry_enabled(shared: dict | None, local: dict | None) -> bool:
+    """Resolve [telemetry].enabled with local overriding shared. Default: True.
+
+    Anonymous install telemetry is on by default (opt-out). A machine-local
+    `[telemetry].enabled = false` in `coga.local.toml` turns it off for this
+    checkout, overriding the shared repo value. The env kill switches
+    (`COGA_TELEMETRY_DISABLE` / `DO_NOT_TRACK`) are checked at send time in
+    `coga.telemetry` and win over this, so they can force a ping off even when
+    config leaves it on. Mirrors `_resolve_git_enabled`.
+    """
+    for table in (local, shared):
+        if isinstance(table, dict) and "enabled" in table:
+            value = table["enabled"]
+            if not isinstance(value, bool):
+                raise ConfigError(
+                    f"[telemetry].enabled must be a boolean (got {type(value).__name__})"
                 )
             return value
     return True
