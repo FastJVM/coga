@@ -27,16 +27,23 @@ It's the substrate FastJVM uses to run the company. **Try it now ↓** — then 
 **1. Install the CLI (once).**
 
 ```sh
+pip install coga          # or, for an isolated CLI install: pipx install coga
+```
+
+That puts `coga` on your PATH. Upgrade later with `pip install --upgrade coga`
+(or `pipx upgrade coga`).
+
+To work against a source checkout instead — for developing coga itself, or
+testing a PR branch before it lands:
+
+```sh
 git clone https://github.com/FastJVM/coga
 cd coga
 python -m pip install -e .
 ```
 
-That puts `coga` on your PATH against the source. Keep it current later with a
-periodic `git pull && pip install -e .`.
-
-To reinstall a packaged build from GitHub instead of using a source checkout
-(useful for testing a PR branch before it lands), use `pipx`:
+Keep that current with a periodic `git pull && pip install -e .`, or install a
+packaged build straight from a branch or tag with `pipx`:
 
 ```sh
 pipx install --force "git+https://github.com/FastJVM/coga.git@<branch-or-tag>"
@@ -127,7 +134,8 @@ A few things worth knowing once you run more than one project:
   auto-activate the vendored copy per-repo (no PATH munging, no rbenv-style
   re-exec) — with several repos that turns into a "which `.coga/.venv/bin/coga`
   won the PATH race?" mess. The tradeoff: keep your global install reasonably
-  current with that periodic `git pull && pip install -e .`.
+  current — `pip install --upgrade coga` (or `git pull && pip install -e .` from
+  a source checkout).
 
 ## External CLI Tools
 
