@@ -30,7 +30,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
@@ -278,6 +278,65 @@ should fall back to the no-phone-home PyPI/GitHub estimate instead.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: telemetry
+worktree: /home/n/Code/claude/coga-telemetry
+
+### Implement step — decisions (2026-06-26, with nick, interactive)
+- **relay→coga rename.** Design notes predate the rename; all naming becomes
+  `coga`: `COGA_TELEMETRY_URL` (endpoint override), `~/.local/state/coga/`,
+  `coga telemetry …`, `[telemetry]` config, `coga/recurring/telemetry/`,
+  `src/coga/resources/templates/coga/…`.
+- **Scope = one PR: client (Part A) + GCP function (Part B).** Owner-only bits
+  (prod URL, PROJECT_ID/REGION, Slack webhook secret) stay documented
+  placeholders; client default URL fails-silent until pinned.
+- **Disable env var = `COGA_TELEMETRY_DISABLE=1`** (nick's pick), superseding
+  the spec draft's `COGA_TELEMETRY=0` falsy form. **`DO_NOT_TRACK=1` also
+  honored** (explicit AC + industry standard). Plus `[telemetry] enabled =
+  false` config. Disable always wins; env beats config.
+- **last_run = today's UTC date** (`YYYY-MM-DD`), per Proposed Shape #3 — the
+  ping only fires when coga runs the recurring sweep, so send-day == most
+  recent run. No log parsing.
+- **Schedule `30 9 * * *`** — daily, offset from digest's `0 9` so they don't
+  fire together.
+
+### Implement — DONE (commit 54ce355a on branch `telemetry`)
+Both parts built and committed; tests green (full suite 920 passed, 1 skipped;
+new `tests/test_telemetry.py` 23 passed). No push / PR yet (next step).
+
+What landed:
+- **Client.** `src/coga/telemetry.py` (machine-local uuid4 instance id under
+  `$XDG_STATE_HOME/coga/instance-id`; `build_payload` = exactly instance_id /
+  tickets_total=`len(list_tasks)` / last_run=today UTC; `disabled_reason` with
+  3 disable paths; fail-silent `send` returning a `SendResult`, never raises).
+  `src/coga/commands/telemetry.py` (`show` prints exact payload + status, sends
+  nothing; `send` exits 0 even on failure). Registered in `cli.py`.
+  `[telemetry] enabled` config + `_resolve_telemetry_enabled` + allowed-section
+  + key checks in `config.py`.
+- **Recurring task** `coga/recurring/telemetry/` + `workflows/telemetry/send.md`
+  + skill `coga/telemetry/send/` (run.py imports `telemetry.send`). Live +
+  packaged-template copies under `src/coga/resources/templates/coga/`.
+- **Disclosure/docs.** `coga init` cyan disclosure line; README `coga telemetry`
+  section; `docs/telemetry.md`; architecture context (live + template) made
+  concrete.
+- **Endpoint (Part B)** `telemetry-endpoint/`: `main.py` (gen2 fn — validates 3
+  fields, strips extra keys, never reads IP, posts one Slack line, returns 204
+  on every path; smoke-tested standalone), `requirements.txt`, idempotent
+  `deploy.sh` (parameterized + remoteIp log-exclusion + prints URL), `README.md`.
+- **Tests.** `tests/test_telemetry.py` + autouse `_stub_telemetry` in conftest
+  (XDG isolation + no-op post).
+
+Verification run: `python -m pytest` (920 passed/1 skipped); `coga telemetry
+show/send` manual smoke (disable paths + fail-silent exit 0); endpoint handler
+standalone smoke (valid→204+forward, extra-keys stripped, malformed→204+no
+forward). `coga validate` shows only pre-existing unrelated `install/` errors —
+none telemetry-related.
+
+Owner-only follow-up (unchanged): run `deploy.sh` against real GCP, pin the
+printed URL into `TELEMETRY_URL` (currently `coga-telemetry.invalid` → pings
+fail-silent until pinned), wire the internal Slack webhook secret.
 
 ## Design step — decisions (with nick, interactive)
 
