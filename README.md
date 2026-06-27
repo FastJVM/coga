@@ -1,5 +1,9 @@
 # Coga
 
+Programming languages are the superstructure over machine opcode. **Coga is the
+superstructure over text** — the structure, reuse, and legibility that turn
+one-off prompts into a system you own.
+
 Most tools say *don't think* — delegate the work and forget it. Coga's bet is the opposite:
 
 > ## Don't don't think. Think better.
