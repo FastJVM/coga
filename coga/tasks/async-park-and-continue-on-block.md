@@ -76,3 +76,32 @@ sweep loop (`src/relay/commands/recurring.py`).
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: async-park-continue
+worktree: /tmp/coga-async-park
+
+Notes:
+- Implementation launched from prompt step `implement`, but the live ticket frontmatter still says `status: draft`; verify before final `coga bump`.
+
+Implementation:
+- Commit: d92bd679 Let recurring sweeps park panicked tasks.
+- `coga recurring` now snapshots the task blackboard before launch and treats a new `## Blockers` entry plus `status: in_progress` as an async panic park.
+- The sweep continues to the next due task for both observed panic forms: a non-zero launch exit and a done-marker return after the blocker was written.
+- Arbitrary launch failures and unfinished non-interactive tasks without a new blocker still fail/stop as before.
+- Updated recurring/sync/CLI contexts to document the blocker-based resume handshake.
+
+Verification:
+- `python -m pytest tests/test_recurring.py -q` — 84 passed.
+- `python -m pytest` — 899 passed, 1 skipped.
+- `git diff --check` — passed.
+- `PYTHONPATH=/tmp/coga-async-park/src python -m coga.cli validate --json` — failed on existing unrelated repo task drift (bad install/README frontmatter, install/* missing blackboard fences/autonomy, several missing-step/unknown-assignee warnings); no new validation issue tied to this change identified.
+
+---
+
+## Blockers
+
+- [2026-06-26 21:59] [agent:claude] Implementation is committed on branch async-park-continue at d92bd679, but coga bump cannot advance because the live ticket frontmatter is status: draft. Launch/activate the task into in_progress, then rerun coga bump to hand off to peer-review.
+
+- [2026-06-26 22:03] [agent:claude] Implementation is committed on branch async-park-continue at d92bd679, but coga bump cannot advance because the live ticket frontmatter is status: draft. Launch/activate the task into in_progress, then rerun coga bump to hand off to peer-review.
