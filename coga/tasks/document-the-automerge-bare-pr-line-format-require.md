@@ -1,7 +1,7 @@
 ---
 slug: document-the-automerge-bare-pr-line-format-require
 title: 'Document the automerge bare pr: line format requirement'
-status: active
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -26,7 +26,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
