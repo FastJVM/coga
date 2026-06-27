@@ -1,15 +1,15 @@
 ---
 slug: async-park-and-continue-on-block
 title: Async park-and-continue on block
-status: draft
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
-  - coga/architecture
-  - coga/cli
+- coga/architecture
+- coga/cli
 skills: []
 workflow:
   name: code/with-review
@@ -28,7 +28,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description

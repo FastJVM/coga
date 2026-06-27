@@ -351,3 +351,7 @@
 2026-06-26 22:06 [change-log-format-union-merge-in-git] [human:nicktoper] activated (draft → active)
 2026-06-26 22:06 [change-log-format-union-merge-in-git] [human:nicktoper] task done
 2026-06-26 22:04 [async-park-and-continue-on-block] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-06-26 22:04 [async-park-and-continue-on-block] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-06-26 22:07 [async-park-and-continue-on-block] [human:nicktoper] started (draft -> in_progress) via manual state repair after API launch
+2026-06-26 22:07 [async-park-and-continue-on-block] [git] sync failed: `git add -- coga/tasks/async-park-and-continue-on-block.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-26 22:08 [async-park-and-continue-on-block] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
