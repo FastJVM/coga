@@ -3182,6 +3182,50 @@ def test_bare_recurring_records_liveness_timeout_not_human_pause(
     assert all(f"[human:{cfg.current_user}]" not in line for line in pause_lines)
 
 
+def test_bare_recurring_timeout_wins_over_new_blocker(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A blocker written before a watchdog timeout is not an async park.
+
+    The liveness watchdog was the reason the REPL stopped, so the sweep must
+    record the timeout and pause the task instead of leaving an orphaned
+    `in_progress` run for the next sweep to resume.
+    """
+    monkeypatch.chdir(repo)
+    calls: list[str] = []
+    _allow_interactive_recurring(monkeypatch)
+
+    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(task)
+        ticket_path = repo / "tasks" / task / "ticket.md"
+        ticket = Ticket.read(ticket_path)
+        ticket.frontmatter["status"] = "in_progress"
+        ticket.write(ticket_path)
+        append_blocker(
+            ticket_path,
+            "agent:claude",
+            "Need owner guidance before continuing",
+        )
+        return "timeout"
+
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    assert "timed out" in result.output
+    assert "paused as a watchdog timeout" in result.output
+    assert "parked with status" not in result.output
+
+    cfg = load_config(repo)
+    ref = list_tasks(cfg)[0]
+    assert Ticket.read(ref.path / "ticket.md").status == "paused"
+    assert "Need owner guidance before continuing" in read_blackboard(
+        ref.path / "ticket.md"
+    )
+
+
 @pytest.mark.parametrize(
     ("panic_exit_code", "expected_output"),
     [

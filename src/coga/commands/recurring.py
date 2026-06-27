@@ -174,7 +174,9 @@ def main(
                 _echo_parked_panic(task.ref, code)
                 continue
             raise
-        if _launch_parked_with_blocker(task.ref, blackboard_before_launch):
+        if kind != "timeout" and _launch_parked_with_blocker(
+            task.ref, blackboard_before_launch
+        ):
             _echo_parked_panic(task.ref, None)
             continue
         _stop_if_unfinished_after_launch(
