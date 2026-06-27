@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts: []
 skills: []
 workflow:
@@ -30,7 +30,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (open-pr)
+step: 5 (review)
 ---
 
 ## Description
@@ -283,6 +283,16 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: telemetry
 worktree: /home/n/Code/claude/coga-telemetry
+pr: https://github.com/FastJVM/coga/pull/465
+
+### open-pr step — DONE (2026-06-26)
+Pushed `telemetry` to origin and opened PR #465 (base `main`) →
+https://github.com/FastJVM/coga/pull/465. Auth probed clean (`gh auth status`
+nicktoper, `repo` scope; `coga validate --check-github` surfaced only the
+pre-existing unrelated `install/`/`marketing/`/`v2/` ticket errors — none
+telemetry-related). Worktree clean on the recorded commit 54ce355a. No CI
+checks configured on the repo (`gh pr checks` → none reported); PR reports
+MERGEABLE / CLEAN. Next step: owner review.
 
 ### Implement step — decisions (2026-06-26, with nick, interactive)
 - **relay→coga rename.** Design notes predate the rename; all naming becomes
@@ -448,3 +458,7 @@ total + last run + some kind of unique id per instance.")
    the Slack ping counts? Separate idea, not built here.
 7. **Disclosure surface.** `relay init` output + README + telemetry doc. Confirm
    that's enough (no first-run stderr hook now that there's no CLI hook).
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":486936,"cache_read_input_tokens":21951632,"cli":"claude","input_tokens":37335,"model":"claude-opus-4-8","output_tokens":152104,"provider":"anthropic","schema":1,"session_id":"a6b1fd5b-5d95-4652-be7e-8e90ad9987fb","slug":"anonymous-install-telemetry-opt-out-no-pii","step":"implement","title":"Anonymous install telemetry (opt-out, no PII)","ts":"2026-06-27T03:51:49.826524Z","usage_status":"ok"}
