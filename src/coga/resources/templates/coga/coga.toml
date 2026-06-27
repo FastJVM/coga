@@ -133,3 +133,12 @@ dream = "recurring launch dream"
 # `[agents.*]` block above.
 # claude = "launch bootstrap/orient --agent claude"
 # codex = "launch bootstrap/orient --agent codex"
+
+# --- Extensions ---
+# A repo-owned, free-form namespace coga does not interpret. Put repo-specific
+# config your own skills/scripts read here — anything that isn't part of coga's
+# fixed schema. coga accepts it verbatim (like [aliases]/[secrets]) and never
+# validates the keys, so nested tables and arbitrary values are fine. Read it
+# via `load_config().extensions["<ns>"]` or by parsing coga.toml directly.
+# [extensions.patent]
+# calendar_id = "<your-google-calendar-id>"

@@ -100,6 +100,11 @@ class Config:
     slack_gifs: dict[str, list[str]] = field(default_factory=dict)
     slack_users: dict[str, str] = field(default_factory=dict)
     aliases: dict[str, str] = field(default_factory=dict)
+    # Repo-owned free-form config namespace. coga does not interpret it; its
+    # contents pass through verbatim for skills/scripts to read (e.g.
+    # `[extensions.patent] calendar_id = "..."`). Like `[aliases]`/`[secrets]`,
+    # the keys are user data, not schema.
+    extensions: dict[str, object] = field(default_factory=dict)
     ticket_fields: dict[str, TicketField] = field(default_factory=dict)
     # Git sync — the git analogue of Slack. `git_enabled` follows the same
     # local-overrides-shared resolution as `slack_enabled`; `git_remote` /
@@ -277,6 +282,7 @@ def load_config(repo_root: Path | None = None) -> Config:
         local.get("slack"),
     )
     aliases = _parse_aliases(shared.get("aliases", {}))
+    extensions = _parse_extensions(shared.get("extensions", {}))
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
     git_enabled = _resolve_git_enabled(shared.get("git"), local.get("git"))
     git_remote, git_control_branch = _parse_git(shared.get("git"))
@@ -303,6 +309,7 @@ def load_config(repo_root: Path | None = None) -> Config:
         slack_gifs=slack_gifs,
         slack_users=slack_users,
         aliases=aliases,
+        extensions=extensions,
         ticket_fields=ticket_fields,
         git_enabled=git_enabled,
         git_remote=git_remote,
@@ -334,8 +341,8 @@ def _reject_unknown_keys(table: object, allowed: frozenset[str], label: str) -> 
 
     A no-op on non-dicts, so the dedicated "must be a table" type errors keep
     firing from their own call sites. Free-form maps — `[aliases]`, `[secrets]`,
-    `[notification.slack.gifs]`, `[notification.slack.users]` — do **not** call
-    this: their keys are user-chosen data, not schema.
+    `[extensions]`, `[notification.slack.gifs]`, `[notification.slack.users]` —
+    do **not** call this: their keys are user-chosen data, not schema.
     """
     if not isinstance(table, dict):
         return
@@ -348,10 +355,10 @@ def _reject_unknown_keys(table: object, allowed: frozenset[str], label: str) -> 
 
 
 # Fixed-schema tables — every key not listed is rejected at load time. Free-form
-# maps (aliases, secrets, slack gifs/users) are deliberately absent; their keys
-# are data. Top-level keys that carry a dedicated migration error (`assignees`
-# in shared; `skip_permissions*` in a shared `[agents.<name>]`) are omitted here
-# so their tailored raise fires before the generic check.
+# maps (aliases, secrets, extensions, slack gifs/users) are deliberately absent;
+# their keys are data. Top-level keys that carry a dedicated migration error
+# (`assignees` in shared; `skip_permissions*` in a shared `[agents.<name>]`) are
+# omitted here so their tailored raise fires before the generic check.
 _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "version",
     "default_status",
@@ -362,6 +369,7 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "launch",
     "ticket",
     "aliases",
+    "extensions",
 })
 _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
     "user",
@@ -677,6 +685,20 @@ def _parse_aliases(raw: dict) -> dict[str, str]:
             raise ConfigError(f"aliases.{name} is empty")
         out[name] = value.strip()
     return out
+
+
+def _parse_extensions(raw: object) -> dict[str, object]:
+    """Parse the `[extensions]` table — a repo-owned, free-form namespace.
+
+    coga does not interpret the contents; they pass through verbatim so a repo's
+    own skills/scripts can read repo-specific config that isn't part of coga's
+    fixed schema (e.g. `[extensions.patent] calendar_id = "..."`). Only the table
+    type is enforced — keys and values are user data, exactly like `[aliases]`
+    and `[secrets]`, so nested tables and arbitrary scalars are all allowed.
+    """
+    if not isinstance(raw, dict):
+        raise ConfigError(f"[extensions] must be a table (got {type(raw).__name__})")
+    return raw
 
 
 _SUPPORTED_NOTIFICATION_CHANNELS: frozenset[str] = frozenset({"slack"})
