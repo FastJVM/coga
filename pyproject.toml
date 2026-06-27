@@ -45,6 +45,11 @@ test = [
 [project.scripts]
 coga = "coga.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/FastJVM/coga"
+Repository = "https://github.com/FastJVM/coga"
+Issues = "https://github.com/FastJVM/coga/issues"
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 
