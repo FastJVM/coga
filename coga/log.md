@@ -325,3 +325,5 @@
 2026-06-26 20:51 [anonymous-install-telemetry-opt-out-no-pii] [agent:claude] advanced to step 4 (open-pr) — implement done — branch telemetry, commit 54ce355a; tests green; next: open-pr
 2026-06-26 20:51 [anonymous-install-telemetry-opt-out-no-pii] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-26 20:53 [anonymous-install-telemetry-opt-out-no-pii] [agent:claude] advanced to step 5 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/465 (no CI configured; MERGEABLE/CLEAN)
+2026-06-26 21:46 [document-the-automerge-bare-pr-line-format-require] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-26 21:50 [document-the-automerge-bare-pr-line-format-require] [human:nicktoper] activated (draft → active)
