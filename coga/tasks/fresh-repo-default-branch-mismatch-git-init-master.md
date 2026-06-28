@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: nick
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 4 (review)
 ---
 
 ## Description
@@ -79,6 +79,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: fix-control-branch-mismatch-guidance
 worktree: ../coga-control-branch-guidance
+pr: https://github.com/FastJVM/coga/pull/469
 
 ## Implementation plan (claude, 2026-06-27)
 
@@ -170,3 +171,33 @@ swallow-and-exit-0 behavior broadly.
 - **Caching/stability:** the resolved branch shouldn't drift between commands if the user later checks out a different branch — decide whether resolution is per-invocation or pinned once.
 
 Recommend the ticket either pin the exact resolution command and its fallback chain, or explicitly delegate that choice to the implementer with the above edge cases listed as must-handle cases. Right now "`git symbolic-ref --short HEAD` (or equivalent)" is the one soft spot in an otherwise launch-ready ticket.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":351794,"cache_read_input_tokens":5536860,"cli":"claude","input_tokens":24768,"model":"claude-opus-4-8","output_tokens":87605,"provider":"anthropic","schema":1,"session_id":"68b7d384-07d0-4327-af44-ebdcdace4724","slug":"fresh-repo-default-branch-mismatch-git-init-master","step":"implement","title":"Fresh-repo default branch mismatch: git init master vs control_branch main","ts":"2026-06-28T21:41:14.869547Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":2262272,"cli":"codex","input_tokens":208654,"model":"gpt-5.5","output_tokens":19329,"provider":"openai","schema":1,"session_id":"019f104c-2763-7272-ae59-a34852210fcd","slug":"fresh-repo-default-branch-mismatch-git-init-master","step":"peer-review","title":"Fresh-repo default branch mismatch: git init master vs control_branch main","ts":"2026-06-28T22:31:26.942456Z","usage_status":"ok"}
+## Peer review (codex, 2026-06-28)
+
+Native review (`codex review --base main`) found one must-fix: the new guard
+treated a feature checkout with no local `main` as a mismatch even when the
+configured remote branch existed and the old cross-branch path could fetch it.
+
+Fixed in feature worktree `../coga-control-branch-guidance`, branch
+`fix-control-branch-mismatch-guidance`, commit `99c810c4`
+(`peer-review: handle remote-only control branches`). The guard now accepts a
+local branch, a remote-tracking branch, or an exact configured remote branch
+before emitting the mismatch guidance. Added regression coverage for a
+remote-only control branch with no local `main`/`origin/main` ref.
+
+Verification:
+- `python -m pytest tests/test_git.py` — 49 passed
+- `python -m pytest` — 906 passed, 1 skipped
+- `git diff --check` — clean
+
+## Open-PR (claude, 2026-06-28)
+
+Pushed `fix-control-branch-mismatch-guidance` and opened PR #469:
+https://github.com/FastJVM/coga/pull/469 (base `main`). gh auth ok (nicktoper,
+repo scope). `gh pr checks 469` → no checks reported (this repo has no CI
+configured), so nothing to wait on — ready for human review.
