@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -74,6 +74,83 @@ note is optional if cheap but not the goal.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: fix-control-branch-mismatch-guidance
+worktree: ../coga-control-branch-guidance
+
+## Implementation plan (claude, 2026-06-27)
+
+Codebase note: the "Relay" / `src/relay/…` in the ticket is this repo's
+`src/coga/…`. Line anchors map: failure model = `src/coga/git.py:35-50` (module
+docstring), swallow boundary = `sync_paths` catch at `git.py:223-234` and
+`sync_log` control-branch check at `git.py:148-159`, default = `config.py:114`
+(`git_control_branch = "main"`) / `_parse_git` at `config.py:1041`.
+
+Decided direction (Nick): detect mismatch, tell user to set
+`[git].control_branch`; no auto-guessing. Approach:
+
+- Add `_control_branch_present(root, branch)` via
+  `git show-ref --verify --quiet refs/heads/<branch>` — exact, exits non-zero on
+  a missing ref (verified: absent on fresh `git init -b master`, both unborn and
+  after a commit).
+- Add `_current_branch_name(root)` via `git symbolic-ref --short -q HEAD` —
+  returns the branch even on an unborn fresh-init branch (where the existing
+  `_current_branch`/`rev-parse --abbrev-ref HEAD` *raises*), `None` when
+  detached. Used only to suggest the right value in the message.
+- In `sync_paths` and `sync_log`, *before* `_current_branch`, if the control
+  branch isn't present → write an actionable stderr message naming the
+  one-line config fix and return (soft-skip, mirroring the existing
+  "not a git repo" / "disabled" no-ops). Placing it before `_current_branch`
+  also covers the unborn-branch fresh-repo case, which would otherwise raise.
+
+Edge cases (from evaluator review) resolved by using *local-branch presence*
+as the signal rather than `symbolic-ref HEAD`-as-detection: detached HEAD and
+feature branches in a healthy repo still have `refs/heads/<control>` present →
+no false positive; we never resolve "the right branch" so there's no drift /
+precedence question. No remote needed (show-ref is local). `symbolic-ref` is
+used only for the *suggestion text*, best-effort.
+
+RESOLVED (Nick, terminal): skip sync entirely on a real mismatch — no local
+commit until config is fixed. Implemented that way.
+
+## Implemented (claude, 2026-06-28) — implement step done
+
+Worktree `../coga-control-branch-guidance`, branch
+`fix-control-branch-mismatch-guidance`, commit `9f87baef`. No push / no PR
+(that's the open-pr step).
+
+What changed in `src/coga/git.py`:
+- `_control_branch_present(root, branch)` — `git show-ref --verify --quiet
+  refs/heads/<branch>`; True/False, raises GitError only on an unexpected exit.
+- `_symbolic_head(root)` — `git symbolic-ref --short -q HEAD`; resolves the
+  branch name even on an unborn fresh-init branch, None when detached. Never
+  raises. Used only for the suggestion text.
+- `_control_branch_mismatch_message(cfg, root)` — actionable one-liner naming
+  the missing control branch, the branch you're on, and the `[git].control_branch
+  = "<branch>"` fix.
+- Guard wired into both `sync_paths` and `sync_log`, placed *before*
+  `_current_branch` (which raises on an unborn branch) and *after* the
+  not-a-git-repo check. On mismatch: print message to stderr, return — no commit.
+- Module docstring failure-model section extended to document the soft-skip.
+
+Edge cases handled: detached HEAD / feature branch in a healthy repo do NOT
+false-trip (guard keys on the control ref existing, not on HEAD); unborn
+fresh-init `master` repo (the literal Getting-Started case) handled; no remote
+needed (show-ref is local); GitError from the helper stays non-fatal (inside
+both callers' `except GitError`).
+
+Tests added to `tests/test_git.py` (mirroring the suite's real-git `git_repo`
+fixture style, no new deps): renamed-branch mismatch (sync_task_state +
+sync_log), fresh-unborn-`master` repo, and two focused helper tests. Full
+suite: 905 passed, 1 pre-existing skip (run with python3.12 — the repo requires
+3.11+ and system `python` here is 3.9). Verified the live message on a real
+`git init -b master` repo; reads cleanly.
+
+Out of scope / not done (deliberately): no auto-guessing the branch, no change
+to the default, no README note (optional per ticket), no touching the
+swallow-and-exit-0 behavior broadly.
 
 ## Evaluator review
 

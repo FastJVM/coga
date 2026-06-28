@@ -366,3 +366,5 @@
 2026-06-28 12:08 [getting-started-restructure] [human:lilfedor] created (autonomy=interactive, status=draft)
 2026-06-27 15:09 [async-park-and-continue-on-block] [human:nicktoper] launched in interactive mode (assignee=nick, launch_assignee=codex, agent=codex)
 2026-06-28 14:25 [clean-up-docs-directory] [human:nicktoper] created (autonomy=interactive, status=draft)
+2026-06-27 15:03 [fresh-repo-default-branch-mismatch-git-init-master] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-28 14:41 [fresh-repo-default-branch-mismatch-git-init-master] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
