@@ -46,13 +46,14 @@ means surface the miss (stderr + log), not crash. "Not a git repo" stays a
 soft no-op (single stderr line). The git opt-out is `[git].enabled`.
 
 A missing control branch is a distinct soft-skip handled *before* any fetch or
-push: when `refs/heads/<control>` doesn't exist locally — the `git init` default
-of `master` against the `[git].control_branch` default of `main`, the classic
-fresh-repo mismatch — sync would otherwise fetch/push a branch that isn't there
-and raise a confusing swallowed `GitError`. Instead we detect the absent ref up
-front and print one actionable line naming the fix (`set [git].control_branch`),
-then return without committing. No auto-detection of the "right" branch — the
-user owns that choice in config; we only stop the failure from being silent.
+push: when the control branch is absent locally and on the configured remote —
+the `git init` default of `master` against the `[git].control_branch` default
+of `main`, the classic fresh-repo mismatch — sync would otherwise fetch/push a
+branch that isn't there and raise a confusing swallowed `GitError`. Instead we
+detect the absent branch up front and print one actionable line naming the fix
+(`set [git].control_branch`), then return without committing. No auto-detection
+of the "right" branch — the user owns that choice in config; we only stop the
+failure from being silent.
 
 Subprocess usage mirrors `autoclose.py` (`gh` shell-out): no third-party git
 binding, just `subprocess.run` with `check=False` and explicit error handling.
@@ -152,7 +153,7 @@ def sync_log(cfg: Config, *, message: str) -> None:
         if root is None:
             sys.stderr.write(f"[git] not a git repo (log sync skipped): {message}\n")
             return
-        if not _control_branch_present(root, cfg.git_control_branch):
+        if not _control_branch_present(root, cfg.git_control_branch, cfg.git_remote):
             sys.stderr.write(
                 _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
@@ -203,7 +204,7 @@ def sync_paths(
             )
             return
 
-        if not _control_branch_present(root, cfg.git_control_branch):
+        if not _control_branch_present(root, cfg.git_control_branch, cfg.git_remote):
             sys.stderr.write(
                 _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
@@ -708,19 +709,18 @@ def _current_branch(root: Path) -> str:
     return _run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
 
 
-def _control_branch_present(root: Path, branch: str) -> bool:
-    """True when `refs/heads/<branch>` exists locally.
-
-    Uses `git show-ref --verify --quiet`, which exits non-zero (without error
-    output) when the ref is absent. Distinct from `_current_branch`: it asks
-    *does the control branch exist at all*, not *what is checked out*. On a
-    fresh `git init` whose default branch is `master`, `refs/heads/main` is
-    absent here, which is exactly the mismatch we want to catch before the sync
-    fetches/pushes a `main` that isn't there.
-    """
+def _git_ref_present(root: Path, ref: str) -> bool:
+    """True when an exact git ref exists in the local ref database."""
     result = subprocess.run(
-        ["git", "-C", str(root), "show-ref", "--verify", "--quiet",
-         f"refs/heads/{branch}"],
+        [
+            "git",
+            "-C",
+            str(root),
+            "show-ref",
+            "--verify",
+            "--quiet",
+            ref,
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -730,9 +730,60 @@ def _control_branch_present(root: Path, branch: str) -> bool:
     if result.returncode == 1:
         return False
     raise GitError(
-        f"`git show-ref --verify refs/heads/{branch}` failed "
+        f"`git show-ref --verify {ref}` failed "
         f"(exit {result.returncode}): {result.stderr.strip()}"
     )
+
+
+def _remote_branch_present(root: Path, remote: str, branch: str) -> bool:
+    """True when the configured remote has `refs/heads/<branch>`."""
+    configured = subprocess.run(
+        ["git", "-C", str(root), "remote", "get-url", remote],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if configured.returncode != 0:
+        return False
+
+    result = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "ls-remote",
+            "--exit-code",
+            "--heads",
+            remote,
+            branch,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        return True
+    if result.returncode == 2:
+        return False
+    raise GitError(
+        f"`git ls-remote --heads {remote} {branch}` failed "
+        f"(exit {result.returncode}): {result.stderr.strip()}"
+    )
+
+
+def _control_branch_present(root: Path, branch: str, remote: str) -> bool:
+    """True when the configured control branch exists locally or remotely.
+
+    Local refs cover the common same-branch and cloned-feature cases without a
+    remote probe. When no local ref exists, ask the configured remote exactly:
+    a remote-only `origin/main` is still valid because the cross-branch landing
+    path fetches that branch before pushing.
+    """
+    if _git_ref_present(root, f"refs/heads/{branch}"):
+        return True
+    if _git_ref_present(root, f"refs/remotes/{remote}/{branch}"):
+        return True
+    return _remote_branch_present(root, remote, branch)
 
 
 def _symbolic_head(root: Path) -> str | None:

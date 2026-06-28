@@ -434,6 +434,8 @@ def test_sync_skips_with_guidance_when_control_branch_absent(git_repo, capsys):
     message naming the `[git].control_branch` fix, committing nothing."""
     cfg = load_config(git_repo.coga_os)
     git_repo.git("branch", "-m", "main", "master")
+    git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
+    git_repo.git("remote", "remove", "origin")
     task = _task_dir(git_repo.coga_os)
 
     # Must not raise.
@@ -446,6 +448,27 @@ def test_sync_skips_with_guidance_when_control_branch_absent(git_repo, capsys):
     # Nothing landed and the task dir is left uncommitted in the working tree.
     assert not git_repo.origin_tracks("coga/tasks/demo/ticket.md")
     assert "tasks/" in git_repo.git("status", "--porcelain")
+
+
+def test_sync_allows_remote_only_control_branch(git_repo, capsys):
+    """A feature checkout may have remote `main` but no local control ref.
+
+    That is not the fresh-repo mismatch: the existing cross-branch path can
+    fetch and land on the configured remote branch, so the guidance guard must
+    not soft-skip it.
+    """
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("branch", "-D", "main")
+    git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
+    task = _task_dir(git_repo.coga_os)
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    err = capsys.readouterr().err
+    assert "control branch 'main' does not exist" not in err
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
+    assert "Ticket: demo — created" in git_repo.origin_subjects()
 
 
 def test_sync_skips_on_fresh_unborn_master_repo(tmp_path, capsys, real_git):
@@ -474,6 +497,8 @@ def test_sync_log_skips_with_guidance_when_control_branch_absent(git_repo, capsy
     log commit with the same guidance, leaving the line uncommitted (not a crash)."""
     cfg = load_config(git_repo.coga_os)
     git_repo.git("branch", "-m", "main", "master")
+    git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
+    git_repo.git("remote", "remove", "origin")
     append_log(cfg, "bootstrap/orient", "human:nick", "launched")
 
     git.sync_log(cfg, message="Log: bootstrap/orient")
@@ -486,11 +511,15 @@ def test_sync_log_skips_with_guidance_when_control_branch_absent(git_repo, capsy
 
 
 def test_control_branch_present_detects_missing_ref(git_repo):
-    """The guard keys on `refs/heads/<control>` existing, not on what's checked
-    out — so a feature branch or detached HEAD in a healthy repo never trips it."""
+    """The guard keys on the control ref existing, not on what's checked out."""
     root = git_repo.root
-    assert git._control_branch_present(root, "main") is True
-    assert git._control_branch_present(root, "nonexistent") is False
+    assert git._control_branch_present(root, "main", "origin") is True
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("branch", "-D", "main")
+    assert git._control_branch_present(root, "main", "origin") is True
+    git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
+    assert git._control_branch_present(root, "main", "origin") is True
+    assert git._control_branch_present(root, "nonexistent", "origin") is False
 
 
 def test_symbolic_head_resolves_branch_and_none_when_detached(git_repo):
