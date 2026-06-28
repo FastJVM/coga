@@ -45,6 +45,15 @@ fired, so the supervisor never relaunched the next step, and launch's own
 means surface the miss (stderr + log), not crash. "Not a git repo" stays a
 soft no-op (single stderr line). The git opt-out is `[git].enabled`.
 
+A missing control branch is a distinct soft-skip handled *before* any fetch or
+push: when `refs/heads/<control>` doesn't exist locally — the `git init` default
+of `master` against the `[git].control_branch` default of `main`, the classic
+fresh-repo mismatch — sync would otherwise fetch/push a branch that isn't there
+and raise a confusing swallowed `GitError`. Instead we detect the absent ref up
+front and print one actionable line naming the fix (`set [git].control_branch`),
+then return without committing. No auto-detection of the "right" branch — the
+user owns that choice in config; we only stop the failure from being silent.
+
 Subprocess usage mirrors `autoclose.py` (`gh` shell-out): no third-party git
 binding, just `subprocess.run` with `check=False` and explicit error handling.
 """
@@ -143,6 +152,11 @@ def sync_log(cfg: Config, *, message: str) -> None:
         if root is None:
             sys.stderr.write(f"[git] not a git repo (log sync skipped): {message}\n")
             return
+        if not _control_branch_present(root, cfg.git_control_branch):
+            sys.stderr.write(
+                _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
+            )
+            return
         log_rel = _relative_to_root(root, log_file)
         branch = _current_branch(root)
         if branch == cfg.git_control_branch:
@@ -186,6 +200,12 @@ def sync_paths(
         if root is None:
             sys.stderr.write(
                 f"[git] not a git repo (sync skipped): {message}\n"
+            )
+            return
+
+        if not _control_branch_present(root, cfg.git_control_branch):
+            sys.stderr.write(
+                _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
             )
             return
 
@@ -686,6 +706,71 @@ def _toplevel(start: Path) -> Path | None:
 def _current_branch(root: Path) -> str:
     """Return the current branch name (`HEAD` for a detached checkout)."""
     return _run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
+
+
+def _control_branch_present(root: Path, branch: str) -> bool:
+    """True when `refs/heads/<branch>` exists locally.
+
+    Uses `git show-ref --verify --quiet`, which exits non-zero (without error
+    output) when the ref is absent. Distinct from `_current_branch`: it asks
+    *does the control branch exist at all*, not *what is checked out*. On a
+    fresh `git init` whose default branch is `master`, `refs/heads/main` is
+    absent here, which is exactly the mismatch we want to catch before the sync
+    fetches/pushes a `main` that isn't there.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(root), "show-ref", "--verify", "--quiet",
+         f"refs/heads/{branch}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    raise GitError(
+        f"`git show-ref --verify refs/heads/{branch}` failed "
+        f"(exit {result.returncode}): {result.stderr.strip()}"
+    )
+
+
+def _symbolic_head(root: Path) -> str | None:
+    """The current branch name via `symbolic-ref`, or None when detached.
+
+    Unlike `_current_branch` (`rev-parse --abbrev-ref HEAD`), this resolves the
+    branch name even before the first commit, where HEAD points at an unborn
+    branch and `rev-parse` *raises* — precisely the fresh-repo case. Used only
+    to name the user's actual branch in the mismatch guidance, so it is
+    best-effort: `-q` makes a detached HEAD a quiet None rather than an error.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(root), "symbolic-ref", "--short", "-q", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    name = result.stdout.strip()
+    return name or None
+
+
+def _control_branch_mismatch_message(cfg: Config, root: Path) -> str:
+    """Actionable one-liner for a control branch that doesn't exist locally.
+
+    Names the missing branch, the branch the user is actually on (when it can
+    be resolved), and the exact `coga.toml` edit that fixes it. Surfaced in
+    place of the swallowed-and-confusing `GitError` the fetch/push would
+    otherwise raise against a nonexistent branch.
+    """
+    actual = _symbolic_head(root)
+    on = f" (you are on {actual!r})" if actual else ""
+    suggested = actual or "<your-branch>"
+    return (
+        f"[git] control branch {cfg.git_control_branch!r} does not exist{on}; "
+        f"sync skipped. Set it to match your branch in coga.toml:\n"
+        f"    [git]\n"
+        f'    control_branch = "{suggested}"'
+    )
 
 
 def _has_staged_changes(root: Path, pathspec: str | list[str]) -> bool:
