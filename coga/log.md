@@ -376,3 +376,5 @@
 2026-06-28 15:40 [autocleanup-dir-recurring-tasks] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-28 12:08 [getting-started-restructure] [human:lilfedor] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-29 10:21 [improve-readme] [human:lilfedor] created (autonomy=interactive, status=draft)
+2026-06-28 15:46 [clean-up-docs-directory] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-29 11:11 [udpate-skill-in-recurring-with-a-flag] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
