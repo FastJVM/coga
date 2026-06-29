@@ -405,3 +405,8 @@
 2026-06-29 15:53 [block-unblock-and-megalaunch] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
 2026-06-29 16:18 [block-unblock-and-megalaunch] [agent:claude] slack: Implementation advanced to peer-review. Branch block-unblock-megalaunch commit 1b455351 is ready for Claude review.
 2026-06-29 16:43 [block-unblock-and-megalaunch] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-06-29 15:38 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-29 16:46 [commit-post-session-coga-writes-usage-record-spool] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-06-29 16:46 [commit-post-session-coga-writes-usage-record-spool] [git] sync failed: `git add -- coga/tasks/commit-post-session-coga-writes-usage-record-spool.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-06-29 16:46 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-29 16:47 [commit-post-session-coga-writes-usage-record-spool] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: <https://github.com/FastJVM/coga/pull/471|PR #471>

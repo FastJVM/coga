@@ -7,7 +7,7 @@ autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: nicktoper
 contexts:
 - coga/sync
 skills: []
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 4 (review)
 ---
 
 ## Description
@@ -196,6 +196,16 @@ Mirror `test_sync_lands_on_main_from_feature_branch` /
 
 branch: commit-coga-state-sweep
 worktree: /home/n/Code/claude/coga-state-sweep
+pr: https://github.com/FastJVM/coga/pull/471
+
+## open-pr step — DONE (session 1)
+
+Pushed `commit-coga-state-sweep` and opened PR #471
+(https://github.com/FastJVM/coga/pull/471). `gh auth status` green
+(account nicktoper, repo scope). No CI configured on this repo
+(`gh pr checks 471` → "no checks reported"), so green-CI acceptance is
+N/A — noted per the skill. Worktree clean on the recorded branch before
+push. Bumping to the human review step.
 
 ## Implementation plan
 
@@ -259,3 +269,35 @@ on `spawn_started`.
 
 NEXT: peer-review step (step 2). No push / PR yet — that's `code/open-pr`
 (step 3).
+
+## Peer review step — DONE (codex, session 1)
+
+Native review run from `/home/n/Code/claude/coga-state-sweep`:
+`codex review --base main`.
+
+Review found two must-fix issues and both were patched in commit
+`b6817443 peer-review: tighten coga state sweep`:
+- P1: root-layout repos (`coga.toml` at git toplevel) could sweep product
+  files because `cfg.repo_root == git root`. Fixed by using the whole nested
+  `coga/` pathspec only for normal nested installs, and known Coga OS pathspecs
+  (`tasks`, `contexts`, `skills`, `workflows`, `recurring`, `bootstrap`,
+  `coga.toml`, `context.md`, `log.md`) for root-layout repos.
+- P2: read-only grouped commands/no-args help could still trigger the CLI
+  sweep because only `sys.argv[1]` was classified. Fixed with explicit
+  command/subcommand sweep classification; `skill status`, `recurring list`,
+  `secret get`, `mark`, `skill`, help/option invocations, and top-level
+  read-only commands do not sweep.
+
+Context contract updated in both live and packaged `coga/sync` copies; they are
+byte-identical (`cmp` exit 0).
+
+Verification:
+- `python -m pytest tests/test_git.py::test_sync_coga_state_commits_dirty_coga_and_leaves_code_untouched tests/test_git.py::test_sync_coga_state_root_layout_keeps_product_code_out tests/test_git.py::test_sync_coga_state_lands_nonunion_on_main_keeps_union_local_on_feature tests/test_git.py::test_sweep_skips_read_only_and_runs_for_mutating_commands -q`
+  -> `4 passed` (pytest cache warning only)
+- `python -m pytest` -> `913 passed, 1 skipped` (pytest cache warning only)
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":415066,"cache_read_input_tokens":20156539,"cli":"claude","input_tokens":17258,"model":"claude-opus-4-8","output_tokens":172030,"provider":"anthropic","schema":1,"session_id":"c00fe355-221f-4d7c-ba87-3ca49c646a21","slug":"commit-post-session-coga-writes-usage-record-spool","step":"implement","title":"Auto-commit dirty coga/ state (machine writes + manual edits) so the tree stays clean","ts":"2026-06-29T22:38:26.437323Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3409280,"cli":"codex","input_tokens":138385,"model":"gpt-5.5","output_tokens":16715,"provider":"openai","schema":1,"session_id":"019f1588-ad89-7ad3-8d57-c417609b6c10","slug":"commit-post-session-coga-writes-usage-record-spool","step":"peer-review","title":"Auto-commit dirty coga/ state (machine writes + manual edits) so the tree stays clean","ts":"2026-06-29T23:46:25.933705Z","usage_status":"ok"}
