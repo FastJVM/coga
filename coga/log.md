@@ -389,3 +389,5 @@
 2026-06-29 12:53 [clean-up-docs-directory] [agent:claude] advanced to step 3 (pr)
 2026-06-29 12:53 [clean-up-docs-directory] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-29 12:54 [clean-up-docs-directory] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/470
+2026-06-29 14:43 [async-park-and-continue-on-block] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-29 14:49 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] created (autonomy=interactive, status=draft)
