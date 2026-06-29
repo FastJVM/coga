@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: codex
-assignee: claude
+assignee: codex
 contexts:
 - coga/architecture
 - coga/cli
@@ -28,7 +28,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -137,12 +137,12 @@ Current direction:
 
 branch: block-unblock-megalaunch
 worktree: /tmp/coga-block-unblock
-commit: 1b455351 Add block/unblock and megalaunch workflow
+commit: f01d94f7 peer-review: fix megalaunch budget/eligibility bugs and doc sync
 superseded-pr: https://github.com/FastJVM/coga/pull/468
 
 Notes:
 - Historical `async-park-continue` / PR #468 implementation is closed and superseded.
-- Revised implementation is committed on `block-unblock-megalaunch` at `1b455351`; no PR opened yet.
+- Revised implementation is committed on `block-unblock-megalaunch` at `1b455351`; peer-review fixes applied at `f01d94f7`; no PR opened yet (open-pr is the next step).
 
 Revised implementation:
 - Added first-class `coga block` and `coga unblock`; removed `coga panic` from the CLI surface.
@@ -173,6 +173,12 @@ Peer review:
 - [2026-06-26 22:32] [agent:codex] `codex review --base main` found one must-fix: if a launch returns `"timeout"` after writing a blocker, the new blocker-detection path classifies it as an async park before the watchdog timeout path can pause/log it. Fixing by preserving timeout handling ahead of async-park classification.
 - [2026-06-26 22:39] [agent:codex] Applied peer-review fix in commit ed76ced8 (`peer-review: preserve recurring timeout handling`): post-launch async-park classification now skips watchdog timeouts, and `tests/test_recurring.py` covers timeout-after-blocker as a pause/logged timeout rather than an in-progress park.
 - [2026-06-26 22:39] [agent:codex] Verification after review fix: `python -m pytest tests/test_recurring.py -q` — 85 passed; `python -m pytest` — 900 passed, 1 skipped; `git diff --check` — passed.
+- [2026-06-29] [agent:claude] Peer review of the revised `block-unblock-megalaunch` branch @ `1b455351` (`/code-review --base main`, 8 finder angles + verify). The block/unblock/status/validate surfaces are solid (blocked threaded through VALID_STATUSES, launch refusal, workflow-required check; `--blocked` expands every open ask; attended+non-interactive unblock; panic cleanly removed; deterministic+tested blackboard trim). Found two must-fix correctness bugs in the megalaunch engine plus one doc-sync miss; applied fixes in commit `f01d94f7`:
+  - **Budget guard broken across tasks** (`megalaunch.py`): the `records` usage snapshot was loaded once and never refreshed, so task 2..N's budget check saw zero of the tokens earlier tasks in the same run spent. Fixed by reloading usage per task. Regression test `test_megalaunch_budget_refreshes_across_tasks`.
+  - **Non-active tickets treated as launch candidates** (`megalaunch.py`): `_candidate_result` returned None (=launch) for any non-active/non-blocked status, so done/draft/paused tickets fell through to `_launch_until_stop`, failed preflight, and landed as `failed` — making every run report failures and exit 1 (nightly recurring returned failed every fire). Fixed by skipping non-{active,blocked} tickets in the run loop (also closes the in_progress script/blocker-gate bypass). Regression test `test_megalaunch_ignores_non_active_tickets`.
+  - **Live `coga/contexts/dev/code` left stale**: still said `coga panic` while its packaged twin was updated. Synced to `coga block`. Also updated README (block/unblock/megalaunch/`--blocked` + lifecycle) per owner's chosen scope.
+  - Skipped as nits (noted for later, not blocking): reuse cleanups (`usage.rollup`/`_parse_ts`/`_harness_stop_reason` duplication), per-step double-compose/git-auth efficiency, unconditional blocker-parse in plain `coga status`, and `mark_blocked` write-before-validate ordering (consistent with existing `mark_*`).
+  - Verification: `PYTHONPATH=src python3.12 -m pytest -q` — 909 passed, 1 skipped; `git diff --check` — clean. No live context still references `coga panic`. The live/packaged `architecture` drift is pre-existing (secrets-model/terminology, live is ahead) and out of scope.
 
 Owner review assist:
 - [2026-06-27 22:13] [agent:codex] Inspected PR #468 at head ed76ced8. GitHub reports the PR open, non-draft, MERGEABLE, with no status checks configured/reported and no PR comments. Local checks in `/tmp/coga-async-park`: `PYTHONPATH=src python -m pytest tests/test_recurring.py -q` — 85 passed; `PYTHONPATH=src python -m pytest -q` — 900 passed, 1 skipped; `PYTHONPATH=src python -m coga.cli validate --task async-park-and-continue-on-block --json` — ok_count 1, no issues. No owner-review blocker found; local `git merge-tree main HEAD` was not rerun after sandbox read-only git metadata because GitHub reports the PR mergeable.
