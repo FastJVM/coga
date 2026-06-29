@@ -77,6 +77,18 @@ from coga.paths import log_path
 # (the coga launch auto-chain, manual commands).
 _MAX_SYNC_ATTEMPTS = 5
 
+_ROOT_LAYOUT_COGA_PATHS = (
+    "bootstrap",
+    "coga.toml",
+    "context.md",
+    "contexts",
+    "log.md",
+    "recurring",
+    "skills",
+    "tasks",
+    "workflows",
+)
+
 
 class GitError(Exception):
     """Raised when a git operation fails (git missing, or a non-zero exit).
@@ -283,8 +295,8 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
             sys.stderr.write(f"[git] not a git repo (sync skipped): {message}\n")
             return
 
-        subtree_rel = _relative_to_root(root, subtree)
-        changed = _changed_paths_under(root, subtree_rel)
+        state_pathspecs = _coga_state_pathspecs(root, subtree)
+        changed = _changed_paths_under(root, state_pathspecs)
         if not changed:
             return
 
@@ -345,16 +357,26 @@ def _dispatch_branch_sync(
     _land_paths_on_control_branch(cfg, root, overlay_rels, message=message)
 
 
-def _changed_paths_under(root: Path, subtree_rel: str) -> list[str]:
-    """Repo-relative paths with working-tree changes under `subtree_rel`.
+def _coga_state_pathspecs(root: Path, coga_root: Path) -> list[str]:
+    rel = _relative_to_root(root, coga_root)
+    if rel != ".":
+        return [rel]
+    return list(_ROOT_LAYOUT_COGA_PATHS)
 
-    A full `git status --porcelain -z` scoped to the subtree pathspec: captures
+
+def _changed_paths_under(root: Path, pathspecs: str | Iterable[str]) -> list[str]:
+    """Repo-relative paths with working-tree changes under `pathspecs`.
+
+    A full `git status --porcelain -z` scoped to the Coga pathspecs: captures
     staged and unstaged modifications, deletions, renames, and untracked files
     alike. `-z` is NUL-delimited so paths with spaces or special characters need
     no unquoting. Rename entries (`R`/`C`) emit the new path then the old path as
     two NUL fields; both are returned so the rename commits as a delete + add.
     """
-    out = _run_git(root, "status", "--porcelain", "-z", "--", subtree_rel)
+    selected = [pathspecs] if isinstance(pathspecs, str) else list(pathspecs)
+    if not selected:
+        return []
+    out = _run_git(root, "status", "--porcelain", "-z", "--", *selected)
     fields = out.split("\x00")
     rels: list[str] = []
     seen: set[str] = set()

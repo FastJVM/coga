@@ -154,6 +154,24 @@ _LEGACY_ALIASES: dict[str, str] = {
 _NON_SWEEPING_COMMANDS = frozenset(
     {"status", "show", "validate", "usage", "init", "uninstall"}
 )
+_SWEEPING_COMMANDS = frozenset(
+    {
+        "create",
+        "ticket",
+        "project",
+        "launch",
+        "bump",
+        "delete",
+        "retire",
+        "panic",
+        "slack",
+        "digest",
+    }
+)
+_SWEEPING_SKILL_SUBCOMMANDS = frozenset(
+    {"install", "install-local", "install-url", "update", "remove"}
+)
+_SWEEPING_MARK_SUBCOMMANDS = frozenset({"active", "paused", "done"})
 
 
 def _sweep_coga_state(cfg) -> None:
@@ -169,14 +187,33 @@ def _sweep_coga_state(cfg) -> None:
     """
     if cfg is None:
         return
-    command = sys.argv[1] if len(sys.argv) > 1 else None
-    if command is None or command.startswith("-"):
-        return
-    if command in _NON_SWEEPING_COMMANDS:
-        return
-    if "--help" in sys.argv or "-h" in sys.argv:
-        return
-    git.sync_coga_state(cfg)
+    if _should_sweep_coga_state(sys.argv):
+        git.sync_coga_state(cfg)
+
+
+def _should_sweep_coga_state(argv: list[str]) -> bool:
+    args = argv[1:]
+    if not args:
+        return False
+    if "--help" in args or "-h" in args:
+        return False
+    command = args[0]
+    if command.startswith("-") or command in _NON_SWEEPING_COMMANDS:
+        return False
+    if command in _SWEEPING_COMMANDS:
+        return True
+    if command == "skill":
+        subcommand = args[1] if len(args) > 1 else None
+        return subcommand in _SWEEPING_SKILL_SUBCOMMANDS
+    if command == "mark":
+        subcommand = args[1] if len(args) > 1 else None
+        return subcommand in _SWEEPING_MARK_SUBCOMMANDS
+    if command == "recurring":
+        subcommand = args[1] if len(args) > 1 else None
+        return subcommand is None or subcommand.startswith("-") or subcommand == "launch"
+    if command == "secret":
+        return False
+    return False
 
 
 def _validate_aliases(aliases: dict[str, str]) -> None:

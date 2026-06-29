@@ -1082,6 +1082,62 @@ def test_sync_coga_state_commits_dirty_coga_and_leaves_code_untouched(git_repo):
     assert git_repo.git("show", "origin/main:outside.txt") == "original\n"
 
 
+def test_sync_coga_state_root_layout_keeps_product_code_out(tmp_path, real_git):
+    """When `coga.toml` lives at the git root, sweep known Coga OS paths only.
+
+    `find_repo_root` still accepts this layout, but `cfg.repo_root == git root`
+    must not turn the catch-all sweep into `git add -A` for product files.
+    """
+    root = tmp_path / "repo"
+    origin = tmp_path / "origin.git"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=root, check=True)
+    subprocess.run(["git", "init", "--bare", "-q", str(origin)], check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(origin)], cwd=root, check=True)
+
+    (root / "coga.toml").write_text("version = 1\n")
+    (root / "tasks").mkdir()
+    (root / "src").mkdir()
+    (root / "src" / "app.py").write_text("print('original')\n")
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=root, check=True)
+    subprocess.run(["git", "branch", "-M", "main"], cwd=root, check=True)
+    subprocess.run(["git", "push", "-q", "origin", "main"], cwd=root, check=True)
+
+    (root / "src" / "app.py").write_text("print('local')\n")
+    _task_dir(root)
+
+    git.sync_coga_state(_cfg(root), message="Sync coga state")
+
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert "tasks/" not in status
+    assert "src/app.py" in status
+    origin_code = subprocess.run(
+        ["git", "show", "origin/main:src/app.py"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    origin_ticket = subprocess.run(
+        ["git", "show", "origin/main:tasks/demo/ticket.md"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert origin_code == "print('original')\n"
+    assert origin_ticket
+
+
 def test_sync_coga_state_lands_nonunion_on_main_keeps_union_local_on_feature(git_repo):
     """From a feature branch: non-union coga/ state lands on origin/main via the
     overlay, but a `merge=union` file (log.md) is committed locally only — never
@@ -1132,9 +1188,40 @@ def test_sweep_skips_read_only_and_runs_for_mutating_commands(monkeypatch):
     cli._sweep_coga_state(cfg)
     assert calls == []  # read-only command
 
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "skill", "status"])
+    cli._sweep_coga_state(cfg)
+    assert calls == []  # read-only nested command
+
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "recurring", "list"])
+    cli._sweep_coga_state(cfg)
+    assert calls == []  # read-only nested command
+
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "secret", "get", "env:FOO"])
+    cli._sweep_coga_state(cfg)
+    assert calls == []  # explicit read-only query
+
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "mark"])
+    cli._sweep_coga_state(cfg)
+    assert calls == []  # no-args help for a command group
+
     monkeypatch.setattr(cli.sys, "argv", ["coga", "bump", "demo"])
     cli._sweep_coga_state(cfg)
     assert calls == [cfg]  # mutating command swept
+
+    calls.clear()
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "skill", "update"])
+    cli._sweep_coga_state(cfg)
+    assert calls == [cfg]  # mutating nested command swept
+
+    calls.clear()
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "recurring", "--all"])
+    cli._sweep_coga_state(cfg)
+    assert calls == [cfg]  # bare recurring scan with options mutates
+
+    calls.clear()
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "mark", "done", "demo"])
+    cli._sweep_coga_state(cfg)
+    assert calls == [cfg]  # mutating command-group subcommand swept
 
     calls.clear()
     cli._sweep_coga_state(None)

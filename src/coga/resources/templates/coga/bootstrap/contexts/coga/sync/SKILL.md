@@ -414,10 +414,14 @@ last per-command sync and would otherwise sit dirty forever:
   directly in the working tree — no command ran, so nothing committed it.
 
 `src/coga/git.py::sync_coga_state(cfg, *, message="Sync coga state")` closes
-both. It commits **everything dirty under the `coga/` subtree** (`cfg.repo_root`,
-where `coga.toml` lives) — a full `git status` under that pathspec, so
-modifications, deletions, renames, **and new untracked files** are all captured.
-This is *not* the forbidden `git add -A`: the subtree boundary is exactly the
+both. In the normal nested layout it commits **everything dirty under the
+`coga/` subtree** (`cfg.repo_root`, where `coga.toml` lives). In older/root
+layouts where `coga.toml` lives at the git toplevel, it scopes to the known
+Coga OS pathspecs (`tasks`, `contexts`, `skills`, `workflows`, `recurring`,
+`bootstrap`, `coga.toml`, `context.md`, `log.md`) instead of treating the whole
+git root as Coga state. A full `git status` under those pathspecs captures
+modifications, deletions, renames, **and new untracked files**. This is *not*
+the forbidden `git add -A`: the subtree/pathspec boundary is exactly the
 OS-state line the "Scope is narrow" rule draws, so product code (`src/`,
 `tests/`) is structurally never swept in. Branch handling and the
 `merge=union` split reuse the same machinery as `sync_paths` (union files —
@@ -436,7 +440,9 @@ per-transition syncs, which keep the readable git history and digest filtering:
   launch.
 - **The CLI dispatch boundary** (`cli.py::main`'s `finally` around `app()`),
   for mutating commands only. Read-only commands (`status`, `show`, `validate`,
-  `usage`), `init`/`uninstall`, and `--help`/option invocations are excluded —
+  `usage`), read-only group subcommands (`skill status`, `recurring list`,
+  `secret get`), no-args/help group invocations (`mark`, `skill`),
+  `init`/`uninstall`, and `--help`/option invocations are excluded —
   `coga/principles` #6 forbids a render from mutating as a side effect.
 
 The semantics this buys (and accepts): a human hand-edit commits on the **next
