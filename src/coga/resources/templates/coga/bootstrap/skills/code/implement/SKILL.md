@@ -52,7 +52,7 @@ later `code/open-pr` step does that, after self-review and fixes.
    on `implement`, the later steps (open the PR, review) never start,
    and your work is invisible even though the code is committed on
    disk. Do not end the session until `coga bump` has run cleanly; if
-   something blocks you from reaching it, `coga panic` with a reason.
+   something blocks you from reaching it, `coga block` with a reason.
 
 ## Acceptance for this step
 
@@ -75,4 +75,4 @@ later `code/open-pr` step does that, after self-review and fixes.
 - If the work is too big for one PR, **stop and split the ticket** on
   the blackboard. Don't ship a half-implementation.
 - If the test suite fails for reasons unrelated to your change, write
-  it to the blackboard and `coga panic` rather than masking it.
+  it to the blackboard and `coga block` rather than masking it.

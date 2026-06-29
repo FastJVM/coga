@@ -1458,7 +1458,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
     assert ticket.assignee == "marc"
 
 
-def test_launch_harness_stops_on_agent_panic(
+def test_launch_harness_stops_on_agent_block(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1469,25 +1469,25 @@ def test_launch_harness_stops_on_agent_panic(
     _allow_interactive_tty(monkeypatch)
 
     class _Result:
-        returncode = 1
+        returncode = 0
 
     def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         result = CliRunner().invoke(
             app,
-            ["panic", "--task", slug, "--reason", "test panic"],
+            ["block", "--task", slug, "--reason", "test block"],
         )
-        assert result.exit_code == 1, result.output
+        assert result.exit_code == 0, result.output
         return _Result()
 
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
     monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     result = CliRunner().invoke(app, ["launch", slug])
-    assert result.exit_code == 1, result.output
+    assert result.exit_code == 0, result.output
     assert len(calls) == 1
-    assert "Agent exited with code 1" in (result.output + (result.stderr or ""))
-    assert "test panic" in read_blackboard(Path(ref["path"]))
+    assert "task status is 'blocked'" in result.output
+    assert "test block" in read_blackboard(Path(ref["path"]))
 
 
 def _launch_single_spawn(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:

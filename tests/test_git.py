@@ -241,7 +241,7 @@ def test_sync_feature_branch_relands_existing_task_after_local_change(git_repo):
     fix that `rm` refused — the temp-index content differed from both the
     working file and the feature HEAD (which the local commit had just moved),
     tripping git's "staged content differs" guard — so the land crashed. This
-    is the common `coga panic` / re-author case: the ticket was created on a
+    is the common `coga block` / re-author case: the ticket was created on a
     prior run, then edited again from a feature worktree.
     """
     cfg = load_config(git_repo.coga_os)
@@ -255,9 +255,9 @@ def test_sync_feature_branch_relands_existing_task_after_local_change(git_repo):
     git_repo.checkout_branch("feature/x")
     (task / "blackboard.md").write_text("## Blockers\n\nstuck\n")
 
-    git.sync_task_state(cfg, task, message="Ticket: demo — panic")
+    git.sync_task_state(cfg, task, message="Ticket: demo — blocked")
 
-    assert "Ticket: demo — panic" in git_repo.origin_subjects()
+    assert "Ticket: demo — blocked" in git_repo.origin_subjects()
     assert git_repo.origin_tracks("coga/tasks/demo/blackboard.md")
     landed = git_repo.git(
         "show", "main:coga/tasks/demo/blackboard.md", cwd=git_repo.origin
@@ -726,28 +726,28 @@ def test_cli_bump_syncs_step_to_origin(git_repo):
     )
 
 
-# --- bespoke call sites (ticket C): panic + ticket authoring -------------------
+# --- bespoke call sites (ticket C): block + ticket authoring -------------------
 #
 # A wired the clean finalizers (mark/bump/create/retire). C wires the two sites
-# that don't go through those: `coga panic` (blocker written straight to the
+# that don't go through those: `coga block` (blocker written straight to the
 # blackboard + log) and `coga ticket` authoring (the agent edits ticket.md in
 # a subprocess, so coga must commit the result after control returns).
 
 
-def test_cli_panic_syncs_blocker_to_origin(git_repo):
-    """`coga panic` lands the blocker (blackboard + log) on origin/main."""
+def test_cli_block_syncs_blocker_to_origin(git_repo):
+    """`coga block` lands the blocker (blackboard + log) on origin/main."""
     result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = result.output.split(":", 1)[0].strip()
+    activated = runner.invoke(app, ["mark", "active", slug])
+    assert activated.exit_code == 0, activated.output
 
-    panicked = runner.invoke(
-        app, ["panic", "--task", slug, "--reason", "retry ceiling unspecified"]
+    blocked = runner.invoke(
+        app, ["block", "--task", slug, "--reason", "retry ceiling unspecified"]
     )
-    # Panic exits non-zero by design (the distress signal), but the sync still
-    # ran before the exit.
-    assert panicked.exit_code == 1, panicked.output
+    assert blocked.exit_code == 0, blocked.output
 
     assert any(
-        s.startswith(f"Ticket: {slug} — panic") for s in git_repo.origin_subjects()
+        s.startswith(f"Ticket: {slug} — blocked") for s in git_repo.origin_subjects()
     )
     # The blocker is appended to the blackboard region of the single-file
     # ticket (the file-form `tasks/<slug>.md`; no separate blackboard.md).
@@ -757,8 +757,8 @@ def test_cli_panic_syncs_blocker_to_origin(git_repo):
     assert "retry ceiling unspecified" in ticket
 
 
-def test_cli_panic_from_feature_branch_leaves_code_untouched(git_repo):
-    """Panic often fires from a feature worktree with uncommitted code.
+def test_cli_block_from_feature_branch_leaves_code_untouched(git_repo):
+    """Block often fires from a feature worktree with uncommitted code.
 
     The blocker must land on origin/main, but uncommitted *code* in the
     worktree must NOT be swept into the commit (the whole reason C scopes
@@ -766,19 +766,21 @@ def test_cli_panic_from_feature_branch_leaves_code_untouched(git_repo):
     """
     result = runner.invoke(app, ["create", "Demo task", "--workflow", "code"])
     slug = result.output.split(":", 1)[0].strip()
+    activated = runner.invoke(app, ["mark", "active", slug])
+    assert activated.exit_code == 0, activated.output
     git_repo.checkout_branch("feature/x")
 
     stray = git_repo.root / "wip.py"
     stray.write_text("# half-written change\n")
 
-    panicked = runner.invoke(
-        app, ["panic", "--task", slug, "--reason", "blocked on design"]
+    blocked = runner.invoke(
+        app, ["block", "--task", slug, "--reason", "blocked on design"]
     )
-    assert panicked.exit_code == 1, panicked.output
+    assert blocked.exit_code == 0, blocked.output
 
     # Blocker landed on the control branch...
     assert any(
-        s.startswith(f"Ticket: {slug} — panic") for s in git_repo.origin_subjects()
+        s.startswith(f"Ticket: {slug} — blocked") for s in git_repo.origin_subjects()
     )
     # ...but the uncommitted code did not, and is still sitting in the worktree.
     assert not git_repo.origin_tracks("wip.py")

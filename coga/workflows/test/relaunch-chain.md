@@ -19,7 +19,7 @@ steps:
 The `coga launch` supervisor auto-relaunches the next step **only when the
 resolved `assignee:` is unchanged** across the bump (see `commands/launch.py`
 `_harness_stop_reason`). It stops on any assignee change, on human-owned steps,
-on `done`/`paused`, and on panic / non-zero exit. Skill-less agent steps still
+on `done`/`paused`/`blocked`, and on non-zero exit. Skill-less agent steps still
 chain (absence of skills is no longer a stop condition).
 
 The step order is chosen so one run hits every boundary type exactly once:

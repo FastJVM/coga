@@ -37,7 +37,7 @@ yourself.
 ## What this skill does NOT do
 
 - Decide whether to merge — that's the human's job in the next step.
-- Make code changes. If CI fails for a real reason, `coga panic` and
+- Make code changes. If CI fails for a real reason, `coga block` and
   let the human relaunch.
 - Edit `assignee:` by hand. The workflow's per-step `assignee:` field
   handles the role rewrite on bump.

@@ -258,7 +258,7 @@ def test_bump_rewind_refuses_supervised_agent(repo: Path) -> None:
 
     assert result.exit_code == 2, result.output
     assert "Agents cannot rewind" in result.output
-    assert "coga panic" in result.output
+    assert "coga block" in result.output
     t = Ticket.read(task_path)
     assert t.step == "2 (pr)"
 
@@ -366,19 +366,38 @@ def test_bump_no_workflow_errors_with_mark_done_hint(repo: Path) -> None:
     assert t.status == "in_progress"
 
 
-# --- panic --------------------------------------------------------------------
+# --- block / unblock ----------------------------------------------------------
 
 
-def test_panic_writes_blocker(repo: Path) -> None:
+def test_block_writes_blocker_and_status(repo: Path) -> None:
     slug, task_path = _make_task(repo)
     runner = CliRunner()
-    result = runner.invoke(app, ["panic", "--task", slug, "--reason", "unclear ceiling for 429 backoff"])
-    # Panic exits non-zero so a parent process can detect agent distress.
-    assert result.exit_code == 1, result.output
+    result = runner.invoke(app, ["block", "--task", slug, "--reason", "unclear ceiling for 429 backoff"])
+    assert result.exit_code == 0, result.output
     blackboard = read_blackboard(task_path)
     assert "unclear ceiling for 429 backoff" in blackboard
     assert "## Blockers" in blackboard
-    assert "panic:" in _log_text(repo, slug)
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "blocked"
+    assert ticket.step == "1 (implement)"
+    assert "blocked:" in _log_text(repo, slug)
+
+
+def test_unblock_records_answer_and_reactivates(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["block", "--task", slug, "--reason", "which retry ceiling?"])
+    assert result.exit_code == 0, result.output
+
+    result = runner.invoke(app, ["unblock", slug, "--answer", "cap at 5 minutes"])
+
+    assert result.exit_code == 0, result.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "active"
+    assert ticket.step == "1 (implement)"
+    blackboard = read_blackboard(task_path)
+    assert "- [x]" in blackboard
+    assert "cap at 5 minutes" in blackboard
 
 
 # --- delete -------------------------------------------------------------------
@@ -974,6 +993,21 @@ def test_status_shows_active(repo: Path) -> None:
     result = runner.invoke(app, ["status"])
     assert result.exit_code == 0
     assert slug in result.output
+
+
+def test_status_blocked_expands_open_blockers(repo: Path) -> None:
+    slug, _ = _make_task(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["block", "--task", slug, "--reason", "pick retry ceiling"])
+    assert result.exit_code == 0, result.output
+
+    result = runner.invoke(app, ["status", "--blocked"])
+
+    assert result.exit_code == 0, result.output
+    assert slug in result.output
+    assert "blocked" in result.output
+    assert "pick retry ceiling" in result.output
+    assert f'coga unblock {slug} --answer "..."' in result.output
 
 
 def test_status_narrow_terminal_keeps_each_task_on_one_line(

@@ -25,6 +25,6 @@ A human is present in this terminal. Work with them, not around them.
 
 ## Escalation
 
-Still `coga panic` if the blocker needs someone who isn't here (e.g. the
-owner is somebody else). Otherwise just ask directly in the terminal — no need
-to panic when the human is right there.
+Use `coga block` if the blocker needs someone who isn't here (e.g. the owner
+is somebody else). Otherwise just ask directly in the terminal — no need to
+block when the human is right there.

@@ -52,7 +52,7 @@ Confirm the cutover is clean, then hand back to the owner.
   (`git ls-files | grep -c '^relay-os/'` returns 0).
 - Full suite green (`python -m pytest`).
 - Write the results to the blackboard, then `coga bump <slug>`. If
-  `relay-os/` came back or the suite fails, `coga panic` with the
+  `relay-os/` came back or the suite fails, `coga block` with the
   specifics instead of bumping.
 
 ## fan-out

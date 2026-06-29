@@ -7,11 +7,11 @@ you write to stdout. Treat this as a batch job with escalation.
 
 - **Never ask questions expecting a response.** There is no human reading.
   Writing "should I do X or Y?" and waiting is a dead loop.
-- **Either proceed or panic.** When you hit uncertainty, there are two valid
+- **Either proceed or block.** When you hit uncertainty, there are two valid
   moves:
   1. Proceed with the best reasonable choice. Document the choice and its
      rationale in the blackboard *before* you act on it.
-  2. Call `coga panic` with a specific reason. Stop.
+  2. Call `coga block` with a specific reason. Stop.
   There is no third option. Do not sit idle.
 - **Assume you might be relaunched mid-task.** Every meaningful step gets
   written to the blackboard before you move on. A crash or timeout should
@@ -28,13 +28,13 @@ you write to stdout. Treat this as a batch job with escalation.
   transition; reach for `coga slack` when it doesn't. Don't broadcast
   every small step; use the blackboard for that.
 
-## When in doubt, panic
+## When in doubt, block
 
-Auto mode's escape valve is `coga panic`. It's not a failure mode — it's the
-correct action when you lack information a human needs to supply. Panic is
+Auto mode's escape valve is `coga block`. It's not a failure mode — it's the
+correct action when you lack information a human needs to supply. Blocking is
 preferable to guessing on a high-stakes choice.
 
-Specifically, panic when:
+Specifically, block when:
 
 - The task's premise appears wrong and you'd need to redefine scope.
 - You need a credential, permission, or decision nobody gave you.

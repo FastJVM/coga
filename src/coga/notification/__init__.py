@@ -4,7 +4,7 @@ Coga notifications are the sync point between asynchronous agents and the
 humans approving, unblocking, or watching their work. Slack is the first
 backend behind this channel-agnostic surface.
 
-`post` is the **live** path for urgent events (`coga panic`, script-step
+`post` is the **live** path for urgent events (`coga block`, script-step
 failures, the manual `coga slack` FYI). It selects the configured
 notification channel(s) and dispatches through their backend implementation.
 Slack preserves the previous crash-loud/no-retry semantics.

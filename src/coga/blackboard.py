@@ -10,6 +10,7 @@ and body above the fence are never touched.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
@@ -29,6 +30,7 @@ PRODUCTION_NOTES_BLACKBOARD = (
     "This blackboard is for active-work handoff notes. Authoring scratch was "
     "cleared at activation; durable requirements belong in the ticket body.\n"
 )
+BLOCKER_TS_FORMAT = "%Y-%m-%d %H:%M"
 
 
 def render_blackboard(task_title: str) -> str:
@@ -123,14 +125,175 @@ def promote_to_production_notes(
     return True
 
 
-def append_blocker(ticket_path: Path, actor: str, reason: str) -> None:
+@dataclass(frozen=True)
+class Blocker:
+    """One unresolved or resolved blocker recorded in a task blackboard."""
+
+    id: str
+    created_at: datetime | None
+    actor: str
+    reason: str
+    resolved: bool = False
+    resolved_at: datetime | None = None
+    answer: str | None = None
+
+
+_CHECKBOX_BLOCKER_RE = re.compile(
+    r"^- \[(?P<mark>[ xX])\]\s+"
+    r"\[(?P<ts>[^\]]+)\]\s+"
+    r"\[(?P<actor>[^\]]+)\]\s+"
+    r"id=(?P<id>\S+)\s+"
+    r"(?P<reason>.*)$"
+)
+_LEGACY_BLOCKER_RE = re.compile(
+    r"^- \[(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2})\]\s+"
+    r"\[(?P<actor>[^\]]+)\]\s+"
+    r"(?P<reason>.*)$"
+)
+_RESOLVED_LINE_RE = re.compile(
+    r"^\s+resolved:\s+\[(?P<ts>[^\]]+)\]\s+\[(?P<actor>[^\]]+)\]\s+(?P<answer>.*)$"
+)
+
+
+def _parse_ts(value: str) -> datetime | None:
+    try:
+        return datetime.strptime(value, BLOCKER_TS_FORMAT)
+    except ValueError:
+        return None
+
+
+def _blocker_id(now: datetime) -> str:
+    return now.strftime("%Y%m%dT%H%M%S")
+
+
+def append_blocker(ticket_path: Path, actor: str, reason: str) -> Blocker:
     """Write a timestamped blocker entry to the blackboard's Blockers section.
 
     `ticket_path` is the task's `ticket.md` (file-form: the `.md` file itself;
     directory-form: `<dir>/ticket.md`)."""
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
-    entry = f"- [{ts}] [{actor}] {reason}"
+    now = datetime.now()
+    ts = now.strftime(BLOCKER_TS_FORMAT)
+    blocker_id = _blocker_id(now)
+    entry = f"- [ ] [{ts}] [{actor}] id={blocker_id} {reason}"
     append_to_section(ticket_path, "Blockers", entry)
+    return Blocker(
+        id=blocker_id,
+        created_at=now.replace(second=0, microsecond=0),
+        actor=actor,
+        reason=reason,
+    )
+
+
+def parse_blockers_text(text: str) -> list[Blocker]:
+    """Parse blockers from a blackboard region.
+
+    New entries use checkbox lines with a stable id. Historical panic entries
+    had no checkbox or id; treat them as open until an unblock rewrite marks
+    them resolved.
+    """
+    lines = text.splitlines()
+    blockers: list[Blocker] = []
+    pending_index: int | None = None
+    legacy_counter = 0
+    for line in lines:
+        checkbox = _CHECKBOX_BLOCKER_RE.match(line)
+        if checkbox:
+            created_at = _parse_ts(checkbox.group("ts"))
+            blockers.append(
+                Blocker(
+                    id=checkbox.group("id"),
+                    created_at=created_at,
+                    actor=checkbox.group("actor"),
+                    reason=checkbox.group("reason").strip(),
+                    resolved=checkbox.group("mark").lower() == "x",
+                )
+            )
+            pending_index = len(blockers) - 1
+            continue
+
+        legacy = _LEGACY_BLOCKER_RE.match(line)
+        if legacy:
+            legacy_counter += 1
+            created_at = _parse_ts(legacy.group("ts"))
+            blockers.append(
+                Blocker(
+                    id=f"legacy-{legacy_counter}",
+                    created_at=created_at,
+                    actor=legacy.group("actor"),
+                    reason=legacy.group("reason").strip(),
+                    resolved=False,
+                )
+            )
+            pending_index = len(blockers) - 1
+            continue
+
+        resolved = _RESOLVED_LINE_RE.match(line)
+        if resolved and pending_index is not None:
+            blocker = blockers[pending_index]
+            blockers[pending_index] = Blocker(
+                id=blocker.id,
+                created_at=blocker.created_at,
+                actor=blocker.actor,
+                reason=blocker.reason,
+                resolved=True,
+                resolved_at=_parse_ts(resolved.group("ts")),
+                answer=resolved.group("answer").strip(),
+            )
+    return blockers
+
+
+def read_blockers(ticket_path: Path) -> list[Blocker]:
+    """Read every blocker from a task's blackboard region."""
+    return parse_blockers_text(read_blackboard(ticket_path))
+
+
+def open_blockers(ticket_path: Path) -> list[Blocker]:
+    """Read unresolved blockers from a task's blackboard region."""
+    return [b for b in read_blockers(ticket_path) if not b.resolved]
+
+
+def resolve_open_blockers(ticket_path: Path, actor: str, answer: str) -> list[Blocker]:
+    """Mark every currently open blocker resolved and append the answer.
+
+    A blocked ticket may carry multiple asks. `coga unblock` answers all open
+    asks in one transition so status and blackboard cannot disagree.
+    """
+    now = datetime.now()
+    ts = now.strftime(BLOCKER_TS_FORMAT)
+    region = read_blackboard(ticket_path)
+    lines = region.splitlines()
+    blockers_before = parse_blockers_text(region)
+    if not [b for b in blockers_before if not b.resolved]:
+        return []
+
+    resolved_lines: list[str] = []
+    legacy_counter = 0
+    for line in lines:
+        checkbox = _CHECKBOX_BLOCKER_RE.match(line)
+        if checkbox:
+            if checkbox.group("mark").lower() == "x":
+                resolved_lines.append(line)
+            else:
+                resolved_lines.append(line.replace("- [ ]", "- [x]", 1))
+                resolved_lines.append(f"  resolved: [{ts}] [{actor}] {answer}")
+            continue
+        legacy = _LEGACY_BLOCKER_RE.match(line)
+        if legacy:
+            legacy_counter += 1
+            resolved_lines.append(
+                "- [x] "
+                f"[{legacy.group('ts')}] "
+                f"[{legacy.group('actor')}] "
+                f"id=legacy-{legacy_counter} "
+                f"{legacy.group('reason').strip()}"
+            )
+            resolved_lines.append(f"  resolved: [{ts}] [{actor}] {answer}")
+            continue
+        resolved_lines.append(line)
+
+    trailing = "\n" if region.endswith("\n") else ""
+    replace_blackboard(ticket_path, "\n".join(resolved_lines) + trailing)
+    return [b for b in read_blockers(ticket_path) if b.resolved and b.answer == answer]
 
 
 def format_bytes(size: int) -> str:
@@ -170,11 +333,16 @@ __all__ = [
     "PRODUCTION_NOTES_BLACKBOARD",
     "PRODUCTION_NOTES_HEADING",
     "render_blackboard",
+    "Blocker",
     "append_to_section_text",
     "promote_to_production_notes_text",
     "append_to_section",
     "promote_to_production_notes",
     "append_blocker",
+    "parse_blockers_text",
+    "read_blockers",
+    "open_blockers",
+    "resolve_open_blockers",
     "format_bytes",
     "blackboard_size_warning",
 ]

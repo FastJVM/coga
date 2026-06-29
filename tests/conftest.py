@@ -96,7 +96,7 @@ def _clear_supervised_session_env(monkeypatch):
     A supervisor exports `COGA_DONE_SENTINEL` (the "session done" sentinel
     file it polls) and `COGA_SUPERVISED` into the agent's env, and those leak
     into anything the agent spawns — including this test suite. Many tests
-    invoke `coga bump` / `mark done` / `panic` (which call
+    invoke `coga bump` / `mark done` / `block` (which call
     `emit_done_marker`) or call `emit_done_marker` directly; left unscrubbed,
     each one writes the *live* inherited sentinel and the supervisor SIGTERMs
     the whole process group, killing the test run mid-flight. Clearing both
@@ -125,7 +125,7 @@ def _stub_git(monkeypatch, request):
     if {"git_repo", "real_git"} & set(request.fixturenames):
         return
     # All public sync entry points are stubbed: `sync_task_state` (mark / bump /
-    # create / panic), `sync_paths` (the multi-path variant `coga ticket`
+    # create / block), `sync_paths` (the multi-path variant `coga ticket`
     # authoring uses), and `sync_log` (the log-only commit a bootstrap-shim
     # launch fires). Stubbing only the first would let authoring or a bootstrap
     # launch shell out to real git on a non-git tmp path and break the

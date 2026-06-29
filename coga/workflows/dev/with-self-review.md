@@ -33,7 +33,7 @@ before the handoff**: check that the PR is mergeable (e.g. `gh pr view
 conflicts, re-run `python -m pytest`, and push so the human reviewer
 receives a clean, mergeable PR. Only then `coga bump` to hand off to the
 owner. If a conflict needs a judgment call you can't make, write it to
-the blackboard and `coga panic` instead of bumping.
+the blackboard and `coga block` instead of bumping.
 
 ## review
 

@@ -32,7 +32,7 @@ out of notifications entirely:
 
 Live (urgent) surface — still posts immediately:
 
-- `coga panic` — blocker, owner named.
+- `coga block` — blocker, owner named.
 - `coga slack` — explicit FYI (manual broadcast escape hatch); an
   intentional human broadcast, so batching it would surprise the sender.
 - `coga bump --message "<FYI>"` — explicit FYI attached to step movement.
@@ -126,7 +126,7 @@ contexts: dev/test runs against fake tickets, CI environments where you
 don't want webhook spam, single-developer experimentation branches.
 
 The cost of opting out is being out of the sync loop — no teammate sees
-your launches, bumps, or panics. Treat `enabled = false` as a
+your launches, bumps, or blockers. Treat `enabled = false` as a
 deliberate exit, not a way to "make the warning go away." Once you're
 working with another person, turn it back on.
 
@@ -223,7 +223,7 @@ new string:
 - `cfg.slack_users` (`dict[str, str]`, coga name → Slack member ID) —
   parsed from `[notification.slack.users]` in `coga.toml`; legacy
   `[slack.users]` remains a deprecated compatibility input.
-- Live callers (`post`): `commands/panic.py`, `commands/slack.py`,
+- Live callers (`post`): `commands/block.py`, `commands/slack.py`,
   `commands/launch_script.py` (failure path only),
   `commands/bump.py` when `--message` is present, and
   `commands/launch.py` / `mark.mark_in_progress` (active → in_progress
@@ -363,15 +363,15 @@ Current surface:
 - `coga bump`.
 - the `autoclose-merged` sweep, through the shared `mark_done` finalizer.
 - `coga recurring` and `coga retire` creates.
-- `coga panic` — the blocker written to the blackboard + log, synced before
+- `coga block` — the blocker written to the blackboard + log, synced before
   the teardown signal so the commit lands while the process still owns itself.
 - `coga ticket` authoring — the edits the launched agent makes to `ticket.md`
   (and the blackboard) inside the subprocess, committed once control returns
   and the result passes validation. coga never calls `ticket.write()` for
   those external edits, so this is the only thing that lands them.
 
-Both `panic` and `ticket` sync through the same `git.sync_task_state` helper,
-strictly scoped to the task dir — `coga panic` in particular often fires from
+Both `block` and `ticket` sync through the same `git.sync_task_state` helper,
+strictly scoped to the task dir — `coga block` in particular often fires from
 a feature worktree with uncommitted *code*, which is never swept in.
 
 Task state reaches the control branch from **any** branch. When HEAD is the

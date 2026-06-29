@@ -69,7 +69,7 @@ from coga.tasks import (
 from coga.ticket import Ticket, TicketError
 from coga.workflow import VALID_ASSIGNEE_ROLES
 
-VALID_STATUSES = {"draft", "active", "in_progress", "paused", "done"}
+VALID_STATUSES = {"draft", "active", "in_progress", "blocked", "paused", "done"}
 VALID_AUTONOMY = {"interactive", "auto"}
 
 # Canonical ticket frontmatter schema.
@@ -743,13 +743,13 @@ def _check_workflow_shape(task_label: str, ticket: Ticket) -> list[Issue]:
         # ticket is a `draft`. `draft` is the authoring grace period — a
         # workflow-less draft (concept-capture: stash an idea before its shape
         # settles) is valid and intentional, so it is NOT flagged. Once a
-        # ticket is `active`/`in_progress`/`paused`, a missing workflow means it
+        # ticket is `active`/`in_progress`/`blocked`/`paused`, a missing workflow means it
         # can never be bumped — structurally stuck — so that is an error. (`done`
         # is left alone: a finished workflow-less task is harmless and flagging
         # it would only nag immutable history.) Machine-authored tasks that
         # used to be workflow-less here — recurring/Dream and retire — now
         # create with the `direct/body` workflow, so no whitelist is needed.
-        if ticket.status in {"active", "in_progress", "paused"}:
+        if ticket.status in {"active", "in_progress", "blocked", "paused"}:
             out.append(Issue(
                 kind="active-no-workflow",
                 task=task_label,

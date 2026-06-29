@@ -22,7 +22,7 @@ contexts, and workflow step below. Read it once; follow it throughout.
    invisible even though it's on disk. On the *final* step, run
    `coga mark done <id>` instead.
 4. **Never stop silently.** If something blocks you from reaching the bump,
-   that's `coga panic` — never a quiet exit.
+   that's `coga block` — never a quiet exit.
 
 Everything below is reference for the steps in that loop.
 
@@ -47,7 +47,7 @@ line `<!-- coga:blackboard -->`:
 The append-only audit trail is **not** in your task file: it lives in one
 repo-global `coga/log.md`, each line tagged with its task ref. **Don't
 write to it** — the CLI commands (`coga create`, `ticket`, `mark`, `launch`,
-`bump`, `panic`) are its only writers. Put observations in the blackboard
+`bump`, `block`, `unblock`) are its only writers. Put observations in the blackboard
 instead. Because the log lives outside the task file, the per-task `ticket.md`
 stays small and is the only thing composed into prompts.
 
@@ -61,7 +61,7 @@ for why. The rules that govern it:
   cannot skip ahead.
 - **After bumping, exit cleanly.** One step, one session: don't read the new
   step and keep working in the same process. Under a `coga launch`
-  supervisor, `coga bump` / `coga mark done` / `coga panic` signal it to
+  supervisor, `coga bump` / `coga mark done` / `coga block` signal it to
   tear down your session and spawn the next step itself — just run the command
   and stop. (How the supervisor chains steps is in `coga/architecture`; you
   don't drive it.)
@@ -70,7 +70,7 @@ for why. The rules that govern it:
   ends the chain — the human relaunches for the next step. Don't call
   `coga launch` yourself to keep going.
 - **Don't go backward.** If an earlier step was wrong and needs rework, call
-  `coga panic` with a clear reason rather than bumping; the human decides
+  `coga block` with a clear reason rather than bumping; the human decides
   whether to rewind.
 - **Don't edit the frozen `workflow` snapshot** in ticket frontmatter — it's
   set at creation and is a human-only field.
@@ -78,16 +78,15 @@ for why. The rules that govern it:
   complete; never set `status: done` by hand. A ticket with no `workflow:`
   field has no steps — finish it the same way.
 
-## Escalation — `coga panic`
+## Blocking — `coga block`
 
-`coga panic --task <id> --reason "<specific reason>"`
+`coga block --task <id> --reason "<specific ask>"`
 
-Call this when you're genuinely stuck: a decision you can't make in
-`mode: auto`, a task whose premise turns out wrong and needs rework, or
-repeated failure to make meaningful progress. Write the blocker to the
-blackboard first so whoever relaunches can read it without digging through
-history, then panic and **stop** — don't keep trying. The panic notifies the
-task owner.
+Call this when you're genuinely waiting on a concrete human answer: a decision
+you can't make in unattended work, missing access, a task premise that needs
+owner correction, or repeated failure that needs a human choice. The command
+writes the blocker to the blackboard, sets `status: blocked`, notifies the
+owner, and ends the launched session. Stop after blocking.
 
 `--reason` is required and must be specific. "Unclear what to do" is useless;
 "Retry logic ambiguous — spec says respect Retry-After headers but sets no max
@@ -95,7 +94,7 @@ backoff ceiling for 429s" is actionable.
 
 ## FYIs — `bump --message` and `coga slack`
 
-State transitions (`create`, `mark`, `bump`, `panic`, recurring creates)
+State transitions (`create`, `mark`, `bump`, `block`, `unblock`, recurring creates)
 broadcast on their own. To add an FYI on top:
 
 - **`coga bump <id> --message "<short FYI>"`** when the FYI coincides with
@@ -105,7 +104,7 @@ broadcast on their own. To add an FYI on top:
   no state transition — e.g. a human announcing a hand-edit, or an agent
   calling out "tests still flaky" mid-step.
 
-Neither is for blockers — that's `panic`. Keep them to one line; if you need
+Neither is for blockers — that's `coga block`. Keep them to one line; if you need
 paragraphs, write the blackboard and link to it in the message.
 
 ## YAML discipline

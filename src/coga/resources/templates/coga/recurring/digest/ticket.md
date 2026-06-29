@@ -34,7 +34,7 @@ its script step runs `coga digest`, which:
    newest record as an anchor (so a concurrent producer append never conflicts), and
 7. updates `### Digest State` with the new high-water mark.
 
-Genuinely urgent events (`coga panic`, script-step failures, the
+Genuinely urgent events (`coga block`, script-step failures, the
 manual `coga slack` FYI) bypass the spool and still post live, so a stuck
 agent or a failure never waits a day to be seen.
 

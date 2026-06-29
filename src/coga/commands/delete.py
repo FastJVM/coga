@@ -80,7 +80,7 @@ def delete(
     # Sync the removal to the control branch, the git analogue of the Slack
     # broadcast every other state mutation posts. Without this, `coga delete`
     # leaves an uncommitted working-tree deletion — the one command that
-    # bypassed the sync layer (create/mark/bump/panic all call it). The task
+    # bypassed the sync layer (create/mark/bump/block all call it). The task
     # dir is gone now, so anchor on its still-present parent for git-root
     # resolution while staging the deleted dir itself as the pathspec;
     # `sync_paths` already handles a removed path (it `git rm`s a missing
