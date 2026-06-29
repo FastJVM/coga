@@ -380,3 +380,4 @@
 2026-06-29 11:11 [udpate-skill-in-recurring-with-a-flag] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-29 11:14 [skill-autoupdate-in-recurring] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-29 12:43 [clean-up-docs-directory] [human:nicktoper] activated (draft → active) — auto on launch
+2026-06-29 12:43 [clean-up-docs-directory] [human:nicktoper] started (active → in_progress) via coga launch

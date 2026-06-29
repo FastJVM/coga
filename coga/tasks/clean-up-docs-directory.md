@@ -1,7 +1,7 @@
 ---
 slug: clean-up-docs-directory
 title: clean up docs directory
-status: active
+status: in_progress
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
