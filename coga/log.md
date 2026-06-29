@@ -383,3 +383,5 @@
 2026-06-29 12:43 [clean-up-docs-directory] [human:nicktoper] started (active → in_progress) via coga launch
 2026-06-29 12:44 [anonymous-install-telemetry-opt-out-no-pii] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-29 12:49 [anonymous-install-telemetry-opt-out-no-pii] [human:nicktoper] task done
+2026-06-29 12:44 [clean-up-docs-directory] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-29 12:50 [clean-up-docs-directory] [agent:claude] advanced to step 2 (self-qa)

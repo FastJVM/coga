@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -98,6 +98,36 @@ one pointer line max per item, and only when the framing is genuinely unique.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+- branch: `docs-cleanup`
+- worktree: `/home/n/Code/claude/coga-docs-cleanup`
+
+### implement step — done
+
+**Deleted (13 files):** `docs/design.md`, `coga-unique.md`, `coga-vs-paperclip.md`,
+`agent-tool-buckets.md`, `coga-additions.md`, and all 8 `docs/competition/*.md`
+reports (the now-empty `competition/` dir went with them). Remaining `docs/` =
+the keep list exactly: `cli-extension-audit`, `cli-extension-external-surface`,
+`market-thesis`, `migrating-to-coga`, `releasing`, `vision`.
+
+**Dangling refs:** none in live docs. Repo-wide grep hit only (a) historical
+task notes under `coga/tasks/` (left untouched per the immutability rule) and
+(b) the two `conductor-report` mentions in `coga/contexts/docs/gdrive-mcp/SKILL.md`
+and `coga/workflows/docs/create-google-doc.md` — the documented false positives
+(a Google Doc, not `docs/competition/`). Left untouched.
+
+**Cross-ref:** investigated each deleted framing; almost all already captured
+(no-black-box, repo-as-record, wishlist→roadmap) and the Paperclip contrast is
+absent from positioning's source-of-truth docs (market-thesis/vision). Surfaced
+to human → chose "add Paperclip line." Added one bullet to the competitive-framing
+section of `coga/contexts/marketing/positioning/SKILL.md`. No packaged copy of
+that context exists under `src/coga/resources/` → no sync needed.
+
+**Tests:** `python3.12 -m pytest` → 906 passed, 1 skipped. (Default `python` is
+3.9 here and trips Coga's version guard at collection — env-only, unrelated to
+this change.)
 
 ## Evaluator review
 
