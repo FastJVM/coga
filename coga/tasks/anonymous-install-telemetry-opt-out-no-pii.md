@@ -279,6 +279,29 @@ should fall back to the no-phone-home PyPI/GitHub estimate instead.
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
+## OUTCOME — WONT-SHIP (2026-06-29, owner: nick, interactive)
+
+**Decision: do NOT ship telemetry. Task closed without merging.** Owner closed
+PR #465 (now CLOSED, unmerged; branch `telemetry` @ 54ce355a left intact on
+origin, conflicts with current main). Rationale: users won't want to be tracked
+at all — even an anonymized, opt-out, no-PII, fully-disclosed install ping cuts
+against principle 5 (own the substrate / local by default) and the "fully yours"
+ethos. A tool that phones home isn't fully yours.
+
+What landed instead of the feature:
+- `coga/contexts/coga/principles/SKILL.md` principle 5 — added an explicit
+  "no phoning home — no telemetry/usage tracking/install ping, not even
+  anonymized or opt-out" forbid, plus a "considered and rejected (2026-06)"
+  note pointing future agents at the PyPI/GitHub estimate instead. Packaged
+  copy under `src/coga/resources/templates/.../principles/SKILL.md` synced.
+
+Dead artifacts NOT merged (live only on closed branch `telemetry`, never on
+main): client `src/coga/telemetry.py` + `commands/telemetry.py`, recurring task
+`coga/recurring/telemetry/`, skill `coga/telemetry/send/`, `telemetry-endpoint/`
+GCP function, docs, tests. They stay on the closed PR branch as a record; not
+deleted, not merged. If product-market-fit signal is ever needed, use the
+no-infra PyPI download / GitHub stars estimate.
+
 ## Dev
 
 branch: telemetry

@@ -121,12 +121,22 @@ files in your git repo, on your machine, no hosted backend. And no single model
 vendor owns you — agents are interchangeable.
 
 **Forbids:** moving state into a hosted service you can't inspect; lock-in to one
-model vendor; a format only one vendor can read.
+model vendor; a format only one vendor can read. **No phoning home — no
+telemetry, usage tracking, or install ping, not even anonymized or opt-out.**
+Coga sends nothing about you or your repo anywhere; product signals come from
+public surfaces (PyPI/GitHub) you can read too, never from instrumenting the
+operator's machine.
 
-**Receipt:** git-backed markdown, local by default, no cloud. `claude` ↔ `codex`
-interchangeable (`[agents.*]` in `coga.toml`, `other-agent` rotation across
-workflow steps). `coga init` vendors the CLI into your repo. SKILL.md is an
-open standard.
+**Receipt:** git-backed markdown, local by default, no cloud. Nothing in Coga
+makes a network call you didn't initiate. `claude` ↔ `codex` interchangeable
+(`[agents.*]` in `coga.toml`, `other-agent` rotation across workflow steps).
+`coga init` vendors the CLI into your repo. SKILL.md is an open standard.
+
+> Considered and rejected (2026-06): an opt-out anonymous install ping (3
+> fields, no PII) to gauge product-market fit. Even with loud disclosure and a
+> one-line disable it cuts against this principle — users don't want to be
+> tracked, and a tool that phones home isn't fully *yours*. Use the PyPI/GitHub
+> estimate instead.
 
 ## 6. Fail loud — surface every failure, never silent-wrong-answers
 
