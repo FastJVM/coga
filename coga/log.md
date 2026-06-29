@@ -393,3 +393,5 @@
 2026-06-29 14:49 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] created (autonomy=interactive, status=draft)
 2026-06-29 15:16 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] activated (draft → active) — auto on launch
 2026-06-29 15:16 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] started (active → in_progress) via coga launch
+2026-06-29 15:16 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-29 15:38 [commit-post-session-coga-writes-usage-record-spool] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
