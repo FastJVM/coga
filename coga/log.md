@@ -395,3 +395,12 @@
 2026-06-29 15:16 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] started (active → in_progress) via coga launch
 2026-06-29 15:16 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-29 15:38 [commit-post-session-coga-writes-usage-record-spool] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-06-28 15:25 [awaken-recurring-auto-blocked-tasks] [human:nicktoper] created (autonomy=interactive, status=draft)
+2026-06-28 15:25 [awaken-recurring-auto-blocked-tasks] [git] sync failed: `git add -- coga/tasks/awaken-recurring-auto-blocked-tasks.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-29 15:18 [block-unblock-and-megalaunch] [human:nicktoper] launched in interactive mode (assignee=nick, launch_assignee=codex, agent=codex)
+2026-06-29 15:21 [block-unblock-and-megalaunch] [human:nicktoper] task done — Closed after owner review: superseded implementation PR was closed; no revised implementation PR exists.
+2026-06-29 15:21 [block-unblock-and-megalaunch] [git] sync failed: `git add -- coga/tasks/block-unblock-and-megalaunch.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-29 15:22 [block-unblock-and-megalaunch] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-06-29 15:53 [block-unblock-and-megalaunch] [agent:codex] advanced to step 2 (peer-review) → assigned to claude — Implementation committed: 1b455351 on branch block-unblock-megalaunch.
+2026-06-29 15:53 [block-unblock-and-megalaunch] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-06-29 16:18 [block-unblock-and-megalaunch] [agent:claude] slack: Implementation advanced to peer-review. Branch block-unblock-megalaunch commit 1b455351 is ready for Claude review.
