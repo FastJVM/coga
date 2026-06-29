@@ -203,6 +203,115 @@ def test_megalaunch_budget_guard_skips(repo: Path) -> None:
     assert run.counts["skipped-budget"] == 1
 
 
+def test_megalaunch_ignores_non_active_tickets(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """done/draft/paused tickets are ignored — never launched, never `failed`."""
+    cfg = load_config(repo)
+    for title, status in (("Done", "done"), ("Draft", "draft"), ("Paused", "paused")):
+        ref = create_task(
+            cfg=cfg,
+            title=title,
+            workflow_name="code",
+            contexts=[],
+            autonomy="interactive",
+            owner="marc",
+            assignee="claude",
+            status="active",
+            watchers=[],
+        )
+        ticket = Ticket.read(ref["path"])
+        ticket.frontmatter["status"] = status
+        if status == "done":
+            ticket.frontmatter.pop("step", None)
+        ticket.write(ref["path"])
+
+    def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("megalaunch must not launch a non-active ticket")
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    run = run_megalaunch(cfg)
+
+    assert run.results == []
+    assert run.counts["launched"] == 0
+    assert run.counts["failed"] == 0
+
+
+def test_megalaunch_budget_refreshes_across_tasks(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Tokens spent by an earlier task count against later tasks in the same run.
+
+    Regression: the budget guard must re-read usage between tasks. With a stale
+    snapshot, the second task's guard sees zero spend and over-launches.
+    """
+    from datetime import datetime, timezone
+
+    from coga import usage
+
+    text = (repo / "coga.toml").read_text()
+    (repo / "coga.toml").write_text(
+        text + "\n[megalaunch]\ndefault_token_budget = 1000\ntoken_guard = 600\n"
+    )
+    cfg = load_config(repo)
+    for title in ("First", "Second"):
+        create_task(
+            cfg=cfg,
+            title=title,
+            workflow_name="code",
+            contexts=[],
+            autonomy="interactive",
+            owner="marc",
+            assignee="claude",
+            status="active",
+            watchers=[],
+        )
+
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        usage.append_record(
+            ref_obj.ticket_path,
+            usage.UsageRecord(
+                ts=datetime.now(timezone.utc).isoformat(),
+                title=updated.title or "",
+                slug=ref_obj.id_slug,
+                step=None,
+                agent="claude",
+                cli="claude",
+                provider="anthropic",
+                model="claude-opus-4-8",
+                session_id=None,
+                input_tokens=500,
+                cache_creation_input_tokens=0,
+                cache_read_input_tokens=0,
+                output_tokens=0,
+                usage_status="ok",
+            ),
+        )
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    # One task launches and burns 500 tokens; the other then sees remaining
+    # 1000 - 500 = 500 < 600 guard and is skipped, instead of over-launching.
+    assert run.counts["launched"] == 1
+    assert run.counts["completed"] == 1
+    assert run.counts["skipped-budget"] == 1
+
+
 def test_trim_megalaunch_blackboard_replaces_old_summaries() -> None:
     text = """## Blockers
 

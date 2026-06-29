@@ -88,7 +88,6 @@ def run_megalaunch(
     """Attempt active, launchable tasks sequentially with one budget guard."""
     cfg = cfg or load_config()
     started_at = datetime.now(timezone.utc)
-    records = usage.load_records(cfg.repo_root)
     results: list[MegalaunchResult] = []
     attempted = 0
 
@@ -100,6 +99,16 @@ def run_megalaunch(
         except TicketError as exc:
             results.append(_result(ref, "failed", f"unreadable ticket: {exc}"))
             continue
+
+        # Only `active` (launchable) and `blocked` (reportable) tickets are in
+        # scope. draft/paused/done/in_progress are ignored — never launched and
+        # never counted as a result.
+        if ticket.status not in {"active", "blocked"}:
+            continue
+
+        # Refresh the usage snapshot per task so the budget guard accounts for
+        # tokens already spent by tasks launched earlier in this same run.
+        records = usage.load_records(cfg.repo_root)
 
         candidate = _candidate_result(cfg, ref, ticket, records)
         if candidate is not None:

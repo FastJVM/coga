@@ -22,7 +22,7 @@ link reads it directly.
 Treat the primary repo checkout as the Coga control-plane checkout.
 Keep it on `main` when possible. Do code changes in a feature worktree
 outside the primary checkout, then return to the primary checkout for
-blackboard updates, `coga bump`, `coga slack`, and `coga panic`.
+blackboard updates, `coga bump`, `coga slack`, and `coga block`.
 
 This keeps task-state edits (`ticket.md`, plus the repo-global `coga/log.md`)
 from mixing with source changes on a feature branch. If task-state

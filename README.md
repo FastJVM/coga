@@ -114,7 +114,7 @@ has a **receipt** — the feature that proves it.
 | **3. Obvious** | boring, standard, immediately understandable | the substrate is just markdown + Python + `SKILL.md` (the Claude Code / Codex format); no DB, no DSL |
 | **4. Memory via PR** | thinking compounds, human-gated, never opaque | **Dream** reads execution history and opens *proposal PRs* — propose, human disposes; the blackboard region (in `ticket.md`) = working memory, `contexts/` = long-term |
 | **5. Yours** | own the substrate, swap the vendors | git-backed markdown, local, no cloud; `claude` ↔ `codex` interchangeable; `SKILL.md` is an open standard |
-| **6. Fail loud** | surface every failure | missing context/skill → raise; `coga validate` errors; failures never swallowed; `coga panic` hands back to a human |
+| **6. Fail loud** | surface every failure | missing context/skill → raise; `coga validate` errors; failures never swallowed; `coga block` hands back to a human |
 
 The full canon is [`coga/contexts/coga/principles/SKILL.md`](coga/contexts/coga/principles/SKILL.md);
 the *why* essay is [`docs/vision.md`](docs/vision.md); the market/strategy
@@ -236,8 +236,8 @@ Coga now separates ticket authoring, queue approval, and launched work:
 
 ```text
 draft -> active -> in_progress -> done
-             \          /
-              -> paused
+             \         / \
+              -> paused   -> blocked
 ```
 
 - `draft` is unapproved work. Use `coga ticket "<title>"` for the guided
@@ -249,7 +249,11 @@ draft -> active -> in_progress -> done
 - `in_progress` is launched work. `coga launch <slug>` moves an active ticket
   into this state, and `coga bump <slug>` only moves workflow steps from here.
 - `paused` preserves the current workflow step while taking the task out of
-  execution.
+  execution — intentionally shelved.
+- `blocked` preserves the current workflow step while waiting on a concrete
+  human answer. `coga block` sets it (recording the ask on the blackboard);
+  `coga unblock` records the answer and returns the ticket to `active`. Both
+  are command-owned — never hand-edit `status: blocked`.
 - `done` clears the workflow step and closes the task.
 
 The normal path for a new ticket is:
@@ -558,8 +562,8 @@ For workflow-bound interactive/auto tasks, one `coga launch` can run multiple
 agent-owned steps. After each clean agent exit, Coga re-reads the ticket and
 continues in a fresh agent process only when the task is still `in_progress`, the step
 advanced, the new current step has a `skill:`, and the concrete `assignee:`
-did not change. It stops at human/no-skill steps, assignee handoffs, done or
-paused tasks, no-progress exits, and panic/non-zero exits.
+did not change. It stops at human/no-skill steps, assignee handoffs, done,
+paused, or blocked tasks, no-progress exits, and non-zero exits.
 
 Use `--prompt-report` to inspect the composed prompt without checking for a
 TTY or spawning an agent. The report lists each included layer, exact
@@ -604,16 +608,37 @@ the step rotated to. `skip_permissions = "auto"` with no configured
 `skip_permissions_argv` fails the launch loud before any agent spawns.
 Verify the flags against your installed CLIs before enabling.
 
+### `coga megalaunch [--max-tasks N]`
+
+Sequentially attempt every launchable active task with one shared budget guard.
+Despite the name this is **not** parallel fire-and-forget — it is sequential,
+budget-gated, and conservative. A task is eligible from its live state: `status:
+active`, an agent-owned current step, an assignee resolving to a configured
+agent, no open blocker, no owner/review gate, passing launch/auth/worktree
+checks, and enough remaining token budget for the assigned agent (guard
+configured under `[megalaunch]` in `coga.toml`). Each ticket's outcome is
+recorded as one of: launched, completed, blocked, skipped-human-gate,
+skipped-unresolved-blocker, skipped-budget, or failed. The same engine backs the
+daily `recurring/megalaunch` script task for overnight work.
+
+```sh
+coga megalaunch
+coga megalaunch --max-tasks 3
+```
+
 ### `coga status`
 
-Show the live tasks in the repo — `draft`, `active`, `in_progress`, and `paused`.
-One line per task. Bootstrap tickets have no status and don't appear. `done`
-tickets are hidden by default (the listing ends with a `(N done tasks hidden —
-use --all to show)` note); add `--all` (`-a`) to include them.
+Show the live tasks in the repo — `draft`, `active`, `in_progress`, `blocked`,
+and `paused`. One line per task. Bootstrap tickets have no status and don't
+appear. `done` tickets are hidden by default (the listing ends with a `(N done
+tasks hidden — use --all to show)` note); add `--all` (`-a`) to include them.
+`coga status --blocked` shows only blocked work, expanding one row per open
+blocker — each ask's age, reason, and the `coga unblock` command to answer it.
 
 ```sh
 coga status
 coga status --all
+coga status --blocked
 ```
 
 ### `coga show <slug>`
@@ -709,23 +734,39 @@ console output. **`--mode auto` is temporarily disabled** (until streaming
 lands) and is currently refused; it is intended to run the pass as a one-shot
 headless `claude -p` session whose output is buffered to the task log.
 
-### `coga panic --task <slug> --reason "..."`
+### `coga block --task <slug> --reason "..."`
 
-The agent gives up. Writes a blocker entry to the ticket and posts a
-notification naming the owner so a human (or another agent) can pick it up.
-Coga has no task lock to release — the ticket's `status` is the only signal.
-Intended for the agent to call when it's truly stuck — not for routine
-handoffs.
+The agent (or a human) needs a concrete answer before the task can continue.
+`block` is a normal workflow stop, **not** a panic: it appends a timestamped
+blocker entry to the ticket blackboard, logs/notifies/syncs through the normal
+surfaces, preserves the workflow `step:`, transitions the ticket to
+`status: blocked`, and ends the launched session. The ticket's `status` is the
+only signal — Coga has no task lock to release. Use it when work is paused on a
+specific ask, not for routine handoffs. This replaces the former `coga panic`.
 
 ```sh
-coga panic --task add-retry --reason "Auth flow needs prod creds I don't have"
+coga block --task add-retry --reason "Auth flow needs prod creds I don't have"
+```
+
+### `coga unblock <slug> [--answer "..."]`
+
+The human answer path. With `--answer "<text>"` it records the answer
+non-interactively; without one it shows the open blocker(s) and prompts for the
+answer (similar in spirit to `coga ticket`). It appends the answer to the
+blackboard, marks every open blocker resolved, and transitions
+`blocked -> active` while preserving the workflow `step:`, so a later
+`coga launch <slug>` resumes the same step from files.
+
+```sh
+coga unblock add-retry --answer "Use the staging creds in op://Eng/staging"
+coga unblock add-retry          # attended: shows the ask, prompts for the answer
 ```
 
 ### `coga slack --task <slug> --message "..."`
 
 Manual broadcast escape hatch. Posts a short FYI through the configured
 notification channel without changing task state — for events that don't
-coincide with a `bump`/`panic`/launch transition (e.g. a human announcing they
+coincide with a `bump`/`block`/launch transition (e.g. a human announcing they
 hand-edited a ticket, or "tests still flaky" mid-step). For FYIs that *do*
 fire alongside a state change, prefer `bump --message`.
 
