@@ -392,3 +392,4 @@
 2026-06-29 14:43 [async-park-and-continue-on-block] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-29 14:49 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] created (autonomy=interactive, status=draft)
 2026-06-29 15:16 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] activated (draft → active) — auto on launch
+2026-06-29 15:16 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] started (active → in_progress) via coga launch

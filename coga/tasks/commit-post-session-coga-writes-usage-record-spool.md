@@ -2,7 +2,7 @@
 slug: commit-post-session-coga-writes-usage-record-spool
 title: Auto-commit dirty coga/ state (machine writes + manual edits) so the tree stays
   clean
-status: active
+status: in_progress
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
