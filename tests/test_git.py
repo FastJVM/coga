@@ -11,6 +11,7 @@ before). B and C reuse it.
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from textwrap import dedent
 
@@ -421,6 +422,113 @@ def test_sync_suppressed_when_disabled(tmp_path, capsys, real_git):
     git.sync_task_state(cfg, task, message="Ticket: demo — created")
 
     assert "disabled" in capsys.readouterr().err
+
+
+# --- control branch mismatch (fresh-repo `master` vs `main`) -------------------
+
+
+def test_sync_skips_with_guidance_when_control_branch_absent(git_repo, capsys):
+    """The fresh-repo mismatch: control branch `main` doesn't exist locally
+    (the repo is on `master`). Sync must not fetch/push a missing branch and
+    raise a confusing swallowed GitError — it soft-skips with an actionable
+    message naming the `[git].control_branch` fix, committing nothing."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("branch", "-m", "main", "master")
+    git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
+    git_repo.git("remote", "remove", "origin")
+    task = _task_dir(git_repo.coga_os)
+
+    # Must not raise.
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    err = capsys.readouterr().err
+    assert "control branch 'main' does not exist" in err
+    assert "you are on 'master'" in err
+    assert 'control_branch = "master"' in err
+    # Nothing landed and the task dir is left uncommitted in the working tree.
+    assert not git_repo.origin_tracks("coga/tasks/demo/ticket.md")
+    assert "tasks/" in git_repo.git("status", "--porcelain")
+
+
+def test_sync_allows_remote_only_control_branch(git_repo, capsys):
+    """A feature checkout may have remote `main` but no local control ref.
+
+    That is not the fresh-repo mismatch: the existing cross-branch path can
+    fetch and land on the configured remote branch, so the guidance guard must
+    not soft-skip it.
+    """
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("branch", "-D", "main")
+    git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
+    task = _task_dir(git_repo.coga_os)
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    err = capsys.readouterr().err
+    assert "control branch 'main' does not exist" not in err
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
+    assert "Ticket: demo — created" in git_repo.origin_subjects()
+
+
+def test_sync_skips_on_fresh_unborn_master_repo(tmp_path, capsys, real_git):
+    """The literal Getting-Started case: `git init` defaulted to `master` with no
+    commits yet, control branch still `main`. The unborn branch makes
+    `_current_branch` (`rev-parse --abbrev-ref HEAD`) raise, so the guard must
+    fire *before* it — soft-skip with guidance, never a crash."""
+    subprocess.run(
+        ["git", "init", "-b", "master", str(tmp_path)],
+        check=True, capture_output=True, text=True,
+    )
+    task = _task_dir(tmp_path)
+    cfg = _cfg(tmp_path)
+
+    # Must not raise on the unborn branch.
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    err = capsys.readouterr().err
+    assert "control branch 'main' does not exist" in err
+    assert "you are on 'master'" in err
+    assert 'control_branch = "master"' in err
+
+
+def test_sync_log_skips_with_guidance_when_control_branch_absent(git_repo, capsys):
+    """`sync_log` shares the mismatch guard: a missing control branch skips the
+    log commit with the same guidance, leaving the line uncommitted (not a crash)."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("branch", "-m", "main", "master")
+    git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
+    git_repo.git("remote", "remove", "origin")
+    append_log(cfg, "bootstrap/orient", "human:nick", "launched")
+
+    git.sync_log(cfg, message="Log: bootstrap/orient")
+
+    err = capsys.readouterr().err
+    assert "control branch 'main' does not exist" in err
+    assert 'control_branch = "master"' in err
+    assert "log.md" in git_repo.git("status", "--porcelain")
+    assert not git_repo.origin_tracks("coga/log.md")
+
+
+def test_control_branch_present_detects_missing_ref(git_repo):
+    """The guard keys on the control ref existing, not on what's checked out."""
+    root = git_repo.root
+    assert git._control_branch_present(root, "main", "origin") is True
+    git_repo.checkout_branch("feature/x")
+    git_repo.git("branch", "-D", "main")
+    assert git._control_branch_present(root, "main", "origin") is True
+    git_repo.git("update-ref", "-d", "refs/remotes/origin/main")
+    assert git._control_branch_present(root, "main", "origin") is True
+    assert git._control_branch_present(root, "nonexistent", "origin") is False
+
+
+def test_symbolic_head_resolves_branch_and_none_when_detached(git_repo):
+    """`_symbolic_head` names the branch (even pre-first-commit) for the guidance
+    message, and is a quiet None on a detached HEAD."""
+    root = git_repo.root
+    assert git._symbolic_head(root) == "main"
+    git_repo.git("checkout", "--detach", "HEAD")
+    assert git._symbolic_head(root) is None
 
 
 def test_sync_noop_when_nothing_changed(git_repo):
