@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (self-qa)
+step: 3 (pr)
 ---
 
 ## Description
@@ -129,6 +129,24 @@ that context exists under `src/coga/resources/` → no sync needed.
 3.9 here and trips Coga's version guard at collection — env-only, unrelated to
 this change.)
 
+## Self-QA
+
+**`/code-review` — no findings.** Diff is docs-only (13 markdown deletions + a
+3-line cross-ref bullet), so the only real defect class is dangling references
+to deleted files. Independently re-grepped the repo for every deleted basename
+as both `docs/<name>.md` and relative `](…name.md)` links, plus any mention of
+the now-removed `competition/` dir. All `.md` path references are confined to
+immutable `coga/tasks/` notes (left untouched per rule); **zero** hits in
+README, CLAUDE.md, AGENTS.md, surviving `docs/`, `coga/contexts/`, or `src/`.
+The added Paperclip bullet is well-formed and consistent with its list.
+
+**`/simplify` — no findings.** No code changed; the only non-deleted content is
+3 lines of markdown prose. Reuse / simplification / efficiency / altitude don't
+apply to a documentation bullet — nothing to apply.
+
+**Tests:** `python3.12 -m pytest` → 906 passed, 1 skipped. Clean working tree;
+both passes came back clean, so no QA-fix commit was needed.
+
 ## Evaluator review
 
 **Clarity — strong.** A cold agent can start immediately. The ticket gives an explicit keep/delete list with per-file rationale, a concrete "done looks like," cross-ref guidance, and a gotchas block. The disposition framing ("survey already done — this is the disposition, not a re-investigation") correctly stops the agent from re-litigating what to cut.
@@ -152,3 +170,7 @@ this change.)
 **Verified as correct:** All KEEP claims hold — `vision.md` (CLAUDE.md, AGENTS.md, README, `src/coga/__init__.py`), `market-thesis.md` (README + `marketing/positioning` + `principles`), both cli-extension docs (`coga/extension-model`), `releasing.md` (`.github/workflows/release.yml`). `marketing/positioning/SKILL.md` exists as the cross-ref target. The four delete files `coga-unique`, `coga-vs-paperclip`, `agent-tool-buckets`, `coga-additions` have genuinely zero inbound references. The "no packaged-copy sync" note is correct.
 
 Bottom line: ready to launch once the `design.md`-in-task-notes question (flag #1) is answered — now resolved in the ticket's gotchas.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":142351,"cache_read_input_tokens":2198850,"cli":"claude","input_tokens":16326,"model":"claude-opus-4-8","output_tokens":35249,"provider":"anthropic","schema":1,"session_id":"e28f3c74-41ae-49a8-99f9-c9d67f5c40dc","slug":"clean-up-docs-directory","step":"implement","title":"clean up docs directory","ts":"2026-06-29T19:50:31.457293Z","usage_status":"ok"}
