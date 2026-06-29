@@ -374,3 +374,4 @@
 2026-06-28 15:31 [fresh-repo-default-branch-mismatch-git-init-master] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-28 15:32 [fresh-repo-default-branch-mismatch-git-init-master] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/469
 2026-06-28 15:40 [autocleanup-dir-recurring-tasks] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-28 12:08 [getting-started-restructure] [human:lilfedor] ticket authoring launched (assignee=claude, agent=claude)
