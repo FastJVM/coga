@@ -1,7 +1,7 @@
 ---
 slug: anonymous-install-telemetry-opt-out-no-pii
 title: Anonymous install telemetry (opt-out, no PII)
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -30,7 +30,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 5 (review)
 ---
 
 ## Description
