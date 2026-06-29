@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -103,6 +103,14 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 - branch: `docs-cleanup`
 - worktree: `/home/n/Code/claude/coga-docs-cleanup`
+- pr: https://github.com/FastJVM/coga/pull/470
+
+### pr step — done
+
+Pushed `docs-cleanup` to origin and opened PR #470 (base `main`). Auth probed
+clean (`gh auth status` → nicktoper, `repo` scope). No CI checks are configured
+on this repo (`gh pr checks` → "no checks reported"), so there's no green/red to
+report — the PR is open and awaiting human review.
 
 ### implement step — done
 
@@ -174,3 +182,5 @@ Bottom line: ready to launch once the `design.md`-in-task-notes question (flag #
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":142351,"cache_read_input_tokens":2198850,"cli":"claude","input_tokens":16326,"model":"claude-opus-4-8","output_tokens":35249,"provider":"anthropic","schema":1,"session_id":"e28f3c74-41ae-49a8-99f9-c9d67f5c40dc","slug":"clean-up-docs-directory","step":"implement","title":"clean up docs directory","ts":"2026-06-29T19:50:31.457293Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":120476,"cache_read_input_tokens":1290365,"cli":"claude","input_tokens":14265,"model":"claude-opus-4-8","output_tokens":19810,"provider":"anthropic","schema":1,"session_id":"b02fa137-4a39-401a-accd-a46fc8fbec4a","slug":"clean-up-docs-directory","step":"self-qa","title":"clean up docs directory","ts":"2026-06-29T19:53:02.755521Z","usage_status":"ok"}

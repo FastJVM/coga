@@ -387,3 +387,5 @@
 2026-06-29 12:50 [clean-up-docs-directory] [agent:claude] advanced to step 2 (self-qa)
 2026-06-29 12:50 [clean-up-docs-directory] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-29 12:53 [clean-up-docs-directory] [agent:claude] advanced to step 3 (pr)
+2026-06-29 12:53 [clean-up-docs-directory] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-29 12:54 [clean-up-docs-directory] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/470
