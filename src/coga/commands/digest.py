@@ -218,8 +218,10 @@ def _subject_pr_number(subject: str) -> int | None:
 
 
 def _is_coga_state_sync_commit(subject: str) -> bool:
-    return subject.startswith("Sync task state:") or (
-        subject.startswith("Ticket: ") and " \u2014 " in subject
+    return (
+        subject.startswith("Sync task state:")
+        or subject.startswith("Sync coga state")
+        or (subject.startswith("Ticket: ") and " \u2014 " in subject)
     )
 
 

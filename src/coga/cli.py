@@ -9,6 +9,7 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 
 import typer
 
+from coga import git
 from coga.commands import create as create_cmd
 from coga.commands import delete as delete_cmd
 from coga.commands import digest as digest_cmd
@@ -144,6 +145,40 @@ _LEGACY_ALIASES: dict[str, str] = {
 }
 
 
+# Commands that must NOT trigger the end-of-command `coga/` state sweep.
+# Read-only commands are excluded because `coga/principles` #6 forbids a render
+# from mutating as a side effect (committing dirty OS state *is* a mutation).
+# `init`/`uninstall` are excluded because they create or remove the repo itself
+# and run with a possibly-absent config — not the steady-state boundary the
+# sweep is for.
+_NON_SWEEPING_COMMANDS = frozenset(
+    {"status", "show", "validate", "usage", "init", "uninstall"}
+)
+
+
+def _sweep_coga_state(cfg) -> None:
+    """Catch-all: commit anything still dirty under `coga/` after a mutating
+    command, so machine side-effects and human hand-edits converge on git at the
+    next invocation (the "no daemon" alternative to instant commits).
+
+    Wired only to mutating commands via `_NON_SWEEPING_COMMANDS` and the
+    option/`--help` guards: a bare `coga`, `--version`, or any `--help` is not a
+    state change and must not commit. No repo (`cfg is None`) → nothing to sweep.
+    The sweep is itself non-fatal (`git.sync_coga_state` swallows git failures),
+    so it never masks the command's own exit.
+    """
+    if cfg is None:
+        return
+    command = sys.argv[1] if len(sys.argv) > 1 else None
+    if command is None or command.startswith("-"):
+        return
+    if command in _NON_SWEEPING_COMMANDS:
+        return
+    if "--help" in sys.argv or "-h" in sys.argv:
+        return
+    git.sync_coga_state(cfg)
+
+
 def _validate_aliases(aliases: dict[str, str]) -> None:
     """Reject aliases that collide with built-ins or expand to unknown commands.
 
@@ -277,7 +312,15 @@ def main() -> None:
         typer.secho(f"→ coga {' '.join(full)}", fg=typer.colors.BLUE, err=True)
         sys.argv = [sys.argv[0]] + full
 
-    app()
+    try:
+        app()
+    finally:
+        # End-of-command boundary: commit any dirty `coga/` OS state the command
+        # itself didn't sync (a human hand-edit, a side-effect write). Runs after
+        # `app()` whether it returned or raised `SystemExit`/`typer.Exit`; the
+        # on-disk markdown is the source of truth, and atomic writes mean a
+        # mid-command crash never leaves a half-written file to commit.
+        _sweep_coga_state(cfg)
 
 
 if __name__ == "__main__":

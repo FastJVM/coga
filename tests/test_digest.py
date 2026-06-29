@@ -476,6 +476,12 @@ def test_run_digest_posts_also_merged_from_git_high_water(
         "sync\n",
         "Sync task state: add-coga-skill-search-with-candidate-eval",
     )
+    _commit_and_push(
+        git_repo,
+        "coga/docs/subtree-sweep.md",
+        "sweep\n",
+        "Sync coga state",
+    )
     notification.notify(
         cfg,
         "done",
@@ -495,6 +501,7 @@ def test_run_digest_posts_also_merged_from_git_high_water(
     assert "Improve digest rendering (#42)" not in text
     assert "Ticket: sync-task-state" not in text
     assert "Sync task state:" not in text
+    assert "Sync coga state" not in text
     assert spool.read_unconsumed(bb) == []
     head = git_repo.git("rev-parse", "origin/main").strip()
     assert f"last_commit: {head}" in _state_path(bb).read_text()

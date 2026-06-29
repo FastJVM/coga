@@ -211,7 +211,6 @@ def sync_paths(
             return
 
         rels = [_relative_to_root(root, path) for path in selected]
-        branch = _current_branch(root)
 
         # The repo-global `coga/log.md` is `merge=union`, so it must NOT
         # ride the cross-branch overlay — an overlay replaces the file wholesale
@@ -224,23 +223,9 @@ def sync_paths(
         log_rel = _relative_to_root(root, log_path(cfg))
         local_rels = rels + [log_rel] if log_path(cfg).exists() else rels
 
-        if branch == cfg.git_control_branch:
-            # On the control branch the commit+push *is* the union-safe path, so
-            # the log can ride along — a rejected push rebases and union-merges.
-            _sync_paths_on_control_branch(cfg, root, local_rels, message=message)
-            return
-
-        # Feature branch (or detached HEAD): commit on the current branch so
-        # the checkout reflects ticket state, then land on the control branch
-        # without ever touching the feature working tree.
-        if branch == "HEAD":
-            sys.stderr.write(
-                f"[git] detached HEAD — task state landed on "
-                f"{cfg.git_control_branch!r} but not committed locally. ({message})\n"
-            )
-        else:
-            _commit_paths(root, local_rels, message)
-        _land_paths_on_control_branch(cfg, root, rels, message=message)
+        _dispatch_branch_sync(
+            cfg, root, local_rels=local_rels, overlay_rels=rels, message=message
+        )
     except GitError as exc:
         # Non-fatal: surface loudly (stderr + log.md) but do NOT abort the
         # command. The task's markdown on disk is the source of truth; git is
@@ -253,6 +238,173 @@ def sync_paths(
         # step). "Fail loud" here means make the miss visible, not crash.
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
         append_log(cfg, ref_tag_for_path(cfg, anchor_path), "git", f"sync failed: {exc}")
+
+
+def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
+    """Commit everything dirty under the `coga/` OS-state subtree, from any branch.
+
+    The catch-all sweep behind the always-on sync contract. The per-transition
+    syncs (`sync_task_state` / `sync_paths` / `sync_log`) commit the file a
+    command *intended* to change, with a human-readable per-transition message;
+    this sweep mops up the rest of the `coga/` subtree so the working tree never
+    accumulates dirty OS state. Two structural sources motivate it: machine
+    side-effects written *past* the last per-command sync (the per-session
+    `## Usage` record `coga launch` appends after the agent's final
+    `bump`/`mark`, the digest spool, stray launch log lines) and human
+    hand-edits to tickets/blackboards/contexts that no command touched. Both
+    converge on git at the *next* coga invocation — lazy, on-access, no daemon
+    (see `coga/architecture`'s "no database, no daemon, no in-memory state").
+
+    Scope is the `coga/` subtree (`cfg.repo_root`, where `coga.toml` lives), the
+    OS-state boundary. This is *not* the forbidden `git add -A`: it stages only
+    paths under `coga/`, so product code (`src/`, `tests/`) is never swept in —
+    that is exactly the line the "Scope is narrow" rule draws. Enumeration is a
+    full `git status` under the subtree, so modifications, deletions, renames
+    **and new untracked files** are all captured.
+
+    Branch and union-file handling mirror `sync_paths`: the `merge=union` files
+    (`log.md`, the digest spool) are committed locally + union-merged onto the
+    control branch, never landed via the cross-branch overlay (which would
+    replace them wholesale and drop concurrently-appended lines). Everything
+    else lands on the control branch from any branch. A clean subtree is a no-op.
+
+    Same non-fatal failure model as `sync_paths` (stderr + `coga/log.md`, never
+    a crash): the on-disk markdown is the source of truth; a sweep that can't
+    reach the control branch must not abort the command it trails.
+    """
+    if not cfg.git_enabled:
+        sys.stderr.write(f"[git] disabled (sync suppressed): {message}\n")
+        return
+
+    subtree = cfg.repo_root
+    try:
+        root = _toplevel(subtree)
+        if root is None:
+            sys.stderr.write(f"[git] not a git repo (sync skipped): {message}\n")
+            return
+
+        subtree_rel = _relative_to_root(root, subtree)
+        changed = _changed_paths_under(root, subtree_rel)
+        if not changed:
+            return
+
+        if not _control_branch_present(root, cfg.git_control_branch, cfg.git_remote):
+            sys.stderr.write(
+                _control_branch_mismatch_message(cfg, root) + f" ({message})\n"
+            )
+            return
+
+        # `merge=union` files (log.md, the digest spool) must stay out of the
+        # cross-branch overlay set — same reason `sync_paths` keeps the log out:
+        # the overlay replaces a file wholesale on the control tip and would drop
+        # lines another branch appended. They ride the local commit and reach the
+        # control branch union-safely (same-branch push rebase, or PR merge).
+        union = _union_merge_paths(root, changed)
+        overlay_rels = [rel for rel in changed if rel not in union]
+
+        _dispatch_branch_sync(
+            cfg, root, local_rels=changed, overlay_rels=overlay_rels, message=message
+        )
+    except GitError as exc:
+        sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
+        append_log(cfg, ref_tag_for_path(cfg, subtree), "git", f"sync failed: {exc}")
+
+
+def _dispatch_branch_sync(
+    cfg: Config,
+    root: Path,
+    *,
+    local_rels: list[str],
+    overlay_rels: list[str],
+    message: str,
+) -> None:
+    """Commit `local_rels` on the current branch and land `overlay_rels` on the
+    control branch — the branch-aware core shared by `sync_paths` and
+    `sync_coga_state`.
+
+      - HEAD is the control branch → commit `local_rels` and push; the union
+        files in `local_rels` ride the push-rebase's union merge.
+      - Feature branch → commit `local_rels` locally (so the checkout reflects
+        OS state), then land `overlay_rels` on the control branch via the
+        working-tree-free overlay.
+      - Detached HEAD → skip the local commit (it would be orphaned); still land
+        `overlay_rels` on the control branch.
+    """
+    branch = _current_branch(root)
+    if branch == cfg.git_control_branch:
+        _sync_paths_on_control_branch(cfg, root, local_rels, message=message)
+        return
+
+    if branch == "HEAD":
+        sys.stderr.write(
+            f"[git] detached HEAD — changes landed on "
+            f"{cfg.git_control_branch!r} but not committed locally. ({message})\n"
+        )
+    else:
+        _commit_paths(root, local_rels, message)
+    _land_paths_on_control_branch(cfg, root, overlay_rels, message=message)
+
+
+def _changed_paths_under(root: Path, subtree_rel: str) -> list[str]:
+    """Repo-relative paths with working-tree changes under `subtree_rel`.
+
+    A full `git status --porcelain -z` scoped to the subtree pathspec: captures
+    staged and unstaged modifications, deletions, renames, and untracked files
+    alike. `-z` is NUL-delimited so paths with spaces or special characters need
+    no unquoting. Rename entries (`R`/`C`) emit the new path then the old path as
+    two NUL fields; both are returned so the rename commits as a delete + add.
+    """
+    out = _run_git(root, "status", "--porcelain", "-z", "--", subtree_rel)
+    fields = out.split("\x00")
+    rels: list[str] = []
+    seen: set[str] = set()
+    i = 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if not entry:
+            continue
+        status = entry[:2]
+        path = entry[3:]
+        for rel in _status_paths(status, path):
+            if rel not in seen:
+                seen.add(rel)
+                rels.append(rel)
+        # A rename/copy stores the source path in the next NUL field.
+        if status[0] in ("R", "C"):
+            if i < len(fields):
+                src = fields[i]
+                i += 1
+                if src and src not in seen:
+                    seen.add(src)
+                    rels.append(src)
+    return rels
+
+
+def _status_paths(status: str, path: str) -> list[str]:
+    """The path(s) a porcelain status entry contributes to the commit set."""
+    return [path] if path else []
+
+
+def _union_merge_paths(root: Path, rels: list[str]) -> set[str]:
+    """Subset of `rels` carrying the `merge=union` git attribute.
+
+    Asked of git directly (`git check-attr merge -z`) rather than hardcoding
+    `log.md` / the spool, so any file `.gitattributes` marks `merge=union`
+    automatically stays out of the cross-branch overlay. `-z` keeps path/value
+    parsing robust against special characters.
+    """
+    if not rels:
+        return set()
+    out = _run_git(root, "check-attr", "merge", "-z", "--", *rels)
+    fields = out.split("\x00")
+    union: set[str] = set()
+    # `check-attr -z` emits flat triples: path, attr-name, value.
+    for j in range(0, len(fields) - 2, 3):
+        path, _attr, value = fields[j], fields[j + 1], fields[j + 2]
+        if value == "union":
+            union.add(path)
+    return union
 
 
 def _sync_on_control_branch(
@@ -878,4 +1030,10 @@ def _path_exists(root: Path, rel: str) -> bool:
     return path.exists()
 
 
-__all__ = ["GitError", "sync_log", "sync_paths", "sync_task_state"]
+__all__ = [
+    "GitError",
+    "sync_coga_state",
+    "sync_log",
+    "sync_paths",
+    "sync_task_state",
+]

@@ -1048,3 +1048,98 @@ def test_push_ref_runs_non_interactively(monkeypatch, tmp_path):
     envs = _capture_run(monkeypatch)
     assert git._push_ref(tmp_path, "origin", "main") is None
     assert envs[0]["GIT_TERMINAL_PROMPT"] == "0"
+
+
+# --- sync_coga_state: the catch-all subtree sweep ------------------------------
+
+
+def test_sync_coga_state_commits_dirty_coga_and_leaves_code_untouched(git_repo):
+    """The sweep commits dirty `coga/` OS state (incl. an untracked new ticket,
+    the usage-record-style side-effect) and pushes it, while a modified tracked
+    file *outside* `coga/` (product code) is never swept in."""
+    cfg = load_config(git_repo.coga_os)
+    # A tracked file outside the coga/ subtree, then dirtied — stands in for the
+    # `src/` product code the "Scope is narrow" rule protects.
+    outside = git_repo.root / "outside.txt"
+    outside.write_text("original\n")
+    git_repo.git("add", "outside.txt")
+    git_repo.git("commit", "-m", "seed outside")
+    git_repo.git("push", "origin", "main")
+    outside.write_text("locally modified\n")
+
+    # Dirty state under coga/: an untracked new ticket (a machine write past the
+    # last per-command sync).
+    _task_dir(git_repo.coga_os)
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    # coga/ is committed (clean tree) and pushed; the untracked ticket rode along.
+    assert "coga/" not in git_repo.git("status", "--porcelain")
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
+    assert "Sync coga state" in git_repo.origin_subjects()
+    # The code file outside coga/ is left dirty and unpushed.
+    assert "outside.txt" in git_repo.git("status", "--porcelain")
+    assert git_repo.git("show", "origin/main:outside.txt") == "original\n"
+
+
+def test_sync_coga_state_lands_nonunion_on_main_keeps_union_local_on_feature(git_repo):
+    """From a feature branch: non-union coga/ state lands on origin/main via the
+    overlay, but a `merge=union` file (log.md) is committed locally only — never
+    landed via the wholesale-replace overlay that would drop concurrent lines."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    _task_dir(git_repo.coga_os)
+    append_log(cfg, "demo", "human:nick", "hand note")
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    # The whole subtree is committed locally — clean feature tree.
+    assert "coga/" not in git_repo.git("status", "--porcelain")
+    # Non-union ticket landed on the shared control branch...
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
+    # ...but the union log.md did NOT ride the overlay onto origin/main...
+    assert not git_repo.origin_tracks("coga/log.md")
+    # ...while it IS committed on the feature branch (reaches main via PR merge).
+    assert "hand note" in git_repo.git("show", "HEAD:coga/log.md")
+
+
+def test_sync_coga_state_noop_on_clean_subtree(git_repo):
+    """A clean coga/ subtree is a silent no-op: no commit, nothing pushed."""
+    cfg = load_config(git_repo.coga_os)
+    before = git_repo.origin_subjects()
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    assert git_repo.origin_subjects() == before
+
+
+def test_sync_coga_state_suppressed_when_disabled(tmp_path, capsys, real_git):
+    cfg = load_config(_write_config(tmp_path, local_extra="[git]\nenabled = false\n"))
+    git.sync_coga_state(cfg, message="Sync coga state")
+    assert "disabled (sync suppressed)" in capsys.readouterr().err
+
+
+def test_sweep_skips_read_only_and_runs_for_mutating_commands(monkeypatch):
+    """The CLI-dispatch boundary sweeps mutating commands only — never read-only
+    renders (principles #6), `--help`, or a repo-less invocation."""
+    from coga import cli
+
+    calls: list[object] = []
+    monkeypatch.setattr(cli.git, "sync_coga_state", lambda cfg, **k: calls.append(cfg))
+    cfg = object()
+
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "status"])
+    cli._sweep_coga_state(cfg)
+    assert calls == []  # read-only command
+
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "bump", "demo"])
+    cli._sweep_coga_state(cfg)
+    assert calls == [cfg]  # mutating command swept
+
+    calls.clear()
+    cli._sweep_coga_state(None)
+    assert calls == []  # no repo → nothing to sweep
+
+    monkeypatch.setattr(cli.sys, "argv", ["coga", "bump", "--help"])
+    cli._sweep_coga_state(cfg)
+    assert calls == []  # help is not a state change

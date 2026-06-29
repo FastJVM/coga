@@ -797,6 +797,13 @@ def spawn_agent_session(
                 window_start=usage_window_start,
                 window_end=usage_window_end,
             )
+            # The `## Usage` record is appended *past* the agent's final
+            # `bump`/`mark` sync, so without this it lingers uncommitted on the
+            # working tree forever. Commit it (and anything else dirty under
+            # `coga/`) now. A supervised chain reaches this finally per step but
+            # the CLI-dispatch sweep only once at the end of the whole launch, so
+            # this is what commits each step's usage promptly. Non-fatal.
+            git.sync_coga_state(cfg)
         try:
             prompt_file.unlink()
         except FileNotFoundError:

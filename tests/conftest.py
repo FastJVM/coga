@@ -133,6 +133,9 @@ def _stub_git(monkeypatch, request):
     monkeypatch.setattr("coga.git.sync_task_state", lambda *a, **k: None)
     monkeypatch.setattr("coga.git.sync_paths", lambda *a, **k: None)
     monkeypatch.setattr("coga.git.sync_log", lambda *a, **k: None)
+    # The catch-all subtree sweep fires from the launch teardown and the CLI
+    # dispatch boundary, so it too must no-op off the real-git harness.
+    monkeypatch.setattr("coga.git.sync_coga_state", lambda *a, **k: None)
     # Launch's push-auth gate also shells out to git (check_git_remote /
     # check_git_auth). Default the remote probe to "unresolved" so the gate
     # self-skips exactly as it would in a non-git checkout; the dedicated gate
@@ -268,6 +271,12 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
         ).lstrip()
     )
     (coga_os / "coga.local.toml").write_text('user = "marc"\n')
+    # Mirror the live repo's union-merge marking so `git check-attr merge`
+    # resolves `log.md` / the digest spool as `merge=union` (the subtree sweep's
+    # union split, and the spool's mergeable contract, depend on it).
+    (coga_os / ".gitattributes").write_text(
+        "**/log.md merge=union\n**/spool.md merge=union\n"
+    )
     workflows = coga_os / "workflows"
     workflows.mkdir()
     (workflows / "code.md").write_text(
