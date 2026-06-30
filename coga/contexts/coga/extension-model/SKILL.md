@@ -101,8 +101,8 @@ Two flavors, weighted by Coga's local-first stance (principles 3 and 5):
   and the idiomatic packaging is often a thin wrapper on a CLI the operator already
   has (e.g. a `gh` extension), not a new Python surface.
 - **External service** — rare and gated: an out-of-process or hosted crossing.
-  Coga stays classical and local-first; v1 has at most one hosted crossing (the
-  anonymous telemetry sink — see `coga/architecture`). Prefer a local script unless
+  Coga stays classical and local-first; v1 ships zero hosted crossings — Coga
+  never phones home (see `coga/principles`). Prefer a local script unless
   a requirement genuinely needs a hosted endpoint.
 
 Until the mechanism lands, these capabilities live as built-in commands or
