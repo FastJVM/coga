@@ -448,3 +448,4 @@
 2026-06-29 22:35 [remove-the-shim-concept] [human:nicktoper] auto-bumped on merge of PR #445 → done
 2026-06-29 22:35 [recurring/autoclose-merged] [system] script exited with code 0
 2026-06-29 22:35 [recurring/autoclose-merged] [system] completed (final script step ran) via coga launch
+2026-06-29 22:35 [recurring/digest] [system] started (active → in_progress) via coga launch

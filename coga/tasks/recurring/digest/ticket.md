@@ -1,7 +1,7 @@
 ---
 slug: recurring/digest
 title: Daily digest
-status: active
+status: in_progress
 autonomy: auto
 owner: nick
 human: nick
