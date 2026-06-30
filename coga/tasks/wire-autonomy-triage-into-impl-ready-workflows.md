@@ -1,7 +1,7 @@
 ---
 slug: wire-autonomy-triage-into-impl-ready-workflows
 title: Wire autonomy triage into impl-ready workflows
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -31,7 +31,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (design)
 ---
 
 ## Description
@@ -301,3 +300,11 @@ through fine.
 - Task-scoped validation: `relay validate --task
   wire-autonomy-triage-into-impl-ready-workflows --json` -> `ok_count: 1`, no
   issues.
+
+## Closure note — 2026-06-30
+
+Owner asked whether this is obsolete now that Coga has megalaunch. Confirmed the
+ticket itself is stale rather than superseded by megalaunch: the requested
+Relay-side authoring-time autonomy triage change already shipped in PR #328 and
+was logged done on 2026-06-15. This Coga task copy was accidentally relaunched
+to `in_progress`; close it instead of re-running the design workflow.
