@@ -1,6 +1,6 @@
 ---
 title: Remove the shim concept
-status: in_progress
+status: done
 owner: zach
 human: zach
 agent: claude
@@ -29,7 +29,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 5 (review)
 autonomy: interactive
 slug: remove-the-shim-concept
 ---
