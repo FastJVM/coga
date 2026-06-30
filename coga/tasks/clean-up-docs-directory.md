@@ -1,7 +1,7 @@
 ---
 slug: clean-up-docs-directory
 title: clean up docs directory
-status: in_progress
+status: done
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
@@ -29,7 +29,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
@@ -184,3 +183,5 @@ Bottom line: ready to launch once the `design.md`-in-task-notes question (flag #
 {"agent":"claude","cache_creation_input_tokens":142351,"cache_read_input_tokens":2198850,"cli":"claude","input_tokens":16326,"model":"claude-opus-4-8","output_tokens":35249,"provider":"anthropic","schema":1,"session_id":"e28f3c74-41ae-49a8-99f9-c9d67f5c40dc","slug":"clean-up-docs-directory","step":"implement","title":"clean up docs directory","ts":"2026-06-29T19:50:31.457293Z","usage_status":"ok"}
 
 {"agent":"claude","cache_creation_input_tokens":120476,"cache_read_input_tokens":1290365,"cli":"claude","input_tokens":14265,"model":"claude-opus-4-8","output_tokens":19810,"provider":"anthropic","schema":1,"session_id":"b02fa137-4a39-401a-accd-a46fc8fbec4a","slug":"clean-up-docs-directory","step":"self-qa","title":"clean up docs directory","ts":"2026-06-29T19:53:02.755521Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":85694,"cache_read_input_tokens":852493,"cli":"claude","input_tokens":13995,"model":"claude-opus-4-8","output_tokens":9320,"provider":"anthropic","schema":1,"session_id":"f317a726-adfd-4015-9357-146c6b7aab61","slug":"clean-up-docs-directory","step":"pr","title":"clean up docs directory","ts":"2026-06-29T19:54:36.639796Z","usage_status":"ok"}

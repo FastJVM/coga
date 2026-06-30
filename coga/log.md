@@ -441,3 +441,5 @@
 2026-06-29 22:34 [recurring/autoclose-merged] [human:nicktoper] activated (done → active) for forced recurring run
 2026-06-29 22:34 [recurring/autoclose-merged] [system] reused recurring/autoclose-merged for 2026-06-29
 2026-06-29 22:34 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
+2026-06-29 22:35 [recurring/autoclose-merged] [system] launched as a script (skill=coga/autoclose/sweep, script=run.py)
+2026-06-29 22:35 [clean-up-docs-directory] [human:nicktoper] auto-bumped on merge of PR #470 → done
