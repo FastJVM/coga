@@ -2,7 +2,7 @@
 slug: per-agent-git-worktree-isolation-for-launch-to-avo
 title: Per-agent git worktree isolation for launch to avoid intra-clone autostash
   races
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
@@ -92,6 +92,82 @@ Gotchas surfaced in the bootstrap evaluator review:
   ones.
 
 <!-- coga:blackboard -->
-## Production notes
 
-This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
+## Implementation decisions (no design gate — settle these in the PR)
+
+1. **Worktree location** — outside the repo (`../coga-worktrees/<id>`) or a
+   gitignored dir inside it (`.coga/worktrees/<id>`)? Tradeoffs: disk layout,
+   `.gitignore` hygiene, IDE noise.
+2. **Worktree key** — key by **launch/session id** (recommended) so a relaunch
+   of a still-running ticket can't collide. Scope is different-tickets-per-
+   instance, but session-keying is the safer default.
+3. **Lifecycle / cleanup** — remove on normal teardown (`done`/`bump`/`panic`);
+   plus orphan reaping for sessions that died mid-launch (`git worktree prune`
+   + age threshold). Guarantee no leaked checkouts accumulate. (This half is
+   the heaviest part of the change — keep it tight.)
+4. **Toggle spelling + default** — simple on/off, default **off** (unchanged
+   behaviour when off). No `none`/`branch`/`worktree` enum — that was dropped.
+5. **Coexistence with `code/implement`'s feature worktree** — confirm the
+   feature worktree forks from the launch worktree's `main`, not the primary
+   checkout, and the `worktree:` recorded on the blackboard stays coherent.
+6. **cwd plumbing** — the spawn path (`spawn_agent_session` /
+   `run_with_done_marker` / `subprocess.run`) takes **no cwd argument** today;
+   the agent runs in the process cwd and usage capture keys off `Path.cwd()` /
+   `ref.path`. Thread a working-dir through the whole spawn path.
+7. **Scope to control-branch sessions** — the race only bites on the control
+   branch (cross-branch land uses a temp index, never rebases the tree). Target
+   that case; don't needlessly isolate feature-branch sessions.
+
+## Design notes (from bootstrap interview)
+
+- Race is **working-tree-level**: two `rebase --autostash` against one
+  `.git/index` → `index.lock` contention, wrong stash-pop, rebase-state
+  collision. Only a separate working tree removes the contended resource.
+- `branch` mode rejected: separate refs still share one tree.
+- Cross-clone / several-users is a **different** race (control-branch
+  push/merge) already solved by the mergeable-spool companion. Out of scope.
+- Real driver: retire the multi-checkout workaround → one instance multiplexing
+  concurrent agents on different tickets.
+- Keep it **lock-free**: coga is intentionally mutex-free; worktrees must
+  isolate, not serialize.
+
+## Evaluator review
+
+*(Reviewed the earlier draft — `code/design-then-implement`, three-mode enum —
+before the switch to `code/with-review` and the worktree-only trim. Its
+scope/over-built-enum critiques are resolved by those changes; its spawn-path
+and control-branch findings are folded into `## Context` above.)*
+
+- **Description — startable, yes.** The race mechanism (shared `.git/index` /
+  `index.lock` / stash stack), the motivating goal (retire multi-checkout
+  workaround), and the mode model are all spelled out. A cold agent could begin
+  design. Well above average clarity.
+- **Workflow fit — good.** Six genuine unresolved design questions (location,
+  keying, lifecycle, mode semantics) justify `code/design-then-implement`; this
+  isn't a mechanical change. No mismatch.
+- **Contexts — `coga/sync` is right but blunt.** `coga/sync` literally
+  forward-references "its own ticket" at the intra-clone-race note (git.py-spool
+  section), so it's the correct anchor. The ticket already copied the
+  load-bearing facts into `## Context`/`## Design notes`, which is the right
+  call given `coga/sync` is ~500 lines mostly about notifications. **Missing:**
+  `architecture/SKILL.md` (the no-mutex/no-lock model this knob must respect)
+  and `codebase/SKILL.md` — both directly relevant to harness/launch work and
+  neither attached.
+- **Scope — borderline-heavy.** Bundles: a 3-mode config knob, worktree
+  creation, lifecycle + orphan reaping (`git worktree prune`), and reconciling
+  with the existing `code/implement` feature-worktree layer. The cleanup/reaping
+  half could stand alone. `branch` mode is admitted-maybe-stub — if it's a stub,
+  the knob is really a `none`/`worktree` boolean and the three-value framing is
+  over-built.
+- **Assumptions to question.** "launch.py has no worktree logic" — true
+  (verified). But the ticket understates the real gap: **`spawn_agent_session`/
+  `run_with_done_marker`/`subprocess.run` take no working-directory argument at
+  all** — the agent always runs in the process cwd, and usage capture keys off
+  `Path.cwd()` and `ref.path`. "Reads a knob and applies it" hides a non-trivial
+  cwd-plumbing change through the whole spawn path; call it out before launch.
+  "sync_task_state already worktree-aware" — verified true (`_toplevel` uses
+  `--show-toplevel`). "Cross-clone already solved" — accurate (explicit-stash
+  `_rebase_onto_remote` + compare-and-swap push). One design question to add:
+  the autostash race only bites when an agent runs *on the control branch* (the
+  cross-branch land uses a temp index and never rebases the tree) — confirm
+  worktree isolation targets that case, not feature-branch sessions.

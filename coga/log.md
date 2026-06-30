@@ -506,3 +506,4 @@
 2026-06-30 15:17 [awaken-recurring-auto-blocked-tasks] [human:nicktoper] launched in interactive mode (assignee=claude, launch_assignee=codex, agent=codex)
 2026-06-30 15:11 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-30 15:53 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] activated (draft → active) — auto on launch
+2026-06-30 15:53 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] started (active → in_progress) via coga launch
