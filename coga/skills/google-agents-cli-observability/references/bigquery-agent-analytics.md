@@ -14,7 +14,7 @@ An optional plugin that logs structured agent events directly to BigQuery via th
 | Method | How |
 |--------|-----|
 | **At scaffold time** | `agents-cli scaffold create <project-name> --bq-analytics` |
-| **Post-scaffold** | Add the plugin manually to `app/agent.py` (see ADK docs) |
+| **Post-scaffold** | Add the plugin manually to `app/agent.py` (see [ADK docs](https://adk.dev/integrations/bigquery-agent-analytics/index.md)) |
 
 Infrastructure (BigQuery dataset, GCS offloading) is provisioned automatically by Terraform when enabled at scaffold time.
 

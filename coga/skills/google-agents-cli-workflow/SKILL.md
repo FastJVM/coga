@@ -4,26 +4,26 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-workflow
-    github-ref: refs/tags/v0.5.0
+    github-ref: refs/tags/v0.6.1
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: b3a96855a16c4c0724f254d919fee1699c11f4d3
+    github-tree-sha: fc849386aa3f424c54d3ba8adfb606dc6fea1c36
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 0.5.0
+    version: 0.6.1
 name: google-agents-cli-workflow
 ---
 # ADK Development Workflow & Guidelines
 
 > **STOP — Do NOT write code yet.** If no project exists, scaffold first with `agents-cli scaffold create <name>`. If the user already has code, use `agents-cli scaffold enhance .` to add the agents-cli structure. Run `agents-cli info` to check if a project already exists. Skipping this leads to missing eval boilerplate, CI/CD config, and project conventions.
 
-**agents-cli** is a CLI and skills toolkit for building, evaluating, and deploying agents on Google Cloud using the [Agent Development Kit (ADK)](https://adk.dev/). It works with any coding agent — Gemini CLI, Claude Code, Codex, or others. Install with `uvx google-agents-cli setup`.
+**agents-cli** is a CLI and skills toolkit for building, evaluating, and deploying agents on Google Cloud using the [Agent Development Kit (ADK)](https://adk.dev/). It works with any coding agent — Antigravity CLI, Claude Code, Codex, or others. Install with `uvx google-agents-cli setup`.
 
 
-> Requires: google-agents-cli ~= 0.5.0
-> If version is behind, run: uv tool install "google-agents-cli~=0.5.0"
+> Requires: google-agents-cli ~= 0.6.1
+> If version is behind, run: uv tool install "google-agents-cli~=0.6.1"
 
 > Check version: agents-cli info
 > [Install uv](https://docs.astral.sh/uv/getting-started/installation/index.md) first if needed.
@@ -89,7 +89,7 @@ Do NOT proceed to planning, scaffolding, or coding. Ask the user the questions b
 **Ask based on context:**
 
 - If **retrieval or search over data** mentioned (RAG, semantic search, vector search, embeddings, similarity search, data ingestion) → **Datastore?** Options: `agent_platform_vector_search` (embeddings, similarity search) or `agent_platform_search` (document search, search engine).
-- If agent should be **available to other agents** → **A2A protocol?** Enables the agent as an A2A-compatible service.
+- If agent should be **available to other agents** → **A2A protocol** is built into every Python ADK agent; no separate choice needed — just scaffold normally.
 - If **full deployment** chosen → **CI/CD runner?** GitHub Actions (default) or Google Cloud Build?
 - If agent should **remember user preferences or facts across sessions** → **Memory Bank?** Long-term memory across conversations. See `/google-agents-cli-adk-code`.
 - If **Cloud Run** or **GKE** chosen → **Session storage?** In-memory (default), Cloud SQL (persistent), or Agent Platform Sessions (managed).
@@ -154,7 +154,7 @@ cd /tmp/adk-samples && git sparse-checkout add python/agents/<sample-name>
   Key files: `data_science/sub_agents/analytics/agent.py`
 - **`memory-bank`** — Conversational agent with cross-session memory via Memory Bank (Cloud Run and Agent Runtime).
   Keywords: memory, cross-session, recall, context, remember, Memory Bank
-  Key files: `app/agent.py`, `app/agent_runtime_app.py`, `app/fast_api_app.py`
+  Key files: `app/agent.py`, `app/fast_api_app.py`
 
 If no sample matches, proceed to Phase 2. But first — are you sure? Re-read the user's request and compare it against the keywords above. Skipping a matching sample means rebuilding patterns that already exist.
 
@@ -193,7 +193,7 @@ For `agentic_rag` projects, provision the datastore before testing: `agents-cli 
 **MANDATORY:** Activate `/google-agents-cli-eval` before running evaluation.
 It contains the dataset schema, config format, and critical gotchas. Do NOT skip this.
 
-**Do NOT skip this phase.** After building the agent, you MUST proceed to evaluation. Do NOT write pytest tests to validate agent behavior — that is what eval is for.
+**Do NOT skip this phase.** After building the agent, you MUST proceed to evaluation.
 
 **`uv run pytest` vs `agents-cli eval` — know the difference:**
 - **`uv run pytest`** — Tests *code correctness*: imports work, functions return expected types, API contracts hold. Does NOT test whether the agent behaves well.
@@ -343,76 +343,18 @@ When you need specific infrastructure files (Terraform, CI/CD, Dockerfile) but d
 
 ## Development Commands
 
-### Setup & Skills
+Run `agents-cli --help` or `agents-cli <command> --help` for the authoritative flag list. Per-phase usage lives in the phase sections above and the per-phase sub-skills.
 
-| Command | Purpose |
+| Phase | Commands |
 |---|---|
-| `agents-cli setup` | Install skills to coding agents |
-| `agents-cli setup --skip-auth` | Install skills, skip authentication step |
-| `agents-cli setup --dry-run` | Preview what setup would do without executing |
-| `agents-cli update` | Reinstall/update skills to latest version |
+| Setup | `setup` (install skills) · `update` (refresh skills) |
+| Scaffold | `scaffold create <name>` · `scaffold enhance .` · `scaffold upgrade` |
+| Develop | `playground` (web UI) · `run "prompt"` (one-shot; `-v` = JSON events) · `lint` · `install` |
+| Evaluate | `eval dataset synthesize` · `eval generate` · `eval grade` · `eval compare` · `eval analyze` · `eval optimize` · `eval metric list` · `eval submit`/`eval results` (cloud) |
+| Deploy | `deploy` (needs approval) · `infra single-project` · `infra cicd` · `publish gemini-enterprise` |
+| Info / Auth | `info` · `login --interactive` · `login --status` |
 
-### Scaffolding
-
-| Command | Purpose |
-|---|---|
-| `agents-cli scaffold create <name>` | Create a new project |
-| `agents-cli scaffold enhance .` | Add deployment / CI-CD to project |
-| `agents-cli scaffold upgrade` | Upgrade project to newer agents-cli version |
-
-### Development
-
-| Command | Purpose |
-|---|---|
-| `agents-cli playground` | Interactive local testing (ADK web playground) |
-| `agents-cli run "prompt"` | Run agent with a single prompt (non-interactive). Add `-v` for full JSON event payloads. |
-| `agents-cli lint` | Check code quality |
-| `agents-cli lint --fix` | Auto-fix linting issues |
-| `agents-cli lint --mypy` | Also run mypy type checking |
-| `agents-cli install` | Install project dependencies (uv sync) |
-
-### Evaluation
-
-| Command | Purpose |
-|---|---|
-| `agents-cli eval dataset synthesize` | Synthesize multi-turn eval scenarios for your agent (cold-start a dataset) |
-| `agents-cli eval generate` | Run agent inference over the default dataset, produce traces |
-| `agents-cli eval generate --dataset PATH` | Run inference for a specific dataset |
-| `agents-cli eval grade` | Grade traces with the metrics in `eval_config.yaml` |
-| `agents-cli eval grade --metrics METRIC` | Grade with a specific metric (overrides `eval_config.yaml`) |
-| `agents-cli eval metric list` | List built-in metrics available in the SDK |
-| `agents-cli eval compare BASE CAND` | Compare two grade-results files (regression check) |
-| `agents-cli eval analyze --eval-result RESULTS` | Cluster failure modes from a grade-results file |
-| `agents-cli eval optimize` | Auto-tune agent prompts using eval data |
-| `agents-cli eval submit --dataset D --dest gs://BUCKET` | Submit a managed cloud-side eval run on the Vertex AI Eval Service |
-| `agents-cli eval results --run-id ID` | Fetch status/results of a submitted cloud eval run |
-
-### Deployment & Infrastructure
-
-| Command | Purpose |
-|---|---|
-| `agents-cli deploy` | Deploy to dev (requires human approval) |
-| `agents-cli infra single-project` | Provision single-project GCP infrastructure without CI/CD (Terraform, optional) |
-| `agents-cli infra cicd` | Set up CI/CD pipeline + staging/prod infrastructure |
-| `agents-cli publish gemini-enterprise` | Register agent with Gemini Enterprise |
-
-### Project Info
-
-| Command | Purpose |
-|---|---|
-| `agents-cli info` | Show CLI install path, skills location, and project config |
-
-Use `agents-cli info` to discover the **CLI install path** — this is where the CLI source code lives. Read files under that path to understand CLI internals, command implementations, or template logic. The command only shows project details when run inside a generated agent project (i.e., one with `agents-cli-manifest.yaml` in the project root directory).
-
-### Authentication
-
-| Command | Purpose |
-|---|---|
-| `agents-cli login --interactive` | Authenticate with Google for ADK services (`-i` / `--interactive` is required for interactive browser-based authentication) |
-| `agents-cli login --status` | Show authentication status |
-
-> [!NOTE]
-> When using an API key to authenticate, the `login` command does not persist them automatically, it just aids in retrieving them and providing instructions on how they can be persisted. 
+`agents-cli info` prints the **CLI install path** (read it to inspect CLI internals/templates) plus, inside a scaffolded project, the project config.
 
 ---
 

@@ -4,7 +4,7 @@
 
 ## Cloud Trace
 
-Always-on distributed tracing via `otel_to_cloud=True` in the FastAPI app. Tracks requests through LLM calls and tool executions with latency analysis and error visibility.
+Always-on distributed tracing: Cloud export is configured by `setup_telemetry()` (Cloud Run/GKE) and by `setup_agent_engine_telemetry()` (Agent Runtime); `get_fast_api_app` is called with `otel_to_cloud=False`. Tracks requests through LLM calls and tool executions with latency analysis and error visibility.
 
 View traces: **Cloud Console → Trace → Trace explorer**
 

@@ -4,44 +4,78 @@
 
 ## Deployment Architecture
 
-Agent Runtime uses **source-based deployment** — no Docker container or Dockerfile. Your agent code is packaged as a base64-encoded tarball and deployed directly to the managed Vertex AI service.
+Agent Runtime uses **container-based deployment**. `agents-cli deploy` packages your project (all git-tracked files) and Agent Engine builds a container image from your project's `Dockerfile` — the same `fast_api_app:app` image that serves Cloud Run and GKE. A `Dockerfile` at the project root is required (scaffolded projects ship one).
 
-**App class:** Your agent extends `AdkApp` (from `vertexai.agent_engines.templates.adk`). Check `agent_runtime_app.py` for the exact implementation. Key methods:
+**App object:** `fast_api_app.py` builds a single FastAPI `app` via
+`get_fast_api_app(web=True, lifespan=...)`. The lifespan builds one `Runner`
+from the shared session/artifact services (`app_utils/services.py`) and mounts
+A2A routes (`attach_a2a_routes`); `attach_reasoning_engine_routes(app)` adds the
+reasoning_engine contract routes. There is no top-level `AgentEngineApp`/`AdkApp`
+deployment entrypoint anymore — the container serves HTTP directly (the
+reasoning_engine adapter still constructs an `AdkApp` internally to dispatch the
+native `:streamQuery`/`:query` contract).
 
-- `set_up()` — Initialization (Vertex AI client, telemetry)
-- `register_operations()` — Declare operations exposed to Agent Runtime
-- `register_feedback()` — Collect and log user feedback
-- `async_stream_query()` — Streaming response method
+The container serves the ADK HTTP surface (`/run_sse`, `/apps/...`), the A2A
+routes under `/a2a/{app_name}` (JSON-RPC + agent card), `/feedback`, and the
+reasoning_engine adapter routes `/api/reasoning_engine` +
+`/api/stream_reasoning_engine` (the native `:streamQuery`/`:query` contract used
+by the Console Playground and Gemini Enterprise ADK registration). It deploys as
+the `google-adk` agent framework (see `service.tf`).
 
-## deploy.py CLI
+### The `/api` HTTP passthrough
 
-Scaffolded projects deploy via `uv run -m app.app_utils.deploy`. Run `uv run -m app.app_utils.deploy --help` for the full flag reference.
+Agent Engine exposes the container's HTTP routes externally under an
+`/api` prefix, so deployed agents are reachable without a public Cloud Run URL:
+
+```
+https://{location}-aiplatform.googleapis.com/reasoningEngines/v1/{resource}/api/{container_path}
+```
+
+where `{resource}` is the full `projects/.../reasoningEngines/...` name. For
+example, the A2A agent card (container route `/a2a/{agent_directory}/.well-known/agent-card.json`)
+is reachable at:
+
+```
+https://{location}-aiplatform.googleapis.com/reasoningEngines/v1/{resource}/api/a2a/{agent_directory}/.well-known/agent-card.json
+```
+
+`{agent_directory}` is the app name (the project's `agent_directory`, recorded in
+`deployment_metadata.json`). This is the exact URL `deploy` advertises on
+success and `run` constructs for `--mode a2a` against an Agent Runtime URL — both
+authenticate with your Google credentials. On Agent Runtime, `publish` registers
+with **ADK** (`:streamQuery` against the reasoning-engine resource name), not
+this card URL.
+
+## Deploying
+
+Deploy with `agents-cli deploy` (run `agents-cli deploy --help` for the full flag reference). CI/CD pipelines invoke the same command.
 
 **Deployment flow:**
-1. `uv export` generates `.requirements.txt` from lockfile
-2. `deploy.py` packages source, creates/updates the Agent Runtime instance
+1. `agents-cli deploy` packages the project's git-tracked files (including the `Dockerfile`)
+2. Agent Engine builds the container image and creates/updates the Agent Runtime instance
 3. Writes `deployment_metadata.json` with the engine resource ID
 
 ## Terraform Resource
 
-Agent Runtime uses `google_vertex_ai_reasoning_engine` in `deployment/terraform/service.tf`. Check that file for current scaling, concurrency, and resource limit settings.
+Agent Runtime uses `google_vertex_ai_reasoning_engine` in `deployment/terraform/single-project/service.tf` (and the `cicd/service.tf` variant for CI/CD-managed deployments). Check those files for current scaling, concurrency, and resource limit settings.
 
-Key difference from Cloud Run: the `lifecycle.ignore_changes` on `source_code_spec` is critical — source code is updated by CI/CD, not Terraform.
+Key difference from Cloud Run: the `lifecycle.ignore_changes` (covering `container_spec`, `source_code_spec`, and `deployment_spec`) is critical — the image and source are updated by `agents-cli deploy` / CI/CD, not Terraform.
 
 ## deployment_metadata.json
 
-Written by `deploy.py` after successful deployment:
+Written by `agents-cli deploy` after a successful deployment:
 
 ```json
 {
   "remote_agent_runtime_id": "projects/PROJECT/locations/LOCATION/reasoningEngines/ENGINE_ID",
   "deployment_target": "agent_runtime",
-  "is_a2a": false,
-  "deployment_timestamp": "2025-02-25T10:30:00.000Z"
+  "is_a2a": true,
+  "agent_directory": "app",
+  "deployment_timestamp": "2025-02-25T10:30:00.000+00:00"
 }
 ```
 
-Used by: subsequent deploys (update vs create), testing notebook, `agents-cli run --url`. Cloud Run does not use this file.
+Used by: subsequent deploys (update vs create), `agents-cli run --url`, and `agents-cli publish` (reads the runtime ID for the default ADK registration on Agent Runtime, and constructs the A2A card URL only when A2A registration is explicitly chosen). Cloud Run does not use this file.
 
 If deployment times out but the engine was created, manually populate this file with the engine resource ID.
 
@@ -49,10 +83,10 @@ If deployment times out but the engine was created, manually populate this file 
 
 | Aspect | Agent Runtime | Cloud Run |
 |--------|-------------|-----------|
-| **Build** | `uv export` → requirements file | Docker build → container image |
-| **Deploy command** | `uv run -m app.app_utils.deploy` | `gcloud run deploy --image ...` |
-| **Artifact** | Base64 source tarball | Container image in Artifact Registry |
-| **Python version** | Fixed at 3.12 (Terraform) | Configurable in Dockerfile |
+| **Build** | Dockerfile → image (built by Agent Engine) | Dockerfile → image (`gcloud builds`) |
+| **Deploy command** | `agents-cli deploy` | `gcloud run deploy --image ...` |
+| **Artifact** | Container image | Container image in Artifact Registry |
+| **Python version** | Configurable in Dockerfile | Configurable in Dockerfile |
 | **Load testing** | Via `locust` against Agent Runtime endpoint | Direct HTTP to Cloud Run URL |
 
 ## Playground & Remote Testing
@@ -81,14 +115,11 @@ async for event in agent.async_stream_query(message="Hello!", user_id="test"):
 
 ## Session & Artifact Services
 
-| Service | Configuration | Notes |
-|---------|--------------|-------|
-| **Sessions** | `InMemorySessionService` (default) | Stateless; state per connection |
-| **Sessions** | `VertexAiSessionService` | Native managed sessions (persistent) |
-| **Artifacts** | `GcsArtifactService` | Uses `LOGS_BUCKET_NAME` env var |
-| **Artifacts** | `InMemoryArtifactService` | Fallback when no bucket configured |
+Agent Runtime always uses in-memory sessions at scaffold time; at runtime `app_utils/services.py` upgrades to `VertexAiSessionService` when Agent Engine injects `GOOGLE_CLOUD_AGENT_ENGINE_ID`. `get_fast_api_app` receives the `shared://session` URI, resolved by `services.py`.
 
-Environment variables set during deployment are configured in `deploy.py` and `deployment/terraform/service.tf`. Check those files for current values.
+Artifacts use `GcsArtifactService` when `LOGS_BUCKET_NAME` is set, otherwise `InMemoryArtifactService`.
+
+Environment variables set during deployment come from `agents-cli deploy` (the CLI's `deploy/agent_runtime.py`) for SDK deploys, and from `deployment/terraform/single-project/service.tf` (or the `cicd/` variant) for Terraform-managed deploys. Check those for current values.
 
 ### Memory Bank
 
