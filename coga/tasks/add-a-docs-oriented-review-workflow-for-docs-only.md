@@ -49,6 +49,39 @@ adding, or whether the status quo is fine.
 ## Context
 
 <!-- coga:blackboard -->
-## Production notes
+## Dev
+branch: docs-with-review-workflow
+worktree: ../coga-docs-with-review  (abs: /home/n/Code/claude/coga-docs-with-review)
 
-This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
+## Implemented (step: implement — DONE & committed)
+Commit 02f25e04. +270 lines, 3 files:
+- coga/workflows/docs/with-review.md (new, repo-local)
+- src/coga/resources/templates/coga/bootstrap/workflows/docs/with-review.md
+  (new, bundled battery — byte-identical to the repo-local copy)
+- tests/test_packaging.py (registered the bundled path in
+  EXPECTED_BOOTSTRAP_RESOURCES)
+
+Decision: human (nick) was initially unsure (ticket is a judgment call), then
+chose Build docs/with-review. Shape mirrors code/with-review (implement →
+peer-review → open-pr → review); reuses code/implement + code/open-pr. Only the
+inline peer-review prose differs: reviews prose/accuracy/links + repo↔packaged
+sync, runs pytest only if code/fixture was actually touched. Added a "When to
+use this instead of code/with-review" section. Did NOT add a docs/implement
+skill (out of scope) or touch the example/ fixture variant.
+
+Verification (python3.12 / pipx coga): pytest 913 passed, 1 skipped;
+`coga validate --json` clean for this change (pre-existing warnings on
+unrelated v2/* tasks only); both copies byte-identical; worktree clean.
+
+## Handoff state (READ ON RELAUNCH)
+Ticket is `status: active`, `step: 1 (implement)`. Implement work is already
+committed (see above) — do NOT redo it.
+
+Blocker hit this session: `coga bump` requires `in_progress` (bump.py:77), but
+only `coga launch` promotes active→in_progress, and a manual session may not
+self-launch (base prompt). So I activated the ticket but could not bump it.
+
+To advance: human runs `coga launch add-a-docs-oriented-review-workflow-for-docs-only`.
+The launched implement session should confirm commit 02f25e04 + this blackboard,
+leave the diff as-is, and immediately `coga bump` to hand off to peer-review.
+The workflow then chains normally (peer-review → open-pr → review).
