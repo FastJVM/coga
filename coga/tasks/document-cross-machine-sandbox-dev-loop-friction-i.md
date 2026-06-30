@@ -52,4 +52,49 @@ This is a doc task for a human to design and place the wording.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Findings (orientation)
+
+- **The task is written in "relay" naming; this repo is "coga".** No
+  `relay-os/`, no `relay/` contexts, no `relay` CLI exist. The intended target
+  is `coga/contexts/coga/codebase/SKILL.md`. Translation: `relay validate` →
+  `coga validate`; `relay draft` → `coga create` (`coga draft` is the
+  deprecated alias). Treating this as a coga repo, pending human confirmation.
+- **`codebase` is repo-local only** — not a packaged bootstrap context (the
+  packaged set is architecture/cli/patterns/period-task/principles/sync). So
+  only `coga/contexts/coga/codebase/SKILL.md` needs editing; no template-tree
+  sync required.
+- **Friction (a) is already partly documented.** The "Daily commands" section
+  already states "Use a 3.11+ interpreter. coga needs `tomllib`" and gives the
+  `PYTHONPATH=$PWD/src <venv python> -m pytest` workaround for a broken `.pth`.
+  The task's (a) is a sharper framing (the checked-in `.venv` itself is 3.9).
+  Plan: fold (a) into that section rather than duplicate.
+- **Frictions (b),(c),(d) are genuinely new.** None of sandbox `codex review`,
+  `index.lock`, or `--task` scoping are covered. `coga validate --task <slug>`
+  exists (verified in `src/coga/commands/validate.py`), so (d) maps cleanly.
+
+## Plan (proposed, awaiting human sign-off)
+
+Add a new `## Sandbox and cross-machine dev loop` section for (b),(c),(d) and
+fold (a) into the existing "Daily commands" venv discussion. Wording is the
+human's to design.
+
+## Dev
+
+- branch: `docs-sandbox-dev-loop-friction`
+- worktree: `/home/n/Code/claude/coga-sandbox-friction-docs`
+- commit: `6e94e72c` — edits `coga/contexts/coga/codebase/SKILL.md` only
+  (repo-local context; no packaged-template sync needed).
+- changes: (1) sharpened the "Daily commands" interpreter bullet to fold in
+  friction (a) with accurate framing; (2) added a `## Sandbox and cross-machine
+  dev loop` section covering (b) codex review read-only in-sandbox, (c) git
+  `index.lock` failures, (d) `coga validate --task <slug>` scoping.
+- tests: `PYTHONPATH=$PWD/src python3.12 -m pytest` → 913 passed, 1 skipped.
+
+## Correction to friction (a)
+
+Verified on this checkout: there is **no `.coga/.venv`** present and it is
+**not committed**, so "the checked-in `.venv` is Python 3.9" is not literally
+true for coga. What is true: the ambient `python3` is 3.9.12 (no `tomllib`)
+and `python3.12` is available. Durable framing: don't trust the default
+`python3`; name a 3.11+ interpreter explicitly (covers a stale/missing venv
+too). Human confirmed: fold (a) into Daily commands; new section for (b/c/d).
