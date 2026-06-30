@@ -485,3 +485,4 @@
 2026-06-30 14:42 [wire-autonomy-triage-into-impl-ready-workflows] [git] sync failed: `git add -- coga/tasks/wire-autonomy-triage-into-impl-ready-workflows.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
 2026-06-30 14:42 [coga] [git] sync failed: `git add -- coga/log.md coga/recurring/digest/spool.md coga/tasks/wire-autonomy-triage-into-impl-ready-workflows.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
 2026-06-30 14:43 [drain-pending-auto-tickets-with-leftover-session-b] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-30 14:40 [add-a-docs-oriented-review-workflow-for-docs-only] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
