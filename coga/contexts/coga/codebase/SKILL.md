@@ -151,8 +151,28 @@ Two non-obvious requirements:
 
 - **`PYTHONPATH` must be absolute.** The script-launch subprocess tests run
   from a different cwd, so a relative `src` breaks them.
-- **Use a 3.11+ interpreter.** coga needs `tomllib`, which is stdlib only
-  on 3.11+.
+- **Use an explicit 3.11+ interpreter — don't trust the default `python3`.**
+  coga needs `tomllib`, stdlib only on 3.11+, but the ambient `python3` on
+  these machines is often 3.9. Name a new-enough interpreter directly, e.g.
+  `PYTHONPATH=$PWD/src python3.12 -m pytest`, rather than relying on `python3`
+  or a stale/absent `.coga/.venv` (which may itself be 3.9 or missing on a
+  fresh checkout).
+
+## Sandbox and cross-machine dev loop
+
+Running the suite or CLI inside a restricted agent sandbox (e.g. Codex's) hits
+recurring walls that don't appear on a normal dev machine:
+
+- **`codex review --base main` fails in-sandbox.** The app-server is read-only
+  there, so the review can't complete. Rerun it unsandboxed.
+- **Git sync operations fail when the sandbox can't write `index.lock`.**
+  State-changing commands such as `coga create`, `coga bump`, and
+  `coga mark ...` commit task/log changes through git sync, so they can error
+  inside a sandbox that forbids creating `.git/index.lock`. Rerun those
+  transitions unsandboxed (or grant `.git` write access).
+- **Scope validation with `--task`.** A repo-wide `coga validate` reports
+  pre-existing, unrelated drift that isn't yours to fix and drowns the signal.
+  `coga validate --task <slug>` is the meaningful per-ticket check.
 
 ## Secrets
 
