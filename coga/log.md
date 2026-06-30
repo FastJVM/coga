@@ -499,3 +499,4 @@
 2026-06-30 15:06 [add-a-docs-oriented-review-workflow-for-docs-only] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/484
 2026-06-30 14:52 [block-unblock-and-megalaunch] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
 2026-06-30 15:07 [block-unblock-and-megalaunch] [agent:codex] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/483
+2026-06-30 15:07 [retire-the-duplicate-relay-clone-so-one-process-wr] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
