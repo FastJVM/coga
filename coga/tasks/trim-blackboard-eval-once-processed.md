@@ -1,7 +1,7 @@
 ---
 slug: trim-blackboard-eval-once-processed
 title: trim blackboard eval once processed
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -29,7 +29,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
@@ -165,8 +164,29 @@ No findings — both passes came back clean against `trim-blackboard-eval` vs `m
 - `/simplify`: code already clean. Reuse (net-new section delete, reuses `_SECTION_RE`), simplification (no derivable/dead state), efficiency (runs once off any hot path), and altitude (generic `delete_sections` + module constant, not a buried literal) all pass. No edits applied.
 - Tests re-run with 3.12: focused `test_blackboard.py`+`test_mark.py` 33 passed; full suite 919 passed, 1 skipped; `validate --task` clean. Working tree clean — no QA commit needed.
 
+## Review follow-up
+
+Human PR comments changed the product rule:
+- Source repo can keep a local `coga/architecture` context for dogfood/repo explanation, but fresh repos should not be told bootstrap contexts are instantiated under `coga/contexts/coga`; the generated agent guide now says canonical contexts are package-backed and locally overrideable.
+- Activation now promotes draft/paused authoring blackboards to `## Production notes` when the marker is absent, instead of deleting only `## Evaluator review`. If the marker exists, the blackboard is preserved. Forced recurring reruns from other statuses preserve restored blackboard state.
+
+Implemented in commit `9b1c160f` (`Promote draft blackboards on activation`) and pushed to PR #481.
+Replied to both PR threads:
+- https://github.com/FastJVM/coga/pull/481#discussion_r3501301052
+- https://github.com/FastJVM/coga/pull/481#discussion_r3501301054
+
+Verification after review patch:
+- `python -m pytest tests/test_blackboard.py tests/test_mark.py tests/test_init.py` passed: 98 passed.
+- `python -m pytest tests/test_blackboard.py tests/test_mark.py tests/test_init.py tests/test_recurring.py` passed: 180 passed.
+- `python -m pytest` passed: 918 passed, 1 skipped.
+- `PYTHONPATH=/tmp/coga-trim-blackboard-eval/src python -m coga.cli validate --task trim-blackboard-eval-once-processed --json` passed.
+
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3169792,"cli":"codex","input_tokens":324657,"model":"gpt-5.5","output_tokens":25263,"provider":"openai","schema":1,"session_id":"019f16f3-ca68-74e3-94bf-302f47bc13ab","slug":"trim-blackboard-eval-once-processed","step":"implement","title":"trim blackboard eval once processed","ts":"2026-06-30T18:18:48.444170Z","usage_status":"ok"}
 
 {"agent":"claude","cache_creation_input_tokens":171062,"cache_read_input_tokens":1720509,"cli":"claude","input_tokens":14272,"model":"claude-opus-4-8","output_tokens":38351,"provider":"anthropic","schema":1,"session_id":"6335c38a-5c97-4034-a966-2edcf17e09c5","slug":"trim-blackboard-eval-once-processed","step":"self-qa","title":"trim blackboard eval once processed","ts":"2026-06-30T18:22:51.188594Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":130321,"cache_read_input_tokens":795464,"cli":"claude","input_tokens":14932,"model":"claude-opus-4-8","output_tokens":7713,"provider":"anthropic","schema":1,"session_id":"7653ca45-44fd-49ec-8989-9529e9c9ced1","slug":"trim-blackboard-eval-once-processed","step":"pr","title":"trim blackboard eval once processed","ts":"2026-06-30T18:24:06.655221Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":4795520,"cli":"codex","input_tokens":288627,"model":"gpt-5.5","output_tokens":28254,"provider":"openai","schema":1,"session_id":"019f19e9-11bd-72d3-9e5f-6a1767819d33","slug":"trim-blackboard-eval-once-processed","step":"review","title":"trim blackboard eval once processed","ts":"2026-06-30T21:39:47.493698Z","usage_status":"ok"}
