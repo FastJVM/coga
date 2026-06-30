@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: codex
-assignee: codex
+assignee: nick
 contexts:
 - coga/architecture
 - coga/cli
@@ -28,7 +28,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -137,12 +137,15 @@ Current direction:
 
 branch: block-unblock-megalaunch
 worktree: /tmp/coga-block-unblock
-commit: f01d94f7 peer-review: fix megalaunch budget/eligibility bugs and doc sync
+commit: 9d274705 peer-review: fix megalaunch budget/eligibility bugs and doc sync (rebased onto origin/main)
+pr: https://github.com/FastJVM/coga/pull/483
 superseded-pr: https://github.com/FastJVM/coga/pull/468
 
 Notes:
 - Historical `async-park-continue` / PR #468 implementation is closed and superseded.
-- Revised implementation is committed on `block-unblock-megalaunch` at `1b455351`; peer-review fixes applied at `f01d94f7`; no PR opened yet (open-pr is the next step).
+- Revised implementation was originally committed on `block-unblock-megalaunch` at `1b455351`; peer-review fixes were first applied at `f01d94f7`, then rebased to `9d274705` during open-pr.
+- [2026-06-30] Opened PR #483 from `block-unblock-megalaunch` to `main`. GitHub initially reported conflicts, so the branch was rebased onto `origin/main`, conflicts in `src/coga/blackboard.py` and `src/coga/cli.py` were resolved by keeping `main`'s production-note/state-sweep behavior plus this branch's blocker/megalaunch behavior, and the rebased branch was force-pushed with lease. GitHub now reports the PR as `MERGEABLE`; `gh pr checks 483` reports no checks on the branch.
+- [2026-06-30] Rebase verification: `PYTHONPATH=src python3.12 -m pytest -q` — 944 passed, 1 skipped; `git diff --check` — passed; `PYTHONPATH=src python -m coga.cli validate --task block-unblock-and-megalaunch --json` — passed (`ok_count: 1`); CLI smoke `PYTHONPATH=src python -m coga.cli --help`, `block --help`, and `megalaunch --help` — passed.
 
 Revised implementation:
 - Added first-class `coga block` and `coga unblock`; removed `coga panic` from the CLI surface.
