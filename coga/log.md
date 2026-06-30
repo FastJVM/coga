@@ -414,3 +414,5 @@
 2026-06-29 16:59 [block-unblock-and-megalaunch] [agent:claude] advanced to step 3 (open-pr) → assigned to codex — peer-review done; megalaunch budget+eligibility bugs fixed @ f01d94f7, 909 passed — ready for open-pr
 2026-06-29 16:51 [support-task-subdirectories-in-task-discovery] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-29 17:14 [support-task-subdirectories-in-task-discovery] [human:nicktoper] task done
+2026-06-29 17:34 [fix-git-recurring-issues] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-29 20:19 [fix-git-recurring-issues] [human:nicktoper] activated (draft → active)

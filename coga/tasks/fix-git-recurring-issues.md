@@ -1,7 +1,7 @@
 ---
 slug: fix-git-recurring-issues
 title: Verify recurring high-water git race is fixed and regression-covered
-status: draft
+status: active
 autonomy: interactive
 owner: nick
 human: nick
@@ -9,7 +9,14 @@ agent: claude
 assignee: nick
 contexts: []
 skills: []
-workflow: null
+workflow:
+  name: direct/body
+  steps:
+  - name: execute
+    skills:
+    - direct/body
+    assignee: agent
+step: 1 (execute)
 ---
 
 ## Description
@@ -48,4 +55,37 @@ Confirm, and only close once each is true:
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Verification note (2026-06-29, nick + claude)
+
+**Verified: high-water merge race is fixed and regression-covered. Closing.**
+Note: the relay→coga rebrand (#454, `d0645a19`) renamed all paths; the
+ticket's `src/relay/...` references are now `src/coga/...`. Commit `b82440a`
+/ PR #357 isn't findable by hash (history rewritten by the rebrand), but the
+fix is unambiguously present.
+
+1. **Argument-order fix on `main` ✅ — and structurally robust.**
+   `merge_last_serviced_period_text(base, incoming)` (`src/coga/recurring.py:763`)
+   resolves the high-water with `max(periods)`. Take-max makes argument order
+   *irrelevant*: whichever side holds the more-recent period key wins, so the
+   original "args reversed" footgun can no longer drop the newer key. Callsite:
+   `_control_blackboard_with_local_period` (`src/coga/commands/recurring.py:660`).
+
+2. **Regression test exists, not skipped, exercises the race ✅.**
+   `test_recurring_launch_does_not_resurrect_midflight_handled_period`
+   (`tests/test_recurring.py:1781`) pushes a competing commit carrying a handled
+   period (`2026-W24`, `remote_cursor: kept`) mid-create, then asserts the stale
+   checkout adopts control's more-recent state, the W24 high-water survives, the
+   handled period's task is NOT resurrected (`not outcome.ref.path.exists()`),
+   and the tree is clean.
+
+3. **No other git footguns surfaced; broad sibling coverage already present:**
+   `..._does_not_resurrect_remote_deleted_period_from_stale_main`,
+   `..._preserves_midflight_remote_ledger_race`, and a stale-checkout-resume
+   test. No state-corruption gap found in the merge/create path.
+
+Tests: `python3.12 -m pytest tests/test_recurring.py` → **82 passed**.
+
+Why no workflow was attached: this ticket was reframed in place from an old bug
+stub into a verification gate and never went through the bootstrap interview that
+assigns a `workflow:`. Deliverable was a confirming note only (no code to ship),
+so closing directly without a workflow per owner decision.
