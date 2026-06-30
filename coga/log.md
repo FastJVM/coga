@@ -461,3 +461,6 @@
 2026-06-29 22:40 [dream-validate-drift-w27] [human:nicktoper] created (autonomy=auto, status=draft)
 2026-06-29 22:40 [dream-validate-drift-w27] [human:nicktoper] activated (draft → active)
 2026-06-29 22:41 [dream-validate-drift-w27] [system] started (active → in_progress) via coga launch
+2026-06-29 22:41 [dream-validate-drift-w27] [system] launched as a script (skill=bootstrap/dream/tasks/validate-drift, script=run.py)
+2026-06-29 22:41 [dream-validate-drift-w27] [system] script exited with code 0
+2026-06-29 22:41 [dream-validate-drift-w27] [system] completed (final script step ran) via coga launch
