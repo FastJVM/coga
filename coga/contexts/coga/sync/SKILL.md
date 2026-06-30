@@ -400,6 +400,59 @@ message)` stages and commits only the task directory pathspec. It must not use
 the task-state commit — the temp-index plumbing makes that structural for the
 cross-branch land, since every staging op runs against the throwaway index.
 
+### The catch-all subtree sweep — `sync_coga_state`
+
+The per-transition syncs above each commit the *one* file a command intended to
+change, with a human-readable message. But two classes of write land *past* the
+last per-command sync and would otherwise sit dirty forever:
+
+- **Machine side-effects.** The dominant one is the per-session `## Usage`
+  record `coga launch` appends *after* the agent's final `bump`/`mark` (so
+  after the last sync). The digest spool and stray launch log lines are the same
+  shape.
+- **Human hand-edits.** A person editing a ticket body, blackboard, or context
+  directly in the working tree — no command ran, so nothing committed it.
+
+`src/coga/git.py::sync_coga_state(cfg, *, message="Sync coga state")` closes
+both. In the normal nested layout it commits **everything dirty under the
+`coga/` subtree** (`cfg.repo_root`, where `coga.toml` lives). In older/root
+layouts where `coga.toml` lives at the git toplevel, it scopes to the known
+Coga OS pathspecs (`tasks`, `contexts`, `skills`, `workflows`, `recurring`,
+`bootstrap`, `coga.toml`, `context.md`, `log.md`) instead of treating the whole
+git root as Coga state. A full `git status` under those pathspecs captures
+modifications, deletions, renames, **and new untracked files**. This is *not*
+the forbidden `git add -A`: the subtree/pathspec boundary is exactly the
+OS-state line the "Scope is narrow" rule draws, so product code (`src/`,
+`tests/`) is structurally never swept in. Branch handling and the
+`merge=union` split reuse the same machinery as `sync_paths` (union files —
+`log.md`, the digest spool — committed locally + union-merged onto the control
+branch, never landed via the wholesale-replace overlay); union membership is
+asked of git directly via `git check-attr merge`, so any future `merge=union`
+file is handled automatically. Same non-fatal failure model: a sweep that can't
+reach the control branch is surfaced (stderr + `coga/log.md`), never a crash.
+
+It is wired at two boundaries, *in addition to* — never replacing — the
+per-transition syncs, which keep the readable git history and digest filtering:
+
+- **Launch teardown**, after `usage_tracking.capture_session`, so each step's
+  usage record commits promptly. A supervised chain reaches this finally once
+  per step, where the CLI-dispatch boundary fires only once for the whole
+  launch.
+- **The CLI dispatch boundary** (`cli.py::main`'s `finally` around `app()`),
+  for mutating commands only. Read-only commands (`status`, `show`, `validate`,
+  `usage`), read-only group subcommands (`skill status`, `recurring list`,
+  `secret get`), no-args/help group invocations (`mark`, `skill`),
+  `init`/`uninstall`, and `--help`/option invocations are excluded —
+  `coga/principles` #6 forbids a render from mutating as a side effect.
+
+The semantics this buys (and accepts): a human hand-edit commits on the **next
+coga command**, not the instant they save. Lazy, on-access convergence — the
+working tree is the source of truth and git catches up at the next invocation.
+This is the deliberate no-daemon alternative to instant commits (`coga/
+architecture`: "no database, no daemon, no in-memory state"). The sweep's commit
+subject (`Sync coga state`) is filtered out of the daily digest's "Also merged"
+section alongside the per-transition state-sync subjects.
+
 Failure model:
 
 - `[git].enabled = false` suppresses sync with a stderr line. Like the
@@ -433,7 +486,11 @@ If the command mutates a task directory through Coga-owned code, it should
 also call `git.sync_task_state` after the live notification post unless the path is
 explicitly deferred and documented. The git sync call belongs at the logic
 boundary where the file write, validation, log append, and notification post
-have all finalized.
+have all finalized. A meaningful per-transition sync is still required even
+though the CLI-dispatch `sync_coga_state` sweep would eventually catch the
+files — the sweep is a backstop with a generic message, not a substitute for the
+readable, individually-attributed state commit (and the digest's commit-subject
+filter relies on those per-transition subjects).
 
 When the post needs to describe state that has *just* changed, the
 command echoes the local outcome to stdout *before* calling

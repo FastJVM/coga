@@ -419,6 +419,66 @@ def test_spawn_leaves_log_dirty_when_commit_log_unset(git_repo, monkeypatch):
     assert "log.md" in git_repo.git("status", "--porcelain")
 
 
+def test_spawn_sweeps_usage_record_at_teardown(git_repo, monkeypatch):
+    """The teardown commits the `## Usage` record `capture_session` appends past
+    the agent's final `bump`/`mark` sync — the structural root cause of the
+    permanently-dirty tree — while product code outside `coga/` is left alone."""
+    cfg = load_config(git_repo.coga_os)
+    task = git_repo.coga_os / "tasks" / "demo"
+    task.mkdir(parents=True)
+    (task / "ticket.md").write_text("---\ntitle: demo\nstatus: active\n---\n\nbody\n")
+    git_repo.git("add", "-A")
+    git_repo.git("commit", "-m", "seed demo task")
+    git_repo.git("push", "origin", "main")
+    ref = TaskRef(slug="demo", path=task)
+
+    # A tracked code file outside coga/, dirtied — must survive the sweep.
+    outside = git_repo.root / "outside.txt"
+    outside.write_text("original\n")
+    git_repo.git("add", "outside.txt")
+    git_repo.git("commit", "-m", "seed outside")
+    git_repo.git("push", "origin", "main")
+    outside.write_text("locally modified\n")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket, autonomy_override=None: "# Coga task\nbody",
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *a, **k: ReplOutcome(exit_code=0, kind="exit"),
+    )
+
+    def fake_capture(*, blackboard, **kwargs):  # type: ignore[no-untyped-def]
+        # Mirror the real append: a `## Usage` line written into the ticket
+        # blackboard, *past* the agent's last sync.
+        blackboard.write_text(blackboard.read_text() + '\n## Usage\n{"tokens": 1}\n')
+
+    monkeypatch.setattr(
+        "coga.commands.launch.usage_tracking.capture_session", fake_capture
+    )
+
+    spawn_agent_session(
+        cfg, ref, _ticket(),
+        AgentType(
+            name="claude", cli="claude", auto="-p", file="CLAUDE.md",
+            mode="local", discussion="--append-system-prompt {prompt}",
+        ),
+        "interactive", env={}, actor="human:marc",
+        log_message="launched", discussion=True, kickoff="Begin",
+        capture_usage=True,
+    )
+
+    # The usage record is committed (clean coga/ tree) and pushed to the control
+    # branch — no dangling line left behind.
+    assert "coga/" not in git_repo.git("status", "--porcelain")
+    assert "## Usage" in git_repo.git(
+        "show", "origin/main:coga/tasks/demo/ticket.md"
+    )
+    # Product code outside coga/ stays dirty and unpushed.
+    assert "outside.txt" in git_repo.git("status", "--porcelain")
+
+
 def test_spawn_agent_session_without_kickoff_stays_silent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
