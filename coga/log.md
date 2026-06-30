@@ -495,3 +495,5 @@
 2026-06-30 14:54 [add-a-docs-oriented-review-workflow-for-docs-only] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
 2026-06-30 15:04 [add-a-docs-oriented-review-workflow-for-docs-only] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
 2026-06-30 15:04 [add-a-docs-oriented-review-workflow-for-docs-only] [git] sync failed: `git add -- coga/tasks/add-a-docs-oriented-review-workflow-for-docs-only.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-06-30 15:04 [add-a-docs-oriented-review-workflow-for-docs-only] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 15:06 [add-a-docs-oriented-review-workflow-for-docs-only] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/484

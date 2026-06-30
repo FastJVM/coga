@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -52,6 +52,7 @@ adding, or whether the status quo is fine.
 ## Dev
 branch: docs-with-review-workflow
 worktree: ../coga-docs-with-review  (abs: /home/n/Code/claude/coga-docs-with-review)
+pr: https://github.com/FastJVM/coga/pull/484
 
 ## Implemented (step: implement — DONE & committed)
 Commit 02f25e04. +270 lines, 3 files:
@@ -95,11 +96,16 @@ Verification (python3.12, `PYTHONPATH=src` where needed):
 - `python3.12 -m coga.cli validate --task add-a-docs-oriented-review-workflow-for-docs-only --json` → clean
 - `PYTHONPATH=src python3.12 -m pytest -p no:cacheprovider` → 913 passed, 1 skipped
 
+## Open PR (step: open-pr — DONE)
+Branch `docs-with-review-workflow` pushed to origin; PR #484 opened against
+main: https://github.com/FastJVM/coga/pull/484 (links the ticket). Auth probed
+clean (`gh auth status`: nicktoper, repo+workflow scopes). Worktree clean, no
+draft PR pre-existed. Bumped to owner review.
+
 ## Handoff state (READ ON RELAUNCH)
-Peer review is complete and committed on `docs-with-review-workflow`. Next step
-is `open-pr`: use the recorded feature worktree, push branch
-`docs-with-review-workflow`, open the PR, record the PR URL here, then bump to
-owner review.
+Implementation, peer review, and PR are all done. Next/final step is `review`
+(owner: nick) — human decides whether to merge PR #484. Nothing left for an
+agent to do until merge.
 
 ## Usage
 
