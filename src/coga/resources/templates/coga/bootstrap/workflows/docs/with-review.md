@@ -4,14 +4,10 @@ description: Docs/markdown change implemented by one agent, then peer-reviewed f
 steps:
   - name: implement
     assignee: agent
-    skills:
-      - code/implement
   - name: peer-review
     assignee: other-agent
   - name: open-pr
     assignee: agent
-    skills:
-      - code/open-pr
   - name: review
     assignee: owner
 ---
@@ -55,20 +51,42 @@ owner/human handoff), or on `done`/`paused`/panic.
 
 ## implement
 
-Run the `code/implement` skill — branch, feature worktree, edit, commit,
-bump — the machinery is the same for a markdown change. The one
-adjustment for docs-only work: there is usually no regression test to add
-and `python -m pytest` covers nothing you changed, so treat the skill's
-test step as **"verify what you actually changed."** Concretely:
+Implement the docs change on a feature branch, commit it, and stop before
+push/PR. The mechanics match a code task, but the verification bar is
+docs-oriented: prove the changed markdown, workflow, context, or template is
+accurate and reachable rather than running tests that cover nothing.
 
-- If you touched a shipped Coga context or template that has both a live
-  copy under `coga/` and a packaged copy under
-  `src/coga/resources/templates/coga/`, edit **both** in the same commit
-  (CLAUDE.md's sync rule) unless the divergence is intentional and noted.
-- If you changed anything `coga validate` checks (workflow/task structure),
-  run `coga validate --json`.
-- Run `python -m pytest` only if you actually touched code or a fixture;
-  otherwise it is not required for this step.
+1. **Read the ticket and context.** Confirm this is actually docs-only. If
+   the ticket touches real code, write that mismatch to the blackboard and
+   `coga panic` so the task can move to `code/with-review`.
+2. **Create a feature worktree.** From the primary checkout on `main`,
+   create a feature branch in a separate worktree outside the repo
+   directory, for example:
+   `git worktree add ../coga-<branch-name> -b <branch-name> main`.
+   Return to the primary checkout and write `branch: <branch-name>` and
+   `worktree: <path>` under `## Dev` on the blackboard.
+3. **Edit in the feature worktree.** Keep the diff scoped to the ticket; no
+   opportunistic rewrites. If you find adjacent cleanup, note it on the
+   blackboard for a follow-up instead of folding it in.
+4. **Keep shipped copies in sync.** If you touched a shipped Coga context or
+   template that has both a live copy under `coga/` and a packaged copy under
+   `src/coga/resources/templates/coga/`, edit **both** in the same commit
+   unless the divergence is intentional and noted.
+5. **Verify what changed.** Choose the checks that exercise the actual docs
+   surface:
+
+   - If you changed workflow/task structure, run `coga validate --json`
+     or a task-scoped validation if repo-wide validation has unrelated drift.
+   - If you changed packaged resources, run the relevant packaging/resource
+     test.
+   - Run `python -m pytest` only if you actually touched code or a fixture.
+     A pure prose edit does not require the full suite.
+
+6. **Commit.** Use a short factual subject and mention the ticket slug in the
+   body. Leave the feature worktree clean.
+7. **Bump from the primary checkout.** Run `coga bump <slug>` only after the
+   blackboard is current. If you cannot reach a clean committed state, write
+   the blocker to the blackboard and `coga panic`.
 
 ## peer-review
 
@@ -100,17 +118,28 @@ patching around it.
 
 ## open-pr
 
-Follow the `code/open-pr` skill to push and open the PR. In addition to
-the blackboard `## Dev` entry, **update the ticket**: write the PR link
-into `ticket.md` so the source of truth records where the change landed.
-Add a `## PR` section to the ticket body (or update it if present) with
-the PR URL before you `coga bump`.
+Push the reviewed branch and open the PR. This step is still docs-oriented,
+but it owns the same publication and handoff guarantees as a code PR.
+
+1. **Find the feature worktree.** Read `branch:` and `worktree:` under
+   `## Dev` on the blackboard. Change into that worktree, confirm it is on
+   the recorded branch, and confirm the working tree is clean.
+2. **Push** the branch from the feature worktree.
+3. **Open the PR** with `gh pr create`. If a draft PR already exists, mark it
+   ready instead. Title = ticket title. Body = short summary + "Closes
+   ticket: `<slug>`" + a one-line verification plan.
+4. **Record the URL in durable task state.** From the primary checkout, add
+   `pr: <url>` under `## Dev` on the blackboard. Also add or update a `## PR`
+   section in the ticket body with the PR URL before you bump.
 
 After the PR is open, **resolve any merge conflicts with the base branch
 before the handoff**: check that the PR is mergeable (e.g. `gh pr view
 <PR#> --json mergeable,mergeStateStatus`), and if it conflicts with
 `main`, merge/rebase `main` into the feature branch, resolve the
 conflicts, and push so the human reviewer receives a clean, mergeable PR.
+If conflict resolution touches code or fixtures, run `python -m pytest`;
+otherwise re-run the docs-specific verification that applies to the changed
+files.
 Only then `coga bump` to hand off to the owner. If a conflict needs a
 judgment call you can't make, write it to the blackboard and `coga panic`
 instead of bumping.
