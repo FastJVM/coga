@@ -440,3 +440,4 @@
 2026-06-29 22:34 [recurring/skill-update] [system] created recurring/skill-update for 2026-W27
 2026-06-29 22:34 [recurring/autoclose-merged] [human:nicktoper] activated (done → active) for forced recurring run
 2026-06-29 22:34 [recurring/autoclose-merged] [system] reused recurring/autoclose-merged for 2026-06-29
+2026-06-29 22:34 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
