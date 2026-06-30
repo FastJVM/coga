@@ -85,3 +85,7 @@ To advance: human runs `coga launch add-a-docs-oriented-review-workflow-for-docs
 The launched implement session should confirm commit 02f25e04 + this blackboard,
 leave the diff as-is, and immediately `coga bump` to hand off to peer-review.
 The workflow then chains normally (peer-review → open-pr → review).
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":57723,"cache_read_input_tokens":297011,"cli":"claude","input_tokens":16467,"model":"claude-opus-4-8","output_tokens":7788,"provider":"anthropic","schema":1,"session_id":"18ca7712-e5b3-4017-89cf-194c380d7817","slug":"add-a-docs-oriented-review-workflow-for-docs-only","step":"implement","title":"Add a docs-oriented review workflow for docs-only tickets","ts":"2026-06-30T21:54:14.662933Z","usage_status":"ok"}
