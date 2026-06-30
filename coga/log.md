@@ -426,3 +426,9 @@
 2026-06-29 22:10 [document-cross-machine-sandbox-dev-loop-friction-i] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
 2026-06-29 22:09 [remove-support-for-directory-in-relay-task-in-v2] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-29 22:14 [trim-blackboard-eval-once-processed] [human:nicktoper] started (active → in_progress) via coga launch
+2026-06-29 22:11 [document-cross-machine-sandbox-dev-loop-friction-i] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-29 22:25 [document-cross-machine-sandbox-dev-loop-friction-i] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-06-29 22:25 [document-cross-machine-sandbox-dev-loop-friction-i] [git] sync failed: `git add -- coga/tasks/document-cross-machine-sandbox-dev-loop-friction-i.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-06-29 22:25 [coga] [git] sync failed: `git add -- coga/log.md coga/recurring/digest/spool.md coga/tasks/anonymous-install-telemetry-opt-out-no-pii.md coga/tasks/clean-up-docs-directory.md coga/tasks/commit-post-session-coga-writes-usage-record-spool.md coga/tasks/document-cross-machine-sandbox-dev-loop-friction-i.md coga/tasks/fresh-repo-default-branch-mismatch-git-init-master.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-06-29 22:25 [document-cross-machine-sandbox-dev-loop-friction-i] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-29 22:26 [document-cross-machine-sandbox-dev-loop-friction-i] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/472
