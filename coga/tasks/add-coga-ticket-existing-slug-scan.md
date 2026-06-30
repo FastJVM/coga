@@ -1,12 +1,12 @@
 ---
 slug: add-coga-ticket-existing-slug-scan
 title: add-coga-ticket-existing-slug-scan
-status: active
+status: in_progress
 autonomy: interactive
-owner: lilfedor
-human: lilfedor
+owner: zach
+human: zach
 agent: claude
-assignee: lilfedor
+assignee: claude
 contexts: []
 skills: []
 workflow:

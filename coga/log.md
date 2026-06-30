@@ -521,3 +521,4 @@
 2026-06-30 16:46 [awaken-recurring-auto-blocked-tasks] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/485
 2026-06-30 16:15 [add-coga-ticket-existing-slug-scan] [human:lilfedor] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-30 16:51 [add-coga-ticket-existing-slug-scan] [human:lilfedor] activated (draft → active) — auto on launch
+2026-06-30 16:52 [add-coga-ticket-existing-slug-scan] [human:lilfedor] started (active → in_progress) via coga launch
