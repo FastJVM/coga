@@ -503,3 +503,4 @@
 2026-06-30 15:07 [block-unblock-and-megalaunch] [human:nicktoper] launched in interactive mode (assignee=nick, launch_assignee=codex, agent=codex)
 2026-06-30 15:17 [awaken-recurring-auto-blocked-tasks] [human:nicktoper] activated (draft → active) — auto on launch
 2026-06-30 15:17 [awaken-recurring-auto-blocked-tasks] [human:nicktoper] started (active → in_progress) via coga launch
+2026-06-30 15:17 [awaken-recurring-auto-blocked-tasks] [human:nicktoper] launched in interactive mode (assignee=claude, launch_assignee=codex, agent=codex)

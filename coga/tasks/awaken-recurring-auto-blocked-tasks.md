@@ -81,3 +81,7 @@ Relevant existing pieces:
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":852736,"cli":"codex","input_tokens":229218,"model":"gpt-5.5","output_tokens":7989,"provider":"openai","schema":1,"session_id":"019f1a9b-efdc-7d02-84bb-575d0705e997","slug":"awaken-recurring-auto-blocked-tasks","step":"implement","title":"Awaken recurring auto blocked tasks","ts":"2026-06-30T22:42:53.272515Z","usage_status":"ok"}
