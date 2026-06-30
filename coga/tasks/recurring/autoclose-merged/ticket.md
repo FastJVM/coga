@@ -1,7 +1,7 @@
 ---
 slug: recurring/autoclose-merged
 title: Autoclose merged tickets
-status: in_progress
+status: done
 autonomy: auto
 owner: nick
 human: nick
@@ -19,7 +19,6 @@ workflow:
     assignee: agent
 secrets: null
 script: null
-step: 1 (sweep)
 ---
 
 ## Description
