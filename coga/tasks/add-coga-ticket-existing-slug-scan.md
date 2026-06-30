@@ -1,7 +1,7 @@
 ---
 slug: add-coga-ticket-existing-slug-scan
 title: add-coga-ticket-existing-slug-scan
-status: draft
+status: active
 autonomy: interactive
 owner: lilfedor
 human: lilfedor
@@ -9,17 +9,100 @@ agent: claude
 assignee: lilfedor
 contexts: []
 skills: []
-workflow: null
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
 
-
+`coga ticket <slug>` on an existing ticket should greet the human as an
+**edit**, but it greets as a **create** whenever the ticket's
+`## Description`/`## Context` body is empty — which is the exact state of
+drafts made in a batch with `coga create` and then opened for authoring.
+The `bootstrap/ticket` skill decides create-vs-edit from body-emptiness,
+even though `coga ticket` itself already resolved create-vs-edit
+definitively before launch. Drive the opening greeting off the CLI's actual
+resolve-vs-create outcome instead of body content, so a pre-existing (even
+empty) draft is recognized as an edit. Also fix the related nested-ticket
+case: a nested existing ticket addressed by its bare leaf fails to resolve
+and silently spawns a duplicate top-level draft. Keep both fixes scoped to
+the `coga ticket` path for the least possible blast radius — do not change
+the shared `resolve_task` semantics that `coga launch` and `coga status`
+also depend on.
 
 ## Context
 
-<!-- coga:blackboard -->
+- **Where the decision actually lives:** `src/coga/commands/ticket.py` →
+  `_resolve_or_create_target()`. `resolve_task()` succeeding = edit (returns
+  the existing ticket); `TaskNotFoundError` = `create_draft()` = new. The
+  outcome is known here but is never passed into the launched authoring
+  session (`spawn_agent_session(..., kickoff="Begin")`).
+- **The buggy heuristic:** the `bootstrap/ticket` skill, "Step 1 — Identify
+  the launch shape", classifies new-vs-existing from "empty
+  `## Description`/`## Context` body means new, a filled body means existing."
+  That misfires for `coga create`d empty drafts.
+  **Pinned mechanism (least blast radius):** the CLI already computes the
+  answer in `_resolve_or_create_target` — thread that create-vs-edit boolean
+  down to `_run_authoring_session` and vary the `kickoff` token (currently the
+  hardcoded `"Begin"` at ticket.py:184) so the skill greets off the token
+  rather than body content. This only adds information flow on the
+  `coga ticket` path; no shared function changes.
+- **Why "skill scans all slugs" is not enough on its own:** by the time the
+  skill runs, the ticket file always exists on disk in *both* cases — a new
+  one was just written by `create_draft` moments earlier — so a filesystem
+  scan cannot distinguish "just created" from "pre-existing". The reliable
+  signal is the CLI's resolve-vs-create branch, not a scan.
+- **"Existing but empty" edit path:** when an existing draft has an empty
+  body there is nothing to preserve, so it should still fill from scratch —
+  it must just greet as an edit, not announce "has been created".
+- **Nested/subdirectory case:** `resolve_task()` in `src/coga/tasks.py`
+  (~line 259) matches a nested task only by full path (`<dir>/<slug>`) —
+  "a nested task's bare leaf does not resolve." So `coga ticket <bare-leaf>`
+  for a nested ticket falls through to `create_draft` and creates a duplicate
+  top-level draft.
+  **Pinned mechanism (least blast radius):** do not touch `resolve_task`.
+  Instead, in `_resolve_or_create_target`, when `resolve_task` raises the
+  `No task matches` form (the `Ambiguous task ref` form still bails as today),
+  fall back to a bare-leaf scan of `list_tasks` (`t.slug == target`). Exactly
+  one leaf match → treat it as an existing edit (resolve to that ref). More
+  than one → bail as ambiguous, listing the full `<dir>/<slug>` paths so the
+  user re-runs with the qualified slug. Zero → genuinely new, `create_draft`
+  as today. This leaves `resolve_task`'s global semantics — and every other
+  caller (`coga launch`, status) — untouched.
+- **Keep both skill copies in sync** (per CLAUDE.md): live
+  `coga/bootstrap/skills/bootstrap/ticket/SKILL.md` and packaged
+  `src/coga/resources/templates/coga/bootstrap/skills/bootstrap/ticket/SKILL.md`.
+  Note: the two copies have already diverged in wording (the packaged copy
+  uses `<package-bootstrap>` path forms), so apply the same *logical* edit to
+  each by hand — a byte-for-byte copy would clobber the package-path wording.
+- **Also check the no-target greeting:** the empty-interview path
+  (`target is None`, no create-vs-edit signal exists) must keep working when
+  the greeting stops keying off body-emptiness — confirm, don't rediscover.
+- **Tests / verification:** `tests/test_ticket.py` covers the command;
+  `tests/test_bootstrap_ticket_skill_template.py` covers the shipped skill
+  template. Run `python -m pytest` and `coga validate` after changes.
+- **Out of scope:** redesigning the bootstrap interview itself, and changing
+  `coga create` batch behavior.
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+<!-- coga:blackboard -->
+## Production notes
+
+This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
