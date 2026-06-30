@@ -92,3 +92,10 @@ Human (nick) chose **option 1 — close as already-resolved**. No code change;
 bug was fixed by PR #413. Closing via `coga mark done` rather than running the
 implement→PR→review workflow, since there is nothing to ship. The workflow
 short-circuits here because the premise no longer holds.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: 'New coga/codebase gotchas: in-code Typer sentinels and test isolation'

@@ -289,3 +289,10 @@ No push, no PR (that's `code/open-pr`). Ready to bump to `open-pr`.
   https://github.com/FastJVM/relay/pull/397 (base `main`, body links the ticket).
 - **CI:** `gh pr checks` → "no checks reported" — the repo has no CI workflows
   configured, so there is no green/red signal to wait on (not a failure).
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: 'New coga/codebase gotchas: in-code Typer sentinels and test isolation'

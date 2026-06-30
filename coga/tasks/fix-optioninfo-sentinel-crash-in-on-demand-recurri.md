@@ -115,3 +115,10 @@ pr: https://github.com/FastJVM/relay/pull/436
 {"agent":"claude","cache_creation_input_tokens":73612,"cache_read_input_tokens":790797,"cli":"claude","input_tokens":16285,"model":"claude-opus-4-8","output_tokens":16429,"provider":"anthropic","schema":1,"session_id":"77bd2f96-d3ee-4cf3-8921-e7542dbe6b17","slug":"fix-optioninfo-sentinel-crash-in-on-demand-recurri","step":"open-pr","title":"Fix OptionInfo sentinel crash in on-demand recurring launchers","ts":"2026-06-24T22:25:00.879924Z","usage_status":"ok"}
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":470528,"cli":"codex","input_tokens":55323,"model":"gpt-5.5","output_tokens":8117,"provider":"openai","schema":1,"session_id":"019efbbf-9527-7012-b80b-12f16c0dd3b5","slug":"fix-optioninfo-sentinel-crash-in-on-demand-recurri","step":"review","title":"Fix OptionInfo sentinel crash in on-demand recurring launchers","ts":"2026-06-24T22:46:45.089547Z","usage_status":"ok"}
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: 'New coga/codebase gotchas: in-code Typer sentinels and test isolation'
