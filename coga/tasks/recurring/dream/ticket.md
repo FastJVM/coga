@@ -1,12 +1,25 @@
 ---
-schedule: "0 9 * * 1"
-schedule_comment: "Every Monday at 9am — Coga's generic ticket cleanup pass"
-title: "Dream"
-# Dream runs interactively: it writes live console progress, delegates to
-# subagents, and exercises agent judgment. A weekly `coga recurring` run
-# creates and launches the Dream task when its schedule is due; `coga dream`
-# (alias for `coga recurring launch dream`) creates and launches it now.
+slug: recurring/dream
+title: Dream
+status: active
 autonomy: interactive
+owner: nicktoper
+human: nicktoper
+agent: claude
+assignee: claude
+contexts:
+- coga/period-task
+skills: []
+workflow:
+  name: direct/body
+  steps:
+  - name: execute
+    skills:
+    - direct/body
+    assignee: agent
+secrets: null
+script: null
+step: 1 (execute)
 ---
 
 ## Description
@@ -230,16 +243,8 @@ Phase 4 retro pass, exactly like every other done recurring period ticket.
 Dream is the single deleter of done recurring tickets; it just never turns that
 deleter on itself in the same run.
 
+## Context
+
 <!-- coga:blackboard -->
 
-This blackboard persists across every run of this recurring task. A run reads
-it at the start to pick up where the last run left off, and updates it at the
-end with whatever the next run needs.
-
-Dream's per-period task is disposable after it is marked done, but Dream does
-not delete itself mid-run. Dream keeps no durable state here — every finding
-ends in a PR, a draft ticket, or a recorded marker instead. `coga recurring`
-keeps Dream's serviced-period high-water mark here as `last_serviced_period`;
-`log.md` keeps append-only human history.
-
-last_serviced_period: 2026-W27
+The blackboard is a notepad to be written to often as the human and agent works through a task.
