@@ -432,3 +432,9 @@
 2026-06-29 22:25 [coga] [git] sync failed: `git add -- coga/log.md coga/recurring/digest/spool.md coga/tasks/anonymous-install-telemetry-opt-out-no-pii.md coga/tasks/clean-up-docs-directory.md coga/tasks/commit-post-session-coga-writes-usage-record-spool.md coga/tasks/document-cross-machine-sandbox-dev-loop-friction-i.md coga/tasks/fresh-repo-default-branch-mismatch-git-init-master.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
 2026-06-29 22:25 [document-cross-machine-sandbox-dev-loop-friction-i] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-29 22:26 [document-cross-machine-sandbox-dev-loop-friction-i] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/472
+2026-06-29 22:34 [recurring/digest] [system] created (autonomy=auto, status=active)
+2026-06-29 22:34 [recurring/digest] [system] created recurring/digest for 2026-06-29
+2026-06-29 22:34 [recurring/dream] [system] created (autonomy=interactive, status=active)
+2026-06-29 22:34 [recurring/dream] [system] created recurring/dream for 2026-W27
+2026-06-29 22:34 [recurring/skill-update] [system] created (autonomy=auto, status=active)
+2026-06-29 22:34 [recurring/skill-update] [system] created recurring/skill-update for 2026-W27
