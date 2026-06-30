@@ -7,7 +7,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/sync
 skills: []
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -92,6 +92,56 @@ Gotchas surfaced in the bootstrap evaluator review:
   ones.
 
 <!-- coga:blackboard -->
+
+## Dev
+branch: per-agent-launch-worktree-isolation
+worktree: /home/n/Code/claude/coga-launch-worktree-isolation
+
+## Implementation summary (implement step — committed, no PR yet)
+
+Shipped on the feature branch above. How each open decision landed:
+
+1. **Location** — gitignored `.coga/worktrees/<id>` at the **git toplevel**
+   (operator's call). Outside the tracked `coga/` OS subtree, so the
+   `sync_coga_state` sweep never touches it; `.coga/` added to the coga-managed
+   host `.gitignore` block (`update.py`) and this repo's `.gitignore`.
+2. **Key** — `uuid4().hex` per launch (collision-proof on relaunch). One
+   worktree per launch, reused across all chained steps.
+3. **Lifecycle** — created just before the supervisor loop, removed in a
+   `finally` on every exit path (clean chain, `sys.exit` on agent failure/
+   timeout, exception). `reap_orphan_launch_worktrees` prunes + force-removes
+   dirs older than 24h on launch entry (crash backstop; the finally is primary).
+4. **Toggle** — `[launch].worktree` bool, default off, **shared-repo-only**
+   (operator's call; parsed in `_parse_launch`, no local override). Off =
+   byte-for-byte today's behaviour (cwd stays None → inherits process cwd).
+5. **Coexistence** — the launch worktree is **detached at the control-branch
+   tip** (can't check out `main` — it's in the primary tree). The agent's
+   `code/implement` feature worktree (`git worktree add ../coga-<b> -b <b> main`)
+   is unchanged: shared refs mean `main` resolves identically from inside the
+   launch worktree. Documented in `dev/code` (live + packaged).
+6. **cwd plumbing** — threaded `cwd` through `spawn_agent_session` →
+   `run_with_done_marker` (PTY child `os.chdir` + non-tty `subprocess.run`) and
+   the auto `subprocess.run`; `usage_cwd = cwd or Path.cwd()` so transcript
+   lookup resolves. The supervisor re-roots `cfg`/`ref` into the worktree
+   (`load_config` + `resolve_target`) so reads/spawns/syncs all target it; the
+   primary `base_cfg` is kept for teardown (git refuses removing a worktree from
+   inside it).
+7. **Scope** — detached HEAD forces every sync onto the cross-branch temp-index
+   overlay (never rebases a tree), so control-branch contention has nowhere to
+   land. Bootstrap tickets (stateless) and non-git checkouts skip isolation.
+
+**Why re-root the whole supervisor, not just the subprocess cwd:** the agent's
+`coga bump` rewrites the *worktree's* `ticket.md`; a supervisor still reading the
+primary's copy would mis-chain. `os.chdir` was rejected — `coga recurring` calls
+`launch()` in-process sequentially, so a global chdir would corrupt the sweep.
+
+**Files:** `config.py` (toggle), `git.py` (add/remove/reap worktree +
+`repo_root_in_worktree`), `commands/launch.py` (setup/re-root/cleanup + cwd),
+`repl_supervisor.py` (cwd), `commands/update.py` (`.gitignore`), `.gitignore`,
+`coga/coga.toml` + template, `coga/sync` + `dev/code` contexts (live + packaged).
+**Tests:** worktree helpers + 2 launch integration tests (real-git fixture) in
+`test_git.py`; `[launch].worktree` parsing in `test_config.py`; existing spawn
+fakes updated for the new `cwd` kwarg. Full suite: 947 passed, 1 skipped.
 
 ## Implementation decisions (no design gate — settle these in the PR)
 

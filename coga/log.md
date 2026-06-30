@@ -512,3 +512,5 @@
 2026-06-30 16:15 [awaken-recurring-auto-blocked-tasks] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
 2026-06-30 16:15 [awaken-recurring-auto-blocked-tasks] [git] sync failed: `git add -- coga/tasks/awaken-recurring-auto-blocked-tasks.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
 2026-06-30 16:15 [coga] [git] sync failed: `git add -- coga/log.md coga/tasks/awaken-recurring-auto-blocked-tasks.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-30 15:53 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 16:34 [per-agent-git-worktree-isolation-for-launch-to-avo] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
