@@ -57,7 +57,7 @@ repo, and capturing your name is `coga init`'s job, not `build`'s. There is no
 separate `coga setup` command — initialize the repo with `coga init`, then run
 `coga build`.
 
-## coga create "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
+## coga create "\<title\>" [--workflow \<name\>] [--autonomy interactive|auto]
 
 Scaffold a new raw `draft` ticket and post `✨` when a notification channel
 is selected (a fresh repo selects none, so this is silent out of the box).
@@ -66,6 +66,19 @@ body / workflow / contexts as needed → `coga launch <slug>`. Launch activates
 a draft inline; use `coga mark active <slug>` only when you want to
 approve/queue without launching. This is the raw-create path — no guided
 interview.
+
+The positional reads like the task ref it becomes: a `/` separates an optional
+sub-directory path from the title leaf, so `coga create "v2/Build the flow"`
+lands the ticket at `tasks/v2/build-the-flow` (referenced as
+`v2/build-the-flow`), and `marketing/social/relaunch` nests deeper. The leaf
+is the human title (slugified for the slug, stored verbatim as the title); the
+prefix is a plain sub-directory (the same kind you'd `mkdir`), created if
+missing. No slash means a top-level create. Slug uniqueness is per-directory,
+so a leaf may repeat across directories. It fails loud on a prefix that would
+escape `tasks/` (`..`), name a `_`-prefixed (discovery-skipped) segment, or
+nest the task inside an existing task directory. Because `/` now means
+"sub-directory", a title with a literal slash (`CI/CD pipeline`) is read as a
+path — create it at the top level (drop the slash) and `mv` it if needed.
 
 `--workflow <name>` (path under `coga/workflows/`) is optional *in
 draft only*. A workflow-less draft is a valid authoring state; the workflow

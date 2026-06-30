@@ -45,8 +45,10 @@ def ticket(
     target: str | None = typer.Argument(
         None,
         help=(
-            "Existing task slug to edit (any status), or a new title to draft. "
-            "Omit to start an empty interview."
+            "Existing task slug to edit (any status), or a new title to draft "
+            "— prefix the title with a sub-directory path (e.g. "
+            "'v2/Build the flow') to draft it there. Omit to start an empty "
+            "interview."
         ),
     ),
     agent_override: str | None = typer.Option(

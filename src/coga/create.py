@@ -38,6 +38,7 @@ def create_task(
     agent: str | None = None,
     skills: list[str] | None = None,
     slug_override: str | None = None,
+    directory: str | None = None,
     description: str | None = None,
     body: str | None = None,
     secrets: Any = None,
@@ -53,6 +54,13 @@ def create_task(
     sections like `## Script config` survive); a `## Context` section is
     appended when the verbatim body lacks one. `body` takes precedence over
     `description`.
+
+    `directory` lands the task in a sub-directory under `tasks/` (`v2`,
+    `marketing/social`); the default (None) is the top level. The sub-directory
+    is created if missing, and slug uniqueness becomes per-directory — a leaf
+    may repeat across directories. (`slug_override` carrying its own path, as
+    the recurring creator passes, is the orthogonal way to land a fixed nested
+    slug.)
     """
     from coga.validate import format_task_issues, validate_task_dir
 
@@ -114,16 +122,22 @@ def create_task(
     else:
         assignee = assignee or owner
 
+    directory = _normalize_create_dir(cfg, directory)
     base_slug = slug_override or slugify(title)
-    # Creates land at the top level (`tasks/<slug>.md` or `tasks/<slug>/`), so
-    # uniqueness only needs to clear other top-level slugs — a task in a
-    # sub-directory may reuse the leaf.
-    existing_slugs = {t.slug for t in list_tasks(cfg) if t.directory is None}
+    # Creates land at the top level by default (`tasks/<slug>.md` or
+    # `tasks/<slug>/`), or under `tasks/<directory>/` when a sub-directory is
+    # given (the `<dir>/<leaf>` positional path). Slug uniqueness is
+    # per-directory — a task in a different sub-directory (or the top level)
+    # may reuse the leaf, so only clear slugs already living in the SAME
+    # directory.
+    existing_slugs = {t.slug for t in list_tasks(cfg) if t.directory == directory}
     slug = base_slug
     n = 2
     while slug in existing_slugs:
         slug = f"{base_slug}-{n}"
         n += 1
+
+    base_dir = tasks_dir(cfg) if directory is None else tasks_dir(cfg) / directory
 
     # A task is a single `tasks/<slug>.md` file unless it needs a companion
     # directory: a deferred `script: <file>` sibling, or a caller that keeps
@@ -134,23 +148,24 @@ def create_task(
     )
     file_form = not needs_dir
     if needs_dir:
-        task_dir = tasks_dir(cfg) / slug
+        task_dir = base_dir / slug
         if task_dir.exists():
             raise ValueError(f"Task directory already exists: {task_dir}")
         task_dir.mkdir(parents=True)
         ticket_path = task_dir / "ticket.md"
         result_path = task_dir
     else:
-        ticket_path = tasks_dir(cfg) / f"{slug}.md"
-        if ticket_path.exists() or (tasks_dir(cfg) / slug).is_dir():
+        ticket_path = base_dir / f"{slug}.md"
+        if ticket_path.exists() or (base_dir / slug).is_dir():
             raise ValueError(f"Task already exists: {ticket_path}")
         ticket_path.parent.mkdir(parents=True, exist_ok=True)
         result_path = ticket_path
 
     # The TaskRef discovery will report for this new task — its `id_slug` is the
     # canonical task reference, recorded on the ticket as `slug:` so the file is
-    # self-describing.
-    created_ref = _task_ref_for_created(slug, result_path, file_form=file_form)
+    # self-describing. A sub-directory create qualifies the slug with it.
+    qualified_slug = slug if directory is None else f"{directory}/{slug}"
+    created_ref = _task_ref_for_created(qualified_slug, result_path, file_form=file_form)
 
     # Canonical frontmatter order. Every key is always present so tasks have
     # a single legible shape on disk, even when contexts / skills / workflow
@@ -215,6 +230,47 @@ def create_task(
         )
 
     return {"slug": created_ref.id_slug, "path": result_path}
+
+
+def _normalize_create_dir(cfg: Config, directory: str | None) -> str | None:
+    """Validate a sub-directory target into a clean relative path under `tasks/`.
+
+    Returns None for the top level (no sub-directory), or a slash-joined
+    relative path (`v2`, `marketing/social`). Fails loud (principle 6) on a
+    path that would escape `tasks/`, name a discovery-skipped (`_`-prefixed)
+    segment, or nest the new task inside an existing task directory — discovery
+    never recurses into a task dir, so a task placed there would be
+    undiscoverable.
+    """
+    if directory is None:
+        return None
+    raw = directory.strip().strip("/")
+    if not raw:
+        return None
+    parts = raw.split("/")
+    for part in parts:
+        if part in ("", ".", ".."):
+            raise ValueError(
+                f"Invalid sub-directory {directory!r}: path components cannot be "
+                f"empty, '.', or '..' — the directory must stay under tasks/."
+            )
+        if part.startswith("_"):
+            raise ValueError(
+                f"Invalid sub-directory {directory!r}: component '{part}' starts "
+                f"with '_', which task discovery treats as a template and skips."
+            )
+    normalized = "/".join(parts)
+    probe = tasks_dir(cfg)
+    for part in parts:
+        probe = probe / part
+        if (probe / "ticket.md").is_file():
+            rel = probe.relative_to(tasks_dir(cfg)).as_posix()
+            raise ValueError(
+                f"Cannot create under {normalized!r}: {rel!r} is itself a task "
+                f"directory — a task can't live inside another task. Pick a "
+                f"plain sub-directory instead."
+            )
+    return normalized
 
 
 def _task_ref_for_created(slug: str, path: Path, *, file_form: bool) -> TaskRef:
