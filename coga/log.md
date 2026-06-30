@@ -443,3 +443,4 @@
 2026-06-29 22:34 [recurring/autoclose-merged] [system] started (active → in_progress) via coga launch
 2026-06-29 22:35 [recurring/autoclose-merged] [system] launched as a script (skill=coga/autoclose/sweep, script=run.py)
 2026-06-29 22:35 [clean-up-docs-directory] [human:nicktoper] auto-bumped on merge of PR #470 → done
+2026-06-29 22:35 [commit-post-session-coga-writes-usage-record-spool] [human:nicktoper] auto-bumped on merge of PR #471 → done

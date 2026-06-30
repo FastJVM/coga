@@ -2,7 +2,7 @@
 slug: commit-post-session-coga-writes-usage-record-spool
 title: Auto-commit dirty coga/ state (machine writes + manual edits) so the tree stays
   clean
-status: in_progress
+status: done
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
@@ -30,7 +30,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
@@ -301,3 +300,5 @@ Verification:
 {"agent":"claude","cache_creation_input_tokens":415066,"cache_read_input_tokens":20156539,"cli":"claude","input_tokens":17258,"model":"claude-opus-4-8","output_tokens":172030,"provider":"anthropic","schema":1,"session_id":"c00fe355-221f-4d7c-ba87-3ca49c646a21","slug":"commit-post-session-coga-writes-usage-record-spool","step":"implement","title":"Auto-commit dirty coga/ state (machine writes + manual edits) so the tree stays clean","ts":"2026-06-29T22:38:26.437323Z","usage_status":"ok"}
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3409280,"cli":"codex","input_tokens":138385,"model":"gpt-5.5","output_tokens":16715,"provider":"openai","schema":1,"session_id":"019f1588-ad89-7ad3-8d57-c417609b6c10","slug":"commit-post-session-coga-writes-usage-record-spool","step":"peer-review","title":"Auto-commit dirty coga/ state (machine writes + manual edits) so the tree stays clean","ts":"2026-06-29T23:46:25.933705Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":178113,"cache_read_input_tokens":777892,"cli":"claude","input_tokens":14711,"model":"claude-opus-4-8","output_tokens":7676,"provider":"anthropic","schema":1,"session_id":"846060f2-787d-4585-aaac-50b714216730","slug":"commit-post-session-coga-writes-usage-record-spool","step":"open-pr","title":"Auto-commit dirty coga/ state (machine writes + manual edits) so the tree stays clean","ts":"2026-06-29T23:47:40.848243Z","usage_status":"ok"}
