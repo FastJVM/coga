@@ -1,23 +1,21 @@
-"""Tests for blackboard section helpers."""
+"""Tests for blackboard helpers."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from textwrap import dedent
 
-from coga.blackboard import delete_sections, delete_sections_text
+from coga.blackboard import (
+    PRODUCTION_NOTES_BLACKBOARD,
+    promote_to_production_notes,
+    promote_to_production_notes_text,
+)
 
 
-def test_delete_sections_text_removes_middle_section_and_separator() -> None:
+def test_promote_to_production_notes_text_replaces_authoring_scratch() -> None:
     text = dedent(
         """\
         The blackboard.
-
-        ---
-
-        ## Notes
-
-        keep this
 
         ---
 
@@ -33,58 +31,21 @@ def test_delete_sections_text_removes_middle_section_and_separator() -> None:
         """
     )
 
-    assert delete_sections_text(text, ["Evaluator review"]) == dedent(
-        """\
-        The blackboard.
+    assert promote_to_production_notes_text(text) == PRODUCTION_NOTES_BLACKBOARD
 
-        ---
 
-        ## Notes
-
-        keep this
-
-        ---
-
-        ## Dev
-
-        branch: work
-        """
+def test_promote_to_production_notes_text_noops_when_already_promoted() -> None:
+    text = (
+        PRODUCTION_NOTES_BLACKBOARD
+        + "\n---\n\n## Dev\n\nbranch: work\n"
     )
 
-
-def test_delete_sections_text_removes_orphan_trailing_separator() -> None:
-    text = dedent(
-        """\
-        The blackboard.
-
-        ---
-
-        ## Evaluator review
-
-        stale scratch
-        """
-    )
-
-    assert delete_sections_text(text, ["## Evaluator review"]) == "The blackboard.\n"
+    assert promote_to_production_notes_text(text) == text
 
 
-def test_delete_sections_text_noops_when_heading_absent() -> None:
-    text = dedent(
-        """\
-        The blackboard.
-
-        ---
-
-        ## Notes
-
-        keep this
-        """
-    )
-
-    assert delete_sections_text(text, ["Evaluator review"]) == text
-
-
-def test_delete_sections_noops_when_blackboard_is_not_required(tmp_path: Path) -> None:
+def test_promote_to_production_notes_noops_when_blackboard_is_not_required(
+    tmp_path: Path,
+) -> None:
     ticket = tmp_path / "ticket.md"
     ticket.write_text(
         dedent(
@@ -102,11 +63,7 @@ def test_delete_sections_noops_when_blackboard_is_not_required(tmp_path: Path) -
     )
     before = ticket.read_text()
 
-    changed = delete_sections(
-        ticket,
-        ["Evaluator review"],
-        blackboard_required=False,
-    )
+    changed = promote_to_production_notes(ticket, blackboard_required=False)
 
     assert changed is False
     assert ticket.read_text() == before

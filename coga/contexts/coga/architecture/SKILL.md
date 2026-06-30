@@ -298,10 +298,13 @@ The consequence is a hard division of labor: working state that the next run
 must read goes in the blackboard (and is therefore composed, so keep it
 small); durable history goes in the log (never composed, so let it
 accumulate).
-Activation also performs a narrow mechanical cleanup of processed authoring
-scratch in the blackboard, currently the `## Evaluator review` section written
-by `bootstrap/ticket`; durable task data should already live in the ticket body
-by then.
+Activation also promotes the blackboard from draft authoring scratch to
+active-work notes. If the blackboard does not already have a
+`## Production notes` section, `mark active` replaces the whole blackboard
+region with that starter note. Once that marker exists, later `paused→active`
+activations leave the blackboard alone. Durable task data belongs in the ticket
+body before activation; post-activation handoff notes belong in the blackboard.
+Forced recurring reruns that repair other statuses do not reset the blackboard.
 
 An interactive launch's PTY supervisor tears down the REPL when the
 session-scoped `$COGA_DONE_SENTINEL` file names the launched task — its sole

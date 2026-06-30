@@ -1226,7 +1226,8 @@ def test_init_writes_agent_guides(
         body = path.read_text()
         # Identical content for both — orientation that points at canonical contexts.
         assert body == init_cmd.AGENT_GUIDE_TEMPLATE
-        assert "coga/contexts/coga/" in body
+        assert "canonical contexts are package-backed" in body
+        assert "override them with local files under `coga/contexts/coga/`" in body
         assert "coga launch bootstrap/orient" in body
 
     assert "Wrote CLAUDE.md, AGENTS.md" in result.output
