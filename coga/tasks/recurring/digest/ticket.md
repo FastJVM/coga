@@ -1,15 +1,25 @@
 ---
-schedule: "0 9 * * *"
-schedule_comment: "Every day at 9am — post one Slack digest of Done tickets and merged commits"
-title: "Daily digest"
-# A script step runs the flush directly with no agent: the workflow's one
-# step references the `coga/digest/flush` skill, whose `script:` runs
-# `coga digest`. No `claude -p` / `codex exec` buffering, so it is safe under
-# the temporary mode=auto recurring freeze.
+slug: recurring/digest
+title: Daily digest
+status: active
 autonomy: auto
-workflow: digest/post
 owner: nick
+human: nick
+agent: claude
 assignee: claude
+contexts:
+- coga/period-task
+skills: []
+workflow:
+  name: digest/post
+  steps:
+  - name: flush
+    skills:
+    - coga/digest/flush
+    assignee: agent
+secrets: null
+script: null
+step: 1 (flush)
 ---
 
 ## Description
@@ -44,26 +54,8 @@ are no Done records, no recurring errors, and no post-filter new commits. The
 spool and high-water mark are real, git-tracked, human-readable state — never
 hidden state — so the queue and scan boundary are always legible.
 
+## Context
+
 <!-- coga:blackboard -->
 
-This blackboard holds the **git high-water state** for the daily Slack digest.
-The pending-record spool lives in the sibling `spool.md` file (a `merge=union`
-file kept out of this ticket so concurrent appends never touch the YAML
-frontmatter); only the `### Digest State` mark below lives here, written by the
-single `coga digest` consumer.
-
-`coga recurring` keeps the serviced-period high-water mark here and append-only
-human history in the repo-global `coga/log.md` (never composed into a run,
-so it can grow unbounded).
-
-last_serviced_period: 2026-06-29
-
-### Digest State
-
-last_commit: 8fe393be8ee3fd7f0e8b76ad237c144227baafa4
-range: last 24h..8fe393b (123 commit(s), 16 reported)
-posted: yes
-
-## Spool (pending)
-
-{"ts":"2026-06-24T21:13","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/autoclose-merged","owner":"nick"}
+The blackboard is a notepad to be written to often as the human and agent works through a task.
