@@ -133,6 +133,32 @@ def test_ticket_title_creates_draft_and_launches_authoring(
     assert "Skill: bootstrap/ticket" in prompts[0]
 
 
+def test_ticket_path_title_drafts_in_subdirectory(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`coga ticket "v2/<title>"` drafts under tasks/v2/, same path syntax as create."""
+    prompts: list[str] = []
+    ticket_path = repo / "tasks" / "v2" / "build-the-flow.md"
+
+    def author_workflow() -> None:
+        t = Ticket.read(ticket_path)
+        t.frontmatter["workflow"] = "code/with-review"
+        t.write(ticket_path)
+
+    _allow_ticket_launch(monkeypatch, prompts, on_run=author_workflow)
+
+    result = CliRunner().invoke(app, ["ticket", "v2/Build the flow"])
+    assert result.exit_code == 0, result.output
+
+    assert ticket_path.is_file()
+    ticket = Ticket.read(ticket_path)
+    assert ticket.status == "draft"
+    assert ticket.title == "Build the flow"
+    assert ticket.frontmatter["slug"] == "v2/build-the-flow"
+    assert "Coga task — v2/build-the-flow" in prompts[0]
+
+
 def test_ticket_authoring_does_not_inject_coga_secrets(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,

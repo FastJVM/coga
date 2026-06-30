@@ -329,9 +329,18 @@ and does **not** run the guided authoring interview. The new ticket is empty
 description still need to be filled in. If the slug already exists, the new
 task gets `-2`, `-3`, … appended.
 
+Prefix the title with a sub-directory path to land the ticket there rather
+than at the top level: a `/` separates the sub-directory from the title leaf,
+so `"v2/Build the flow"` creates `tasks/v2/build-the-flow`. Nested paths like
+`marketing/social` work too. The sub-directory is created if missing, and slug
+uniqueness is per-directory. (Because `/` means "sub-directory", a title with
+a literal slash is read as a path — drop the slash for a top-level ticket.)
+
 ```sh
 coga create "Add retry to webhook handler"
-coga create "Nightly cleanup" --mode auto
+coga create "Nightly cleanup" --autonomy auto
+coga create "v2/Build the flow"                # → tasks/v2/build-the-flow
+coga create marketing/social/relaunch          # → tasks/marketing/social/relaunch
 ```
 
 ### `coga ticket [<title-or-slug>] [--agent <type>]`

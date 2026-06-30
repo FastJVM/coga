@@ -339,6 +339,167 @@ def test_create_nested_slug_can_reuse_top_level_leaf(repo: Path) -> None:
     assert refs["recurring/digest"].directory == "recurring"
 
 
+# --- `--dir` sub-directory creates ------------------------------------------
+
+
+def _dir_kwargs(cfg, **overrides):  # type: ignore[no-untyped-def]
+    base = dict(
+        cfg=cfg,
+        workflow_name=None,
+        contexts=[],
+        autonomy="interactive",
+        owner=None,
+        assignee=None,
+        watchers=[],
+        status=None,
+    )
+    base.update(overrides)
+    return base
+
+
+def test_create_into_subdirectory(repo: Path) -> None:
+    cfg = load_config(repo)
+    ref = create_task(title="Build the flow", **_dir_kwargs(cfg, directory="v2"))
+    assert ref["slug"] == "v2/build-the-flow"
+    ticket_path = ref["path"]
+    assert ticket_path == repo / "tasks" / "v2" / "build-the-flow.md"
+    assert ticket_path.is_file()
+    t = Ticket.read(ticket_path)
+    # The on-disk slug is path-qualified so the file is self-describing.
+    assert t.frontmatter["slug"] == "v2/build-the-flow"
+    refs = {r.id_slug: r for r in list_tasks(cfg)}
+    assert refs["v2/build-the-flow"].directory == "v2"
+
+
+def test_create_into_nested_subdirectory(repo: Path) -> None:
+    cfg = load_config(repo)
+    ref = create_task(
+        title="Relaunch", **_dir_kwargs(cfg, directory="marketing/social")
+    )
+    assert ref["slug"] == "marketing/social/relaunch"
+    assert ref["path"] == repo / "tasks" / "marketing" / "social" / "relaunch.md"
+
+
+def test_create_dir_strips_surrounding_slashes(repo: Path) -> None:
+    cfg = load_config(repo)
+    ref = create_task(title="Trim", **_dir_kwargs(cfg, directory="/v2/"))
+    assert ref["slug"] == "v2/trim"
+
+
+def test_create_same_leaf_across_directories_no_suffix(repo: Path) -> None:
+    """A leaf may repeat across directories — uniqueness is per-directory."""
+    cfg = load_config(repo)
+    top = create_task(title="Inventory", **_dir_kwargs(cfg))
+    nested = create_task(title="Inventory", **_dir_kwargs(cfg, directory="v2"))
+    assert top["slug"] == "inventory"
+    assert nested["slug"] == "v2/inventory"  # not auto-suffixed to -2
+
+
+def test_create_collision_within_directory_suffixes(repo: Path) -> None:
+    cfg = load_config(repo)
+    a = create_task(title="Same", **_dir_kwargs(cfg, directory="v2"))
+    b = create_task(title="Same", **_dir_kwargs(cfg, directory="v2"))
+    assert a["slug"] == "v2/same"
+    assert b["slug"] == "v2/same-2"
+
+
+def test_create_dir_rejects_parent_traversal(repo: Path) -> None:
+    cfg = load_config(repo)
+    with pytest.raises(ValueError, match="must stay under tasks/"):
+        create_task(title="Escape", **_dir_kwargs(cfg, directory="../escape"))
+    assert not (repo / "tasks" / "escape.md").exists()
+
+
+def test_create_dir_rejects_underscore_component(repo: Path) -> None:
+    cfg = load_config(repo)
+    with pytest.raises(ValueError, match="template"):
+        create_task(title="Hidden", **_dir_kwargs(cfg, directory="_drafts"))
+
+
+def test_create_dir_rejects_nesting_inside_task(repo: Path) -> None:
+    """A task directory is never recursed into — refuse to create inside one."""
+    cfg = load_config(repo)
+    parent = repo / "tasks" / "parent"
+    parent.mkdir(parents=True)
+    (parent / "ticket.md").write_text("---\ntitle: parent\n---\n")
+    with pytest.raises(ValueError, match="can't live inside another task"):
+        create_task(title="Child", **_dir_kwargs(cfg, directory="parent"))
+
+
+def test_split_create_path() -> None:
+    from coga.commands.create import _split_create_path
+
+    assert _split_create_path("Plain title") == (None, "Plain title")
+    assert _split_create_path("v2/Build the flow") == ("v2", "Build the flow")
+    assert _split_create_path("marketing/social/relaunch") == (
+        "marketing/social",
+        "relaunch",
+    )
+    # A leading slash has no directory; a trailing slash has an empty leaf
+    # (which `create_draft` then rejects as an empty title).
+    assert _split_create_path("/leading") == (None, "leading")
+    assert _split_create_path("trailing/") == ("trailing", "")
+
+
+def test_cli_create_path_syntax(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`coga create <dir>/<leaf>` lands under tasks/<dir>/; leaf is the title."""
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "v2/subdir-ticket"])
+    assert result.exit_code == 0, result.output
+    ticket_path = repo / "tasks" / "v2" / "subdir-ticket.md"
+    assert ticket_path.is_file()
+    t = Ticket.read(ticket_path)
+    assert t.frontmatter["slug"] == "v2/subdir-ticket"
+    assert t.title == "subdir-ticket"
+    assert "v2/subdir-ticket: created" in result.output
+
+
+def test_cli_create_path_syntax_preserves_title(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The leaf is the human title (spaces kept); only the slug is slugified."""
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "v2/Build the flow"])
+    assert result.exit_code == 0, result.output
+    ticket_path = repo / "tasks" / "v2" / "build-the-flow.md"
+    assert ticket_path.is_file()
+    t = Ticket.read(ticket_path)
+    assert t.title == "Build the flow"
+    assert t.frontmatter["slug"] == "v2/build-the-flow"
+
+
+def test_cli_create_nested_path_syntax(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "marketing/social/relaunch"])
+    assert result.exit_code == 0, result.output
+    assert (repo / "tasks" / "marketing" / "social" / "relaunch.md").is_file()
+
+
+def test_cli_create_no_slash_is_top_level(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No slash → top-level create, unchanged behavior."""
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "Plain title"])
+    assert result.exit_code == 0, result.output
+    assert (repo / "tasks" / "plain-title.md").is_file()
+
+
+def test_cli_create_path_rejects_traversal(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    runner = CliRunner()
+    result = runner.invoke(app, ["create", "../escape/foo"])
+    assert result.exit_code == 2
+
+
 def test_create_log_entry_written(repo: Path) -> None:
     cfg = load_config(repo)
     ref = create_task(
@@ -606,6 +767,24 @@ def test_create_draft_without_workflow(
     assert t.workflow is None
 
 
+def test_create_draft_path_syntax_places_in_subdir(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`create_draft` parses the `<dir>/<leaf>` title — shared by create + ticket."""
+    from coga.commands.create import create_draft
+
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(
+        "coga.notification.slack.requests.post",
+        lambda *a, **kw: type("R", (), {"status_code": 200, "text": "ok"})(),
+    )
+    result = create_draft(title="v2/Build the flow", autonomy="interactive")
+    assert result["slug"] == "v2/build-the-flow"
+    assert result["path"] == repo / "tasks" / "v2" / "build-the-flow.md"
+    t = Ticket.read(result["path"])
+    assert t.title == "Build the flow"
+
+
 # --- ticket frontmatter extensions ------------------------------------------
 
 
@@ -709,3 +888,22 @@ def test_resolve_task_exact_then_prefix(repo: Path) -> None:
     # Ambiguous prefix lists matches.
     with pytest.raises(TaskNotFoundError, match="Ambiguous"):
         resolve_task(cfg, "fix-r")
+
+
+def test_resolve_task_accepts_path_qualified_ref(repo: Path) -> None:
+    """A nested task resolves by its full `<dir>/<leaf>` ref and by path prefix.
+
+    This is the shared mechanism behind every resolving command — `delete`,
+    `show`, `launch`, `bump`, `mark`, `retire`, `panic` all funnel through
+    `resolve_task`, so `coga delete v2/build-the-flow` works the moment the
+    nested task exists.
+    """
+    from coga.tasks import resolve_task
+
+    cfg = load_config(repo)
+    create_task(title="Build the flow", **_dir_kwargs(cfg, directory="v2"))
+
+    # Exact path-qualified ref resolves.
+    assert resolve_task(cfg, "v2/build-the-flow").id_slug == "v2/build-the-flow"
+    # A unique path prefix resolves too (git-short-SHA style).
+    assert resolve_task(cfg, "v2/build").id_slug == "v2/build-the-flow"
