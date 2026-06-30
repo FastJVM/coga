@@ -507,3 +507,4 @@
 2026-06-30 15:11 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-30 15:53 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] activated (draft → active) — auto on launch
 2026-06-30 15:53 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] started (active → in_progress) via coga launch
+2026-06-30 16:14 [add-coga-ticket-existing-slug-scan] [human:lilfedor] created (autonomy=interactive, status=draft)
