@@ -165,10 +165,11 @@ recurring walls that don't appear on a normal dev machine:
 
 - **`codex review --base main` fails in-sandbox.** The app-server is read-only
   there, so the review can't complete. Rerun it unsandboxed.
-- **Git index operations fail when the sandbox can't write `index.lock`.**
-  `coga validate` and `coga create` touch `.git`, so they error inside a
-  sandbox that forbids creating `.git/index.lock`. Rerun unsandboxed (or grant
-  `.git` write access).
+- **Git sync operations fail when the sandbox can't write `index.lock`.**
+  State-changing commands such as `coga create`, `coga bump`, and
+  `coga mark ...` commit task/log changes through git sync, so they can error
+  inside a sandbox that forbids creating `.git/index.lock`. Rerun those
+  transitions unsandboxed (or grant `.git` write access).
 - **Scope validation with `--task`.** A repo-wide `coga validate` reports
   pre-existing, unrelated drift that isn't yours to fix and drowns the signal.
   `coga validate --task <slug>` is the meaningful per-ticket check.
