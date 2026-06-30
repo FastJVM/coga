@@ -31,7 +31,7 @@ build, and it should not have to re-derive intent.
      so the implement step doesn't scope-creep.
 4. **Record open questions on the blackboard.** Anything you could not
    resolve from the codebase — a genuine product or design choice —
-   goes under an `## Open Questions` section on `blackboard.md`. The
+   goes under an `## Open Questions` section in the ticket's blackboard region. The
    `review-design` step exists for the owner to answer them.
 5. **Split the ticket if it is too big.** If the honest Proposed Shape
    is more than one PR's worth of work, say so on the blackboard and

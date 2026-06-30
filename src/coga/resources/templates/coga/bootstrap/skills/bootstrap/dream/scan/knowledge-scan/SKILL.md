@@ -7,7 +7,7 @@ description: Scan Dream's full corpus and return extract, stale, and gap finding
 
 It is the single full-corpus read of the run: the subagent reads every ticket
 body and blackboard, and every context, skill, and workflow file, and compares
-them. Running it in the decide half, before Phase 5 deletes any done ticket,
+them. Running it in the decide half, before Phase 4 deletes any done ticket,
 means no evidence is lost.
 
 Return only a classified findings list; raw ticket and blackboard contents stay
@@ -24,5 +24,5 @@ inside the subagent. Classify each finding as exactly one of:
 Write the findings to the Dream task's blackboard under `## Findings`: short
 title, class, target file or ticket, one paragraph describing the change, and
 draft content when a new file is proposed. Group the `extract` findings by the
-context/skill area they touch — Phase 5 uses that grouping to batch coherent
+context/skill area they touch — Phase 4 uses that grouping to batch coherent
 PRs.
