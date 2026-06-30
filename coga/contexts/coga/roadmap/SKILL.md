@@ -38,7 +38,7 @@ This context is **sequencing only**; the reasoning behind decisions lives in
 
 The hard list of what must be true before we tag and announce. This is a
 **subset and re-ordering of the v1 cut** focused on "a stranger installs it and
-runs their first task." Tier chosen: **blockers + CI + telemetry** (domain,
+runs their first task." Tier chosen: **blockers + CI** (domain,
 uninstall, and changelog are fast-follows, not gate items). Assumption: the RC
 ships **interactive + script only** — `autonomy: auto` stays disabled (its blocker
 is `auto/stream-agent-progress`, in the v1 autonomy chain below).
@@ -50,21 +50,19 @@ is `auto/stream-agent-progress`, in the v1 autonomy chain below).
    only `direct`), so a fresh install can't run the core loop. Top priority.
 2. `one-line-install` [active] — `pipx install coga` works end-to-end and is
    published to PyPI (package is `coga`, currently v0.2.0).
-3. `coga-forces-https` [active] + `remote-default-origin` [active] — don't
+3. `coga-forces-https` [done] + `remote-default-origin` [done] — don't
    crash on SSH / non-`origin` git setups; real users' configs vary.
 4. **Make the repo public** — prerequisite for an OSS launch (the gate noted
    under `marketing/coga-discord`).
 5. `improve-readme-and-doc` [draft] — a README that takes a stranger from
    install → first task.
-6. `first-run-works-without-slack-configured` [draft] — Slack must be optional
+6. `first-run-works-without-slack-configured` [done] — Slack must be optional
    out of the box; today a missing webhook walls a brand-new user.
 
 **Also in the gate (chosen tier):**
 
 7. `minimal-ci-run-pytest-on-prs-and-tags` [draft] — a `pytest` GitHub Action so
    the release tag is trustworthy (no CI exists today).
-8. `anonymous-install-telemetry-opt-out-no-pii` [draft] — live at launch so we
-   can measure adoption from day one.
 
 **Fast-follows (not gate items):** `register-a-real-domain-for-coga` (README
 can point at GitHub if it slips), `marketing/coga-uninstall` (`pipx uninstall`
@@ -79,11 +77,11 @@ works natively), and a version tag + short changelog.
 - `wire-autonomy-triage-into-impl-ready-workflows` [active] — autonomy tiers +
   authoring-time classification; the last in-flight straggler.
 
-### Installability — the launch gate (7)
+### Installability — the launch gate (6)
 
 A stranger must be able to install and run Coga out of the box.
 
-- `coga-forces-https` [active] + `remote-default-origin` [active] — respect SSH
+- `coga-forces-https` [done] + `remote-default-origin` [done] — respect SSH
   users and non-`origin` remotes.
 - `coga-cli-shipping` [active] — `coga init` must ship `workflows/` +
   `skills/code`, plus the recurring templates, or a fresh repo can't run the
@@ -93,14 +91,11 @@ A stranger must be able to install and run Coga out of the box.
   one-liner and README links; blocks final launch copy.
 - `improve-readme-and-doc` [draft] — a README a stranger can land on and run
   from.
-- `anonymous-install-telemetry-opt-out-no-pii` [draft] — opt-out, no-PII install
-  count so we can tell if launch landed. Carries a principle tension (phones
-  home); see the ticket.
 
 ### Auth (1)
 
-- `authentication-system` [draft] — design-first umbrella over four scopes:
-  telemetry/install identity, hosted-backend account+token, git/GitHub
+- `authentication-system` [draft] — design-first umbrella over three scopes:
+  hosted-backend account+token, git/GitHub
   credential handling, and per-skill secrets (the last folds in the v2 tickets
   `v2/pass-secrets-to-skills-with-per-skill-scope` + the v1
   `fail-loud-when-an-env-indirected-secret-is-missing`). Expect it to split
@@ -129,9 +124,9 @@ A stranger must be able to install and run Coga out of the box.
 
 Bugs a stranger hits on day one — in scope precisely because of the v1 promise.
 
-- `first-run-works-without-slack-configured` [draft] — a fresh install with no
+- `first-run-works-without-slack-configured` [done] — a fresh install with no
   Slack still works.
-- `fail-loud-on-unrecognized-config-sections-instead` [draft] — config errors
+- `fail-loud-on-unrecognized-config-sections-instead` [done] — config errors
   fail loud, not silently.
 - `slack-post-ignores-http-response-so-bad-webhook-fa` [draft] — a bad webhook
   fails loud instead of silently swallowing the error.
@@ -174,7 +169,7 @@ blocker, so this lands late in v1.
   be trusted until this is fixed; the sibling `session-done-sentinel-leaks…` is
   already done.
 
-1. `track-usage-of-llm` [active] — foundational per-session usage primitive;
+1. `track-usage-of-llm` [done] — foundational per-session usage primitive;
    everything below consumes it.
 2. `represent-autonomy-tier-in-ticket-mode-field` [draft] — the
    "ready for unattended execution" flag; consumes the autonomy-triage work.
