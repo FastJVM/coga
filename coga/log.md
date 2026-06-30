@@ -469,3 +469,9 @@
 2026-06-30 11:08 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-30 11:12 [recurring/dream] [human:nicktoper] activated (paused → active)
 2026-06-30 11:12 [recurring/dream] [human:nicktoper] task done
+2026-06-29 22:15 [trim-blackboard-eval-once-processed] [human:nicktoper] launched in interactive mode (assignee=nick, launch_assignee=codex, agent=codex)
+2026-06-30 11:18 [trim-blackboard-eval-once-processed] [agent:nick] advanced to step 2 (self-qa) → assigned to claude
+2026-06-30 11:18 [trim-blackboard-eval-once-processed] [git] sync failed: `git add -- coga/tasks/trim-blackboard-eval-once-processed.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-30 11:18 [coga] [git] sync failed: `git add -- coga/log.md coga/recurring/digest/spool.md coga/tasks/filter-relay-status-by-directory-group.md coga/tasks/mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field.md coga/tasks/trim-blackboard-eval-once-processed.md coga/tasks/awaken-recurring-auto-blocked-tasks.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-30 11:18 [trim-blackboard-eval-once-processed] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 11:22 [trim-blackboard-eval-once-processed] [agent:claude] advanced to step 3 (pr)

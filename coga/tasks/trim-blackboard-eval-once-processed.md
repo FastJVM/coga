@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: claude
 contexts:
 - coga/codebase
 skills: []
@@ -29,7 +29,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 3 (pr)
 ---
 
 ## Description
@@ -135,3 +135,35 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - **"Once at the transition" is loose.** `mark_active` fires on every `draft→active` *and* `paused→active`; the trim runs each time (idempotent no-op after first). Fine, but it's "idempotent," not literally once.
 - **Separator handling underspecified.** Deleting a mid-blackboard section risks leaving an orphan `---` divider — the existing `append_to_section_text` already wrestles with these separators (`blackboard.py:48-52`); the delete helper must too. Call this out as a test case.
 - **Question before launch:** the `## Proposals` ambiguity is the only scope-creep vector; defaulting to just `## Evaluator review` is the right call. Also note the recurring parent `ticket.md` is itself a blackboard holding `state_keys` high-water marks — confirm the trim never names a heading that could touch that.
+
+## Dev
+
+branch: trim-blackboard-eval
+worktree: /tmp/coga-trim-blackboard-eval
+
+Decision: trim only `## Evaluator review` at activation. Durable launch data belongs in the ticket body; the blackboard can still hold transient operational handoff notes like this `## Dev` section.
+
+Implemented in commit `3eaf167b` (`Trim processed blackboard eval on activation`).
+
+Changed:
+- Added `blackboard.delete_sections_text` / `delete_sections` for top-level `##` blackboard section deletion with separator cleanup and fence-less no-op support.
+- Hooked `mark_active` to remove processed activation scratch after the frontmatter write and before validation/git sync.
+- Updated live + packaged `coga/architecture` context to document activation cleanup.
+
+Verification:
+- `python -m pytest tests/test_blackboard.py tests/test_mark.py` passed: 33 passed.
+- `python -m pytest` passed: 919 passed, 1 skipped.
+- `PYTHONPATH=/tmp/coga-trim-blackboard-eval/src python -m coga.cli validate --task trim-blackboard-eval-once-processed --json` passed.
+- Repo-wide `PYTHONPATH=/tmp/coga-trim-blackboard-eval/src python -m coga.cli validate --json` still fails on pre-existing unrelated task issues (`install/*`, `marketing/*`, `v2/*`, plus stale in-progress warnings); not changed by this branch.
+
+## Self-QA
+
+No findings — both passes came back clean against `trim-blackboard-eval` vs `main`.
+
+- `/code-review` (high effort): no confirmed bugs. Verified the trim is committed (`mark_active` runs the trim at `mark.py:263` before `git.sync_task_state` at `mark.py:268`), no stale in-memory rewrite, separator handling round-trips (middle/orphan/absent cases), fence-less no-op guard holds, and `Iterable` is consumed once. The one candidate considered — deletion stopping at a `## ` line embedded in verbatim evaluator prose — was refuted: it's governed by the same pre-existing `_SECTION_RE` section model, so the diff introduces no new failure mode.
+- `/simplify`: code already clean. Reuse (net-new section delete, reuses `_SECTION_RE`), simplification (no derivable/dead state), efficiency (runs once off any hot path), and altitude (generic `delete_sections` + module constant, not a buried literal) all pass. No edits applied.
+- Tests re-run with 3.12: focused `test_blackboard.py`+`test_mark.py` 33 passed; full suite 919 passed, 1 skipped; `validate --task` clean. Working tree clean — no QA commit needed.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3169792,"cli":"codex","input_tokens":324657,"model":"gpt-5.5","output_tokens":25263,"provider":"openai","schema":1,"session_id":"019f16f3-ca68-74e3-94bf-302f47bc13ab","slug":"trim-blackboard-eval-once-processed","step":"implement","title":"trim blackboard eval once processed","ts":"2026-06-30T18:18:48.444170Z","usage_status":"ok"}
