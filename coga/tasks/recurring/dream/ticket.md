@@ -1,7 +1,7 @@
 ---
 slug: recurring/dream
 title: Dream
-status: active
+status: done
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
@@ -19,7 +19,6 @@ workflow:
     assignee: agent
 secrets: null
 script: null
-step: 1 (execute)
 ---
 
 ## Description
