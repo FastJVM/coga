@@ -221,3 +221,7 @@ and control-branch findings are folded into `## Context` above.)*
   the autostash race only bites when an agent runs *on the control branch* (the
   cross-branch land uses a temp index and never rebases the tree) — confirm
   worktree isolation targets that case, not feature-branch sessions.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":533804,"cache_read_input_tokens":41243039,"cli":"claude","input_tokens":52164,"model":"claude-opus-4-8","output_tokens":262173,"provider":"anthropic","schema":1,"session_id":"5a52b731-b1da-4085-9d5d-009a146be548","slug":"per-agent-git-worktree-isolation-for-launch-to-avo","step":"implement","title":"Per-agent git worktree isolation for launch to avoid intra-clone autostash races","ts":"2026-06-30T23:34:32.751675Z","usage_status":"ok"}
