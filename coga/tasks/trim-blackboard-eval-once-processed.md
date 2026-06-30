@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts:
 - coga/codebase
 skills: []
@@ -29,7 +29,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -140,6 +140,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: trim-blackboard-eval
 worktree: /tmp/coga-trim-blackboard-eval
+pr: https://github.com/FastJVM/coga/pull/481
 
 Decision: trim only `## Evaluator review` at activation. Durable launch data belongs in the ticket body; the blackboard can still hold transient operational handoff notes like this `## Dev` section.
 
@@ -167,3 +168,5 @@ No findings — both passes came back clean against `trim-blackboard-eval` vs `m
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3169792,"cli":"codex","input_tokens":324657,"model":"gpt-5.5","output_tokens":25263,"provider":"openai","schema":1,"session_id":"019f16f3-ca68-74e3-94bf-302f47bc13ab","slug":"trim-blackboard-eval-once-processed","step":"implement","title":"trim blackboard eval once processed","ts":"2026-06-30T18:18:48.444170Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":171062,"cache_read_input_tokens":1720509,"cli":"claude","input_tokens":14272,"model":"claude-opus-4-8","output_tokens":38351,"provider":"anthropic","schema":1,"session_id":"6335c38a-5c97-4034-a966-2edcf17e09c5","slug":"trim-blackboard-eval-once-processed","step":"self-qa","title":"trim blackboard eval once processed","ts":"2026-06-30T18:22:51.188594Z","usage_status":"ok"}

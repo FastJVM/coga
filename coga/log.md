@@ -475,3 +475,5 @@
 2026-06-30 11:18 [coga] [git] sync failed: `git add -- coga/log.md coga/recurring/digest/spool.md coga/tasks/filter-relay-status-by-directory-group.md coga/tasks/mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field.md coga/tasks/trim-blackboard-eval-once-processed.md coga/tasks/awaken-recurring-auto-blocked-tasks.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
 2026-06-30 11:18 [trim-blackboard-eval-once-processed] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-30 11:22 [trim-blackboard-eval-once-processed] [agent:claude] advanced to step 3 (pr)
+2026-06-30 11:22 [trim-blackboard-eval-once-processed] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 11:24 [trim-blackboard-eval-once-processed] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/481
