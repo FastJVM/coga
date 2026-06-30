@@ -8,9 +8,11 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from coga.blackboard import PRODUCTION_NOTES_BLACKBOARD
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
+from coga.taskfile import read_blackboard, replace_blackboard
 from coga.ticket import Ticket
 
 
@@ -91,6 +93,55 @@ def test_mark_active_from_paused(repo: Path) -> None:
     assert t.status == "active"
     log = _read_log(repo)
     assert "activated (paused → active)" in log
+
+
+def test_mark_active_promotes_authoring_blackboard_to_production_notes(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="draft")
+    replace_blackboard(
+        task_path,
+        "\n"
+        + dedent(
+            """\
+            The blackboard.
+
+            ---
+
+            ## Evaluator review
+
+            stale scratch
+
+            ---
+
+            ## Proposals
+
+            maybe do this
+
+            ---
+
+            ## Dev
+
+            branch: work
+            """
+        ),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+
+    assert result.exit_code == 0, result.output
+    assert read_blackboard(task_path) == PRODUCTION_NOTES_BLACKBOARD
+
+
+def test_mark_active_preserves_already_promoted_blackboard(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="paused")
+    before = PRODUCTION_NOTES_BLACKBOARD + "\n---\n\n## Dev\n\nbranch: work\n"
+    replace_blackboard(task_path, before)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+
+    assert result.exit_code == 0, result.output
+    assert read_blackboard(task_path) == before
 
 
 def test_mark_active_already_active_errors(repo: Path) -> None:

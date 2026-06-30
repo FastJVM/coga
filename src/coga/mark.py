@@ -15,16 +15,17 @@ from __future__ import annotations
 import typer
 
 from coga import git
+from coga.blackboard import promote_to_production_notes
 from coga.config import Config
 from coga.logfile import append_log
 from coga.paths import recurring_dir, resolve_workflow_path
 from coga.period_state import StateSnapshot, read_snapshot, stale_keys
 from coga.notification import notify, post
+from coga.taskfile import TaskFileError
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
 from coga.validate import assert_task_valid
 from coga.workflow import Workflow
-
 
 def mark_done(
     cfg: Config,
@@ -216,6 +217,19 @@ def _missing_required_extensions(cfg: Config, ticket: Ticket) -> list[str]:
     return missing
 
 
+def _promote_activation_blackboard(ref: TaskRef, prior_status: str | None) -> None:
+    """Replace draft authoring scratch with active-work notes."""
+    if prior_status not in {"draft", "paused"}:
+        return
+    try:
+        promote_to_production_notes(
+            ref.ticket_path,
+            blackboard_required=False,
+        )
+    except (FileNotFoundError, TaskFileError):
+        return
+
+
 def mark_active(
     cfg: Config,
     ref: TaskRef,
@@ -241,8 +255,10 @@ def mark_active(
     if missing:
         raise RequiredExtensionMissing(missing)
 
+    prior_status = ticket.status
     ticket.frontmatter["status"] = "active"
     ticket.write(ref.ticket_path)
+    _promote_activation_blackboard(ref, prior_status)
     assert_task_valid(cfg, ref, action="mark active")
     append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:

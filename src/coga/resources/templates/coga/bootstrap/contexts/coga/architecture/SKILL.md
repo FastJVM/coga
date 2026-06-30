@@ -293,6 +293,13 @@ that the next run must read goes in the blackboard (and is therefore composed,
 so keep it small); durable history goes in the global log (never composed, so
 let it accumulate). This is exactly what makes the single-file format safe —
 the unbounded thing is the one file compose never opens.
+Activation also promotes the blackboard from draft authoring scratch to
+active-work notes. If the blackboard does not already have a
+`## Production notes` section, `mark active` replaces the whole blackboard
+region with that starter note. Once that marker exists, later `paused→active`
+activations leave the blackboard alone. Durable task data belongs in the ticket
+body before activation; post-activation handoff notes belong in the blackboard.
+Forced recurring reruns that repair other statuses do not reset the blackboard.
 
 An interactive launch's PTY supervisor tears down the REPL when the
 session-scoped `$COGA_DONE_SENTINEL` file names the launched task — its sole

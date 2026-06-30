@@ -250,13 +250,14 @@ workflow step are loaded too.
 
 ## Mental model
 
-The canonical contexts live in `coga/contexts/coga/` — read in order:
+The canonical contexts are package-backed and composed automatically; a repo can
+override them with local files under `coga/contexts/coga/`. Read in order:
 
 - `principles/SKILL.md` — non-negotiables (markdown-first, fail-loud, classical mode)
 - `architecture/SKILL.md` — primitives, planes, prompt composition, locking
 - `cli/SKILL.md` — full command reference
 
-These are the exact files composed into every launched ticket; if they
+These are the exact context refs composed into every launched ticket; if they
 disagree with anything else in the repo, they win.
 
 ## Don't
