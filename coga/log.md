@@ -460,3 +460,4 @@
 2026-06-29 22:35 [recurring/dream] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-29 22:40 [dream-validate-drift-w27] [human:nicktoper] created (autonomy=auto, status=draft)
 2026-06-29 22:40 [dream-validate-drift-w27] [human:nicktoper] activated (draft → active)
+2026-06-29 22:41 [dream-validate-drift-w27] [system] started (active → in_progress) via coga launch
