@@ -438,3 +438,4 @@
 2026-06-29 22:34 [recurring/dream] [system] created recurring/dream for 2026-W27
 2026-06-29 22:34 [recurring/skill-update] [system] created (autonomy=auto, status=active)
 2026-06-29 22:34 [recurring/skill-update] [system] created recurring/skill-update for 2026-W27
+2026-06-29 22:34 [recurring/autoclose-merged] [human:nicktoper] activated (done → active) for forced recurring run
