@@ -1,7 +1,7 @@
 ---
 slug: fix-git-recurring-issues
 title: Verify recurring high-water git race is fixed and regression-covered
-status: active
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -16,7 +16,6 @@ workflow:
     skills:
     - direct/body
     assignee: agent
-step: 1 (execute)
 ---
 
 ## Description
