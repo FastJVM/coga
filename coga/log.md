@@ -517,3 +517,5 @@
 2026-06-30 16:15 [awaken-recurring-auto-blocked-tasks] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
 2026-06-30 16:44 [awaken-recurring-auto-blocked-tasks] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
 2026-06-30 16:44 [awaken-recurring-auto-blocked-tasks] [git] sync failed: `git add -- coga/tasks/awaken-recurring-auto-blocked-tasks.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-30 16:44 [awaken-recurring-auto-blocked-tasks] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 16:46 [awaken-recurring-auto-blocked-tasks] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/485
