@@ -22,12 +22,18 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "autoclose/sweep/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/"
     "autoclose/sweep/run.py",
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
+    "blockers/remind/SKILL.md",
+    "coga/resources/templates/coga/bootstrap/skills/coga/"
+    "blockers/remind/run.py",
     "coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
     "coga/resources/templates/coga/recurring/autoclose-merged/ticket.md",
+    "coga/resources/templates/coga/recurring/blocker-reminders/ticket.md",
     "coga/resources/templates/coga/recurring/digest/ticket.md",
     "coga/resources/templates/coga/recurring/digest/spool.md",
     "coga/resources/templates/coga/recurring/skill-update/ticket.md",
     "coga/resources/templates/coga/workflows/autoclose-merged/sweep.md",
+    "coga/resources/templates/coga/workflows/blocker-reminders/run.md",
     "coga/resources/templates/coga/workflows/direct/body.md",
     "coga/resources/templates/coga/workflows/skill-update/run.md",
     # Bundled reusable workflows ship under bootstrap/workflows/ (local-first
