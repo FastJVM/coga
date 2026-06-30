@@ -106,6 +106,9 @@ Comms must stay credible. State plainly where Coga is outclassed:
 - **CompanyOS (Feld)**: nearest framing-twin ("markdown that runs a
   company"), but skills-only, no loop. Owning markdown isn't the
   differentiator — the maintained, human-gated loop is.
+- **Paperclip**: manages agents *as a workforce* (roles, budgets,
+  approvals, dashboards); Coga manages *work as repo state*. Same orbit,
+  opposite center of gravity — Paperclip owns the demo, Coga the substrate.
 
 ## Open strategic question for the launch
 
