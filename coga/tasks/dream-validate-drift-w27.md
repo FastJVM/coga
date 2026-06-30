@@ -1,7 +1,7 @@
 ---
 slug: dream-validate-drift-w27
 title: Dream validate-drift (W27)
-status: draft
+status: active
 autonomy: auto
 owner: nicktoper
 human: nicktoper
