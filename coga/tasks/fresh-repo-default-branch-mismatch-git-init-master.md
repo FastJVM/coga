@@ -1,7 +1,7 @@
 ---
 slug: fresh-repo-default-branch-mismatch-git-init-master
 title: 'Fresh-repo default branch mismatch: git init master vs control_branch main'
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -27,7 +27,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
@@ -177,6 +176,8 @@ Recommend the ticket either pin the exact resolution command and its fallback ch
 {"agent":"claude","cache_creation_input_tokens":351794,"cache_read_input_tokens":5536860,"cli":"claude","input_tokens":24768,"model":"claude-opus-4-8","output_tokens":87605,"provider":"anthropic","schema":1,"session_id":"68b7d384-07d0-4327-af44-ebdcdace4724","slug":"fresh-repo-default-branch-mismatch-git-init-master","step":"implement","title":"Fresh-repo default branch mismatch: git init master vs control_branch main","ts":"2026-06-28T21:41:14.869547Z","usage_status":"ok"}
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":2262272,"cli":"codex","input_tokens":208654,"model":"gpt-5.5","output_tokens":19329,"provider":"openai","schema":1,"session_id":"019f104c-2763-7272-ae59-a34852210fcd","slug":"fresh-repo-default-branch-mismatch-git-init-master","step":"peer-review","title":"Fresh-repo default branch mismatch: git init master vs control_branch main","ts":"2026-06-28T22:31:26.942456Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":78297,"cache_read_input_tokens":714393,"cli":"claude","input_tokens":16196,"model":"claude-opus-4-8","output_tokens":7331,"provider":"anthropic","schema":1,"session_id":"5dde1089-f3a2-40e1-aae6-4c14cb960df2","slug":"fresh-repo-default-branch-mismatch-git-init-master","step":"open-pr","title":"Fresh-repo default branch mismatch: git init master vs control_branch main","ts":"2026-06-28T22:32:43.897100Z","usage_status":"ok"}
 ## Peer review (codex, 2026-06-28)
 
 Native review (`codex review --base main`) found one must-fix: the new guard
