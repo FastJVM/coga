@@ -424,3 +424,5 @@
 2026-06-29 22:10 [document-cross-machine-sandbox-dev-loop-friction-i] [human:nicktoper] started (active → in_progress) via coga launch
 2026-06-29 22:10 [document-cross-machine-sandbox-dev-loop-friction-i] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-29 22:10 [document-cross-machine-sandbox-dev-loop-friction-i] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-06-29 22:09 [remove-support-for-directory-in-relay-task-in-v2] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-29 22:14 [trim-blackboard-eval-once-processed] [human:nicktoper] started (active → in_progress) via coga launch

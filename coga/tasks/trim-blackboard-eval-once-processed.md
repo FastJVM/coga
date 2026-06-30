@@ -1,7 +1,7 @@
 ---
 slug: trim-blackboard-eval-once-processed
 title: trim blackboard eval once processed
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
