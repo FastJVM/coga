@@ -1,7 +1,7 @@
 ---
 slug: awaken-recurring-auto-blocked-tasks
 title: Awaken recurring auto blocked tasks
-status: active
+status: in_progress
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
@@ -79,6 +79,5 @@ Relevant existing pieces:
   consume this wakeup behavior.
 
 <!-- coga:blackboard -->
-## Production notes
 
-This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
+The blackboard is a notepad to be written to often as the human and agent works through a task.
