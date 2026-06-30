@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
+from coga.taskfile import read_blackboard, replace_blackboard
 from coga.ticket import Ticket
 
 
@@ -91,6 +92,58 @@ def test_mark_active_from_paused(repo: Path) -> None:
     assert t.status == "active"
     log = _read_log(repo)
     assert "activated (paused → active)" in log
+
+
+def test_mark_active_strips_evaluator_review_from_blackboard(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="draft")
+    replace_blackboard(
+        task_path,
+        "\n"
+        + dedent(
+            """\
+            The blackboard.
+
+            ---
+
+            ## Evaluator review
+
+            stale scratch
+
+            ---
+
+            ## Dev
+
+            branch: work
+            """
+        ),
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+
+    assert result.exit_code == 0, result.output
+    assert read_blackboard(task_path) == "\n" + dedent(
+        """\
+        The blackboard.
+
+        ---
+
+        ## Dev
+
+        branch: work
+        """
+    )
+
+
+def test_mark_active_preserves_blackboard_when_evaluator_review_absent(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="draft")
+    before = read_blackboard(task_path)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+
+    assert result.exit_code == 0, result.output
+    assert read_blackboard(task_path) == before
 
 
 def test_mark_active_already_active_errors(repo: Path) -> None:

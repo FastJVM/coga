@@ -298,6 +298,10 @@ The consequence is a hard division of labor: working state that the next run
 must read goes in the blackboard (and is therefore composed, so keep it
 small); durable history goes in the log (never composed, so let it
 accumulate).
+Activation also performs a narrow mechanical cleanup of processed authoring
+scratch in the blackboard, currently the `## Evaluator review` section written
+by `bootstrap/ticket`; durable task data should already live in the ticket body
+by then.
 
 An interactive launch's PTY supervisor tears down the REPL when the
 session-scoped `$COGA_DONE_SENTINEL` file names the launched task — its sole

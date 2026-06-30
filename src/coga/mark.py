@@ -15,15 +15,20 @@ from __future__ import annotations
 import typer
 
 from coga import git
+from coga.blackboard import delete_sections
 from coga.config import Config
 from coga.logfile import append_log
 from coga.paths import recurring_dir, resolve_workflow_path
 from coga.period_state import StateSnapshot, read_snapshot, stale_keys
 from coga.notification import notify, post
+from coga.taskfile import TaskFileError
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
 from coga.validate import assert_task_valid
 from coga.workflow import Workflow
+
+
+PROCESSED_ACTIVATION_BLACKBOARD_SECTIONS = ("Evaluator review",)
 
 
 def mark_done(
@@ -216,6 +221,18 @@ def _missing_required_extensions(cfg: Config, ticket: Ticket) -> list[str]:
     return missing
 
 
+def _trim_processed_activation_blackboard(ref: TaskRef) -> None:
+    """Drop one-time authoring sections after activation writes the ticket."""
+    try:
+        delete_sections(
+            ref.ticket_path,
+            PROCESSED_ACTIVATION_BLACKBOARD_SECTIONS,
+            blackboard_required=False,
+        )
+    except (FileNotFoundError, TaskFileError):
+        return
+
+
 def mark_active(
     cfg: Config,
     ref: TaskRef,
@@ -243,6 +260,7 @@ def mark_active(
 
     ticket.frontmatter["status"] = "active"
     ticket.write(ref.ticket_path)
+    _trim_processed_activation_blackboard(ref)
     assert_task_valid(cfg, ref, action="mark active")
     append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:
