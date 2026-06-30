@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-deploy
-    github-ref: refs/tags/v0.5.0
+    github-ref: refs/tags/v0.6.1
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: d4d5c51d1d4869aeac47df6cb0592e340035d12f
+    github-tree-sha: 49ca8fde61e546c00f0708d0818b05b8fb20cd93
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 0.5.0
+    version: 0.6.1
 name: google-agents-cli-deploy
 ---
 # ADK Deployment Guide
@@ -26,7 +26,7 @@ name: google-agents-cli-deploy
 For deeper details, consult these reference files in `references/`:
 
 - **`cloud-run.md`** — Scaling defaults, Dockerfile, session types, networking
-- **`agent-runtime.md`** — deploy.py CLI, AdkApp pattern, Terraform resource, deployment metadata, CI/CD differences
+- **`agent-runtime.md`** — container-based deploy, unified FastAPI app, the `/api` passthrough, Terraform resource, deployment metadata, CI/CD differences
 - **`gke.md`** — GKE Autopilot cluster, Kubernetes manifests, Workload Identity, session types, networking
 - **`terraform-patterns.md`** — Custom infrastructure, IAM, state management, importing resources
 - **`batch-inference.md`** — BigQuery Remote Function trigger; for Pub/Sub / Eventarc see `/google-agents-cli-adk-code`
@@ -45,18 +45,18 @@ Choose the right deployment target based on your requirements:
 |----------|-------------|-----------|-----|
 | **Languages** | Python | Python | Python (+ others via custom containers) |
 | **Scaling** | Managed auto-scaling (configurable min/max, concurrency) | Fully configurable (min/max instances, concurrency, CPU allocation) | Full Kubernetes scaling (HPA, VPA, node auto-provisioning) |
-| **Networking** | VPC-SC and PSC-I supported (private VPC connectivity via network attachments) | Full VPC support, direct VPC egress, IAP, ingress rules | Full Kubernetes networking|
+| **Networking** | VPC-SC and PSC-I supported (private VPC connectivity via network attachments) | Full VPC support, direct VPC egress, IAP, ingress rules | Full Kubernetes networking |
 | **Session state** | Native `VertexAiSessionService` (persistent, managed) | In-memory (dev), Cloud SQL, or Agent Platform Sessions backend | In-memory (dev), Cloud SQL, or Agent Platform Sessions backend |
-| **Batch/event processing** | Not supported | Native trigger endpoints (Pub/Sub, Eventarc); see `/google-agents-cli-adk-code` | Custom (Kubernetes Jobs, Pub/Sub) |
-| **Cost model** | vCPU-iours + memory-iours (not billed when idle) | Per-instance-second + min instance costs | Node pool costs (always-on or auto-provisioned) |
+| **Batch/event processing** | Trigger endpoints reachable via the Agent Engine `/api` passthrough | Native trigger endpoints (Pub/Sub, Eventarc); see `/google-agents-cli-adk-code` | Custom (Kubernetes Jobs, Pub/Sub) |
+| **Cost model** | vCPU-hours + memory-hours (not billed when idle) | Per-instance-second + min instance costs | Node pool costs (always-on or auto-provisioned) |
 | **Setup complexity** | Lower (managed, purpose-built for agents) | Medium (Dockerfile, Terraform, networking) | Higher (Kubernetes expertise required) |
-| **Best for** | Managed infrastructure, minimal ops | Custom infra, event-driven workloads | Full Kubernetes control |
+| **Best for** | Managed infrastructure, minimal ops | Custom infra, full networking control | Full Kubernetes control |
 
 **Ask the user** which deployment target fits their needs. Each is a valid production choice with different trade-offs.
 
 > **Product name mapping:** "Agent Engine" / "Vertex AI Agent Engine" is now **Agent Runtime**. Use `--deployment-target agent_runtime`.
 
-> **Ambient / scheduled / event-driven agents:** Agent Runtime does not support Pub/Sub, Eventarc, or Cloud Scheduler triggers. Use **Cloud Run** (recommended) or **GKE** for these workloads. See `/google-agents-cli-adk-code` (`references/adk-python.md`, section "12. Event-Driven / Ambient Agents") for the `trigger_sources` pattern.
+> **Ambient / scheduled / event-driven agents:** ADK's `trigger_sources` registers `/apps/{app}/trigger/*` endpoints on the same FastAPI app for **all** targets. On **Cloud Run** / **GKE** these are public HTTP routes you point a Pub/Sub push subscription or Eventarc trigger at; on **Agent Runtime** the same routes are reachable through the Agent Engine `/api` passthrough (e.g. `.../reasoningEngines/v1/{resource}/api/apps/{app}/trigger/pubsub`). Cloud Run remains the simplest target for unauthenticated trigger sources. See `/google-agents-cli-adk-code` (`references/adk-python.md`, section "12. Event-Driven / Ambient Agents") for the `trigger_sources` pattern.
 
 > **OAuth / user consent agents:** Use **Agent Runtime** with Gemini Enterprise for agents that need OAuth 2.0 user consent (e.g., accessing Google Drive, Calendar, or other user-scoped APIs). Cloud Run does not currently support managed OAuth flows. See the `adk-ae-oauth` sample in `/google-agents-cli-workflow` Phase 1.
 
@@ -88,7 +88,7 @@ Choose the right deployment target based on your requirements:
 agents-cli infra single-project
 ```
 
-> **Note:** `agents-cli deploy` doesn't automatically use the Terraform-created `app_sa`. Pass the service account via `agents-cli deploy --service-account SA_EMAIL` or `uv run -m app.app_utils.deploy --service-account SA_EMAIL` for Agent Runtime targets.
+> **Note:** `agents-cli deploy` doesn't automatically use the Terraform-created `app_sa`. Pass the service account explicitly: `agents-cli deploy --service-account SA_EMAIL`.
 
 ### Deploy Flag Reference
 
@@ -111,9 +111,10 @@ agents-cli infra single-project
 | `--max-instances` | Maximum number of instances (default: `10`) | Agent Runtime, Cloud Run |
 | `--concurrency` | Concurrent requests per container (default: `8`; see [Sizing a deployment](#sizing-a-deployment)) | Agent Runtime, Cloud Run |
 | `--num-workers` | Worker processes per container (default: `1`) | Agent Runtime |
-| `--port` | Container port | Cloud Run |
+| `--port` | Container port | Cloud Run, Agent Runtime |
+| `--build-args` | Comma-separated `KEY=VALUE` Docker build args | Agent Runtime |
 | `--iap` | Enable Identity-Aware Proxy | Cloud Run |
-| `--image` | Container image URI (skips source build) | Cloud Run, GKE |
+| `--image` | Container image URI (skips source build; not supported for Agent Runtime) | Cloud Run, GKE |
 | `--no-wait` | Start deployment and return immediately | Agent Runtime, Cloud Run |
 | `--status` | Check the status of a pending `--no-wait` deployment | Agent Runtime, Cloud Run |
 | `--list` | List existing deployments and exit | All |
@@ -165,9 +166,9 @@ For event-driven / ambient agent deployment on Cloud Run, see the [`ambient-expe
 
 ## Agent Runtime Specifics
 
-Agent Runtime is a managed Vertex AI service for deploying Python ADK agents. Uses source-based deployment (no Dockerfile) via `deploy.py` and the `AdkApp` class.
+Agent Runtime is a managed Vertex AI service for deploying Python ADK agents. Uses container-based deployment: `agents-cli deploy` packages your project and Agent Engine builds the image from your project's `Dockerfile` (required) — the same `fast_api_app:app` image that serves Cloud Run and GKE.
 
-> **No `gcloud` CLI exists for Agent Runtime.** Deploy via `agents-cli deploy` or `deploy.py`. Query via the Python `vertexai.Client` SDK.
+> **No `gcloud` CLI exists for Agent Runtime.** Deploy via `agents-cli deploy`. Query via the Python `vertexai.Client` SDK.
 
 Deployments can take 5-10 minutes. Use `--no-wait` to start a deployment and return immediately, then check on it later with `--status`:
 
@@ -181,7 +182,7 @@ agents-cli deploy --status
 
 When `--status` detects the operation has completed, it writes `deployment_metadata.json` and prints the same success output as a normal deploy.
 
-For detailed infrastructure configuration (deploy.py flags, AdkApp pattern, Terraform resource, deployment metadata, session/artifact services, CI/CD differences), see `references/agent-runtime.md`. For ADK docs on Agent Runtime deployment, fetch `https://adk.dev/deploy/agent-runtime/index.md`.
+For detailed infrastructure configuration (container deploy flow, the unified FastAPI app and `/api` passthrough, Terraform resource, deployment metadata, session/artifact services, CI/CD differences), see `references/agent-runtime.md`. For ADK docs on Agent Runtime deployment, fetch `https://adk.dev/deploy/agent-runtime/index.md`.
 
 ---
 

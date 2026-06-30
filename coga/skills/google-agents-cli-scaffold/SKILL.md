@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-scaffold
-    github-ref: refs/tags/v0.5.0
+    github-ref: refs/tags/v0.6.1
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: 3aed46ea41a15870d7f8700093e58269218635d3
+    github-tree-sha: 8cb28957f60831fb2ebc238847978f603b7bab70
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 0.5.0
+    version: 0.6.1
 name: google-agents-cli-scaffold
 ---
 # ADK Project Scaffolding Guide
@@ -37,7 +37,7 @@ Use the `agents-cli` CLI to create new ADK agent projects or enhance existing on
 |--------|----------|
 | RAG with vector search | `--agent agentic_rag --datastore agent_platform_vector_search` |
 | RAG with document search | `--agent agentic_rag --datastore agent_platform_search` |
-| A2A protocol | `--agent adk_a2a` |
+| A2A protocol | built into every ADK agent — scaffold normally (`--agent adk`) |
 | Prototype (no deployment) | `--prototype` |
 | Deployment target | `--deployment-target <agent_runtime\|cloud_run\|gke>` |
 | CI/CD runner | `--cicd-runner <github_actions\|google_cloud_build>` |
@@ -45,16 +45,12 @@ Use the `agents-cli` CLI to create new ADK agent projects or enhance existing on
 
 ### Product name mapping
 
-The platform formerly known as "Vertex AI" is now **Gemini Enterprise Agent Platform** (short: **Agent Platform**). Users may refer to products by different names. Map them to the correct CLI values:
+Older names → CLI values (`vertexai` SDK package name unchanged):
 
-| User may say | CLI value |
-|-------------|-----------|
-| Agent Engine, Vertex AI Agent Engine, Agent Runtime | `--deployment-target agent_runtime` |
-| Vertex AI Search, Agent Search | `--datastore agent_platform_search` |
-| Vertex AI Vector Search, Vector Search | `--datastore agent_platform_vector_search` |
-| Agent Engine sessions, Agent Platform Sessions | `--session-type agent_platform_sessions` |
-
-The `vertexai` Python SDK package name is unchanged.
+- Agent Engine / Vertex AI Agent Engine → `--deployment-target agent_runtime`
+- Vertex AI Search / Agent Search → `--datastore agent_platform_search`
+- Vertex AI Vector Search / Vector Search → `--datastore agent_platform_vector_search`
+- Agent Engine sessions / Agent Platform Sessions → `--session-type agent_platform_sessions`
 
 ---
 
@@ -73,7 +69,7 @@ agents-cli scaffold create <project-name> \
 **Constraints:**
 - Project name must be **26 characters or less**, lowercase letters, numbers, and hyphens only.
 - Do NOT `mkdir` the project directory before running `create` — the CLI creates it automatically. If you mkdir first, `create` will fail or behave unexpectedly.
-- Auto-detect the guidance filename based on the IDE you are running in and pass `--agent-guidance-filename` accordingly (`GEMINI.md` for Gemini CLI, `CLAUDE.md` for Claude Code, `AGENTS.md` for OpenAI Codex/other).
+- Auto-detect the guidance filename based on the IDE you are running in and pass `--agent-guidance-filename` accordingly (`AGENTS.md` for Antigravity CLI/OpenAI Codex/other, `CLAUDE.md` for Claude Code, `GEMINI.md` for Gemini CLI).
 - When enhancing an existing project, check where the agent code lives. If it's not in `app/`, pass `--agent-directory <dir>` (e.g. `--agent-directory agent`). Getting this wrong causes enhance to miss or misplace files.
 
 ### Reference Files
@@ -124,9 +120,8 @@ agents-cli scaffold enhance . --cicd-runner github_actions
 
 | Template | Deployment | Description |
 |----------|------------|-------------|
-| `adk` | Agent Runtime, Cloud Run, GKE | Standard ADK agent (default) |
-| `adk_a2a` | Agent Runtime, Cloud Run, GKE | Agent-to-agent coordination (A2A protocol) |
-| `agentic_rag` | Agent Runtime, Cloud Run, GKE | RAG with data ingestion pipeline |
+| `adk` | Agent Runtime, Cloud Run, GKE | Standard ADK agent (default); A2A protocol built in |
+| `agentic_rag` | Agent Runtime, Cloud Run, GKE | RAG with data ingestion pipeline; A2A protocol built in |
 
 ---
 
@@ -134,10 +129,10 @@ agents-cli scaffold enhance . --cicd-runner github_actions
 
 | Target | Description |
 |--------|-------------|
-| `agent_runtime` | Managed by Google (Vertex AI Agent Runtime). Sessions handled automatically. |
-| `cloud_run` | Container-based deployment. More control, requires Dockerfile. |
+| `agent_runtime` | Managed by Google (Vertex AI Agent Runtime). Container-based — Agent Engine builds the project Dockerfile. Sessions handled automatically. |
+| `cloud_run` | Container-based deployment. More control; you build and deploy the Dockerfile. |
 | `gke` | Container-based on GKE Autopilot. Full Kubernetes control. |
-| `none` | No deployment scaffolding. Code only. |
+| `none` | No deployment scaffolding. Code only (still includes a Dockerfile). |
 
 ### "Prototype First" Pattern (Recommended)
 
@@ -155,7 +150,7 @@ agents-cli scaffold enhance . --deployment-target agent_runtime
 
 ### Agent Runtime and session_type
 
-When using `agent_runtime as the deployment target, Agent Runtime manages sessions internally. If your code sets a `session_type`, clear it — Agent Runtime overrides it.
+When using `agent_runtime` as the deployment target, Agent Runtime manages sessions internally. If your code sets a `session_type`, clear it — Agent Runtime overrides it.
 
 ---
 
@@ -164,7 +159,7 @@ When using `agent_runtime as the deployment target, Agent Runtime manages sessio
 After scaffolding, immediately load `/google-agents-cli-workflow` — it contains the development workflow, coding guidelines, and operational rules you must follow when implementing the agent.
 
 **Key files to customize:** `app/agent.py` (instruction, tools, model), `app/tools.py` (custom tool functions), `.env` (project ID, location, API keys).
-**Files to preserve:** `agents-cli-manifest.yaml` (CLI reads this), deployment configs under `deployment/`, `Makefile`, `app/__init__.py` (the `App(name=...)` must match the directory name — default `app`).
+**Files to preserve:** `agents-cli-manifest.yaml` (CLI reads this), deployment configs under `deployment/`, `Makefile`, `app/__init__.py` (the `App(name=...)` must match the directory name — default `app`), and the generated runtime/A2A infra (`app/fast_api_app.py`, `app/app_utils/a2a.py`, `app/app_utils/services.py`, `Dockerfile`) — these wire up serving, sessions, and the built-in A2A surface; don't hand-edit them.
 
 **RAG projects (`agentic_rag`) — provision datastore first:**
 Before running `agents-cli playground` or testing your RAG agent, you must provision the datastore and ingest data:
@@ -209,7 +204,7 @@ This is useful for:
 - **Agent Runtime clears session_type** — if deploying to `agent_runtime`, remove any `session_type` setting from your code
 - **Start with `--prototype`** for quick iteration — add deployment later with `enhance`
 - **Project names** must be ≤26 characters, lowercase, letters/numbers/hyphens only
-- **NEVER write A2A code from scratch** — the A2A Python API surface (import paths, `AgentCard` schema, `to_a2a()` signature) is non-trivial and changes across versions. Always use `--agent adk_a2a` to scaffold A2A projects.
+- **NEVER write A2A code from scratch** — A2A is built into every Python ADK agent (`adk`, `agentic_rag`); the A2A Python API surface (import paths, `AgentCard` schema, `to_a2a()` signature) is non-trivial and changes across versions. Scaffold normally; never hand-write the A2A surface.
 
 ---
 
@@ -229,7 +224,7 @@ A2A project:
 User says: "Build me a Python agent that exposes A2A and deploys to Cloud Run"
 Actions:
 1. Follow the standard flow (understand requirements, choose architecture, scaffold)
-2. `agents-cli scaffold create my-a2a-agent --agent adk_a2a --deployment-target cloud_run --prototype`
+2. `agents-cli scaffold create my-a2a-agent --agent adk --deployment-target cloud_run --prototype`
 Result: Valid A2A imports and Dockerfile — no manual A2A code written.
 
 ---

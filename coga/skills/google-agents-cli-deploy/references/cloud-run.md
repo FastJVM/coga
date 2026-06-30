@@ -16,15 +16,17 @@ Scaffolded projects include a `Dockerfile` using single-stage build with `uv` fo
 
 ## FastAPI Endpoints
 
-Available endpoints vary by project template. Check `app/fast_api_app.py` for the exact routes in your project.
+Scaffolded apps serve the ADK HTTP surface (`/run_sse`, `/apps/...`), A2A routes under `/a2a/{app_name}` (JSON-RPC + agent card — A2A is built into every ADK agent), and `/feedback`. Exact routes vary by template; check `app/fast_api_app.py`.
 
 ## Session Types
 
 | Type | Configuration | Use Case |
 |------|--------------|----------|
-| **In-memory** | Default (`session_service_uri = None`) | Local dev only; lost on instance restart |
+| **In-memory** | Default (`shared://session` resolved by `app_utils/services.py` (in-memory)) | Local dev only; lost on instance restart |
 | **Cloud SQL** | `--session-type cloud_sql` at scaffold time | Production persistent sessions (Postgres 15, IAM auth) |
-| **Agent Runtime** | `session_service_uri = agentengine://{resource_name}` | When using Agent Runtime as session backend |
+| **Agent Runtime** | Managed Agent Engine sessions (`agentengine://{resource_name}`) | When using Agent Runtime as session backend |
+
+The concrete session URI for `cloud_sql` / `agent_platform_sessions` is now built inside `app_utils/services.py`, not `fast_api_app.py`.
 
 Cloud SQL session infrastructure (instance, database, Cloud SQL Unix socket volume mount) is configured in `deployment/terraform/single-project/service.tf`.
 

@@ -23,7 +23,7 @@ Search results come back as `grounding_metadata`, not function call/response eve
 }
 ```
 
-This causes `multi_turn_tool_use_quality` to ALWAYS fail for agents using `google_search`.
+This causes `multi_turn_tool_use_quality` to fail for agents whose **only** tool is `google_search` — the evaluator flags an unexpected tool call it can never see in the trace. For agents that also call function tools, the metric still scores those function-tool calls (see metric compatibility below).
 
 **Metric compatibility for `google_search` agents:**
 

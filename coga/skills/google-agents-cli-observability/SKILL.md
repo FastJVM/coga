@@ -4,15 +4,15 @@ description: |
 metadata:
     author: Google
     github-path: skills/google-agents-cli-observability
-    github-ref: refs/tags/v0.5.0
+    github-ref: refs/tags/v0.6.1
     github-repo: https://github.com/google/agents-cli
-    github-tree-sha: b7d1719334708d4a5377ca37a01d42840fb4bdc1
+    github-tree-sha: 8aff007071f9ba3357a3e861b24622a8d745b5f4
     license: Apache-2.0
     requires:
         bins:
             - agents-cli
         install: uv tool install google-agents-cli
-    version: 0.5.0
+    version: 0.6.1
 name: google-agents-cli-observability
 ---
 # ADK Observability Guide
@@ -70,8 +70,8 @@ invocation
 | Deployment | Setup |
 |-----------|-------|
 | **Agent Runtime** | Automatic — traces are exported to Cloud Trace by default |
-| **Cloud Run (scaffolded)** | Automatic — `otel_to_cloud=True` in the FastAPI app |
-| **GKE (scaffolded)** | Automatic — `otel_to_cloud=True` in the FastAPI app |
+| **Cloud Run (scaffolded)** | Automatic — `setup_telemetry()` configures Cloud Trace/Logging exporters |
+| **GKE (scaffolded)** | Automatic — `setup_telemetry()` configures Cloud Trace/Logging exporters |
 | **Cloud Run / GKE (manual)** | Configure OpenTelemetry exporter in your app |
 | **Local dev** | Works with `agents-cli playground`; traces visible in Cloud Console |
 
@@ -121,7 +121,7 @@ ADK supports several third-party observability platforms. Each uses OpenTelemetr
 
 | Issue | Solution |
 |-------|----------|
-| No traces in Cloud Trace | Verify `otel_to_cloud=True` in FastAPI app; check service account has `cloudtrace.agent` role |
+| No traces in Cloud Trace | Verify `setup_telemetry()` runs at startup and the service account has the `cloudtrace.agent` role |
 | Prompt-response data not appearing | Check `LOGS_BUCKET_NAME` is set; verify SA has `storage.objectCreator` on the bucket; check app logs for telemetry setup warnings |
 | Privacy mode misconfigured | Check `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` value — use `NO_CONTENT` for metadata-only, `false` to disable |
 | BigQuery Analytics not logging | Verify plugin is configured in `app/agent.py`; check `BQ_ANALYTICS_DATASET_ID` env var is set |
