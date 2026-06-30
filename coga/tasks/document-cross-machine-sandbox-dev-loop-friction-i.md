@@ -1,7 +1,7 @@
 ---
 slug: document-cross-machine-sandbox-dev-loop-friction-i
 title: Document cross-machine/sandbox dev-loop friction in coga/codebase
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
