@@ -457,3 +457,5 @@
 2026-06-29 22:35 [recurring/skill-update] [system] script exited with code 0
 2026-06-29 22:35 [recurring/skill-update] [system] completed (final script step ran) via coga launch
 2026-06-29 22:35 [recurring/dream] [human:nicktoper] started (active → in_progress) via coga launch
+2026-06-29 22:35 [recurring/dream] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-29 22:40 [dream-validate-drift-w27] [human:nicktoper] created (autonomy=auto, status=draft)
