@@ -328,3 +328,10 @@ Verification:
   (https://github.com/FastJVM/relay/pull/418). No prior draft existed.
 - CI: `gh pr checks 418` → "no checks reported" (repo has no CI workflows on
   this branch) — nothing to wait on. Bumping to human review.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: 'New coga/architecture detail: config loader fails loud on unknown keys'
