@@ -1,7 +1,7 @@
 ---
 slug: recurring/skill-update
 title: Skill update
-status: active
+status: in_progress
 autonomy: auto
 owner: nicktoper
 human: nicktoper

@@ -452,3 +452,4 @@
 2026-06-29 22:35 [recurring/digest] [system] launched as a script (skill=coga/digest/flush, script=run.py)
 2026-06-29 22:35 [recurring/digest] [system] script exited with code 0
 2026-06-29 22:35 [recurring/digest] [system] completed (final script step ran) via coga launch
+2026-06-29 22:35 [recurring/skill-update] [system] started (active → in_progress) via coga launch
