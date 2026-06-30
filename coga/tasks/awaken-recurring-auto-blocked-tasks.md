@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/architecture
 - coga/cli
@@ -31,7 +31,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -143,8 +143,26 @@ Verification:
 - `git diff --check`
 - `PYTHONPATH=/tmp/coga-awaken-blocker-reminders/src python -m coga.cli validate --task awaken-recurring-auto-blocked-tasks --json`
 
+Peer review:
+
+- [2026-06-30] Ran `codex review --base main` from
+  `/tmp/coga-awaken-blocker-reminders` (sandboxed run hit Codex app-server
+  read-only FS; escalated rerun completed). Review found one P2 bug:
+  indented Markdown sub-bullets under a blocker were parsed as separate open
+  blockers. Fixed on the feature branch in commit `9571c187`
+  (`peer-review: fix nested blocker bullets`) by restricting blocker starts to
+  top-level bullets and adding a regression test.
+- Verification after peer-review fix:
+  `PYTHONPATH=src python -m pytest tests/test_blockers.py tests/test_commands.py::test_status_appends_open_blockers_table -q`
+  (6 passed), `PYTHONPATH=src python -m pytest` (941 passed, 1 skipped),
+  `git diff --check`, and
+  `PYTHONPATH=src python -m coga.cli validate --task awaken-recurring-auto-blocked-tasks --json`
+  (ok_count 1, no issues).
+
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":852736,"cli":"codex","input_tokens":229218,"model":"gpt-5.5","output_tokens":7989,"provider":"openai","schema":1,"session_id":"019f1a9b-efdc-7d02-84bb-575d0705e997","slug":"awaken-recurring-auto-blocked-tasks","step":"implement","title":"Awaken recurring auto blocked tasks","ts":"2026-06-30T22:42:53.272515Z","usage_status":"ok"}
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":8725888,"cli":"codex","input_tokens":373990,"model":"gpt-5.5","output_tokens":32935,"provider":"openai","schema":1,"session_id":"019f1ab6-2928-70c0-8dc8-24549642ea34","slug":"awaken-recurring-auto-blocked-tasks","step":"implement","title":"Awaken recurring auto blocked tasks","ts":"2026-06-30T23:15:36.431722Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":2627072,"cli":"codex","input_tokens":125351,"model":"gpt-5.5","output_tokens":5973,"provider":"openai","schema":1,"session_id":"019f1ad1-1abf-7921-93c4-5fcf616eb792","slug":"awaken-recurring-auto-blocked-tasks","step":"peer-review","title":"Awaken recurring auto blocked tasks","ts":"2026-06-30T23:44:30.059633Z","usage_status":"ok"}
