@@ -144,6 +144,16 @@ zach = "U0AG5LKCK8E"
 #   remote = "origin"
 #   control_branch = "main"
 
+# --- Launch ---
+# `worktree` (default false) isolates each `coga launch` agent session in its
+# own per-launch `git worktree` (a gitignored `.coga/worktrees/<id>`, detached
+# at the control-branch tip) instead of the shared primary checkout, so several
+# agents on *different* tickets can run from one clone without their `coga bump`
+# / `mark` syncs contending a single `.git/index` / stash stack. Shared repo
+# policy (no coga.local.toml override). Off keeps the single-checkout flow.
+#   [launch]
+#   worktree = true
+
 # --- Aliases ---
 # Thin sugar over often-used commands (typically bootstrap-ticket launches).
 # Aliases forward positional args after the alias name to the expanded form.

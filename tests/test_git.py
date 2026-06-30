@@ -11,6 +11,7 @@ before). B and C reuse it.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from textwrap import dedent
@@ -21,7 +22,9 @@ from typer.testing import CliRunner
 from coga import git
 from coga.cli import app
 from coga.config import Config, ConfigError, load_config
+from coga.create import create_task
 from coga.logfile import append_log
+from coga.repl_supervisor import ReplOutcome
 from coga.ticket import Ticket
 
 runner = CliRunner()
@@ -1230,3 +1233,203 @@ def test_sweep_skips_read_only_and_runs_for_mutating_commands(monkeypatch):
     monkeypatch.setattr(cli.sys, "argv", ["coga", "bump", "--help"])
     cli._sweep_coga_state(cfg)
     assert calls == []  # help is not a state change
+
+
+# --- per-launch worktree isolation ---------------------------------------------
+
+
+def _detached_head(repo_path: Path) -> bool:
+    out = subprocess.run(
+        ["git", "-C", str(repo_path), "rev-parse", "--abbrev-ref", "HEAD"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    return out == "HEAD"
+
+
+def test_add_launch_worktree_creates_detached_checkout(git_repo) -> None:
+    cfg = _cfg(git_repo.coga_os)
+
+    path = git.add_launch_worktree(cfg, "session-1")
+
+    assert path == git_repo.root / ".coga" / "worktrees" / "session-1"
+    assert path.is_dir()
+    # Detached at the control-branch tip — the whole point, so syncs take the
+    # cross-branch overlay path and never rebase a shared working tree.
+    assert _detached_head(path)
+    # The checkout reflects main's tree (the seeded coga layout is present).
+    assert (path / "coga" / "coga.toml").is_file()
+
+
+def test_add_launch_worktree_returns_none_off_git(tmp_path) -> None:
+    plain = tmp_path / "not-git" / "coga"
+    plain.mkdir(parents=True)
+    cfg = _cfg(plain)
+
+    assert git.add_launch_worktree(cfg, "x") is None
+
+
+def test_repo_root_in_worktree_preserves_nested_layout(git_repo) -> None:
+    cfg = _cfg(git_repo.coga_os)
+    worktree = git_repo.root / ".coga" / "worktrees" / "s"
+
+    # `cfg.repo_root` is the nested `coga/`; the mapping keeps that relative
+    # position inside the worktree so a config re-loaded there resolves the
+    # same task tree.
+    assert git.repo_root_in_worktree(cfg, worktree) == worktree / "coga"
+
+
+def test_remove_launch_worktree_removes_dir_and_prunes(git_repo) -> None:
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-2")
+    assert path.is_dir()
+
+    git.remove_launch_worktree(cfg, path)
+
+    assert not path.exists()
+    listed = git_repo.git("worktree", "list", "--porcelain")
+    assert str(path) not in listed
+
+
+def test_remove_launch_worktree_forces_through_dirty_tree(git_repo) -> None:
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-3")
+    # A stray dirty file must not wedge teardown.
+    (path / "scratch.txt").write_text("uncommitted")
+
+    git.remove_launch_worktree(cfg, path)
+
+    assert not path.exists()
+
+
+def test_reap_orphan_launch_worktrees_removes_only_stale(git_repo) -> None:
+    cfg = _cfg(git_repo.coga_os)
+    stale = git.add_launch_worktree(cfg, "crashed")
+    fresh = git.add_launch_worktree(cfg, "running")
+    # Backdate the orphan well past the threshold; leave the live one recent.
+    old = 1
+    os.utime(stale, (old, old))
+
+    git.reap_orphan_launch_worktrees(cfg, max_age_seconds=60)
+
+    assert not stale.exists()  # crash orphan reaped
+    assert fresh.is_dir()  # live session untouched
+    git.remove_launch_worktree(cfg, fresh)
+
+
+def test_reap_orphan_launch_worktrees_noop_without_dir(git_repo) -> None:
+    cfg = _cfg(git_repo.coga_os)
+    # No worktrees ever created — must not raise.
+    git.reap_orphan_launch_worktrees(cfg)
+
+
+def test_launch_isolates_session_in_a_worktree_and_cleans_up(git_repo, monkeypatch):
+    """`[launch].worktree` runs the agent in a detached per-launch worktree and
+    tears it down on exit; the agent's cwd points at it and reads its state."""
+    from coga.commands.launch import launch as launch_cmd
+
+    toml = git_repo.coga_os / "coga.toml"
+    toml.write_text(toml.read_text() + "\n[launch]\nworktree = true\n")
+
+    cfg = load_config(git_repo.coga_os)
+    create_task(
+        cfg=cfg,
+        title="Fix retry logic",
+        workflow_name="direct/body",
+        contexts=[],
+        autonomy="interactive",
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+
+    monkeypatch.setattr(
+        "coga.commands.launch._interactive_stdio_has_tty", lambda: True
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    captured: dict = {}
+
+    def fake_supervisor(cmd, env, *, session_id=None, cwd=None, **kwargs):
+        # The agent runs in the worktree; capture what it was handed and prove
+        # the checkout it reads reflects the launch's in_progress transition.
+        captured["cwd"] = cwd
+        captured["existed"] = cwd is not None and Path(cwd).is_dir()
+        ticket = Path(cwd) / "coga" / "tasks" / "fix-retry-logic.md"
+        captured["ticket_status_in_worktree"] = (
+            "status: in_progress" in ticket.read_text()
+        )
+        captured["detached"] = _detached_head(Path(cwd))
+        return ReplOutcome(0, "done")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
+    )
+
+    launch_cmd(
+        "fix-retry-logic",
+        agent_override=None,
+        prompt_report=False,
+        autonomy_override=None,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=True,
+    )
+
+    worktree = Path(captured["cwd"])
+    assert worktree.parent == git_repo.root / ".coga" / "worktrees"
+    assert captured["existed"]  # the worktree was live while the agent ran
+    assert captured["detached"]  # detached at the control-branch tip
+    assert captured["ticket_status_in_worktree"]  # re-rooted reads target it
+    assert not worktree.exists()  # removed on teardown
+
+
+def test_launch_without_worktree_toggle_runs_in_place(git_repo, monkeypatch):
+    """With the toggle off (default), no worktree is created and the agent's
+    cwd is None — today's shared-checkout behaviour is untouched."""
+    from coga.commands.launch import launch as launch_cmd
+
+    cfg = load_config(git_repo.coga_os)
+    create_task(
+        cfg=cfg,
+        title="Fix retry logic",
+        workflow_name="direct/body",
+        contexts=[],
+        autonomy="interactive",
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="active",
+    )
+
+    monkeypatch.setattr(
+        "coga.commands.launch._interactive_stdio_has_tty", lambda: True
+    )
+    monkeypatch.setattr(
+        "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    captured: dict = {}
+
+    def fake_supervisor(cmd, env, *, session_id=None, cwd=None, **kwargs):
+        captured["cwd"] = cwd
+        return ReplOutcome(0, "done")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker", fake_supervisor
+    )
+
+    launch_cmd(
+        "fix-retry-logic",
+        agent_override=None,
+        prompt_report=False,
+        autonomy_override=None,
+        idle_timeout=None,
+        max_session=None,
+        return_timeout=True,
+    )
+
+    assert captured["cwd"] is None
+    assert not (git_repo.root / ".coga" / "worktrees").exists()

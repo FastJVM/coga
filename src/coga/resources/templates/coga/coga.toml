@@ -114,6 +114,17 @@ channels = []
 #   [git]
 #   enabled = false
 
+# --- Launch ---
+# `worktree` (default false) isolates each `coga launch` agent session in its
+# own per-launch `git worktree` (a gitignored `.coga/worktrees/<id>`, detached
+# at the control-branch tip) instead of the shared primary checkout. Turn it on
+# to run several agents on *different* tickets from one clone without their
+# `coga bump` / `mark` syncs contending a single `.git/index` / stash stack — it
+# retires the keep-several-physical-checkouts workaround. Shared repo policy (no
+# coga.local.toml override). Leave off for the unchanged single-checkout flow.
+#   [launch]
+#   worktree = true
+
 # --- Aliases ---
 # Thin sugar for often-used commands. Each entry maps a name to an
 # expanded coga command (free-form string). Positional args after the

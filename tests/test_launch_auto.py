@@ -99,7 +99,7 @@ def test_launch_auto_mode_is_blocked(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         return _Result()
 
@@ -153,7 +153,7 @@ def test_launch_mode_override_runs_auto_ticket_interactively(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         return _Result()
 

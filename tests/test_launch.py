@@ -267,7 +267,7 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         return _Result()
 
@@ -312,7 +312,7 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         return _Result()
 
@@ -489,7 +489,7 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         return _Result()
 
@@ -747,7 +747,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         return _Result()
 
@@ -938,7 +938,7 @@ def test_launch_fails_loud_on_unset_declared_secret(
     calls: list[list[str]] = []
     monkeypatch.setattr(
         "coga.commands.launch.subprocess.run",
-        lambda cmd, env=None, check=False: calls.append(cmd),
+        lambda cmd, env=None, check=False, cwd=None: calls.append(cmd),
     )
     monkeypatch.setattr(
         "coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}"
@@ -976,7 +976,7 @@ def test_launch_injects_only_declared_secret(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured.update(env or {})
         return _Result()
 
@@ -1120,7 +1120,7 @@ def test_launch_interactive_ignores_local_skip_policy(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         return _Result()
 
@@ -1147,7 +1147,7 @@ def test_launch_bails_on_missing_context(
         ticket_md.read_text().replace("contexts: []", "contexts:\n- email/ghost")
     )
 
-    def fail_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fail_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         raise AssertionError(f"agent must not be launched, got {cmd!r}")
 
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fail_run)
@@ -1175,7 +1175,7 @@ def test_launch_handles_agent_self_deleting_task(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         # Simulate the agent deleting its own task before exit.
         ticket_md.unlink()
         return _Result()
@@ -1201,7 +1201,7 @@ def test_launch_marks_interactive_session_supervised(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         envs.append(env or {})
         return _Result()
 
@@ -1230,7 +1230,7 @@ def test_launch_in_progress_resumes_without_status_transition(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         return _Result()
 
@@ -1251,7 +1251,7 @@ def test_launch_interactive_without_tty_fails_before_lock(
     called = False
     _deny_interactive_tty(monkeypatch)
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         nonlocal called
         called = True
         raise AssertionError("interactive launch should fail before spawning agent")
@@ -1290,7 +1290,7 @@ def test_launch_interactive_chains_consecutive_agent_steps(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         # Each spawned "agent" bumps once. After the 1→2 bump the agent is
         # still the assignee → launch should respawn. After the 2→3 bump
@@ -1374,7 +1374,7 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         result = CliRunner().invoke(app, ["bump", slug])
         assert result.exit_code == 0, result.output
@@ -1436,7 +1436,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         result = CliRunner().invoke(app, ["bump", slug])
         assert result.exit_code == 0, result.output
@@ -1471,7 +1471,7 @@ def test_launch_harness_stops_on_agent_panic(
     class _Result:
         returncode = 1
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         result = CliRunner().invoke(
             app,
@@ -1499,7 +1499,7 @@ def _launch_single_spawn(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         return _Result()
 
@@ -1621,7 +1621,7 @@ def test_launch_warns_for_large_blackboard(
 
     monkeypatch.setattr(
         "coga.commands.launch.subprocess.run",
-        lambda cmd, env=None, check=False: _Result(),
+        lambda cmd, env=None, check=False, cwd=None: _Result(),
     )
     monkeypatch.setattr(
         "coga.commands.launch.shutil.which",
@@ -1678,7 +1678,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
         status="draft",
     )
 
-    def fail_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fail_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         raise AssertionError("prompt report must not spawn an agent")
 
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fail_run)
@@ -1778,7 +1778,7 @@ def test_launch_bare_bootstrap_does_not_post_to_slack(
     monkeypatch.setattr("coga.notification.slack.requests.post", fake_post)
     monkeypatch.setattr(
         "coga.commands.launch.subprocess.run",
-        lambda cmd, env=None, check=False: _Result(),
+        lambda cmd, env=None, check=False, cwd=None: _Result(),
     )
     monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
@@ -1797,7 +1797,7 @@ def test_launch_bootstrap_skips_status_and_lock(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
         captured["prompt"] = _prompt_arg(cmd)
         return _Result()
@@ -1855,7 +1855,7 @@ def test_launch_discussion_bootstrap_uses_discussion_template(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
         return _Result()
 
@@ -1897,7 +1897,7 @@ def test_launch_orient_bootstrap_stays_silent(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
         return _Result()
 
@@ -1936,7 +1936,7 @@ def test_launch_regular_task_does_not_use_discussion_template(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
         return _Result()
 
@@ -1961,7 +1961,7 @@ def test_launch_bootstrap_agent_override_uses_requested_agent(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
         return _Result()
 
@@ -1992,7 +1992,7 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
         return _Result()
 
@@ -2176,7 +2176,7 @@ def test_launch_interactive_rotates_across_agents(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         result = CliRunner().invoke(app, ["bump", slug])
         assert result.exit_code == 0, result.output
@@ -2239,7 +2239,7 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         calls.append(cmd)
         result = CliRunner().invoke(app, ["bump", slug])
         assert result.exit_code == 0, result.output
