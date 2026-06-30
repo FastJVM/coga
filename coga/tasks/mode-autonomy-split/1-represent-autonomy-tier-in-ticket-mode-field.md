@@ -1,6 +1,6 @@
 ---
 slug: mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field
-title: Represent autonomy tier in ticket mode field
+title: Represent autonomy tier in ticket autonomy field
 status: in_progress
 autonomy: interactive
 owner: nick
@@ -27,185 +27,210 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
+step: 3 (open-pr)
 ---
 
 ## Description
 
-Split the conflated `mode` field into two orthogonal fields, and hard-migrate the
-whole repo to the new vocabulary. **This ticket is the representation +
-migration only — it preserves current launch behavior.** Actually unblocking
-unattended execution is the follow-up
-`2-unblock-unattended-execution-mode-autonomy-auto`.
+Finish the `mode` removal by aligning the repo with the current architecture:
+`autonomy: interactive | auto` is the only declared execution axis, and
+script-vs-agent is deduced from the task's launch shape.
 
-Today `mode` is a single enum (`interactive` / `auto` / `script`) that conflates
-two independent questions. Factor it into a clean 2×2:
+The old `mode` enum (`interactive` / `auto` / `script`) conflated two questions:
 
-- **`mode: agent | script`** — *is there an agent/LLM?* `agent` = agent-driven
-  (today's `interactive`/`auto`), `script` = deterministic skill script, no LLM.
-- **`autonomy: interactive | auto`** — *is a human at the wheel?* `interactive`
-  = attended/TTY, `auto` = unattended/headless.
+- **Is a human at the wheel?** This is declared as
+  `autonomy: interactive | auto`.
+- **Does this launch run an agent or a deterministic script?** This is deduced:
+  a current workflow step whose skill declares `script:`, or a no-skill
+  step/workflow-less task with ticket-level `script:`, runs as a script;
+  otherwise Coga composes an agent prompt.
 
-| | `mode: agent` | `mode: script` |
-|---|---|---|
-| `autonomy: interactive` | attended agent *(today's `interactive`)* | attended script (needs input) |
-| `autonomy: auto` | unattended agent *(today's `auto`)* | unattended/recurring script |
+There is no replacement `mode: agent | script` field. Deducing script dispatch
+keeps ticket frontmatter smaller and avoids redundant state that can drift from
+the workflow or skill that actually determines execution.
 
 This is where the autonomy decision the triage tier produces gets its enforced
-home: `fully-automated → autonomy: auto`, the other three tiers →
+home: `fully-automated -> autonomy: auto`, the other three tiers ->
 `autonomy: interactive`. The four-tier vocabulary stays advisory at authoring
 time (per `wire-autonomy-triage-into-impl-ready-workflows`); the binary
 `autonomy` field is its coarse, enforced projection.
 
-**Behavior is preserved exactly.** Every place that gates on the old `mode`
-values is re-keyed to the new fields with identical effect — in particular
-`autonomy: auto` stays blocked at launch (the `auto` hard-bail is re-keyed, not
-removed), `retire` keeps its auto ban, and recurring keeps refusing auto. This
-ticket is a pure refactor + migration; the reviewer's job is "nothing broke and
-the vocabulary is consistent everywhere." Removing those blocks and building the
-unattended run path is the follow-up.
+**Behavior is preserved exactly.** This ticket is a representation cleanup, not
+the unattended-execution work. In particular:
 
-Defaults are backwards-compatible: a ticket with neither field = `agent` +
-`interactive`, identical to today's default `interactive` behavior.
+- `autonomy: auto` agent launches stay blocked in `coga launch`.
+- `coga retire --autonomy auto` stays blocked.
+- Recurring still refuses `autonomy: auto` agent templates, while script
+  templates bypass the agent-only ban because script dispatch is deduced and no
+  agent prompt is composed.
+
+Removing the auto blocks, adding unattended agent output capture, and changing
+recurring opt-in behavior remain the follow-up
+`2-unblock-unattended-execution-mode-autonomy-auto`.
+
+Defaults are backwards-compatible: a ticket with no `autonomy:` behaves as
+`autonomy: interactive`, identical to the old attended-agent default.
 
 ## Context
 
 Split out of `wire-autonomy-triage-into-impl-ready-workflows`, which wired
 `autonomy/triage` into `bootstrap/ticket` at authoring time but deliberately
-left the structured representation to this ticket. This ticket was then itself
-split (per the evaluator review in `blackboard.md`): representation/migration
-here; execution-unblocking in the follow-up.
+left the structured representation cleanup to this ticket. The implementation
+has since moved to the better shape: declare autonomy only, deduce script vs.
+agent.
 
-**Verified live state of `mode` (the older "auto disabled may be stale" note is
-NOT stale — auto is actively hard-bailed):**
+**Verified live state on current `main`:**
 
-- `src/relay/ticket.py:116` — `mode` defaults to `interactive`;
-  `CANONICAL_TICKET_KEYS` at `ticket.py:26–40`.
-- `src/relay/validate.py:64` — `VALID_MODES = {"interactive", "auto", "script"}`;
-  schema check at `validate.py:473–481`.
-- `src/relay/commands/launch.py:267–279` — `auto` hard-bails (exit 2). TTY check
-  `_interactive_stdio_has_tty()` at `281`; PTY done-marker supervisor
-  (`run_with_done_marker`) at `485`; all keyed on `mode == "interactive"`. The
-  `--mode` override option + validator at `88–92` / `145–146`.
-- `src/relay/commands/launch_script.py:150` — `subprocess.run(...)`, no
-  stdin/stdout redirection (attended scripts inherit the terminal).
-- `src/relay/compose.py:151–165` — interactive vs auto prompt layer; `script`
-  composes no prompt.
-- `src/relay/recurring.py:480–545` — `_effective_mode()` refuses `auto`; threaded
-  through `create_recurring_instance` (`effective_mode=`, `mode=` at 354/377/510).
-- **Other `mode` consumers (must all migrate — these were missed in an earlier
-  draft, caught by the cold evaluator):**
-  - `src/relay/commands/create.py:26–29, 47–50` — `--mode` option default +
-    "interactive, auto, or script" help.
-  - `src/relay/create.py:31, 135, 176` — `create_task(mode=...)` → frontmatter/log.
-  - `src/relay/commands/retire.py:29–33, 51–58` — its **own** `--mode auto` ban /
-    `--mode must be 'interactive'` check, independent of launch.py.
-  - `src/relay/commands/status.py:29, 130, 202–214` — `mode` column + `--order-by
-    mode`.
-  - `src/relay/retrofit.py:162–173` — canonical field-ordering list (insert
-    `autonomy`).
-- Tests: `tests/test_launch_auto.py`, `tests/test_launch_script.py`,
-  `tests/test_compose.py`, `tests/test_validate.py` (plus create/retire/recurring
-  tests touching mode).
+- `src/coga/ticket.py` — `CANONICAL_TICKET_KEYS` includes `autonomy` and no
+  `mode`; `Ticket.autonomy` defaults to `interactive`.
+- `src/coga/validate.py` — `VALID_AUTONOMY = {"interactive", "auto"}`;
+  there is no `VALID_MODES`.
+- `src/coga/commands/launch.py` — exposes `--autonomy`, rejects invalid
+  `autonomy` overrides, blocks agent launches when effective autonomy is `auto`,
+  and applies the TTY/supervisor path only for `autonomy == "interactive"`.
+- `src/coga/commands/launch_script.py` — `is_script_launch()` deduces script
+  dispatch from the current step's script-backed skill or the ticket-level
+  `script:` field.
+- `src/coga/compose.py` — the interactive vs auto prompt layer keys on
+  `autonomy`; script launches do not compose a prompt.
+- `src/coga/recurring.py` — `_effective_autonomy()` defaults templates to
+  `auto`, refuses `auto` for agent templates while the freeze remains, and lets
+  script templates bypass the agent-only ban.
+- `src/coga/create.py`, `src/coga/commands/create.py`,
+  `src/coga/commands/retire.py`, and `src/coga/commands/status.py` already use
+  `autonomy`.
+- `coga/contexts/coga/architecture/SKILL.md` already documents the
+  autonomy-only model and says script-vs-agent is deduced.
 
-**Migration scope:** ~125 ticket/fixture/template files (≈114 `mode: interactive`,
-≈11 `mode: script`, **0 `mode: auto`** live today). Legacy→new mapping:
-`interactive → (agent, interactive)`, `auto → (agent, auto)`,
-`script → (script, interactive)`.
+**Migration scope:** remove remaining stale `mode:` frontmatter and stale
+`mode` prose from live tasks, example fixtures, bootstrap templates, packaged
+contexts/skills, README/docs, and tests. The old mapping is:
 
-**Owner's taxonomy note:** `script` = a launch; `auto` = script + `claude -p`.
+- `mode: interactive` -> `autonomy: interactive`
+- `mode: auto` -> `autonomy: auto`
+- `mode: script` -> remove `mode`; make sure the task has a script-backed
+  workflow step or ticket-level `script:`
 
-**Back-compat decision: hard migrate (no dual vocabulary).** Rewrite every file
-in the PR; the validator accepts only the new values after migration. Single
-vocabulary, per Relay's legibility principle.
+**Back-compat decision: hard migrate (no dual vocabulary).** Rewrite shipped
+files in the PR. The live system should not present `mode` as a supported task
+frontmatter field or CLI option.
 
-**Out of scope:** unblocking unattended execution / output capture / recurring
-opt-in (→ `2-unblock-unattended-execution-mode-autonomy-auto`); remote/cloud
-dispatch (a later "when mature" ticket).
+**Out of scope:** unblocking unattended agent execution / output capture /
+recurring agent opt-in (-> `2-unblock-unattended-execution-mode-autonomy-auto`);
+remote/cloud dispatch (a later "when mature" ticket).
 
 ## Approach
 
-1. **Data model** (`ticket.py`) — add `autonomy` to `CANONICAL_TICKET_KEYS`
-   (default `interactive`); `mode` values become `agent | script` (default
-   `agent`).
-2. **Validation + migration** (`validate.py`) — `VALID_MODES = {"agent",
-   "script"}`, new `VALID_AUTONOMY = {"interactive", "auto"}`; hard-migrate every
-   existing `mode` value in the repo (tickets, fixtures, `example/`, both template
-   copies). Validator rejects legacy values after migration.
-3. **Launch dispatch** (`launch.py`) — re-key the `(mode, autonomy)` gates with
-   identical behavior: re-key the TTY check (`281`), the PTY supervisor (`485`),
-   and **keep** the auto hard-bail but re-key it to `autonomy == "auto"`. Decide
-   the `--mode` override CLI option + validator (`88–92`/`145–146`): split into
-   `--mode` / `--autonomy` (recommended) and update its allowed values.
-4. **Other CLI consumers** — migrate `commands/create.py` (`--mode` default/help,
-   add `--autonomy`), `create.py` (`create_task` signature + frontmatter/log),
-   `commands/retire.py` (re-key its own auto ban — preserved, not removed),
-   `commands/status.py` (`mode` column + ordering; add an `autonomy` column),
-   `retrofit.py` (insert `autonomy` into field ordering).
-5. **Prompt composition** (`compose.py`) — interactive-vs-auto layer keys on
-   `autonomy`, not `mode`; `mode: script` still composes nothing.
-6. **Recurring** (`recurring.py`) — `_effective_mode` resolution produces both
-   `mode` and `autonomy`; the auto refusal is **preserved** (re-keyed to
-   `autonomy == "auto"`) — its removal is the follow-up.
-7. **Contexts / templates / docs** (keep `relay-os/` and
-   `src/relay/resources/templates/` in sync per CLAUDE.md) — update
-   `_template/ticket.md` (both copies); document the enforced tier→autonomy
-   mapping in `relay-os/contexts/autonomy/triage/SKILL.md`; update the `mode`
-   references in `bootstrap/ticket/SKILL.md`.
-8. **Tests** — `test_validate.py` (new field + legacy values now error),
-   `test_compose.py` (re-key), `test_launch_auto.py` (auto still blocked, now via
-   `autonomy`), plus create/retire/recurring tests for the migrated vocabulary.
-   Whole suite green; behavior unchanged.
+1. **Confirm code shape** — keep `autonomy` as the only declared execution
+   field; do not reintroduce `mode: agent|script`.
+2. **Frontmatter migration** — replace remaining `mode:` frontmatter in live
+   tasks, example fixtures, bootstrap tickets, and tests. For old script tasks,
+   ensure script execution is represented by `script:` or a workflow step whose
+   skill declares `script:`.
+3. **Docs / contexts / skills** — update stale prose in README/docs, packaged
+   bootstrap contexts/skills, and local Coga contexts to say `--autonomy` and
+   explain script dispatch as deduction rather than `mode: script`.
+4. **Validation** — make sure no shipped task/template relies on `mode`; if a
+   `mode` key appears in task frontmatter, it should fail loud enough that the
+   old vocabulary does not silently persist.
+5. **Tests** — update stale fixture strings and expectations, then run
+   `python -m pytest` and `coga validate --json`.
 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
 
-## Design decisions (bootstrap/ticket interview, nick + claude)
+## Dev
 
-Final model — **split the conflated `mode` enum into two orthogonal fields:**
+branch: codex/mode-autonomy-field
+worktree: /tmp/coga-mode-autonomy-field
+commit: 9c94404e Represent ticket autonomy without mode
 
-- `mode: agent | script` — is there an agent/LLM? (default `agent`)
-- `autonomy: interactive | auto` — is a human at the wheel? (default `interactive`)
+## Implement summary (Codex, 2026-06-26)
 
-The 2×2 expresses the two cells the old enum couldn't: attended script (needs
-input) and unattended agent. Decisions reached, with reasons:
+Implemented the hard migration in the feature worktree:
 
-- **Rejected** stuffing the tier into `mode` as a value, a separate `human|ai`
-  field, and a merged enum — all either lossy or duplicative. Two orthogonal
-  fields is the clean factoring.
-- **Tier → field:** the four-tier triage stays advisory at authoring time; the
-  binary `autonomy` field is its enforced projection (`fully-automated → auto`,
-  other three → `interactive`).
-- **`auto` was NOT stale** — it is actively hard-bailed (launch.py:267,
-  recurring.py:489, and retire.py per evaluator). Unblocking it is the point.
-- **Why unattended is OK now:** recurring/scheduled runs have no live watcher;
-  their observability bar is "logged + Slack notify," not a live TTY. Output
-  capture provides that.
-- **stdin:** unattended runs close stdin (fail fast, no hang) — but verify each
-  agent CLI's prompt-input contract first (evaluator flag).
-- **Capture gated on unattended only** — piping an attended TTY run would
-  clobber interactivity.
-- **Back-compat: hard migrate** (option a). One vocabulary; rewrite all
-  tickets/fixtures/templates; validator rejects legacy values.
-- **Out of scope:** remote/cloud dispatch — "(b) when mature," a later ticket.
+- Migrated remaining actual `mode:` frontmatter to `autonomy:` in bootstrap
+  tickets, install-era task fixtures, tests, and embedded examples.
+- Updated README/docs/live contexts/packaged contexts/skills to teach
+  `--autonomy` plus deduced script dispatch instead of declared task `mode`.
+- Added validator coverage so a legacy `mode:` frontmatter key is now a
+  `legacy-frontmatter-key` error instead of a generic orphan-extension warning.
+- Kept behavior unchanged: agent `autonomy: auto` launches and
+  `retire --autonomy auto` remain blocked; script dispatch remains deduced.
 
-### Split decision (post-evaluator, nick approved)
+Verification:
 
-This ticket = **scope A only**: split `mode` → `mode: agent|script` +
-`autonomy: interactive|auto`, hard-migrate the repo, **preserve all current
-behavior** (auto stays blocked, retire keeps its ban, recurring keeps refusing).
-Pure refactor + migration; reviewer checks "nothing broke, vocabulary
-consistent." File list expanded to the call sites the evaluator caught
-(create.py, commands/create.py, commands/retire.py, commands/status.py,
-retrofit.py, launch.py `--mode` validator).
+- `python -m pytest` -> 898 passed, 1 skipped.
+- `PYTHONPATH=/tmp/coga-mode-autonomy-field/src python -m coga.cli validate --task mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field --json` -> clean.
+- Full `coga validate --json` still fails on pre-existing unrelated repo-state
+  drift: install/README bad frontmatter, old install tasks missing slugs/fences,
+  several marketing/v2 missing-step errors, plus existing unknown-assignee and
+  stale in-progress warnings. No legacy `mode:` frontmatter remains in the
+  changed shipped/task surfaces.
 
-Scope B+C (unblock unattended execution + capture/notify machinery + recurring
-opt-in) split into the follow-up draft
-`2-unblock-unattended-execution-mode-autonomy-auto` (depends on this). Remote/cloud
-dispatch remains a third, later ticket.
+## Decision update (Codex + nick, 2026-06-26)
 
-## Evaluator review
+Nick confirmed the better model is to **deduce script-vs-agent** rather than
+reintroduce a declared `mode: agent|script` field.
+
+Current final model:
+
+- `autonomy: interactive | auto` is the only declared execution axis.
+- Script-vs-agent is deduced from the current workflow step or ticket:
+  a script-backed skill / ticket-level `script:` runs a script; otherwise Coga
+  composes an agent prompt.
+- The four-tier autonomy rubric still projects to the binary field:
+  `fully-automated -> autonomy: auto`; everything else -> `interactive`.
+- Back-compat remains a hard migration: clean up stale `mode:` frontmatter and
+  stale `--mode` / `mode: script` prose rather than supporting two vocabularies.
+
+Behavior remains unchanged in this ticket:
+
+- Agent `autonomy: auto` launches stay blocked.
+- `retire --autonomy auto` stays blocked.
+- Recurring agent templates with `autonomy: auto` stay blocked, while recurring
+  script templates can still run unattended because they do not compose an agent
+  prompt.
+
+Scope B+C (unblock unattended agent execution + capture/notify machinery +
+recurring agent opt-in) remains the follow-up draft
+`2-unblock-unattended-execution-mode-autonomy-auto`. Remote/cloud dispatch
+remains later.
+
+## Peer review (Codex, 2026-06-26)
+
+Ran native review from the feature worktree:
+
+- First sandboxed `codex review --base main` failed before review with
+  read-only filesystem app-server init error.
+- Retried escalated; review completed with one must-fix P2:
+  hard-failing legacy `mode:` was correct, but shipped guidance/templates still
+  taught old mode vocabulary in places like `coga/principles` and recurring /
+  skill templates.
+
+Applied the must-fix on branch `codex/mode-autonomy-field`:
+
+- Commit `5244dcbd` — `peer-review: finish mode vocabulary cleanup`.
+- Updated canonical + packaged principles, recurring scaffolds, skill template,
+  seed log text, base prompt wording, and user-facing launch/ticket/project
+  output so shipped Coga surfaces no longer present old task `mode` vocabulary.
+- Left historical task bodies and `coga/log.md` alone; those are not shipped
+  guidance and the log is CLI-owned.
+
+Verification after the peer-review fix:
+
+- `python -m pytest` -> 898 passed, 1 skipped.
+- `PYTHONPATH=src python -m coga.cli validate --task mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field --json` -> clean.
+- Focused grep over README/docs/canonical contexts/recurring/skill template/
+  resources/commands for stale `mode: ...`, `--mode`, `Pick a mode`,
+  `mode=auto`, and `three modes` shipped-guidance patterns -> clean.
+
+## Historical evaluator review (superseded two-field proposal)
+
+This review predates the deduced-script decision above. Keep it only as history
+for why unattended-agent execution was split out; do not treat its
+`mode: agent|script` target shape as current spec.
 
 I read this ticket cold and verified its claims against the source. Overall it is an unusually well-researched ticket — the "Context" section's line-numbered citations are accurate (I confirmed `launch.py:267-279` hard-bail, `validate.py:473-481`, `recurring.py:480-502`, `launch_script.py:150` all match). But it has one serious problem (scope) and one factual problem (incomplete file list), plus a couple of assumptions worth challenging before launch.
 
@@ -258,3 +283,13 @@ The plan's "Approach" file list names `ticket.py`, `validate.py`, `launch.py`, `
 ### Bottom line
 
 Strong research, accurate citations, clean conceptual model. But: **split it** (schema-migration vs. unattended-execution are different risk classes), **expand the file list** to the five missed call sites above (especially `create.py`, `retire.py`, and the `launch.py --mode` validator — those are correctness, not polish), and **firm up two hand-waved deliverables** — stdin handling per actual agent-CLI prompt contract, and the agent-side output-capture/done-notification path, which has no existing machinery and is the real engineering in this ticket.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1327872,"cli":"codex","input_tokens":385151,"model":"gpt-5.5","output_tokens":17086,"provider":"openai","schema":1,"session_id":"019f05d4-a21b-7973-8911-e4cb2900a998","slug":"mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field","step":"implement","title":"Represent autonomy tier in ticket mode field","ts":"2026-06-26T21:57:25.602259Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":12339200,"cli":"codex","input_tokens":289069,"model":"gpt-5.5","output_tokens":33801,"provider":"openai","schema":1,"session_id":"019f05f0-3ad8-75c2-8bcb-aff2e6a6e177","slug":"mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field","step":"implement","title":"Represent autonomy tier in ticket autonomy field","ts":"2026-06-27T00:03:49.777616Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":4979456,"cli":"codex","input_tokens":246900,"model":"gpt-5.5","output_tokens":14422,"provider":"openai","schema":1,"session_id":"019f0663-c6b2-7682-9249-db96ab2ebdf3","slug":"mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field","step":"peer-review","title":"Represent autonomy tier in ticket autonomy field","ts":"2026-06-27T03:49:00.675245Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"claude","input_tokens":null,"model":null,"output_tokens":null,"provider":"anthropic","schema":1,"session_id":"5ac22599-7093-4d98-b224-7a1b116d72c1","slug":"mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field","step":"open-pr","title":"Represent autonomy tier in ticket autonomy field","ts":"2026-06-27T03:49:00.752108Z","usage_status":"unknown"}

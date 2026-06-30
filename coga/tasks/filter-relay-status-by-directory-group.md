@@ -1,7 +1,7 @@
 ---
 slug: filter-relay-status-by-directory-group
 title: Filter relay status by directory/group
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -30,7 +30,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
@@ -114,6 +113,24 @@ Reviewed the merged PR state from Codex on the owner review step.
     `relay status root`, and unknown-dir exit 2 path all behaved as expected.
 - Final terminology scan on current `main` only returns unrelated digest
   grouping usage, not task-directory vocabulary.
+
+## Coga stale-state closeout (2026-06-26 PT)
+This migrated Coga task was still `in_progress` at `step: 1 (implement)`, but
+the blackboard above records the Relay implementation, PR, review, follow-up
+cleanups, and merge closeout as already complete.
+
+Verified the live Coga repo also already has the directory-native status
+behavior:
+- `coga status marketing` filters to `tasks/marketing/`.
+- `coga status --no-recurse` shows only tasks directly under `tasks/`.
+- `coga status definitely-not-a-dir` fails loud with exit 2 and lists known
+  directories.
+- `coga validate --task filter-relay-status-by-directory-group --json` is clean
+  (`ok_count: 1`, no issues).
+
+Decision: treat this as stale task state after the Relay→Coga migration and
+close with `coga mark done`, not another implementation pass or bump through
+already-completed workflow steps.
 
 ## SCOPE CHANGE (human, mid-task) — directory-native, no "group" vocab
 
@@ -244,3 +261,7 @@ scope, and a rebase is a design call).
 - contexts/relay/architecture (override + template) — task-directory paragraph note
 - recurring/period/current-direction contexts + tests — remove remaining
   task-directory "group" wording
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":222592,"cli":"codex","input_tokens":68571,"model":"gpt-5.5","output_tokens":4071,"provider":"openai","schema":1,"session_id":"019f0732-5830-72a2-b661-29559f983110","slug":"filter-relay-status-by-directory-group","step":"implement","title":"Filter relay status by directory/group","ts":"2026-06-27T03:50:57.770545Z","usage_status":"ok"}
