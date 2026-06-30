@@ -1,7 +1,7 @@
 ---
 slug: recurring/dream
 title: Dream
-status: paused
+status: active
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
