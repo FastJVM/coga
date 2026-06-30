@@ -484,3 +484,4 @@
 2026-06-30 14:42 [wire-autonomy-triage-into-impl-ready-workflows] [human:nicktoper] task done — Closed stale Coga copy: Relay PR #328 already shipped; no Coga implementation needed.
 2026-06-30 14:42 [wire-autonomy-triage-into-impl-ready-workflows] [git] sync failed: `git add -- coga/tasks/wire-autonomy-triage-into-impl-ready-workflows.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
 2026-06-30 14:42 [coga] [git] sync failed: `git add -- coga/log.md coga/recurring/digest/spool.md coga/tasks/wire-autonomy-triage-into-impl-ready-workflows.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-30 14:43 [drain-pending-auto-tickets-with-leftover-session-b] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
