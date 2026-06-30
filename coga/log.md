@@ -412,3 +412,5 @@
 2026-06-29 16:47 [commit-post-session-coga-writes-usage-record-spool] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: <https://github.com/FastJVM/coga/pull/471|PR #471>
 2026-06-29 16:43 [block-unblock-and-megalaunch] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-29 16:59 [block-unblock-and-megalaunch] [agent:claude] advanced to step 3 (open-pr) → assigned to codex — peer-review done; megalaunch budget+eligibility bugs fixed @ f01d94f7, 909 passed — ready for open-pr
+2026-06-29 16:51 [support-task-subdirectories-in-task-discovery] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-29 17:14 [support-task-subdirectories-in-task-discovery] [human:nicktoper] task done

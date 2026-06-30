@@ -1,7 +1,7 @@
 ---
 slug: support-task-subdirectories-in-task-discovery
 title: Support task subdirectories in task discovery
-status: active
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -27,7 +27,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
@@ -86,6 +85,21 @@ reference. As the first real use, move the existing
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Closed as done (2026-06-29)
+
+Marked done by nick (interactive) without running the workflow: the
+described feature is already present and merged on `coga` `main`.
+Verified against this checkout:
+- `src/coga/tasks.py`: `list_tasks()` discovers nested task dirs and
+  raises `DuplicateTaskSlugError` on leaf-slug collisions.
+- `coga/tasks/auto/stream-agent-progress-in-auto-mode-and-recurring-l.md`
+  exists — the acceptance "move into tasks/auto/" is done.
+- `compose.py:144` emits the `Task directory:` header (the peer-review
+  fix); `_authored_task_refs` uses `list_tasks()`; `task_dir()` removed.
+- Full suite: 906 passed, 1 skipped on `main`.
+The `## Dev` / PR notes below are relay-flavored history from the
+original ticket; no `task-subdirs` branch or relay worktree exists here.
 
 ## Dev
 
