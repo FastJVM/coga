@@ -735,3 +735,10 @@ The evaluator's five risks are now all addressed in the spec:
    committed files" model. Want me to add `relay/architecture` to `contexts:`
    before implement? (Default: add it — the implementer should read the
    primitive model it's told to respect.)
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: 'New context coga/usage: the local LLM token-usage primitive'
