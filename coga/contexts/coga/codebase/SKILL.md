@@ -174,6 +174,37 @@ recurring walls that don't appear on a normal dev machine:
   pre-existing, unrelated drift that isn't yours to fix and drowns the signal.
   `coga validate --task <slug>` is the meaningful per-ticket check.
 
+## Gotchas when editing coga's own code
+
+- **Calling a Typer command function in-code passes `OptionInfo` sentinels.**
+  A `@app.command` function only receives its real option *defaults* when Typer
+  parses an actual CLI argv. Call it from Python — one command invoking
+  `launch.launch(...)`, a recurring launcher running launch in-process — and any
+  parameter you don't pass arrives as its `typer.Option(...)` sentinel (an
+  `OptionInfo` object), **not** the default value. Downstream that explodes:
+  `float >= OptionInfo` → `TypeError` in `repl_supervisor`'s timeout comparison,
+  which crashed the on-demand launchers (`coga dream`, `coga recurring launch
+  <x>`) and the old `setup.py`. Fixes: pass concrete values for **every**
+  parameter, or (better) call a non-Typer helper so a newly-added option can't
+  silently become a sentinel. An **alias** (argv rewrite, e.g.
+  `build = "launch coga-build"`) sidesteps the bug entirely — it dispatches
+  through real CLI parsing, so Typer fills every default.
+
+- **Tests must not pin to live dogfooded state.** Coga dogfoods itself, so files
+  under `coga/` mutate as the repo is used. A test that compares the live
+  `coga/` copy against a packaged template, or asserts a baked-in value, fails as
+  the live value drifts — the `recurring/autoclose-merged` `last_serviced_period`
+  date did exactly this, independently re-diagnosed as a "pre-existing failure"
+  across at least four dev tasks (a recurring verification tax). Strip
+  runtime-mutated fields (`last_serviced_period:`, timestamped log lines — see
+  `_strip_runtime_state`) or freeze the period before comparing; assert
+  structure, not a hardcoded date.
+
+- **`coga.config` and `coga.commands.launch` share one `subprocess` module
+  object.** Patching `coga.config.subprocess.run` and
+  `coga.commands.launch.subprocess.run` separately collides (they are the same
+  object). Use a single argv-dispatching mock on `coga.config.subprocess.run`.
+
 ## Secrets
 
 Never commit. Shared config goes in `coga.toml`; per-machine paths
