@@ -1,7 +1,7 @@
 ---
 slug: trim-blackboard-eval-once-processed
 title: trim blackboard eval once processed
-status: draft
+status: active
 autonomy: interactive
 owner: nick
 human: nick
@@ -10,8 +10,26 @@ assignee: nick
 contexts:
 - coga/codebase
 skills: []
-workflow: dev/with-self-review
+workflow:
+  name: dev/with-self-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: self-qa
+    skills:
+    - code/self-qa
+    assignee: agent
+  - name: pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
+step: 1 (implement)
 ---
 
 ## Description
