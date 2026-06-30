@@ -489,3 +489,4 @@
 2026-06-30 14:51 [add-a-docs-oriented-review-workflow-for-docs-only] [human:nicktoper] activated (draft → active)
 2026-06-30 14:44 [drain-pending-auto-tickets-with-leftover-session-b] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
 2026-06-30 14:52 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 14:53 [add-a-docs-oriented-review-workflow-for-docs-only] [human:nicktoper] started (active → in_progress) via coga launch
