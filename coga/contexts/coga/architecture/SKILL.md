@@ -158,6 +158,31 @@ Extensions live in the same frontmatter the prompt composer already
 reads, so no extra layer is needed — the field is in every composed
 prompt by virtue of being on the ticket.
 
+## Config loading fails loud on unknown keys
+
+`load_config` validates `coga.toml` **and** `coga.local.toml` against a fixed
+schema. Any unrecognized key, at **any level of a fixed-schema table** —
+top-level sections, `[notification]`, `[notification.slack]` / legacy `[slack]`,
+`[git]`, `[launch]`, `[ticket]`, `[agents.<name>]` — raises `ConfigError` naming
+the offending key and listing the valid ones, in either file. This generalizes
+the enforcement `[ticket.fields.*]` already had: a misspelled `[notification.slak]`
+no longer silently resolves to "no webhook" and takes Slack dark. Adding a new
+config section means adding it to its table's allowlist, or the next command
+fails loud.
+
+Two carve-outs keep it honest:
+
+- **Free-form maps stay open.** `[aliases]`, inline `secrets`,
+  `[notification.slack.gifs]`, and `[notification.slack.users]` map user-chosen
+  names to values, so their *keys* are data, not schema — they are never
+  rejected.
+- **Deprecated / known-but-rejected keys run their dedicated migration errors
+  *first*.** A top-level `[assignees]`, or `skip_permissions` /
+  `skip_permissions_argv` inside a *shared* `[agents.<name>]` table (machine-local
+  policy that belongs in `coga.local.toml`), each raise their tailored
+  guidance before the generic unknown-key check, so the friendlier message
+  survives rather than being swallowed by a generic "unknown key".
+
 ## Workflow gated at activation, not draft time
 
 `coga create` takes an
