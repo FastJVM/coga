@@ -60,10 +60,9 @@ last_serviced_period: 2026-06-29
 
 ### Digest State
 
-last_commit: 8fe393be8ee3fd7f0e8b76ad237c144227baafa4
-range: last 24h..8fe393b (123 commit(s), 16 reported)
+last_commit: 8d019a8fc2890627f9e1356923d22e542c43d0a6
+range: 8fe393b..8d019a8 (430 commit(s), 122 reported)
 posted: yes
-
 ## Spool (pending)
 
 {"ts":"2026-06-24T21:13","project":"coga","kind":"done","detail":"→ done (script)","ticket":"recurring/autoclose-merged","owner":"nick"}
