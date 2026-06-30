@@ -202,3 +202,10 @@ Pushed `fix-control-branch-mismatch-guidance` and opened PR #469:
 https://github.com/FastJVM/coga/pull/469 (base `main`). gh auth ok (nicktoper,
 repo scope). `gh pr checks 469` → no checks reported (this repo has no CI
 configured), so nothing to wait on — ready for human review.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: 'New coga/sync detail: git sync soft-skips on control-branch mismatch'
