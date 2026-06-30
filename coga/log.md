@@ -487,3 +487,4 @@
 2026-06-30 14:43 [drain-pending-auto-tickets-with-leftover-session-b] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-30 14:40 [add-a-docs-oriented-review-workflow-for-docs-only] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-30 14:51 [add-a-docs-oriented-review-workflow-for-docs-only] [human:nicktoper] activated (draft → active)
+2026-06-30 14:44 [drain-pending-auto-tickets-with-leftover-session-b] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
