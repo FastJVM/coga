@@ -329,3 +329,10 @@ Design notes for the real implementation:
 - Reframed the shared unit as "spawn one agent once" (the inner single-shot body
   extracted out from under launch.py's `while True` supervisor chain). The chain
   stays launch-only wrapping that call — a structural boundary, not a flag.
+
+## Retro
+
+status: processed
+skill: retro/done-ticket
+result: knowledge-pr
+title: 'New coga/architecture detail: one shared agent-spawn path (spawn_agent_session)'

@@ -358,6 +358,25 @@ committed to git.
   telemetry sink, with a trivial opt-out. Coga does **not** ship a hosted
   account, signup/login flow, API-token store, or sync backend in v1.
 
+## One shared agent-spawn path
+
+Every command that triggers an agent routes through a single single-shot entry
+point — `spawn_agent_session(...)` in `commands/launch.py`, "spawn one agent
+once": compose → write the prompt file → build the agent command → spawn under
+the PTY watcher → log → cleanup. `coga launch`'s `while True:` supervisor chain
+(per-step CLI re-resolution, claude↔codex rotation, `COGA_SUPERVISED`, the
+done-sentinel, respawn) **wraps** that call per step; the chain stays
+launch-only and is *not* pushed into the shared unit. `coga ticket` and `coga
+project` authoring route through the same helper, expressing their differences
+as explicit parameters, never as forked code: `secrets` (none for authoring —
+least privilege), a greet-first `kickoff` token (`coga ticket` opts in;
+`coga chat` / general launch stay silent), and `discussion`.
+
+Don't hand-roll the compose→spawn sequence in a new command. A forked copy
+drifts — the authoring copies once diverged to a bare `subprocess.run` and lost
+the PTY watcher (so interactive REPLs stopped releasing on the done sentinel).
+Add a new command's difference as a parameter on the shared path instead.
+
 ## Command Surface
 
 The command reference lives in `coga/cli`. The important architectural split
