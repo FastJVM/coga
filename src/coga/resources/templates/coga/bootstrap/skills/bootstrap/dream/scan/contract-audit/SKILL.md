@@ -39,5 +39,5 @@ The subagent returns only a classified findings list. Classify each finding as:
 
 Write these findings to the Dream task's blackboard under `## Findings`,
 alongside the Phase 2 findings and in the same shape: short title, class,
-target file, one paragraph. The audit never repairs anything itself — Phase 7
+target file, one paragraph. The audit never repairs anything itself — Phase 6
 routes each `drift` finding to a proposal PR.

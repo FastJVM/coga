@@ -21,10 +21,11 @@ REM is not Dream. Dream is Coga's generic ticket cleanup pass. REM owns its
 own cadence, ticket scan, skill order, output conventions, and review gates.
 
 A recurring task is a ticket-format directory under `coga/recurring/`:
-`ticket.md` (this file), `blackboard.md` (persists state across runs), and
-`log.md` (run history). Use this `_rem/` directory as an inert starting
-point: copy or rename it to a non-underscore name, then replace the schedule,
-workflow, owner, assignee, and process body.
+`ticket.md` (this file) carries the run body and a blackboard region (below the
+`<!-- coga:blackboard -->` fence) that persists state across runs; append-only
+run history goes to the repo-global `coga/log.md`. Use this `_rem/` directory as
+an inert starting point: copy or rename it to a non-underscore name, then
+replace the schedule, workflow, owner, assignee, and process body.
 
 ## REM Process
 

@@ -73,10 +73,12 @@ surface as `coga validate --json`, classifies every issue, and appends
 `## Dream Skill: validate-drift` to the child task's blackboard.
 
 The skill's default safe-repair pass applies only deterministic repairs
-currently supported by `coga validate --fix`: create missing `blackboard.md`
-from the standard template and create missing `log.md` as an empty append-only
-file. It does not rewrite existing files, synthesize `ticket.md`, freeze
-workflows, or change lifecycle/assignee state.
+currently supported by `coga validate --fix`: append a missing blackboard fence
++ rendered region to a `ticket.md` that lacks one. The single-file format keeps
+state in `ticket.md`'s blackboard region — there is no sibling `blackboard.md`
+or `log.md`, and append-only history goes to the repo-global `coga/log.md`. It
+does not rewrite existing files, synthesize `ticket.md`, freeze workflows, or
+change lifecycle/assignee state.
 
 ### Phase 2 — knowledge scan
 
@@ -137,8 +139,8 @@ not delete real done period tasks; a finished period task sits on disk as
 durable (their output is the notification post or PR they already produced),
 so Retro finds no new knowledge in them and **direct-deletes** them via `coga
 delete recurring/<name>` — no PR, no marker — leaving the recurring template's
-`last_serviced_period` line in `coga/recurring/<name>/blackboard.md`
-untouched so the period is not re-created. This includes the **previous
+`last_serviced_period` line in the `coga/recurring/<name>/ticket.md`
+blackboard region untouched so the period is not re-created. This includes the **previous
 Dream run's own** `recurring/dream` ticket: Dream does not delete itself
 mid-run, so the last finished Dream period ticket is one of the done tickets
 this pass deletes.
@@ -166,7 +168,7 @@ For each candidate, cleanup must open a PR that deletes only the resolved task
 directory under `coga/tasks/`. The deletion goes in the PR, not the working
 tree, so a human can review it before merge. Cleanup gate:
 
-- the marker is present in the task directory's `blackboard.md`;
+- the marker is present in the task directory's `ticket.md` blackboard region;
 - the marker does not have `result: no-new-durable-knowledge`;
 - no open PR is currently editing that task directory;
 - the exact task slug is known; do not use prefix matching for deletion;

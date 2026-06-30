@@ -23,8 +23,9 @@ assignee: replace-with-human-or-agent-nickname
 What this recurring task does and why it runs on this cadence.
 
 A recurring task is a ticket-format directory under `coga/recurring/`:
-`ticket.md` (this file) carries the schedule and run body, `blackboard.md`
-persists state across runs, and `log.md` is the append-only run history. To
+`ticket.md` (this file) carries the schedule, the run body, and a blackboard
+region (below the `<!-- coga:blackboard -->` fence) that persists state across
+runs; append-only run history goes to the repo-global `coga/log.md`. To
 create a real recurring task, copy this whole `_template/` directory to a
 non-underscore name.
 
