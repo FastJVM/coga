@@ -667,3 +667,5 @@ Launchable as-is given the design step exists, but I'd make three edits first: p
 ## Blockers
 
 - [ ] [2026-07-01 10:16] [agent:claude] id=20260701T101651 Design stale, needs rescope before implement. (1) Overlaps existing src/coga/megalaunch.py drain (run_megalaunch/budget_state) which uses coga-token-tracking, the model this ticket rejected for an OAuth usage-window probe — reconcile into one drain path or justify two. (2) Likely duplicates in_progress ticket nightly-auto-drain-run-for-ready-tickets. (3) Precondition unmet: autonomy=auto still disabled at launch.py:285. (4) mode->autonomy semantic drift throughout criteria. Decide reconcile/dedup path before implement resumes.
+
+- [ ] [2026-07-01 10:17] [agent:claude] id=20260701T101757 test
