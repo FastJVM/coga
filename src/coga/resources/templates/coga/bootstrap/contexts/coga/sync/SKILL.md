@@ -408,6 +408,14 @@ Concurrent local or cross-machine processes each fetch→build→push; exactly o
 fast-forwards per round and the losers retry, so nothing on the control branch
 is clobbered.
 
+After a detached launch worktree wins that push, Coga **does not** fast-forward
+the local control-branch ref while that branch is checked out in any worktree.
+Moving `main` behind an attached primary checkout desynchronizes its index and
+working tree: the old on-disk task files then look like fresh local edits, and a
+later catch-all sweep can commit that stale snapshot back over the newer pushed
+state. Updating the local ref is only an optional convenience; preserving the
+attached checkout's file/index coherence is required.
+
 Scope is narrow. `src/coga/git.py::sync_task_state(cfg, task_path, *,
 message)` stages and commits only the task directory pathspec. It must not use
 `git add -A`, and it must not sweep unrelated unstaged or pre-staged files into
@@ -473,6 +481,17 @@ Failure model:
   notification opt-out, this is a deliberate exit for dev/test/solo repos, not
   the normal team path.
 - A non-git checkout is a soft warning and no-op.
+- A **control-branch mismatch** is a soft-skip, not a crash. When
+  `[git].control_branch` (default `main`) is not present as a local branch, a
+  remote-tracking ref, or an exact configured remote branch, sync prints an
+  actionable message naming the missing branch and the one-line
+  `[git].control_branch = "<branch>"` fix, and commits nothing — Coga never
+  auto-guesses the branch. The guard is checked *before* resolving the current
+  branch, so it also covers a fresh `git init -b master` repo whose unborn
+  branch would otherwise raise (the literal first-run case). This is the third
+  soft-skip, alongside disabled and non-git; without it the missing-branch
+  failure was swallowed yet still exited 0, so a first-time user saw a confusing
+  error with no actual failure.
 - Git operation failures (missing git, invalid repo state, commit failure,
   fetch/push failure, no remote, or contention exhausting the retry loop) crash
   loud: stderr plus a repo-global `coga/log.md` line, then `typer.Exit(1)`. The same-branch push

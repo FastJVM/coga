@@ -1287,6 +1287,62 @@ def test_add_launch_worktree_uses_control_branch_from_feature_checkout(git_repo)
         git.remove_launch_worktree(cfg, path)
 
 
+def test_detached_launch_sync_does_not_dirty_checked_out_control_branch(
+    git_repo,
+) -> None:
+    """A detached launch worktree must not move the local `main` ref behind the
+    primary checkout.
+
+    Regression: the detached cross-branch sync pushed the right task state, then
+    fast-forwarded local `main` even though it was checked out elsewhere. The
+    primary worktree still had the old files on disk, so they appeared dirty and
+    the next `sync_coga_state` committed the stale task back over the good one.
+    """
+    cfg = _cfg(git_repo.coga_os)
+    task = _task_dir(git_repo.coga_os)
+    (task / "ticket.md").write_text("---\ntitle: demo\n---\n\nold state\n")
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed task")
+    git_repo.git("push", "origin", "main")
+
+    path = git.add_launch_worktree(cfg, "session-ref-guard")
+    try:
+        worktree_task = path / "coga" / "tasks" / "demo" / "ticket.md"
+        worktree_task.write_text("---\ntitle: demo\n---\n\nnew detached state\n")
+        git.sync_task_state(
+            _cfg(path / "coga"),
+            worktree_task,
+            message="Ticket: demo — detached",
+        )
+
+        origin_task = subprocess.run(
+            ["git", "show", "main:coga/tasks/demo/ticket.md"],
+            cwd=git_repo.origin,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        assert "new detached state" in origin_task
+        assert (
+            git_repo.git("status", "--porcelain", "--", "coga/tasks/demo/ticket.md")
+            == ""
+        )
+
+        git.sync_coga_state(cfg)
+
+        origin_after_sweep = subprocess.run(
+            ["git", "show", "main:coga/tasks/demo/ticket.md"],
+            cwd=git_repo.origin,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        assert "new detached state" in origin_after_sweep
+        assert "old state" not in origin_after_sweep
+    finally:
+        git.remove_launch_worktree(cfg, path)
+
+
 def test_add_launch_worktree_returns_none_off_git(tmp_path) -> None:
     plain = tmp_path / "not-git" / "coga"
     plain.mkdir(parents=True)
