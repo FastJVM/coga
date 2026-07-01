@@ -7,7 +7,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts:
 - coga/sync
 skills: []
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -96,6 +96,8 @@ Gotchas surfaced in the bootstrap evaluator review:
 ## Dev
 branch: per-agent-launch-worktree-isolation
 worktree: /home/n/Code/claude/coga-launch-worktree-isolation
+pr: https://github.com/FastJVM/coga/pull/487
+pr-state: MERGEABLE / CLEAN; no CI checks configured on repo (none reported).
 
 ## Implementation summary (implement step — committed, no PR yet)
 

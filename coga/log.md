@@ -542,3 +542,5 @@
 2026-06-30 16:34 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
 2026-06-30 20:52 [per-agent-git-worktree-isolation-for-launch-to-avo] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
 2026-06-30 20:52 [per-agent-git-worktree-isolation-for-launch-to-avo] [git] sync failed: `git add -- coga/tasks/per-agent-git-worktree-isolation-for-launch-to-avo.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-06-30 20:52 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 20:54 [per-agent-git-worktree-isolation-for-launch-to-avo] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: <https://github.com/FastJVM/coga/pull/487|PR #487>
