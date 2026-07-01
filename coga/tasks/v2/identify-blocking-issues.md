@@ -1,7 +1,7 @@
 ---
 slug: v2/identify-blocking-issues
 title: identify-blocking-issues
-status: active
+status: paused
 autonomy: interactive
 owner: zach
 human: zach
