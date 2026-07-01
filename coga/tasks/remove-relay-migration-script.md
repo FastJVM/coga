@@ -1,12 +1,12 @@
 ---
 slug: remove-relay-migration-script
 title: remove relay migration script
-status: active
+status: in_progress
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -41,3 +41,30 @@ step: 1 (implement)
 ## Production notes
 
 This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
+
+## Implement notes
+
+- Ticket body is empty beyond the title. Current frozen workflow is `code/with-review` at step 1 (`implement`), so workflow is present, but implementation scope is underspecified.
+- Candidate target found: root `migrate-to-coga.sh`.
+- Live references that would become stale if the script is removed:
+  - `docs/migrating-to-coga.md`
+  - `coga/workflows/coga/cutover.md`
+  - draft follow-up ticket `coga/tasks/coga-rename-follow-ups-post-repo-rename.md`
+- Relevant posture context: `coga/contexts/coga/project-stage/SKILL.md` says no migration scripts for ticket frontmatter; edit the few existing tickets by hand.
+- Human confirmed scope: delete `migrate-to-coga.sh`, replace docs/workflow/task references with manual migration guidance, and leave historical `relay` mentions alone.
+
+## Dev
+
+branch: drop-relay-migration-script
+worktree: /tmp/coga-drop-relay-migration-script
+commit: 6fe9f49b Remove relay migration script
+
+## Result
+
+- Deleted root `migrate-to-coga.sh`.
+- Replaced the host-repo migration script instructions in `docs/migrating-to-coga.md` with a manual checklist.
+- Updated `coga/workflows/coga/cutover.md` and draft task `coga/tasks/coga-rename-follow-ups-post-repo-rename.md` so they no longer point at a migration script.
+- Verification:
+  - `PYTHONPATH=/tmp/coga-drop-relay-migration-script/src python -m pytest` — 935 passed, 1 skipped.
+  - `PYTHONPATH=/tmp/coga-drop-relay-migration-script/src python -m coga.cli validate --task remove-relay-migration-script --json` — passed.
+  - `git diff --check` — passed.

@@ -534,3 +534,7 @@
 2026-06-30 20:22 [add-coga-ticket-existing-slug-scan] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review passed; no fixes needed. Tests: python -m pytest (940 passed); scoped/example validation clean.
 2026-06-30 20:22 [add-coga-ticket-existing-slug-scan] [human:lilfedor] launched in interactive mode (assignee=claude, agent=claude)
 2026-06-30 20:34 [add-coga-ticket-existing-slug-scan] [agent:claude] advanced to step 4 (review) → assigned to zach — PR opened: https://github.com/FastJVM/coga/pull/486 (no CI checks configured on repo)
+2026-06-30 20:07 [remove-relay-migration-script] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-06-30 20:15 [remove-relay-migration-script] [agent:codex] started (active -> in_progress) via launch-state repair
+2026-06-30 20:15 [remove-relay-migration-script] [git] sync failed: `git add -- coga/tasks/remove-relay-migration-script.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-30 20:43 [remove-relay-migration-script] [agent:nicktoper] advanced to step 2 (peer-review) → assigned to codex — implement complete: branch drop-relay-migration-script @ 6fe9f49b; pytest 935 passed, 1 skipped; task validation clean
