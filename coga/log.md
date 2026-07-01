@@ -565,3 +565,4 @@
 2026-07-01 10:17 [drain-pending-auto-tickets-with-leftover-session-b] [agent:claude] blocked: test
 2026-07-01 10:21 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-07-01 10:23 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 10:11 [move-ticket-authoring-out-of-core] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
