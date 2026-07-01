@@ -775,10 +775,11 @@ def _try_update_local_ref(root: Path, branch: str, new: str) -> None:
     Non-fatal: origin already has the commit, so a failure here (e.g. the
     branch isn't checked out anywhere, or moved on locally) only means a later
     local checkout of the control branch must fetch. We don't update the ref if
-    HEAD points at it, since that would desync the index/working tree.
+    any worktree has the branch checked out, since moving the ref behind an
+    attached worktree desyncs its index/working tree and can make stale files
+    look like fresh edits to the next catch-all sweep.
     """
-    head = _run_git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
-    if head == branch:
+    if _branch_checked_out_in_any_worktree(root, branch):
         return
     result = subprocess.run(
         ["git", "-C", str(root), "update-ref", f"refs/heads/{branch}", new],
@@ -791,6 +792,20 @@ def _try_update_local_ref(root: Path, branch: str, new: str) -> None:
             f"[git] note: local {branch!r} not fast-forwarded "
             f"(origin has the commit): {result.stderr.strip()}\n"
         )
+
+
+def _branch_checked_out_in_any_worktree(root: Path, branch: str) -> bool:
+    """True when `branch` is attached to any worktree in this repository."""
+    target = f"branch refs/heads/{branch}"
+    try:
+        listing = _run_git(root, "worktree", "list", "--porcelain")
+    except GitError as exc:
+        sys.stderr.write(
+            f"[git] note: local {branch!r} not fast-forwarded "
+            f"(could not inspect worktrees): {exc}\n"
+        )
+        return True
+    return any(line == target for line in listing.splitlines())
 
 
 # --- low-level git plumbing ----------------------------------------------------

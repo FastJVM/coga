@@ -566,6 +566,19 @@
 2026-07-01 10:21 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-07-01 10:23 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-07-01 10:11 [move-ticket-authoring-out-of-core] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-01 10:28 [move-ticket-authoring-out-of-core] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-01 10:28 [move-ticket-authoring-out-of-core] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-01 10:28 [move-ticket-authoring-out-of-core] [human:nicktoper] launched in interactive mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-01 10:40 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 11:48 [move-ticket-authoring-out-of-core] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-01 11:48 [move-ticket-authoring-out-of-core] [git] sync failed: `git fetch origin main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
+2026-07-01 11:48 [coga] [git] sync failed: `git fetch origin main` failed (exit 128): fatal: unable to access 'https://github.com/FastJVM/coga/': Could not resolve host: github.com
+2026-07-01 11:48 [move-ticket-authoring-out-of-core] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-07-01 11:57 [move-ticket-authoring-out-of-core] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-01 11:57 [move-ticket-authoring-out-of-core] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '/home/n/Code/codex/coga/.git/worktrees/43b4daa33d35417bb3528981d7433a1c/FETCH_HEAD': Read-only file system
+2026-07-01 11:57 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '/home/n/Code/codex/coga/.git/worktrees/43b4daa33d35417bb3528981d7433a1c/FETCH_HEAD': Read-only file system
+2026-07-01 11:57 [move-ticket-authoring-out-of-core] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 11:58 [move-ticket-authoring-out-of-core] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/491
 2026-07-01 11:59 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
 2026-07-01 11:59 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
 2026-07-01 12:10 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)

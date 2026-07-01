@@ -1,16 +1,33 @@
 ---
 slug: move-ticket-authoring-out-of-core
 title: Move ticket authoring out of core
-status: draft
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts: []
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
+step: 4 (review)
 ---
 
 ## Description
@@ -171,3 +188,67 @@ command + delete inlined helpers → (4) docs. Each step keeps `pytest` green.
   `claude`). Frontmatter edits sync on the next state transition.
 - Confirmed the work is **not started**: `ticket` is still a fused built-in
   (`cli.py:81`, `commands/ticket.py`), no `ticket` alias in `coga.toml`.
+
+## Dev
+
+branch: ticket-authoring-finalize
+worktree: /tmp/coga-ticket-authoring-finalize
+commit: a187610a33ddd7630441ffef4b29f30657f0a42ef
+pr: https://github.com/FastJVM/coga/pull/491
+
+## Open PR
+
+- Pushed `ticket-authoring-finalize` to origin and opened PR #491
+  (https://github.com/FastJVM/coga/pull/491), linking the ticket.
+- CI: `gh pr checks 491` reports no checks configured on the branch — the
+  repo has no CI workflows gating this PR, so there is nothing to go green.
+  Verification is the local `pytest` / `coga validate` runs recorded above.
+- `gh auth status`: logged in as nicktoper with `repo` + `workflow` scopes;
+  push over HTTPS succeeded.
+
+## Implement notes
+
+- Extracted post-authoring finalize logic from `src/coga/commands/ticket.py`
+  into `src/coga/authoring.py`; the command now keeps the arg/draft head,
+  TTY guard, single-shot interview spawn, and inline call to
+  `finalize_authored(...)`.
+- Added the `coga/ticket/finalize` script skill in both live `coga/skills/`
+  and packaged bootstrap resources, backed by
+  `coga.authoring.finalize_authored_from_env`.
+- Updated `docs/cli-extension-audit.md` and `coga/contexts/coga/extension-model`
+  to describe the thin-head + script-shaped-finalize design rather than the
+  old fused built-in framing.
+
+## Verification
+
+- `PYTHONPATH=/tmp/coga-ticket-authoring-finalize/src python -m pytest` —
+  978 passed, 1 skipped (hatchling packaging wheel test skipped).
+- `PYTHONPATH=/tmp/coga-ticket-authoring-finalize/src python -m coga.cli validate --task move-ticket-authoring-out-of-core --json` —
+  clean.
+- Repo-wide `coga validate --json` still fails on pre-existing unrelated task
+  drift under `install/*`, `marketing/*`, and `v2/*`; no implementation files
+  in this branch touch those tickets.
+
+## Peer review
+
+- Ran `codex review --base main` from `/tmp/coga-ticket-authoring-finalize`.
+  It found one must-fix: support-only bootstrap authoring deletions used the
+  deleted support path as the `git.sync_paths` anchor, so git could fail before
+  staging the deletion.
+- Fixed in commit `a187610a33ddd7630441ffef4b29f30657f0a42ef`
+  (`peer-review: apply review findings`): support-only finalization now anchors
+  sync on `cfg.repo_root`, and `tests/test_authoring.py` covers deleted support
+  files.
+- Review verification after the fix:
+  `PYTHONPATH=src python -m pytest tests/test_authoring.py -q` — 8 passed;
+  `PYTHONPATH=src python -m pytest` — 979 passed, 1 skipped;
+  `PYTHONPATH=src python -m coga.cli validate --task move-ticket-authoring-out-of-core --json` —
+  clean.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":6220672,"cli":"codex","input_tokens":367527,"model":"gpt-5.5","output_tokens":33404,"provider":"openai","schema":1,"session_id":"019f1eb9-8803-7ed1-859e-22fa7eb8c1c8","slug":"move-ticket-authoring-out-of-core","step":"implement","title":"Move ticket authoring out of core","ts":"2026-07-01T18:48:14.400134Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1883776,"cli":"codex","input_tokens":115914,"model":"gpt-5.5","output_tokens":8420,"provider":"openai","schema":1,"session_id":"019f1f02-b4ec-7e83-95da-46e8a996d494","slug":"move-ticket-authoring-out-of-core","step":"peer-review","title":"Move ticket authoring out of core","ts":"2026-07-01T18:57:22.689503Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":89401,"cache_read_input_tokens":824711,"cli":"claude","input_tokens":16882,"model":"claude-opus-4-8","output_tokens":11731,"provider":"anthropic","schema":1,"session_id":"d61e7990-d255-4a39-b2e0-0c89fbfb86f7","slug":"move-ticket-authoring-out-of-core","step":"open-pr","title":"Move ticket authoring out of core","ts":"2026-07-01T18:58:56.321273Z","usage_status":"ok"}
