@@ -261,11 +261,18 @@ guardrail and task-to-task comparison, not exact provider billing.
 
 ## coga status
 
-List the live tasks in the repo — `draft`, `active`, `in_progress`, and
-`paused`. `done` tasks are hidden by default; pass `--all` (`-a`) to include
+List the live tasks in the repo — `draft`, `active`, `in_progress`, `blocked`,
+and `paused`. `done` tasks are hidden by default; pass `--all` (`-a`) to include
 them. Bootstrap tickets have no status and don't appear here. Pipe through
 `grep` for ad-hoc slicing of any column. When done tasks are hidden the
 output ends with a `(N done tasks hidden — use --all to show)` note.
+
+When any task is blocked, the default view appends a compact `Open blockers:`
+section below the tables — one bullet per open ask, each with its reason and
+the `coga unblock <slug> --answer "..."` next command — so plain `coga status`
+answers "what's waiting on me?" without a second command. `coga status
+--blocked` is the focused, expanded queue (below); the inline section is the
+lightweight always-on surfacing of the same asks.
 
 An optional positional argument and the `--no-recurse` flag are two orthogonal
 axes — *which* directory, and *how deep*. Tasks are directories (a `ticket.md`
