@@ -220,6 +220,12 @@ def status(
         console.print("Recurring", style="bold")
         console.print(_build_table(recurring_rows, narrow, now))
         console.print(_summary_line(recurring_rows), style="dim")
+    # Surface the open blocker asks inline so the default triage view answers
+    # "what's waiting on me?" without a second `--blocked` command. The task
+    # tables already show a `blocked` row; this adds the reason + next step.
+    if blocked_rows:
+        console.print()
+        _print_open_blockers(console, blocked_rows)
     if hidden_done:
         console.print(_done_hint(hidden_done).lstrip(), style="dim")
 
@@ -320,9 +326,8 @@ def _summary_line(rows: list[dict]) -> str:
     return summary
 
 
-def _print_blocked(console: Console, rows: list[dict]) -> None:
-    """Print one row per open blocker, so every ask is visible at a glance."""
-    now = datetime.now()
+def _expand_blockers(rows: list[dict]) -> list[dict]:
+    """One entry per open blocker ask; a blocked row with none yields one."""
     expanded: list[dict] = []
     for row in rows:
         blockers: list[Blocker] = row["blockers"]
@@ -331,6 +336,29 @@ def _print_blocked(console: Console, rows: list[dict]) -> None:
                 expanded.append({**row, "blocker": blocker})
         else:
             expanded.append({**row, "blocker": None})
+    return expanded
+
+
+def _print_open_blockers(console: Console, rows: list[dict]) -> None:
+    """Print the compact 'Open blockers:' bullet list — one line per ask."""
+    console.print("Open blockers:", style="bold")
+    for row in _expand_blockers(rows):
+        blocker: Blocker | None = row["blocker"]
+        reason = (
+            blocker.reason
+            if blocker is not None
+            else "(blocked; no open blocker recorded)"
+        )
+        console.print(
+            f"- {row['slug']}: {reason} "
+            f"(next: coga unblock {row['slug']} --answer \"...\")"
+        )
+
+
+def _print_blocked(console: Console, rows: list[dict]) -> None:
+    """Print one row per open blocker, so every ask is visible at a glance."""
+    now = datetime.now()
+    expanded = _expand_blockers(rows)
 
     if not expanded:
         console.print("(no blocked tasks)")
@@ -359,16 +387,5 @@ def _print_blocked(console: Console, rows: list[dict]) -> None:
             f"coga unblock {row['slug']} --answer \"...\"",
         )
     console.print(table)
-    console.print("Open blockers:", style="bold")
-    for row in expanded:
-        blocker = row["blocker"]
-        reason = (
-            blocker.reason
-            if blocker is not None
-            else "(blocked; no open blocker recorded)"
-        )
-        console.print(
-            f"- {row['slug']}: {reason} "
-            f"(next: coga unblock {row['slug']} --answer \"...\")"
-        )
+    _print_open_blockers(console, rows)
     console.print(_summary_line(rows), style="dim")

@@ -73,6 +73,38 @@ def _task(company: Path, rel: str) -> Path:
     return task_dir
 
 
+def _blocked_task(company: Path, rel: str, reason: str) -> Path:
+    """A task whose ticket is `status: blocked` with one open blocker."""
+    task_dir = company / "tasks" / rel
+    task_dir.mkdir(parents=True)
+    _write(
+        task_dir / "ticket.md",
+        f"""
+        ---
+        title: X
+        status: blocked
+        mode: interactive
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: claude
+        contexts: []
+        skills: []
+        workflow: null
+        ---
+
+        ## Description
+
+        <!-- coga:blackboard -->
+
+        ## Blockers
+
+        - [ ] [2026-01-01 10:00] [claude] id=abc123 {reason}
+        """,
+    )
+    return task_dir
+
+
 # --- list_task_dirs --------------------------------------------------------
 
 
@@ -294,3 +326,46 @@ def test_status_dirs_empty_prints_note(repo: Path) -> None:
 
     assert result.exit_code == 0
     assert "no directories" in result.stdout
+
+
+# --- open blockers surface in the default view -----------------------------
+
+
+def test_status_default_view_lists_open_blockers(repo: Path) -> None:
+    _task(repo, "fix-retry-logic")
+    _blocked_task(repo, "webhook-retry", "Retry-After ceiling unspecified")
+
+    result = CliRunner().invoke(app, ["status"], env={"COLUMNS": "200"})
+
+    assert result.exit_code == 0
+    # The blocked row is in the table, and the reason + next command follow.
+    assert "Open blockers:" in result.stdout
+    assert "Retry-After ceiling unspecified" in result.stdout
+    assert "coga unblock webhook-retry --answer" in result.stdout
+
+
+def test_status_default_view_omits_blocker_section_when_none(repo: Path) -> None:
+    _task(repo, "fix-retry-logic")
+
+    result = CliRunner().invoke(app, ["status"], env={"COLUMNS": "200"})
+
+    assert result.exit_code == 0
+    assert "Open blockers:" not in result.stdout
+
+
+def test_status_resolved_blocker_not_shown_in_default_view(repo: Path) -> None:
+    task = _blocked_task(repo, "webhook-retry", "Retry-After ceiling unspecified")
+    # `coga unblock` resolves the ask and flips status back to active; the
+    # default view should then drop the blocker section entirely.
+    ticket = (
+        (task / "ticket.md")
+        .read_text()
+        .replace("status: blocked", "status: active")
+        .replace("- [ ]", "- [x]")
+    )
+    (task / "ticket.md").write_text(ticket)
+
+    result = CliRunner().invoke(app, ["status"], env={"COLUMNS": "200"})
+
+    assert result.exit_code == 0
+    assert "Open blockers:" not in result.stdout
