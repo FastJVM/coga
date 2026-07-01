@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -68,3 +68,18 @@ commit: 6fe9f49b Remove relay migration script
   - `PYTHONPATH=/tmp/coga-drop-relay-migration-script/src python -m pytest` — 935 passed, 1 skipped.
   - `PYTHONPATH=/tmp/coga-drop-relay-migration-script/src python -m coga.cli validate --task remove-relay-migration-script --json` — passed.
   - `git diff --check` — passed.
+
+## Peer review
+
+- Ran `codex review --base main` from `/tmp/coga-drop-relay-migration-script`.
+- Review found one must-fix: the manual checklist replaced ticket frontmatter refs but omitted workflow definition frontmatter refs, which the deleted script previously swept.
+- Applied fix in `docs/migrating-to-coga.md`: manual migration now says to update markdown YAML frontmatter refs in tickets and workflow definitions.
+- Peer-review commit: `4e558620 peer-review: clarify workflow ref migration`.
+- Verification after fix:
+  - `PYTHONPATH=/tmp/coga-drop-relay-migration-script/src python -m coga.cli validate --task remove-relay-migration-script --json` — passed.
+  - `git diff --check` — passed.
+  - `PYTHONPATH=/tmp/coga-drop-relay-migration-script/src python -m pytest` — 935 passed, 1 skipped.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1186176,"cli":"codex","input_tokens":174855,"model":"gpt-5.5","output_tokens":6056,"provider":"openai","schema":1,"session_id":"019f1bcd-3f15-7173-bee8-b40a6e2a0464","slug":"remove-relay-migration-script","step":"peer-review","title":"remove relay migration script","ts":"2026-07-01T03:59:34.691411Z","usage_status":"ok"}
