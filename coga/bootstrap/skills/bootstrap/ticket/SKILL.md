@@ -38,12 +38,26 @@ Match this shape exactly. Don't invent fields the template doesn't define
 
 This session is greet-first: open the conversation yourself rather than waiting
 for the human to type first. Your **first reply** must greet the human in the
-way that matches how this skill was launched. Read the prompt header and ticket
-body to tell which of these you're in:
+way that matches how this skill was launched.
 
-- **Empty interview** — the header id-slug is `bootstrap/ticket`, there is **no
-`Status:` line**, and the Description is the "Persistent launch target" text.
-You're inside the stateless bootstrap ticket with no target. Open with:
+Your first user turn is a **kickoff token** that `coga ticket` set to tell you
+the launch shape — read it, not the ticket body, to pick the greeting:
+
+- `Begin (new ticket)` → **New-title launch**.
+- `Begin (editing existing ticket)` → **Existing-ticket edit**.
+- bare `Begin` → **Empty interview** (also recognisable structurally: a
+  `bootstrap/ticket` header id-slug with no `Status:` line).
+
+The token is authoritative because `coga ticket` already resolved create-vs-edit
+before launching you: a freshly-scaffolded draft and a pre-existing draft both
+start with an empty body, so body-emptiness can't tell them apart — the token
+can. Only if the token is somehow absent, fall back to the header/body cues in
+the shapes below:
+
+- **Empty interview** — kickoff bare `Begin`; the header id-slug is
+`bootstrap/ticket`, there is **no `Status:` line**, and the Description is the
+"Persistent launch target" text. You're inside the stateless bootstrap ticket
+with no target. Open with:
 > "You ran `coga ticket` without naming a ticket, so: are you starting a
 > **new** ticket, or editing an **existing** one?"
 Keep the greeting command-light: refer to it as `coga ticket`, not the
@@ -58,26 +72,31 @@ useful hint, so do offer it by name.
     edit that ticket's files directly — or tell them `coga ticket <slug>`
     re-launches you straight onto it.
 
-- **New-title launch** — a real `tasks/<slug>` with `Status: draft` and an empty
-`## Description` / `## Context` body. `coga ticket "<title>"` already
-created this draft and launched you against it. Open with:
+- **New-title launch** — kickoff `Begin (new ticket)`; a real `tasks/<slug>`
+with `Status: draft`. `coga ticket "<title>"` just scaffolded this draft and
+launched you against it. Its body is still empty — that's expected, not a
+signal of anything. Open with:
 > "Your `<slug>` ticket has been created (draft). What should it do, and why?
 > I'll turn your answer into the ticket."
 
-- **Existing-ticket edit** — a real `tasks/<slug>` whose body already has
-content, at any status (`draft`, `active`, `in_progress`, `paused`, or
-`done`). You're revising an existing ticket; editing leaves its status
-unchanged. Open with:
+- **Existing-ticket edit** — kickoff `Begin (editing existing ticket)`; a real
+`tasks/<slug>` at any status (`draft`, `active`, `in_progress`, `paused`, or
+`done`). You're revising a ticket that already exists — **even if its body is
+still empty**, which is exactly the state of a draft batch-created with `coga
+create` and then opened here. Open with:
 > "You're editing `<slug>` (status: `<status>`). What would you like to change?"
 
   Preserve existing useful body text and frontmatter; ask only about the parts
-  they want to change. For an `in_progress` or `done` ticket, note you are
-  revising one already in flight or finished — confirm intent if the change
-  looks substantive.
+  they want to change. If the body is empty there's nothing to preserve, so
+  greet as an edit but pivot straight to filling it ("…it's empty right now, so:
+  what should it do, and why?") — never announce it "has been created". For an
+  `in_progress` or `done` ticket, note you are revising one already in flight or
+  finished — confirm intent if the change looks substantive.
 
-New-title and existing-*draft* tickets both show `Status: draft`; an **empty**
-`## Description`/`## Context` body means new, a **filled** body means existing.
-If it's genuinely ambiguous, just ask which one they meant.
+New-title and existing-*draft* tickets both show `Status: draft` with an empty
+body — the kickoff token is what separates them, not the body, so trust it. In
+the rare case the token is missing and you genuinely can't tell, just ask which
+one they meant.
 
 Note: `coga create "<title>"` (the replacement for the deprecated `coga
 draft`) only writes the draft bytes to disk and does **not** run this skill. If
