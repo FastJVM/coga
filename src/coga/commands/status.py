@@ -144,15 +144,19 @@ def status(
             ticket = read_ticket(ref)
         except TicketError:
             continue
-        blockers = _safe_open_blockers(ref.ticket_path)
-        if ticket.status == "blocked" or blockers:
+        # Status is the signal: a ticket is blocked iff its status says so.
+        # Don't re-derive blocked-ness from leftover blackboard asks — those
+        # can outlive the blocked status (e.g. a done ticket finished without
+        # `unblock`). Status/blackboard drift is `coga validate`'s job to catch,
+        # not this triage view's.
+        if ticket.status == "blocked":
             blocked_rows.append({
                 "slug": ref.id_slug,
                 "status": ticket.status or "-",
                 "owner": ticket.owner or "-",
                 "assignee": ticket.assignee or "-",
                 "step": ticket.step or "-",
-                "blockers": blockers,
+                "blockers": _safe_open_blockers(ref.ticket_path),
             })
         if not show_all and ticket.status == "done":
             hidden_done += 1
