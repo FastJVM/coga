@@ -39,3 +39,4 @@ consumed_through:
 {"id":"185d4a73bd45","ts":"2026-07-01T10:09","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"remove-relay-migration-script","owner":"nicktoper"}
 {"id":"8f89db0de5ad","ts":"2026-07-01T10:10","project":"coga","kind":"done","detail":"nick finished: review → done ✅","ticket":"per-agent-git-worktree-isolation-for-launch-to-avo","owner":"nick"}
 {"id":"4f25c45b055d","ts":"2026-07-01T10:10","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"awaken-recurring-auto-blocked-tasks","owner":"nicktoper"}
+{"id":"fd8e21fe23fa","ts":"2026-07-01T10:10","project":"coga","kind":"done","detail":"nick finished: review → done ✅","ticket":"block-unblock-and-megalaunch","owner":"nick"}
