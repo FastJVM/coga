@@ -131,7 +131,9 @@ that **the prompt is a pure function of the files on disk now**.
 
 - A param **materialized into the ticket's files at creation** becomes state — fine,
   and already how `retire`, recurring instantiation, and the ticket-authoring
-  commands work (`arg → draft` writes the arg into the draft).
+  commands work (`arg → draft` writes the arg into the draft). `coga ticket` is
+  the example: the command head materializes the title/ref, then the authoring
+  interview and finalize phase operate on files.
 - A param passed **at launch, per-invocation, not persisted** is forbidden: it
   smuggles hidden input that is not in the repo, so re-running the same slug does
   different things for reasons no file records. That breaks reproducibility and the
@@ -176,7 +178,7 @@ actively fights the capability boundary.
 | Home | Members |
 | --- | --- |
 | **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · *(hooks)* secret-inject, skill-verify-at-compose |
-| **Tickets** | already out: `automerge`→sweep, `digest`→post, `delete`→delete-task · move target: `recurring` (scan) · fused, authoring moving to tickets: `ticket`, `project`, `retire` |
+| **Tickets** | already out: `automerge`→sweep, `digest`→post, `delete`→delete-task · `ticket` collapsed to irreducible command head + `bootstrap/ticket` interview + `coga/ticket/finalize` script-shaped module · move targets: `recurring` (scan), `project`, `retire` |
 | **External / command** | reads: `status`, `show`, `recurring list`, `skill status`, `validate` · external CLI: `skill install/install-local/install-url/update/remove` · notify/escape: `slack`, `block`, `unblock` · `secret get` |
 | **Alias (sugar)** | `chat`, `dream`, `build` · (proposed) `skill-update`, `autoclose` |
 
@@ -199,9 +201,11 @@ model):
   `cli-extension-model/move-command-logic-to-tickets`). Moves the read views
   (`status`/`show`/`recurring list`/`skill status`) → stateless script tickets
   (tickets-as-scripts) and `recurring` scan → a Dream-shaped task (neither needs a
-  new mechanism), and moves ticket-authoring (`ticket`/`project`/`retire`) into
-  tickets via `move-ticket-authoring-out-of-core`; no new launcher mechanism is
-  introduced.
+  new mechanism), and moves ticket-authoring substance out of command files.
+  `ticket` is the first collapsed case: the command head still performs the
+  irreducible `arg → draft → launch` hook, while deterministic finalization lives
+  in `coga.authoring` and is exposed as `coga/ticket/finalize`. `project` and
+  `retire` remain follow-ups; no new launcher mechanism is introduced.
 
 Each pass respects the carve-outs: the secret/state-write kernel does not move, and
 externalized logic stays tested Python (the no-inversion guardrail).
