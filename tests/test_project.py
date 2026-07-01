@@ -93,7 +93,7 @@ def _allow_launch(
     class _Result:
         pass
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         prompts.append(_prompt_arg(cmd))
         if on_run is not None:
             on_run()
@@ -187,7 +187,7 @@ def test_project_planning_does_not_inject_coga_secrets(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured_env.update(env or {})
         return _Result()
 

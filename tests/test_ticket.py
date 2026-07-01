@@ -89,7 +89,7 @@ def _allow_ticket_launch(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         prompts.append(_prompt_arg(cmd))
         if on_run is not None:
             on_run()
@@ -174,7 +174,7 @@ def test_ticket_authoring_does_not_inject_coga_secrets(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured_env.update(env or {})
         t = Ticket.read(ticket_path)
         t.frontmatter["workflow"] = "code/with-review"
@@ -219,7 +219,7 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
         t = Ticket.read(ticket_path)
         t.frontmatter["workflow"] = "code/with-review"
@@ -273,7 +273,7 @@ def test_ticket_agent_override_codex_gets_kickoff(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
         t = Ticket.read(ticket_path)
         t.frontmatter["workflow"] = "code/with-review"
@@ -368,7 +368,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
 
     called = False
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         nonlocal called
         called = True
 
@@ -424,7 +424,7 @@ def _capture_ticket_launch(
     class _Result:
         returncode = 0
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         captured["cmd"] = cmd
         if on_run is not None:
             on_run()
@@ -539,7 +539,7 @@ def test_ticket_ambiguous_bare_leaf_bails_without_launching(
         )
     called = False
 
-    def fake_run(cmd, env=None, check=False):  # type: ignore[no-untyped-def]
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
         nonlocal called
         called = True
 

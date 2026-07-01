@@ -28,6 +28,19 @@ This keeps task-state edits (`ticket.md`, plus the repo-global `coga/log.md`)
 from mixing with source changes on a feature branch. If task-state
 changes need to be committed, commit them separately from the code PR.
 
+Under `[launch].worktree` isolation (on by default) the "primary checkout" you
+start in is itself a per-launch `git worktree` (detached at the control-branch
+tip, under `worktree_path`), not the
+operator's original clone. The harness owns it and removes it when Coga state is
+clean; if non-fatal git sync leaves recoverable ticket/log/spool changes behind,
+the harness prints the path and preserves the worktree for recovery. Nothing
+changes for you: create your feature worktree the usual way (`git worktree add
+../coga-<branch> -b <branch> main`). Because every worktree shares one object db
+and ref set, `main` resolves identically, so the feature branch forks from the
+same control-branch tip whether or not isolation is on. Don't try to "find" or
+write back to the original clone — your launch worktree is the control-plane
+checkout for this session.
+
 ## The `## Dev` blackboard section
 
 Every code-style ticket gets a `## Dev` section near the top of its

@@ -62,9 +62,11 @@ binding, just `subprocess.run` with `check=False` and explicit error handling.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -1052,8 +1054,181 @@ def _path_exists(root: Path, rel: str) -> bool:
     return path.exists()
 
 
+# --- per-launch worktree isolation -------------------------------------------
+
+# Default directory (relative to the git toplevel) holding per-launch `git
+# worktree` checkouts when `[launch].worktree` is on. It lives under a gitignored
+# `.coga/` so the primary checkout's `git status` never shows it and the
+# `sync_coga_state` sweep never touches it (the sweep scopes to the `coga/` OS
+# subtree, which this sits entirely outside of). Overridable per repo via
+# `[launch].worktree_path` (`cfg.launch_worktree_path`); a custom in-repo path
+# must be gitignored by the operator to keep those two properties.
+_LAUNCH_WORKTREE_DIR = (".coga", "worktrees")
+
+
+def _launch_worktree_base_dir(root: Path, cfg: Config) -> Path:
+    """Resolve the configured per-launch worktree root.
+
+    A relative `[launch].worktree_path` is anchored at the git toplevel; an
+    absolute one is used verbatim. Falls back to the packaged default when the
+    config carries no path (older `Config` shapes in tests).
+    """
+    configured = getattr(cfg, "launch_worktree_path", None) or os.path.join(
+        *_LAUNCH_WORKTREE_DIR
+    )
+    candidate = Path(configured)
+    if candidate.is_absolute():
+        return candidate
+    return root / candidate
+
+
+# A launch worktree this old is treated as a crash orphan and reaped on the next
+# launch. Deliberately generous: the per-launch `finally` removal is the primary
+# cleanup, so this only mops up worktrees a hard crash (SIGKILL / power loss)
+# left behind. An attended interactive session running continuously past this
+# threshold is vanishingly unlikely, and reaping one only makes that session's
+# syncs fail loudly rather than corrupting anything.
+_ORPHAN_WORKTREE_MAX_AGE_SECONDS = 24 * 60 * 60
+
+
+def add_launch_worktree(cfg: Config, key: str) -> Path | None:
+    """Create a detached worktree at the control-branch tip for one launch.
+
+    Returns the worktree's absolute path, or None when there is no git repo to
+    isolate within — without git sync there is no shared-index race, so the
+    caller just runs in the primary checkout unchanged.
+
+    The checkout is **detached** at the control branch's commit rather than on a
+    branch: the control branch is already checked out in the primary tree (git
+    forbids a second worktree on the same branch), and a detached HEAD routes
+    every task-state sync through the cross-branch temp-index overlay — the path
+    that never touches a shared `.git/index`, which is the entire point of the
+    isolation. Falls back to detaching at the current `HEAD` when the control
+    branch ref is absent (e.g. a launch from a checkout that predates it).
+
+    Raises `GitError` on a real `git worktree add` failure; the caller decides
+    whether that aborts the launch.
+    """
+    root = _toplevel(cfg.repo_root)
+    if root is None:
+        return None
+    base = _launch_worktree_base_dir(root, cfg)
+    base.mkdir(parents=True, exist_ok=True)
+    path = base / key
+    commitish = _launch_worktree_base(root, cfg.git_remote, cfg.git_control_branch)
+    _run_git(root, "worktree", "add", "--detach", str(path), commitish)
+    return path
+
+
+def _launch_worktree_base(root: Path, remote: str, branch: str) -> str:
+    """Best local ref to detach a launch worktree from."""
+    local_ref = f"refs/heads/{branch}"
+    if _git_ref_present(root, local_ref):
+        return local_ref
+    remote_ref = f"refs/remotes/{remote}/{branch}"
+    if _git_ref_present(root, remote_ref):
+        return remote_ref
+    return "HEAD"
+
+
+def launch_worktree_has_dirty_coga_state(cfg: Config, path: Path) -> bool:
+    """True when a launch worktree still has recoverable Coga OS changes.
+
+    Used before teardown. Detached launch worktrees may retain state that the
+    non-fatal git sync layer could not land, especially union files such as
+    `coga/log.md`; force-removing such a checkout would delete the only local
+    copy. Non-Coga scratch files do not block cleanup.
+    """
+    root = _toplevel(path)
+    if root is None:
+        return False
+    coga_root = repo_root_in_worktree(cfg, path)
+    state_pathspecs = _coga_state_pathspecs(root, coga_root)
+    return bool(_changed_paths_under(root, state_pathspecs))
+
+
+def remove_launch_worktree(cfg: Config, path: Path) -> None:
+    """Remove a per-launch worktree and prune its registry entry. Best-effort.
+
+    Never raises: cleanup runs in `coga launch`'s `finally`, so a failed removal
+    must not mask the launch's real outcome. Callers that care about recoverable
+    Coga state should check first; this primitive is intentionally forceful so a
+    stray scratch file cannot wedge teardown. Removal is driven from the
+    *primary* git root, never from inside `path` itself, so git does not refuse
+    it as "the current working tree".
+    """
+    root = _toplevel(cfg.repo_root)
+    if root is None:
+        return
+    try:
+        _run_git(root, "worktree", "remove", "--force", str(path))
+    except GitError:
+        pass
+    if path.exists():
+        shutil.rmtree(path, ignore_errors=True)
+    try:
+        _run_git(root, "worktree", "prune")
+    except GitError:
+        pass
+
+
+def reap_orphan_launch_worktrees(
+    cfg: Config, *, max_age_seconds: float = _ORPHAN_WORKTREE_MAX_AGE_SECONDS
+) -> None:
+    """Force-remove crash-orphaned launch worktrees, best-effort.
+
+    Normal teardown removes a launch worktree in `coga launch`'s `finally`; this
+    is the backstop for a hard crash that skipped it. Run on launch entry: prune
+    git's registry, then force-remove any directory under the worktree root older
+    than `max_age_seconds` (a live session is created far more recently). Never
+    raises — orphan cleanup must not block a fresh launch.
+    """
+    root = _toplevel(cfg.repo_root)
+    if root is None:
+        return
+    try:
+        _run_git(root, "worktree", "prune")
+    except GitError:
+        pass
+    base = _launch_worktree_base_dir(root, cfg)
+    if not base.is_dir():
+        return
+    now = time.time()
+    try:
+        entries = list(base.iterdir())
+    except OSError:
+        return
+    for entry in entries:
+        if not entry.is_dir():
+            continue
+        try:
+            age = now - entry.stat().st_mtime
+        except OSError:
+            continue
+        if age >= max_age_seconds:
+            remove_launch_worktree(cfg, entry)
+
+
+def repo_root_in_worktree(cfg: Config, worktree_path: Path) -> Path:
+    """Map `cfg.repo_root` (the coga OS dir) into a sibling worktree checkout.
+
+    `cfg.repo_root` may be the git toplevel or a nested `coga/` under it;
+    preserve that relative position inside `worktree_path` so a re-loaded config
+    rooted there resolves the same task tree.
+    """
+    root = _toplevel(cfg.repo_root)
+    if root is None:
+        return worktree_path
+    return worktree_path / cfg.repo_root.relative_to(root)
+
+
 __all__ = [
     "GitError",
+    "add_launch_worktree",
+    "launch_worktree_has_dirty_coga_state",
+    "reap_orphan_launch_worktrees",
+    "remove_launch_worktree",
+    "repo_root_in_worktree",
     "sync_coga_state",
     "sync_log",
     "sync_paths",

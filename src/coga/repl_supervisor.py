@@ -140,6 +140,7 @@ def run_with_done_marker(
     max_session: float | None = None,
     output_fd: int | None = None,
     input_fd: int | None = None,
+    cwd: "os.PathLike[str] | str | None" = None,
 ) -> ReplOutcome:
     """Spawn `cmd` in a PTY, proxy stdio, SIGTERM the child on done signal.
 
@@ -170,13 +171,19 @@ def run_with_done_marker(
     busy but never signals done. Also a `timeout` outcome. Leave None for no
     wall-clock cap.
 
+    `cwd`, when set, is the working directory the child runs in — the per-launch
+    `git worktree` under `[launch].worktree` isolation. None runs in the
+    supervisor's own cwd (today's behaviour).
+
     `output_fd` / `input_fd` exist for tests; production callers leave them
     None and the supervisor proxies the real stdio.
     """
     if not sys.stdout.isatty():
         import subprocess
 
-        code = subprocess.run(cmd, env=dict(env), check=False).returncode
+        code = subprocess.run(
+            cmd, env=dict(env), check=False, cwd=cwd
+        ).returncode
         return ReplOutcome(code, "natural")
 
     sentinel_dir = tempfile.mkdtemp(prefix="coga-done-")
@@ -188,6 +195,11 @@ def run_with_done_marker(
     if pid == 0:  # child
         for k, v in child_env.items():
             os.environ[k] = v
+        if cwd is not None:
+            try:
+                os.chdir(cwd)
+            except OSError:
+                os._exit(127)
         try:
             os.execvp(cmd[0], cmd)
         except OSError:

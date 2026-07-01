@@ -47,4 +47,7 @@ uv.lock
 # agent CLIs (Claude Code, Codex) can discover Coga's generated skill view.
 .claude/skills/coga
 .codex/skills/coga
+# coga-local state: vendored CLI/venv (`.coga/bin`, `.coga/.venv`) and the
+# per-launch `git worktree` checkouts `[launch].worktree` creates.
+.coga/
 # <<< coga-managed <<<

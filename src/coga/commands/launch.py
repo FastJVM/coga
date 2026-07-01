@@ -215,288 +215,327 @@ def launch(
             f"`coga unblock {ref.id_slug} --answer \"...\"` to resume."
         )
 
-    # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
-    # is brought to `active` inline rather than refused with a "run
-    # `coga mark active` first" hint. The flip to `in_progress` still happens
-    # later (after the compose pre-flight), so this only does the `mark active`
-    # half. Done before the script-mode dispatch so both interactive and script
-    # launches start from an activated, stepped ticket.
+    # Per-launch `git worktree` isolation (`[launch].worktree`). When on, the
+    # whole supervised session — launch-owned status writes, every step's
+    # compose, spawn, in-session `coga bump`/`mark`, and usage sync — runs
+    # against a private detached worktree instead of the shared primary checkout.
+    # `base_cfg` is kept for teardown; `cfg`/`ref` are re-rooted into the
+    # worktree so reads, spawns, and syncs all target it. Bootstrap tickets,
+    # script launches, and non-git checkouts are unaffected.
+    base_cfg = cfg
+    worktree_path: Path | None = None
+    spawn_cwd: Path | None = None
+    script_launch = is_script_launch(cfg, ticket)
     if (
-        not is_bootstrap
+        cfg.launch_worktree
         and isinstance(ref, TaskRef)
-        and ticket.status not in {"active", "in_progress"}
+        and not is_bootstrap
+        and not script_launch
     ):
-        _auto_activate(cfg, ref, ticket)
+        cfg, ref, worktree_path = _enter_launch_worktree(base_cfg, ref, task)
+        if worktree_path is not None:
+            spawn_cwd = worktree_path
+            ticket = _read(ref)
+            script_launch = is_script_launch(cfg, ticket)
 
-    assignee = ticket.assignee
-    if not assignee:
-        _bail(f"Task {ref.id_slug} has no assignee")
-
-    # Script vs. agent is deduced, not declared: a step whose skill carries a
-    # `script:` (or a no-skill step / workflow-less task with the ticket's own
-    # `script:`) runs as a script, with no agent and no composed prompt.
-    if is_script_launch(cfg, ticket):
-        if agent_override is not None:
-            _bail("--agent is only supported for agent (interactive/auto) launches.")
-        if is_bootstrap:
-            _bail("Bootstrap tickets only support interactive/auto launches.")
-        from coga.commands.launch_script import run_script_mode
-        run_script_mode(cfg, ref, ticket)
-        return
-
-    autonomy = autonomy_override or ticket.autonomy
-
-    if autonomy not in ("interactive", "auto"):
-        _bail(f"Unknown autonomy: {autonomy!r}")
-
-    if autonomy == "auto":
-        # Temporary policy. `claude -p` and `codex exec` buffer stdout until
-        # the run completes, so auto launches produce no live console output
-        # for the operator. Until coga grows a streaming consumer for the
-        # agent's structured output, we refuse rather than let runs sit
-        # silently. Re-enable when streaming lands.
-        _bail(
-            f"Cannot launch {ref.id_slug!r}: autonomy=auto is temporarily disabled. "
-            "Auto runs produce no live console output (claude -p and codex exec "
-            "buffer until completion), so unattended runs are unobservable. "
-            "Set the ticket to autonomy: interactive (and run from a TTY), or "
-            "give it a script if the work fits a single script entry point."
-        )
-
-    if autonomy == "interactive" and not _interactive_stdio_has_tty():
-        _bail(
-            f"Cannot launch {ref.id_slug!r}: autonomy=interactive requires a TTY "
-            "(stdin and stdout must both be terminals). Run from a real "
-            "shell, or give the ticket a script entry point."
-        )
-
-    launch_assignee = agent_override or assignee
-
-    # Resolve the agent type — the ticket's assignee names it directly.
     try:
-        agent = cfg.agent_type(launch_assignee)
-    except ConfigError as exc:
-        _bail(str(exc))
-    typer.echo(
-        f"Launch: agent {launch_assignee} -> {agent.name} "
-        f"(cli={agent.cli})"
-    )
+        # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
+        # is brought to `active` inline rather than refused with a "run
+        # `coga mark active` first" hint. The flip to `in_progress` still happens
+        # later (after the compose pre-flight), so this only does the `mark active`
+        # half. Done before the script-mode dispatch so both interactive and script
+        # launches start from an activated, stepped ticket.
+        if (
+            not is_bootstrap
+            and isinstance(ref, TaskRef)
+            and ticket.status not in {"active", "in_progress"}
+        ):
+            _auto_activate(cfg, ref, ticket)
 
-    # Verify CLI binary exists.
-    agent_path = shutil.which(agent.cli)
-    if agent_path is None:
-        _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
-    typer.echo(f"Launch: found agent CLI at {agent_path}")
+        assignee = ticket.assignee
+        if not assignee:
+            _bail(f"Task {ref.id_slug} has no assignee")
 
-    # Pre-flight the permission-skip policy for the first step's agent so a
-    # skip_permissions = "auto" agent with no configured argv fails loud here
-    # — before the in_progress flip and "started" broadcast, like the compose
-    # pre-flight below. The per-step loop re-resolves the policy for rotated
-    # agents.
-    try:
-        _skip_permissions_argv_for_launch(agent, autonomy, ref)
-    except ConfigError as exc:
-        _bail(str(exc))
+        # Script vs. agent is deduced, not declared: a step whose skill carries a
+        # `script:` (or a no-skill step / workflow-less task with the ticket's own
+        # `script:`) runs as a script, with no agent and no composed prompt.
+        if script_launch:
+            if agent_override is not None:
+                _bail(
+                    "--agent is only supported for agent (interactive/auto) launches."
+                )
+            if is_bootstrap:
+                _bail("Bootstrap tickets only support interactive/auto launches.")
+            from coga.commands.launch_script import run_script_mode
+            run_script_mode(cfg, ref, ticket)
+            return
 
-    # Fail loud BEFORE flipping status: if a referenced context or skill is
-    # missing, the composed prompt would drop a layer the human expected the
-    # agent to have. Refuse to start — and don't flip the ticket to
-    # in_progress or post a "started" broadcast for a task that never runs.
-    # The per-step loop below re-composes; this is a cheap pre-flight (file
-    # reads only) so the flip and notification post are never reached on a bad ref.
-    try:
-        compose_prompt(cfg, ref, ticket, autonomy_override=autonomy_override)
-    except ComposeError as exc:
-        _bail(str(exc))
+        autonomy = autonomy_override or ticket.autonomy
 
-    # Preflight and build the child env before mutating ticket state. A missing
-    # declared secret is a launch refusal, not a started task.
-    try:
-        env = build_launch_env(cfg, ticket.secrets)
-    except SecretError as exc:
-        _bail(str(exc))
+        if autonomy not in ("interactive", "auto"):
+            _bail(f"Unknown autonomy: {autonomy!r}")
 
-    # Refuse to start an agent session when git push access is broken. Coga
-    # drives the whole session through git/gh (branch push, `gh pr create`,
-    # every `coga bump` syncs ticket state), so a dead remote means an
-    # often-long run guaranteed to fail at ship time. Fail loud at the door
-    # rather than discover it at PR time — same as the other pre-flip
-    # preflights above. Pre-flip, so a refused launch never posts a "started"
-    # broadcast or flips status.
-    _preflight_push_auth(cfg, ref, is_bootstrap=is_bootstrap)
-
-    if isinstance(ref, TaskRef) and ticket.status == "active":
-        try:
-            mark_in_progress(
-                cfg,
-                ref,
-                ticket,
-                actor=f"human:{cfg.current_user}",
-                log_message="started (active → in_progress) via coga launch",
-                slack_text=(
-                    f"▶️ {cfg.current_user} started *{ref.id_slug}* "
-                    f"\"{ticket.title}\" (assignee: {launch_assignee})"
-                ),
-                echo=f"{ref.id_slug}: in_progress",
+        if autonomy == "auto":
+            # Temporary policy. `claude -p` and `codex exec` buffer stdout until
+            # the run completes, so auto launches produce no live console output
+            # for the operator. Until coga grows a streaming consumer for the
+            # agent's structured output, we refuse rather than let runs sit
+            # silently. Re-enable when streaming lands.
+            _bail(
+                f"Cannot launch {ref.id_slug!r}: autonomy=auto is temporarily disabled. "
+                "Auto runs produce no live console output (claude -p and codex exec "
+                "buffer until completion), so unattended runs are unobservable. "
+                "Set the ticket to autonomy: interactive (and run from a TTY), or "
+                "give it a script if the work fits a single script entry point."
             )
-        except TaskValidationError as exc:
-            _bail(str(exc))
 
-    # Interactive launches chain across consecutive agent-owned steps the
-    # same way auto mode does. After the agent exits (via autoquit on
-    # `coga bump` / `mark done` / `block`, or via `/exit`), we re-read the
-    # ticket and either relaunch the next step's agent as a fresh process —
-    # rotating the CLI when the step hands off to a different agent (e.g.
-    # claude -> codex for peer review) — or stop and return control to the
-    # caller. Every bump produces a brand-new agent process with a freshly
-    # composed prompt; context flows through the durable files (blackboard,
-    # ticket, artifacts), never a carried-over REPL session. The supervisor
-    # only stops at human handoffs and terminal states — `_harness_stop_reason`
-    # decides. `COGA_SUPERVISED=1` tells `coga bump` it's running under a
-    # launch supervisor so its chaining hint can fire.
-    env["COGA_SUPERVISED"] = "1"
+        if autonomy == "interactive" and not _interactive_stdio_has_tty():
+            _bail(
+                f"Cannot launch {ref.id_slug!r}: autonomy=interactive requires a TTY "
+                "(stdin and stdout must both be terminals). Run from a real "
+                "shell, or give the ticket a script entry point."
+            )
 
-    def _on_signal(signum, frame):  # type: ignore[no-untyped-def]
-        sys.exit(128 + signum)
+        launch_assignee = agent_override or assignee
 
-    signal.signal(signal.SIGINT, _on_signal)
-    signal.signal(signal.SIGTERM, _on_signal)
-
-    first_step = True
-    while True:
-        ticket = _read(ref)
-
-        # Resolve the agent for THIS step from the ticket's current
-        # assignee, so the supervisor can rotate claude <-> codex across
-        # the workflow. The `--agent` override applies only to the first
-        # step; chained steps follow the ticket. A step whose assignee is
-        # a human never reaches here — `_harness_stop_reason` returns
-        # control to the caller before we'd relaunch.
-        step_assignee = (
-            (agent_override or ticket.assignee) if first_step else ticket.assignee
-        )
-        first_step = False
+        # Resolve the agent type — the ticket's assignee names it directly.
         try:
-            agent = cfg.agent_type(step_assignee) if step_assignee else None
-            if agent is None:
-                raise ConfigError(f"Task {ref.id_slug} has no assignee")
+            agent = cfg.agent_type(launch_assignee)
         except ConfigError as exc:
-            # Defensive: a non-agent assignee should have stopped the
-            # chain at the previous bump. If we somehow reach here, stop
-            # rather than crash.
-            typer.echo(f"{ref.id_slug}: {exc}; stopping")
-            break
-        # Re-check the CLI every step — catches the case where the chain
-        # rotates to an agent (e.g. codex) whose CLI isn't on PATH. Stop
-        # cleanly and hand back to the human rather than blocking.
-        if shutil.which(agent.cli) is None:
-            typer.secho(
-                f"{ref.id_slug}: next step needs agent {step_assignee!r} "
-                f"but its CLI {agent.cli!r} is not on PATH — stopping. "
-                f"Install it, then `coga launch {ref.id_slug}` to continue.",
-                fg=typer.colors.YELLOW,
-                err=True,
-            )
-            break
+            _bail(str(exc))
         typer.echo(
-            f"Launch: step agent {step_assignee} -> {agent.name} "
+            f"Launch: agent {launch_assignee} -> {agent.name} "
             f"(cli={agent.cli})"
         )
 
-        _echo_launch_iteration(ref, ticket)
+        # Verify CLI binary exists.
+        agent_path = shutil.which(agent.cli)
+        if agent_path is None:
+            _bail(f"Agent CLI {agent.cli!r} not found in PATH.")
+        typer.echo(f"Launch: found agent CLI at {agent_path}")
 
-        # Re-resolve the permission-skip policy for THIS step's agent and
-        # the ticket's current mode — supervised chains rotate agents
-        # (claude <-> codex), and each agent carries its own local policy.
+        # Pre-flight the permission-skip policy for the first step's agent so a
+        # skip_permissions = "auto" agent with no configured argv fails loud here
+        # — before the in_progress flip and "started" broadcast, like the compose
+        # pre-flight below. The per-step loop re-resolves the policy for rotated
+        # agents.
         try:
-            skip_permissions_argv = _skip_permissions_argv_for_launch(
-                agent, autonomy_override or ticket.autonomy, ref
-            )
+            _skip_permissions_argv_for_launch(agent, autonomy, ref)
         except ConfigError as exc:
             _bail(str(exc))
 
+        # Fail loud BEFORE flipping status: if a referenced context or skill is
+        # missing, the composed prompt would drop a layer the human expected the
+        # agent to have. Refuse to start — and don't flip the ticket to
+        # in_progress or post a "started" broadcast for a task that never runs.
+        # The per-step loop below re-composes; this is a cheap pre-flight (file
+        # reads only) so the flip and notification post are never reached on a bad ref.
         try:
-            session = spawn_agent_session(
-                cfg,
-                ref,
-                ticket,
-                agent,
-                autonomy,
-                env=env,
-                actor=f"human:{cfg.current_user}",
-                log_message=_launch_log_message(
-                    autonomy,
-                    ticket.assignee or assignee,
-                    step_assignee or launch_assignee,
-                    agent.name,
-                ),
-                autonomy_override=autonomy_override,
-                name=ticket.title or "",
-                discussion=_is_discussion_bootstrap(ref),
-                kickoff=_bootstrap_kickoff(ref),
-                skip_permissions_argv=skip_permissions_argv,
-                idle_timeout=idle_timeout,
-                max_session=max_session,
-                label="Launch",
-                warn_blackboard=True,
-                capture_usage=not is_bootstrap,
-                commit_log=is_bootstrap,
-            )
+            compose_prompt(cfg, ref, ticket, autonomy_override=autonomy_override)
         except ComposeError as exc:
             _bail(str(exc))
-        except FileNotFoundError:
-            _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
 
-        typer.echo(f"Launch: agent exited with code {session.exit_code}")
-        if session.termination_kind == "timeout":
-            # A liveness limit (idle / max-session) tore the REPL down — the
-            # agent never signalled done. Don't chain to the next step.
-            # Recurring's in-process caller asks for the kind so it can
-            # record the timeout and continue its sweep; public CLI callers
-            # get the supervisor's non-zero timeout exit.
-            typer.secho(
-                f"Agent timed out (no progress past the liveness limit) — "
-                f"exit {session.exit_code}.",
-                fg=typer.colors.YELLOW,
-                err=True,
-            )
-            if return_timeout:
-                return "timeout"
-            sys.exit(session.exit_code)
-        if session.exit_code != 0:
-            typer.secho(
-                f"Agent exited with code {session.exit_code}.",
-                fg=typer.colors.YELLOW,
-                err=True,
-            )
-            sys.exit(session.exit_code)
+        # Preflight and build the child env before mutating ticket state. A missing
+        # declared secret is a launch refusal, not a started task.
+        try:
+            env = build_launch_env(cfg, ticket.secrets)
+        except SecretError as exc:
+            _bail(str(exc))
 
-        # An agent may delete its own task directory as a final action —
-        # e.g. a Dream run retiring itself once its findings are durable.
-        # A missing ticket.md is a clean terminal state, not a chain step.
-        if not ref.ticket_path.exists():
+        # Refuse to start an agent session when git push access is broken. Coga
+        # drives the whole session through git/gh (branch push, `gh pr create`,
+        # every `coga bump` syncs ticket state), so a dead remote means an
+        # often-long run guaranteed to fail at ship time. Fail loud at the door
+        # rather than discover it at PR time — same as the other pre-flip
+        # preflights above. Pre-flip, so a refused launch never posts a "started"
+        # broadcast or flips status.
+        _preflight_push_auth(cfg, ref, is_bootstrap=is_bootstrap)
+
+        if isinstance(ref, TaskRef) and ticket.status == "active":
+            try:
+                mark_in_progress(
+                    cfg,
+                    ref,
+                    ticket,
+                    actor=f"human:{cfg.current_user}",
+                    log_message="started (active → in_progress) via coga launch",
+                    slack_text=(
+                        f"▶️ {cfg.current_user} started *{ref.id_slug}* "
+                        f"\"{ticket.title}\" (assignee: {launch_assignee})"
+                    ),
+                    echo=f"{ref.id_slug}: in_progress",
+                )
+            except TaskValidationError as exc:
+                _bail(str(exc))
+
+        # Interactive launches chain across consecutive agent-owned steps the
+        # same way auto mode does. After the agent exits (via autoquit on
+        # `coga bump` / `mark done` / `block`, or via `/exit`), we re-read the
+        # ticket and either relaunch the next step's agent as a fresh process —
+        # rotating the CLI when the step hands off to a different agent (e.g.
+        # claude -> codex for peer review) — or stop and return control to the
+        # caller. Every bump produces a brand-new agent process with a freshly
+        # composed prompt; context flows through the durable files (blackboard,
+        # ticket, artifacts), never a carried-over REPL session. The supervisor
+        # only stops at human handoffs and terminal states — `_harness_stop_reason`
+        # decides. `COGA_SUPERVISED=1` tells `coga bump` it's running under a
+        # launch supervisor so its chaining hint can fire.
+        env["COGA_SUPERVISED"] = "1"
+
+        def _on_signal(signum, frame):  # type: ignore[no-untyped-def]
+            sys.exit(128 + signum)
+
+        signal.signal(signal.SIGINT, _on_signal)
+        signal.signal(signal.SIGTERM, _on_signal)
+    except BaseException:
+        if worktree_path is not None:
+            _cleanup_launch_worktree(base_cfg, cfg, worktree_path)
+        raise
+
+    try:
+        first_step = True
+        while True:
+            ticket = _read(ref)
+
+            # Resolve the agent for THIS step from the ticket's current
+            # assignee, so the supervisor can rotate claude <-> codex across
+            # the workflow. The `--agent` override applies only to the first
+            # step; chained steps follow the ticket. A step whose assignee is
+            # a human never reaches here — `_harness_stop_reason` returns
+            # control to the caller before we'd relaunch.
+            step_assignee = (
+                (agent_override or ticket.assignee) if first_step else ticket.assignee
+            )
+            first_step = False
+            try:
+                agent = cfg.agent_type(step_assignee) if step_assignee else None
+                if agent is None:
+                    raise ConfigError(f"Task {ref.id_slug} has no assignee")
+            except ConfigError as exc:
+                # Defensive: a non-agent assignee should have stopped the
+                # chain at the previous bump. If we somehow reach here, stop
+                # rather than crash.
+                typer.echo(f"{ref.id_slug}: {exc}; stopping")
+                break
+            # Re-check the CLI every step — catches the case where the chain
+            # rotates to an agent (e.g. codex) whose CLI isn't on PATH. Stop
+            # cleanly and hand back to the human rather than blocking.
+            if shutil.which(agent.cli) is None:
+                typer.secho(
+                    f"{ref.id_slug}: next step needs agent {step_assignee!r} "
+                    f"but its CLI {agent.cli!r} is not on PATH — stopping. "
+                    f"Install it, then `coga launch {ref.id_slug}` to continue.",
+                    fg=typer.colors.YELLOW,
+                    err=True,
+                )
+                break
             typer.echo(
-                "Launch: task directory removed by agent — nothing to chain"
+                f"Launch: step agent {step_assignee} -> {agent.name} "
+                f"(cli={agent.cli})"
             )
-            break
 
-        # Bootstrap tickets are stateless single-shot launches — they have no
-        # workflow to chain across, so stop after the one run. A normal
-        # workflow ticket that happens to declare ticket-level `skills:`
-        # MUST still chain; gating on `ticket.skills` here (a rename
-        # artifact of the old singular skill-shim field) silently broke that.
-        if is_bootstrap:
-            typer.echo(
-                f"Launch: {ref.id_slug} is a bootstrap ticket — not chaining"
-            )
-            break
+            _echo_launch_iteration(ref, ticket)
 
-        typer.echo("Launch: reading task state after agent exit")
-        updated_ticket = read_ticket(ref)
-        stop_reason = _harness_stop_reason(ref, ticket, updated_ticket, cfg)
-        if stop_reason is not None:
-            typer.echo(stop_reason)
-            break
+            # Re-resolve the permission-skip policy for THIS step's agent and
+            # the ticket's current mode — supervised chains rotate agents
+            # (claude <-> codex), and each agent carries its own local policy.
+            try:
+                skip_permissions_argv = _skip_permissions_argv_for_launch(
+                    agent, autonomy_override or ticket.autonomy, ref
+                )
+            except ConfigError as exc:
+                _bail(str(exc))
+
+            try:
+                session = spawn_agent_session(
+                    cfg,
+                    ref,
+                    ticket,
+                    agent,
+                    autonomy,
+                    env=env,
+                    actor=f"human:{cfg.current_user}",
+                    log_message=_launch_log_message(
+                        autonomy,
+                        ticket.assignee or assignee,
+                        step_assignee or launch_assignee,
+                        agent.name,
+                    ),
+                    autonomy_override=autonomy_override,
+                    name=ticket.title or "",
+                    discussion=_is_discussion_bootstrap(ref),
+                    kickoff=_bootstrap_kickoff(ref),
+                    skip_permissions_argv=skip_permissions_argv,
+                    idle_timeout=idle_timeout,
+                    max_session=max_session,
+                    label="Launch",
+                    warn_blackboard=True,
+                    capture_usage=not is_bootstrap,
+                    commit_log=is_bootstrap,
+                    cwd=spawn_cwd,
+                )
+            except ComposeError as exc:
+                _bail(str(exc))
+            except FileNotFoundError:
+                _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
+
+            typer.echo(f"Launch: agent exited with code {session.exit_code}")
+            if session.termination_kind == "timeout":
+                # A liveness limit (idle / max-session) tore the REPL down — the
+                # agent never signalled done. Don't chain to the next step.
+                # Recurring's in-process caller asks for the kind so it can
+                # record the timeout and continue its sweep; public CLI callers
+                # get the supervisor's non-zero timeout exit.
+                typer.secho(
+                    f"Agent timed out (no progress past the liveness limit) — "
+                    f"exit {session.exit_code}.",
+                    fg=typer.colors.YELLOW,
+                    err=True,
+                )
+                if return_timeout:
+                    return "timeout"
+                sys.exit(session.exit_code)
+            if session.exit_code != 0:
+                typer.secho(
+                    f"Agent exited with code {session.exit_code}.",
+                    fg=typer.colors.YELLOW,
+                    err=True,
+                )
+                sys.exit(session.exit_code)
+
+            # An agent may delete its own task directory as a final action —
+            # e.g. a Dream run retiring itself once its findings are durable.
+            # A missing ticket.md is a clean terminal state, not a chain step.
+            if not ref.ticket_path.exists():
+                typer.echo(
+                    "Launch: task directory removed by agent — nothing to chain"
+                )
+                break
+
+            # Bootstrap tickets are stateless single-shot launches — they have no
+            # workflow to chain across, so stop after the one run. A normal
+            # workflow ticket that happens to declare ticket-level `skills:`
+            # MUST still chain; gating on `ticket.skills` here (a rename
+            # artifact of the old singular skill-shim field) silently broke that.
+            if is_bootstrap:
+                typer.echo(
+                    f"Launch: {ref.id_slug} is a bootstrap ticket — not chaining"
+                )
+                break
+
+            typer.echo("Launch: reading task state after agent exit")
+            updated_ticket = read_ticket(ref)
+            stop_reason = _harness_stop_reason(ref, ticket, updated_ticket, cfg)
+            if stop_reason is not None:
+                typer.echo(stop_reason)
+                break
+    finally:
+        # Tear down the per-launch worktree on every exit path — clean chain
+        # completion, `sys.exit` on a non-zero/timeout agent, or an exception.
+        # Driven from `base_cfg` (the primary root); `cfg` now points into the
+        # worktree, and git refuses to remove the worktree it is invoked from.
+        if worktree_path is not None:
+            _cleanup_launch_worktree(base_cfg, cfg, worktree_path)
 
 
 # --- helpers ------------------------------------------------------------------
@@ -583,6 +622,108 @@ def _preflight_push_auth(
             "Fix auth and retry, or set `[git].enabled = false` to run without "
             "git sync."
         )
+
+
+def _enter_launch_worktree(
+    cfg: Config, ref: TaskRef, task: str
+) -> tuple[Config, TaskRef, Path | None]:
+    """Create a per-launch worktree and re-root config/ref into it.
+
+    Returns `(cfg, ref, worktree_path)` re-rooted into a fresh detached worktree
+    (keyed by a unique id so a relaunch of a still-running ticket can't collide),
+    or the unchanged `(cfg, ref, None)` when there is no git repo to isolate
+    within — a non-git checkout has no shared-index race to close. Reaps
+    crash-orphaned worktrees first. A genuine `git worktree add` failure is a
+    launch refusal, not a silent fall back to the shared checkout: the operator
+    opted into isolation, and quietly reintroducing the race would defeat it.
+    """
+    git.reap_orphan_launch_worktrees(cfg)
+    try:
+        worktree_path = git.add_launch_worktree(cfg, uuid4().hex)
+    except git.GitError as exc:
+        _bail(
+            f"Cannot launch {ref.id_slug}: [launch].worktree is on but creating "
+            f"an isolation worktree failed — {exc}. Fix the git state and retry, "
+            "or set [launch].worktree = false to run in the shared checkout."
+        )
+    if worktree_path is None:
+        return cfg, ref, None
+    typer.echo(f"Launch: isolating session in worktree {worktree_path}")
+    try:
+        worktree_repo_root = git.repo_root_in_worktree(cfg, worktree_path)
+        _copy_task_state_into_worktree(cfg.repo_root, ref.path, worktree_repo_root)
+        _mirror_local_config_into_worktree(cfg.repo_root, worktree_repo_root)
+        worktree_cfg = load_config(repo_root=worktree_repo_root)
+        worktree_ref = resolve_target(worktree_cfg, task)
+    except BaseException:
+        # Re-rooting failed after the worktree was created — tear it down so a
+        # failed setup never leaks a checkout, then re-raise. (The caller's
+        # `finally` only covers a worktree it was handed back.)
+        git.remove_launch_worktree(cfg, worktree_path)
+        raise
+    if not isinstance(worktree_ref, TaskRef):
+        # Defensive: a TaskRef in the primary checkout must resolve to a TaskRef
+        # in the worktree too (identical tree). If it somehow doesn't, drop the
+        # worktree and run unisolated rather than crash the launch.
+        git.remove_launch_worktree(cfg, worktree_path)
+        return cfg, ref, None
+    return worktree_cfg, worktree_ref, worktree_path
+
+
+def _copy_task_state_into_worktree(
+    source_root: Path, source_path: Path, worktree_root: Path
+) -> None:
+    """Seed the isolated checkout with the live task file/dir from the caller."""
+    rel = source_path.relative_to(source_root)
+    target = worktree_root / rel
+    if source_path.is_dir():
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(source_path, target)
+        return
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_path, target)
+
+
+def _mirror_local_config_into_worktree(source_root: Path, worktree_root: Path) -> None:
+    """Expose ignored machine-local config inside a fresh git worktree."""
+    source = source_root / "coga.local.toml"
+    if not source.is_file():
+        return
+    target = worktree_root / "coga.local.toml"
+    try:
+        if target.exists() or target.is_symlink():
+            target.unlink()
+        target.symlink_to(source)
+    except OSError:
+        shutil.copy2(source, target)
+
+
+def _cleanup_launch_worktree(
+    base_cfg: Config, worktree_cfg: Config, worktree_path: Path
+) -> None:
+    """Remove a launch worktree only after recoverable Coga state is clean."""
+    git.sync_coga_state(worktree_cfg)
+    try:
+        dirty = git.launch_worktree_has_dirty_coga_state(base_cfg, worktree_path)
+    except git.GitError as exc:
+        typer.secho(
+            f"Launch: leaving isolation worktree {worktree_path} for recovery; "
+            f"could not inspect Coga state ({exc}).",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return
+    if dirty:
+        typer.secho(
+            f"Launch: leaving isolation worktree {worktree_path} for recovery; "
+            "unsynced Coga state remains.",
+            fg=typer.colors.YELLOW,
+            err=True,
+        )
+        return
+    git.remove_launch_worktree(base_cfg, worktree_path)
 
 
 def build_agent_command(
@@ -680,6 +821,7 @@ def spawn_agent_session(
     warn_blackboard: bool = False,
     capture_usage: bool = False,
     commit_log: bool = False,
+    cwd: Path | None = None,
 ) -> AgentSessionResult:
     """Spawn one agent process once.
 
@@ -701,6 +843,12 @@ def spawn_agent_session(
     `git pull` at the checkout gate (the append is committed before the REPL
     starts, so even an in-session `git pull` is unblocked). `coga ticket`
     leaves it False — its post-session `sync_paths` folds the log in instead.
+
+    `cwd`, when set, is the working directory the agent subprocess runs in — the
+    per-launch `git worktree` under `[launch].worktree` isolation. It also keys
+    usage capture (the agent CLI stores its transcript under a hash of its cwd),
+    so it must match where the agent actually ran. None (the default) runs in
+    the launch process's own cwd — today's shared-checkout behaviour.
     """
     if warn_blackboard:
         warning = blackboard_size_warning(ref.ticket_path)
@@ -734,7 +882,7 @@ def spawn_agent_session(
         usage_tracking.snapshot_session_files(usage_provider)
         if should_capture_usage else set()
     )
-    usage_cwd = Path.cwd().resolve()
+    usage_cwd = (cwd or Path.cwd()).resolve()
     usage_window_start = datetime.now(timezone.utc)
     spawn_started = False
 
@@ -779,11 +927,14 @@ def spawn_agent_session(
                 session_id=str(ref.path.resolve()),
                 idle_timeout=idle_timeout,
                 max_session=max_session,
+                cwd=cwd,
             )
             return AgentSessionResult(outcome.exit_code, outcome.kind)
 
         spawn_started = True
-        result = subprocess.run(cmd, env=env, check=False)
+        result = subprocess.run(
+            cmd, env=env, check=False, cwd=str(cwd) if cwd is not None else None
+        )
         return AgentSessionResult(result.returncode, "natural")
     except FileNotFoundError:
         spawn_started = False

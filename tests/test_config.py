@@ -390,6 +390,54 @@ def test_launch_limit_non_number_rejected(repo: Path) -> None:
         load_config(repo)
 
 
+def test_launch_worktree_defaults_on(repo: Path) -> None:
+    """No `[launch]` table (and an empty one) → worktree isolation is on."""
+    cfg = load_config(repo)
+    assert cfg.launch_worktree is True
+    assert cfg.launch_worktree_path == ".coga/worktrees"
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text() + "\n[launch]\nidle_timeout = 600\n"
+    )
+    assert load_config(repo).launch_worktree is True
+
+
+def test_launch_worktree_parsed(repo: Path) -> None:
+    """`[launch].worktree = false` turns per-launch isolation off."""
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text() + "\n[launch]\nworktree = false\n"
+    )
+    assert load_config(repo).launch_worktree is False
+
+
+def test_launch_worktree_must_be_bool(repo: Path) -> None:
+    """A non-boolean `worktree` fails config load loudly."""
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text() + '\n[launch]\nworktree = "yes"\n'
+    )
+    with pytest.raises(ConfigError, match=r"\[launch\].worktree must be a boolean"):
+        load_config(repo)
+
+
+def test_launch_worktree_path_parsed(repo: Path) -> None:
+    """`[launch].worktree_path` overrides where per-launch worktrees live."""
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text()
+        + '\n[launch]\nworktree_path = "build/wt"\n'
+    )
+    assert load_config(repo).launch_worktree_path == "build/wt"
+
+
+def test_launch_worktree_path_must_be_nonempty_string(repo: Path) -> None:
+    """A blank or non-string `worktree_path` fails config load loudly."""
+    (repo / "coga.toml").write_text(
+        (repo / "coga.toml").read_text() + '\n[launch]\nworktree_path = "  "\n'
+    )
+    with pytest.raises(
+        ConfigError, match=r"\[launch\].worktree_path must be a non-empty string"
+    ):
+        load_config(repo)
+
+
 def test_legacy_assignees_table_rejected(tmp_path: Path) -> None:
     _write(
         tmp_path / "coga.toml",
@@ -452,6 +500,7 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
         [launch]
         idle_timeout = 600
         max_session = 3600
+        worktree = true
 
         [ticket.fields.docket]
         description = "USPTO docket number"

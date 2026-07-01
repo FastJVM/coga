@@ -134,6 +134,21 @@ class Config:
     launch_idle_timeout: float | None = None
     launch_idle_timeout_present: bool = False
     launch_max_session: float | None = None
+    # When true (the default), each `coga launch` agent session runs in its own
+    # per-launch `git worktree` (detached at the control-branch tip) instead of
+    # the shared primary checkout, so concurrent agents on different tickets
+    # never contend one `.git/index` / stash stack. Set `[launch].worktree =
+    # false` to opt back into the shared single-checkout flow. Shared repo policy
+    # (no `coga.local.toml` override) — read from the shared `[launch]` table.
+    # See `coga.commands.launch`.
+    launch_worktree: bool = True
+    # Directory holding those per-launch worktrees. Relative paths resolve
+    # against the git toplevel; absolute paths are used as-is. Default
+    # `.coga/worktrees` sits under a gitignored `.coga/` so the primary
+    # checkout's `git status` stays clean and the `sync_coga_state` sweep never
+    # touches it — a custom in-repo path must be gitignored by the operator to
+    # keep those properties. See `coga.git`.
+    launch_worktree_path: str = ".coga/worktrees"
     megalaunch: MegalaunchConfig = field(default_factory=MegalaunchConfig)
 
     # --- convenience accessors -------------------------------------------------
@@ -297,9 +312,13 @@ def load_config(repo_root: Path | None = None) -> Config:
     ticket_fields = _parse_ticket_fields(shared.get("ticket"))
     git_enabled = _resolve_git_enabled(shared.get("git"), local.get("git"))
     git_remote, git_control_branch = _parse_git(shared.get("git"))
-    launch_idle_timeout, launch_idle_timeout_present, launch_max_session = (
-        _parse_launch(shared.get("launch"))
-    )
+    (
+        launch_idle_timeout,
+        launch_idle_timeout_present,
+        launch_max_session,
+        launch_worktree,
+        launch_worktree_path,
+    ) = _parse_launch(shared.get("launch"))
     megalaunch = _parse_megalaunch(shared.get("megalaunch"))
 
     # A missing `user` is no longer fatal: derive one (git `user.name`, then the
@@ -329,6 +348,8 @@ def load_config(repo_root: Path | None = None) -> Config:
         launch_idle_timeout=launch_idle_timeout,
         launch_idle_timeout_present=launch_idle_timeout_present,
         launch_max_session=launch_max_session,
+        launch_worktree=launch_worktree,
+        launch_worktree_path=launch_worktree_path,
         megalaunch=megalaunch,
     )
 
@@ -416,7 +437,9 @@ _ALLOWED_SHARED_GIT_KEYS: frozenset[str] = frozenset({
 # Only `enabled` is machine-local. `remote` and `control_branch` are shared
 # repo policy and `_parse_git` intentionally reads them only from coga.toml.
 _ALLOWED_LOCAL_GIT_KEYS: frozenset[str] = frozenset({"enabled"})
-_ALLOWED_LAUNCH_KEYS: frozenset[str] = frozenset({"idle_timeout", "max_session"})
+_ALLOWED_LAUNCH_KEYS: frozenset[str] = frozenset(
+    {"idle_timeout", "max_session", "worktree", "worktree_path"}
+)
 _ALLOWED_MEGALAUNCH_KEYS: frozenset[str] = frozenset({
     "token_guard",
     "default_token_budget",
@@ -1119,8 +1142,13 @@ def _parse_git(shared: dict | None) -> tuple[str, str]:
     return remote, control_branch
 
 
-def _parse_launch(shared: dict | None) -> tuple[float | None, bool, float | None]:
-    """Parse `[launch]` for the recurring sweep's liveness limits.
+_DEFAULT_LAUNCH_WORKTREE_PATH = ".coga/worktrees"
+
+
+def _parse_launch(
+    shared: dict | None,
+) -> tuple[float | None, bool, float | None, bool, str]:
+    """Parse `[launch]` for the recurring sweep's liveness limits and worktree knobs.
 
     `idle_timeout` / `max_session` are seconds (int or float). A `<= 0` or
     non-finite value disarms that limit (returns None), matching the env-var
@@ -1128,9 +1156,15 @@ def _parse_launch(shared: dict | None) -> tuple[float | None, bool, float | None
     returns a separate presence flag so an explicit disarm can beat the built-in
     recurring default; omitted keys are None/False. These are defaults for the
     *unattended* sweep only — attended `coga launch` never reads them.
+
+    `worktree` is a plain on/off boolean (default true) gating per-launch
+    `git worktree` isolation in `coga launch`; unlike the timeouts it applies to
+    attended launches too. `worktree_path` (default `.coga/worktrees`) is where
+    those worktrees live — a non-empty string, relative to the git toplevel or
+    absolute.
     """
     if shared is None:
-        return None, False, None
+        return None, False, None, True, _DEFAULT_LAUNCH_WORKTREE_PATH
     if not isinstance(shared, dict):
         raise ConfigError(f"[launch] must be a table (got {type(shared).__name__})")
     _reject_unknown_keys(shared, _ALLOWED_LAUNCH_KEYS, "[launch]")
@@ -1146,7 +1180,23 @@ def _parse_launch(shared: dict | None) -> tuple[float | None, bool, float | None
             return None
         return seconds
 
-    return _seconds("idle_timeout"), "idle_timeout" in shared, _seconds("max_session")
+    worktree = shared.get("worktree", True)
+    if not isinstance(worktree, bool):
+        raise ConfigError(f"[launch].worktree must be a boolean (got {worktree!r})")
+
+    worktree_path = shared.get("worktree_path", _DEFAULT_LAUNCH_WORKTREE_PATH)
+    if not isinstance(worktree_path, str) or not worktree_path.strip():
+        raise ConfigError(
+            f"[launch].worktree_path must be a non-empty string (got {worktree_path!r})"
+        )
+
+    return (
+        _seconds("idle_timeout"),
+        "idle_timeout" in shared,
+        _seconds("max_session"),
+        worktree,
+        worktree_path.strip(),
+    )
 
 
 def _resolve_secret_value(value: str) -> str:
