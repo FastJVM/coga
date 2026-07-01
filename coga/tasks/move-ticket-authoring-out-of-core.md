@@ -1,7 +1,7 @@
 ---
 slug: move-ticket-authoring-out-of-core
 title: Move ticket authoring out of core
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
@@ -159,6 +159,32 @@ command + delete inlined helpers → (4) docs. Each step keeps `pytest` green.
   stays the single fixed `arg → draft → launch` shape (audit guardrail #1).
 
 <!-- coga:blackboard -->
-## Production notes
 
-This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
+## Decisions
+
+- **Mechanism fork resolved → Option A (inline finalize).** nick's call. The
+  thin `ticket` head calls `coga.authoring.finalize_authored(...)` *inline*
+  after the single-shot interview session, preserving today's stateless,
+  concurrent-safe authoring (no lock, no `step:` transitions on the shared
+  bootstrap launch target). The finalize logic is "out of core" as a reusable,
+  tested, script-exposed module (`coga.authoring` + `coga/ticket/finalize`
+  skill) — the command no longer *contains* authoring logic, it just calls the
+  module. Option B (finalize as a bumped workflow step) is rejected: its extra
+  statefulness would break the lockless bootstrap-ticket design for little gain.
+- **Workflow switched `code/design-then-implement` → `code/with-review`.**
+  nick's call, so the ticket executes now that the spec is written. The spec
+  in the body feeds the `implement` step directly (no separate design step);
+  `peer-review` runs the other agent (codex) over the diff before the PR.
+
+## Notes for implement
+
+- **PR 425** is a *reference, not a base* ("redo from scratch"). Run
+  `gh pr view 425` / `gh pr diff 425` early to avoid repeating whatever got it
+  closed.
+- **Dependency:** assumes `remove-the-shim-concept` has landed and the model is
+  clean. Confirm before starting; if it hasn't merged, the "collapse a built-in"
+  framing may not match the tree — `coga block` rather than guess.
+- Reassigned owner/human `zach → nick` at nick's request (agent/assignee stay
+  `claude`). Frontmatter edits sync on the next state transition.
+- Confirmed the work is **not started**: `ticket` is still a fused built-in
+  (`cli.py:81`, `commands/ticket.py`), no `ticket` alias in `coga.toml`.
