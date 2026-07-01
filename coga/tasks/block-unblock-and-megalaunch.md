@@ -1,7 +1,7 @@
 ---
 slug: block-unblock-and-megalaunch
 title: Block, unblock, and megalaunch
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -28,7 +28,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (review)
 ---
 
 ## Description
