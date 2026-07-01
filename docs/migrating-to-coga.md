@@ -56,28 +56,40 @@ rm -rf relay-os/                       # old vendored CLI + symlinks; regenerate
 
 ## 2. Host-repo migration (once per repo still on the old layout)
 
-For each repo that has a `relay-os/` + `relay.toml`, run the migration script
-from the repo root:
+There is no migration script. For each repo that still has a `relay-os/` +
+`relay.toml`, migrate the tracked layout by hand from a clean working tree and
+review the diff before committing:
 
 ```sh
-./migrate-to-coga.sh --dry-run     # preview every rename, change nothing
-./migrate-to-coga.sh               # do it (idempotent; --force on a dirty tree)
+git status --short
+git mv relay-os coga
+git mv relay.toml coga.toml
+mv relay.local.toml coga.local.toml       # if present; usually ignored
 ```
 
-It renames the workspace, config, and inner namespace dirs; rewrites the
-blackboard fence + frontmatter `relay/<ns>` refs (frontmatter only — prose,
-historical PR URLs, and source paths are left alone); flips `RELAY_REPO_URL` →
-`COGA_REPO_URL`; and drops the regenerated `.relay/` / `.agent-skills/`. Then:
+Then inspect and update the remaining local files:
+
+- Rename local override namespaces if they exist:
+  `coga/contexts/relay/` → `coga/contexts/coga/` and
+  `coga/skills/relay/` → `coga/skills/coga/`.
+- Replace task blackboard fences:
+  `<!-- relay:blackboard -->` → `<!-- coga:blackboard -->`.
+- In markdown YAML frontmatter only, replace context/skill refs such as
+  `relay/<name>` with `coga/<name>` in tickets and workflow definitions.
+- In config and `.gitignore`, replace structural tokens such as
+  `RELAY_REPO_URL`, `relay.local.toml`, and `relay-os` with the Coga spellings.
+- Remove regenerated Relay-era support dirs if present:
+  `coga/.relay/` and `coga/.agent-skills/`.
+
+Do not rewrite prose, historical PR URLs, or source-path references in task
+bodies just because they contain `relay`; GitHub redirects old repository URLs.
+After the file moves and targeted edits:
 
 ```sh
 pip install -e .        # (or pipx install --force .) — reinstall the CLI
 coga validate && coga status
 git add -A && git commit -m "Migrate relay -> coga"   # review the diff first
 ```
-
-The script never rewrites prose or historical `github.com/FastJVM/relay/...`
-links (GitHub redirects those). It's idempotent — re-running on a migrated repo
-is a no-op.
 
 ---
 

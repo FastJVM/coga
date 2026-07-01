@@ -65,6 +65,6 @@ Owner wraps up the transition.
   `relay-init`, `remove-shim-concept`, …) onto the renamed `main`; each
   conflicts across the whole rename surface.
 - Kick off the host-repo migration: the ~8–10 Desktop repos still on
-  `relay-os/` + `relay.toml` (the `migrate-to-coga.sh` work tracked in
-  `coga-rename-follow-ups-post-repo-rename`).
+  `relay-os/` + `relay.toml`. Use the manual checklist in
+  `docs/migrating-to-coga.md`; Coga no longer ships a migration script.
 - `coga mark done <slug>` this ticket when the transition is complete.
