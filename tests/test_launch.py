@@ -647,6 +647,8 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         cli = "codex"
         auto = "exec"
         file = "AGENTS.md"
+        [launch]
+        worktree = false
         """,
     )
     _write(company / "coga.local.toml", 'user = "marc"\n')
@@ -1928,6 +1930,8 @@ def test_launch_regular_task_does_not_use_discussion_template(
         auto = "-p"
         file = "CLAUDE.md"
         discussion = "--append-system-prompt {prompt}"
+        [launch]
+        worktree = false
         """,
     )
     captured: dict[str, object] = {}

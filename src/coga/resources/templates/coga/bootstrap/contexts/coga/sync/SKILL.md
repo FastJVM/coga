@@ -343,8 +343,9 @@ no conflict markers and no orphaned stash, only a reported sync miss.
 
 (Process-level races within a single clone — a recurring sweep and an agent's
 `coga mark`/`bump` both `rebase --autostash`-ing one working tree — are a
-separate concern handled by **per-agent worktree isolation**: the opt-in
-`[launch].worktree` knob runs each `coga launch` session in its own detached
+separate concern handled by **per-agent worktree isolation**: the
+`[launch].worktree` knob (on by default, `worktree_path` sets the location)
+runs each `coga launch` session in its own detached
 `git worktree` (`.coga/worktrees/<id>`), so concurrent agents never share one
 `.git/index` / stash stack. Detached HEAD also forces every task-state sync onto
 the cross-branch temp-index overlay — the path that never rebases a working tree

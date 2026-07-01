@@ -28,8 +28,9 @@ This keeps task-state edits (`ticket.md`, plus the repo-global `coga/log.md`)
 from mixing with source changes on a feature branch. If task-state
 changes need to be committed, commit them separately from the code PR.
 
-Under `[launch].worktree` isolation the "primary checkout" you start in is
-itself a per-launch `git worktree` (detached at the control-branch tip), not the
+Under `[launch].worktree` isolation (on by default) the "primary checkout" you
+start in is itself a per-launch `git worktree` (detached at the control-branch
+tip, under `worktree_path`), not the
 operator's original clone. The harness owns it and removes it when Coga state is
 clean; if non-fatal git sync leaves recoverable ticket/log/spool changes behind,
 the harness prints the path and preserves the worktree for recovery. Nothing

@@ -1056,12 +1056,31 @@ def _path_exists(root: Path, rel: str) -> bool:
 
 # --- per-launch worktree isolation -------------------------------------------
 
-# Directory (relative to the git toplevel) holding per-launch `git worktree`
-# checkouts when `[launch].worktree` is on. It lives under a gitignored `.coga/`
-# so the primary checkout's `git status` never shows it and the `sync_coga_state`
-# sweep never touches it (the sweep scopes to the `coga/` OS subtree, which this
-# sits entirely outside of).
+# Default directory (relative to the git toplevel) holding per-launch `git
+# worktree` checkouts when `[launch].worktree` is on. It lives under a gitignored
+# `.coga/` so the primary checkout's `git status` never shows it and the
+# `sync_coga_state` sweep never touches it (the sweep scopes to the `coga/` OS
+# subtree, which this sits entirely outside of). Overridable per repo via
+# `[launch].worktree_path` (`cfg.launch_worktree_path`); a custom in-repo path
+# must be gitignored by the operator to keep those two properties.
 _LAUNCH_WORKTREE_DIR = (".coga", "worktrees")
+
+
+def _launch_worktree_base_dir(root: Path, cfg: Config) -> Path:
+    """Resolve the configured per-launch worktree root.
+
+    A relative `[launch].worktree_path` is anchored at the git toplevel; an
+    absolute one is used verbatim. Falls back to the packaged default when the
+    config carries no path (older `Config` shapes in tests).
+    """
+    configured = getattr(cfg, "launch_worktree_path", None) or os.path.join(
+        *_LAUNCH_WORKTREE_DIR
+    )
+    candidate = Path(configured)
+    if candidate.is_absolute():
+        return candidate
+    return root / candidate
+
 
 # A launch worktree this old is treated as a crash orphan and reaped on the next
 # launch. Deliberately generous: the per-launch `finally` removal is the primary
@@ -1093,7 +1112,7 @@ def add_launch_worktree(cfg: Config, key: str) -> Path | None:
     root = _toplevel(cfg.repo_root)
     if root is None:
         return None
-    base = root.joinpath(*_LAUNCH_WORKTREE_DIR)
+    base = _launch_worktree_base_dir(root, cfg)
     base.mkdir(parents=True, exist_ok=True)
     path = base / key
     commitish = _launch_worktree_base(root, cfg.git_remote, cfg.git_control_branch)
@@ -1171,7 +1190,7 @@ def reap_orphan_launch_worktrees(
         _run_git(root, "worktree", "prune")
     except GitError:
         pass
-    base = root.joinpath(*_LAUNCH_WORKTREE_DIR)
+    base = _launch_worktree_base_dir(root, cfg)
     if not base.is_dir():
         return
     now = time.time()

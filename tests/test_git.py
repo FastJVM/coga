@@ -1293,6 +1293,35 @@ def test_add_launch_worktree_returns_none_off_git(tmp_path) -> None:
     assert git.add_launch_worktree(cfg, "x") is None
 
 
+def test_add_launch_worktree_honors_custom_relative_path(git_repo) -> None:
+    """`[launch].worktree_path` relocates the worktree root under the toplevel."""
+    cfg = _cfg(git_repo.coga_os, launch_worktree_path="build/wt")
+
+    path = git.add_launch_worktree(cfg, "session-rel")
+
+    try:
+        assert path == git_repo.root / "build" / "wt" / "session-rel"
+        assert path.is_dir()
+        assert _detached_head(path)
+    finally:
+        git.remove_launch_worktree(cfg, path)
+
+
+def test_add_launch_worktree_honors_custom_absolute_path(git_repo, tmp_path) -> None:
+    """An absolute `worktree_path` is used verbatim (not anchored at toplevel)."""
+    outside = tmp_path / "elsewhere"
+    cfg = _cfg(git_repo.coga_os, launch_worktree_path=str(outside))
+
+    path = git.add_launch_worktree(cfg, "session-abs")
+
+    try:
+        assert path == outside / "session-abs"
+        assert path.is_dir()
+        assert _detached_head(path)
+    finally:
+        git.remove_launch_worktree(cfg, path)
+
+
 def test_repo_root_in_worktree_preserves_nested_layout(git_repo) -> None:
     cfg = _cfg(git_repo.coga_os)
     worktree = git_repo.root / ".coga" / "worktrees" / "s"
@@ -1422,10 +1451,12 @@ def test_launch_isolates_session_in_a_worktree_and_preserves_dirty_state(
 
 
 def test_launch_without_worktree_toggle_runs_in_place(git_repo, monkeypatch):
-    """With the toggle off (default), no worktree is created and the agent's
-    cwd is None — today's shared-checkout behaviour is untouched."""
+    """With the toggle explicitly off, no worktree is created and the agent's
+    cwd is None — the shared-checkout behaviour is untouched."""
     from coga.commands.launch import launch as launch_cmd
 
+    toml = git_repo.coga_os / "coga.toml"
+    toml.write_text(toml.read_text() + "\n[launch]\nworktree = false\n")
     cfg = load_config(git_repo.coga_os)
     create_task(
         cfg=cfg,
