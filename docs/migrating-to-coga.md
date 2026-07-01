@@ -74,8 +74,8 @@ Then inspect and update the remaining local files:
   `coga/skills/relay/` → `coga/skills/coga/`.
 - Replace task blackboard fences:
   `<!-- relay:blackboard -->` → `<!-- coga:blackboard -->`.
-- In ticket YAML frontmatter only, replace context/skill refs such as
-  `relay/<name>` with `coga/<name>`.
+- In markdown YAML frontmatter only, replace context/skill refs such as
+  `relay/<name>` with `coga/<name>` in tickets and workflow definitions.
 - In config and `.gitignore`, replace structural tokens such as
   `RELAY_REPO_URL`, `relay.local.toml`, and `relay-os` with the Coga spellings.
 - Remove regenerated Relay-era support dirs if present:
