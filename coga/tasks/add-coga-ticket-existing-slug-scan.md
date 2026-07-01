@@ -6,7 +6,7 @@ autonomy: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -135,6 +135,27 @@ Landed exactly the pinned mechanism (kickoff token, no `resolve_task` change):
 
 Verification: `python -m pytest` → 940 passed. `coga validate --json` on
 `example/coga` → ok_count 1, no issues.
+
+## Peer review — done
+
+Ran `codex review --base main` from `/Users/zach2179/dev/coga-ticket-greeting`
+after rerunning unsandboxed for the known app-server permission failure. Review
+returned no must-fix findings: "The changes correctly propagate an explicit
+authoring kickoff token and handle bare-leaf nested ticket resolution without
+introducing clear regressions."
+
+No code changes were needed in peer review, so no peer-review commit was
+created. Verification run:
+
+- `python -m pytest` from feature worktree → 940 passed, 1 `.pytest_cache`
+  write warning.
+- `coga validate` from feature worktree → failed on pre-existing unrelated
+  dogfood task drift (`install/*` malformed tickets, missing-step tickets,
+  unknown-assignee/stuck warnings).
+- `coga validate --task add-coga-ticket-existing-slug-scan` from feature
+  worktree and primary checkout → all good (1 task checked).
+- `coga validate --json` from `example/coga` in feature worktree → ok_count 1,
+  no issues.
 
 ## Production notes
 
