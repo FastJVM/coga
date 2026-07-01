@@ -1,7 +1,7 @@
 ---
 slug: drain-pending-auto-tickets-with-leftover-session-b
 title: Drain pending auto tickets with leftover session budget after recurring sweep
-status: in_progress
+status: blocked
 autonomy: interactive
 owner: nick
 human: nick
@@ -39,7 +39,7 @@ step: 3 (implement)
 
 ## Description
 
-After a bare `relay recurring` sweep finishes its scheduled work, the leftover
+After a bare `coga recurring` sweep finishes its scheduled work, the leftover
 usage budget in the current window is wasted: pending ordinary auto tickets sit
 untouched until a human launches them, even though the machine is sitting idle
 with budget to spare. This ticket adds a **drain**: once the scheduled sweep
@@ -51,7 +51,7 @@ the sweep already stops on an unfinished recurring launch.
 
 The budget signal is the agent's own subscription usage-window reporting (the
 5h/session window plus the weekly window), read per agent type rather than
-relay tracking tokens itself. Relay does not try to predict a ticket's cost.
+coga tracking tokens itself. Coga does not try to predict a ticket's cost.
 It drains sequentially: launch one eligible ticket, re-read that agent's usage
 state, then decide whether to launch the next ticket. The design step's
 go/no-go probe (decision #1) has been **run against the real endpoints** —
@@ -80,22 +80,22 @@ crashes the sweep.
 
 ## Context
 
-- The sweep lives in `src/relay/commands/recurring.py` (run loop) with shared
-  logic in `src/relay/recurring.py`. There is no token/budget tracking
-  anywhere in relay today.
+- The sweep lives in `src/coga/commands/recurring.py` (run loop) with shared
+  logic in `src/coga/recurring.py`. There is no token/budget tracking
+  anywhere in coga today.
 - The design step must pin down the exact per-agent mechanism for reading
   remaining usage (Claude Code and Codex each expose usage limits, but the
   programmatic invocation needs verifying), the threshold that counts as
   "enough to start a ticket", and what happens when usage can't be read for
   an agent type (conservative default: skip the drain for that agent).
-- Drained tickets are ordinary tasks under `relay-os/tasks/`, launched the
-  same way a human `relay launch <slug>` would be; they keep their own
+- Drained tickets are ordinary tasks under `coga/tasks/`, launched the
+  same way a human `coga launch <slug>` would be; they keep their own
   workflows and bump normally. Do not confuse them with period tasks — the
   `recurring-` slug prefix is the period-task identity marker and ordinary
   tickets never carry it.
 - Launch precondition: ordinary `mode: auto` launches must already be
   re-enabled before this ticket can ship. In the current codebase,
-  `relay launch` temporarily refuses `mode: auto` because auto runs have no
+  `coga launch` temporarily refuses `mode: auto` because auto runs have no
   live progress stream; the separate blocker is
   `auto/stream-agent-progress-in-auto-mode-and-recurring-l`. This ticket does
   not own streaming auto-mode output or re-enabling auto launches.
@@ -131,25 +131,25 @@ crashes the sweep.
    conservatively skip the drain for that agent. If no stable read exists at
    all, come back with the documented fallbacks (time-box / fixed N cap /
    skip).
-2. **Threshold — a `relay.toml` config key.** The "enough budget to start a
+2. **Threshold — a `coga.toml` config key.** The "enough budget to start a
    ticket" threshold is tunable config (e.g. minimum % of window remaining,
    optional max-tickets-per-drain cap), not a hardcoded constant. Design names
    the exact key(s) and default(s) and says whether usage is re-probed
    between launches.
 3. **Ordering — oldest-first by creation = first `log.md` timestamp.** Add a
    `first_activity()` helper mirroring the existing `last_activity()` in
-   `src/relay/logfile.py` (first parseable `YYYY-MM-DD HH:MM` line = the
+   `src/coga/logfile.py` (first parseable `YYYY-MM-DD HH:MM` line = the
    draft/create entry). This is committed content, so it survives `git clone`
    / checkout — unlike file mtime, which resets on checkout and would collapse
-   to "all equal" on the cron machine. `relay status` already orders by
+   to "all equal" on the cron machine. `coga status` already orders by
    `last_activity` (committed), so this stays in the same robust family.
-   Consistency add: expose `relay status --order-by created` backed by the
+   Consistency add: expose `coga status --order-by created` backed by the
    same `first_activity()` helper so a human can inspect the exact order the
    drain will service tickets in.
 
 ## Acceptance Criteria
 
-- [ ] After a **bare** `relay recurring` sweep completes its scheduled launches
+- [ ] After a **bare** `coga recurring` sweep completes its scheduled launches
       cleanly, the drain runs — including when no recurring tasks were due
       (leftover budget + pending tickets is exactly that case). `--all` and
       `--interactive` sweeps do **not** drain.
@@ -165,16 +165,16 @@ crashes the sweep.
       tickets are excluded.
 - [ ] This ticket does **not** re-enable ordinary `mode: auto` launches. Before
       implementation proceeds, the existing auto-mode launch block in
-      `src/relay/commands/launch.py` must already be gone or explicitly
+      `src/coga/commands/launch.py` must already be gone or explicitly
       resolved by `auto/stream-agent-progress-in-auto-mode-and-recurring-l`.
       If that blocker is still present, implementation stops and reports the
       dependency instead of shipping a drain that can only fail on launch.
 - [ ] Eligible tickets are serviced oldest-first by `first_activity()` (the
       first parseable `YYYY-MM-DD HH:MM` line in `log.md`).
 - [ ] A new `first_activity(task_dir)` helper exists in
-      `src/relay/logfile.py`, mirroring `last_activity()` (walks forward, first
+      `src/coga/logfile.py`, mirroring `last_activity()` (walks forward, first
       parseable timestamp, `None` when absent/empty/unparseable), with tests.
-- [ ] `relay status --order-by created` sorts by `first_activity()` (oldest
+- [ ] `coga status --order-by created` sorts by `first_activity()` (oldest
       first by default), is listed in `--order-by` choices/help, and has a test.
 - [ ] A `UsageProbe` abstraction exists with one implementation per configured
       agent type. The Claude impl reads the live OAuth usage endpoint; the
@@ -198,7 +198,7 @@ crashes the sweep.
 - [ ] A ticket is launched only if its assignee clears both guards. Treat these
       as safety reserves: if the session window is below its configured floor
       (for example 5% remaining), or the weekly window is below its effective
-      pacing reserve, Relay launches nothing else for that agent in this drain.
+      pacing reserve, Coga launches nothing else for that agent in this drain.
       An agent whose budget is below guard, or whose probe returned no signal,
       has its remaining tickets skipped for the rest of this drain (claude
       budget re-probed per ticket since it is free; once an agent is marked
@@ -208,35 +208,35 @@ crashes the sweep.
 - [ ] The drain stops entirely on the first launched ticket that returns
       unfinished/failed (same check as the recurring sweep), and respects an
       optional `max_tickets` cap.
-- [ ] Drained launches go through the same `relay launch <slug>` path a human
+- [ ] Drained launches go through the same `coga launch <slug>` path a human
       would use; drained tickets keep their own workflow and bump normally.
 - [ ] The drain is observable: a single one-line summary is posted through the
-      live notification path (`relay.notification.post`, not `notify`) naming
+      live notification path (`coga.notification.post`, not `notify`) naming
       the drained tickets, or stating the drain was skipped for lack of budget /
       unreadable usage — but only when there was at least one eligible ticket
       (no post when nothing was eligible). This is a new notification call, not
       an edit to `_broadcast_scan()`. Slack failures follow the live-post
-      fail-loud semantics documented in `relay/sync`.
+      fail-loud semantics documented in `coga/sync`.
 - [ ] Command handlers stay thin: selection, ordering, probing, and the drain
-      loop live in importable modules (`src/relay/drain.py`,
-      `src/relay/usage.py`), not in `commands/recurring.py`.
+      loop live in importable modules (`src/coga/drain.py`,
+      `src/coga/usage.py`), not in `commands/recurring.py`.
 - [ ] `[recurring.drain]` config keys are parsed in `config.py` with
       validation and defaults, surfaced on `Config`, and covered by tests.
-- [ ] `python -m pytest` passes; `relay validate --json` is clean. New behavior
+- [ ] `python -m pytest` passes; `coga validate --json` is clean. New behavior
       has unit tests with the network/codex calls mocked (no live calls in the
       suite). `example/` fixtures updated if selection/ordering needs them.
 
 ## Proposed Shape
 
-### 1. `first_activity()` + `relay status --order-by created`
-- `src/relay/logfile.py`: add `first_activity(task_dir) -> datetime | None`,
+### 1. `first_activity()` + `coga status --order-by created`
+- `src/coga/logfile.py`: add `first_activity(task_dir) -> datetime | None`,
   the forward-walking mirror of `last_activity()`. Export it in `__all__`.
-- `src/relay/commands/status.py`: add `"created"` to `ORDER_BY_CHOICES`; add a
+- `src/coga/commands/status.py`: add `"created"` to `ORDER_BY_CHOICES`; add a
   `"created_ts"` row value from `first_activity(ref.path)`; sort it
   oldest-first by default (same two-pass None-handling as `updated`, but
   ascending), `--reverse` flips. Update the `--order-by` help string.
 
-### 2. Usage probe — `src/relay/usage.py` (new)
+### 2. Usage probe — `src/coga/usage.py` (new)
 - `@dataclass UsageWindow { label: str; used_percent: float; resets_at:
   datetime | None; window_minutes: int | None = None }` and `@dataclass
   UsageSnapshot { windows: list[UsageWindow] }`. The probe must return one
@@ -294,7 +294,7 @@ crashes the sweep.
 
 ### 3. Launch Precondition
 - This ticket depends on ordinary `mode: auto` launches being available. If the
-  temporary block in `src/relay/commands/launch.py` and its coverage in
+  temporary block in `src/coga/commands/launch.py` and its coverage in
   `tests/test_launch_auto.py` are still present, do not implement around it or
   treat the refusal as a drained-ticket failure. Stop with a clear blocker that
   `auto/stream-agent-progress-in-auto-mode-and-recurring-l` must land first.
@@ -302,7 +302,7 @@ crashes the sweep.
   its own scope to the drain/usage work and add only drain-specific tests; the
   auto-mode streaming policy and architecture-doc update belong to the blocker.
 
-### 4. Drain orchestration — `src/relay/drain.py` (new)
+### 4. Drain orchestration — `src/coga/drain.py` (new)
 - `eligible_auto_tickets(cfg) -> list[TaskRef]`: `list_tasks(cfg)` filtered to
   active + auto + assignee in `cfg.agents` + not `is_under(ref.directory,
   "recurring")`; sorted by `first_activity()` ascending (None sorts last).
@@ -312,7 +312,7 @@ crashes the sweep.
   order: skip if its agent is already exhausted/unreadable; else probe (claude
   re-probed each ticket; mark exhausted when either the session guard or the
   weekly guard fails, mark unreadable when probe returns `None`); if OK,
-  launch via the existing `relay launch` entrypoint (non-interactive, same call
+  launch via the existing `coga launch` entrypoint (non-interactive, same call
   shape the sweep uses with `return_timeout=True`); on an unfinished/failed
   return, stop the whole drain; honor `max_tickets`. Collect drained slugs and
   the stop reason, then post the one-line summary (only if there was ≥1
@@ -322,7 +322,7 @@ crashes the sweep.
   the intended behavior and its visibility comes from the summary + each
   launch's own broadcasts.
 
-### 5. Hook into the sweep — `src/relay/commands/recurring.py`
+### 5. Hook into the sweep — `src/coga/commands/recurring.py`
 - In `main()`, for the bare sweep only (`not all_ and not interactive`), call
   `drain.drain_pending_auto_tickets(cfg)` **after** the recurring launch loop,
   and also on the "no recurring tasks due" path (restructure the early
@@ -330,7 +330,7 @@ crashes the sweep.
   unfinished non-interactive recurring launch naturally skips the drain (the
   process ends), satisfying "aborted sweep skips the drain".
 
-### 6. Config — `src/relay/config.py`
+### 6. Config — `src/coga/config.py`
 - Parse `[recurring.drain]` (new `_parse_recurring`/`_parse_drain` helper, same
   validation style as `_parse_launch`), surfaced on `Config`:
   - `drain_enabled: bool = False` — opt-in; default keeps today's behavior.
@@ -343,7 +343,7 @@ crashes the sweep.
     pace from near-100% reserve at the start of the weekly window down to the
     hard floor.
   - `drain_max_tickets: int = 0` — `0`/absent = unlimited.
-- Example `relay.toml` block:
+- Example `coga.toml` block:
 
   ```toml
   [recurring.drain]
@@ -360,15 +360,15 @@ crashes the sweep.
 
 ### 7. Notifications
 - One end-of-drain summary via the live notification layer
-  (`relay.notification.post`, not `notify`), e.g. `drain: launched 3 pending
+  (`coga.notification.post`, not `notify`), e.g. `drain: launched 3 pending
   auto ticket(s): a, b, c` or `drain skipped: codex session 4% remaining below
   5% reserve`. Gate on "≥1 eligible ticket existed" so quiet sweeps stay
   silent. Because this uses the live `post()` path, configured Slack failures
-  fail loud per `relay/sync`; no daily-digest spool entry is created.
+  fail loud per `coga/sync`; no daily-digest spool entry is created.
 
 ### 8. Tests
 - `first_activity()` unit tests (present/absent/unparseable/multi-line).
-- `relay status --order-by created` ordering test.
+- `coga status --order-by created` ordering test.
 - Usage parsing tests against captured JSON fixtures (Claude usage body; codex
   rollout `rate_limits` line) — no live network/codex calls; monkeypatch the
   HTTP fetch and the codex-exec/rollout-read seams. Include a Codex stale-file
@@ -391,13 +391,48 @@ crashes the sweep.
 - Reading Claude credentials from the macOS Keychain (Linux file path only;
   absence fails soft → skip).
 - Cross-window or dollar-based budgeting, historical usage tracking, or any
-  persisted budget state in relay (the probe is read-only and stateless).
+  persisted budget state in coga (the probe is read-only and stateless).
 - Concurrency / parallel draining — the drain is sequential like the sweep.
 - Changing the recurring sweep's own launch/stop semantics.
 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Design-drift audit + block (2026-07-01, claude, interactive)
+
+Nick reopened this via `coga ticket` while it sat `in_progress` on `implement`.
+Two actions taken: (1) renamed relay→coga throughout ticket.md (it was authored
+against the old **relay** fork — every `src/relay/`, `relay.toml`, `relay …`
+path was wrong for this repo); (2) blocked for rescope. The frozen design is
+stale in three material ways and should NOT be implemented as written:
+
+- **`mode:` → `autonomy:` (semantic).** Current coga has no `mode` field; it is
+  `ticket.autonomy`. The 13 `mode: auto`/`mode: interactive` references in the
+  acceptance criteria + proposed shape were intentionally left un-renamed (a
+  find-replace would hide the drift) — the eligibility predicate targets a
+  field that no longer exists and must be rewritten against `autonomy`.
+- **Hard precondition still unmet.** `src/coga/commands/launch.py:285` still
+  refuses auto launches: "Cannot launch: autonomy=auto is temporarily
+  disabled." The ticket's own criteria say implementation must stop if this
+  block is present. It is.
+- **Overlap with work that landed after design.**
+  - `src/coga/megalaunch.py` already IS a drain (`run_megalaunch`,
+    `_launch_until_stop`, `budget_state`, `autonomy_override="auto"`, run
+    summaries) — but gates on coga-tracks-tokens-itself
+    (`agent_token_budgets`/`token_guard`/`UsageRecord` sums), the approach THIS
+    ticket explicitly rejected in favor of an OAuth usage-window probe.
+  - `src/coga/usage.py` already exists but is session token-record accounting,
+    NOT the OAuth `five_hour/seven_day` probe this ticket's `usage.py` proposed
+    — name collision, different thing.
+  - `nightly-auto-drain-run-for-ready-tickets` (separate `in_progress` ticket,
+    at review-design) covers "make spare overnight budget useful" — likely the
+    same feature under another name. Also `mode-autonomy-split/`,
+    `awaken-recurring-auto-blocked-tasks`, `wire-autonomy-triage-into-...`.
+
+Rescope decision needed before implement: reconcile with megalaunch (adopt the
+OAuth-probe budget model into it vs. a second drain path), dedup vs.
+nightly-auto-drain, and confirm the autonomy=auto gate lands first.
 
 ## Pre-launch decisions with Nick (2026-06-20)
 
@@ -408,12 +443,12 @@ ticket.md `## Context` → "Decisions locked with Nick"):
    (Anthropic/OpenAI), not CLI `/usage` scraping. Design must *prove the
    endpoint works* (go/no-go) and confirm it's the subscription usage window,
    not per-minute rate-limit headers. Unreadable → skip drain for that agent.
-2. Threshold: a **`relay.toml` config key** (min % remaining, optional max
+2. Threshold: a **`coga.toml` config key** (min % remaining, optional max
    cap), not hardcoded. Design names key + default + re-probe cadence.
 3. Ordering: **oldest-first by first `log.md` timestamp** via a new
    `first_activity()` helper (mirror of `last_activity()`). Committed content
    → survives clone (file mtime does not). Bonus consistency add:
-   `relay status --order-by created` on the same helper.
+   `coga status --order-by created` on the same helper.
 
 ## Open Questions (for review-design / Nick)
 
@@ -432,16 +467,16 @@ ticket.md `## Context` → "Decisions locked with Nick"):
    codex support with the primer + rollout snapshot read; failures skip codex
    conservatively.
 4. **Summary channel — resolved toward live post.** Spec posts a live
-   `relay.notification.post` one-liner, not a digest `notify` record. This is
-   immediate enough for unattended cron and follows `relay/sync` fail-loud
+   `coga.notification.post` one-liner, not a digest `notify` record. This is
+   immediate enough for unattended cron and follows `coga/sync` fail-loud
    semantics.
 5. **Config location.** `[recurring.drain]` chosen (the drain is a recurring-
    sweep tail). Alternatives: top-level `[drain]` or fold into `[launch]`.
 
 ## Review-design notes (2026-06-24)
 
-- Nick confirmed the threshold must be a `relay.toml` safety reserve: configure
-  how much usage must remain before Relay is allowed to drain, and if the
+- Nick confirmed the threshold must be a `coga.toml` safety reserve: configure
+  how much usage must remain before Coga is allowed to drain, and if the
   remaining budget is too low (e.g. 5%) launch nothing else for that agent.
 - Nick confirmed the check is **session + weekly**. The implementation must use
   the binding window: both the 5h/session window and the weekly window have to
@@ -452,7 +487,7 @@ ticket.md `## Context` → "Decisions locked with Nick"):
   that primer or snapshot read fails, codex drains are skipped conservatively.
 - Nick reframed the intent: consume leftover Claude and Codex allotment by
   running ordinary auto tickets after recurring, sequentially and reasonably,
-  until the agent's own usage windows say to stop. Relay should not estimate
+  until the agent's own usage windows say to stop. Coga should not estimate
   ticket cost or run work in parallel.
 - Spec adjusted from one shared `min_remaining_percent` to separate guards:
   fixed 5h/session reserve (`drain_min_session_remaining_percent`, default
@@ -469,7 +504,7 @@ ticket.md `## Context` → "Decisions locked with Nick"):
   start of the weekly window, linearly down to the hard weekly floor by the
   final `drain_weekly_final_window_hours` (default 24h). The weekly reserve
   never drops below the hard floor, so the drain still avoids token exhaustion.
-- Nick called out that the hard floors must be explicit `relay.toml` settings.
+- Nick called out that the hard floors must be explicit `coga.toml` settings.
   Spec now includes the intended `[recurring.drain]` block and a table showing
   the default weekly pacing thresholds: 100% required at 7 days, then about
   84/68/53/37/21% at 6/5/4/3/2 days, then 5% during the final 24h.
@@ -477,24 +512,24 @@ ticket.md `## Context` → "Decisions locked with Nick"):
 ## Evaluator follow-up fixes (2026-06-24)
 
 - Fresh `eval/ticket-diagnostic` found four gaps: current `mode: auto` launch
-  block, missing `relay/sync` notification context/contract, Codex stale
-  rollout risk, and validation noise from using the wrong global `relay` shim.
+  block, missing `coga/sync` notification context/contract, Codex stale
+  rollout risk, and validation noise from using the wrong global `coga` shim.
 - Auto-mode decision: this drain ticket **does not** re-enable ordinary
   `mode: auto`. It depends on
   `auto/stream-agent-progress-in-auto-mode-and-recurring-l` (or equivalent
   removal of the launch block) landing first. If the block remains at
   implementation time, the implementer should stop and report the dependency
   rather than shipping a nonfunctional drain.
-- Notification decision: attached `relay/sync`; end-of-drain summary uses
-  `relay.notification.post`, not `notify`, so configured Slack failures fail
+- Notification decision: attached `coga/sync`; end-of-drain summary uses
+  `coga.notification.post`, not `notify`, so configured Slack failures fail
   loud and no digest spool entry is created.
 - Codex freshness guard added: record `started_at` before the throwaway
   `codex exec`; accept only a rollout file modified after `started_at` and
   containing parseable `rate_limits`; stale/missing data returns `None` and
   skips codex drains.
-- Validation note: `/home/n/.local/bin/relay` imports `/home/n/Code/relay`, not
+- Validation note: `/home/n/.local/bin/coga` imports `/home/n/Code/claude/coga`, not
   this checkout. For this task, verify with
-  `PYTHONPATH=/home/n/Code/codex/relay/src python -m relay.cli ...`.
+  `PYTHONPATH=/home/n/Code/claude/coga/src python -m coga.cli ...`.
 
 ## Budget-probe go/no-go (2026-06-20, design step) — REAL probes run
 
@@ -591,7 +626,7 @@ Chose option 3, minimized to a SINGLE priming probe. VERIFIED it works:
 
 ### 1. Description clarity — good, with two underspecified details
 
-The description is strong for a cold start: clear trigger (after a bare `relay recurring` sweep), precise selection criteria (`status: active`, `mode: auto`, assignee is a configured agent type), ordering, stop condition, and where the budget signal comes from. The ## Context section correctly anchors the code (`src/relay/commands/recurring.py` run loop, `src/relay/recurring.py`) and correctly states there is no budget tracking in relay today — I verified both.
+The description is strong for a cold start: clear trigger (after a bare `coga recurring` sweep), precise selection criteria (`status: active`, `mode: auto`, assignee is a configured agent type), ordering, stop condition, and where the budget signal comes from. The ## Context section correctly anchors the code (`src/coga/commands/recurring.py` run loop, `src/coga/recurring.py`) and correctly states there is no budget tracking in coga today — I verified both.
 
 Two things an agent will have to guess:
 - **"Oldest first" by what clock?** Tickets are plain directories; frontmatter has no created-date field. Git history, directory mtime, and slug ordering all give different answers. This should be pinned in the ticket or explicitly delegated to design.
@@ -603,14 +638,14 @@ Two things an agent will have to guess:
 
 ### 3. Context relevance — relevant set; one candidate missing
 
-- `relay/recurring` — clearly right; explains the sweep semantics, stop-on-unfinished behavior, and the `recurring-` prefix distinction the ticket leans on.
-- `relay/codebase` — justified for any ticket editing `src/relay/` (it carries test/fixture expectations).
+- `coga/recurring` — clearly right; explains the sweep semantics, stop-on-unfinished behavior, and the `recurring-` prefix distinction the ticket leans on.
+- `coga/codebase` — justified for any ticket editing `src/coga/` (it carries test/fixture expectations).
 - `dev/code` — justified; the workflow produces a branch and PR, which is exactly this context's attach condition.
-- **Possibly missing: `relay/sync`.** The `relay/recurring` context explicitly says Slack posting mechanics are out of its scope and live in `relay/sync`, and this ticket has a Slack-observability requirement. `notify()` is simple enough that this is borderline, but it's the one defensible addition.
+- **Possibly missing: `coga/sync`.** The `coga/recurring` context explicitly says Slack posting mechanics are out of its scope and live in `coga/sync`, and this ticket has a Slack-observability requirement. `notify()` is simple enough that this is borderline, but it's the one defensible addition.
 
 ### 4. Broad contexts vs. copied facts — handled well
 
-The ticket already copied the load-bearing facts into ## Context (where the sweep lives, no existing budget tracking, the `recurring-` prefix rule, the conservative skip-on-unreadable default). `relay/codebase` is the broadest attachment (~165 lines, including wheel-packaging gotchas irrelevant here), but it's the conventional attachment for relay-source work and carries the test/fixture rules the implement step genuinely needs. No attachment exists solely to deliver one fact. Acceptable.
+The ticket already copied the load-bearing facts into ## Context (where the sweep lives, no existing budget tracking, the `recurring-` prefix rule, the conservative skip-on-unreadable default). `coga/codebase` is the broadest attachment (~165 lines, including wheel-packaging gotchas irrelevant here), but it's the conventional attachment for coga-source work and carries the test/fixture rules the implement step genuinely needs. No attachment exists solely to deliver one fact. Acceptable.
 
 ### 5. Scope — one feature, but with a detachable risky core
 
@@ -625,4 +660,10 @@ This is one coherent feature, not an obvious bundle. However, it contains three 
 
 ### Verdict
 
-Launchable as-is given the design step exists, but I'd make three edits first: pin (or explicitly delegate) the "oldest first" ordering source, soften the usage-reporting assertion to match the context's hedge and authorize a no-go outcome from design, and consider attaching `relay/sync` for the Slack requirement.
+Launchable as-is given the design step exists, but I'd make three edits first: pin (or explicitly delegate) the "oldest first" ordering source, soften the usage-reporting assertion to match the context's hedge and authorize a no-go outcome from design, and consider attaching `coga/sync` for the Slack requirement.
+
+---
+
+## Blockers
+
+- [ ] [2026-07-01 10:16] [agent:claude] id=20260701T101651 Design stale, needs rescope before implement. (1) Overlaps existing src/coga/megalaunch.py drain (run_megalaunch/budget_state) which uses coga-token-tracking, the model this ticket rejected for an OAuth usage-window probe — reconcile into one drain path or justify two. (2) Likely duplicates in_progress ticket nightly-auto-drain-run-for-ready-tickets. (3) Precondition unmet: autonomy=auto still disabled at launch.py:285. (4) mode->autonomy semantic drift throughout criteria. Decide reconcile/dedup path before implement resumes.
