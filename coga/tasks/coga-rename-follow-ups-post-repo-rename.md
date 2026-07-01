@@ -48,9 +48,9 @@ were intentionally NOT made in the rename PR. See that PR's blackboard
 - [ ] `tests/test_init.py`
 - [ ] `tests/test_skill_manager.py`
 
-**Migrate tooling (deferred from the rename PR):**
-- [ ] Build `scripts/migrate-to-coga.sh` — renames `relay-os`→`coga` (bare; the boss reversed the interim `coga-os` mid-PR, commit `8e7b3f76`), `relay.toml`→`coga.toml`, `relay.local.toml`→`coga.local.toml`, `RELAY_REPO_URL`→`COGA_REPO_URL` in an existing installed repo.
-- [ ] **DECIDE + reconcile** `update.py` `OBSOLETE_PATHS` (~line 60) and `_LEGACY_COGA_GITIGNORE_ENTRIES` (~line 115): their `contexts/coga/*` / `skills/coga` prune literals were token-swept from `contexts/relay/*` / `skills/relay`. These match paths on disk in **pre-rename** repos. Whether the swept `coga` spelling is right depends on whether `migrate-to-coga.sh` renames the inner namespace dirs (`contexts/relay`→`contexts/coga`, `skills/relay`→`skills/coga`) or only the workspace dir + config. Co-design the two so the prune actually matches what migrate leaves on disk. Three QA agents flagged this in the rename PR; it was deliberately left as `coga` there (don't flip blind). Note: the sibling `tasks/relay-setup` literal was correctly preserved as `relay`.
+**Host-repo migration (manual; no script):**
+- [ ] Keep `docs/migrating-to-coga.md` as the migration path: manual renames from `relay-os`→`coga` (bare; the boss reversed the interim `coga-os` mid-PR, commit `8e7b3f76`), `relay.toml`→`coga.toml`, `relay.local.toml`→`coga.local.toml`, and `RELAY_REPO_URL`→`COGA_REPO_URL` in existing installed repos.
+- [ ] Reconcile `update.py` `_LEGACY_COGA_GITIGNORE_ENTRIES` with the manual checklist: the checklist renames inner namespace dirs (`contexts/relay`→`contexts/coga`, `skills/relay`→`skills/coga`), so the swept `contexts/coga/*` / `skills/coga` prune literals stay intentional. Note: the sibling `tasks/relay-setup` literal was correctly preserved as `relay`.
 - [ ] Single tracking ticket with a per-repo checklist to migrate the ~8–10 Desktop relay repos (NOT one ticket per repo — a ticket can't cleanly rename the repo it lives in).
 
 **Publish:**
