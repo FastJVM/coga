@@ -1,9 +1,25 @@
-# install/
+---
+slug: install/README
+title: install/ — Greg's onboarding feedback index
+status: draft
+autonomy: interactive
+owner: nicktoper
+human: nicktoper
+agent: claude
+assignee: nicktoper
+contexts: []
+skills: []
+workflow: null
+secrets: null
+script: null
+---
+
+## Description
 
 Tickets from **Greg's onboarding feedback (2026-06-24)** — issues hit while
 trying to install Relay on a managed work machine.
 
-## Filed here
+### Filed here
 
 - `pip-hash-requirement-breaks-editable-install` — pip global hash-checking mode
   aborts `pip install -e .`.
@@ -23,7 +39,7 @@ trying to install Relay on a managed work machine.
   init re-clone: the fixes shipped (see below) but Greg still hit it, so this is
   a verification/retest ticket on a clean machine.
 
-## Deliberately NOT filed (already covered)
+### Deliberately NOT filed (already covered)
 
 - **SSH vs HTTPS clone + init re-clone / `RELAY_REPO_URL`** → the behavior fix is
   covered by `relay-forces-https` (done) and `remote-default-origin` (done).
@@ -34,3 +50,5 @@ trying to install Relay on a managed work machine.
   `relay-help-and-cli-should-not-require-user`.
 - **The 12 noisy skill-install failure dumps** → `marketing/quiet-relay-init-managed-skill-failures`
   (draft). The *access* problem is filed as `external-users-cannot-install-managed-skills`.
+
+<!-- coga:blackboard -->
