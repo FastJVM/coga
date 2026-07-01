@@ -6,7 +6,7 @@ autonomy: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: zach
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -108,6 +108,8 @@ also depend on.
 branch: ticket-existing-slug-greeting
 worktree: /Users/zach2179/dev/coga-ticket-greeting
 commit: 83a8be41
+pr: https://github.com/FastJVM/coga/pull/486
+ci: no checks configured on the repo (`gh pr checks` reports none) — nothing to be red against.
 
 ## Implement — done
 
