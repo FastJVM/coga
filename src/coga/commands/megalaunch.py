@@ -7,7 +7,7 @@ import sys
 import typer
 
 from coga.config import ConfigError, load_config
-from coga.megalaunch import render_run_summary, run_megalaunch
+from coga.megalaunch import MegalaunchError, render_run_summary, run_megalaunch
 
 
 def megalaunch(
@@ -25,7 +25,11 @@ def megalaunch(
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
 
-    run = run_megalaunch(cfg, max_tasks=max_tasks)
+    try:
+        run = run_megalaunch(cfg, max_tasks=max_tasks)
+    except MegalaunchError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        sys.exit(2)
     typer.echo(render_run_summary(run))
     if run.counts["failed"]:
         sys.exit(1)

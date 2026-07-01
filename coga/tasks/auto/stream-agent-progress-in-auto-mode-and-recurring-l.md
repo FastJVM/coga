@@ -132,6 +132,23 @@ The blackboard is a notepad to be written to often as the human and agent works 
   (stream stdout) or actually broken (fix launches)? Nick said "right
   now auto is not working" — clarify before filling the ticket.
 
+## Megalaunch de-`-p` (2026-07-01, chat session with Nick)
+
+- The 2026-07-01 megalaunch "freeze" was diagnosed from this session's own
+  transcript (`--session-id 286bdd5c…`): the `claude -p` child was healthy and
+  33s into the implement step when Nick Ctrl-C'd — `-p` buffers all output
+  until completion, so a working run and a hung run look identical.
+- Decision (Nick): megalaunch should not use `-p` at all. It always runs from
+  a console (for now), so each step is a normal interactive launch — PTY
+  watcher, done-sentinel teardown on `bump`/`mark done`/`block`, recurring's
+  idle-timeout/max-session backstops, TTY required (fail loud headless).
+- Shipped in `src/coga/megalaunch.py` (+ CLI/script entry points, docs,
+  tests). This resolves the megalaunch instance of this ticket's symptom;
+  `autonomy: auto` launches in general remain frozen, and recurring was
+  already interactive-or-script, so what's left of this ticket is deciding
+  whether headless streaming (`--output-format=stream-json`) is still worth
+  building at all.
+
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":236825,"cache_read_input_tokens":445042,"cli":"claude","input_tokens":11292,"model":"claude-fable-5","output_tokens":7784,"provider":"anthropic","schema":1,"session_id":"286bdd5c-736e-46ac-b707-9018394c3a19","slug":"auto/stream-agent-progress-in-auto-mode-and-recurring-l","step":"implement","title":"Stream agent progress in auto-mode and recurring launches","ts":"2026-07-01T22:37:35.301690Z","usage_status":"ok"}

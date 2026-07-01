@@ -493,9 +493,16 @@ clear-the-queue counterpart to naming one slug — it takes no slug and rejects
 Attempt launchable active work sequentially using the shared megalaunch engine.
 This is not parallel fanout: it scans active tasks, skips human gates and open
 blockers, checks the assigned agent's token budget guard, preflights launch
-requirements, then runs one eligible agent step at a time with unattended
-launch policy. The run summary distinguishes launched, completed, blocked,
-skipped-human-gate, skipped-unresolved-blocker, skipped-budget, and failed.
+requirements, then runs one eligible agent step at a time. Each step is a
+normal **interactive** launch — the agent REPL streams live to the console
+under the PTY watcher, and the done-sentinel (`coga bump` / `mark done` /
+`block`) releases it before the sweep moves on — never a headless `claude -p`
+run, which would buffer all output until the run ends. The recurring sweep's
+idle-timeout / max-session backstops are armed so a wedged REPL can't starve
+the queue; because the REPLs are interactive, megalaunch requires a TTY and
+fails loud without one. The run summary distinguishes launched, completed,
+blocked, skipped-human-gate, skipped-unresolved-blocker, skipped-budget, and
+failed.
 
 The daily `recurring/megalaunch` script task calls the same engine and writes a
 bounded `## Megalaunch Run Summary`, replacing old summaries so the recurring
