@@ -143,3 +143,5 @@ This blackboard is for active-work handoff notes. Authoring scratch was cleared 
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":526610,"cache_read_input_tokens":15310002,"cli":"claude","input_tokens":47271,"model":"claude-opus-4-8","output_tokens":208577,"provider":"anthropic","schema":1,"session_id":"526302eb-aac9-4855-bd98-3ee666e70c4b","slug":"add-coga-ticket-existing-slug-scan","step":"implement","title":"add-coga-ticket-existing-slug-scan","ts":"2026-07-01T00:32:06.993135Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":null,"cli":"codex","input_tokens":null,"model":null,"output_tokens":null,"provider":"openai","schema":1,"session_id":"019f1b75-d534-76d1-b13a-4774a74bc13b","slug":"add-coga-ticket-existing-slug-scan","step":"peer-review","title":"add-coga-ticket-existing-slug-scan","ts":"2026-07-01T02:16:59.510637Z","usage_status":"unknown"}
