@@ -278,16 +278,6 @@ them. Bootstrap tickets have no status and don't appear here. Pipe through
 `grep` for ad-hoc slicing of any column. When done tasks are hidden the
 output ends with a `(N done tasks hidden — use --all to show)` note.
 
-When any task is blocked, the default view appends a compact `Open blockers:`
-section below the tables — one bullet per open ask, each with its reason and
-the `coga unblock <slug> --answer "..."` next command — so plain `coga status`
-answers "what's waiting on me?" without a second command. `coga status
---blocked` is the focused, expanded queue (below); the inline section is the
-lightweight always-on surfacing of the same asks. Both surfaces key off
-`status: blocked` alone — status is the signal, so leftover asks lingering in a
-non-blocked (e.g. finished) ticket's blackboard are not shown; that
-status/blackboard drift is `coga validate`'s job to catch, not this view's.
-
 An optional positional argument and the `--no-recurse` flag are two orthogonal
 axes — *which* directory, and *how deep*. Tasks are directories (a `ticket.md`
 directory at any depth), so the argument is just a directory path in the tree
@@ -327,10 +317,14 @@ execution under `tasks/recurring/` (`recurring/<name>`), so they render in a
 in with it. `coga recurring list` is the schedule-aware view of those.
 
 `coga status --blocked` is the focused human-answer queue. It shows only
-blocked work and expands multi-blocker tasks to one row per open ask, including
-slug, current step, owner, assignee, blocker age/reason, and the next command
-shape (`coga unblock <slug> --answer "..."`). It is still read-only: it never
-resolves blockers, relaunches work, or probes the network.
+blocked work and expands multi-blocker tasks to one row per open ask in a
+single table (slug, step, owner, age, reason). The reason is ellipsized to keep
+each ask on one line — the full text is one `coga show <slug>` away — and the
+`coga unblock <slug> --answer "..."` command shape is a shared footer rather
+than a repeated per-row column. Blocked-ness keys off `status: blocked` alone;
+leftover asks on a non-blocked ticket are `coga validate`'s drift to catch, not
+this view's. It is still read-only: it never resolves blockers, relaunches
+work, or probes the network.
 
 The script-backed `recurring/blocker-reminders` task uses the same blocked-task
 contract to re-notify owners about unresolved blockers and records a

@@ -145,16 +145,14 @@ def status(
         except TicketError:
             continue
         # Status is the signal: a ticket is blocked iff its status says so.
-        # Don't re-derive blocked-ness from leftover blackboard asks — those
-        # can outlive the blocked status (e.g. a done ticket finished without
-        # `unblock`). Status/blackboard drift is `coga validate`'s job to catch,
-        # not this triage view's.
+        # Leftover blackboard asks on a non-blocked (e.g. finished) ticket are
+        # status/blackboard drift for `coga validate` to catch, not this
+        # triage view's to re-derive blocked-ness from.
         if ticket.status == "blocked":
             blocked_rows.append({
                 "slug": ref.id_slug,
-                "status": ticket.status or "-",
+                "status": ticket.status,
                 "owner": ticket.owner or "-",
-                "assignee": ticket.assignee or "-",
                 "step": ticket.step or "-",
                 "blockers": _safe_open_blockers(ref.ticket_path),
             })
@@ -224,12 +222,6 @@ def status(
         console.print("Recurring", style="bold")
         console.print(_build_table(recurring_rows, narrow, now))
         console.print(_summary_line(recurring_rows), style="dim")
-    # Surface the open blocker asks inline so the default triage view answers
-    # "what's waiting on me?" without a second `--blocked` command. The task
-    # tables already show a `blocked` row; this adds the reason + next step.
-    if blocked_rows:
-        console.print()
-        _print_open_blockers(console, blocked_rows)
     if hidden_done:
         console.print(_done_hint(hidden_done).lstrip(), style="dim")
 
@@ -330,8 +322,9 @@ def _summary_line(rows: list[dict]) -> str:
     return summary
 
 
-def _expand_blockers(rows: list[dict]) -> list[dict]:
-    """One entry per open blocker ask; a blocked row with none yields one."""
+def _print_blocked(console: Console, rows: list[dict]) -> None:
+    """Print one row per open blocker, so every ask is visible at a glance."""
+    now = datetime.now()
     expanded: list[dict] = []
     for row in rows:
         blockers: list[Blocker] = row["blockers"]
@@ -340,56 +333,50 @@ def _expand_blockers(rows: list[dict]) -> list[dict]:
                 expanded.append({**row, "blocker": blocker})
         else:
             expanded.append({**row, "blocker": None})
-    return expanded
-
-
-def _print_open_blockers(console: Console, rows: list[dict]) -> None:
-    """Print the compact 'Open blockers:' bullet list — one line per ask."""
-    console.print("Open blockers:", style="bold")
-    for row in _expand_blockers(rows):
-        blocker: Blocker | None = row["blocker"]
-        reason = (
-            blocker.reason
-            if blocker is not None
-            else "(blocked; no open blocker recorded)"
-        )
-        console.print(
-            f"- {row['slug']}: {reason} "
-            f"(next: coga unblock {row['slug']} --answer \"...\")"
-        )
-
-
-def _print_blocked(console: Console, rows: list[dict]) -> None:
-    """Print one row per open blocker, so every ask is visible at a glance."""
-    now = datetime.now()
-    expanded = _expand_blockers(rows)
 
     if not expanded:
         console.print("(no blocked tasks)")
         return
 
+    # Fixed widths on every column but the reason, then the reason is
+    # pre-truncated to whatever width is left. A `no_wrap` column reports its
+    # full text as its minimum width, so a long un-truncated reason would make
+    # Rich collapse the short columns to zero to fit it; capping the text up
+    # front keeps every cell within its column and the table within the
+    # terminal. Full reason text is one `coga show <slug>` away.
+    slug_w, step_w, owner_w, age_w = 30, 10, 8, 4
+    # Conservative overhead (padding 2/col + separators), rounded up so the
+    # budget stays a touch under what's really free — then Rich never has to
+    # shrink the reason column further and re-clip our text.
+    overhead = 2 * 5 + 4
+    reason_w = max(10, console.width - (slug_w + step_w + owner_w + age_w) - overhead)
+
     table = Table(show_lines=False, show_edge=False, pad_edge=False)
-    for col in ("slug", "status", "step", "owner", "assignee", "age", "blocker", "next"):
-        table.add_column(col, no_wrap=(col != "blocker"), overflow="fold")
+    table.add_column("slug", no_wrap=True, overflow="ellipsis", width=slug_w)
+    table.add_column("step", no_wrap=True, overflow="ellipsis", width=step_w)
+    table.add_column("owner", no_wrap=True, overflow="ellipsis", width=owner_w)
+    table.add_column("age", no_wrap=True, width=age_w)
+    table.add_column("reason", no_wrap=True)
 
     for row in expanded:
         blocker: Blocker | None = row["blocker"]
         age = "-"
-        reason = "(blocked; no open blocker recorded)"
+        reason = "(no open blocker recorded)"
         if blocker is not None:
             if blocker.created_at is not None:
                 age = _format_relative(blocker.created_at, now)
-            reason = blocker.reason
-        table.add_row(
-            row["slug"],
-            row["status"],
-            row["step"],
-            row["owner"],
-            row["assignee"],
-            age,
-            reason,
-            f"coga unblock {row['slug']} --answer \"...\"",
-        )
+            # Collapse internal whitespace to one line, then clip to fit.
+            reason = " ".join(blocker.reason.split())
+        if len(reason) > reason_w:
+            reason = reason[: reason_w - 1] + "…"
+        table.add_row(row["slug"], row["step"], row["owner"], age, reason)
+
     console.print(table)
-    _print_open_blockers(console, rows)
     console.print(_summary_line(rows), style="dim")
+    # The unblock command is identical bar the slug (already in the table), so
+    # it's a shared footer, not a repeated column — signal over boilerplate.
+    console.print(
+        'Answer:  coga unblock <slug> --answer "..."'
+        "     Full reason:  coga show <slug>",
+        style="dim",
+    )

@@ -1061,13 +1061,15 @@ def test_status_blocked_expands_open_blockers(repo: Path) -> None:
     result = runner.invoke(app, ["block", "--task", slug, "--reason", "pick retry ceiling"])
     assert result.exit_code == 0, result.output
 
-    result = runner.invoke(app, ["status", "--blocked"])
+    result = runner.invoke(app, ["status", "--blocked"], env={"COLUMNS": "200"})
 
     assert result.exit_code == 0, result.output
     assert slug in result.output
     assert "blocked" in result.output
     assert "pick retry ceiling" in result.output
-    assert f'coga unblock {slug} --answer "..."' in result.output
+    # The unblock command is a shared footer with a <slug> placeholder now,
+    # not a repeated per-row column.
+    assert 'coga unblock <slug> --answer "..."' in result.output
 
 
 def test_status_narrow_terminal_keeps_each_task_on_one_line(
