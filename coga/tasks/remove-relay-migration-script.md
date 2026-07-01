@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -57,7 +57,8 @@ This blackboard is for active-work handoff notes. Authoring scratch was cleared 
 
 branch: drop-relay-migration-script
 worktree: /tmp/coga-drop-relay-migration-script
-commit: 6fe9f49b Remove relay migration script
+commit: 4e558620 peer-review: clarify workflow ref migration
+pr: https://github.com/FastJVM/coga/pull/488
 
 ## Result
 
