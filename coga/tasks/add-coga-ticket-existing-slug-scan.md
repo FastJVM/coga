@@ -1,7 +1,7 @@
 ---
 slug: add-coga-ticket-existing-slug-scan
 title: add-coga-ticket-existing-slug-scan
-status: in_progress
+status: done
 autonomy: interactive
 owner: zach
 human: zach
@@ -28,7 +28,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
