@@ -131,3 +131,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
   create time. Open question carried over: is auto-mode merely silent
   (stream stdout) or actually broken (fix launches)? Nick said "right
   now auto is not working" — clarify before filling the ticket.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":236825,"cache_read_input_tokens":445042,"cli":"claude","input_tokens":11292,"model":"claude-fable-5","output_tokens":7784,"provider":"anthropic","schema":1,"session_id":"286bdd5c-736e-46ac-b707-9018394c3a19","slug":"auto/stream-agent-progress-in-auto-mode-and-recurring-l","step":"implement","title":"Stream agent progress in auto-mode and recurring launches","ts":"2026-07-01T22:37:35.301690Z","usage_status":"ok"}
