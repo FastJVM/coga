@@ -569,3 +569,5 @@
 2026-07-01 11:59 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
 2026-07-01 11:59 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
 2026-07-01 12:10 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-29 12:51 [anonymous-install-telemetry-opt-out-no-pii] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-01 12:15 [make-megalaunch-user-specific] [human:nicktoper] created (autonomy=interactive, status=draft)
