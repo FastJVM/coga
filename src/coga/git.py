@@ -1096,24 +1096,47 @@ def add_launch_worktree(cfg: Config, key: str) -> Path | None:
     base = root.joinpath(*_LAUNCH_WORKTREE_DIR)
     base.mkdir(parents=True, exist_ok=True)
     path = base / key
-    commitish = (
-        cfg.git_control_branch
-        if _git_ref_present(root, cfg.git_control_branch)
-        else "HEAD"
-    )
+    commitish = _launch_worktree_base(root, cfg.git_remote, cfg.git_control_branch)
     _run_git(root, "worktree", "add", "--detach", str(path), commitish)
     return path
+
+
+def _launch_worktree_base(root: Path, remote: str, branch: str) -> str:
+    """Best local ref to detach a launch worktree from."""
+    local_ref = f"refs/heads/{branch}"
+    if _git_ref_present(root, local_ref):
+        return local_ref
+    remote_ref = f"refs/remotes/{remote}/{branch}"
+    if _git_ref_present(root, remote_ref):
+        return remote_ref
+    return "HEAD"
+
+
+def launch_worktree_has_dirty_coga_state(cfg: Config, path: Path) -> bool:
+    """True when a launch worktree still has recoverable Coga OS changes.
+
+    Used before teardown. Detached launch worktrees may retain state that the
+    non-fatal git sync layer could not land, especially union files such as
+    `coga/log.md`; force-removing such a checkout would delete the only local
+    copy. Non-Coga scratch files do not block cleanup.
+    """
+    root = _toplevel(path)
+    if root is None:
+        return False
+    coga_root = repo_root_in_worktree(cfg, path)
+    state_pathspecs = _coga_state_pathspecs(root, coga_root)
+    return bool(_changed_paths_under(root, state_pathspecs))
 
 
 def remove_launch_worktree(cfg: Config, path: Path) -> None:
     """Remove a per-launch worktree and prune its registry entry. Best-effort.
 
     Never raises: cleanup runs in `coga launch`'s `finally`, so a failed removal
-    must not mask the launch's real outcome. Force-removes (the launch worktree
-    holds only committed/landed task state, but a stray dirty file must not wedge
-    teardown), deletes any leftover directory, then prunes git's worktree list.
-    Removal is driven from the *primary* git root, never from inside `path`
-    itself, so git does not refuse it as "the current working tree".
+    must not mask the launch's real outcome. Callers that care about recoverable
+    Coga state should check first; this primitive is intentionally forceful so a
+    stray scratch file cannot wedge teardown. Removal is driven from the
+    *primary* git root, never from inside `path` itself, so git does not refuse
+    it as "the current working tree".
     """
     root = _toplevel(cfg.repo_root)
     if root is None:
@@ -1183,6 +1206,7 @@ def repo_root_in_worktree(cfg: Config, worktree_path: Path) -> Path:
 __all__ = [
     "GitError",
     "add_launch_worktree",
+    "launch_worktree_has_dirty_coga_state",
     "reap_orphan_launch_worktrees",
     "remove_launch_worktree",
     "repo_root_in_worktree",

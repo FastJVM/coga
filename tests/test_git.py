@@ -1260,6 +1260,31 @@ def test_add_launch_worktree_creates_detached_checkout(git_repo) -> None:
     assert (path / "coga" / "coga.toml").is_file()
 
 
+def test_add_launch_worktree_uses_control_branch_from_feature_checkout(git_repo) -> None:
+    cfg = _cfg(git_repo.coga_os)
+    git_repo.checkout_branch("feature/launch")
+    (git_repo.root / "FEATURE.txt").write_text("feature only\n")
+    git_repo.git("add", "FEATURE.txt")
+    git_repo.git("commit", "-m", "feature only")
+
+    path = git.add_launch_worktree(cfg, "session-feature")
+
+    try:
+        assert _detached_head(path)
+        assert not (path / "FEATURE.txt").exists()
+        assert (
+            subprocess.run(
+                ["git", "-C", str(path), "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout
+            == git_repo.git("rev-parse", "main")
+        )
+    finally:
+        git.remove_launch_worktree(cfg, path)
+
+
 def test_add_launch_worktree_returns_none_off_git(tmp_path) -> None:
     plain = tmp_path / "not-git" / "coga"
     plain.mkdir(parents=True)
@@ -1322,13 +1347,16 @@ def test_reap_orphan_launch_worktrees_noop_without_dir(git_repo) -> None:
     git.reap_orphan_launch_worktrees(cfg)
 
 
-def test_launch_isolates_session_in_a_worktree_and_cleans_up(git_repo, monkeypatch):
+def test_launch_isolates_session_in_a_worktree_and_preserves_dirty_state(
+    git_repo, monkeypatch
+):
     """`[launch].worktree` runs the agent in a detached per-launch worktree and
-    tears it down on exit; the agent's cwd points at it and reads its state."""
+    preserves it on exit when unsynced Coga state remains recoverable."""
     from coga.commands.launch import launch as launch_cmd
 
     toml = git_repo.coga_os / "coga.toml"
     toml.write_text(toml.read_text() + "\n[launch]\nworktree = true\n")
+    (git_repo.coga_os / "coga.local.toml").write_text('user = "local-marc"\n')
 
     cfg = load_config(git_repo.coga_os)
     create_task(
@@ -1362,6 +1390,7 @@ def test_launch_isolates_session_in_a_worktree_and_cleans_up(git_repo, monkeypat
             "status: in_progress" in ticket.read_text()
         )
         captured["detached"] = _detached_head(Path(cwd))
+        captured["local_user"] = load_config(Path(cwd) / "coga").current_user
         return ReplOutcome(0, "done")
 
     monkeypatch.setattr(
@@ -1383,7 +1412,13 @@ def test_launch_isolates_session_in_a_worktree_and_cleans_up(git_repo, monkeypat
     assert captured["existed"]  # the worktree was live while the agent ran
     assert captured["detached"]  # detached at the control-branch tip
     assert captured["ticket_status_in_worktree"]  # re-rooted reads target it
-    assert not worktree.exists()  # removed on teardown
+    assert captured["local_user"] == "local-marc"  # ignored local config mirrored
+    assert "status: active" in (
+        git_repo.coga_os / "tasks" / "fix-retry-logic.md"
+    ).read_text()  # launch status writes did not touch the primary checkout
+    assert worktree.exists()  # dirty Coga state is left for recovery
+    assert git.launch_worktree_has_dirty_coga_state(cfg, worktree)
+    git.remove_launch_worktree(cfg, worktree)
 
 
 def test_launch_without_worktree_toggle_runs_in_place(git_repo, monkeypatch):
