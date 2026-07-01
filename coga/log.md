@@ -596,3 +596,4 @@
 2026-07-01 14:24 [v2/acceptance-criteria] [human:nicktoper] paused (active → paused)
 2026-07-01 14:24 [v2/identify-blocking-issues] [human:nicktoper] paused (active → paused)
 2026-07-01 14:24 [v2/issue-inbox-slack] [human:nicktoper] paused (active → paused)
+2026-07-01 14:24 [v2/automerge-ticket] [human:nicktoper] paused (active → paused)

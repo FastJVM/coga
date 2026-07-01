@@ -1,7 +1,7 @@
 ---
 slug: v2/automerge-ticket
 title: automerge ticket
-status: active
+status: paused
 autonomy: interactive
 owner: nick
 human: nick
