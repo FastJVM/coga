@@ -529,3 +529,4 @@
 2026-06-30 17:49 [remove-relay-migration-script] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-30 17:50 [remove-relay-migration-script] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
 2026-06-30 17:55 [remove-relay-migration-script] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-06-30 20:07 [remove-relay-migration-script] [human:nicktoper] activated (draft → active) — auto on launch

@@ -1,7 +1,7 @@
 ---
 slug: remove-relay-migration-script
 title: remove relay migration script
-status: draft
+status: active
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
@@ -9,9 +9,26 @@ agent: claude
 assignee: nicktoper
 contexts: []
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -21,9 +38,6 @@ script: null
 ## Context
 
 <!-- coga:blackboard -->
+## Production notes
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Notes
-
-- Human requested workflow `code/with-review`; repo-local workflow exists at `coga/workflows/code/with-review.md`.
+This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
