@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts: []
 skills: []
 workflow:
@@ -27,7 +27,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -194,6 +194,17 @@ command + delete inlined helpers → (4) docs. Each step keeps `pytest` green.
 branch: ticket-authoring-finalize
 worktree: /tmp/coga-ticket-authoring-finalize
 commit: a187610a33ddd7630441ffef4b29f30657f0a42ef
+pr: https://github.com/FastJVM/coga/pull/491
+
+## Open PR
+
+- Pushed `ticket-authoring-finalize` to origin and opened PR #491
+  (https://github.com/FastJVM/coga/pull/491), linking the ticket.
+- CI: `gh pr checks 491` reports no checks configured on the branch — the
+  repo has no CI workflows gating this PR, so there is nothing to go green.
+  Verification is the local `pytest` / `coga validate` runs recorded above.
+- `gh auth status`: logged in as nicktoper with `repo` + `workflow` scopes;
+  push over HTTPS succeeded.
 
 ## Implement notes
 
