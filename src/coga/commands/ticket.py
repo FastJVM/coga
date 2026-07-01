@@ -5,13 +5,14 @@ from __future__ import annotations
 import os
 import shutil
 import sys
-from hashlib import sha256
-from pathlib import Path
-from typing import cast
 
 import typer
 
-from coga import git
+from coga.authoring import (
+    AuthoringError,
+    finalize_authored,
+    snapshot_authoring_state,
+)
 from coga.commands.create import create_draft
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
@@ -29,7 +30,6 @@ from coga.tasks import (
     resolve_task,
 )
 from coga.ticket import Ticket
-from coga.validate import format_task_issues, validate_task_dir
 
 
 AUTHORING_SKILL = "bootstrap/ticket"
@@ -38,7 +38,6 @@ AUTHORING_SKILL = "bootstrap/ticket"
 # enough to warrant a heads-up (see CAUTION_STATUSES) but are not refused.
 EDITABLE_STATUSES = {"draft", "active", "in_progress", "paused", "done"}
 CAUTION_STATUSES = {"in_progress", "done"}
-AUTHORING_SYNC_DIRS = ("tasks", "contexts", "skills")
 
 # Kickoff tokens — the authoring session's first user turn, which the
 # `bootstrap/ticket` skill reads to greet the human as the right launch shape.
@@ -211,8 +210,7 @@ def _run_authoring_session(
     typer.echo(
         f"Ticket: authoring {ref.id_slug} with {launch_assignee} -> {agent.name}"
     )
-    before_tasks = {task_ref.id_slug for task_ref in list_tasks(cfg)}
-    before_authoring = _snapshot_authoring_files(cfg)
+    before_authoring = snapshot_authoring_state(cfg)
 
     # Ticket authoring routes through the shared single-shot spawn without the
     # launch supervisor chain. It runs no task work, so it receives no Coga
@@ -248,121 +246,10 @@ def _run_authoring_session(
         )
         sys.exit(session.exit_code)
 
-    # Post-authoring validation: the agent edited the ticket directly during
-    # the session. Surface schema breakage now, while the user is at the
-    # terminal and can fix it before launch / Dream picks it up later.
-    changed_paths = _changed_authoring_paths(before_authoring, cfg)
-    authored_refs = (
-        [ref] if isinstance(ref, TaskRef)
-        else _authored_task_refs(cfg, changed_paths, before_tasks)
-    )
-    for authored_ref in authored_refs:
-        _validate_authored_task(cfg, authored_ref)
-
-    sync_paths = [authored_ref.path for authored_ref in authored_refs]
-    sync_paths.extend(_support_paths(cfg, changed_paths))
-    if sync_paths:
-        anchor = authored_refs[0].path if authored_refs else ref.path
-        git.sync_paths(
-            cfg,
-            anchor,
-            sync_paths,
-            message=_authoring_sync_message(authored_refs),
-        )
-
-
-def _validate_authored_task(cfg: Config, ref: TaskRef) -> None:
-    issues = validate_task_dir(cfg, ref)
-    errors = [i for i in issues if i.severity == "error"]
-    if errors:
-        typer.secho(
-            "Ticket validation failed after authoring:\n"
-            + format_task_issues(errors),
-            fg=typer.colors.RED,
-            err=True,
-        )
-        sys.exit(2)
-
-    # Guided authoring of a draft must land on a workflow. A workflow-less
-    # draft can't be activated (`coga mark active` refuses it), so handing
-    # one back would strand the human. Catch it here, at the terminal,
-    # rather than later at activation. Only drafts are gated — an already
-    # `active` ticket edited here may be a workflow-less recurring/retire
-    # task, which is legitimate.
-    authored = read_ticket(ref)
-    if authored.status == "draft" and not authored.workflow:
-        typer.secho(
-            f"Ticket authoring left {ref.id_slug} with no workflow. "
-            "Every ticket needs one to be activated — relaunch "
-            f"`coga ticket {ref.id_slug}` and pick a workflow "
-            "(see coga/workflows/).",
-            fg=typer.colors.RED,
-            err=True,
-        )
-        sys.exit(2)
-
-
-def _snapshot_authoring_files(cfg: Config) -> dict[Path, str]:
-    snapshot: dict[Path, str] = {}
-    for root_name in AUTHORING_SYNC_DIRS:
-        root = cfg.repo_root / root_name
-        if not root.is_dir():
-            continue
-        for path in sorted(root.rglob("*")):
-            if path.is_file():
-                snapshot[path.resolve(strict=False)] = sha256(path.read_bytes()).hexdigest()
-    return snapshot
-
-
-def _changed_authoring_paths(before: dict[Path, str], cfg: Config) -> set[Path]:
-    after = _snapshot_authoring_files(cfg)
-    changed = {path for path, digest in after.items() if before.get(path) != digest}
-    changed.update(path for path in before if path not in after)
-    return changed
-
-
-def _authored_task_refs(
-    cfg: Config,
-    changed_paths: set[Path],
-    before_tasks: set[str],
-) -> list[TaskRef]:
-    # Resolve changed paths against discovered task dirs rather than
-    # reconstructing `tasks/<first-part>` — tasks may live in a sub-directory
-    # at any depth (e.g. `tasks/auto/<slug>/`).
-    refs: dict[str, TaskRef] = {}
-    tasks = list_tasks(cfg)
-    resolved = [path.resolve(strict=False) for path in changed_paths]
-    for task_ref in tasks:
-        task_root = task_ref.path.resolve(strict=False)
-        if any(task_root in path.parents for path in resolved):
-            refs[task_ref.id_slug] = task_ref
-
-    for task_ref in tasks:
-        if task_ref.id_slug not in before_tasks:
-            refs.setdefault(task_ref.id_slug, task_ref)
-    return [refs[slug] for slug in sorted(refs)]
-
-
-def _support_paths(cfg: Config, changed_paths: set[Path]) -> list[Path]:
-    support: list[Path] = []
-    for root_name in ("contexts", "skills"):
-        root = (cfg.repo_root / root_name).resolve(strict=False)
-        for path in changed_paths:
-            try:
-                path.resolve(strict=False).relative_to(root)
-            except ValueError:
-                continue
-            support.append(path)
-    return sorted(support)
-
-
-def _authoring_sync_message(authored_refs: list[TaskRef]) -> str:
-    if len(authored_refs) == 1:
-        return f"Ticket: {authored_refs[0].id_slug} — authored"
-    if authored_refs:
-        slugs = ", ".join(ref.id_slug for ref in authored_refs)
-        return f"Ticket authoring — authored {slugs}"
-    return "Ticket authoring — support files"
+    try:
+        finalize_authored(cfg, before_snapshot=before_authoring, ref=ref)
+    except AuthoringError as exc:
+        _bail(str(exc))
 
 
 def _bail(msg: str) -> None:
