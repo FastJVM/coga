@@ -478,12 +478,21 @@ current workflow step can continue.
 `--reason` is required and should be specific enough for the human to answer
 from `coga status --blocked` without reading the whole ticket.
 
-## coga unblock \<slug\> [--answer "..."]
+## coga unblock \<slug\> [--answer "..."] | coga unblock --all
 
 Resolve open blockers and move `blocked -> active` while preserving `step:`.
 With `--answer`, records the resolution non-interactively. Without it, prompts
 in the terminal after showing the open blocker asks. `coga launch <slug>` can
 then resume the same workflow step from the files.
+
+`coga unblock --all` walks **every** blocked task in turn: for each it prints
+the task and its open blocker asks (the cause), then prompts for an answer.
+A non-empty answer is appended to that task's blackboard and the task is
+reactivated (`blocked -> active`); a **blank** answer skips the task, leaving it
+blocked. The run ends with an `Unblocked N, skipped M` summary. `--all` is the
+clear-the-queue counterpart to naming one slug — it takes no slug and rejects
+`--answer` (each task is answered per-ticket at its prompt). After it finishes,
+`coga launch <slug>` each reactivated task.
 
 ## coga megalaunch [--max-tasks N]
 
