@@ -160,21 +160,24 @@ subcommand>`.
 `--message` piggy-backs an FYI onto the Slack broadcast.
 
 `coga launch` owns the `active` → `in_progress` start transition, and will
-activate a `draft`/`paused`/`done` ticket inline first (launching is the
-readiness signal). `coga bump` no longer marks final-step tickets done. The
-status state machine and the step state machine are separate.
+activate a `draft`/`paused` ticket inline first (launching is the readiness
+signal). `blocked` is command-owned by `coga block` / `coga unblock`, and
+`done` is terminal unless a human deliberately edits or reopens the ticket.
+`coga bump` no longer marks final-step tickets done. The status state machine
+and the step state machine are separate.
 
 ## coga launch \<target\>
 
 Compose every relevant file (rules + repo context + ticket contexts +
 current step's skill + blackboard + ticket body) into one prompt and
 start the configured agent. Accepts `status: active` or `in_progress`
-directly; a `draft` / `paused` / `done` ticket is activated inline first —
-typing `coga launch` is the readiness signal, so it activates the ticket for
-you (re-activating a `done` ticket restarts its workflow at step 1) rather
-than refusing. A ticket that can't be activated — no workflow, or an empty
-`required` extension field — still fails loud with the same remedy `mark
-active` gives. Launching an `active` ticket then marks it
+directly; a `draft` / `paused` ticket is activated inline first — typing
+`coga launch` is the readiness signal, so it activates the ticket for you
+rather than refusing. A `blocked` ticket is refused until `coga unblock`
+records the answer; a `done` ticket is refused because it is finished. A ticket
+that can't be activated — no workflow, or an empty `required` extension field
+— still fails loud with the same remedy `mark active` gives. Launching an
+`active` ticket then marks it
 `in_progress` (posting `▶️`) before spawning the agent; launching an
 already-`in_progress` ticket resumes it without another status flip. Interactive launches require stdin and stdout to both be
 terminals. **`autonomy: auto` is temporarily disabled** — auto runs (claude
@@ -238,7 +241,7 @@ consecutive agent-owned steps in fresh processes. After a clean agent exit,
 it re-reads the ticket and continues only if the task is still
 `in_progress`, the step advanced, the new current step has `skill:`, and the
 concrete assignee did not change. It stops at human/no-skill steps, assignee
-handoffs, done or paused tasks, no-progress exits, and panic/non-zero exits.
+handoffs, done, paused, or blocked tasks, no-progress exits, and non-zero exits.
 
 That supervisor loop only exists when a live `coga launch` process is
 running around the agent. API/manual sessions still follow the base prompt:
@@ -257,7 +260,7 @@ on a line by itself** as your final action once the task is finished.
 REPL when it appears (escalating to SIGKILL after a short grace period if
 the REPL ignores the signal).
 
-Emit it after `coga mark done`, after `coga panic`, or any other
+Emit it after `coga mark done`, after `coga block`, or any other
 end-of-session signal — anywhere the next iteration would belong to a
 different task or to the human. Don't emit it mid-work; it terminates the
 session immediately. Don't quote the literal in prose unless you actually
@@ -269,8 +272,8 @@ guardrail and task-to-task comparison, not exact provider billing.
 
 ## coga status
 
-List the live tasks in the repo — `draft`, `active`, `in_progress`, and
-`paused`. `done` tasks are hidden by default; pass `--all` (`-a`) to include
+List the live tasks in the repo — `draft`, `active`, `in_progress`, `blocked`,
+and `paused`. `done` tasks are hidden by default; pass `--all` (`-a`) to include
 them. Bootstrap tickets have no status and don't appear here. Pipe through
 `grep` for ad-hoc slicing of any column. When done tasks are hidden the
 output ends with a `(N done tasks hidden — use --all to show)` note.
@@ -312,6 +315,12 @@ Generated recurring period tasks are machine-authored jobs scaffolded ahead of
 execution under `tasks/recurring/` (`recurring/<name>`), so they render in a
 **second `Recurring` table** below the hand-authored backlog rather than mixed
 in with it. `coga recurring list` is the schedule-aware view of those.
+
+`coga status --blocked` is the focused human-answer queue. It shows only
+blocked work and expands multi-blocker tasks to one row per open ask, including
+slug, current step, owner, assignee, blocker age/reason, and the next command
+shape (`coga unblock <slug> --answer "..."`). It is still read-only: it never
+resolves blockers, relaunches work, or probes the network.
 
 ## coga show \<slug\>
 
@@ -443,11 +452,36 @@ substrate:
 `gh` is an external CLI dependency, not a pip package — it belongs in the
 README `External CLI Tools` list, never in `requirements.txt`.
 
-## coga panic --task \<slug\> --reason "..."
+## coga block --task \<slug\> --reason "..."
 
-Agent gives up. Writes a panic marker on the blackboard and posts a
-Slack notification naming the task owner. Exits non-zero. Reserved for
-genuinely stuck states, not routine handoffs.
+Record a concrete unresolved ask and move the task to `status: blocked`
+without changing `step:`. The blocker is appended to the task blackboard,
+the transition is logged/synced, the owner is notified live, and the launched
+session is released. Use this when an agent needs a human answer before the
+current workflow step can continue.
+
+`--reason` is required and should be specific enough for the human to answer
+from `coga status --blocked` without reading the whole ticket.
+
+## coga unblock \<slug\> [--answer "..."]
+
+Resolve open blockers and move `blocked -> active` while preserving `step:`.
+With `--answer`, records the resolution non-interactively. Without it, prompts
+in the terminal after showing the open blocker asks. `coga launch <slug>` can
+then resume the same workflow step from the files.
+
+## coga megalaunch [--max-tasks N]
+
+Attempt launchable active work sequentially using the shared megalaunch engine.
+This is not parallel fanout: it scans active tasks, skips human gates and open
+blockers, checks the assigned agent's token budget guard, preflights launch
+requirements, then runs one eligible agent step at a time with unattended
+launch policy. The run summary distinguishes launched, completed, blocked,
+skipped-human-gate, skipped-unresolved-blocker, skipped-budget, and failed.
+
+The daily `recurring/megalaunch` script task calls the same engine and writes a
+bounded `## Megalaunch Run Summary`, replacing old summaries so the recurring
+blackboard does not grow forever.
 
 ## coga slack --task \<slug\> --message "..."
 
@@ -548,7 +582,7 @@ lands.
 
 **Idle-timeout backstop.** A `autonomy: interactive` template that *does* launch
 (a TTY is present) but whose agent stalls or crashes before signalling done —
-never reaching `coga bump` / `mark done` / `panic` — would otherwise block the
+never reaching `coga bump` / `mark done` / `block` — would otherwise block the
 sequential sweep forever. Both the bare sweep and `coga recurring --all` arm a
 generous idle timeout on each spawned REPL (passed through as `coga launch
 --idle-timeout`): if it produces no output and takes no input for that long,
@@ -633,16 +667,19 @@ only; they don't accept their own flags.
   filter) → `coga recurring --all`.
 - Launching one named recurring task now → `coga recurring launch <name>`.
 - Starting or resuming agent work on a task → `coga launch <slug>`.
+- Attempting all launchable active agent work → `coga megalaunch`.
 - Other bootstrap ticket → `coga launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `coga bump`.
 - Catching up tickets after a teammate merged a PR → `coga automerge`
   (explicit-only; run it by hand).
 - Triage view → `coga status`.
+- Blocked-work queue → `coga status --blocked`.
 - Reading a single task without opening the file → `coga show <slug>`.
 - Surfacing a non-blocker note tied to a step transition → `coga bump --message`.
 - Surfacing a non-blocker note tied to a status transition → `coga mark <state> --message`.
 - Surfacing a non-blocker note that doesn't fit a transition → `coga slack`.
-- Surfacing a blocker → `coga panic`.
+- Surfacing a blocker → `coga block --task <slug> --reason "..."`.
+- Answering a blocker → `coga unblock <slug> --answer "..."`.
 - Throwing away an abandoned ticket → `coga delete <slug>`.
 - Wrapping up a finished ticket (retro + source-dir delete via retro PR) →
   `coga retire <slug>`.

@@ -4,7 +4,7 @@ Verifies:
 - task creating creates a task with a frozen workflow snapshot.
 - Prompt composition includes every expected section.
 - `coga bump` advances; `coga mark done` finishes the final step.
-- `coga panic` writes to blackboard + releases the lock.
+- `coga block` writes to blackboard + releases the session.
 - `coga slack` logs a message.
 - `coga status` lists the task queue.
 - The validator runs cleanly against a healthy repo.
@@ -25,6 +25,7 @@ from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.taskfile import fence_count, read_blackboard
 from coga.tasks import list_tasks, read_ticket
+from coga.ticket import Ticket
 from coga.validate import run as validate_run
 
 
@@ -111,21 +112,22 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "advanced to step 2 (pr)" in log
     assert "task done" in log
 
-    # 4. Create a second task so we can exercise panic + slack without revival of the first.
+    # 4. Create a second task so we can exercise block + slack without revival of the first.
     ref2 = create_task(
         cfg=cfg, title="Investigate slow DNS",
         workflow_name="code/with-review", contexts=[], autonomy="interactive",
         owner="marc", assignee="claude", watchers=[], status="in_progress",
     )
     r = runner.invoke(app, [
-        "panic",
+        "block",
         "--task", ref2["slug"],
         "--reason", "need prod DNS access to reproduce",
     ])
-    assert r.exit_code == 1, r.output
+    assert r.exit_code == 0, r.output
     bb = read_blackboard(ref2["path"])
     assert "need prod DNS access to reproduce" in bb
     assert "## Blockers" in bb
+    assert Ticket.read(ref2["path"]).status == "blocked"
 
     r = runner.invoke(app, [
         "slack",

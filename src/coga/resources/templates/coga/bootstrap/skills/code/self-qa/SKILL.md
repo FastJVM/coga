@@ -15,7 +15,7 @@ this step just makes sure the diff they see is already clean.
 1. **Confirm state.** Read `branch:` and `worktree:` under `## Dev` on
    the blackboard. Change into the feature worktree and confirm it is on
    the recorded branch with a clean working tree (the previous
-   `code/implement` step committed). If not, `coga panic` — something
+   `code/implement` step committed). If not, `coga block` — something
    is off.
 2. **Run `/code-review`.** Invoke the `/code-review` slash command at
    default effort against the branch's diff vs `main`. Note the findings;
@@ -52,7 +52,7 @@ this step just makes sure the diff they see is already clean.
 - Open or mark the PR ready — that's `code/open-pr`.
 - Rework the original change beyond what `/code-review` + `/simplify`
   surface. If a finding implies a design rethink, write it to the
-  blackboard and `coga panic`.
+  blackboard and `coga block`.
 - Reformat unrelated code or sweep adjacent files.
 
 ## Gotchas

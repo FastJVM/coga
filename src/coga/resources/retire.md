@@ -39,7 +39,7 @@ Run these in order. Stop and ask if any precondition fails — do not improvise.
 
 ### Stop conditions
 
-- Source task is not `status: done` → escalate via `coga panic` with the
+- Source task is not `status: done` → escalate via `coga block` with the
   reason. Retire only operates on done tickets.
 - Source task is missing → escalate; the slug is wrong.
 - Retro skill stops and asks → surface the reason; do not improvise.

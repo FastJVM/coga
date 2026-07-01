@@ -154,7 +154,7 @@ def test_idle_timeout_terminates_silent_child(
     `timeout` — NOT a clean done.
 
     This is the stuck-agent case — an agent that stalls or crashes before
-    reaching `coga bump` / `mark done` / `panic` — that would otherwise block
+    reaching `coga bump` / `mark done` / `block` — that would otherwise block
     a `coga recurring` sweep forever. Without the timeout the `sleep 30` here
     would hang the test; we assert it returns promptly instead. The non-zero
     classification is what lets the sweep record the wedge instead of pausing it

@@ -40,6 +40,17 @@ EDITABLE_STATUSES = {"draft", "active", "in_progress", "paused", "done"}
 CAUTION_STATUSES = {"in_progress", "done"}
 AUTHORING_SYNC_DIRS = ("tasks", "contexts", "skills")
 
+# Kickoff tokens — the authoring session's first user turn, which the
+# `bootstrap/ticket` skill reads to greet the human as the right launch shape.
+# `coga ticket` already knows create-vs-edit definitively (it just resolved or
+# created the target), so it tells the skill via this token rather than letting
+# the skill guess from body-emptiness — which misfires on `coga create`d empty
+# drafts. Bare `Begin` is the no-target empty interview (the skill also detects
+# that structurally from the `bootstrap/ticket` header).
+AUTHORING_KICKOFF = "Begin"
+AUTHORING_KICKOFF_NEW = "Begin (new ticket)"
+AUTHORING_KICKOFF_EDIT = "Begin (editing existing ticket)"
+
 
 def ticket(
     target: str | None = typer.Argument(
@@ -75,8 +86,10 @@ def ticket(
     if target is None:
         ref = bootstrap_ref
         source_ticket = bootstrap_ticket
+        kickoff = AUTHORING_KICKOFF
     else:
-        ref, source_ticket = _resolve_or_create_target(cfg, target)
+        ref, source_ticket, created = _resolve_or_create_target(cfg, target)
+        kickoff = AUTHORING_KICKOFF_NEW if created else AUTHORING_KICKOFF_EDIT
 
     launch_assignee = (
         agent_override
@@ -92,23 +105,60 @@ def ticket(
         ref=ref,
         ticket=_authoring_ticket(source_ticket),
         launch_assignee=launch_assignee,
+        kickoff=kickoff,
     )
 
 
-def _resolve_or_create_target(cfg: Config, target: str) -> tuple[TaskRef, Ticket]:
+def _resolve_or_create_target(
+    cfg: Config, target: str
+) -> tuple[TaskRef, Ticket, bool]:
+    """Resolve `target` to an existing task to edit, or scaffold a new draft.
+
+    Returns `(ref, ticket, created)` — `created` is True only when a brand-new
+    draft was scaffolded here, False when an existing task was resolved. The
+    boolean is the authoritative create-vs-edit signal `coga ticket` already
+    knows; it flows into the authoring kickoff token so the skill greets off it
+    instead of guessing from body-emptiness.
+    """
     try:
         ref = resolve_task(cfg, target)
     except TaskNotFoundError as exc:
         msg = str(exc)
         if msg.startswith("Ambiguous task ref"):
             _bail(msg)
+        # `resolve_task` matches a nested task only by its full `<dir>/<slug>`
+        # path, so `coga ticket <bare-leaf>` for a nested ticket lands here even
+        # though the ticket exists. Scan the leaf names before scaffolding a
+        # duplicate top-level draft: exactly one leaf match *is* that existing
+        # ticket (edit it); several are ambiguous (re-run with the qualified
+        # slug); none is genuinely new. This leaves `resolve_task`'s global
+        # semantics — and `coga launch` / `coga status` — untouched.
+        leaf_matches = [t for t in list_tasks(cfg) if t.slug == target]
+        if len(leaf_matches) == 1:
+            return _resolve_existing(leaf_matches[0])
+        if len(leaf_matches) > 1:
+            slugs = ", ".join(t.id_slug for t in leaf_matches)
+            _bail(
+                f"Ambiguous task ref {target!r}: matches {slugs}. "
+                "Re-run with the qualified `<dir>/<slug>` to disambiguate."
+            )
         result = create_draft(title=target, autonomy="interactive")
         # Re-resolve through discovery so the TaskRef carries the correct shape
         # (file-form vs directory-form) — create may land a bare `<slug>.md`.
         ref = resolve_task(cfg, str(result["slug"]))
         typer.echo(f"{ref.id_slug}: launching guided ticket authoring")
-        return ref, read_ticket(ref)
+        return ref, read_ticket(ref), True
 
+    return _resolve_existing(ref)
+
+
+def _resolve_existing(ref: TaskRef) -> tuple[TaskRef, Ticket, bool]:
+    """Read an existing task for editing, gating on its status.
+
+    Shared by the normal `resolve_task` hit and the nested bare-leaf scan, so
+    both edit paths apply the same status guard and caution heads-up. `created`
+    is always False — an existing ticket is never a fresh draft.
+    """
     ticket = read_ticket(ref)
     if ticket.status not in EDITABLE_STATUSES:
         _bail(
@@ -125,7 +175,7 @@ def _resolve_or_create_target(cfg: Config, target: str) -> tuple[TaskRef, Ticket
             fg=typer.colors.YELLOW,
             err=True,
         )
-    return ref, ticket
+    return ref, ticket, False
 
 
 def _authoring_ticket(ticket: Ticket) -> Ticket:
@@ -141,6 +191,7 @@ def _run_authoring_session(
     ref: TaskRef | BootstrapRef,
     ticket: Ticket,
     launch_assignee: str,
+    kickoff: str = AUTHORING_KICKOFF,
 ) -> None:
     if not _interactive_stdio_has_tty():
         _bail(
@@ -181,7 +232,7 @@ def _run_authoring_session(
                 f"(assignee={launch_assignee}, agent={agent.name})"
             ),
             discussion=True,
-            kickoff="Begin",
+            kickoff=kickoff,
             label="Ticket",
         )
     except ComposeError as exc:

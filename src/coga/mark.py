@@ -289,6 +289,36 @@ def mark_in_progress(
     git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — in_progress")
 
 
+def mark_blocked(
+    cfg: Config,
+    ref: TaskRef,
+    ticket: Ticket,
+    *,
+    actor: str,
+    log_message: str,
+    slack_text: str,
+    image_url: str | None = None,
+    echo: str | None = None,
+) -> None:
+    """Flip a ticket to `blocked` without changing its workflow step."""
+    owner = ticket.owner or cfg.current_user
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(ref.ticket_path)
+    assert_task_valid(cfg, ref, action="mark blocked")
+    append_log(cfg, ref.id_slug, actor, log_message)
+    if echo is not None:
+        typer.echo(echo)
+    post(
+        cfg,
+        slack_text,
+        task_path=ref.path,
+        owner=owner,
+        watchers=ticket.watchers,
+        image_url=image_url,
+    )
+    git.sync_task_state(cfg, ref.path, message=f"Ticket: {ref.id_slug} — blocked")
+
+
 def mark_paused(
     cfg: Config,
     ref: TaskRef,
@@ -334,6 +364,7 @@ def mark_paused(
 __all__ = [
     "mark_active",
     "mark_in_progress",
+    "mark_blocked",
     "mark_paused",
     "mark_done",
     "RequiredExtensionMissing",

@@ -49,8 +49,9 @@ no in-memory state.
   only, never persists it on the ticket.
 - **Workflows** are ordered step definitions. A repo's own workflows live in
   `coga/workflows/`; package-backed reusable workflows (the core `code/*`
-  loop, `dev/with-self-review`, `docs/create-google-doc`, the Dream child
-  workflows, `digest/post`) live in package `bootstrap/workflows/` resources.
+  loop, `dev/with-self-review`, `docs/create-google-doc`,
+  `docs/with-review`, the Dream child workflows, `digest/post`) live in
+  package `bootstrap/workflows/` resources.
   Resolution is local-first, exactly like skills and contexts: a local
   `workflows/<ref>.md` overrides a bundled `bootstrap/workflows/<ref>.md`.
   Frozen into a ticket's frontmatter at
@@ -188,13 +189,18 @@ task; the invariant holds for machine-authored tasks too.
 ## Two state machines per ticket
 
 - **Control plane (`status`)** — `draft → active → in_progress →
-  done`, plus `paused`. Governs *whether* work happens. `coga mark`
-  owns the `draft`/`active`/`paused`/`done` transitions; `coga launch`
+  done`, plus `paused` and `blocked`. Governs *whether* work happens.
+  `coga mark` owns the `draft`/`active`/`paused`/`done` transitions;
+  `coga block` owns the `blocked` transition, and `coga unblock` resolves
+  open blocker asks and moves `blocked → active` while preserving `step:`.
+  `coga launch`
   flips an `active` ticket to `in_progress` when it spawns the agent, and —
   since launching is itself the readiness signal — also performs the
   `mark active` step inline for a ticket that is still `draft` or `paused`
   before that flip. A `done` ticket is finished: launch refuses it and leaves
-  it untouched rather than restarting its workflow. `bump` ignores `status:`
+  it untouched rather than restarting its workflow. A `blocked` ticket is
+  waiting on a concrete answer; launch refuses it until `coga unblock`
+  records that answer. `bump` ignores `status:`
   entirely (it owns `step:`, not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `coga bump`. Only moves when
@@ -223,7 +229,7 @@ script or composes an agent is deduced, not declared.
 
 - **`interactive`** — human-attended terminal session. Agent gets the
   composed prompt, human stays in the loop. The REPL doesn't terminate on
-  its own — `coga bump` / `coga mark done` / `coga panic` signal the
+  its own — `coga bump` / `coga mark done` / `coga block` signal the
   launch supervisor via the session-scoped `$COGA_DONE_SENTINEL` file, and
   the supervisor SIGTERMs the REPL. The sentinel file is the only done
   channel: the supervisor honors it only when the file's content names the
@@ -234,8 +240,8 @@ script or composes an agent is deduced, not declared.
   it is an *agent's* turn — relaunching the next agent's CLI, so it rotates
   e.g. claude → codex → claude across a peer-review workflow) or returns
   control to the caller (the next step hands off to an owner/human, the status
-  flipped to `done`/`paused`, the agent panicked or exited non-zero, or no
-  progress was made). The discriminator is agent-vs-human, not
+  flipped to `done`/`paused`/`blocked`, the agent blocked or exited non-zero,
+  or no progress was made). The discriminator is agent-vs-human, not
   same-vs-changed assignee. Each respawn gives the next step a clean prompt
   scope, with no carryover reasoning from the previous skill. Cross-ticket
   chaining is `coga recurring --interactive`.

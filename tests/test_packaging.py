@@ -41,6 +41,8 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "with-self-review.md",
     "coga/resources/templates/coga/bootstrap/workflows/docs/"
     "create-google-doc.md",
+    "coga/resources/templates/coga/bootstrap/workflows/docs/"
+    "with-review.md",
     "coga/resources/templates/coga/bootstrap/workflows/dream/"
     "validate-drift.md",
     "coga/resources/templates/coga/bootstrap/workflows/dream/"

@@ -78,7 +78,7 @@ channels = []
 # text-only. Example:
 #   [notification.slack.gifs]
 #   done  = ["https://media.giphy.com/media/<id>/giphy.gif"]
-#   panic = [
+#   block = [
 #     "https://media.giphy.com/media/<id-a>/giphy.gif",
 #     "https://media.giphy.com/media/<id-b>/giphy.gif",
 #   ]

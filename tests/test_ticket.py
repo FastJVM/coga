@@ -238,7 +238,8 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
     assert cmd[1] == "--append-system-prompt"
     assert "Coga task — investigate-retries" in cmd[2]
     assert "Skill: bootstrap/ticket" in cmd[2]
-    assert cmd[3] == "Begin"
+    # New-title launch → the create kickoff token, which the skill greets off of.
+    assert cmd[3] == "Begin (new ticket)"
 
 
 def test_ticket_agent_override_codex_gets_kickoff(
@@ -292,7 +293,9 @@ def test_ticket_agent_override_codex_gets_kickoff(
     assert cmd[0] == "codex"
     assert cmd[1] == "-c"
     assert "Skill: bootstrap/ticket" in _prompt_arg(cmd)
-    assert cmd[-1] == "Begin"
+    # New-title launch → the create kickoff token (appended last, after the
+    # discussion-template prompt).
+    assert cmd[-1] == "Begin (new ticket)"
 
 
 def test_ticket_refuses_draft_left_without_workflow(
@@ -409,17 +412,147 @@ def test_ticket_edits_in_progress_task(
     assert len(prompts) == 1
 
 
+def _capture_ticket_launch(
+    monkeypatch: pytest.MonkeyPatch,
+    captured: dict[str, object],
+    *,
+    on_run=None,  # type: ignore[no-untyped-def]
+) -> None:
+    """Like `_allow_ticket_launch`, but captures the spawned argv (`cmd`) so a
+    test can assert the kickoff token — the last argv element — directly."""
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        captured["cmd"] = cmd
+        if on_run is not None:
+            on_run()
+        return _Result()
+
+    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+
+
 def test_ticket_without_target_launches_bootstrap_interview(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    prompts: list[str] = []
-    _allow_ticket_launch(monkeypatch, prompts)
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
 
     result = CliRunner().invoke(app, ["ticket"])
     assert result.exit_code == 0, result.output
 
-    assert len(prompts) == 1
-    assert "Coga task — bootstrap/ticket" in prompts[0]
-    assert "Skill: bootstrap/ticket" in prompts[0]
+    prompt = _prompt_arg(captured["cmd"])
+    assert "Coga task — bootstrap/ticket" in prompt
+    assert "Skill: bootstrap/ticket" in prompt
+    # No-target empty interview keeps the bare kickoff — the skill detects this
+    # shape structurally (bootstrap/ticket header, no Status line).
+    assert captured["cmd"][-1] == "Begin"
+
+
+def test_ticket_existing_draft_greets_as_edit_not_create(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: an existing draft opened for authoring greets as an *edit*,
+    keyed off the CLI's resolve outcome — not misclassified as a new ticket
+    because its body is empty (the `coga create` batch state). The kickoff token
+    the CLI appends carries the create-vs-edit decision to the skill."""
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Batch draft",
+        workflow_name="direct/body",
+        contexts=[],
+        autonomy="interactive",
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="draft",
+    )
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    result = CliRunner().invoke(app, ["ticket", "batch-draft"])
+    assert result.exit_code == 0, result.output
+    assert captured["cmd"][-1] == "Begin (editing existing ticket)"
+
+
+def test_ticket_nested_bare_leaf_edits_existing_not_duplicate(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`coga ticket <bare-leaf>` for a nested ticket edits the existing ticket
+    rather than silently scaffolding a duplicate top-level draft — `resolve_task`
+    only matches a nested task by its full `<dir>/<slug>`, so `coga ticket`
+    falls back to a bare-leaf scan."""
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Relaunch",
+        workflow_name="direct/body",
+        contexts=[],
+        autonomy="interactive",
+        owner="marc",
+        assignee="claude",
+        watchers=[],
+        status="draft",
+        directory="marketing",
+    )
+    captured: dict[str, object] = {}
+    _capture_ticket_launch(monkeypatch, captured)
+
+    result = CliRunner().invoke(app, ["ticket", "relaunch"])
+    assert result.exit_code == 0, result.output
+
+    # Greeted as an edit of the existing nested ticket...
+    assert captured["cmd"][-1] == "Begin (editing existing ticket)"
+    assert "Coga task — marketing/relaunch" in _prompt_arg(captured["cmd"])
+    # ...and did NOT scaffold a duplicate top-level draft.
+    assert not (repo / "tasks" / "relaunch.md").exists()
+    assert (repo / "tasks" / "marketing" / "relaunch.md").is_file()
+
+
+def test_ticket_ambiguous_bare_leaf_bails_without_launching(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two nested tickets share a leaf: a bare-leaf `coga ticket` can't tell
+    which is meant, so it bails listing both qualified slugs rather than guessing
+    or scaffolding a duplicate."""
+    cfg = load_config(repo)
+    for directory in ("marketing", "growth"):
+        create_task(
+            cfg=cfg,
+            title="Relaunch",
+            workflow_name="direct/body",
+            contexts=[],
+            autonomy="interactive",
+            owner="marc",
+            assignee="claude",
+            watchers=[],
+            status="draft",
+            directory=directory,
+        )
+    called = False
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
+    monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+
+    result = CliRunner().invoke(app, ["ticket", "relaunch"])
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "growth/relaunch" in combined
+    assert "marketing/relaunch" in combined
+    assert not called
+    # No duplicate top-level draft was scaffolded.
+    assert not (repo / "tasks" / "relaunch.md").exists()
 

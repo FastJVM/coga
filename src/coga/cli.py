@@ -10,13 +10,14 @@ from importlib.metadata import PackageNotFoundError, version as _pkg_version
 import typer
 
 from coga import git
+from coga.commands import block as block_cmd
 from coga.commands import create as create_cmd
 from coga.commands import delete as delete_cmd
 from coga.commands import digest as digest_cmd
 from coga.commands import init as init_cmd
 from coga.commands import launch as launch_cmd
 from coga.commands import mark as mark_cmd
-from coga.commands import panic as panic_cmd
+from coga.commands import megalaunch as megalaunch_cmd
 from coga.commands import project as project_cmd
 from coga.commands import recurring as recurring_cmd
 from coga.commands import retire as retire_cmd
@@ -28,6 +29,7 @@ from coga.commands import skill as skill_cmd
 from coga.commands import ticket as ticket_cmd
 from coga.commands import bump as bump_cmd
 from coga.commands import uninstall as uninstall_cmd
+from coga.commands import unblock as unblock_cmd
 from coga.commands import usage as usage_cmd
 from coga.commands import validate as validate_cmd
 from coga.commands.update import read_pin
@@ -79,12 +81,14 @@ app.command("create")(create_cmd.create)
 app.command("ticket")(ticket_cmd.ticket)
 app.command("project")(project_cmd.project)
 app.command("launch")(launch_cmd.launch)
+app.command("megalaunch")(megalaunch_cmd.megalaunch)
 app.command("status")(status_cmd.status)
 app.command("show")(show_cmd.show)
 app.command("bump")(bump_cmd.bump)
+app.command("block")(block_cmd.block)
+app.command("unblock")(unblock_cmd.unblock)
 app.command("delete")(delete_cmd.delete)
 app.command("retire")(retire_cmd.retire)
-app.command("panic")(panic_cmd.panic)
 app.command("slack")(slack_cmd.slack)
 app.command("digest")(digest_cmd.digest)
 app.command("usage")(usage_cmd.usage)
@@ -100,9 +104,28 @@ app.add_typer(secret_cmd.app, name="secret")
 # real commands.
 _BUILTIN_COMMANDS = frozenset(
     {
-        "init", "uninstall", "create", "launch", "status", "show", "bump",
-        "delete", "retire", "panic", "slack", "digest", "usage",
-        "skill", "mark", "recurring", "ticket", "project", "validate", "secret",
+        "init",
+        "uninstall",
+        "create",
+        "launch",
+        "megalaunch",
+        "status",
+        "show",
+        "bump",
+        "block",
+        "unblock",
+        "delete",
+        "retire",
+        "slack",
+        "digest",
+        "usage",
+        "skill",
+        "mark",
+        "recurring",
+        "ticket",
+        "project",
+        "validate",
+        "secret",
     }
 )
 
@@ -160,10 +183,12 @@ _SWEEPING_COMMANDS = frozenset(
         "ticket",
         "project",
         "launch",
+        "megalaunch",
         "bump",
+        "block",
+        "unblock",
         "delete",
         "retire",
-        "panic",
         "slack",
         "digest",
     }

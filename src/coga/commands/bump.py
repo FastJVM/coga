@@ -56,7 +56,7 @@ def bump(
     if rewind and os.environ.get("COGA_SUPERVISED"):
         _bail(
             "Agents cannot rewind from a supervised coga launch. "
-            "Call `coga panic --task <id> --reason \"...\"`; a human can "
+            "Call `coga block --task <id> --reason \"...\"`; a human can "
             "rewind with `coga bump <id> --to <step>`."
         )
 

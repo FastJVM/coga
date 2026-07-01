@@ -151,7 +151,7 @@ command (`status`, `show`, `validate`) that mutates state or hits the network as
 a side effect of reading.
 
 **Receipt:** missing context/skill → raise; `coga validate` errors on broken
-refs; Slack/script failures surface (and log), never swallowed; `coga panic`
+refs; Slack/script failures surface (and log), never swallowed; `coga block`
 hands a blocked task back to a human rather than guessing.
 
 ---

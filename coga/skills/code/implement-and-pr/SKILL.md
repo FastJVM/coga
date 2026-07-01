@@ -39,7 +39,7 @@ ticket reassigned to the human owner.
    ready, do **not** improvise around it: write the exact failure and the
    suggested fix (set/fix the remote, load your SSH key or credential
    helper, run `gh auth login`) under `## Dev` on the blackboard, then
-   `coga panic` with a one-line reason so the human can fix auth and
+   `coga block` with a one-line reason so the human can fix auth and
    relaunch. The push and PR cannot succeed without it.
 8. **Push** the branch from the feature worktree.
 9. **Open the PR** with `gh pr create`. Title = ticket title. Body =
@@ -73,7 +73,7 @@ You are done when:
 - If the work is too big for one PR, **stop and split the ticket** on
   the blackboard. Don't ship a half-PR.
 - If git/`gh` auth isn't ready, you caught it in step 7: blackboard the
-  failure and `coga panic` rather than skipping the PR step or
+  failure and `coga block` rather than skipping the PR step or
   improvising around missing auth.
 - If the test suite fails for reasons unrelated to your change, write
-  it to the blackboard and `coga panic` rather than masking it.
+  it to the blackboard and `coga block` rather than masking it.

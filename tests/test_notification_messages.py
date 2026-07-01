@@ -249,20 +249,20 @@ def test_bump_message_posts_live_fyi(
     )
 
 
-# --- panic / slack FYI --------------------------------------------------------
+# --- block / slack FYI --------------------------------------------------------
 
 
-def test_panic_uses_colon_and_drops_quotes_around_reason(
+def test_block_uses_colon_and_drops_quotes_around_reason(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     slug, _ = _make_task(repo, status="in_progress")
     posts = _capture(monkeypatch)
     result = CliRunner().invoke(
-        app, ["panic", "--task", slug, "--reason", "retry ceiling unspecified"]
+        app, ["block", "--task", slug, "--reason", "retry ceiling unspecified"]
     )
-    assert result.exit_code == 1  # panic exits non-zero by design
-    assert _body(posts, "🚨") == (
-        f"🚨 claude needs help on *{slug}* \"Work\": retry ceiling unspecified"
+    assert result.exit_code == 0, result.output
+    assert _body(posts, "🛑") == (
+        f"🛑 claude blocked *{slug}* \"Work\": retry ceiling unspecified"
     )
 
 

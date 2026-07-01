@@ -245,7 +245,8 @@ workflow step are loaded too.
 - `coga show <slug>` — read a task's ticket / blackboard / log
 - `coga bump <slug>` — advance one workflow step
 - `coga mark done <slug>` — finish active or in-progress work
-- `coga panic --task <slug> --reason "..."` — escalate when blocked
+- `coga block --task <slug> --reason "..."` — stop for a concrete answer
+- `coga unblock <slug> --answer "..."` — record the answer and resume
 - `coga --help` — full CLI surface
 
 ## Mental model
@@ -263,7 +264,7 @@ disagree with anything else in the repo, they win.
 ## Don't
 
 - Don't hand-edit `status` / `step` / `workflow` in ticket frontmatter — the
-  CLI manages them. Use `coga bump` / `coga panic` instead.
+  CLI manages them. Use `coga bump` / `coga block` instead.
 - Don't write to the repo-global `coga/log.md` — also CLI-managed.
   Working notes go in the blackboard region of `ticket.md`.
 - Don't commit secrets. Use `coga.local.toml` (gitignored) for machine-local
@@ -499,7 +500,7 @@ def _print_notification_state() -> None:
         )
         return
     typer.secho(
-        "✓ Notifications: optional on first run — bump/slack/panic/launch run\n"
+        "✓ Notifications: optional on first run — bump/slack/block/launch run\n"
         "  without them. To turn on team notifications later, select the Slack\n"
         "  channel and point it at a webhook in coga.toml:\n"
         "      [notification]\n"

@@ -203,7 +203,7 @@ ones that affect implementation:
   workflow" was confusing. `bump` derives the next step from the
   current `step:` frontmatter and normally advances by one. Humans may
   rewind in-progress workflow tasks to an earlier step with `--to` or
-  `--backward`; agents still panic instead of going backward. `bump` does
+  `--backward`; agents still block instead of going backward. `bump` does
   not finish tickets — bumping past the last step (or on a no-workflow
   ticket) errors and points at `coga mark done`.
 - **`coga recurring` is the canonical entry point** for the recurring

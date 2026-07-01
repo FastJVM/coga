@@ -1,6 +1,6 @@
 """Tests for the session-done signal on session-ending commands.
 
-`coga bump`, `coga mark done`, and `coga panic` signal the supervising
+`coga bump`, `coga mark done`, and `coga block` signal the supervising
 `coga launch` that the session is over so it can SIGTERM the agent's REPL
 (see `coga.repl_supervisor`). The signal travels over the *sentinel file*
 (`$COGA_DONE_SENTINEL`) and nothing else: a success writes the task's
@@ -220,39 +220,37 @@ def test_mark_paused_does_not_signal(repo: Path, sentinel: Path) -> None:
     assert not sentinel.exists()
 
 
-# --- panic --------------------------------------------------------------------
+# --- block --------------------------------------------------------------------
 
 
-def test_panic_success_signals_via_sentinel(
+def test_block_success_signals_via_sentinel(
     repo: Path, sentinel: Path
 ) -> None:
     slug, path = _make_task(repo)
     result = CliRunner().invoke(
-        app, ["panic", "--task", slug, "--reason", "stuck on 429 backoff ceiling"]
+        app, ["block", "--task", slug, "--reason", "stuck on 429 backoff ceiling"]
     )
-    # Panic exits non-zero on the success path; the supervisor is still
-    # released — via the sentinel file.
-    assert result.exit_code == 1, result.output
+    assert result.exit_code == 0, result.output
     assert sentinel.read_text().strip() == str(path.resolve())
 
 
-def test_panic_success_unsupervised_is_noop(
+def test_block_success_unsupervised_is_noop(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _no_supervisor(monkeypatch)
     slug, _ = _make_task(repo)
     result = CliRunner().invoke(
-        app, ["panic", "--task", slug, "--reason", "stuck on 429 backoff ceiling"]
+        app, ["block", "--task", slug, "--reason", "stuck on 429 backoff ceiling"]
     )
-    assert result.exit_code == 1, result.output
+    assert result.exit_code == 0, result.output
 
 
-def test_panic_error_empty_reason_does_not_signal(
+def test_block_error_empty_reason_does_not_signal(
     repo: Path, sentinel: Path
 ) -> None:
     slug, _ = _make_task(repo)
     result = CliRunner().invoke(
-        app, ["panic", "--task", slug, "--reason", "   "]
+        app, ["block", "--task", slug, "--reason", "   "]
     )
     assert result.exit_code == 2
     assert not sentinel.exists()

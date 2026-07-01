@@ -507,3 +507,48 @@
 2026-06-30 15:11 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-30 15:53 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] activated (draft → active) — auto on launch
 2026-06-30 15:53 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] started (active → in_progress) via coga launch
+2026-06-30 16:14 [add-coga-ticket-existing-slug-scan] [human:lilfedor] created (autonomy=interactive, status=draft)
+2026-06-30 15:46 [awaken-recurring-auto-blocked-tasks] [human:nicktoper] launched in interactive mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-06-30 16:15 [awaken-recurring-auto-blocked-tasks] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-06-30 16:15 [awaken-recurring-auto-blocked-tasks] [git] sync failed: `git add -- coga/tasks/awaken-recurring-auto-blocked-tasks.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-30 16:15 [coga] [git] sync failed: `git add -- coga/log.md coga/tasks/awaken-recurring-auto-blocked-tasks.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-30 15:53 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 16:34 [per-agent-git-worktree-isolation-for-launch-to-avo] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-06-30 16:15 [awaken-recurring-auto-blocked-tasks] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-30 16:44 [awaken-recurring-auto-blocked-tasks] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-06-30 16:44 [awaken-recurring-auto-blocked-tasks] [git] sync failed: `git add -- coga/tasks/awaken-recurring-auto-blocked-tasks.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-30 16:44 [awaken-recurring-auto-blocked-tasks] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 16:46 [awaken-recurring-auto-blocked-tasks] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/485
+2026-06-30 16:15 [add-coga-ticket-existing-slug-scan] [human:lilfedor] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-30 16:51 [add-coga-ticket-existing-slug-scan] [human:lilfedor] activated (draft → active) — auto on launch
+2026-06-30 16:52 [add-coga-ticket-existing-slug-scan] [human:lilfedor] started (active → in_progress) via coga launch
+2026-06-30 16:52 [add-coga-ticket-existing-slug-scan] [human:lilfedor] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 17:31 [add-coga-ticket-existing-slug-scan] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement complete on branch ticket-existing-slug-greeting @ 83a8be41; pytest 940 passed, coga validate clean
+2026-06-30 17:32 [add-coga-ticket-existing-slug-scan] [human:lilfedor] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-30 19:17 [bootstrap/orient] [human:lilfedor] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 17:49 [remove-relay-migration-script] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-06-30 17:50 [remove-relay-migration-script] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-06-30 17:55 [remove-relay-migration-script] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-06-30 20:07 [remove-relay-migration-script] [human:nicktoper] activated (draft → active) — auto on launch
+2026-06-30 19:47 [add-coga-ticket-existing-slug-scan] [human:lilfedor] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-30 20:22 [add-coga-ticket-existing-slug-scan] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review passed; no fixes needed. Tests: python -m pytest (940 passed); scoped/example validation clean.
+2026-06-30 20:22 [add-coga-ticket-existing-slug-scan] [human:lilfedor] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 20:34 [add-coga-ticket-existing-slug-scan] [agent:claude] advanced to step 4 (review) → assigned to zach — PR opened: https://github.com/FastJVM/coga/pull/486 (no CI checks configured on repo)
+2026-06-30 20:07 [remove-relay-migration-script] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-06-30 20:15 [remove-relay-migration-script] [agent:codex] started (active -> in_progress) via launch-state repair
+2026-06-30 20:15 [remove-relay-migration-script] [git] sync failed: `git add -- coga/tasks/remove-relay-migration-script.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-30 20:43 [remove-relay-migration-script] [agent:nicktoper] advanced to step 2 (peer-review) → assigned to codex — implement complete: branch drop-relay-migration-script @ 6fe9f49b; pytest 935 passed, 1 skipped; task validation clean
+2026-06-30 20:50 [remove-relay-migration-script] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-06-30 16:34 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-30 20:52 [per-agent-git-worktree-isolation-for-launch-to-avo] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-06-30 20:52 [per-agent-git-worktree-isolation-for-launch-to-avo] [git] sync failed: `git add -- coga/tasks/per-agent-git-worktree-isolation-for-launch-to-avo.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-06-30 20:52 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 20:54 [per-agent-git-worktree-isolation-for-launch-to-avo] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: <https://github.com/FastJVM/coga/pull/487|PR #487>
+2026-06-30 20:57 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 20:51 [remove-relay-migration-script] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-30 20:59 [remove-relay-migration-script] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-06-30 20:59 [remove-relay-migration-script] [git] sync failed: `git add -- coga/tasks/remove-relay-migration-script.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-30 20:59 [coga] [git] sync failed: `git add -- coga/log.md coga/tasks/remove-relay-migration-script.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-06-30 20:59 [remove-relay-migration-script] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 21:00 [remove-relay-migration-script] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/488
+2026-06-30 21:00 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
