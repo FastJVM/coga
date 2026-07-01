@@ -1,7 +1,7 @@
 ---
 slug: v2/gh-merge-requirement
 title: gh-merge-requirement
-status: active
+status: paused
 autonomy: interactive
 owner: nick
 human: nick
