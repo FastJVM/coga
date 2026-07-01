@@ -2,7 +2,7 @@
 slug: per-agent-git-worktree-isolation-for-launch-to-avo
 title: Per-agent git worktree isolation for launch to avoid intra-clone autostash
   races
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -30,7 +30,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description

@@ -555,3 +555,4 @@
 2026-07-01 07:47 [bootstrap/orient] [human:lilfedor] launched in interactive mode (assignee=claude, agent=claude)
 2026-07-01 08:58 [add-coga-ticket-existing-slug-scan] [human:lilfedor] task done
 2026-07-01 10:09 [remove-relay-migration-script] [human:nicktoper] task done
+2026-07-01 10:10 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] task done
