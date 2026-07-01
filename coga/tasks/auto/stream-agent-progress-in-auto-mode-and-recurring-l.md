@@ -1,7 +1,7 @@
 ---
 slug: auto/stream-agent-progress-in-auto-mode-and-recurring-l
 title: Stream agent progress in auto-mode and recurring launches
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick

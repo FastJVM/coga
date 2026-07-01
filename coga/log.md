@@ -599,3 +599,4 @@
 2026-07-01 14:24 [v2/automerge-ticket] [human:nicktoper] paused (active → paused)
 2026-07-01 14:24 [v2/add-dev-testing-setup-skill] [human:nicktoper] paused (in_progress → paused)
 2026-07-01 14:26 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 15:37 [auto/stream-agent-progress-in-auto-mode-and-recurring-l] [megalaunch] started (active → in_progress) via coga megalaunch
