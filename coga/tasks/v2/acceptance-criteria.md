@@ -1,7 +1,7 @@
 ---
 slug: v2/acceptance-criteria
 title: acceptance-criteria
-status: active
+status: paused
 autonomy: interactive
 owner: zach
 human: zach

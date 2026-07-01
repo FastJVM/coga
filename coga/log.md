@@ -593,3 +593,4 @@
 2026-07-01 14:23 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-07-01 14:24 [v2/relay-design-repositories] [human:nicktoper] paused (active → paused)
 2026-07-01 14:24 [v2/gh-merge-requirement] [human:nicktoper] paused (active → paused)
+2026-07-01 14:24 [v2/acceptance-criteria] [human:nicktoper] paused (active → paused)
