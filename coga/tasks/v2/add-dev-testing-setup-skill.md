@@ -1,7 +1,7 @@
 ---
 slug: v2/add-dev-testing-setup-skill
 title: Add dev testing setup skill
-status: in_progress
+status: paused
 autonomy: interactive
 owner: nick
 human: nick
