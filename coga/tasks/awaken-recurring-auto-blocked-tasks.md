@@ -36,68 +36,57 @@ step: 4 (review)
 
 ## Description
 
-Follow up to `async-park-and-continue-on-block`.
+Follow up to the first-class `coga block` / `coga unblock` workflow.
 
-That task lets a sweep park a blocked task cleanly and continue the rest of the
-run. This task should add the missing visibility and wakeup loop for parked
-asks: any task with an unresolved blocker should remain visible in the normal
-operator surfaces and be surfaced again later, so it does not disappear into
-`in_progress` state after the first Slack post.
+Blocked work is already visible through `status: blocked` and
+`coga status --blocked`, but an unresolved ask still needs to be re-surfaced
+after the initial live Slack post. This task adds that wakeup loop without
+creating a second blocker model.
 
-Build a markdown-first blocker queue, not a hosted service:
+Build a markdown-first blocked-task reminder, not a hosted service:
 
-- Add a shared scanner for unresolved blockers in task blackboards. It should
-  walk regular tasks with the existing task-listing primitives; do not special
-  case recurring identity as the data model. Recurring-created tasks are still
-  just tasks.
-- Make `coga status` show blockers without opening each ticket. Keep the
-  current task table, then append a second `Open blockers` table when any
-  unresolved blockers exist. The table should show task slug, status, step,
-  owner, blocker text, age if available, and the next command.
-- Define the human answer handshake in markdown. The simplest acceptable
-  contract is that a human edits the task blackboard with an `answered:` or
-  `resolved:` marker after the blocker; the next `coga launch <slug>` resumes
-  from task files.
-- Re-notify owners for unresolved parked blockers from an unattended scan path,
-  using the same scanner as `coga status` and the existing notification/sync
-  surfaces. A recurring sweep can call this opportunistically, but recurring is
-  the trigger path, not the blocker model.
+- Scan ordinary tasks, including recurring-created period tasks, whose
+  frontmatter says `status: blocked`.
+- Reuse the existing blackboard blocker parser (`## Blockers`) that backs
+  `coga block`, `coga unblock`, `coga status --blocked`, and megalaunch.
+- Re-notify owners for unresolved blockers from an unattended script path using
+  the existing notification/sync surfaces.
+- Point the human at the command-owned answer handshake:
+  `coga unblock <slug> --answer "..."`. Do not introduce direct
+  `answered:` / `resolved:` edits as a parallel public contract.
 - Deduplicate reminder posts so the same unresolved blocker is not posted on
   every scan. Store the reminder watermark in markdown state on the blocked
   task's own blackboard so it travels with the ask and remains inspectable.
-- Preserve the async-park contract: do not hold a live REPL open, do not launch
-  nested sessions, and do not treat panic as work to keep trying immediately.
-- Cover the behavior with tests that prove blockers appear in `coga status`,
-  reminders are posted once, duplicate reminders are suppressed, and
-  answered/resolved blockers disappear from the queue and are not re-awakened.
+- Do not launch, unblock, or otherwise advance blocked tasks from the reminder
+  job. It only makes unresolved asks visible again.
+- Cover the behavior with tests that prove blocked tasks are reminded once,
+  duplicate reminders are suppressed, resolved blockers are ignored, and
+  non-`blocked` tasks with historical blocker text are not re-awakened.
 
 Product decision for this ticket:
 
-This ticket does not change task selection, `autonomy:`, or the broader drain
-model. It only makes unresolved blocker asks visible and reminds owners. Future
-work may decide whether a drain path should attempt all active agent-owned work,
-but that migration must be explicit and should not happen as a side effect of
-blocker reminders.
+This ticket does not change task selection, `autonomy:`, `coga status`, or the
+broader drain model. It only reminds owners about tasks already stopped by
+`coga block`. Future work may decide whether a drain path should attempt all
+active agent-owned work, but that migration must be explicit and should not
+happen as a side effect of blocker reminders.
 
 ## Context
 
 Relevant existing pieces:
 
-- `async-park-and-continue-on-block` defines the park-and-resume behavior.
+- `block-unblock-and-megalaunch` defines the first-class blocker lifecycle.
 - `v2/issue-inbox-slack` covers richer immediate Slack posts for blockers.
 - `nightly-auto-drain-run-for-ready-tickets` is the future drain loop that may
   consume this wakeup behavior.
 
 Implementation shape:
 
-- Factor blocker parsing into reusable code instead of duplicating regexes in
-  status and recurring.
-- Treat a blocker entry as open until a later answer/resolution marker closes
-  it. Support at least `answered:` and `resolved:` in a form that is easy for a
-  human to type in markdown.
-- The canonical next command is `coga launch <slug>`. If a reminder is emitted
-  during a recurring sweep, the message may also mention `coga recurring`, but
-  the task slug remains the resume target.
+- Put reminder scan/watermark logic in reusable code instead of duplicating it
+  in the script skill.
+- Let `coga.blackboard` remain the source of truth for blocker entry parsing
+  and resolution.
+- The canonical next command is `coga unblock <slug> --answer "..."`.
 - If reminder watermarking needs a section name, prefer a small plain-markdown
   section in the blocked task blackboard such as `## Blocker reminders`; keep it
   compact and machine-readable enough to deduplicate by blocker fingerprint.
@@ -108,15 +97,16 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 ## Design decision
 
-- [2026-06-30] Revised scope with Nick: blocker visibility is generic task
-  behavior, not recurring identity behavior. `coga status` should append an
-  `Open blockers` table after the normal task table. Reminder posting reuses
-  that scanner and can be triggered by recurring sweeps, but blocker state and
-  dedup watermarks live on the blocked task's own blackboard.
-- [2026-06-30] Follow-up clarification: `coga status` should directly scan the
-  task blackboards it is already reading and append the blocker table. Reminder
-  posts/watermark writes stay out of `status` and belong in an explicit
-  script-backed recurring task.
+- [2026-06-30] Superseded implementation direction: earlier scope treated
+  blocker visibility as generic task behavior and proposed appending an
+  `Open blockers` table to plain `coga status`.
+- [2026-06-30] Still-current part of that direction: reminder posts/watermark
+  writes stay out of `status` and belong in an explicit script-backed recurring
+  task.
+- [2026-07-01] Owner review on PR #485 pointed out that current main already has
+  `coga block` / `coga unblock` as the blocker model. Revised this PR to remove
+  the separate generic blocker queue: reminders now scan `status: blocked`
+  tasks, use `coga.blackboard` parsing, and point humans at `coga unblock`.
 
 ## Dev
 
@@ -126,23 +116,26 @@ pr: https://github.com/FastJVM/coga/pull/485
 
 Implementation notes:
 
-- Added `coga.blockers` as the shared markdown scanner/watermark writer for
-  open blocker asks. It reads `## Blockers`, closes entries on later
-  `answered:` / `resolved:` lines, and records reminder watermarks under
-  `## Blocker reminders`.
-- Wired `coga status` to append an `Open blockers` table from that scanner
-  while staying read-only.
+- Added `coga.blocker_reminders` as the recurring reminder scanner/watermark
+  writer for first-class blocked tasks. It reads `status: blocked` tickets,
+  reuses `coga.blackboard` blocker parsing, and records reminder watermarks
+  under `## Blocker reminders`.
+- Kept blocker visibility on the existing `coga status --blocked` queue instead
+  of adding a second plain-status table.
 - Added the script-backed `recurring/blocker-reminders` battery with matching
   workflow and `coga/blockers/remind` skill in both live and packaged template
   trees.
-- Updated sync/CLI contexts for the new status visibility and live reminder
-  notification path.
+- Updated sync/CLI contexts for the existing blocked-task queue and new live
+  reminder notification path.
 
 Verification:
 
-- `PYTHONPATH=/tmp/coga-awaken-blocker-reminders/src python -m pytest`
-- `git diff --check`
-- `PYTHONPATH=/tmp/coga-awaken-blocker-reminders/src python -m coga.cli validate --task awaken-recurring-auto-blocked-tasks --json`
+- `PYTHONPATH=src python -m pytest tests/test_blocker_reminders.py tests/test_commands.py::test_status_blocked_expands_open_blockers tests/test_packaging.py::test_package_includes_coga_resources -q`
+  (6 passed).
+- `PYTHONPATH=src python -m pytest -q` (952 passed, 1 skipped).
+- `git diff --check origin/main...HEAD` (clean).
+- `PYTHONPATH=src python -m coga.cli validate --task awaken-recurring-auto-blocked-tasks --json`
+  (ok_count 1, no issues).
 
 Peer review:
 
@@ -153,12 +146,9 @@ Peer review:
   blockers. Fixed on the feature branch in commit `9571c187`
   (`peer-review: fix nested blocker bullets`) by restricting blocker starts to
   top-level bullets and adding a regression test.
-- Verification after peer-review fix:
-  `PYTHONPATH=src python -m pytest tests/test_blockers.py tests/test_commands.py::test_status_appends_open_blockers_table -q`
-  (6 passed), `PYTHONPATH=src python -m pytest` (941 passed, 1 skipped),
-  `git diff --check`, and
-  `PYTHONPATH=src python -m coga.cli validate --task awaken-recurring-auto-blocked-tasks --json`
-  (ok_count 1, no issues).
+- [2026-07-01] That peer-review fix is historical for the superseded parser
+  design. PR-comment fix rebased the branch onto current main and removed the
+  duplicate parser/status-table path instead of carrying that shape forward.
 
 ## Usage
 

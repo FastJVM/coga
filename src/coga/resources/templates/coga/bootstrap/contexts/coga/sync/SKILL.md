@@ -33,6 +33,11 @@ out of notifications entirely:
 Live (urgent) surface — still posts immediately:
 
 - `coga block` — blocker, owner named.
+- `recurring/blocker-reminders` — unresolved blocked-task reminders, owner
+  named, with the `coga unblock <slug> --answer "..."` command shape. The
+  script records a `## Blocker reminders` watermark on the blocked task only
+  after attempting the live post, so the same blocker is not reminded on every
+  scan.
 - `coga slack` — explicit FYI (manual broadcast escape hatch); an
   intentional human broadcast, so batching it would surprise the sender.
 - `coga bump --message "<FYI>"` — explicit FYI attached to step movement.
@@ -227,7 +232,8 @@ new string:
   `commands/launch_script.py` (failure path only),
   `commands/bump.py` when `--message` is present, and
   `commands/launch.py` / `mark.mark_in_progress` (active → in_progress
-  session start). Outcome callers (`notify`): `mark.mark_done` (including
+  session start), plus `coga.blocker_reminders.remind_blocked_tasks` for
+  unresolved blocker reminders. Outcome callers (`notify`): `mark.mark_done` (including
   the autoclose sweep and script-mode completion) and `commands/recurring.py`'s error
   summary. Both paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands
@@ -365,6 +371,8 @@ Current surface:
 - `coga recurring` and `coga retire` creates.
 - `coga block` — the blocker written to the blackboard + log, synced before
   the teardown signal so the commit lands while the process still owns itself.
+- `recurring/blocker-reminders` — the reminder watermark written to the
+  blocked task's blackboard after a live reminder attempt.
 - `coga ticket` authoring — the edits the launched agent makes to `ticket.md`
   (and the blackboard) inside the subprocess, committed once control returns
   and the result passes validation. coga never calls `ticket.write()` for

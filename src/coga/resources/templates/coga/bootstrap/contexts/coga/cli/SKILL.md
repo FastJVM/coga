@@ -322,6 +322,11 @@ slug, current step, owner, assignee, blocker age/reason, and the next command
 shape (`coga unblock <slug> --answer "..."`). It is still read-only: it never
 resolves blockers, relaunches work, or probes the network.
 
+The script-backed `recurring/blocker-reminders` task uses the same blocked-task
+contract to re-notify owners about unresolved blockers and records a
+`## Blocker reminders` watermark on the blocked task after a live reminder
+attempt.
+
 ## coga show \<slug\>
 
 Print a task's `ticket.md` (frontmatter + body + blackboard region) and its
