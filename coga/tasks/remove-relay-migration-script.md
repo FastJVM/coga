@@ -9,7 +9,7 @@ agent: claude
 assignee: nicktoper
 contexts: []
 skills: []
-workflow: null
+workflow: code/with-review
 secrets: null
 script: null
 ---
@@ -23,3 +23,7 @@ script: null
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Notes
+
+- Human requested workflow `code/with-review`; repo-local workflow exists at `coga/workflows/code/with-review.md`.
