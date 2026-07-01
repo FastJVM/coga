@@ -139,3 +139,7 @@ Verification: `python -m pytest` → 940 passed. `coga validate --json` on
 ## Production notes
 
 This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":526610,"cache_read_input_tokens":15310002,"cli":"claude","input_tokens":47271,"model":"claude-opus-4-8","output_tokens":208577,"provider":"anthropic","schema":1,"session_id":"526302eb-aac9-4855-bd98-3ee666e70c4b","slug":"add-coga-ticket-existing-slug-scan","step":"implement","title":"add-coga-ticket-existing-slug-scan","ts":"2026-07-01T00:32:06.993135Z","usage_status":"ok"}
