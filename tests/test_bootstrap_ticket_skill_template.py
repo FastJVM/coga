@@ -44,3 +44,21 @@ def test_bootstrap_ticket_skill_mandates_a_workflow() -> None:
     # The concept-capture exemption is stated, not erased.
     assert "concept-capture" in text
     assert "This is required — a ticket with no workflow can't be activated." in text
+
+
+def test_bootstrap_ticket_greets_off_kickoff_token_not_body() -> None:
+    """Regression: the create-vs-edit greeting keys off the CLI-set kickoff
+    token, not body-emptiness — so a `coga create`d empty draft opened for
+    editing greets as an edit, never as a freshly-created ticket."""
+    text = BOOTSTRAP_TICKET_SKILL.read_text()
+
+    # The greeting keys off the kickoff token the CLI sets, per launch shape.
+    assert "kickoff token" in text
+    assert "`Begin (new ticket)`" in text
+    assert "`Begin (editing existing ticket)`" in text
+    # The old body-emptiness heuristic is gone.
+    assert "an **empty**\n`## Description`/`## Context` body means new" not in text
+    # The existing-but-empty edit path is spelled out: greet as an edit, fill
+    # from scratch, don't announce a creation.
+    assert "even if its body is" in text
+    assert 'never announce it "has been created"' in text
