@@ -539,3 +539,6 @@
 2026-06-30 20:15 [remove-relay-migration-script] [git] sync failed: `git add -- coga/tasks/remove-relay-migration-script.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
 2026-06-30 20:43 [remove-relay-migration-script] [agent:nicktoper] advanced to step 2 (peer-review) → assigned to codex — implement complete: branch drop-relay-migration-script @ 6fe9f49b; pytest 935 passed, 1 skipped; task validation clean
 2026-06-30 20:50 [remove-relay-migration-script] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-06-30 16:34 [per-agent-git-worktree-isolation-for-launch-to-avo] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-06-30 20:52 [per-agent-git-worktree-isolation-for-launch-to-avo] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-06-30 20:52 [per-agent-git-worktree-isolation-for-launch-to-avo] [git] sync failed: `git add -- coga/tasks/per-agent-git-worktree-isolation-for-launch-to-avo.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system

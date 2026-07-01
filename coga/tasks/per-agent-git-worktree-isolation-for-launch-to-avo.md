@@ -7,7 +7,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/sync
 skills: []
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -143,6 +143,36 @@ primary's copy would mis-chain. `os.chdir` was rejected — `coga recurring` cal
 `test_git.py`; `[launch].worktree` parsing in `test_config.py`; existing spawn
 fakes updated for the new `cwd` kwarg. Full suite: 947 passed, 1 skipped.
 
+## Peer review (codex)
+
+Native review: `codex review --base main` initially failed under the managed
+sandbox with `Read-only file system`; reran escalated and received four
+functional findings. Applied must-fixes on
+`/home/n/Code/claude/coga-launch-worktree-isolation` and committed
+`67906046 peer-review: apply review findings`.
+
+Fixes applied:
+
+- launch worktree creation now happens before launch-owned task mutations, so
+  `_auto_activate` / `mark_in_progress` no longer write through the primary
+  checkout when isolation is enabled.
+- the live resolved task file/dir and ignored `coga.local.toml` are seeded into
+  the isolated worktree before reloading config and resolving the task there.
+- launch worktrees detach from full `refs/heads/<control>` (or remote-tracking
+  fallback) instead of falling back to `HEAD` from feature checkouts.
+- teardown runs a final Coga-state sync and removes the worktree only if no
+  recoverable Coga OS changes remain; otherwise it prints the path and preserves
+  the worktree for recovery.
+
+Verification:
+
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -p no:cacheprovider tests/test_git.py -q`
+  -> 65 passed.
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -p no:cacheprovider tests/test_config.py tests/test_git.py tests/test_launch.py tests/test_launch_auto.py tests/test_project.py tests/test_ticket.py -q`
+  -> 244 passed.
+- `PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -p no:cacheprovider -q`
+  -> 948 passed, 1 skipped.
+
 ## Implementation decisions (no design gate — settle these in the PR)
 
 1. **Worktree location** — outside the repo (`../coga-worktrees/<id>`) or a
@@ -225,3 +255,5 @@ and control-branch findings are folded into `## Context` above.)*
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":533804,"cache_read_input_tokens":41243039,"cli":"claude","input_tokens":52164,"model":"claude-opus-4-8","output_tokens":262173,"provider":"anthropic","schema":1,"session_id":"5a52b731-b1da-4085-9d5d-009a146be548","slug":"per-agent-git-worktree-isolation-for-launch-to-avo","step":"implement","title":"Per-agent git worktree isolation for launch to avoid intra-clone autostash races","ts":"2026-06-30T23:34:32.751675Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":5369344,"cli":"codex","input_tokens":553132,"model":"gpt-5.5","output_tokens":30810,"provider":"openai","schema":1,"session_id":"019f1ae2-6c59-7d23-8b71-397dfa5b3faf","slug":"per-agent-git-worktree-isolation-for-launch-to-avo","step":"peer-review","title":"Per-agent git worktree isolation for launch to avoid intra-clone autostash races","ts":"2026-07-01T03:52:26.203181Z","usage_status":"ok"}
