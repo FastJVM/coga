@@ -283,7 +283,10 @@ section below the tables — one bullet per open ask, each with its reason and
 the `coga unblock <slug> --answer "..."` next command — so plain `coga status`
 answers "what's waiting on me?" without a second command. `coga status
 --blocked` is the focused, expanded queue (below); the inline section is the
-lightweight always-on surfacing of the same asks.
+lightweight always-on surfacing of the same asks. Both surfaces key off
+`status: blocked` alone — status is the signal, so leftover asks lingering in a
+non-blocked (e.g. finished) ticket's blackboard are not shown; that
+status/blackboard drift is `coga validate`'s job to catch, not this view's.
 
 An optional positional argument and the `--no-recurse` flag are two orthogonal
 axes — *which* directory, and *how deep*. Tasks are directories (a `ticket.md`
