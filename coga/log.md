@@ -563,3 +563,4 @@
 2026-07-01 10:16 [drain-pending-auto-tickets-with-leftover-session-b] [agent:claude] blocked: Design stale, needs rescope before implement. (1) Overlaps existing src/coga/megalaunch.py drain (run_megalaunch/budget_state) which uses coga-token-tracking, the model this ticket rejected for an OAuth usage-window probe — reconcile into one drain path or justify two. (2) Likely duplicates in_progress ticket nightly-auto-drain-run-for-ready-tickets. (3) Precondition unmet: autonomy=auto still disabled at launch.py:285. (4) mode->autonomy semantic drift throughout criteria. Decide reconcile/dedup path before implement resumes.
 2026-07-01 10:17 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-07-01 10:17 [drain-pending-auto-tickets-with-leftover-session-b] [agent:claude] blocked: test
+2026-07-01 10:21 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
