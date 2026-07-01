@@ -41,3 +41,4 @@ consumed_through:
 {"id":"4f25c45b055d","ts":"2026-07-01T10:10","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"awaken-recurring-auto-blocked-tasks","owner":"nicktoper"}
 {"id":"fd8e21fe23fa","ts":"2026-07-01T10:10","project":"coga","kind":"done","detail":"nick finished: review → done ✅","ticket":"block-unblock-and-megalaunch","owner":"nick"}
 {"id":"2ea38e4c38d9","ts":"2026-07-01T10:10","project":"coga","kind":"done","detail":"nick finished: review → done ✅","ticket":"add-a-docs-oriented-review-workflow-for-docs-only","owner":"nick"}
+{"id":"22fdd867110d","ts":"2026-06-29T12:49","project":"coga","kind":"done","detail":"nick finished: review → done ✅","ticket":"anonymous-install-telemetry-opt-out-no-pii","owner":"nick"}
