@@ -84,3 +84,5 @@ pr: https://github.com/FastJVM/coga/pull/488
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1186176,"cli":"codex","input_tokens":174855,"model":"gpt-5.5","output_tokens":6056,"provider":"openai","schema":1,"session_id":"019f1bcd-3f15-7173-bee8-b40a6e2a0464","slug":"remove-relay-migration-script","step":"peer-review","title":"remove relay migration script","ts":"2026-07-01T03:59:34.691411Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":55053,"cache_read_input_tokens":576945,"cli":"claude","input_tokens":18685,"model":"claude-opus-4-8","output_tokens":7288,"provider":"anthropic","schema":1,"session_id":"aac87898-ca27-4668-a09f-3f22be7ecf0d","slug":"remove-relay-migration-script","step":"open-pr","title":"remove relay migration script","ts":"2026-07-01T04:00:35.610147Z","usage_status":"ok"}
