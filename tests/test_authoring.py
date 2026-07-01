@@ -236,7 +236,45 @@ def test_finalize_authored_syncs_support_only_from_bootstrap_interview(
 
     assert calls == [
         (
-            context_path,
+            repo,
+            [context_path],
+            "Ticket authoring — support files",
+        )
+    ]
+
+
+def test_finalize_authored_syncs_deleted_support_only_with_live_anchor(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg = load_config(repo)
+    context_path = repo / "contexts" / "team" / "note" / "SKILL.md"
+    _write(
+        context_path,
+        """
+        ---
+        name: team/note
+        description: note.
+        ---
+        """,
+    )
+    before = snapshot_authoring_state(cfg)
+    context_path.unlink()
+    bootstrap_ref = resolve_bootstrap(cfg, "ticket")
+
+    calls: list[tuple[Path, list[Path], str]] = []
+    monkeypatch.setattr(
+        "coga.authoring.git.sync_paths",
+        lambda cfg, anchor, paths, *, message: calls.append(
+            (anchor, list(paths), message)
+        ),
+    )
+
+    finalize_authored(cfg, before_snapshot=before, ref=bootstrap_ref)
+
+    assert calls == [
+        (
+            repo,
             [context_path],
             "Ticket authoring — support files",
         )

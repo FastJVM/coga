@@ -163,7 +163,7 @@ def finalize_authored(
     sync_paths = [authored_ref.path for authored_ref in authored_refs]
     sync_paths.extend(support_paths(cfg, changed_paths))
     if sync_paths:
-        anchor = authored_refs[0].path if authored_refs else sync_paths[0]
+        anchor = authored_refs[0].path if authored_refs else cfg.repo_root
         git.sync_paths(
             cfg,
             anchor,
