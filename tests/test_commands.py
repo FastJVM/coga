@@ -400,6 +400,66 @@ def test_unblock_records_answer_and_reactivates(repo: Path) -> None:
     assert "cap at 5 minutes" in blackboard
 
 
+def _make_named_task(repo: Path, title: str) -> tuple[str, Path]:
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg, title=title, workflow_name="code",
+        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        watchers=[], status="in_progress",
+    )
+    return ref["slug"], ref["path"]
+
+
+def test_unblock_all_walks_every_blocked_task(repo: Path) -> None:
+    slug_a, path_a = _make_named_task(repo, "Alpha")
+    slug_b, path_b = _make_named_task(repo, "Beta")
+    runner = CliRunner()
+    for slug in (slug_a, slug_b):
+        r = runner.invoke(app, ["block", "--task", slug, "--reason", f"why {slug}?"])
+        assert r.exit_code == 0, r.output
+
+    # One answer per blocked task, in list order; same text so order is moot.
+    result = runner.invoke(app, ["unblock", "--all"], input="do it\ndo it\n")
+
+    assert result.exit_code == 0, result.output
+    assert "Unblocked 2, skipped 0" in result.output
+    for path in (path_a, path_b):
+        ticket = Ticket.read(path)
+        assert ticket.status == "active"
+        blackboard = read_blackboard(path)
+        assert "- [x]" in blackboard
+        assert "do it" in blackboard
+
+
+def test_unblock_all_blank_answer_skips(repo: Path) -> None:
+    slug, path = _make_named_task(repo, "Gamma")
+    runner = CliRunner()
+    r = runner.invoke(app, ["block", "--task", slug, "--reason", "which ceiling?"])
+    assert r.exit_code == 0, r.output
+
+    result = runner.invoke(app, ["unblock", "--all"], input="\n")
+
+    assert result.exit_code == 0, result.output
+    assert "skipped" in result.output
+    assert "Unblocked 0, skipped 1" in result.output
+    # A skipped task stays blocked with its ask open.
+    assert Ticket.read(path).status == "blocked"
+
+
+def test_unblock_all_no_blocked_tasks(repo: Path) -> None:
+    _make_named_task(repo, "Delta")  # active, not blocked
+    result = CliRunner().invoke(app, ["unblock", "--all"])
+    assert result.exit_code == 0, result.output
+    assert "No blocked tasks." in result.output
+
+
+def test_unblock_all_rejects_task_argument(repo: Path) -> None:
+    slug, _ = _make_named_task(repo, "Epsilon")
+    result = CliRunner().invoke(app, ["unblock", slug, "--all"])
+    assert result.exit_code == 2
+    assert "not both" in result.output
+
+
 # --- delete -------------------------------------------------------------------
 
 
