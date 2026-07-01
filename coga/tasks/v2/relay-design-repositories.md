@@ -1,7 +1,7 @@
 ---
 slug: v2/relay-design-repositories
 title: relay-design-repositories
-status: active
+status: paused
 autonomy: interactive
 owner: zach
 human: zach
