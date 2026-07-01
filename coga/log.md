@@ -522,3 +522,5 @@
 2026-06-30 16:15 [add-coga-ticket-existing-slug-scan] [human:lilfedor] ticket authoring launched (assignee=claude, agent=claude)
 2026-06-30 16:51 [add-coga-ticket-existing-slug-scan] [human:lilfedor] activated (draft → active) — auto on launch
 2026-06-30 16:52 [add-coga-ticket-existing-slug-scan] [human:lilfedor] started (active → in_progress) via coga launch
+2026-06-30 16:52 [add-coga-ticket-existing-slug-scan] [human:lilfedor] launched in interactive mode (assignee=claude, agent=claude)
+2026-06-30 17:31 [add-coga-ticket-existing-slug-scan] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement complete on branch ticket-existing-slug-greeting @ 83a8be41; pytest 940 passed, coga validate clean

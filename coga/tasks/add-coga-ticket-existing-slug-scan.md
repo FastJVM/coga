@@ -6,7 +6,7 @@ autonomy: interactive
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -103,6 +103,39 @@ also depend on.
   `coga create` batch behavior.
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: ticket-existing-slug-greeting
+worktree: /Users/zach2179/dev/coga-ticket-greeting
+commit: 83a8be41
+
+## Implement — done
+
+Landed exactly the pinned mechanism (kickoff token, no `resolve_task` change):
+
+1. `src/coga/commands/ticket.py` — added kickoff constants
+   (`AUTHORING_KICKOFF` = `"Begin"`, `..._NEW` = `"Begin (new ticket)"`,
+   `..._EDIT` = `"Begin (editing existing ticket)"`).
+   `_resolve_or_create_target` now returns `(ref, ticket, created)`; `ticket()`
+   maps `created` → the token and threads it into `_run_authoring_session`
+   (replaced the hardcoded `"Begin"`). Nested-leaf fix: on the non-ambiguous
+   `TaskNotFoundError`, scan `list_tasks` for `t.slug == target` — 1 → edit
+   (via new `_resolve_existing` helper), >1 → ambiguous bail listing full
+   `<dir>/<slug>`, 0 → `create_draft` as before. `resolve_task` untouched, so
+   `coga launch` / `coga status` are unaffected.
+2. Both `bootstrap/ticket` SKILL.md copies (live + packaged) — Step 1 rewritten
+   to greet off the kickoff token, header/body only as fallback; existing-but-
+   empty greets as an edit and fills from scratch. Step 1 region is byte-
+   identical across the two copies; the pre-existing `<package-bootstrap>`
+   divergences (Step 2/4/7) were left intact.
+3. Tests: updated the two create-path `"Begin"` assertions in
+   `tests/test_ticket.py`; added existing-empty-draft-edits-as-edit,
+   nested-bare-leaf-edits-not-duplicate, and ambiguous-bare-leaf-bails cases;
+   added a kickoff-token regression to `test_bootstrap_ticket_skill_template.py`.
+
+Verification: `python -m pytest` → 940 passed. `coga validate --json` on
+`example/coga` → ok_count 1, no issues.
+
 ## Production notes
 
 This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
