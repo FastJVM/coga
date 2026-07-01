@@ -84,7 +84,7 @@ done = [
   # Gandalf dancing in the forest
   "https://media.tenor.com/83EbiNsfDtAAAAAC/gandalf.gif",
 ]
-panic = [
+block = [
   # "This is fine" dog
   "https://media.tenor.com/scX-kVPwUn8AAAAC/this-is-fine.gif",
   # "This is fine" pixel cat

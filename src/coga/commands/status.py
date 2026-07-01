@@ -9,8 +9,10 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from coga.blackboard import Blocker, open_blockers
 from coga.config import ConfigError, load_config
 from coga.logfile import last_activity_map
+from coga.taskfile import TaskFileError
 from coga.tasks import (
     UnknownDirectoryError,
     filter_tasks_under,
@@ -92,6 +94,11 @@ def status(
             "directory) and --no-recurse (only the immediate level)."
         ),
     ),
+    blocked: bool = typer.Option(
+        False,
+        "--blocked",
+        help="Show only blocked tickets, expanding every open blocker ask.",
+    ),
 ) -> None:
     """Show tasks in the repo."""
     try:
@@ -130,12 +137,23 @@ def status(
     activity = last_activity_map(cfg)
 
     rows = []
+    blocked_rows = []
     hidden_done = 0
     for ref in refs:
         try:
             ticket = read_ticket(ref)
         except TicketError:
             continue
+        blockers = _safe_open_blockers(ref.ticket_path)
+        if ticket.status == "blocked" or blockers:
+            blocked_rows.append({
+                "slug": ref.id_slug,
+                "status": ticket.status or "-",
+                "owner": ticket.owner or "-",
+                "assignee": ticket.assignee or "-",
+                "step": ticket.step or "-",
+                "blockers": blockers,
+            })
         if not show_all and ticket.status == "done":
             hidden_done += 1
             continue
@@ -149,6 +167,10 @@ def status(
             "autonomy": ticket.autonomy,
             "updated_ts": activity.get(ref.id_slug),
         })
+
+    if blocked:
+        _print_blocked(console, blocked_rows)
+        return
 
     # Default reading is "newest first" for date columns and alphabetical
     # for everything else; --reverse flips whichever default applies.
@@ -244,6 +266,14 @@ def _done_hint(hidden_done: int) -> str:
     return f"  ({hidden_done} {noun} hidden — use --all to show)"
 
 
+def _safe_open_blockers(ticket_path) -> list[Blocker]:
+    """Best-effort blocker read for a read-only status view."""
+    try:
+        return open_blockers(ticket_path)
+    except (FileNotFoundError, TaskFileError):
+        return []
+
+
 def _build_table(rows: list[dict], narrow: bool, now: datetime) -> Table:
     """Build one status table from already-sorted rows."""
     table = Table(show_lines=False, show_edge=False, pad_edge=False)
@@ -276,7 +306,7 @@ def _summary_line(rows: list[dict]) -> str:
     counts: dict[str, int] = {}
     for r in rows:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
-    canonical = ("in_progress", "active", "draft", "paused", "done")
+    canonical = ("in_progress", "blocked", "active", "draft", "paused", "done")
     parts = [f"{counts[s]} {s}" for s in canonical if counts.get(s)]
     parts += [
         f"{counts[s]} {s}"
@@ -288,3 +318,57 @@ def _summary_line(rows: list[dict]) -> str:
     if parts:
         summary += "  ·  " + " · ".join(parts)
     return summary
+
+
+def _print_blocked(console: Console, rows: list[dict]) -> None:
+    """Print one row per open blocker, so every ask is visible at a glance."""
+    now = datetime.now()
+    expanded: list[dict] = []
+    for row in rows:
+        blockers: list[Blocker] = row["blockers"]
+        if blockers:
+            for blocker in blockers:
+                expanded.append({**row, "blocker": blocker})
+        else:
+            expanded.append({**row, "blocker": None})
+
+    if not expanded:
+        console.print("(no blocked tasks)")
+        return
+
+    table = Table(show_lines=False, show_edge=False, pad_edge=False)
+    for col in ("slug", "status", "step", "owner", "assignee", "age", "blocker", "next"):
+        table.add_column(col, no_wrap=(col != "blocker"), overflow="fold")
+
+    for row in expanded:
+        blocker: Blocker | None = row["blocker"]
+        age = "-"
+        reason = "(blocked; no open blocker recorded)"
+        if blocker is not None:
+            if blocker.created_at is not None:
+                age = _format_relative(blocker.created_at, now)
+            reason = blocker.reason
+        table.add_row(
+            row["slug"],
+            row["status"],
+            row["step"],
+            row["owner"],
+            row["assignee"],
+            age,
+            reason,
+            f"coga unblock {row['slug']} --answer \"...\"",
+        )
+    console.print(table)
+    console.print("Open blockers:", style="bold")
+    for row in expanded:
+        blocker = row["blocker"]
+        reason = (
+            blocker.reason
+            if blocker is not None
+            else "(blocked; no open blocker recorded)"
+        )
+        console.print(
+            f"- {row['slug']}: {reason} "
+            f"(next: coga unblock {row['slug']} --answer \"...\")"
+        )
+    console.print(_summary_line(rows), style="dim")

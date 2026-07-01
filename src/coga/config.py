@@ -85,6 +85,16 @@ class TicketField:
 
 
 @dataclass(frozen=True)
+class MegalaunchConfig:
+    """Budget guard for unattended sequential launches."""
+
+    token_guard: int = 200_000
+    default_token_budget: int = 2_000_000
+    window_hours: int = 24
+    agent_token_budgets: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class Config:
     repo_root: Path
     current_user: str
@@ -124,6 +134,7 @@ class Config:
     launch_idle_timeout: float | None = None
     launch_idle_timeout_present: bool = False
     launch_max_session: float | None = None
+    megalaunch: MegalaunchConfig = field(default_factory=MegalaunchConfig)
 
     # --- convenience accessors -------------------------------------------------
 
@@ -159,7 +170,7 @@ class Config:
         return self.agents[first]
 
     def gif_for(self, kind: str) -> str | None:
-        """Pick a random GIF URL for `kind` (e.g. "done", "panic"), or None.
+        """Pick a random GIF URL for `kind` (e.g. "done", "block"), or None.
 
         Configured under `[notification.slack.gifs]` in coga.toml as
         `kind = ["url", ...]`. Empty/missing → None, and the caller posts
@@ -289,6 +300,7 @@ def load_config(repo_root: Path | None = None) -> Config:
     launch_idle_timeout, launch_idle_timeout_present, launch_max_session = (
         _parse_launch(shared.get("launch"))
     )
+    megalaunch = _parse_megalaunch(shared.get("megalaunch"))
 
     # A missing `user` is no longer fatal: derive one (git `user.name`, then the
     # OS username) so `--help`, read-only, and write commands all work on a bare
@@ -317,6 +329,7 @@ def load_config(repo_root: Path | None = None) -> Config:
         launch_idle_timeout=launch_idle_timeout,
         launch_idle_timeout_present=launch_idle_timeout_present,
         launch_max_session=launch_max_session,
+        megalaunch=megalaunch,
     )
 
 
@@ -367,6 +380,7 @@ _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "slack",
     "git",
     "launch",
+    "megalaunch",
     "ticket",
     "aliases",
     "extensions",
@@ -403,6 +417,12 @@ _ALLOWED_SHARED_GIT_KEYS: frozenset[str] = frozenset({
 # repo policy and `_parse_git` intentionally reads them only from coga.toml.
 _ALLOWED_LOCAL_GIT_KEYS: frozenset[str] = frozenset({"enabled"})
 _ALLOWED_LAUNCH_KEYS: frozenset[str] = frozenset({"idle_timeout", "max_session"})
+_ALLOWED_MEGALAUNCH_KEYS: frozenset[str] = frozenset({
+    "token_guard",
+    "default_token_budget",
+    "window_hours",
+    "agent_token_budgets",
+})
 _ALLOWED_TICKET_KEYS: frozenset[str] = frozenset({"fields"})
 
 
@@ -438,6 +458,43 @@ def _reject_unknown_sections(shared: dict, local: dict) -> None:
     )
     _reject_unknown_keys(
         local.get("git"), _ALLOWED_LOCAL_GIT_KEYS, "[git] in coga.local.toml"
+    )
+
+
+def _parse_positive_int(value: object, label: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise ConfigError(f"{label} must be a positive integer")
+    return value
+
+
+def _parse_megalaunch(raw: object) -> MegalaunchConfig:
+    """Parse `[megalaunch]` budget guard settings."""
+    if raw is None:
+        return MegalaunchConfig()
+    if not isinstance(raw, dict):
+        raise ConfigError(f"[megalaunch] must be a table (got {type(raw).__name__})")
+    _reject_unknown_keys(raw, _ALLOWED_MEGALAUNCH_KEYS, "[megalaunch]")
+    budgets_raw = raw.get("agent_token_budgets", {})
+    if not isinstance(budgets_raw, dict):
+        raise ConfigError("[megalaunch].agent_token_budgets must be a table")
+    budgets = {
+        str(name): _parse_positive_int(value, f"[megalaunch.agent_token_budgets].{name}")
+        for name, value in budgets_raw.items()
+    }
+    return MegalaunchConfig(
+        token_guard=_parse_positive_int(
+            raw.get("token_guard", MegalaunchConfig.token_guard),
+            "[megalaunch].token_guard",
+        ),
+        default_token_budget=_parse_positive_int(
+            raw.get("default_token_budget", MegalaunchConfig.default_token_budget),
+            "[megalaunch].default_token_budget",
+        ),
+        window_hours=_parse_positive_int(
+            raw.get("window_hours", MegalaunchConfig.window_hours),
+            "[megalaunch].window_hours",
+        ),
+        agent_token_budgets=budgets,
     )
 
 

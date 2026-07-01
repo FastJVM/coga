@@ -111,7 +111,7 @@ def test_gif_for_returns_none_when_unconfigured(tmp_path: Path) -> None:
     _create_min(tmp_path)
     cfg = load_config(tmp_path)
     assert cfg.gif_for("done") is None
-    assert cfg.gif_for("panic") is None
+    assert cfg.gif_for("block") is None
 
 
 def test_gif_for_picks_from_configured_list(tmp_path: Path) -> None:
@@ -126,15 +126,15 @@ def test_gif_for_picks_from_configured_list(tmp_path: Path) -> None:
         file = "CLAUDE.md"
         [notification.slack.gifs]
         done = ["https://media.giphy.com/done-1.gif"]
-        panic = ["https://media.giphy.com/panic-1.gif", "https://media.giphy.com/panic-2.gif"]
+        block = ["https://media.giphy.com/block-1.gif", "https://media.giphy.com/block-2.gif"]
         """,
     )
     _write(tmp_path / "coga.local.toml", 'user = "marc"\n')
     cfg = load_config(tmp_path)
     assert cfg.gif_for("done") == "https://media.giphy.com/done-1.gif"
-    assert cfg.gif_for("panic") in {
-        "https://media.giphy.com/panic-1.gif",
-        "https://media.giphy.com/panic-2.gif",
+    assert cfg.gif_for("block") in {
+        "https://media.giphy.com/block-1.gif",
+        "https://media.giphy.com/block-2.gif",
     }
     assert cfg.gif_for("undefined-kind") is None
 

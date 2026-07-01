@@ -208,6 +208,13 @@ def launch(
             "different ticket."
         )
 
+    if not is_bootstrap and isinstance(ref, TaskRef) and ticket.status == "blocked":
+        _bail(
+            f"Cannot launch {ref.id_slug}: it is blocked. Run "
+            f"`coga status --blocked` to read the open ask, then "
+            f"`coga unblock {ref.id_slug} --answer \"...\"` to resume."
+        )
+
     # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
     # is brought to `active` inline rather than refused with a "run
     # `coga mark active` first" hint. The flip to `in_progress` still happens
@@ -337,7 +344,7 @@ def launch(
 
     # Interactive launches chain across consecutive agent-owned steps the
     # same way auto mode does. After the agent exits (via autoquit on
-    # `coga bump` / `mark done` / `panic`, or via `/exit`), we re-read the
+    # `coga bump` / `mark done` / `block`, or via `/exit`), we re-read the
     # ticket and either relaunch the next step's agent as a fresh process —
     # rotating the CLI when the step hands off to a different agent (e.g.
     # claude -> codex for peer review) — or stop and return control to the
@@ -381,7 +388,7 @@ def launch(
             break
         # Re-check the CLI every step — catches the case where the chain
         # rotates to an agent (e.g. codex) whose CLI isn't on PATH. Stop
-        # cleanly and hand back to the human rather than panicking.
+        # cleanly and hand back to the human rather than blocking.
         if shutil.which(agent.cli) is None:
             typer.secho(
                 f"{ref.id_slug}: next step needs agent {step_assignee!r} "
@@ -764,7 +771,7 @@ def spawn_agent_session(
         if mode == "interactive":
             # Interactive REPLs (`claude`, `codex`) don't exit on their own.
             # Run through a PTY watcher so an agent that writes the session-done
-            # sentinel after `coga mark done` / `coga panic` releases the REPL.
+            # sentinel after `coga mark done` / `coga block` releases the REPL.
             spawn_started = True
             outcome = run_with_done_marker(
                 cmd,

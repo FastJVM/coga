@@ -199,7 +199,7 @@ def classify_issue(issue: ValidationIssue) -> ClassifiedIssue:
             issue=issue,
             action=ACTION_HUMAN_NEEDED,
             remediation=(
-                "Ask the owner whether the task should be relaunched, panicked, "
+                "Ask the owner whether the task should be relaunched, blocked, "
                 "paused, or bumped. The skill should not change lifecycle state "
                 "silently."
             ),

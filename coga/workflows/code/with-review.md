@@ -37,7 +37,7 @@ peer → coder), it relaunches the *next* agent as a fresh process under
 the same supervisor — claude's REPL exits and codex's starts, or vice
 versa. Each step is a clean session with a freshly composed prompt; it
 only returns control to the human at the final `review` step (an
-owner/human handoff), or on `done`/`paused`/panic.
+owner/human handoff), or on `done`/`paused`/`blocked`.
 
 ## peer-review
 
@@ -53,8 +53,8 @@ From the feature worktree on the recorded branch, apply must-fix
 findings, skip nits, re-run `python -m pytest`, commit (e.g.
 `peer-review: apply review findings`), then `coga bump <slug>` from the
 primary checkout. If findings imply a design rethink, write to the
-blackboard and `coga panic` instead. If your review tool isn't on PATH,
-`coga panic`.
+blackboard and `coga block` instead. If your review tool isn't on PATH,
+`coga block`.
 
 ## open-pr
 
@@ -71,7 +71,7 @@ before the handoff**: check that the PR is mergeable (e.g. `gh pr view
 conflicts, re-run `python -m pytest`, and push so the human reviewer
 receives a clean, mergeable PR. Only then `coga bump` to hand off to the
 owner. If a conflict needs a judgment call you can't make, write it to
-the blackboard and `coga panic` instead of bumping.
+the blackboard and `coga block` instead of bumping.
 
 ## review
 

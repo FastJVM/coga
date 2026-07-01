@@ -20,7 +20,7 @@ yourself.
    ready, do **not** improvise around it: write the exact failure and the
    suggested fix (set/fix the remote, load your SSH key or credential
    helper, run `gh auth login`) under `## Dev` on the blackboard, then
-   `coga panic` with a one-line reason so the human can fix auth and
+   `coga block` with a one-line reason so the human can fix auth and
    relaunch. The push and PR cannot succeed without it.
 3. **Push** the branch from the feature worktree.
 4. **Open the PR** with `gh pr create`. If the `code/self-qa` step
@@ -44,7 +44,7 @@ yourself.
 ## What this skill does NOT do
 
 - Decide whether to merge — that's the human's job in the next step.
-- Make code changes. If CI fails for a real reason, `coga panic` and
+- Make code changes. If CI fails for a real reason, `coga block` and
   let the human relaunch.
 - Edit `assignee:` by hand. The workflow's per-step `assignee:` field
   handles the role rewrite on bump.
@@ -52,7 +52,7 @@ yourself.
 ## Gotchas
 
 - If git/`gh` auth isn't ready, you caught it in step 2: blackboard the
-  failure and `coga panic` rather than skipping the PR step or
+  failure and `coga block` rather than skipping the PR step or
   improvising around missing auth.
 - If CI fails for reasons unrelated to your change, write it to the
   blackboard with a link to the failing run, then bump anyway. The

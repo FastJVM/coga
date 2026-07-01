@@ -53,7 +53,7 @@ task — do not rediscover it by trial uploads):
   trashed by the human.
 
 If the connection fails or the convert capability is missing, **stop here**:
-write what failed to the blackboard and `coga panic` with a specific
+write what failed to the blackboard and `coga block` with a specific
 reason. Do **not** bump forward into the content steps against a dead
 connection. If the check passes, note it on the blackboard and
 `coga bump <slug>`.
@@ -83,7 +83,7 @@ Write the resulting **Doc** link (not the HTML file link) to the
 blackboard and finish the step with
 `coga bump <slug> --message "draft Doc: <link>"`. If the upload errors
 or the converted Doc comes out wrong, capture the details on the
-blackboard and `coga panic`.
+blackboard and `coga block`.
 
 ## revise
 

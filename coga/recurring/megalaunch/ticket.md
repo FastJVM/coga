@@ -1,0 +1,26 @@
+---
+schedule: "0 2 * * *"
+schedule_comment: "Every day at 2am - attempt launchable active agent work"
+title: "Megalaunch active tickets"
+autonomy: auto
+workflow: megalaunch/run
+---
+
+## Description
+
+Attempt launchable active Coga work sequentially. This is a script-backed
+recurring task, not a parallel agent fanout: it calls the shared megalaunch
+engine used by `coga megalaunch`, checks each assigned agent's budget guard
+before launching, and stops or skips conservatively when work is blocked,
+human-owned, over budget, or fails a launch preflight.
+
+Each run writes one compact `## Megalaunch Run Summary` section to its
+blackboard with counts and per-ticket outcomes. The summary is replaced on
+rerun so old per-run noise does not accumulate in future prompts; unresolved
+blockers stay on the affected task blackboards.
+
+<!-- coga:blackboard -->
+
+This blackboard persists across every run of this recurring task. The
+`coga/megalaunch/run` script replaces `## Megalaunch Run Summary` each run
+and leaves durable decisions or unresolved blockers in their own sections.

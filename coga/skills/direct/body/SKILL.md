@@ -34,7 +34,7 @@ every task past `draft` carries a workflow.
   there is no later step to bump into. When the body's work is complete, run
   `coga mark done <slug>` (with a one-line `--message` summary). If the body
   specifies its own completion command, that command IS this instruction —
-  follow it. If you are blocked before completion, `coga panic` with a
+  follow it. If you are blocked before completion, `coga block` with a
   reason; never stop silently.
 
 ## What this skill does NOT do

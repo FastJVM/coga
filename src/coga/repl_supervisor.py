@@ -157,7 +157,7 @@ def run_with_done_marker(
 
     `idle_timeout`, when set, is a backstop for a REPL that never signals done
     — an agent that stalls or crashes before reaching `coga bump` / `mark
-    done` / `panic`. If no PTY output and no stdin reaches the loop for that
+    done` / `block`. If no PTY output and no stdin reaches the loop for that
     many seconds, the supervisor tears the REPL down (a `timeout` outcome,
     exit `_TIMEOUT_EXIT_CODE`) instead of blocking its caller forever. Leave it
     None to wait indefinitely for the done signal — the default, so an attended
@@ -434,7 +434,7 @@ def emit_done_marker(session_id: str | None = None) -> None:
     `session_id` is written as the file content so the supervisor can verify
     the signal names *its* session and ignore stray writes from unrelated
     descendants that merely inherited the env var. Session-ending commands
-    pass the resolved task path (see `coga.commands.{bump,mark,panic}`); a
+    pass the resolved task path (see `coga.commands.{bump,mark,block}`); a
     bare call writes the legacy `"done"` sentinel.
     """
     sentinel = os.environ.get(SENTINEL_ENV)
