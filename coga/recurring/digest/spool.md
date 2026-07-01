@@ -37,3 +37,4 @@ consumed_through:
 {"id":"4c4b59bc5219","ts":"2026-06-30T14:42","project":"coga","kind":"done","detail":"nick finished: design → done ✅ — Closed stale Coga copy: Relay PR #328 already shipped; no Coga implementation needed.","ticket":"wire-autonomy-triage-into-impl-ready-workflows","owner":"nick"}
 {"id":"68f09c0dede9","ts":"2026-07-01T08:58","project":"coga","kind":"done","detail":"zach finished: review → done ✅","ticket":"add-coga-ticket-existing-slug-scan","owner":"zach"}
 {"id":"185d4a73bd45","ts":"2026-07-01T10:09","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"remove-relay-migration-script","owner":"nicktoper"}
+{"id":"8f89db0de5ad","ts":"2026-07-01T10:10","project":"coga","kind":"done","detail":"nick finished: review → done ✅","ticket":"per-agent-git-worktree-isolation-for-launch-to-avo","owner":"nick"}
