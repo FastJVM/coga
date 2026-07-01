@@ -312,6 +312,43 @@ def test_megalaunch_budget_refreshes_across_tasks(
     assert run.counts["skipped-budget"] == 1
 
 
+def test_budget_state_weights_cache_reads_at_one_tenth(repo: Path) -> None:
+    """Cache-read tokens count at 1/10th weight against the budget.
+
+    Regression: a single long session reads tens of millions of cache tokens;
+    at full weight one launch exhausted the default 2M budget forever.
+    """
+    from datetime import datetime, timezone
+
+    from coga import usage
+    from coga.megalaunch import budget_state
+
+    cfg = load_config(repo)
+    record = usage.UsageRecord(
+        ts=datetime.now(timezone.utc).isoformat(),
+        title="Big session",
+        slug="big-session",
+        step=None,
+        agent="claude",
+        cli="claude",
+        provider="anthropic",
+        model="claude-opus-4-8",
+        session_id=None,
+        input_tokens=50_000,
+        cache_creation_input_tokens=0,
+        cache_read_input_tokens=15_000_000,
+        output_tokens=100_000,
+        usage_status="ok",
+    )
+
+    budget = budget_state(cfg, [record], "claude")
+
+    # 50k input + 15M/10 cache reads + 100k output — not 15.15M.
+    assert budget.used == 1_650_000
+    assert budget.remaining == 2_000_000 - 1_650_000
+    assert budget.enough
+
+
 def test_trim_megalaunch_blackboard_replaces_old_summaries() -> None:
     text = """## Blockers
 

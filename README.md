@@ -616,7 +616,10 @@ budget-gated, and conservative. A task is eligible from its live state: `status:
 active`, an agent-owned current step, an assignee resolving to a configured
 agent, no open blocker, no owner/review gate, passing launch/auth/worktree
 checks, and enough remaining token budget for the assigned agent (guard
-configured under `[megalaunch]` in `coga.toml`). Each ticket's outcome is
+configured under `[megalaunch]` in `coga.toml`). Budget accounting sums each
+agent's `## Usage` records over the trailing window, with cache-read tokens
+weighted at 1/10th — they cost ~10% of input tokens, and at full weight one
+long session's cache reads would exhaust any realistic budget. Each ticket's outcome is
 recorded as one of: launched, completed, blocked, skipped-human-gate,
 skipped-unresolved-blocker, skipped-budget, or failed. The same engine backs the
 daily `recurring/megalaunch` script task for overnight work.

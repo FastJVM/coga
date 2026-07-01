@@ -25,6 +25,11 @@ from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
 
 
+# Cache-read tokens cost ~1/10th of regular input tokens, and a single long
+# session reads tens of millions of them — counted at full weight they exhaust
+# any realistic budget on the first launch.
+CACHE_READ_COST_DIVISOR = 10
+
 MegalaunchOutcome = Literal[
     "completed",
     "blocked",
@@ -370,7 +375,7 @@ def budget_state(
         used += (
             (record.input_tokens or 0)
             + (record.cache_creation_input_tokens or 0)
-            + (record.cache_read_input_tokens or 0)
+            + (record.cache_read_input_tokens or 0) // CACHE_READ_COST_DIVISOR
             + (record.output_tokens or 0)
         )
     budget = cfg.megalaunch.agent_token_budgets.get(
