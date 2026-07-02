@@ -15,13 +15,12 @@ from __future__ import annotations
 import typer
 
 from coga import git
-from coga.blackboard import promote_to_production_notes
+from coga.blackboard import prelaunch_blackboard_synthesis_reason
 from coga.config import Config
 from coga.logfile import append_log
 from coga.paths import recurring_dir, resolve_workflow_path
 from coga.period_state import StateSnapshot, read_snapshot, stale_keys
 from coga.notification import notify, post
-from coga.taskfile import TaskFileError
 from coga.tasks import TaskRef
 from coga.ticket import Ticket
 from coga.validate import assert_task_valid
@@ -162,6 +161,27 @@ class WorkflowMissing(RuntimeError):
     """
 
 
+class BlackboardNeedsSynthesis(RuntimeError):
+    """Raised when a draft blackboard still carries pre-launch authoring notes."""
+
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(reason)
+
+
+def format_blackboard_synthesis_refusal(
+    id_slug: str, *, action: str, reason: str
+) -> str:
+    """Render the operator-facing first-launch blackboard refusal."""
+    return (
+        f"Cannot {action} {id_slug}: the blackboard has pre-launch notes "
+        f"({reason}). Merge the important parts into `## Description` / "
+        "`## Context` before launch. If this blackboard content is "
+        "intentionally part of the run, keep the durable launch notes under "
+        "`## Production notes`, then retry."
+    )
+
+
 def _has_workflow(ticket: Ticket) -> bool:
     """True when the ticket carries a workflow `mark active` can accept.
 
@@ -217,17 +237,18 @@ def _missing_required_extensions(cfg: Config, ticket: Ticket) -> list[str]:
     return missing
 
 
-def _promote_activation_blackboard(ref: TaskRef, prior_status: str | None) -> None:
-    """Replace draft authoring scratch with active-work notes."""
-    if prior_status not in {"draft", "paused"}:
+def _refuse_unsynthesized_draft_blackboard(
+    ref: TaskRef, prior_status: str | None
+) -> None:
+    """Refuse the first launch boundary when authoring notes remain."""
+    if prior_status != "draft":
         return
-    try:
-        promote_to_production_notes(
-            ref.ticket_path,
-            blackboard_required=False,
-        )
-    except (FileNotFoundError, TaskFileError):
-        return
+    reason = prelaunch_blackboard_synthesis_reason(
+        ref.ticket_path,
+        blackboard_required=False,
+    )
+    if reason is not None:
+        raise BlackboardNeedsSynthesis(reason)
 
 
 def mark_active(
@@ -247,6 +268,9 @@ def mark_active(
     empty. Activation is intentionally silent in Slack; the task log and git
     sync remain the audit trail.
     """
+    prior_status = ticket.status
+    _refuse_unsynthesized_draft_blackboard(ref, prior_status)
+
     if not _has_workflow(ticket):
         raise WorkflowMissing()
     _freeze_workflow_ref(cfg, ticket)
@@ -255,10 +279,8 @@ def mark_active(
     if missing:
         raise RequiredExtensionMissing(missing)
 
-    prior_status = ticket.status
     ticket.frontmatter["status"] = "active"
     ticket.write(ref.ticket_path)
-    _promote_activation_blackboard(ref, prior_status)
     assert_task_valid(cfg, ref, action="mark active")
     append_log(cfg, ref.id_slug, actor, log_message)
     if echo is not None:

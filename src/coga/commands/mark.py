@@ -15,7 +15,12 @@ import sys
 import typer
 
 from coga.config import ConfigError, load_config
-from coga.mark import RequiredExtensionMissing, WorkflowMissing
+from coga.mark import (
+    BlackboardNeedsSynthesis,
+    RequiredExtensionMissing,
+    WorkflowMissing,
+)
+from coga.mark import format_blackboard_synthesis_refusal
 from coga.mark import mark_active as _mark_active
 from coga.mark import mark_done as _mark_done
 from coga.mark import mark_paused as _mark_paused
@@ -80,6 +85,12 @@ def active(
         _bail(
             f"Cannot activate {ref.id_slug}: required extension field(s) "
             f"empty: {names}. Fill them in `ticket.md` then retry."
+        )
+    except BlackboardNeedsSynthesis as exc:
+        _bail(
+            format_blackboard_synthesis_refusal(
+                ref.id_slug, action="activate", reason=exc.reason
+            )
         )
     except TaskValidationError as exc:
         _bail(str(exc))

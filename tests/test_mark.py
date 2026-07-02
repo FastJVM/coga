@@ -8,7 +8,6 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
-from coga.blackboard import PRODUCTION_NOTES_BLACKBOARD
 from coga.cli import app
 from coga.config import load_config
 from coga.create import create_task
@@ -95,52 +94,80 @@ def test_mark_active_from_paused(repo: Path) -> None:
     assert "activated (paused → active)" in log
 
 
-def test_mark_active_promotes_authoring_blackboard_to_production_notes(repo: Path) -> None:
+def test_mark_active_refuses_authoring_blackboard_before_mutating(
+    repo: Path,
+) -> None:
     slug, task_path = _make_task(repo, status="draft")
-    replace_blackboard(
-        task_path,
-        "\n"
-        + dedent(
-            """\
-            The blackboard.
+    t = Ticket.read(task_path)
+    t.frontmatter["workflow"] = "code"
+    t.write(task_path)
+    before_blackboard = "\n" + dedent(
+        """\
+        The blackboard is a notepad to be written to often as the human and
+        agent works through a task.
 
-            ---
+        ---
 
-            ## Evaluator review
+        ## Evaluator review
 
-            stale scratch
+        stale scratch
 
-            ---
+        ---
 
-            ## Proposals
+        ## Proposals
 
-            maybe do this
+        maybe do this
 
-            ---
+        ---
 
-            ## Dev
+        ## Dev
 
-            branch: work
-            """
-        ),
+        branch: work
+        """
     )
+    replace_blackboard(task_path, before_blackboard)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
 
-    assert result.exit_code == 0, result.output
-    assert read_blackboard(task_path) == PRODUCTION_NOTES_BLACKBOARD
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "pre-launch notes" in combined
+    assert (
+        "Merge the important parts into `## Description` / `## Context`"
+        in combined
+    )
+    assert "`## Production notes`" in combined
+    after = Ticket.read(task_path)
+    assert after.status == "draft"
+    assert after.workflow == "code"
+    assert read_blackboard(task_path) == before_blackboard
+    assert "activated (draft" not in _read_log(repo)
 
 
-def test_mark_active_preserves_already_promoted_blackboard(repo: Path) -> None:
-    slug, task_path = _make_task(repo, status="paused")
-    before = PRODUCTION_NOTES_BLACKBOARD + "\n---\n\n## Dev\n\nbranch: work\n"
+def test_mark_active_allows_explicit_production_notes(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="draft")
+    before = "\n## Production notes\n\nUse this context during launch.\n"
     replace_blackboard(task_path, before)
 
     runner = CliRunner()
     result = runner.invoke(app, ["mark", "active", slug])
 
     assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).status == "active"
+    assert read_blackboard(task_path) == before
+
+
+def test_mark_active_from_paused_does_not_recheck_blackboard(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="paused")
+    before = "\n## Evaluator review\n\nAlready launched work notes.\n"
+    replace_blackboard(task_path, before)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["mark", "active", slug])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).status == "active"
     assert read_blackboard(task_path) == before
 
 

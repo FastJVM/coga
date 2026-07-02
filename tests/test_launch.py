@@ -20,7 +20,7 @@ from coga.commands.launch import (
 from coga.config import AgentType, ConfigError, load_config
 from coga.github_preflight import CheckResult
 from coga.repl_supervisor import _TIMEOUT_EXIT_CODE, ReplOutcome
-from coga.taskfile import read_blackboard, upsert_blackboard
+from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
 from coga.tasks import BootstrapRef, TaskRef, list_tasks
 from coga.ticket import Ticket
 
@@ -1538,6 +1538,35 @@ def test_launch_auto_activates_draft_and_paused(
     assert after.step == "1 (implement)"
     log = _read_log(active_task)
     assert f"activated ({prior} → active) — auto on launch" in log
+
+
+def test_launch_refuses_unsynthesized_draft_blackboard(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ref = _create_chain_task(active_task, mode="interactive")
+    slug = str(ref["slug"])
+    ticket_md = Path(ref["path"])
+    t = Ticket.read(ticket_md)
+    t.frontmatter["status"] = "draft"
+    t.write(ticket_md)
+    before_blackboard = "\n## Ticket authoring notes\n\nNeeds body synthesis.\n"
+    replace_blackboard(ticket_md, before_blackboard)
+    before = ticket_md.read_text()
+
+    calls = _launch_single_spawn(monkeypatch)
+
+    result = CliRunner().invoke(app, ["launch", slug])
+
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "pre-launch notes" in combined
+    assert (
+        "Merge the important parts into `## Description` / `## Context`"
+        in combined
+    )
+    assert calls == []
+    assert ticket_md.read_text() == before
+    assert "activated (draft" not in _read_log(active_task)
 
 
 def test_launch_refuses_done_ticket(
