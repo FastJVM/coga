@@ -646,3 +646,4 @@
 2026-07-02 12:42 [warn-on-launch-when-the-installed-coga-predates-th] [human:nicktoper] created (autonomy=interactive, status=draft)
 2026-07-02 13:02 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:nicktoper] advanced to step 3 (implement) → assigned to codex — Design approved by nicktoper; peer-review step added (codex implements, claude reviews)
 2026-07-02 14:07 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 14:11 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
