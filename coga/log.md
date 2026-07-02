@@ -667,3 +667,4 @@
 2026-07-02 14:10 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-07-02 14:23 [branch-cleanup-as-recurring-tasks] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-02 15:05 [branch-cleanup-as-recurring-tasks] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-02 15:05 [branch-cleanup-as-recurring-tasks] [human:nicktoper] started (active → in_progress) via coga launch
