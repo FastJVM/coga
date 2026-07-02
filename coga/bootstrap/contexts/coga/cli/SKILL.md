@@ -152,8 +152,10 @@ subcommand>`.
 `--message` piggy-backs an FYI onto the Slack broadcast.
 
 `coga launch` owns the `active` → `in_progress` start transition, and will
-activate a `draft`/`paused`/`done` ticket inline first (launching is the
-readiness signal). `coga bump` no longer marks final-step tickets done. The
+activate a `draft`/`paused` ticket inline first (launching is the
+readiness signal). `blocked` is command-owned by `coga block` /
+`coga unblock`, and `done` is terminal unless a human deliberately edits or
+reopens the ticket. `coga bump` no longer marks final-step tickets done. The
 status state machine and the step state machine are separate.
 
 ## coga launch \<target\>
@@ -161,10 +163,21 @@ status state machine and the step state machine are separate.
 Compose every relevant file (rules + repo context + ticket contexts +
 current step's skill + blackboard + ticket body) into one prompt and
 start the configured agent. Accepts `status: active` or `in_progress`
-directly; a `draft` / `paused` / `done` ticket is activated inline first —
-typing `coga launch` is the readiness signal, so it activates the ticket for
-you (re-activating a `done` ticket restarts its workflow at step 1) rather
-than refusing. A ticket that can't be activated — no workflow, or an empty
+directly; a `draft` / `paused` ticket is activated inline first — typing
+`coga launch` is the readiness signal, so it activates the ticket for you
+rather than refusing. A `blocked` ticket resumes the same way when the launch
+is interactive from a TTY: it reactivates inline (`blocked → active →
+in_progress`, `step:` preserved) and the composed prompt gains a
+resolve-or-re-block preamble listing the open asks verbatim, making them the
+session's first job — the agent records the resolution with
+`coga unblock <slug> --answer "..."` (which leaves an `in_progress` ticket's
+status and step untouched) or re-blocks with a refined reason. If the resumed
+session exits before recording an answer, launch returns the ticket to
+`blocked` so blocker queues keep reporting it. Script, auto, and
+TTY-less launches of a blocked ticket are still refused until
+`coga unblock` records the answer (`coga megalaunch` likewise still skips it
+as `skipped-unresolved-blocker`); a `done` ticket is refused because it is
+finished. A ticket that can't be activated — no workflow, or an empty
 `required` extension field — still fails loud with the same remedy `mark
 active` gives. Launching an `active` ticket then marks it
 `in_progress` (posting `▶️`) before spawning the agent; launching an
@@ -228,9 +241,9 @@ launchable; reassign to an agent type first.
 For workflow-bound interactive tasks, `launch` can continue through
 consecutive agent-owned steps in fresh processes. After a clean agent exit,
 it re-reads the ticket and continues only if the task is still
-`in_progress`, the step advanced, the new current step has `skill:`, and the
-concrete assignee did not change. It stops at human/no-skill steps, assignee
-handoffs, done or paused tasks, no-progress exits, and panic/non-zero exits.
+  `in_progress`, the step advanced, the new current step has `skill:`, and the
+  concrete assignee did not change. It stops at human/no-skill steps, assignee
+  handoffs, done, paused, or blocked tasks, no-progress exits, and non-zero exits.
 
 That supervisor loop only exists when a live `coga launch` process is
 running around the agent. API/manual sessions still follow the base prompt:
@@ -249,7 +262,7 @@ on a line by itself** as your final action once the task is finished.
 REPL when it appears (escalating to SIGKILL after a short grace period if
 the REPL ignores the signal).
 
-Emit it after `coga mark done`, after `coga panic`, or any other
+Emit it after `coga mark done`, after `coga block`, or any other
 end-of-session signal — anywhere the next iteration would belong to a
 different task or to the human. Don't emit it mid-work; it terminates the
 session immediately. Don't quote the literal in prose unless you actually
@@ -380,6 +393,36 @@ abandoned ticket where retro has nothing to extract. Branch hygiene (pruning
 the merged feature branch, sweeping stale branches) belongs in a Dream
 worker, not here.
 
+## coga block --task \<slug\> --reason "..."
+
+Record a concrete unresolved ask and move the task to `status: blocked`
+without changing `step:`. The blocker is appended to the task blackboard,
+the transition is logged/synced, the owner is notified live, and the launched
+session is released. Use this when an agent needs a human answer before the
+current workflow step can continue.
+
+`--reason` is required and should be specific enough for the human to answer
+from `coga status --blocked` without reading the whole ticket.
+
+## coga unblock \<slug\> [--answer "..."] | coga unblock --all
+
+Resolve open blockers and move `blocked -> active` while preserving `step:`.
+With `--answer`, records the resolution non-interactively. Without it, prompts
+in the terminal after showing the open blocker asks. `coga launch <slug>` can
+then resume the same workflow step from the files. On an `in_progress` ticket
+with open asks — an interactive blocked-launch session recording the
+resolution it just discussed — it resolves the asks only, leaving status and
+`step:` untouched.
+
+`coga unblock --all` walks **every** blocked task in turn: for each it prints
+the task and its open blocker asks (the cause), then prompts for an answer.
+A non-empty answer is appended to that task's blackboard and the task is
+reactivated (`blocked -> active`); a **blank** answer skips the task, leaving it
+blocked. The run ends with an `Unblocked N, skipped M` summary. `--all` is the
+clear-the-queue counterpart to naming one slug — it takes no slug and rejects
+`--answer` (each task is answered per-ticket at its prompt). After it finishes,
+`coga launch <slug>` each reactivated task.
+
 ## coga skill
 
 Manage project-local skills under `coga/skills/`. `coga skill install`
@@ -434,12 +477,6 @@ substrate:
 
 `gh` is an external CLI dependency, not a pip package — it belongs in the
 README `External CLI Tools` list, never in `requirements.txt`.
-
-## coga panic --task \<slug\> --reason "..."
-
-Agent gives up. Writes a panic marker on the blackboard and posts a
-Slack notification naming the task owner. Exits non-zero. Reserved for
-genuinely stuck states, not routine handoffs.
 
 ## coga slack --task \<slug\> --message "..."
 
@@ -540,7 +577,7 @@ lands.
 
 **Idle-timeout backstop.** A `autonomy: interactive` template that *does* launch
 (a TTY is present) but whose agent stalls or crashes before signalling done —
-never reaching `coga bump` / `mark done` / `panic` — would otherwise block the
+never reaching `coga bump` / `mark done` / `block` — would otherwise block the
 sequential sweep forever. Both the bare sweep and `coga recurring --all` arm a
 generous idle timeout on each spawned REPL (passed through as `coga launch
 --idle-timeout`): if it produces no output and takes no input for that long,
@@ -634,7 +671,8 @@ only; they don't accept their own flags.
 - Surfacing a non-blocker note tied to a step transition → `coga bump --message`.
 - Surfacing a non-blocker note tied to a status transition → `coga mark <state> --message`.
 - Surfacing a non-blocker note that doesn't fit a transition → `coga slack`.
-- Surfacing a blocker → `coga panic`.
+- Surfacing a blocker → `coga block --task <slug> --reason "..."`.
+- Answering a blocker → `coga unblock <slug> --answer "..."`.
 - Throwing away an abandoned ticket → `coga delete <slug>`.
 - Wrapping up a finished ticket (retro + source-dir delete via retro PR) →
   `coga retire <slug>`.

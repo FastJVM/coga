@@ -1492,6 +1492,212 @@ def test_launch_harness_stops_on_agent_block(
     assert "test block" in read_blackboard(Path(ref["path"]))
 
 
+# --- launching a blocked ticket -------------------------------------------------
+#
+# An explicit interactive launch of a blocked ticket resumes it inline
+# (blocked → active → in_progress, step preserved) and the composed prompt's
+# first job becomes resolving the open asks with the human. Batch surfaces
+# (no TTY) keep the hard refusal.
+
+
+def _block_task(slug: str) -> None:
+    result = CliRunner().invoke(
+        app, ["block", "--task", slug, "--reason", "which retry ceiling?"]
+    )
+    assert result.exit_code == 0, result.output
+
+
+def test_launch_blocked_interactive_resumes_with_preamble(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    _block_task(slug)
+
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        ticket = Ticket.read(Path(ref["path"]))
+        assert ticket.status == "in_progress"
+        return _Result()
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 0, result.output
+
+    # The session did reactivate inline before spawn, but because this fake
+    # agent exited without resolving the ask, launch returns it to the blocked
+    # queue so existing blocker triage surfaces still see it.
+    ticket = Ticket.read(Path(ref["path"]))
+    assert ticket.status == "blocked"
+    assert ticket.step == "1 (implement)"
+    assert "- [ ]" in read_blackboard(Path(ref["path"]))
+
+    # The composed prompt leads with the resolve-or-re-block preamble,
+    # carrying the ask verbatim and both recording commands.
+    assert len(calls) == 1
+    prompt = calls[0][1]
+    assert "Resolve the open blocker first" in prompt
+    assert "which retry ceiling?" in prompt
+    assert f"coga unblock {slug} --answer" in prompt
+    assert f"coga block --task {slug} --reason" in prompt
+
+
+def test_launch_blocked_timeout_reblocks_unresolved_ask(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    _block_task(slug)
+
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "coga.commands.launch.run_with_done_marker",
+        lambda *a, **k: ReplOutcome(_TIMEOUT_EXIT_CODE, "timeout"),
+    )
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == _TIMEOUT_EXIT_CODE
+
+    ticket = Ticket.read(Path(ref["path"]))
+    assert ticket.status == "blocked"
+    assert ticket.step == "1 (implement)"
+    assert "- [ ]" in read_blackboard(Path(ref["path"]))
+
+
+def test_launch_blocked_without_tty_still_refuses(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    _allow_slack(monkeypatch)
+    _block_task(slug)
+    _deny_interactive_tty(monkeypatch)
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        raise AssertionError("a blocked ticket must not spawn without a TTY")
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 2
+    assert "it is blocked" in result.output
+
+    from coga.ticket import Ticket
+    ticket = Ticket.read(Path(ref["path"]))
+    assert ticket.status == "blocked"
+    assert ticket.step == "1 (implement)"
+
+
+def test_launch_blocked_without_open_ask_refuses(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    _allow_interactive_tty(monkeypatch)
+
+    ticket = Ticket.read(Path(ref["path"]))
+    ticket.frontmatter["status"] = "blocked"
+    ticket.write(Path(ref["path"]))
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        raise AssertionError("a blocked ticket with no ask must not spawn")
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 2
+    assert "no open blocker asks" in result.output
+
+    ticket = Ticket.read(Path(ref["path"]))
+    assert ticket.status == "blocked"
+    assert ticket.step == "1 (implement)"
+
+
+def test_launch_blocked_preflight_failure_leaves_ticket_blocked(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    _block_task(slug)
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        raise AssertionError("a failed preflight must not spawn")
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: None)
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 2
+    assert "Agent CLI" in result.output
+
+    ticket = Ticket.read(Path(ref["path"]))
+    assert ticket.status == "blocked"
+    assert ticket.step == "1 (implement)"
+    assert "- [ ]" in read_blackboard(Path(ref["path"]))
+
+
+def test_launch_blocked_session_records_resolution_in_flight(
+    active_task: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The one-session loop: the launched agent resolves the asks with
+    `coga unblock --answer` mid-step, without a status flip or a second
+    launch."""
+    ref = _create_chain_task(active_task)
+    slug = str(ref["slug"])
+    _allow_slack(monkeypatch)
+    _allow_interactive_tty(monkeypatch)
+    _block_task(slug)
+
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        result = CliRunner().invoke(
+            app, ["unblock", slug, "--answer", "cap at 5 minutes"]
+        )
+        assert result.exit_code == 0, result.output
+        return _Result()
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", slug])
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+
+    from coga.ticket import Ticket
+    ticket = Ticket.read(Path(ref["path"]))
+    assert ticket.status == "in_progress"
+    assert ticket.step == "1 (implement)"
+    blackboard = read_blackboard(Path(ref["path"]))
+    assert "- [x]" in blackboard
+    assert "cap at 5 minutes" in blackboard
+
+
 def _launch_single_spawn(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
     """Mock the agent spawn so launch runs one REPL and stops (no bump → no
     progress → supervisor halts). Returns the list of spawned argvs."""

@@ -6,8 +6,10 @@ import sys
 
 import typer
 
+from coga import git
 from coga.blackboard import open_blockers, resolve_open_blockers
 from coga.config import Config, ConfigError, load_config
+from coga.logfile import append_log
 from coga.mark import RequiredExtensionMissing, WorkflowMissing, mark_active
 from coga.tasks import TaskNotFoundError, TaskRef, list_tasks, read_ticket, resolve_task
 from coga.ticket import TicketError
@@ -35,7 +37,7 @@ def unblock(
         "answer per ticket (blank to skip).",
     ),
 ) -> None:
-    """Resolve open blockers and move `blocked -> active`."""
+    """Resolve open blockers; move `blocked -> active` (in_progress stays put)."""
     try:
         cfg = load_config()
     except ConfigError as exc:
@@ -60,13 +62,21 @@ def unblock(
     except TaskNotFoundError as exc:
         _bail(str(exc))
 
+    # `blocked` is the normal case (resolve the asks + reactivate). An
+    # `in_progress` ticket with open asks is the interactive-launch-of-blocked
+    # session recording its resolution mid-step: launch already reactivated the
+    # ticket, so unblock resolves the asks only and leaves status and step
+    # untouched.
     ticket = read_ticket(ref)
-    if ticket.status != "blocked":
-        _bail(f"Task {ref.id_slug} is {ticket.status!r}; unblock requires 'blocked'.")
+    if ticket.status not in {"blocked", "in_progress"}:
+        _bail(
+            f"Task {ref.id_slug} is {ticket.status!r}; unblock requires "
+            "'blocked' (or 'in_progress' with open asks)."
+        )
 
     blockers = open_blockers(ref.ticket_path)
     if not blockers:
-        _bail(f"Task {ref.id_slug} is blocked but has no open blockers.")
+        _bail(f"Task {ref.id_slug} is {ticket.status} but has no open blockers.")
 
     if answer is None:
         typer.echo(f"Open blocker(s) for {ref.id_slug}:")
@@ -132,13 +142,32 @@ def _unblock_all(cfg: Config) -> None:
 
 
 def _apply_unblock(cfg: Config, ref: TaskRef, answer: str) -> None:
-    """Resolve open blockers on one ticket and mark it active.
+    """Resolve open blockers on one ticket; reactivate it unless mid-step.
 
-    Raises `_UnblockError` (never exits) so `--all` can report and continue.
+    A `blocked` ticket is marked active. An `in_progress` ticket (interactive
+    launch already reactivated it) gets its asks resolved with status and
+    `step:` untouched. Raises `_UnblockError` (never exits) so `--all` can
+    report and continue.
     """
     actor = f"human:{cfg.current_user}"
     resolve_open_blockers(ref.ticket_path, actor, answer)
     ticket = read_ticket(ref)
+
+    if ticket.status == "in_progress":
+        # Launch already reactivated the ticket (blocked → active →
+        # in_progress); the session is recording its resolution mid-step.
+        # Resolve-only: no status flip, `step:` untouched.
+        append_log(
+            cfg,
+            ref.id_slug,
+            actor,
+            f"unblocked (asks resolved, still in_progress): {answer}",
+        )
+        typer.echo(f"{ref.id_slug}: open asks resolved (still in_progress)")
+        git.sync_task_state(
+            cfg, ref.path, message=f"Ticket: {ref.id_slug} — asks resolved"
+        )
+        return
 
     try:
         mark_active(

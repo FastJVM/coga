@@ -9,6 +9,7 @@ from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
 
+from coga.blackboard import BLOCKER_TS_FORMAT, Blocker, parse_blockers_text
 from coga.config import Config
 from coga.paths import (
     context_resolution_paths,
@@ -173,6 +174,28 @@ def compose_prompt_report(
         ))
     # A script task is never composed; enforced by launch.py's dispatch.
 
+    # 2b. Blocker-resolution preamble. An interactive session whose blackboard
+    # still carries open asks must resolve-or-re-block before the step's real
+    # work — this is how `coga launch` resumes a blocked ticket as a chat
+    # (launch reactivates it inline, so by compose time `status:` is already
+    # `in_progress`; the open asks are the durable signal). Keying off the
+    # blackboard rather than a launch-threaded flag keeps the preamble purely
+    # composed state: it reappears if a session dies mid-discussion and
+    # disappears once `coga unblock` records the answer.
+    if autonomy == "interactive" and not isinstance(task_ref, BootstrapRef):
+        open_asks = [
+            b
+            for b in parse_blockers_text(blackboard_text or "")
+            if not b.resolved
+        ]
+        if open_asks:
+            layers.append(PromptLayer(
+                "blocker_preamble",
+                "Resolve the open blocker first",
+                _blocker_preamble(task_ref.id_slug, open_asks),
+                ref="prompt-blocker-resolution.md",
+            ))
+
     # 3. repo context.md
     pctx = repo_context_path(cfg)
     if pctx.is_file():
@@ -272,6 +295,24 @@ def _task_path_for_prompt(cfg: Config, task_ref: TargetRef) -> str:
     except ValueError:
         return str(path)
     return str(Path(cfg.repo_root.name) / rel)
+
+
+def _blocker_preamble(slug: str, open_asks: list[Blocker]) -> str:
+    """Render the resolve-or-re-block preamble for a ticket with open asks.
+
+    The asks are listed verbatim (stale and junk ones included) so the human
+    can clear them in the session.
+    """
+    lines = []
+    for blocker in open_asks:
+        ts = (
+            blocker.created_at.strftime(BLOCKER_TS_FORMAT)
+            if blocker.created_at
+            else "unknown time"
+        )
+        lines.append(f"- [{ts}] [{blocker.actor}] {blocker.reason}")
+    template = _resource("prompt-blocker-resolution.md")
+    return template.replace("{slug}", slug).replace("{blockers}", "\n".join(lines))
 
 
 def _section(title: str, body: str) -> str:
