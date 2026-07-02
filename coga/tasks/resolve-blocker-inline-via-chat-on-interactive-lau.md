@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/architecture
 - coga/cli
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -151,3 +151,76 @@ runtime side channel) that:
 ## Production notes
 
 This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
+
+## Dev
+branch: launch-blocked-chat
+worktree: /home/n/Code/claude/coga-launch-blocked-chat
+
+## Implement plan (decided)
+
+Nick was AFK at the design question; proceeded with the recommended options,
+both consistent with the locked option A:
+
+- **Preamble trigger = open asks at compose time.** `compose_prompt` injects a
+  blocker-resolution layer (right after the mode block) whenever the ticket's
+  blackboard parses to >=1 open blocker, autonomy is interactive, and the ref
+  is not bootstrap. No launch-threaded flag: purely composed state, self-heals
+  the die-mid-discussion drift case (relaunch of in_progress + open ask
+  re-injects the preamble), disappears once `coga unblock` records the answer,
+  and shows in `--prompt-report`. Template is a package resource
+  (`prompt-blocker-resolution.md`) with slug + verbatim asks substituted.
+- **Launch guard (launch.py:211).** Blocked proceeds only when effective
+  autonomy (override or ticket) == interactive AND not a script launch AND
+  stdin+stdout are TTYs — checked before any status mutation. Everything else
+  keeps today's refusal. `_auto_activate` then handles blocked → active with no
+  mark.py change (core `mark_active` has no prior-status guard; unblock already
+  uses it from blocked; blackboard promotion only fires for draft/paused).
+- **Unblock relaxation (required by option A, not spelled out in the ticket):**
+  the preamble's mandated `coga unblock <slug> --answer` runs while the ticket
+  is already `in_progress`, but unblock.py:64 hard-requires `blocked`. Relax:
+  `blocked` keeps resolve+mark_active; `in_progress` with open asks becomes
+  resolve-only (status and step untouched); all other statuses still refuse.
+- **No megalaunch/recurring changes:** megalaunch classifies blocked before
+  launch; recurring only launches active/in_progress instances.
+- Context docs `coga/architecture` + `coga/cli` updated in same branch, both
+  live `coga/contexts/` and packaged `src/coga/resources/templates/` copies.
+
+## Implement result (committed 85c18ecb on launch-blocked-chat)
+
+What changed:
+
+- `src/coga/compose.py` — new `blocker_preamble` layer right after the mode
+  block: interactive + non-bootstrap + >=1 open ask parsed from the blackboard
+  region. Renders new resource `src/coga/resources/prompt-blocker-resolution.md`
+  with slug + verbatim asks (`- [ts] [actor] reason` lines).
+- `src/coga/commands/launch.py` — blocked guard now lets the launch proceed
+  when effective autonomy is interactive AND not a script launch AND TTY
+  present (checked before any status mutation); the existing `_auto_activate`
+  path then does blocked → active with zero `mark.py` changes. All other
+  blocked launches keep a hard refusal (message now says only an interactive
+  TTY launch can resume it).
+- `src/coga/commands/unblock.py` — status guard widened to
+  {blocked, in_progress}; in_progress resolves asks only (append_log +
+  git sync, no status/step change). `--all` still walks blocked tasks only.
+- Contexts updated: `coga/contexts/coga/architecture/SKILL.md` (live
+  override), packaged `bootstrap/contexts/coga/{architecture,cli}` copies.
+  The stale `coga/bootstrap/contexts/` mirrors were left alone (they no
+  longer resolve; already divergent before this change).
+- Tests: 3 new launch tests (interactive resume + preamble in spawned prompt;
+  no-TTY still refuses and stays blocked; in-session `unblock --answer`
+  records resolution without status flip), 3 compose tests (preamble with
+  verbatim asks + layer name; no preamble when resolved; interactive-only),
+  3 unblock tests (in_progress resolve-only; in_progress w/o asks refuses;
+  draft refuses). Megalaunch skip test already existed
+  (test_megalaunch.py:282) — untouched, still green.
+
+Verification: `PYTHONPATH=$PWD/src python3.12 -m pytest` in the worktree →
+997 passed, 1 skipped (pre-existing hatchling-missing skip in
+test_packaging). `python3.12 -m coga.validate --json` output is identical
+between main and the branch — all findings pre-existing dogfood drift.
+Example fixture untouched: the new layer only composes when open asks exist,
+and no fixture-driven test changed behavior.
+
+Nick was AFK at the design checkpoint; decisions (preamble keyed off open
+asks; unblock relaxation) are recorded above — flag at peer review if either
+should be revisited.
