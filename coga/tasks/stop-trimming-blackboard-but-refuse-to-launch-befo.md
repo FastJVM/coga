@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/architecture
 - coga/codebase
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -103,6 +103,14 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - Updated the live and packaged `coga/architecture` contexts to describe the new guard.
 - Verification in `/tmp/coga-refuse-blackboard-synthesis`: focused `tests/test_blackboard.py tests/test_mark.py tests/test_launch.py` passed (`111 passed`), full `python -m pytest` passed (`992 passed, 1 skipped`), and task-scoped validation passed with only the branch-copy unfrozen-workflow warning.
 
+## Peer review
+
+- Native `codex review --base main` found one must-fix: exact heading matching missed qualified pre-launch headings like `## Evaluator review (T2, independent cold read)` / `## Proposals (draft)` when the section was short enough to avoid the size fallback.
+- Patched `src/coga/blackboard.py` to match known authoring headings by normalized non-alphanumeric prefix, added a regression test, and added the new first-launch guard paragraph to the tracked materialized `coga/bootstrap/contexts/coga/architecture/SKILL.md` copy.
+- Verification after patch: `python3.12 -m pytest tests/test_blackboard.py tests/test_mark.py tests/test_launch.py -q` passed (`112 passed`); `git diff --check` passed; `python3.12 -m pytest -q` passed (`993 passed, 1 skipped`); `PYTHONPATH=src python3.12 -m coga.cli validate --task stop-trimming-blackboard-but-refuse-to-launch-befo --json` passed with only the expected branch-copy `unfrozen-workflow` warning.
+
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":5101184,"cli":"codex","input_tokens":181233,"model":"gpt-5.5","output_tokens":22207,"provider":"openai","schema":1,"session_id":"019f210d-20b0-7e00-893a-153b9d40c324","slug":"stop-trimming-blackboard-but-refuse-to-launch-befo","step":"implement","title":"refuse first launch when blackboard needs synthesis","ts":"2026-07-02T04:28:43.901706Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":2470784,"cli":"codex","input_tokens":156705,"model":"gpt-5.5","output_tokens":10311,"provider":"openai","schema":1,"session_id":"019f2116-1f96-7523-912b-c6706c425cf2","slug":"stop-trimming-blackboard-but-refuse-to-launch-befo","step":"peer-review","title":"refuse first launch when blackboard needs synthesis","ts":"2026-07-02T05:37:07.039208Z","usage_status":"ok"}
