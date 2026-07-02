@@ -656,3 +656,7 @@ Launchable as-is given the design step exists, but I'd make three edits first: p
 
 - [x] [2026-07-01 10:17] [agent:claude] id=20260701T101757 test
   resolved: [2026-07-01 13:06] [human:nicktoper] Rescope (Nick, 2026-07-01): fold this ticket's OAuth usage-window budget model (Claude GET /api/oauth/usage five_hour/seven_day; Codex prime-once + rollout rate_limits snapshot) INTO the existing src/coga/megalaunch.py drain rather than building a second drain path. megalaunch already does sequential active-ticket draining but gates on coga-tracked tokens (agent_token_budgets/token_guard/UsageRecord); replace/augment that guard with the OAuth usage-window probe (per-agent UsageProbe, fail-soft). Dedup vs nightly-auto-drain-run-for-ready-tickets: reconcile into this one path. Hard precondition unchanged: the autonomy=auto launch gate (launch.py:285) must land first before drain can actually launch. Also fix mode->autonomy semantic drift throughout the ticket during re-scope. The 'test' junk blocker is cleared as noise.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":605217,"cache_read_input_tokens":20984265,"cli":"claude","input_tokens":26960,"model":"claude-fable-5","output_tokens":209411,"provider":"anthropic","schema":1,"session_id":"d4f2fb1e-47e5-426a-a0d5-1d494463d366","slug":"drain-pending-auto-tickets-with-leftover-session-b","step":"implement","title":"Drain pending auto tickets with leftover session budget after recurring sweep","ts":"2026-07-02T04:40:36.778749Z","usage_status":"ok"}
