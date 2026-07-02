@@ -1,7 +1,7 @@
 ---
 slug: cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task
 title: Move the recurring scan into a Dream-shaped task
-status: draft
+status: active
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
@@ -126,5 +126,6 @@ seeded `example/` fixture still representative.
   worse Typer" these stay at the thin head's Typer layer.
 
 <!-- coga:blackboard -->
+## Production notes
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
