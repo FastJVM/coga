@@ -34,28 +34,33 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 3 (implement)
+step: 4 (open-pr)
 ---
 
 ## Description
 
-After a bare `coga recurring` sweep finishes its scheduled work, the leftover
-usage budget in the current window is wasted: pending ordinary auto tickets sit
-untouched until a human launches them, even though the machine is sitting idle
-with budget to spare. This ticket adds a **drain**: once the scheduled sweep
-completes cleanly, check the remaining usage budget per agent type and launch
-pending ordinary auto tickets — `status: active`, `mode: auto`, assigned to a
-configured agent type — oldest first, until the budget for that agent runs out.
-Stop on the first failed or unfinished non-interactive launch, mirroring how
-the sweep already stops on an unfinished recurring launch.
+> **Rescoped 2026-07-01 (Nick, blocker resolution):** the original shape — a
+> new drain bolted onto the tail of `coga recurring` — was superseded by work
+> that landed after design. `src/coga/megalaunch.py` already IS the sequential
+> drain of active agent-assigned tickets; what it lacked was a trustworthy
+> budget signal (it summed coga's own `## Usage` token records, the model this
+> ticket rejected). This ticket now folds the OAuth usage-window budget model
+> INTO megalaunch instead of building a second drain path. The scheduled
+> trigger/orchestration layer is owned by the sibling ticket
+> `nightly-auto-drain-run-for-ready-tickets`, which imports this engine.
+> The pre-rescope body text is in git history.
 
-The budget signal is the agent's own subscription usage-window reporting (the
+Coga's drain (megalaunch) launches active, agent-assigned tickets
+sequentially, oldest first, until the assigned agent's own budget says stop.
+The budget signal is the agent's subscription usage-window reporting (the
 5h/session window plus the weekly window), read per agent type rather than
 coga tracking tokens itself. Coga does not try to predict a ticket's cost.
 It drains sequentially: launch one eligible ticket, re-read that agent's usage
-state, then decide whether to launch the next ticket. The design step's
-go/no-go probe (decision #1) has been **run against the real endpoints** —
-results below:
+state, then decide whether to launch the next ticket. An agent whose usage
+can't be read is skipped conservatively — never launched blind.
+
+The design step's go/no-go probe (decision #1) was **run against the real
+endpoints** — results below:
 
 - **Claude — verified GO (free + fresh).** `GET
   https://api.anthropic.com/api/oauth/usage` with the OAuth bearer token from
@@ -80,42 +85,33 @@ crashes the sweep.
 
 ## Context
 
-- The sweep lives in `src/coga/commands/recurring.py` (run loop) with shared
-  logic in `src/coga/recurring.py`. There is no token/budget tracking
-  anywhere in coga today.
-- The design step must pin down the exact per-agent mechanism for reading
-  remaining usage (Claude Code and Codex each expose usage limits, but the
-  programmatic invocation needs verifying), the threshold that counts as
-  "enough to start a ticket", and what happens when usage can't be read for
-  an agent type (conservative default: skip the drain for that agent).
-- Drained tickets are ordinary tasks under `coga/tasks/`, launched the
-  same way a human `coga launch <slug>` would be; they keep their own
-  workflows and bump normally. Do not confuse them with period tasks — the
-  `recurring-` slug prefix is the period-task identity marker and ordinary
-  tickets never carry it.
-- Launch precondition: ordinary `mode: auto` launches must already be
-  re-enabled before this ticket can ship. In the current codebase,
-  `coga launch` temporarily refuses `mode: auto` because auto runs have no
-  live progress stream; the separate blocker is
-  `auto/stream-agent-progress-in-auto-mode-and-recurring-l`. This ticket does
-  not own streaming auto-mode output or re-enabling auto launches.
-- The drain should be observable in Slack: post which tickets were drained,
-  or that the drain was skipped for lack of budget. Note there is no
-  end-of-sweep Slack summary today — output is per-event `notify()` calls in
-  `_broadcast_scan()`, which fire *before* launches — so this is a new live
-  notification point, not an edit to an existing summary or digest spool.
-- "Oldest first" needs a concrete ordering source — frontmatter has no
-  created-date field, so git history, directory mtime, and slug order all
-  differ. Design step picks one and says why. (See locked decision below —
-  preference is the first `log.md` timestamp.)
-- Other open points for the design step: the threshold that counts as enough
-  budget to start a ticket (a crude heuristic like ">X% of window remains"
-  is acceptable), whether usage is re-probed between drained launches, and
-  whether the drain still runs when the recurring sweep itself stopped early
-  on an unfinished launch (default: no — an aborted sweep skips the drain).
-- Out of scope: any priority/ordering system beyond oldest-first, draining
-  `mode: interactive` tickets, and resuming orphaned `in_progress` ordinary
-  tickets (period-task orphan handling stays as is).
+- The drain engine lives in `src/coga/megalaunch.py` (`run_megalaunch`,
+  `_launch_until_stop`), with the thin CLI entry in
+  `src/coga/commands/megalaunch.py`. Before this ticket its budget guard
+  (`budget_state`) summed coga's own `## Usage` token records against
+  `[megalaunch]` token budgets — coga-tracked accounting, replaced here.
+- Megalaunch launches every ticket as a supervised **interactive** REPL
+  (`autonomy_override="interactive"` under the PTY watcher), so it does not
+  hit the `autonomy: auto` launch gate in `src/coga/commands/launch.py`. That
+  gate (owned by `auto/stream-agent-progress-in-auto-mode-and-recurring-l`)
+  blocks only unattended auto launches — the nightly trigger's problem, not
+  this engine's.
+- Drained tickets are ordinary tasks under `coga/tasks/`, launched the same
+  way a human `coga launch <slug>` would be; they keep their own workflows
+  and bump normally. Do not confuse them with period tasks — the `recurring/`
+  path is the period-task identity marker and ordinary tickets never carry it.
+- The drain is observable in Slack: one live end-of-run post
+  (`coga.notification.post`) naming what was launched, or that budget skipped
+  everything. This is a new notification point in the megalaunch command, not
+  an edit to any recurring-sweep broadcast or digest spool.
+- "Oldest first" is anchored to the first `log.md` timestamp per ref (locked
+  decision #3 below) — committed content, so the order survives clone/
+  checkout where file mtimes collapse to "all equal".
+- Ownership split with `nightly-auto-drain-run-for-ready-tickets`: this
+  ticket owns the engine (probes, guards, ordering, the megalaunch loop);
+  nightly owns the scheduled trigger, orchestration, and cross-agent
+  reattribution, importing this engine. Neither ships a second
+  usage-reading path.
 
 ### Decisions locked with Nick (2026-06-20) — design refines, does not re-open
 
@@ -149,255 +145,244 @@ crashes the sweep.
 
 ## Acceptance Criteria
 
-- [ ] After a **bare** `coga recurring` sweep completes its scheduled launches
-      cleanly, the drain runs — including when no recurring tasks were due
-      (leftover budget + pending tickets is exactly that case). `--all` and
-      `--interactive` sweeps do **not** drain.
-- [ ] If the sweep aborts early (a non-interactive recurring launch returned
-      unfinished → `sys.exit(1)` in `_stop_if_unfinished_after_launch`), the
-      drain does **not** run.
-- [ ] The drain is gated by config (`[recurring.drain]`, see Proposed Shape):
-      disabled by default; when disabled the sweep behaves exactly as today.
-- [ ] Eligible tickets are exactly: `status: active`, `mode: auto`, `assignee`
-      is a configured agent type (in `cfg.agents`), and the ticket is an
-      ordinary task — **not** under `tasks/recurring/`. `in_progress`, `draft`,
-      `paused`, `done`, human-assigned, and `mode: interactive`/`script`
-      tickets are excluded.
-- [ ] This ticket does **not** re-enable ordinary `mode: auto` launches. Before
-      implementation proceeds, the existing auto-mode launch block in
-      `src/coga/commands/launch.py` must already be gone or explicitly
-      resolved by `auto/stream-agent-progress-in-auto-mode-and-recurring-l`.
-      If that blocker is still present, implementation stops and reports the
-      dependency instead of shipping a drain that can only fail on launch.
-- [ ] Eligible tickets are serviced oldest-first by `first_activity()` (the
-      first parseable `YYYY-MM-DD HH:MM` line in `log.md`).
-- [ ] A new `first_activity(task_dir)` helper exists in
-      `src/coga/logfile.py`, mirroring `last_activity()` (walks forward, first
-      parseable timestamp, `None` when absent/empty/unparseable), with tests.
-- [ ] `coga status --order-by created` sorts by `first_activity()` (oldest
-      first by default), is listed in `--order-by` choices/help, and has a test.
-- [ ] A `UsageProbe` abstraction exists with one implementation per configured
-      agent type. The Claude impl reads the live OAuth usage endpoint; the
-      Codex impl primes once via a throwaway `codex exec` then reads the newest
-      rollout `rate_limits` snapshot. Both fail soft (return "no signal" on any
-      error/timeout/missing-credential), never raising into the sweep.
-- [ ] Budget guards are checked against the agent's own **session** and
-      **weekly** windows. A launch is allowed only when the 5h/session window
-      has at least `drain_min_session_remaining_percent` remaining and the
-      weekly window has at least its reset-aware pacing reserve remaining.
-      Missing or empty required window data is "no signal" and skips that
-      agent; it never means "safe to drain".
-- [ ] The weekly guard is time-to-reset aware. For most of the week, preserve
-      more of the weekly budget according to a linear pacing curve: at a full
-      weekly window before reset, require nearly all weekly budget to remain;
-      during the final `drain_weekly_final_window_hours` before reset, require
-      only the hard `drain_min_weekly_remaining_percent` floor. This matches
-      the intent: care a lot about weekly budget seven days before reset, but
-      spend leftover allotment aggressively on the last day without hitting
-      zero. If the weekly reset time is missing, the probe returns "no signal".
-- [ ] A ticket is launched only if its assignee clears both guards. Treat these
-      as safety reserves: if the session window is below its configured floor
-      (for example 5% remaining), or the weekly window is below its effective
-      pacing reserve, Coga launches nothing else for that agent in this drain.
-      An agent whose budget is below guard, or whose probe returned no signal,
-      has its remaining tickets skipped for the rest of this drain (claude
-      budget re-probed per ticket since it is free; once an agent is marked
-      exhausted/unreadable it is not re-probed). The expected recurring cron
-      timing is overnight, so this guard is about avoiding zero/exhaustion, not
-      reserving daytime interactive capacity inside the same 5h session.
-- [ ] The drain stops entirely on the first launched ticket that returns
-      unfinished/failed (same check as the recurring sweep), and respects an
-      optional `max_tickets` cap.
-- [ ] Drained launches go through the same `coga launch <slug>` path a human
-      would use; drained tickets keep their own workflow and bump normally.
-- [ ] The drain is observable: a single one-line summary is posted through the
-      live notification path (`coga.notification.post`, not `notify`) naming
-      the drained tickets, or stating the drain was skipped for lack of budget /
-      unreadable usage — but only when there was at least one eligible ticket
-      (no post when nothing was eligible). This is a new notification call, not
-      an edit to `_broadcast_scan()`. Slack failures follow the live-post
-      fail-loud semantics documented in `coga/sync`.
-- [ ] Command handlers stay thin: selection, ordering, probing, and the drain
-      loop live in importable modules (`src/coga/drain.py`,
-      `src/coga/usage.py`), not in `commands/recurring.py`.
-- [ ] `[recurring.drain]` config keys are parsed in `config.py` with
-      validation and defaults, surfaced on `Config`, and covered by tests.
-- [ ] `python -m pytest` passes; `coga validate --json` is clean. New behavior
-      has unit tests with the network/codex calls mocked (no live calls in the
-      suite). `example/` fixtures updated if selection/ordering needs them.
+- [ ] A `UsageProbe` abstraction exists (`src/coga/usage_probe.py` — the
+      `usage.py` name was already taken by session token records) with one
+      implementation per supported agent CLI. The Claude impl reads the live
+      OAuth usage endpoint; the Codex impl primes once per drain via a
+      throwaway `codex exec` then reads the newest rollout `rate_limits`
+      snapshot written after the primer started. Both fail soft (return "no
+      signal" on any error/timeout/missing-credential/stale file), never
+      raising into the run.
+- [ ] Megalaunch's budget guard is the usage-window check: `budget_state`'s
+      coga-tracked token summing is **replaced** by
+      `usage_probe.check_budget`. A launch is allowed only when the agent's
+      5h/session window has at least `min_session_remaining_percent` remaining
+      and the weekly window clears its reset-aware pacing reserve. An agent
+      with no probe implementation, or whose probe returns no signal, is
+      skipped conservatively (`skipped-budget`) — "unreadable" never means
+      "safe to drain".
+- [ ] The weekly guard is time-to-reset aware: a linear pacing curve requires
+      ~100% remaining a full window before reset, relaxing to the hard
+      `min_weekly_remaining_percent` floor inside the final
+      `weekly_final_window_hours`. A missing weekly reset time blocks the
+      launch. Care a lot about weekly budget seven days out; spend leftover
+      allotment aggressively on the last day without hitting zero.
+- [ ] The agent's usage is re-probed before **every** launch (the candidate
+      check and the per-step loop both go through the probe), so budget spent
+      by one launch counts against the next decision. Claude's re-probe is a
+      free GET; codex re-reads the rollout snapshot its own launches keep
+      rewriting (the throwaway primer fires once per drain).
+- [ ] Tasks are serviced oldest-first by `first_activity()` — the earliest
+      parseable `YYYY-MM-DD HH:MM` line per ref in the repo-global
+      `coga/log.md`. Refs with no log line sort last, stable by slug.
+- [ ] `first_activity()` / `first_activity_map()` helpers exist in
+      `src/coga/logfile.py`, mirroring `last_activity()` (minimum timestamp
+      wins, since `merge=union` can leave the log unsorted; `None`/absent when
+      unparseable), with tests.
+- [ ] `coga status --order-by created` sorts by the same helper (oldest first
+      by default, `--reverse` flips), is listed in `--order-by` choices, and
+      has tests — a human can inspect the exact order the drain services
+      tickets in.
+- [ ] Megalaunch eligibility is otherwise unchanged: `status: active`,
+      assignee a configured agent type, non-script current step, no open
+      blockers. (Narrowing to `autonomy: auto` belongs to the nightly
+      trigger's selection, not this attended engine.)
+- [ ] `[megalaunch]` gains `min_session_remaining_percent` (default 5.0),
+      `min_weekly_remaining_percent` (default 5.0), and
+      `weekly_final_window_hours` (default 24.0), parsed with validation and
+      covered by tests. The replaced token keys (`token_guard`,
+      `default_token_budget`, `window_hours`, `agent_token_budgets`) still
+      parse as deprecated no-ops so existing configs keep loading.
+- [ ] The drain is observable: `coga megalaunch` posts a single live one-line
+      summary (`coga.notification.post`, not `notify`) naming launched slugs,
+      or stating budget/eligibility skips — silent only when the run produced
+      no results at all. Slack failures follow the live-post fail-loud
+      semantics in `coga/sync`; stdout gets the summary before the post.
+- [ ] This ticket does **not** touch the `autonomy: auto` launch gate in
+      `src/coga/commands/launch.py` — megalaunch's supervised interactive
+      launches never hit it.
+- [ ] `python -m pytest` passes; `coga validate --task <slug>` is clean. New
+      behavior has unit tests with network/codex calls mocked (no live calls
+      in the suite; the megalaunch test fixture stubs probe construction so
+      the suite can never read real credentials).
 
 ## Proposed Shape
 
-### 1. `first_activity()` + `coga status --order-by created`
-- `src/coga/logfile.py`: add `first_activity(task_dir) -> datetime | None`,
-  the forward-walking mirror of `last_activity()`. Export it in `__all__`.
-- `src/coga/commands/status.py`: add `"created"` to `ORDER_BY_CHOICES`; add a
-  `"created_ts"` row value from `first_activity(ref.path)`; sort it
-  oldest-first by default (same two-pass None-handling as `updated`, but
-  ascending), `--reverse` flips. Update the `--order-by` help string.
+(As implemented after the rescope; the pre-rescope recurring-sweep shape is
+in git history.)
 
-### 2. Usage probe — `src/coga/usage.py` (new)
-- `@dataclass UsageWindow { label: str; used_percent: float; resets_at:
-  datetime | None; window_minutes: int | None = None }` and `@dataclass
-  UsageSnapshot { windows: list[UsageWindow] }`. The probe must return one
-  session window and one weekly window for the agent family, including
-  `resets_at` for the weekly window. A parser that cannot produce the required
-  windows returns `None` from the probe rather than an empty or partial
-  snapshot.
-- Add a helper such as `budget_allows_launch(snapshot, cfg, now) -> bool` that:
-  session remaining = `100 - session.used_percent`; weekly remaining =
-  `100 - weekly.used_percent`; session must be at or above
-  `drain_min_session_remaining_percent`; weekly must be at or above the
-  effective weekly floor. Effective weekly floor:
-  `drain_min_weekly_remaining_percent` during the final
-  `drain_weekly_final_window_hours` before reset; otherwise
-  `drain_min_weekly_remaining_percent + (100 -
-  drain_min_weekly_remaining_percent) * ((hours_until_reset -
-  drain_weekly_final_window_hours) / (weekly_window_hours -
-  drain_weekly_final_window_hours))`, clamped to
-  `[drain_min_weekly_remaining_percent, 100]`. `weekly_window_hours` comes from
-  the weekly window's `window_minutes` when available, else defaults to 168.
-  With the default config, the weekly floor is roughly:
-  - 7 days before reset: 100% remaining required.
-  - 6 days before reset: 84% remaining required.
-  - 5 days before reset: 68% remaining required.
-  - 4 days before reset: 53% remaining required.
-  - 3 days before reset: 37% remaining required.
-  - 2 days before reset: 21% remaining required.
-  - Final 24h before reset: 5% remaining required.
-- `class UsageProbe(Protocol): def read(self) -> UsageSnapshot | None` — `None`
-  means "no signal, skip this agent".
-- `ClaudeUsageProbe`: read `~/.claude/.credentials.json` →
-  `.claudeAiOauth.accessToken`; `GET https://api.anthropic.com/api/oauth/usage`
-  with `Authorization: Bearer <token>` (only required header) and a short
-  timeout (~10s) via `urllib.request` (stdlib — no new dep); parse
-  `five_hour.utilization` and `seven_day.utilization` into two `UsageWindow`s.
-  Any exception / non-200 / missing file → `None`. Caveat to note in code: on
-  macOS Claude stores credentials in the Keychain, not this file; the cron
-  target is Linux so the file path is the supported one, and a missing file
-  fails soft (skip) rather than erroring.
-- `CodexUsageProbe`: on first `read()` (memoized for the drain), record
-  `started_at`, then fire one throwaway `codex exec --json -s read-only
-  --skip-git-repo-check "Reply with exactly: ok" </dev/null` with a timeout,
-  **stdin redirected from /dev/null** (without it codex blocks on "Reading
-  additional input from stdin"). Ignore stdout (the `--json` stream does not
-  carry rate_limits). Then read the newest
-  `~/.codex/sessions/**/rollout-*.jsonl`, but accept it only if the file was
-  modified after `started_at` and contains parseable `rate_limits`; otherwise
-  return `None` rather than using stale data. Parse the last fresh
-  `rate_limits` object → `primary` (5h) and `secondary` (weekly)
-  `used_percent` into `UsageWindow`s (`resets_at` is unix epoch seconds). Any
-  failure → `None`.
-- `probe_for_agent(cfg, agent_name) -> UsageProbe | None`: dispatch on the
-  agent's `cli` (`claude` → ClaudeUsageProbe, `codex` → CodexUsageProbe), else
-  `None` (unknown agent CLI → no probe → skip, conservatively).
+### 1. Usage probe — `src/coga/usage_probe.py` (new)
+- `UsageWindow { used_percent, resets_at }` (with `remaining_percent`),
+  `UsageSnapshot { agent, session, weekly }`, `BudgetDecision { allowed,
+  detail, snapshot }`.
+- `ClaudeUsageProbe`: bearer token from `~/.claude/.credentials.json` →
+  `GET https://api.anthropic.com/api/oauth/usage` (via `requests`, already a
+  coga dependency through the Slack channel); parses `five_hour` /
+  `seven_day` utilization + reset times. macOS-Keychain caveat noted in code;
+  any failure → `None`.
+- `CodexUsageProbe`: one memoized throwaway
+  `codex exec --json -s read-only --skip-git-repo-check` per drain (stdin
+  from `/dev/null` — without it codex blocks), then reads the newest
+  `~/.codex/sessions/**/rollout-*.jsonl` **modified after the primer
+  started**; parses the last `rate_limits` object (`primary` 5h /
+  `secondary` weekly; `resets_at` epoch seconds) via a depth-first key search
+  since the rollout nesting is not a stable API. Stale/missing → `None`.
+- `weekly_required_remaining_percent(mcfg, hours_to_reset)`: the linear
+  pacing curve — 100% required a full window (168h) out, hard floor inside
+  `weekly_final_window_hours`; defaults give ~84/68/53/37/21% at 6/5/4/3/2
+  days and 5% in the final 24h.
+- `budget_allows_launch(snapshot, mcfg, now)`: session floor + weekly pacing;
+  missing weekly reset time blocks.
+- `build_probes(cfg)`: agent name → probe, dispatched on the agent's `cli`
+  basename (`claude`/`codex`); unknown CLIs get no probe.
+- `check_budget(probes, agent, mcfg)`: no probe / no signal → not allowed,
+  with a human-readable `detail`.
 
-### 3. Launch Precondition
-- This ticket depends on ordinary `mode: auto` launches being available. If the
-  temporary block in `src/coga/commands/launch.py` and its coverage in
-  `tests/test_launch_auto.py` are still present, do not implement around it or
-  treat the refusal as a drained-ticket failure. Stop with a clear blocker that
-  `auto/stream-agent-progress-in-auto-mode-and-recurring-l` must land first.
-- If that dependency has landed before implementation, this ticket should keep
-  its own scope to the drain/usage work and add only drain-specific tests; the
-  auto-mode streaming policy and architecture-doc update belong to the blocker.
+### 2. Megalaunch fold-in — `src/coga/megalaunch.py`
+- `run_megalaunch(cfg, ..., probes=None)` builds probes once per run
+  (injectable for tests) and iterates `_tasks_oldest_first(cfg)`.
+- `budget_state`/`BudgetState` and the `usage.load_records` plumbing are
+  deleted; `_candidate_result` and `_launch_until_stop` call
+  `usage_probe.check_budget` — the per-step loop re-probes before every
+  launch. `skipped-budget` results carry the decision detail.
+- `commands/megalaunch.py` posts the end-of-run one-liner via
+  `notification.post` after echoing the summary to stdout.
 
-### 4. Drain orchestration — `src/coga/drain.py` (new)
-- `eligible_auto_tickets(cfg) -> list[TaskRef]`: `list_tasks(cfg)` filtered to
-  active + auto + assignee in `cfg.agents` + not `is_under(ref.directory,
-  "recurring")`; sorted by `first_activity()` ascending (None sorts last).
-- `drain_pending_auto_tickets(cfg)`: the loop. Build one probe per agent type
-  on demand (so codex is only primed if a codex ticket exists). Maintain a
-  per-agent cache of `{exhausted, unreadable}`. For each eligible ticket in
-  order: skip if its agent is already exhausted/unreadable; else probe (claude
-  re-probed each ticket; mark exhausted when either the session guard or the
-  weekly guard fails, mark unreadable when probe returns `None`); if OK,
-  launch via the existing `coga launch` entrypoint (non-interactive, same call
-  shape the sweep uses with `return_timeout=True`); on an unfinished/failed
-  return, stop the whole drain; honor `max_tickets`. Collect drained slugs and
-  the stop reason, then post the one-line summary (only if there was ≥1
-  eligible ticket). Note: the recurring `mode: auto` template ban
-  (`_effective_mode`) does **not** apply here — that guards scheduled
-  *recurring template* launches; draining ordinary auto tickets unattended is
-  the intended behavior and its visibility comes from the summary + each
-  launch's own broadcasts.
+### 3. Ordering — `src/coga/logfile.py` + `coga status`
+- `first_activity_map(cfg)` / `first_activity(cfg, ref)`: earliest parseable
+  log timestamp per ref (minimum wins — `merge=union` can leave the log
+  unsorted).
+- `status.py`: `"created"` in `ORDER_BY_CHOICES`, `created_ts` row value,
+  oldest-first by default with the same two-pass None-handling as `updated`.
 
-### 5. Hook into the sweep — `src/coga/commands/recurring.py`
-- In `main()`, for the bare sweep only (`not all_ and not interactive`), call
-  `drain.drain_pending_auto_tickets(cfg)` **after** the recurring launch loop,
-  and also on the "no recurring tasks due" path (restructure the early
-  `return` so the drain still runs). The existing `sys.exit(1)` on an
-  unfinished non-interactive recurring launch naturally skips the drain (the
-  process ends), satisfying "aborted sweep skips the drain".
+### 4. Config — `src/coga/config.py`
+- `[megalaunch]` keys `min_session_remaining_percent = 5.0`,
+  `min_weekly_remaining_percent = 5.0`, `weekly_final_window_hours = 24.0`
+  (percent keys validated 0–100, hours positive). The old token keys remain
+  parsed as deprecated no-ops so live configs keep loading; a follow-up
+  removes them once `coga.toml` is hand-cleaned (agents don't edit it).
 
-### 6. Config — `src/coga/config.py`
-- Parse `[recurring.drain]` (new `_parse_recurring`/`_parse_drain` helper, same
-  validation style as `_parse_launch`), surfaced on `Config`:
-  - `drain_enabled: bool = False` — opt-in; default keeps today's behavior.
-  - `drain_min_session_remaining_percent: float = 5.0` — fixed per-agent
-    reserve for the 5h/session window.
-  - `drain_min_weekly_remaining_percent: float = 5.0` — hard floor for the
-    weekly window; the effective weekly pacing reserve never drops below this.
-  - `drain_weekly_final_window_hours: float = 24.0` — within this many hours
-    before weekly reset, use only the hard weekly floor; before that, linearly
-    pace from near-100% reserve at the start of the weekly window down to the
-    hard floor.
-  - `drain_max_tickets: int = 0` — `0`/absent = unlimited.
-- Example `coga.toml` block:
-
-  ```toml
-  [recurring.drain]
-  enabled = true
-  min_session_remaining_percent = 5.0
-  min_weekly_remaining_percent = 5.0
-  weekly_final_window_hours = 24.0
-  max_tickets = 0
-  ```
-
-- Re-probe cadence (decision #2): claude is re-probed before every ticket
-  (free GET); codex's snapshot is re-read each time but only primed once via
-  the throwaway, and naturally refreshes after each codex launch.
-
-### 7. Notifications
-- One end-of-drain summary via the live notification layer
-  (`coga.notification.post`, not `notify`), e.g. `drain: launched 3 pending
-  auto ticket(s): a, b, c` or `drain skipped: codex session 4% remaining below
-  5% reserve`. Gate on "≥1 eligible ticket existed" so quiet sweeps stay
-  silent. Because this uses the live `post()` path, configured Slack failures
-  fail loud per `coga/sync`; no daily-digest spool entry is created.
-
-### 8. Tests
-- `first_activity()` unit tests (present/absent/unparseable/multi-line).
-- `coga status --order-by created` ordering test.
-- Usage parsing tests against captured JSON fixtures (Claude usage body; codex
-  rollout `rate_limits` line) — no live network/codex calls; monkeypatch the
-  HTTP fetch and the codex-exec/rollout-read seams. Include a Codex stale-file
-  test: a successful primer followed by no rollout modified after `started_at`
-  returns `None` and skips codex drains.
-- Drain selection/ordering test; drain-loop tests for: session guard fail,
-  weekly guard fail early in the weekly window, weekly final-day hard floor,
-  unreadable→skip-agent, stop-on-unfinished, `max_tickets`, disabled (no-op),
-  aborted-sweep-skips-drain.
-- Config parsing tests for `[recurring.drain]` defaults + validation.
+### 5. Tests
+- `tests/test_usage_probe.py`: Claude parse + fail-soft, Codex prime/fresh/
+  stale/missing-CLI/prime-once, pacing-curve values, guard decisions,
+  registry dispatch. No live network or codex calls.
+- `tests/test_megalaunch.py`: probe-based guard skips (low session, no probe,
+  unreadable), re-probe between launches, oldest-first servicing; the `repo`
+  fixture stubs `build_probes` so no test can touch real credentials.
+- `tests/test_logfile.py` (new), `tests/test_status.py` (order-by created),
+  `tests/test_config.py` (new keys + deprecated keys still load).
 
 ## Out of Scope
 
 - Any priority/ordering beyond oldest-first by `first_activity()`.
-- Draining `mode: interactive` or `mode: script` tickets.
-- Resuming orphaned `in_progress` ordinary tickets (period-task orphan
-  handling is unchanged).
+- The scheduled/unattended drain trigger, `autonomy: auto` selection, and
+  cross-agent reattribution — owned by
+  `nightly-auto-drain-run-for-ready-tickets`, which imports this engine.
+- Re-enabling `autonomy: auto` launches / streaming auto output — owned by
+  `auto/stream-agent-progress-in-auto-mode-and-recurring-l`; megalaunch's
+  supervised interactive launches don't need it.
 - A fresh standalone Codex usage endpoint — none exists; the throwaway+rollout
   read is the deliberate mechanism. Likewise no Anthropic Admin/cost API.
 - Reading Claude credentials from the macOS Keychain (Linux file path only;
   absence fails soft → skip).
 - Cross-window or dollar-based budgeting, historical usage tracking, or any
   persisted budget state in coga (the probe is read-only and stateless).
-- Concurrency / parallel draining — the drain is sequential like the sweep.
+- Concurrency / parallel draining — the drain stays sequential.
 - Changing the recurring sweep's own launch/stop semantics.
 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: megalaunch-usage-probe
+worktree: /home/n/Code/claude/coga-megalaunch-usage-probe
+
+## Rescope implementation plan (2026-07-01, claude, implement)
+
+Resumed after Nick's rescope answer (see resolved blocker): fold the OAuth
+usage-window budget model INTO `src/coga/megalaunch.py`, dedup with
+nightly-auto-drain (that ticket already recorded the split: THIS ticket = the
+engine — probes + guards + selection; nightly = trigger/orchestration/
+reattribution — consistent with the rescope).
+
+Key finding: megalaunch launches every ticket with
+`autonomy_override="interactive"` under a PTY, so it never hits the
+autonomy=auto gate at `launch.py:278-290`. The rescoped scope (probe folded
+into megalaunch) is therefore shippable NOW; the gate only blocks the
+unattended path, which nightly-auto-drain owns.
+
+Nick was AFK when asked, so three forks were taken with the recommended
+option, recorded here as PROVISIONAL — override at review:
+
+1. **Replace, not augment.** The OAuth usage-window guard replaces
+   `budget_state()`'s UsageRecord summing. The old `[megalaunch]` token keys
+   (`token_guard`, `default_token_budget`, `window_hours`,
+   `agent_token_budgets`) stay *parsed but unused* (deprecated) because the
+   live `coga/coga.toml` sets `default_token_budget` and agents must not edit
+   coga.toml; follow-up: a human removes the key, then the config fields can
+   be dropped.
+2. **Eligibility unchanged.** Megalaunch keeps draining all active
+   agent-assigned tickets (any autonomy) as supervised interactive REPLs;
+   only the budget guard changes. The autonomy filter stays available to the
+   nightly path via its own selection.
+3. **End-of-run live Slack post added** (`coga.notification.post` one-liner
+   from the megalaunch command; fail-loud per coga/sync). Nothing posted when
+   there were no results at all.
+
+Plan of record:
+- New `src/coga/usage_probe.py`: `UsageWindow`/`UsageSnapshot` dataclasses;
+  `ClaudeUsageProbe` (GET api.anthropic.com/api/oauth/usage, bearer from
+  `~/.claude/.credentials.json`); `CodexUsageProbe` (lazy one-shot
+  `codex exec` primer + freshness-guarded newest-rollout `rate_limits` read);
+  `budget_allows_launch()` with session reserve floor + linear weekly pacing
+  (100% at window start → floor inside the final window). All probe failures
+  soft → None → skip that agent.
+- New `[megalaunch]` keys: `min_session_remaining_percent = 5.0`,
+  `min_weekly_remaining_percent = 5.0`, `weekly_final_window_hours = 24.0`.
+- Megalaunch: probes built once per run (injectable for tests), re-checked
+  before every launch; agents whose cli has no probe impl or whose probe
+  returns no signal → `skipped-budget` (conservative).
+- Ordering: `first_activity_map()`/`first_activity()` in `logfile.py` (first
+  parseable log line per ref); megalaunch services oldest-first;
+  `coga status --order-by created` added on the same helper.
+- Ticket body rewrite: `mode:` → `autonomy:` drift + criteria re-anchored to
+  the megalaunch fold-in.
+
+## Implement step done (2026-07-01, claude)
+
+Committed on `megalaunch-usage-probe` (fd94c953), worktree
+`/home/n/Code/claude/coga-megalaunch-usage-probe`, clean tree, no push/PR yet.
+
+What shipped (details in ticket body `## Proposed Shape`, rewritten to match):
+
+- `src/coga/usage_probe.py` — UsageProbe/ClaudeUsageProbe/CodexUsageProbe,
+  `weekly_required_remaining_percent` pacing curve, `budget_allows_launch`,
+  `build_probes` (cli-dispatched), `check_budget`. All failures soft.
+- `src/coga/megalaunch.py` — `budget_state`/`BudgetState`/UsageRecord summing
+  deleted; probe-based guard in both `_candidate_result` and the per-step
+  launch loop (re-probe before every launch); `_tasks_oldest_first` via new
+  `logfile.first_activity_map`.
+- `src/coga/config.py` — `[megalaunch]` gains the three reserve keys; old
+  token keys parse as deprecated no-ops (live coga.toml sets
+  `default_token_budget`; agents must not edit it — human follow-up to remove,
+  then drop the fields).
+- `coga status --order-by created`; `commands/megalaunch.py` posts a live
+  end-of-run one-liner (post, not notify).
+- Tests: new test_usage_probe.py + test_logfile.py; test_megalaunch/status/
+  config updated. Full suite: 1013 passed, 1 skipped (known hatchling skip).
+- Ticket body rewritten: mode:→autonomy: drift fixed, criteria/shape
+  re-anchored to the megalaunch fold-in (pre-rescope text in git history).
+
+Verification beyond the suite:
+- Live ClaudeUsageProbe run (free GET): session 87.0% / weekly 95.0%
+  remaining, guard allowed=True — real endpoint + parse + pacing verified.
+- `coga status --order-by created` smoke-run against this repo; ordering
+  renders. `coga validate --task <slug>` clean.
+
+For review (provisional decisions Nick can override, from the rescope plan
+above): replace-not-augment the token guard; megalaunch eligibility unchanged
+(autonomy filter left to nightly); live Slack post on megalaunch runs.
 
 ## Design-drift audit + block (2026-07-01, claude, interactive)
 
