@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/extension-model
 - coga/architecture
@@ -35,81 +35,208 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (design)
+step: 2 (review-design)
 ---
 
 ## Description
 
-**Group 2 of `cli-extension-model/move-command-logic-to-tickets` (Pass 2 of the
-extension-model externalization).** Per `coga/extension-model`, the `coga
-recurring` scan/orchestration body is a move target: it should live as a
-Dream-shaped recurring task that calls the `create` + `launch` kernel
-primitives, not as hand-written `commands/recurring.py` logic. The mechanism
-already exists — Dream is exactly this shape (a recurring template whose body
-orchestrates over kernel primitives), and `autoclose-merged/sweep` /
-`digest/post` are the shipped precedents for deterministic logic running as
-script steps.
+`coga recurring` is still carrying too much substance in the Typer command
+layer. A bare recurring sweep currently parses command flags, scans
+`coga/recurring/`, get-or-creates due period tasks, advances each template's
+`last_serviced_period` high-water mark, reconciles recurring creates onto the
+control branch, prints/broadcasts scan results, and launches due tasks
+sequentially from `src/coga/commands/recurring.py`.
 
-What moves: the scan-templates → get-or-create-current-run → dedup
-high-water-mark (`last_serviced_period`) → sequential-launch orchestration in
-`src/coga/recurring.py` (819 lines) + its command head in
-`src/coga/commands/recurring.py` (1480 lines). What does NOT move: `recurring
-list` (a read view — belongs to
-`cli-extension-model/move-read-views-to-tickets-as-scripts`), the `create` /
-`launch` primitives themselves (kernel), and `recurring launch <name>`'s
-alias-facing surface (`dream`, etc. — see `add-recurring-launch-aliases`).
+Per `coga/extension-model`, that deterministic sweep body belongs behind a
+script-shaped target, not in a command head. The scanner cannot be a normal
+recurring template because it is the thing that creates and launches recurring
+templates; making it scan itself would add a bootstrap loop. The right shape is a
+stateless bootstrap-style script target: it has no `schedule:`, no workflow
+state, and no `last_serviced_period` of its own. It runs the same deterministic
+Python the command runs today, then exits.
 
-Two places the move line cuts *through* shared code — the design must place
-them explicitly:
-- `create_named` / `_create_at_slug` (get-or-create) are shared by the bare
-  scan **and** `recurring launch <name>` (hence `coga dream`). Decide where
-  they land so neither path duplicates the other.
-- The control-branch git sync of recurring creates
-  (`_land_recurring_create_on_control_branch`, `last_serviced_period` merging,
-  restore/reconcile — roughly half of `commands/recurring.py`) is sync
-  infrastructure, not scan logic. Decide whether it moves with the scan, stays
-  shared, or is out of scope.
+The public invocation remains `coga recurring`. The command head keeps Typer's
+parameter parsing for `--interactive` and `--all`, then launches the stateless
+scan script with those parsed values in an explicit script-env contract. Cron and
+operators can keep calling the existing command spelling; the packaged
+`bootstrap/recurring-scan` target exists as the script home, not as a new user
+workflow to manage.
 
-**Guardrails** (from `coga/extension-model`): *no inversion* — the scan,
-period-dedup, and get-or-create logic is deterministic, tested Python; relocate
-it unchanged into script steps, never rewrite it as agent judgment. *No worse
-Typer* — no transient launch-time parameters; anything the scan needs must be
-in files on disk (templates, blackboard `last_serviced_period`) as it already
-is.
+This preserves the two extension-model guardrails. There is no inversion: the
+scan, get-or-create, high-water dedup, sync, and launch orchestration stay tested
+Python. There is no worse Typer: runtime flags stay at the command head, and
+recurring state still comes from files on disk (`coga/recurring/<name>/ticket.md`,
+period task directories, and template blackboards).
 
-**Design step must settle first:** the bootstrapping question — the scan is
-what *creates and launches* recurring runs, so a scan-as-recurring-task can't
-be launched by itself. This has two layers:
-- *Invocation:* what invokes the scan task — cron calling `coga launch` on a
-  stateless target, or the `coga recurring` verb staying as a thin head that
-  launches the script?
-- *Shape:* if the scan were itself a recurring *template*, something would
-  have to scan it — the scanner can't get-or-create its own run. So the
-  design may conclude the scan is a **stateless bootstrap-style script
-  target** with no period dedup of its own, not a recurring template.
-  "Dream-shaped" in the title is a working framing, not a commitment.
+## Acceptance Criteria
 
-**This ticket leads the command-head-launches-script design** (owner decision,
-2026-07-02): its design step settles the thin-head-launches-script shape, and
-`move-read-views-to-tickets-as-scripts` inherits that pattern for `show` /
-`status` rather than inventing a second one.
+- Bare `coga recurring` is reduced to a thin head: load config, parse
+  `--interactive` / `--all`, invoke the packaged stateless scan script target,
+  and surface its exit code. It no longer contains direct scan, sync, table,
+  Slack, or sequential-launch logic.
+- A packaged stateless script target exists, for example
+  `bootstrap/recurring-scan`, with a sibling Python script that imports the
+  recurring runner module directly. The target is package-backed like
+  `bootstrap/orient`, not materialized into live repos by `coga init`.
+- `coga launch bootstrap/recurring-scan` can run a bootstrap ticket-owned script
+  without status flips, workflow advancement, task log writes, or Slack
+  "started" notifications. Existing bootstrap agent launches remain stateless and
+  unchanged.
+- `coga recurring --interactive` and `coga recurring --all` preserve today's
+  behavior. Their values are passed only from the command head to the scan
+  script, not through a generic launch-time parameter channel.
+- `create_named`, `create_template`, `_create_at_slug`, period-key calculation,
+  and `last_serviced_period` helpers remain shared deterministic Python used by
+  both the bare scan and `coga recurring launch <name>`. Neither path duplicates
+  get-or-create behavior.
+- Recurring create sync moves out of `src/coga/commands/recurring.py` into a
+  shared recurring runner/sync module. The bare scan script and
+  `recurring launch <name>` both use it, preserving control-branch landing,
+  high-water merging, restored-control-task reconciliation, global-log handling,
+  and forced-run repair behavior.
+- `recurring launch <name>` remains a normal command surface for `coga dream` and
+  similar aliases, but its implementation is thin and delegates to the same
+  shared create/sync/launch helpers as the scan script.
+- The temporary `autonomy: auto` freeze is preserved: agent-backed recurring
+  templates still fail/skip exactly as they do today, while script-backed
+  templates remain launchable.
+- Nested launches from inside the scan script preserve the existing PTY
+  supervisor behavior: `COGA_DONE_SENTINEL` session-id matching does not tear
+  down the parent script launch, idle/max-session limits are still passed to
+  child `coga launch` calls, and `_stop_if_unfinished_after_launch` still records
+  unfinished interactive exits, watchdog timeouts, and unattended stuck tasks
+  with today's semantics.
+- The implementation updates the durable docs/contexts that describe recurring
+  and bootstrap script targets, including local `coga/contexts/coga/*` copies and
+  packaged `src/coga/resources/templates/coga/bootstrap/contexts/coga/*` copies
+  when both exist.
+- Tests cover the moved surface without relying on live dogfooded state:
+  `tests/test_recurring.py` for scan/get-or-create/sync/launch behavior,
+  launch-script tests for bootstrap script support, CLI-head tests for
+  `--interactive` / `--all` parameter threading, and packaging/init tests for the
+  new packaged bootstrap target.
 
-Known constraints the design must work within (don't rediscover these):
-- `launch.py:267-268` hard-refuses script launches on stateless
-  bootstrap-style tickets — a stateless scan target hits this check; the
-  design either relaxes it (still a hard check, different rule) or picks a
-  shape that avoids it.
-- `autonomy: auto` launches are currently frozen, and `recurring.py` enforces
-  the same freeze — the relocated scan must preserve that enforcement.
-- The scan launches agent sessions; as a script step it does so from inside a
-  launched session. The `COGA_DONE_SENTINEL` session-id matching exists to
-  keep nested launches from tearing down parents — verify the nested
-  PTY-supervisor path (including `_stop_if_unfinished_after_launch` idle/max
-  timeouts) survives the move.
+## Proposed Shape
 
-Done = design reviewed, then the scan logic relocated unchanged with tests
-intact, `coga recurring` (bare scan) reduced to a thin head or alias, and the
-seeded `example/` fixture still representative.
+1. Keep the recurring model in `src/coga/recurring.py`.
+
+   This module should remain the shared deterministic library for recurring
+   template parsing and period task creation: `Template`, `DueTask`, `DueScan`,
+   `scan_due`, `create_named`, `create_template`, `_create_at_slug`,
+   `_period_key`, and the `last_serviced_period` helpers. The functions may move
+   mechanically if the implementer finds a cleaner module split, but the
+   behavior and tests should move with them. The important design line is that
+   both the bare scan and `recurring launch <name>` call one shared get-or-create
+   implementation.
+
+2. Extract recurring orchestration from the Typer command.
+
+   Add a non-command module such as `src/coga/recurring_runner.py` for the sweep
+   body:
+
+   - `run_recurring_scan(cfg, *, force: bool, interactive: bool) -> int`
+   - `run_recurring_named(cfg, name: str, *, interactive: bool) -> int`
+
+   Move the current bare-scan sequence into `run_recurring_scan`: call
+   `scan_due`, sync/broadcast created tasks, print the scan table, select
+   `scan.due` vs `scan.forced`, launch each task sequentially through
+   `coga.commands.launch.launch`, and call `_stop_if_unfinished_after_launch`
+   after each child launch.
+
+   Move the current on-demand sequence into `run_recurring_named`: call
+   `create_named`, sync the create, skip if the control branch already handled
+   it, then launch/resume only `active` or `in_progress` tasks.
+
+3. Put control-branch sync in shared infrastructure, not in the command head.
+
+   Move `_sync_recurring_create` and its helper stack out of
+   `src/coga/commands/recurring.py`, either into `recurring_runner.py` if the
+   implementer keeps one module or into `src/coga/recurring_sync.py` if the size
+   warrants a split. This sync code is not "scan logic" in the product sense, but
+   it is required by every recurring create path, so it moves with the recurring
+   runner and remains shared by bare scan and named launch.
+
+   Keep the semantics unchanged: take-max `last_serviced_period` merge,
+   control-branch overlay landing, feature-only template handling, existing
+   control-task restore, forced-run snapshot repair, and union-safe global-log
+   behavior.
+
+4. Add a stateless bootstrap script target for the bare scan.
+
+   Add package resources such as:
+
+   - `src/coga/resources/templates/coga/bootstrap/recurring-scan/ticket.md`
+   - `src/coga/resources/templates/coga/bootstrap/recurring-scan/run.py`
+
+   The ticket should declare a ticket-owned script (`script: run.py`) and explain
+   that it is stateless: no status, no workflow, no schedule, no high-water mark
+   of its own. The script should load config, read a narrow env contract written
+   by the `coga recurring` head (for example `COGA_RECURRING_FORCE=1` and
+   `COGA_RECURRING_INTERACTIVE=1`), call `run_recurring_scan`, and return that
+   exit code. Direct `coga launch bootstrap/recurring-scan` can run the default
+   non-forced scan with no env variables.
+
+5. Teach script launch how to run bootstrap scripts statelessly.
+
+   Relax the current `launch.py` bootstrap-script refusal by replacing it with a
+   narrower rule: bootstrap tickets may run ticket-owned scripts, but they do not
+   enter task lifecycle bookkeeping. `run_script_mode` can either accept a
+   `stateless=True` flag or delegate to a new helper that shares script
+   resolution and environment construction while skipping:
+
+   - `mark_in_progress`
+   - task append-log writes
+   - post-run `advance_step` / `mark_done`
+   - task Slack lifecycle notifications
+
+   Normal task script launches must keep their existing lifecycle behavior.
+
+6. Thin `src/coga/commands/recurring.py`.
+
+   Leave `recurring list` in place for now; it belongs to
+   `cli-extension-model/move-read-views-to-tickets-as-scripts`. For this ticket,
+   keep only:
+
+   - the Typer group and option definitions,
+   - `main(... --interactive, --all)` launching the stateless scan target with
+     explicit env,
+   - `launch(name, --interactive)` delegating to `run_recurring_named`, and
+   - `list_recurring()` plus its read-view helpers until the sibling ticket moves
+     them.
+
+7. Update docs and tests with the move.
+
+   Update `coga/extension-model`, `coga/architecture`, and the command-reference
+   context/docs that describe `coga recurring`, bootstrap targets, and script
+   launches. Keep local and packaged copies in sync where the repo carries both.
+   Adjust existing recurring tests so deep behavior targets
+   `coga.recurring_runner` / `coga.recurring_sync` instead of
+   `coga.commands.recurring`, then leave only thin CLI tests on the command file.
+
+   Verification for the implementation should include at least:
+
+   ```bash
+   PYTHONPATH=$PWD/src python3.12 -m pytest tests/test_recurring.py tests/test_commands.py tests/test_launch.py tests/test_init.py tests/test_packaging.py
+   PYTHONPATH=$PWD/src python3.12 -m pytest tests/test_period_state.py tests/test_autoclose_sweep.py tests/test_dream_worker_templates.py
+   PYTHONPATH=$PWD/src python3.12 -m coga.validate --task cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task
+   ```
+
+## Out of Scope
+
+- Moving `recurring list`; that read view belongs to
+  `cli-extension-model/move-read-views-to-tickets-as-scripts`.
+- Replacing or renaming the public `coga recurring launch <name>` surface, the
+  `dream` alias, or other recurring-launch aliases.
+- Building a generic external script/service mechanism, plugin surface, or TOML
+  shim system.
+- Changing the `create` or `launch` kernel primitives, secret injection, or
+  state-write ownership for normal tasks.
+- Re-enabling unattended `autonomy: auto` agent launches or designing a cron
+  installer/cloud scheduler.
+- Rewriting deterministic recurring behavior as agent judgment, Dream skill
+  discovery, or prompt-only instructions.
+- Changing recurring retention/deletion policy; Dream remains the cleanup owner
+  for done recurring period tickets.
 
 ## Context
 
@@ -128,3 +255,29 @@ seeded `example/` fixture still representative.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Design Notes (2026-07-02, Codex)
+
+Read the ticket, the umbrella blackboard in
+`cli-extension-model/move-command-logic-to-tickets`, `docs/vision.md`,
+`coga/principles`, and the relevant recurring/launch code. The umbrella
+blackboard says PR #491 superseded the old TOML shim idea; the pattern to carry
+forward is an irreducible command head plus deterministic script-shaped Python.
+
+Design choice recorded in the body: the recurring scanner is **not** itself a
+recurring template. It becomes a stateless bootstrap script target launched by
+the thin `coga recurring` head, with the head keeping `--interactive` and `--all`
+at Typer's parameter layer. `create_named` / `_create_at_slug` stay shared by
+bare scan and `recurring launch <name>`, while control-branch recurring-create
+sync moves out of the Typer command into shared recurring runner/sync
+infrastructure.
+
+## Open Questions
+
+None for review-design at the moment. The design deliberately settles the
+bootstrapping fork in favor of a stateless bootstrap script target plus a thin
+command head.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1350272,"cli":"codex","input_tokens":198664,"model":"gpt-5.5","output_tokens":17638,"provider":"openai","schema":1,"session_id":"019f2419-7eb8-77b0-a56d-bd96ac8ac612","slug":"cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task","step":"design","title":"Move the recurring scan into a Dream-shaped task","ts":"2026-07-02T18:37:22.262989Z","usage_status":"ok"}
