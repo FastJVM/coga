@@ -3,8 +3,8 @@ slug: cli-extension-model/rename-shim-to-alias
 title: Rename "shim" to "alias" across Relay
 status: draft
 autonomy: interactive
-owner: zach
-human: zach
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:
