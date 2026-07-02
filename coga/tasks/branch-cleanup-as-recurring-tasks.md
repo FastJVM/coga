@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/recurring
 - dev/code
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -129,6 +129,62 @@ future ticket.
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: branch-sweep
+worktree: /home/n/Code/claude/coga-branch-sweep
+pr:
+
+## Implement step (2026-07-02)
+
+Built all four deliverables, mirroring `autoclose-merged` end to end:
+
+- `src/coga/branchsweep.py` — `sweep_branches(cfg, root, echo=...)` enumerates
+  local + `origin` branches, skips `main`/checked-out/live-ticket branches,
+  and gates deletion on `branch_merged_without_open_pr(branch)` (a new
+  `gh pr list --head <branch> --state {merged,open}` check, by branch name —
+  `autoclose.pr_state` is URL-keyed and doesn't fit). `gh` failure sets
+  `result.gh_unavailable` and stops attempting further gated deletes for the
+  rest of that run (reported once, not spammed per branch) — nothing is ever
+  forced without a confirmed merge.
+- **Reuse decision**: exported `branchcleanup.py`'s `_delete_remote` /
+  `_delete_local` as public `delete_remote_branch` / `delete_local_branch`
+  (small rename, only internal call sites, both existing test files still
+  pass) rather than importing the underscore-prefixed names or duplicating
+  the ancestry/force-delete logic. `sweep_branches` computes its own
+  `pr_merged` bool (merged-and-no-open) once per branch and passes it to
+  both — the same stricter signal authorizes both the remote delete and the
+  local squash-merge force-delete, which also closes the branch-reuse hole
+  for local force-deletes, not just remote.
+- Live-ticket skip-list: iterates `list_tasks(cfg)`, skips `status == "done"`,
+  reads each ticket's blackboard via `read_blackboard(..., blackboard_required=False)`,
+  and reuses `autoclose.parse_branch_name` (already normalizes bare/list-item/
+  backtick `branch:` forms) — no new regex.
+- `coga/skills/coga/branch-sweep/sweep/{SKILL.md,run.py}`,
+  `coga/workflows/branch-sweep/sweep.md`, `coga/recurring/branch-sweep/ticket.md`
+  (weekly `0 7 * * 1`, `autonomy: auto`, `workflow: branch-sweep/sweep`, no
+  seeded `last_serviced_period` since this template has never fired) — all
+  four with packaged twins under `src/coga/resources/templates/coga/...`,
+  diffed byte-identical against the repo copies except the (absent) seed line.
+- Tests: `tests/test_branchsweep.py`, mirroring `test_branchcleanup.py`'s real
+  git-repo-with-bare-origin fixture. Covers: merged branch deleted local+remote,
+  open-PR branch skipped, no-PR branch skipped, live (not-done) ticket branch
+  protected even when merged, done-ticket branch not protected, control branch
+  never touched, checked-out branch left in place, gh-unavailable → no deletes,
+  and the `branch_merged_without_open_pr` merged/open logic directly.
+- `python -m pytest` (Python 3.12; repo's `pyproject.toml` requires 3.11+ and
+  this box's default `python3.9` refuses to import `coga`) — 1045 passed, 1
+  skipped, no regressions from the `branchcleanup.py` rename.
+  `coga validate --json` run against this live repo: unchanged pre-existing
+  issue set, nothing new from the added recurring/workflow/skill files.
+- Did **not** run the script live against a real repo — this checkout and the
+  feature worktree share one object db/remote with the actual coga project
+  repo (per `dev/code`), so executing the real sweep here would risk deleting
+  real branches. Verified instead via `Workflow.load` / `resolve_skill_path`
+  resolving the new files, plus the full test suite.
+- Code lives on branch `branch-sweep` in worktree
+  `/home/n/Code/claude/coga-branch-sweep`, committed, not yet pushed or PR'd —
+  that's `code/open-pr`, the next step.
 
 ## Bootstrap decisions (2026-07-01)
 
