@@ -49,8 +49,10 @@ from coga.github_preflight import check_git_auth, check_git_remote
 from coga import git
 from coga.logfile import append_log
 from coga.mark import (
+    BlackboardNeedsSynthesis,
     RequiredExtensionMissing,
     WorkflowMissing,
+    format_blackboard_synthesis_refusal,
     mark_active,
     mark_in_progress,
 )
@@ -585,6 +587,12 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         _bail(
             f"Cannot launch {ref.id_slug}: required extension field(s) empty: "
             f"{names}. Fill them in `ticket.md` then retry."
+        )
+    except BlackboardNeedsSynthesis as exc:
+        _bail(
+            format_blackboard_synthesis_refusal(
+                ref.id_slug, action="launch", reason=exc.reason
+            )
         )
     except TaskValidationError as exc:
         _bail(str(exc))

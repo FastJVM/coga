@@ -25,11 +25,12 @@ from coga.taskfile import (
 
 BLACKBOARD_WARN_BYTES = 32 * 1024
 PRODUCTION_NOTES_HEADING = "Production notes"
-PRODUCTION_NOTES_BLACKBOARD = (
-    "\n## Production notes\n\n"
-    "This blackboard is for active-work handoff notes. Authoring scratch was "
-    "cleared at activation; durable requirements belong in the ticket body.\n"
+PRELAUNCH_AUTHORING_HEADINGS = (
+    "Evaluator review",
+    "Ticket authoring notes",
+    "Proposals",
 )
+PRELAUNCH_SYNTHESIS_TEXT_CHARS = 600
 BLOCKER_TS_FORMAT = "%Y-%m-%d %H:%M"
 
 
@@ -84,11 +85,42 @@ def _has_section(text: str, heading: str) -> bool:
     )
 
 
-def promote_to_production_notes_text(text: str) -> str:
-    """Return active-work notes unless the blackboard is already promoted."""
+def _section_headings(text: str) -> list[str]:
+    headings: list[str] = []
+    for match in _SECTION_RE.finditer(text):
+        headings.append(match.group(1).removeprefix("## ").strip())
+    return headings
+
+
+def _is_stock_blackboard(text: str) -> bool:
+    stock = files("coga.resources").joinpath("blackboard.md").read_text()
+    return text.strip() in {"", stock.strip()}
+
+
+def prelaunch_blackboard_synthesis_reason_text(text: str) -> str | None:
+    """Return why a draft blackboard must be synthesized before launch.
+
+    A draft ticket's stock placeholder is empty authoring space. A
+    `## Production notes` section is an explicit operator signal that the
+    remaining blackboard content is intentional launch/handoff material.
+    """
     if _has_section(text, PRODUCTION_NOTES_HEADING):
-        return text
-    return PRODUCTION_NOTES_BLACKBOARD
+        return None
+    if _is_stock_blackboard(text):
+        return None
+
+    headings = [
+        heading
+        for heading in _section_headings(text)
+        if heading in PRELAUNCH_AUTHORING_HEADINGS
+    ]
+    if headings:
+        return "authoring section(s): " + ", ".join(f"## {h}" for h in headings)
+
+    size = len(text.strip())
+    if size >= PRELAUNCH_SYNTHESIS_TEXT_CHARS:
+        return f"non-placeholder blackboard is {size} characters"
+    return None
 
 
 def append_to_section(ticket_path: Path, heading: str, entry: str) -> None:
@@ -101,28 +133,19 @@ def append_to_section(ticket_path: Path, heading: str, entry: str) -> None:
     replace_blackboard(ticket_path, append_to_section_text(region, heading, entry))
 
 
-def promote_to_production_notes(
+def prelaunch_blackboard_synthesis_reason(
     ticket_path: Path,
     *,
     blackboard_required: bool = True,
-) -> bool:
-    """Replace authoring scratch with the active-work notes starter.
-
-    Returns true only when the file was rewritten. If the production notes
-    heading already exists, the blackboard is treated as already promoted and
-    left byte-for-byte unchanged.
-    """
+) -> str | None:
+    """Return why a ticket blackboard must be synthesized before first launch."""
     if (
         not blackboard_required
         and fence_count(ticket_path.read_text(encoding="utf-8")) == 0
     ):
-        return False
+        return None
     region = read_blackboard(ticket_path, blackboard_required=blackboard_required)
-    updated = promote_to_production_notes_text(region)
-    if updated == region:
-        return False
-    replace_blackboard(ticket_path, updated)
-    return True
+    return prelaunch_blackboard_synthesis_reason_text(region)
 
 
 @dataclass(frozen=True)
@@ -330,14 +353,15 @@ def blackboard_size_warning(
 
 __all__ = [
     "BLACKBOARD_WARN_BYTES",
-    "PRODUCTION_NOTES_BLACKBOARD",
     "PRODUCTION_NOTES_HEADING",
+    "PRELAUNCH_AUTHORING_HEADINGS",
+    "PRELAUNCH_SYNTHESIS_TEXT_CHARS",
     "render_blackboard",
     "Blocker",
     "append_to_section_text",
-    "promote_to_production_notes_text",
+    "prelaunch_blackboard_synthesis_reason_text",
     "append_to_section",
-    "promote_to_production_notes",
+    "prelaunch_blackboard_synthesis_reason",
     "append_blocker",
     "parse_blockers_text",
     "read_blockers",
