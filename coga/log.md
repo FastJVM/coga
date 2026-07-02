@@ -625,3 +625,4 @@
 2026-07-02 08:01 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [megalaunch] launched via coga megalaunch
 2026-07-02 08:03 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/499
 2026-07-02 10:39 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 10:39 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
