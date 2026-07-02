@@ -7,6 +7,7 @@ from textwrap import dedent
 import pytest
 from typer.testing import CliRunner
 
+from coga.blackboard import append_blocker
 from coga.commands import delete as delete_cmd
 from coga.cli import app
 from coga.create import create_task
@@ -398,6 +399,40 @@ def test_unblock_records_answer_and_reactivates(repo: Path) -> None:
     blackboard = read_blackboard(task_path)
     assert "- [x]" in blackboard
     assert "cap at 5 minutes" in blackboard
+
+
+def test_unblock_in_progress_resolves_asks_only(repo: Path) -> None:
+    """An interactive blocked-launch session records its resolution while the
+    ticket is already `in_progress` (launch reactivated it): the asks resolve,
+    status and step stay untouched."""
+    slug, task_path = _make_task(repo)
+    append_blocker(task_path, "agent:claude", "which retry ceiling?")
+
+    result = CliRunner().invoke(app, ["unblock", slug, "--answer", "cap at 5 minutes"])
+
+    assert result.exit_code == 0, result.output
+    ticket = Ticket.read(task_path)
+    assert ticket.status == "in_progress"
+    assert ticket.step == "1 (implement)"
+    blackboard = read_blackboard(task_path)
+    assert "- [x]" in blackboard
+    assert "cap at 5 minutes" in blackboard
+    assert "asks resolved, still in_progress" in _log_text(repo, slug)
+
+
+def test_unblock_in_progress_without_asks_refuses(repo: Path) -> None:
+    slug, _ = _make_task(repo)
+    result = CliRunner().invoke(app, ["unblock", slug, "--answer", "nothing open"])
+    assert result.exit_code == 2
+    assert "no open blockers" in result.output
+
+
+def test_unblock_refuses_other_statuses(repo: Path) -> None:
+    slug, task_path = _make_task(repo, status="draft")
+    append_blocker(task_path, "agent:claude", "which retry ceiling?")
+    result = CliRunner().invoke(app, ["unblock", slug, "--answer", "cap it"])
+    assert result.exit_code == 2
+    assert "unblock requires" in result.output
 
 
 def _make_named_task(repo: Path, title: str) -> tuple[str, Path]:

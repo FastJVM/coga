@@ -5,6 +5,7 @@ from textwrap import dedent
 
 import pytest
 
+from coga.blackboard import append_blocker, resolve_open_blockers
 from coga.create import create_task
 from coga.slugify import slugify
 from coga.compose import (
@@ -230,6 +231,58 @@ def test_compose_auto_mode_uses_auto_block(repo: Path) -> None:
     prompt = compose_prompt(cfg, ref, ticket)
     assert "Auto mode" in prompt
     assert "Interactive mode" not in prompt
+
+
+def test_compose_open_blockers_add_resolution_preamble(repo: Path) -> None:
+    """An interactive ticket with open asks composes the resolve-or-re-block
+    preamble, listing each ask verbatim (stale/junk ones included)."""
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Blocked work")
+    ref = list_tasks(cfg)[0]
+    append_blocker(ref.ticket_path, "agent:claude", "which retry ceiling?")
+    append_blocker(ref.ticket_path, "human:marc", "test")
+
+    ticket = read_ticket(ref)
+    prompt = compose_prompt(cfg, ref, ticket)
+
+    assert "Resolve the open blocker first" in prompt
+    assert "which retry ceiling?" in prompt
+    assert "test" in prompt
+    assert f"coga unblock {ref.id_slug} --answer" in prompt
+    assert f"coga block --task {ref.id_slug} --reason" in prompt
+    # Leading: the preamble sits before the repo context layer.
+    assert prompt.index("Resolve the open blocker first") < prompt.index(
+        "Email tool is YC-backed"
+    )
+
+    composition = compose_prompt_report(cfg, ref, ticket)
+    assert any(layer.layer == "blocker_preamble" for layer in composition.layers)
+
+
+def test_compose_resolved_blockers_compose_no_preamble(repo: Path) -> None:
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Answered work")
+    ref = list_tasks(cfg)[0]
+    append_blocker(ref.ticket_path, "agent:claude", "which retry ceiling?")
+    resolve_open_blockers(ref.ticket_path, "human:marc", "cap at 5 minutes")
+
+    ticket = read_ticket(ref)
+    prompt = compose_prompt(cfg, ref, ticket)
+
+    assert "Resolve the open blocker first" not in prompt
+
+
+def test_compose_auto_mode_open_blockers_compose_no_preamble(repo: Path) -> None:
+    """The preamble mandates a discussion, so it is interactive-only."""
+    cfg = load_config(repo)
+    _write_workflow_less_task(repo, title="Auto blocked", mode="auto")
+    ref = list_tasks(cfg)[0]
+    append_blocker(ref.ticket_path, "agent:claude", "which retry ceiling?")
+
+    ticket = read_ticket(ref)
+    prompt = compose_prompt(cfg, ref, ticket)
+
+    assert "Resolve the open blocker first" not in prompt
 
 
 def test_compose_inline_step_instructions(repo: Path) -> None:

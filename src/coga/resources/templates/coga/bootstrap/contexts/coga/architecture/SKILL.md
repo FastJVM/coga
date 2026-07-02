@@ -199,8 +199,14 @@ task; the invariant holds for machine-authored tasks too.
   `mark active` step inline for a ticket that is still `draft` or `paused`
   before that flip. A `done` ticket is finished: launch refuses it and leaves
   it untouched rather than restarting its workflow. A `blocked` ticket is
-  waiting on a concrete answer; launch refuses it until `coga unblock`
-  records that answer. `bump` ignores `status:`
+  waiting on a concrete answer; an **interactive** launch from a TTY resumes
+  it inline (`blocked → active → in_progress`, `step:` preserved) and the
+  composed prompt gains a resolve-or-re-block preamble listing the open asks
+  verbatim, so settling them with the human is the session's first job —
+  recorded via `coga unblock <slug> --answer`, which on an already
+  `in_progress` ticket resolves the asks without touching status or step.
+  Script, auto, and TTY-less launches keep refusing a blocked ticket until
+  `coga unblock` records the answer. `bump` ignores `status:`
   entirely (it owns `step:`, not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `coga bump`. Only moves when

@@ -208,12 +208,34 @@ def launch(
             "different ticket."
         )
 
+    # A blocked ticket may be launched only by an explicit interactive human
+    # act: the session's first job becomes resolving the open asks with the
+    # human (the composed prompt gains a resolve-or-re-block preamble keyed
+    # off the blackboard's open blockers), and the ticket reactivates inline
+    # below exactly like draft/paused. Batch surfaces are unchanged — a
+    # script step, an auto launch, or a TTY-less run has no human to discuss
+    # with, so those keep the hard refusal (checked here, before any status
+    # mutation). `coga megalaunch` never gets this far: it classifies blocked
+    # tickets as skipped-unresolved-blocker before launching.
     if not is_bootstrap and isinstance(ref, TaskRef) and ticket.status == "blocked":
-        _bail(
-            f"Cannot launch {ref.id_slug}: it is blocked. Run "
-            f"`coga status --blocked` to read the open ask, then "
-            f"`coga unblock {ref.id_slug} --answer \"...\"` to resume."
-        )
+        effective_autonomy = autonomy_override or ticket.autonomy
+        if (
+            effective_autonomy == "interactive"
+            and not is_script_launch(cfg, ticket)
+            and _interactive_stdio_has_tty()
+        ):
+            typer.echo(
+                f"Launch: {ref.id_slug} is blocked — resuming interactively; "
+                "the session's first job is to resolve or re-block the open asks."
+            )
+        else:
+            _bail(
+                f"Cannot launch {ref.id_slug}: it is blocked, and only an "
+                f"interactive launch from a TTY can resume it to resolve the "
+                f"blocker in-session. Run `coga status --blocked` to read the "
+                f"open ask, then `coga unblock {ref.id_slug} --answer \"...\"` "
+                f"to resume."
+            )
 
     # Per-launch `git worktree` isolation (`[launch].worktree`). When on, the
     # whole supervised session — launch-owned status writes, every step's

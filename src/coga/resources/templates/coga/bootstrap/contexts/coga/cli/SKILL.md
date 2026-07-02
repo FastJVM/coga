@@ -173,8 +173,16 @@ current step's skill + blackboard + ticket body) into one prompt and
 start the configured agent. Accepts `status: active` or `in_progress`
 directly; a `draft` / `paused` ticket is activated inline first — typing
 `coga launch` is the readiness signal, so it activates the ticket for you
-rather than refusing. A `blocked` ticket is refused until `coga unblock`
-records the answer; a `done` ticket is refused because it is finished. A ticket
+rather than refusing. A `blocked` ticket resumes the same way when the launch
+is interactive from a TTY: it reactivates inline (`blocked → active →
+in_progress`, `step:` preserved) and the composed prompt gains a
+resolve-or-re-block preamble listing the open asks verbatim, making them the
+session's first job — the agent records the resolution with
+`coga unblock <slug> --answer "..."` (which leaves an `in_progress` ticket's
+status and step untouched) or re-blocks with a refined reason. Script, auto,
+and TTY-less launches of a blocked ticket are still refused until
+`coga unblock` records the answer (`coga megalaunch` likewise still skips it
+as `skipped-unresolved-blocker`); a `done` ticket is refused because it is finished. A ticket
 that can't be activated — no workflow, or an empty `required` extension field
 — still fails loud with the same remedy `mark active` gives. Launching an
 `active` ticket then marks it
@@ -477,7 +485,10 @@ from `coga status --blocked` without reading the whole ticket.
 Resolve open blockers and move `blocked -> active` while preserving `step:`.
 With `--answer`, records the resolution non-interactively. Without it, prompts
 in the terminal after showing the open blocker asks. `coga launch <slug>` can
-then resume the same workflow step from the files.
+then resume the same workflow step from the files. On an `in_progress` ticket
+with open asks — an interactive blocked-launch session recording the
+resolution it just discussed — it resolves the asks only, leaving status and
+`step:` untouched.
 
 `coga unblock --all` walks **every** blocked task in turn: for each it prints
 the task and its open blocker asks (the cause), then prompts for an answer.
