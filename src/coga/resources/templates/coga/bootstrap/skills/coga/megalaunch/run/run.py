@@ -8,7 +8,12 @@ import sys
 from pathlib import Path
 
 from coga.config import ConfigError, load_config
-from coga.megalaunch import render_run_summary, run_megalaunch, write_run_summary
+from coga.megalaunch import (
+    MegalaunchError,
+    render_run_summary,
+    run_megalaunch,
+    write_run_summary,
+)
 
 
 def main() -> int:
@@ -18,7 +23,11 @@ def main() -> int:
         sys.stderr.write(f"[megalaunch] {exc}\n")
         return 2
 
-    run = run_megalaunch(cfg)
+    try:
+        run = run_megalaunch(cfg)
+    except MegalaunchError as exc:
+        sys.stderr.write(f"[megalaunch] {exc}\n")
+        return 2
     summary = render_run_summary(run)
     sys.stdout.write(summary)
 

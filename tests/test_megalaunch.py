@@ -51,6 +51,11 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """,
     )
     monkeypatch.chdir(company)
+    # The engine refuses to run without a TTY (it spawns interactive REPLs);
+    # pytest has none, so stub the check for the launch-path tests.
+    monkeypatch.setattr(
+        "coga.megalaunch._interactive_stdio_has_tty", lambda: True
+    )
     return company
 
 
@@ -149,6 +154,105 @@ def test_megalaunch_chains_agent_owned_steps(
     assert seen_steps == ["1 (implement)", "2 (verify)"]
     assert run.counts["completed"] == 1
     assert Ticket.read(ref["path"]).status == "done"
+
+
+def test_megalaunch_requires_tty(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Headless runs fail loud — the interactive REPLs need a real terminal."""
+    from coga.megalaunch import MegalaunchError
+
+    monkeypatch.setattr(
+        "coga.megalaunch._interactive_stdio_has_tty", lambda: False
+    )
+    cfg = load_config(repo)
+
+    with pytest.raises(MegalaunchError, match="TTY"):
+        run_megalaunch(cfg)
+
+
+def test_megalaunch_spawns_interactive_with_liveness_backstop(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each step is a normal interactive launch, never headless `-p` auto.
+
+    Regression: megalaunch used to override autonomy to `auto`, spawning
+    `claude -p` — which buffers all output until the run completes, so the
+    console looked frozen for the whole agent run.
+    """
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Watch me",
+        workflow_name="code",
+        contexts=[],
+        autonomy="interactive",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "done"
+
+    seen: dict[str, object] = {}
+
+    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+        seen["mode"] = mode
+        seen["autonomy_override"] = kwargs.get("autonomy_override")
+        seen["idle_timeout"] = kwargs.get("idle_timeout")
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert run.counts["completed"] == 1
+    assert seen["mode"] == "interactive"
+    assert seen["autonomy_override"] == "interactive"
+    # The recurring sweep's idle backstop is armed so a wedged REPL can't
+    # starve the rest of the queue.
+    assert seen["idle_timeout"] is not None
+
+
+def test_megalaunch_timeout_teardown_reports_failed(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A liveness-limit teardown is a distinct failure, not a bare exit code."""
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Wedged",
+        workflow_name="code",
+        contexts=[],
+        autonomy="interactive",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    class _Session:
+        exit_code = 124
+        termination_kind = "timeout"
+
+    monkeypatch.setattr(
+        "coga.megalaunch.spawn_agent_session",
+        lambda *args, **kwargs: _Session(),
+    )
+
+    run = run_megalaunch(cfg)
+
+    assert run.counts["failed"] == 1
+    assert "liveness limit" in run.results[0].detail
 
 
 def test_megalaunch_skips_open_blocker(repo: Path) -> None:

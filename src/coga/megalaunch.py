@@ -1,4 +1,13 @@
-"""Sequential unattended launcher for active, agent-owned Coga work."""
+"""Sequential console launcher for active, agent-owned Coga work.
+
+Megalaunch is a set of normal interactive launches, not a headless drain: each
+eligible step spawns the agent REPL under the PTY watcher exactly like
+`coga launch`, so output streams live to the console and the done-sentinel
+(`coga bump` / `mark done` / `block`) tears the REPL down and hands control
+back to the sweep. Recurring's idle-timeout / max-session backstops are armed
+so one wedged agent can't starve the rest of the queue. Because the spawned
+REPLs are interactive, the whole run requires a TTY — fail loud otherwise.
+"""
 
 from __future__ import annotations
 
@@ -11,10 +20,15 @@ from typing import Literal
 from coga import usage
 from coga.blackboard import open_blockers
 from coga.commands.launch import (
+    _interactive_stdio_has_tty,
     _skip_permissions_argv_for_launch,
     spawn_agent_session,
 )
 from coga.commands.launch_script import is_script_launch
+from coga.commands.recurring import (
+    _recurring_idle_timeout,
+    _recurring_max_session,
+)
 from coga.compose import ComposeError, compose_prompt
 from coga.config import Config, ConfigError, SecretError, build_launch_env, load_config
 from coga.github_preflight import check_git_auth, check_git_remote
@@ -29,6 +43,10 @@ from coga.validate import TaskValidationError
 # session reads tens of millions of them — counted at full weight they exhaust
 # any realistic budget on the first launch.
 CACHE_READ_COST_DIVISOR = 10
+
+class MegalaunchError(Exception):
+    """Megalaunch cannot run at all — e.g. no TTY for the interactive REPLs."""
+
 
 MegalaunchOutcome = Literal[
     "completed",
@@ -92,9 +110,21 @@ def run_megalaunch(
 ) -> MegalaunchRun:
     """Attempt active, launchable tasks sequentially with one budget guard."""
     cfg = cfg or load_config()
+    if not _interactive_stdio_has_tty():
+        raise MegalaunchError(
+            "megalaunch spawns interactive agent REPLs and requires a TTY "
+            "(stdin and stdout must both be terminals). Run it from a real "
+            "shell."
+        )
     started_at = datetime.now(timezone.utc)
     results: list[MegalaunchResult] = []
     attempted = 0
+    # Liveness backstops for the spawned REPLs, resolved once per sweep with
+    # the same precedence recurring uses (env override > [launch] config >
+    # default). Human keystrokes count as activity, so an attended session
+    # is only torn down when it is genuinely idle.
+    idle_timeout = _recurring_idle_timeout(cfg)
+    max_session = _recurring_max_session(cfg)
 
     for ref in list_tasks(cfg):
         if max_tasks is not None and attempted >= max_tasks:
@@ -128,6 +158,8 @@ def run_megalaunch(
                 ticket,
                 records,
                 max_steps_per_task=max_steps_per_task,
+                idle_timeout=idle_timeout,
+                max_session=max_session,
             )
         )
 
@@ -188,6 +220,8 @@ def _launch_until_stop(
     records: list[usage.UsageRecord],
     *,
     max_steps_per_task: int,
+    idle_timeout: float | None = None,
+    max_session: float | None = None,
 ) -> MegalaunchResult:
     launched = False
     last_budget: BudgetState | None = None
@@ -256,20 +290,26 @@ def _launch_until_stop(
             agent = cfg.agent_type(before.assignee or "")
             env = build_launch_env(cfg, before.secrets)
             env["COGA_SUPERVISED"] = "1"
+            # A normal interactive launch: the REPL streams to the console
+            # under the PTY watcher, and the done-sentinel (`coga bump` /
+            # `mark done` / `block`) releases it — never headless `-p`, which
+            # buffers all output until the run ends.
             session = spawn_agent_session(
                 cfg,
                 ref,
                 before,
                 agent,
-                "auto",
+                "interactive",
                 env=env,
                 actor="megalaunch",
                 log_message="launched via coga megalaunch",
-                autonomy_override="auto",
+                autonomy_override="interactive",
                 name=before.title or "",
                 skip_permissions_argv=_skip_permissions_argv_for_launch(
-                    agent, "auto", ref
+                    agent, "interactive", ref
                 ),
+                idle_timeout=idle_timeout,
+                max_session=max_session,
                 label="Megalaunch",
                 warn_blackboard=True,
                 capture_usage=True,
@@ -291,6 +331,16 @@ def _launch_until_stop(
             blockers = open_blockers(ref.ticket_path)
             detail = "; ".join(blocker.reason for blocker in blockers) or "blocked"
             return _result(ref, "blocked", detail, after.assignee, launched=True, budget=budget)
+        if session.termination_kind == "timeout":
+            return _result(
+                ref,
+                "failed",
+                "agent hit the liveness limit (idle/max-session) without "
+                "signalling done",
+                after.assignee,
+                launched=True,
+                budget=budget,
+            )
         if session.exit_code != 0:
             return _result(
                 ref,
@@ -343,8 +393,8 @@ def _preflight_agent_launch(cfg: Config, ref: TaskRef, ticket: Ticket) -> str | 
     if shutil.which(agent.cli) is None:
         return f"agent CLI {agent.cli!r} not found in PATH"
     try:
-        _skip_permissions_argv_for_launch(agent, "auto", ref)
-        compose_prompt(cfg, ref, ticket, autonomy_override="auto")
+        _skip_permissions_argv_for_launch(agent, "interactive", ref)
+        compose_prompt(cfg, ref, ticket, autonomy_override="interactive")
         build_launch_env(cfg, ticket.secrets)
     except (ConfigError, ComposeError, SecretError) as exc:
         return str(exc)
@@ -480,6 +530,7 @@ def write_run_summary(blackboard_path: Path, run: MegalaunchRun) -> None:
 
 __all__ = [
     "BudgetState",
+    "MegalaunchError",
     "MegalaunchResult",
     "MegalaunchRun",
     "budget_state",

@@ -612,7 +612,15 @@ Verify the flags against your installed CLIs before enabling.
 
 Sequentially attempt every launchable active task with one shared budget guard.
 Despite the name this is **not** parallel fire-and-forget — it is sequential,
-budget-gated, and conservative. A task is eligible from its live state: `status:
+budget-gated, and conservative. Each eligible step is a normal **interactive**
+launch: the agent REPL streams live to the console under the PTY watcher, and
+the done-sentinel (`coga bump` / `mark done` / `block`) releases it before the
+sweep moves on — never a headless `claude -p` run, which buffers all output
+until the run ends and leaves the console looking frozen. The recurring
+sweep's idle-timeout / max-session backstops are armed so one wedged agent
+can't starve the queue; because the REPLs are interactive, megalaunch requires
+a TTY (stdin and stdout both terminals) and fails loud without one. A task is
+eligible from its live state: `status:
 active`, an agent-owned current step, an assignee resolving to a configured
 agent, no open blocker, no owner/review gate, passing launch/auth/worktree
 checks, and enough remaining token budget for the assigned agent (guard
@@ -621,8 +629,9 @@ agent's `## Usage` records over the trailing window, with cache-read tokens
 weighted at 1/10th — they cost ~10% of input tokens, and at full weight one
 long session's cache reads would exhaust any realistic budget. Each ticket's outcome is
 recorded as one of: launched, completed, blocked, skipped-human-gate,
-skipped-unresolved-blocker, skipped-budget, or failed. The same engine backs the
-daily `recurring/megalaunch` script task for overnight work.
+skipped-unresolved-blocker, skipped-budget, or failed. The same engine backs
+the daily `recurring/megalaunch` script task — which now also needs a TTY, so
+a headless scheduled run fails loud rather than launching silent agents.
 
 ```sh
 coga megalaunch
