@@ -1,7 +1,7 @@
 ---
 slug: cli-extension-model/move-command-logic-to-tickets
 title: Move command logic into tickets
-status: active
+status: in_progress
 autonomy: interactive
 owner: zach
 human: zach
