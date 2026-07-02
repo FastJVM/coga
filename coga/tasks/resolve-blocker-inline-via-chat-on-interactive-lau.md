@@ -1,7 +1,7 @@
 ---
 slug: resolve-blocker-inline-via-chat-on-interactive-lau
 title: Resolve blocker inline via chat on interactive launch
-status: draft
+status: active
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
@@ -148,25 +148,6 @@ runtime side channel) that:
   test.
 
 <!-- coga:blackboard -->
+## Production notes
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Origin (2026-07-01, bootstrap/orient chat with Nick)
-
-Came out of Nick noticing an asymmetry while looking at the blocked ticket
-`drain-pending-auto-tickets-with-leftover-session-b`: `coga megalaunch` launches
-active tickets and skips blocked ones, but a direct `coga launch <blocked>`
-hard-refuses and points at `coga unblock`. Nick's idea: an interactive launch of
-a blocked ticket should *start by working through the blocker in the LLM chat so
-we can discuss it*, record the answer, then continue — rather than a rigid
-`coga unblock` terminal prompt.
-
-Design settled in that chat. **Option A chosen** (launch reactivates
-`blocked → active → in_progress` inline, preamble makes resolve-or-re-block the
-first action) over option B (agent runs `coga unblock` mid-session, but then bump
-can't fire without a second launch). Nick: "let's do A." Accepted cost: brief
-`in_progress` with an unresolved open ask if the session dies mid-discussion —
-surfaced as drift by `status`/`validate`, acceptable.
-
-Ticket authored during that chat; **not yet launched** — Nick said execute
-later. Left as `draft`.
+This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
