@@ -2,7 +2,7 @@
 slug: v2/rename-workflow-primitive-to-playbook
 title: Rename workflow primitive to playbook
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

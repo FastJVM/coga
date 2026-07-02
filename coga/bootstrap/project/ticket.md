@@ -1,6 +1,6 @@
 ---
 title: Plan a project into tickets
-mode: interactive
+mode: llm
 skills:
   - bootstrap/project
 assignee: claude

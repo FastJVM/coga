@@ -2,7 +2,7 @@
 slug: trim-blackboard-eval-once-processed
 title: trim blackboard eval once processed
 status: done
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

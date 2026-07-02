@@ -24,7 +24,7 @@ TICKET = """
 ---
 title: X
 status: draft
-autonomy: interactive
+mode: llm
 owner: marc
 human: marc
 agent: claude
@@ -48,7 +48,6 @@ def repo(tmp_path: Path):
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )

@@ -2,7 +2,7 @@
 slug: cli-extension-model/move-command-logic-to-tickets
 title: Move command logic into tickets
 status: done
-autonomy: interactive
+mode: llm
 owner: nicktoper
 human: nicktoper
 agent: claude

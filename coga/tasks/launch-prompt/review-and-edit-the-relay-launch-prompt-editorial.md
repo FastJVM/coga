@@ -2,7 +2,7 @@
 slug: launch-prompt/review-and-edit-the-relay-launch-prompt-editorial
 title: review and edit the relay launch prompt (editorial pass)
 status: active
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

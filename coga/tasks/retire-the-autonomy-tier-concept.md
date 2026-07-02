@@ -2,7 +2,7 @@
 slug: retire-the-autonomy-tier-concept
 title: retire the autonomy tier concept
 status: active
-autonomy: interactive
+mode: llm
 owner: nicktoper
 human: nicktoper
 agent: claude

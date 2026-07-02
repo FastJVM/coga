@@ -2,7 +2,7 @@
 slug: stop-trimming-blackboard-but-refuse-to-launch-befo
 title: refuse first launch when blackboard needs synthesis
 status: in_progress
-autonomy: interactive
+mode: llm
 owner: nicktoper
 human: nicktoper
 agent: claude

@@ -2,7 +2,7 @@
 slug: handle-better-delete-branches-autcommit
 title: handle better delete branches + autcommit
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

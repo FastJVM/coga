@@ -2,7 +2,7 @@
 slug: mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field
 title: Represent autonomy tier in ticket autonomy field
 status: in_progress
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

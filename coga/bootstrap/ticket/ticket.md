@@ -1,6 +1,6 @@
 ---
 title: Create a new ticket
-mode: interactive
+mode: llm
 skills:
   - bootstrap/ticket
 assignee: claude

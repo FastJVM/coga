@@ -2,7 +2,7 @@
 slug: v2/simplify-command-lines
 title: simplify command lines
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

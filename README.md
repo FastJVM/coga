@@ -19,8 +19,8 @@ The difference you feel: your context and corrections **compound**. Instead of
 a flat `CLAUDE.md` that bloats and a session that forgets, Coga's prose is
 decomposed, scoped, versioned, and reused — and every correction lands as a
 pull request you merge, not a note that evaporates when the session ends. The
-agent acts; you judge what's worth doing and what was wrong, and grant autonomy
-one step at a time. It's all Markdown and Git on your disk — nothing hidden, no
+agent acts; you judge what's worth doing and what was wrong, one step at a
+time. It's all Markdown and Git on your disk — nothing hidden, no
 lock-in — so you always see *why* an agent did what it did.
 
 It's the substrate FastJVM uses to run the company. **Try it now ↓** — then read
@@ -110,7 +110,7 @@ has a **receipt** — the feature that proves it.
 | Principle | What it means | The feature that proves it |
 |---|---|---|
 | **1. Hackable** | change anything, directly — no plugin fence | edit any markdown under `coga/` → next `coga launch` uses it; the ~2-min correction loop (edit → commit → fixed) |
-| **2. Agents do, humans think** | offload everything mechanizable; humans spend attention on judgment | no webUI — the CLI + files are the whole surface; modes (`interactive`/`auto` vs `script`) and per-step `assignee` route each step to agent, script, or human |
+| **2. Agents do, humans think** | offload everything mechanizable; humans spend attention on judgment | no webUI — the CLI + files are the whole surface; `mode: llm` / `mode: script` and per-step `assignee` route work to agent, script, or human |
 | **3. Obvious** | boring, standard, immediately understandable | the substrate is just markdown + Python + `SKILL.md` (the Claude Code / Codex format); no DB, no DSL |
 | **4. Memory via PR** | thinking compounds, human-gated, never opaque | **Dream** reads execution history and opens *proposal PRs* — propose, human disposes; the blackboard region (in `ticket.md`) = working memory, `contexts/` = long-term |
 | **5. Yours** | own the substrate, swap the vendors | git-backed markdown, local, no cloud; `claude` ↔ `codex` interchangeable; `SKILL.md` is an open standard |
@@ -342,7 +342,7 @@ a literal slash is read as a path — drop the slash for a top-level ticket.)
 
 ```sh
 coga create "Add retry to webhook handler"
-coga create "Nightly cleanup" --autonomy auto
+coga create "Nightly cleanup" --mode script
 coga create "v2/Build the flow"                # → tasks/v2/build-the-flow
 coga create marketing/social/relaunch          # → tasks/marketing/social/relaunch
 ```
@@ -444,10 +444,9 @@ Coga does not ship a scheduler entry point in v1. Naming a command
 `recurring` does not install or schedule anything — `coga recurring` only
 runs when you invoke it directly.
 
-`--interactive` launches every due task in interactive mode for that run,
-even ones whose template says `mode: auto` — the debug knob for stepping
-through a recurring run in an attended terminal. It threads `coga launch
---mode interactive` through and rewrites no ticket files.
+`--interactive` is the debug knob for stepping through a recurring run in an
+attended terminal. It leaves the recurring liveness backstops unarmed; each
+template still launches according to its own `mode:`.
 
 ### `coga recurring launch <name>`
 
@@ -455,9 +454,8 @@ Create one named recurring template now, ignoring its schedule, and launch
 it. The task ref is `recurring/<name>`, so a manual `launch` and a bare
 `coga recurring` run converge on one stable task directory; an orphaned
 `in_progress` run is resumed rather than duplicated. This is the on-demand
-entry point behind aliases like `coga dream`. `--interactive` runs it in
-interactive mode even if the template says `mode: auto` — handy for debugging
-one template by hand.
+entry point behind aliases like `coga dream`. `--interactive` leaves liveness
+limits unarmed for debugging one template by hand.
 
 ### `coga dream`
 
@@ -535,7 +533,6 @@ already-`in_progress` ticket resumes it.
 coga launch add-retry-to-webhook-handler           # full slug
 coga launch add-retry                              # any unique prefix works
 coga launch add-retry --agent codex                # one-off agent override
-coga launch add-retry --mode interactive           # debug: run an auto ticket interactively
 coga launch add-retry --prompt-report              # show prompt layer sizes, no launch
 coga launch bootstrap/orient                       # stateless launch target → run a skill
 coga launch bootstrap/orient --agent codex         # choose a bootstrap agent
@@ -554,11 +551,11 @@ with Codex while `coga chat --agent claude` opens it with Claude.
 Discussion tickets (`bootstrap/orient`, `bootstrap/ticket`) use built-in
 discussion templates for the standard `claude` and `codex` CLIs, or the
 selected agent's optional `discussion = "...{prompt}..."` override. In
-interactive mode the Coga prompt is context and the first human ask can name
+discussion launches the Coga prompt is context and the first human ask can name
 the session. Ordinary task launches keep passing the composed prompt
 positionally.
 
-For workflow-bound interactive/auto tasks, one `coga launch` can run multiple
+For workflow-bound `mode: llm` tasks, one `coga launch` can run multiple
 agent-owned steps. After each clean agent exit, Coga re-reads the ticket and
 continues in a fresh agent process only when the task is still `in_progress`, the step
 advanced, the new current step has a `skill:`, and the concrete `assignee:`
@@ -571,14 +568,9 @@ context/skill refs, bytes, and approximate token counts. The token estimate is
 intentionally dependency-light (`characters / 4`), so use it to catch prompt
 bloat and compare tasks, not to predict exact provider billing.
 
-`--mode <interactive|auto>` overrides the ticket's `mode:` for one launch —
-the debug knob for stepping through a `mode: auto` ticket in an attended
-terminal (and vice versa). It is ephemeral: the ticket file is never
-rewritten, and both the spawned command and the composed mode-specific prompt
-block follow the override. It is rejected for `mode: script` tasks, which
-compose no agent prompt. **`auto` is temporarily disabled** (until streaming
-lands): `coga launch --mode auto` is refused, so today the override is only
-useful for running an `auto` ticket `interactive`ly.
+`mode: llm` composes a prompt and requires a TTY-backed agent REPL. `mode:
+script` runs deterministic code directly and composes no agent prompt, so
+`--prompt-report` is rejected for script tasks.
 
 `bootstrap/<name>` tickets are stateless re-entry points for skills.
 Concurrent launches are safe — they have no status, no log of state changes,
@@ -586,27 +578,8 @@ and no lock. They are package-backed resources, not files materialized into
 the repo. Don't add custom bootstrap tickets under `coga/bootstrap/`; write
 your own launch wrappers elsewhere.
 
-For autonomous runs, an operator can opt an agent into skipping its CLI's
-per-command permission/approval prompts with a partial `[agents.<name>]`
-table in `coga.local.toml`:
-
-```toml
-[agents.claude]
-skip_permissions = "auto"
-skip_permissions_argv = "--dangerously-skip-permissions"
-```
-
-The policy is machine-local by design — committing either key to shared
-`coga.toml` fails config load, so a repo can never set a dangerous default
-for everyone. It applies only to normal task tickets in effective
-`mode: auto`: interactive launches, bootstrap/discussion tickets (`coga chat`,
-`coga ticket`), and script tasks keep today's behavior. The argv is one
-string (`shlex`-split) inserted between the session-name argv and the auto
-argv/prompt — e.g. `codex --dangerously-bypass-approvals-and-sandbox exec
-<prompt>` — and supervised chains re-resolve it per step for whichever agent
-the step rotated to. `skip_permissions = "auto"` with no configured
-`skip_permissions_argv` fails the launch loud before any agent spawns.
-Verify the flags against your installed CLIs before enabling.
+The old `skip_permissions` keys are removed. Current launch has no ticket-level
+headless agent mode, so those keys are rejected as unknown config.
 
 ### `coga megalaunch [--max-tasks N]`
 
@@ -736,15 +709,12 @@ hygiene (pruning the merged feature branch, sweeping stale branches)
 belongs in a Dream worker, not here.
 
 ```sh
-coga retire add-retry                       # interactive mode (the default)
-coga retire add-retry --mode auto           # one-shot autonomous Retro run
+coga retire add-retry                       # create and launch a mode: llm Retro run
 coga retire add-retry --no-launch           # create without launching
 ```
 
-`retire` runs interactively by default so the Retro pass writes live
-console output. **`--mode auto` is temporarily disabled** (until streaming
-lands) and is currently refused; it is intended to run the pass as a one-shot
-headless `claude -p` session whose output is buffered to the task log.
+`retire` creates a `mode: llm` task and launches it unless `--no-launch` is
+passed.
 
 ### `coga block --task <slug> --reason "..."`
 

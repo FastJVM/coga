@@ -2,7 +2,7 @@
 slug: audit-chat-and-build-are-core-free
 title: Audit chat and build are core-free
 status: draft
-autonomy: interactive
+mode: llm
 owner: zach
 human: zach
 agent: claude

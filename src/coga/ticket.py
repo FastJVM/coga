@@ -27,7 +27,7 @@ CANONICAL_TICKET_KEYS: frozenset[str] = frozenset({
     "slug",
     "title",
     "status",
-    "autonomy",
+    "mode",
     "owner",
     "human",
     "agent",
@@ -124,13 +124,10 @@ class Ticket:
         return self.frontmatter.get("status", "")
 
     @property
-    def autonomy(self) -> str:
-        """How the task is attended — `interactive` (a human is present) or
-        `auto` (one-shot, unattended). The only declared execution axis;
-        script-vs-agent is deduced from `script:` / the workflow step, not
-        declared. Replaces the former `mode:` field (whose `script` value is
-        gone). `auto` is currently frozen, as `mode: auto` was."""
-        return self.frontmatter.get("autonomy", "interactive")
+    def mode(self) -> str:
+        """The task's execution substance: `llm` composes a prompt for an
+        agent; `script` runs a deterministic script entry point."""
+        return self.frontmatter.get("mode", "llm")
 
     @property
     def script(self) -> str | None:

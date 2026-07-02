@@ -2,7 +2,7 @@
 slug: v2/add-subproject
 title: add subproject
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

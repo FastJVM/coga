@@ -309,15 +309,12 @@ def test_build_probes_maps_agents_by_cli(tmp_path: Path) -> None:
             version = 1
             [agents.claude]
             cli = "claude"
-            auto = "-p"
             file = "CLAUDE.md"
             [agents.codex]
             cli = "codex"
-            auto = "exec"
             file = "AGENTS.md"
             [agents.exotic]
             cli = "exotic-cli"
-            auto = "-p"
             file = "AGENTS.md"
             """
         ).lstrip()

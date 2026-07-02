@@ -29,7 +29,7 @@ def create_task(
     title: str,
     workflow_name: str | None,
     contexts: list[str],
-    autonomy: str,
+    mode: str,
     owner: str | None,
     assignee: str | None,
     watchers: list[str],
@@ -174,7 +174,7 @@ def create_task(
         "slug": created_ref.id_slug,
         "title": title,
         "status": status,
-        "autonomy": autonomy,
+        "mode": mode,
         "owner": owner,
         "human": human,
         "agent": agent,
@@ -220,7 +220,7 @@ def create_task(
     Ticket(frontmatter=fm, body=full_body).write(ticket_path)
 
     actor = f"{created_by}:{cfg.current_user}" if created_by == "human" else created_by
-    append_log(cfg, created_ref.id_slug, actor, f"created (autonomy={autonomy}, status={status})")
+    append_log(cfg, created_ref.id_slug, actor, f"created (mode={mode}, status={status})")
 
     issues = validate_task_dir(cfg, created_ref)
     errors = [i for i in issues if i.severity == "error"]

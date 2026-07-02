@@ -2,7 +2,7 @@
 slug: improve-readme
 title: improve-readme
 status: draft
-autonomy: interactive
+mode: llm
 owner: lilfedor
 human: lilfedor
 agent: claude

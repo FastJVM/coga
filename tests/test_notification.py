@@ -24,7 +24,6 @@ def _create_min(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification]
         channels = ["slack"]
@@ -122,7 +121,6 @@ def test_gif_for_picks_from_configured_list(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification.slack.gifs]
         done = ["https://media.giphy.com/done-1.gif"]
@@ -149,7 +147,6 @@ def test_gifs_invalid_shape_raises_config_error(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification.slack.gifs]
         done = "not-a-list"
@@ -204,7 +201,6 @@ def test_unknown_notification_channel_raises_config_error(tmp_path: Path) -> Non
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification]
         channels = ["email"]
@@ -223,7 +219,6 @@ def test_notification_channels_dedupe(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification]
         channels = ["slack", "slack"]
@@ -252,7 +247,6 @@ def test_no_notification_config_and_no_env_resolves_to_no_channels(
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -275,7 +269,6 @@ def test_notification_slack_table_without_channels_infers_slack(
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
@@ -298,7 +291,6 @@ def test_bare_env_without_config_infers_slack(
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -318,7 +310,6 @@ def test_empty_notification_channels_suppresses_post(
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification]
         channels = []
@@ -340,7 +331,6 @@ def test_legacy_slack_webhook_still_resolves_with_deprecation(
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [slack]
         webhook = "env:SLACK_WEBHOOK_URL"
@@ -367,7 +357,6 @@ def test_bare_env_without_toml_key_is_deprecated_fallback(
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -397,7 +386,6 @@ def test_toml_literal_webhook_accepted(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification.slack]
         webhook = "https://hooks.slack.com/services/literal"
@@ -419,7 +407,6 @@ def test_local_webhook_overrides_shared(
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
@@ -448,7 +435,6 @@ def test_webhook_non_string_raises_config_error(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification.slack]
         webhook = 123
@@ -473,7 +459,6 @@ def test_enabled_false_in_local_toml_opts_out(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -497,7 +482,6 @@ def test_local_enabled_overrides_shared(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification.slack]
         enabled = true
@@ -525,7 +509,6 @@ def test_disabled_post_writes_to_stderr_no_crash(
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification.slack]
         enabled = false
@@ -643,7 +626,6 @@ def cfg_with_users(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification.slack]
         webhook = "env:SLACK_WEBHOOK_URL"
@@ -677,7 +659,6 @@ def test_slack_users_invalid_shape_raises_config_error(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification.slack]
         users = "not-a-table"
@@ -698,7 +679,6 @@ def test_slack_users_empty_id_raises_config_error(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification.slack.users]
         marc = ""
@@ -757,7 +737,6 @@ def test_invalid_enabled_type_raises_config_error(tmp_path: Path) -> None:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [notification.slack]
         enabled = "yes"

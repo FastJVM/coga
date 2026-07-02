@@ -33,7 +33,7 @@ TICKET = """
 ---
 title: X
 status: draft
-mode: interactive
+mode: llm
 owner: marc
 human: marc
 agent: claude
@@ -57,7 +57,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         default_status = "draft"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )

@@ -2,7 +2,7 @@
 slug: v2/autotrigger-ticket-type
 title: autotrigger ticket type
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

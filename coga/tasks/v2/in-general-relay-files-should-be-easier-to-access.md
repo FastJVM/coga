@@ -2,7 +2,7 @@
 slug: v2/in-general-relay-files-should-be-easier-to-access
 title: in general relay files should be easier to access
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

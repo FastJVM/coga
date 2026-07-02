@@ -40,9 +40,9 @@ iteration, so chained steps and claude↔codex rotation each get their own line.
 
 It is gated tightly:
 
-- **Only real agent sessions** (`mode in {interactive, auto}`). `mode: script`
-  iterations (Dream workers, autoclose, digest, skill-update — no transcript) and
-  the `FileNotFoundError` spawn-failure path (no session ran) write **nothing**.
+- **Only real agent sessions** (`mode: llm`). `mode: script` iterations (Dream
+  workers, autoclose, digest, skill-update — no transcript) and the
+  `FileNotFoundError` spawn-failure path (no session ran) write **nothing**.
 - **Never raises.** A missing or unparseable transcript appends a record with
   `usage_status: "unknown"` (tokens null), not an exception — capture can never
   break a launch.

@@ -2,7 +2,7 @@
 slug: v2/validate-skill-md-frontmatter-conformance-not-just
 title: Validate SKILL.md frontmatter conformance not just ref existence
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

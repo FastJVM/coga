@@ -2,7 +2,7 @@
 slug: v2/acceptance-criteria
 title: acceptance-criteria
 status: paused
-autonomy: interactive
+mode: llm
 owner: zach
 human: zach
 agent: claude

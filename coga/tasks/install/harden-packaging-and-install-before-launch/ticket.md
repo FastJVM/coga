@@ -1,7 +1,7 @@
 ---
 title: Harden packaging and first-install before launch
 status: draft
-mode: interactive
+mode: llm
 owner: zach
 human: zach
 agent: claude

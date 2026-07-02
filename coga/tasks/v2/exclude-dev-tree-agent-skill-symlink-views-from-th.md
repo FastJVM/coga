@@ -2,7 +2,7 @@
 slug: v2/exclude-dev-tree-agent-skill-symlink-views-from-th
 title: Exclude dev-tree agent-skill symlink views from the wheel build
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

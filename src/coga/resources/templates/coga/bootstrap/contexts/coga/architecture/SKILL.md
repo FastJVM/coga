@@ -104,7 +104,7 @@ Claude Code and Codex use.
 Every ticket carries the same canonical key set. These names are
 reserved — no extension or alias may collide with them:
 
-`slug`, `title`, `status`, `autonomy`, `owner`, `human`, `agent`,
+`slug`, `title`, `status`, `mode`, `owner`, `human`, `agent`,
 `assignee`, `watchers`, `workflow`, `step`, `contexts`, `skills`, `secrets`,
 `script`.
 
@@ -206,8 +206,7 @@ task; the invariant holds for machine-authored tasks too.
   recorded via `coga unblock <slug> --answer`, which on an already
   `in_progress` ticket resolves the asks without touching status or step.
   If the resumed session exits before recording an answer, launch returns the
-  ticket to `blocked` so blocker queues keep reporting it. Script, auto, and
-  TTY-less launches keep refusing a blocked ticket until `coga unblock`
+  ticket to `blocked` so blocker queues keep reporting it. Script and TTY-less launches keep refusing a blocked ticket until `coga unblock`
   records the answer. `bump` ignores `status:`
   entirely (it owns `step:`, not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
@@ -226,61 +225,40 @@ authors a draft, `coga mark` flips status across the lifecycle,
 then flipping `active → in_progress` as it does. `launch` is the one command
 that touches both planes.
 
-## Autonomy and execution
+## Mode and execution
 
-A task does **not** declare what *kind* of work it is — that is deduced from
-its content and its workflow steps. The single declared execution axis is
-`autonomy:` (it replaced the former `mode:`); whether a given step runs a
-script or composes an agent is deduced, not declared.
+A task declares the substance that runs with `mode:`. Attendance and autonomy
+are not ticket fields anymore; blockers, assignees, TTY availability, and
+megalaunch decide whether work can proceed without more human input.
 
-`autonomy:` in ticket frontmatter:
+`mode:` in ticket frontmatter:
 
-- **`interactive`** — human-attended terminal session. Agent gets the
-  composed prompt, human stays in the loop. The REPL doesn't terminate on
-  its own — `coga bump` / `coga mark done` / `coga block` signal the
-  launch supervisor via the session-scoped `$COGA_DONE_SENTINEL` file, and
-  the supervisor SIGTERMs the REPL. The sentinel file is the only done
-  channel: the supervisor honors it only when the file's content names the
-  launched task's session id, so a session-ending command run by an
-  unrelated descendant that merely inherited the env var cannot trigger
-  teardown. After teardown, `coga launch` re-reads
-  the ticket and either spawns a fresh REPL for the next workflow step (whenever
-  it is an *agent's* turn — relaunching the next agent's CLI, so it rotates
-  e.g. claude → codex → claude across a peer-review workflow) or returns
-  control to the caller (the next step hands off to an owner/human, the status
-  flipped to `done`/`paused`/`blocked`, the agent blocked or exited non-zero,
-  or no progress was made). The discriminator is agent-vs-human, not
-  same-vs-changed assignee. Each respawn gives the next step a clean prompt
-  scope, with no carryover reasoning from the previous skill. Cross-ticket
-  chaining is `coga recurring --interactive`.
-- **`auto`** — one-shot autonomous run. Same composed prompt, no
-  human input. An operator may opt an agent into skipping its CLI's
-  per-command permission/approval prompts for these runs with a partial
-  `[agents.<name>]` table in `coga.local.toml`: `skip_permissions = "auto"`
-  plus `skip_permissions_argv = "..."` (one string, `shlex`-split, inserted
-  after the session-name argv and before the auto argv/prompt). The policy
-  is machine-local only — either key in shared `coga.toml` fails config
-  load — and applies only to normal task tickets in effective `autonomy: auto`:
-  interactive launches, bootstrap/discussion tickets, and script steps keep
-  today's behavior. (`auto` is currently frozen, as `mode: auto` was.) Supervised chains re-resolve it per step for whichever
-  agent the step rotated to, and `"auto"` with no configured argv fails the
-  launch loud before spawning.
-Script vs. agent is **deduced**, not declared — there is no `mode: script`. A
-workflow step runs a script when it resolves to a script entry: its single
-skill's `script:`, or (for a no-skill step, or a workflow-less task) the
-ticket's own `script:` field. Otherwise the step composes a prompt and spawns
-the step's agent. A "mixed" task is just a workflow with both kinds of steps
-over one ticket. A ticket's `script:` is either `inline` (a fenced code block
-under the body's `## Script` heading) or a sibling filename (which makes the
-task take its directory form). Script steps inject secrets as env vars and run
-with no agent; `autonomy` does not apply to them.
+- **`llm`** — compose the prompt and spawn the ticket assignee's agent CLI in a
+  live REPL. Normal launches require stdin and stdout to be TTYs. The REPL
+  does not terminate on its own: `coga bump`, `coga mark done`, and
+  `coga block` signal the launch supervisor via the session-scoped
+  `$COGA_DONE_SENTINEL` file, and the supervisor tears the REPL down. After
+  teardown, `coga launch` re-reads the ticket and either spawns a fresh REPL
+  for the next agent-owned workflow step (rotating CLIs when the step assignee
+  changes) or returns control to the caller at human handoffs, terminal states,
+  blockers, no-progress exits, and non-zero exits. Blocked tickets can resume
+  inline only for a `mode: llm` launch from a TTY, so the first job in that
+  session is to resolve or re-block the open asks.
+- **`script`** — run deterministic code directly, with no composed agent
+  prompt. The script entry comes from the current workflow step's single skill
+  `script:` field, or from the ticket's own `script:` field for no-skill or
+  workflow-less script tasks. Script launches inject declared secrets as
+  environment variables, run without a TTY, and are the right shape for
+  recurring, cron, wrappers, and CI.
+
+There is no `autonomy:` field. The old `skip_permissions` / `skip_permissions_argv` keys are removed and rejected as unknown config.
 
 ## Prompt composition
 
 `coga launch` builds one composed prompt and writes it to a temp
 file. Layers, in order:
 
-1. Base prompt + mode-specific block (`interactive` / `auto`). Both
+1. Base prompt plus the LLM-mode block for `mode: llm`. Both
    are package resources, not files under `coga/`.
 2. Repo context (`coga/context.md` — top-level facts about this
    surface).

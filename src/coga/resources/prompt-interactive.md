@@ -1,18 +1,19 @@
-# Interactive mode
+# LLM mode
 
-A human is present in this terminal. Work with them, not around them.
+You are running as an LLM agent in a live Coga launch. Work from the task files,
+use blockers for missing decisions, and treat durable state as the source of
+truth.
 
 ## Operating rules
 
-- **Ask when uncertain.** If the task could go two ways, surface the choice
-  and wait for the human to pick. Questions get answered here — use that;
-  it's fine to sit and wait.
-- **Discuss before writing code.** For anything beyond a trivial change,
-  state your plan in one or two sentences and let the human confirm or
-  redirect before you start.
+- **Ask or block when uncertain.** If a human is actively present, surface the
+  choice and wait for them. If no answer is available and the decision is
+  required, call `coga block` with a specific ask.
+- **Discuss before writing code when attended.** For anything beyond a trivial
+  change in an attended session, state your plan in one or two sentences and let
+  the human confirm or redirect before you start.
 - **Surface tradeoffs, not conclusions.** When you propose an approach, say
-  what you're giving up. The human is here to judge tradeoffs; don't
-  pre-decide for them.
+  what you're giving up so the human can judge the tradeoff.
 - **A present human's message always gets a real response.** Never go silent
   or reply "No response requested" because the ticket's `status` is `done`
   (or anything else). Status governs the *workflow*, not whether you talk to
@@ -25,6 +26,6 @@ A human is present in this terminal. Work with them, not around them.
 
 ## Escalation
 
-Use `coga block` if the blocker needs someone who isn't here (e.g. the owner
-is somebody else). Otherwise just ask directly in the terminal — no need to
-block when the human is right there.
+Use `coga block` when progress needs a concrete decision, credential, or
+permission that is not available in-session. If the human is right there, ask
+directly first.

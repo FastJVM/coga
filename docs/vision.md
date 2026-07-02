@@ -125,7 +125,11 @@ Two consequences worth naming:
 
 **Blackboards** are per-task workspaces where agents write findings, plans, decisions, and blockers. The blackboard is how agents persist state between sessions — an agent that crashes mid-task is recoverable because the blackboard has its last known state. It's the pattern from 1970s AI research (Hearsay-II): independent processes coordinate through a shared mutable surface rather than direct message passing.
 
-**Three modes** per task: interactive (human sits with the agent), auto (agent runs alone, panics to a human when stuck), script (no agent, a script runs with secrets injected). The mode is declared per-task. Most recurring operational work is script or auto. Most novel work is interactive. Choice is per-task, not a global setting.
+**Task mode** declares execution substance, not autonomy. `mode: llm` launches
+the configured agent in an attended REPL; `mode: script` runs deterministic
+Python with task metadata and secrets injected. There is no ticket autonomy
+flag. Unattended drain comes from script tasks, blockers, megalaunch, and the
+liveness watchdog around supervised LLM sessions.
 
 **The base prompt** is a system prompt injected into every agent session. It teaches the agent how to operate within Coga — when to advance workflow steps, when to panic, how to use the blackboard, how to handle frontmatter. The base prompt lives as version-controlled markdown. Agents don't learn Coga through their own memory or config; they learn it fresh every session from a file we own.
 
@@ -169,7 +173,7 @@ The methodology fails without sustained operating discipline. What we commit to:
 
 When an agent gets something wrong, we update the relevant context before closing the task. Not later. Not in a backlog. The correction happens in the same session where the mistake was observed. The two-minute correction loop only works if we actually close it.
 
-Panic thresholds get tuned per task, not set globally. An agent that never panics silently ships wrong answers. One that panics on every ambiguity is useless. Each auto-mode task gets its own calibration, revisited when we see failures.
+Panic thresholds get tuned per task, not set globally. An agent that never panics silently ships wrong answers. One that panics on every ambiguity is useless. Each recurring or megalaunch task gets its own calibration, revisited when we see failures.
 
 Dream runs regularly per repo, with a human reviewing every proposal. Not "eventually." If we skip it, drift compounds and we notice three months later when the system starts failing in ways we don't understand.
 
@@ -189,7 +193,7 @@ These aren't aspirational practices. They're the methodology. Coga without them 
 
 Concrete substitutions, because abstractions don't convince anyone:
 
-Instead of Notion or Linear for task tracking, a folder of markdown files in the repo. Instead of Zapier for recurring automation, skills with bundled scripts triggered by cron. Instead of an ops coordinator, auto-mode tasks that handle reconciliation, deliverability checks, reply triage, patent drafting. Instead of Slack-as-memory, a blackboard per task that survives sessions and is readable by whoever picks up the work. Instead of an internal wiki, contexts attached to tasks so knowledge is used where it's needed rather than filed where it'll be forgotten.
+Instead of Notion or Linear for task tracking, a folder of markdown files in the repo. Instead of Zapier for recurring automation, skills with bundled scripts triggered by cron. Instead of an ops coordinator, mode: script tasks and megalaunch sweeps that handle reconciliation, deliverability checks, reply triage, patent drafting. Instead of Slack-as-memory, a blackboard per task that survives sessions and is readable by whoever picks up the work. Instead of an internal wiki, contexts attached to tasks so knowledge is used where it's needed rather than filed where it'll be forgotten.
 
 Each substitution has a tradeoff. Notion has a better UI. Linear has stronger collaboration features. Zapier has integrations we'd have to build ourselves. A real ops coordinator has judgment an agent can't replicate. We accept every one of those tradeoffs because the substrate matters more than any individual feature — one coherent system beats seven disconnected ones when the coherence is what lets knowledge compound.
 
@@ -213,11 +217,11 @@ That's also why we're publishing at all. Articulating the methodology keeps us a
 
 ## Failure modes we watch for
 
-**Silent wrong answers.** Auto-mode tasks that fail confidently, returning output that looks correct but isn't. The framework's third question — can we evaluate the result? — is meant to prevent this. When evaluation capacity is thin, the task moves from auto to interactive-with-approve, even if it's recurring.
+**Silent wrong answers.** mode: script or megalaunch tasks that fail confidently, returning output that looks correct but isn't. The framework's third question — can we evaluate the result? — is meant to prevent this. When evaluation capacity is thin, the task moves from script or all-agent to a human approval workflow, even if it's recurring.
 
 **Context drift.** The world changes, contexts don't. Dream catches some of this, but not all. We schedule quarterly reviews of context accuracy against recent blackboards and recent company changes.
 
-**Calibration rot.** Panic thresholds that were right six months ago become wrong as the task space shifts. Each auto-mode task's panic rate gets reviewed when it feels off. "Feels off" is imprecise, which is why this is a discipline issue rather than an automated check.
+**Calibration rot.** Panic thresholds that were right six months ago become wrong as the task space shifts. Each recurring or megalaunch task's panic rate gets reviewed when it feels off. "Feels off" is imprecise, which is why this is a discipline issue rather than an automated check.
 
 **Skills-contexts conflation.** The distinction that's conceptually clean but practically leaky. When we notice a skill containing domain facts or a context containing process instructions, we split. If we stop noticing, the methodology degrades.
 

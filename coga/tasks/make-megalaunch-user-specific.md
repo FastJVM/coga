@@ -2,7 +2,7 @@
 slug: make-megalaunch-user-specific
 title: make megalaunch user specific
 status: active
-autonomy: interactive
+mode: llm
 owner: nicktoper
 human: nicktoper
 agent: claude

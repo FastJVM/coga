@@ -170,9 +170,7 @@ def _seed_script_workflow(company: Path) -> None:
 
     A recurring template that points its `workflow:` at this runs as a script:
     the single step's skill carries a `script:` entry, which is exactly what
-    `coga.recurring._is_script_template` (and `is_script_launch`) detect. That
-    deduction is what lets a `autonomy: auto` template bypass the temporary
-    auto/TTY recurring ban — script runs produce live console output, so they
+    `is_script_launch` detects. Script runs produce live console output, so they
     are safe to create and launch unattended. Tests that need a non-interactive
     template to run without a TTY use `_write_recurring_script` to point at it.
     """
@@ -219,9 +217,9 @@ def _write_recurring_script(
     title: str,
     extra: str = "",
 ) -> None:
-    """Write a recurring SCRIPT template: `autonomy: auto` + the seeded
+    """Write a recurring SCRIPT template: `mode: script` + the seeded
     script workflow, so it is detected as a script template and bypasses the
-    auto/TTY ban. `extra` appends additional frontmatter lines (e.g.
+    LLM TTY gate. `extra` appends additional frontmatter lines (e.g.
     `state_keys`); each line is re-indented to the 8-space block so `dedent`
     strips uniformly."""
     if extra.strip():
@@ -239,7 +237,7 @@ def _write_recurring_script(
         ---
         schedule: "{schedule}"
         title: "{title}"
-        autonomy: auto
+        mode: script
         workflow: {_SCRIPT_WORKFLOW}
         assignee: claude
         owner: marc{extra_block}
@@ -303,7 +301,6 @@ def repo(tmp_path: Path):
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -316,7 +313,7 @@ def repo(tmp_path: Path):
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -375,7 +372,7 @@ def test_scan_due_creates_task(repo: Path) -> None:
 
     ticket = Ticket.read(task.ref.path / "ticket.md")
     assert ticket.title == "Weekly deliverability check"
-    assert ticket.autonomy == "interactive"
+    assert ticket.mode == "llm"
     assert ticket.owner == "marc"
     assert task.ref.directory == "recurring"
     assert task.ref.slug == "weekly-check"
@@ -414,7 +411,7 @@ def test_create_does_not_duplicate_explicit_period_task_context(
         ---
         schedule: "0 9 * * 1"
         title: "Already lists period-task"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         contexts:
@@ -448,7 +445,7 @@ def test_create_preserves_non_description_template_sections(repo: Path) -> None:
         ---
         schedule: "0 9 * * 1"
         title: "Has script config"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         state_keys:
@@ -489,7 +486,7 @@ def test_create_preserves_recurring_template_secrets(repo: Path) -> None:
         ---
         title: "Locked down"
         schedule: "0 9 * * 1"
-        autonomy: interactive
+        mode: llm
         secrets: []
         ---
 
@@ -636,7 +633,7 @@ def test_due_orders_dream_last(repo: Path) -> None:
             ---
             schedule: "0 9 * * 1"
             title: "{name}"
-            autonomy: interactive
+            mode: llm
             assignee: claude
             owner: marc
             ---
@@ -667,7 +664,7 @@ def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
             ---
             schedule: "0 9 * * 1"
             title: "{name}"
-            autonomy: interactive
+            mode: llm
             assignee: claude
             owner: marc
             ---
@@ -727,7 +724,7 @@ def test_scan_due_skips_malformed_schedule(repo: Path, capsys) -> None:
         ---
         schedule: "not a cron"
         title: "Bad cron"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -755,7 +752,7 @@ def test_scan_due_accepts_year_scoped_schedule_for_current_year(repo: Path) -> N
         ---
         schedule: "0 0 1 1 * * 2026"
         title: "Year-scoped"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -795,14 +792,8 @@ def test_scan_due_flags_legacy_md_file(repo: Path, capsys) -> None:
     assert "skipping legacy.md" in capsys.readouterr().err
 
 
-def test_scan_due_skips_auto_mode_template(repo: Path, capsys) -> None:
-    """`mode: auto` templates are temporarily skipped with a Slack-visible error.
-
-    Auto runs buffer stdout until completion, so a scheduled run produces no
-    live console signal. Until streaming lands, `scan_due` refuses to create
-    these — the error lands in `DueScan.errors` and `coga recurring` fires
-    its existing Slack scan-error summary.
-    """
+def test_scan_due_rejects_invalid_mode_template(repo: Path, capsys) -> None:
+    """The removed `mode: auto` value fails loud during recurring scan."""
     _write_recurring(
         repo,
         "daily-auto",
@@ -810,7 +801,7 @@ def test_scan_due_skips_auto_mode_template(repo: Path, capsys) -> None:
         ---
         schedule: "0 9 * * *"
         title: "Daily auto"
-        autonomy: auto
+        mode: auto
         assignee: claude
         owner: marc
         ---
@@ -825,10 +816,10 @@ def test_scan_due_skips_auto_mode_template(repo: Path, capsys) -> None:
     # The good interactive template still creates.
     assert len(scan.tasks) == 1
     assert scan.tasks[0].template == "weekly-check"
-    # The auto template is skipped via scan.errors.
+    # The invalid template is skipped via scan.errors.
     assert len(scan.errors) == 1
     assert scan.errors[0][0] == "daily-auto"
-    assert "autonomy=auto is temporarily disabled" in scan.errors[0][1]
+    assert "mode 'auto' not in ['llm', 'script']" in scan.errors[0][1]
     assert "skipping daily-auto" in capsys.readouterr().err
 
 
@@ -837,9 +828,9 @@ def test_scan_due_skips_interactive_template_without_tty(
 ) -> None:
     """Unattended scans skip interactive templates before creating.
 
-    This mirrors the `autonomy: auto` agent skip path: the error lands in
+    The error lands in
     `DueScan.errors`, so `coga recurring` can post its scan-error summary and
-    still continue to other due templates. A script template bypasses the ban
+    still continue to other due templates. A script template bypasses the TTY gate
     (it produces live output), so it still creates while the interactive one is
     skipped.
     """
@@ -855,15 +846,14 @@ def test_scan_due_skips_interactive_template_without_tty(
     assert scan.tasks[0].template == "z-script-check"
     assert len(scan.errors) == 1
     assert scan.errors[0][0] == "weekly-check"
-    assert "autonomy=interactive requires a TTY" in scan.errors[0][1]
+    assert "mode=llm requires a TTY" in scan.errors[0][1]
     assert "skipping weekly-check" in capsys.readouterr().err
 
 
-def test_scan_due_template_without_explicit_mode_is_skipped(
+def test_scan_due_template_without_explicit_mode_defaults_to_llm(
     repo: Path, capsys
 ) -> None:
-    """A template without `mode:` defaults to auto and is skipped while
-    auto is disabled."""
+    """A template without `mode:` defaults to `llm`."""
     _write_recurring(
         repo,
         "no-mode",
@@ -882,11 +872,8 @@ def test_scan_due_template_without_explicit_mode_is_skipped(
     )
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
-    assert len(scan.tasks) == 1
-    assert scan.tasks[0].template == "weekly-check"
-    assert len(scan.errors) == 1
-    assert scan.errors[0][0] == "no-mode"
-    assert "autonomy=auto is temporarily disabled" in scan.errors[0][1]
+    assert {task.template for task in scan.tasks} == {"weekly-check", "no-mode"}
+    assert scan.errors == []
 
 
 def test_scan_due_skips_underscore_template(repo: Path, capsys) -> None:
@@ -996,7 +983,6 @@ def dream_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -1026,7 +1012,7 @@ def test_recurring_launch_creates_dream_task(
     assert refs[0].id_slug == "recurring/dream"
     ticket = Ticket.read(refs[0].path / "ticket.md")
     assert ticket.title == "Dream"
-    assert ticket.autonomy == "interactive"
+    assert ticket.mode == "llm"
     # Dream's template declares no workflow, so it creates with the
     # `direct/body` workflow: it runs its body's ordered phases directly,
     # but is still a workflow-carrying, bumpable, valid active task.
@@ -1060,7 +1046,7 @@ def test_recurring_launch_syncs_period_task_and_high_water(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1110,7 +1096,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1175,7 +1161,7 @@ def test_recurring_launch_does_not_publish_feature_only_template_log(
         ---
         schedule: "0 9 * * 1"
         title: "New weekly"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1218,7 +1204,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1276,7 +1262,7 @@ def test_recurring_launch_does_not_resurrect_remote_deleted_period_from_stale_ma
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1345,7 +1331,7 @@ def test_recurring_launch_explicit_rerun_bypasses_handled_period_ledger(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1402,7 +1388,7 @@ def test_recurring_create_sync_restores_control_ledger_for_handled_period(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1459,7 +1445,7 @@ def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1517,7 +1503,7 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1579,7 +1565,7 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1650,7 +1636,7 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1721,7 +1707,7 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1791,7 +1777,7 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1861,7 +1847,7 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -1940,7 +1926,7 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -2072,7 +2058,7 @@ def test_scan_due_force_defers_existing_done_period_until_launch(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         state_keys:
@@ -2122,7 +2108,7 @@ def test_scan_due_force_does_not_advance_live_prior_period_task(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         state_keys:
@@ -2324,7 +2310,7 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         state_keys:
@@ -2403,7 +2389,7 @@ def test_recurring_all_preserves_existing_local_task_state_during_force_sync(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -2460,7 +2446,7 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         state_keys:
@@ -2697,7 +2683,7 @@ def test_recurring_all_syncs_forced_existing_period_state(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -2792,7 +2778,7 @@ def test_recurring_all_skips_interactive_template_without_tty(
     assert "No recurring templates to launch." in result.output
     combined = result.output + (result.stderr or "")
     assert "skipping weekly-check" in combined
-    assert "autonomy=interactive requires a TTY" in combined
+    assert "mode=llm requires a TTY" in combined
     assert list_tasks(load_config(repo)) == []
 
 
@@ -2812,7 +2798,6 @@ def test_recurring_launch_invokes_launch(
         task: str,
         agent_override: str | None,
         prompt_report: bool,
-        autonomy_override: str | None = None,
         idle_timeout: float | None = None,
         max_session: float | None = None,
         return_timeout: bool = False,
@@ -2915,15 +2900,15 @@ def test_recurring_launch_refuses_done_task(
     assert calls == []
 
 
-def test_recurring_launch_interactive_overrides_mode(
+def test_recurring_launch_interactive_leaves_limits_unarmed(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`--interactive` threads autonomy_override and leaves limits unarmed."""
-    seen: list[tuple[str | None, float | None, float | None]] = []
+    """`--interactive` is a human-stepped run and leaves limits unarmed."""
+    seen: list[tuple[float | None, float | None]] = []
     monkeypatch.setattr(
         "coga.commands.launch.launch",
         lambda task, **k: seen.append(
-            (k.get("autonomy_override"), k.get("idle_timeout"), k.get("max_session"))
+            (k.get("idle_timeout"), k.get("max_session"))
         ),
     )
 
@@ -2932,7 +2917,7 @@ def test_recurring_launch_interactive_overrides_mode(
     )
 
     assert result.exit_code == 0, result.output
-    assert seen == [("interactive", None, None)]
+    assert seen == [(None, None)]
 
 
 def test_bare_recurring_scans_and_launches_due(
@@ -2998,7 +2983,7 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
     assert calls == ["recurring/z-script-check"]
     combined = result.output + (result.stderr or "")
     assert "skipping weekly-check" in combined
-    assert "autonomy=interactive requires a TTY" in combined
+    assert "mode=llm requires a TTY" in combined
     assert any(
         "skipped 1 template" in msg and "weekly-check" in msg
         for msg in slack_msgs
@@ -3016,7 +3001,7 @@ def test_bare_recurring_skips_malformed_schedule_and_continues(
         ---
         schedule: "not a cron"
         title: "Bad cron"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -3033,7 +3018,7 @@ def test_bare_recurring_skips_malformed_schedule_and_continues(
         ---
         schedule: "0 9 * * *"
         title: "Script check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -3096,7 +3081,7 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
         ---
         schedule: "0 9 * * 1"
         title: "Second weekly check"
-        autonomy: interactive
+        mode: llm
         assignee: claude
         owner: marc
         ---
@@ -3199,7 +3184,6 @@ def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -3235,15 +3219,15 @@ def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
     assert "stopping before the next due task" in combined
 
 
-def test_bare_recurring_interactive_overrides_mode(
+def test_bare_recurring_interactive_leaves_limits_unarmed(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`coga recurring --interactive` threads autonomy_override to each launch."""
-    seen: list[str | None] = []
+    """`coga recurring --interactive` leaves liveness limits unarmed."""
+    seen: list[tuple[float | None, float | None]] = []
     _allow_interactive_recurring(monkeypatch)
 
     def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
-        seen.append(kwargs.get("autonomy_override"))
+        seen.append((kwargs.get("idle_timeout"), kwargs.get("max_session")))
         ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
         ticket.frontmatter["status"] = "done"
         ticket.write(dream_repo / "tasks" / task / "ticket.md")
@@ -3253,18 +3237,18 @@ def test_bare_recurring_interactive_overrides_mode(
     result = CliRunner().invoke(app, ["recurring", "--interactive"])
 
     assert result.exit_code == 0, result.output
-    assert seen == ["interactive"]
+    assert seen == [(None, None)]
 
 
-def test_bare_recurring_defaults_to_no_mode_override(
+def test_bare_recurring_uses_ticket_mode(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Without --interactive the ticket's own `autonomy:` is left to win."""
-    seen: list[str | None] = []
+    """Bare recurring does not pass a mode override to launch."""
+    seen: list[bool] = []
     _allow_interactive_recurring(monkeypatch)
 
     def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
-        seen.append(kwargs.get("autonomy_override"))
+        seen.append("mode_override" in kwargs)
         ticket = Ticket.read(dream_repo / "tasks" / task / "ticket.md")
         ticket.frontmatter["status"] = "done"
         ticket.write(dream_repo / "tasks" / task / "ticket.md")
@@ -3274,7 +3258,7 @@ def test_bare_recurring_defaults_to_no_mode_override(
     result = CliRunner().invoke(app, ["recurring"])
 
     assert result.exit_code == 0, result.output
-    assert seen == [None]
+    assert seen == [False]
 
 
 def _capture_idle_timeout(

@@ -2,7 +2,7 @@
 slug: marketing/add-killer-demo
 title: add killer demo
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

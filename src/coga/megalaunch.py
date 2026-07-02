@@ -32,7 +32,6 @@ from coga import usage_probe
 from coga.blackboard import open_blockers
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
-    _skip_permissions_argv_for_launch,
     spawn_agent_session,
 )
 from coga.commands.launch_script import is_script_launch
@@ -317,15 +316,11 @@ def _launch_until_stop(
                 ref,
                 before,
                 agent,
-                "interactive",
+                "llm",
                 env=env,
                 actor="megalaunch",
                 log_message="launched via coga megalaunch",
-                autonomy_override="interactive",
                 name=before.title or "",
-                skip_permissions_argv=_skip_permissions_argv_for_launch(
-                    agent, "interactive", ref
-                ),
                 idle_timeout=idle_timeout,
                 max_session=max_session,
                 label="Megalaunch",
@@ -410,8 +405,7 @@ def _preflight_agent_launch(cfg: Config, ref: TaskRef, ticket: Ticket) -> str | 
     if shutil.which(agent.cli) is None:
         return f"agent CLI {agent.cli!r} not found in PATH"
     try:
-        _skip_permissions_argv_for_launch(agent, "interactive", ref)
-        compose_prompt(cfg, ref, ticket, autonomy_override="interactive")
+        compose_prompt(cfg, ref, ticket)
         build_launch_env(cfg, ticket.secrets)
     except (ConfigError, ComposeError, SecretError) as exc:
         return str(exc)

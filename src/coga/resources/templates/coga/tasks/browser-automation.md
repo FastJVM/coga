@@ -2,7 +2,7 @@
 slug: browser-automation
 title: Browser automation
 status: draft
-autonomy: interactive
+mode: llm
 owner: new-user
 human: new-user
 agent: claude

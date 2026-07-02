@@ -2,7 +2,7 @@
 slug: coga-build
 title: coga-build
 status: active
-autonomy: interactive
+mode: llm
 owner: new-user
 human: new-user
 agent: claude

@@ -2,7 +2,7 @@
 slug: v2/model-selector
 title: model selector
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

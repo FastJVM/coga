@@ -7,8 +7,5 @@ user = "marc"
 # (`NAME: op://vault/item/field` or `NAME: env:VAR`) — there is no central
 # [secrets] catalog.
 
-# Per-agent permission-skip policy for `mode: auto` task launches —
-# machine-local only; either key in shared coga.toml fails config load.
-# [agents.claude]
-# skip_permissions = "auto"
-# skip_permissions_argv = "--dangerously-skip-permissions"
+# Per-agent permission-skip keys from older installs are removed; current
+# launch rejects them as unknown config.

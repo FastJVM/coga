@@ -2,7 +2,7 @@
 slug: v2/write-prompt-file-second-resolution-timestamps-col
 title: write_prompt_file second-resolution timestamps collide on same-second launches
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

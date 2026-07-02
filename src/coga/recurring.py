@@ -15,7 +15,7 @@ from croniter import CroniterError, croniter
 from coga.create import create_task
 from coga.config import Config
 from coga.logfile import append_log
-from coga.paths import recurring_dir, resolve_skill_path, resolve_workflow_path
+from coga.paths import recurring_dir
 from coga.period_state import write_snapshot
 from coga.taskfile import read_blackboard, upsert_blackboard
 from coga.tasks import TaskRef, list_tasks, read_ticket
@@ -297,9 +297,7 @@ def scan_due(
             continue
 
         try:
-            outcome = create_template(
-                cfg, template, now, allow_interactive=allow_interactive
-            )
+            outcome = create_template(cfg, template, now, allow_llm=allow_interactive)
             ticket = read_ticket(outcome.ref)
         except RecurringError as exc:
             # Don't let one bad template block the rest. Stderr keeps an
@@ -345,7 +343,7 @@ def create_template(
     template: Template,
     now: datetime,
     *,
-    allow_interactive: bool = True,
+    allow_llm: bool = True,
 ) -> CreateOutcome:
     """Create one recurring template for `now`'s firing. Idempotent."""
     last_fire = _last_firing(template.schedule, now)
@@ -358,9 +356,9 @@ def create_template(
     # therefore defers the next period until it reaches `done`/`paused`; that
     # is deliberate — finish the in-flight run before piling another on.
     #
-    # The autonomy ban is evaluated *after* the resume short-circuits: resuming
-    # an existing task must not be blocked by it (only a fresh create launches a
-    # would-be agent run that the ban guards against).
+    # The TTY check is evaluated *after* the resume short-circuits: resuming an
+    # existing task must not be blocked by it (only a fresh create launches a
+    # would-be LLM run that the check guards against).
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
         return CreateOutcome(ref=live, created=False)
@@ -369,14 +367,12 @@ def create_template(
     if existing is not None:
         return CreateOutcome(ref=existing, created=False)
 
-    effective_autonomy = _effective_autonomy(
-        cfg, template, allow_interactive=allow_interactive
-    )
+    effective_mode = _effective_mode(template, allow_llm=allow_llm)
     outcome = _create_at_slug(
         cfg,
         template,
         target_slug=target_slug,
-        effective_autonomy=effective_autonomy,
+        effective_mode=effective_mode,
         title=_extract_title(template),
     )
     _advance_serviced_period(cfg, template, period_key, outcome, now)
@@ -479,67 +475,20 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
     return out
 
 
-def _is_script_template(cfg: Config, template: Template) -> bool:
-    """True when this template's run is a *script* (not an agent), so the
-    auto/TTY agent ban does not apply.
-
-    Deduced exactly as launch deduces it (`is_script_launch`): a ticket-owned
-    `script:`, or a workflow step whose single skill carries a `script:` entry.
-    This replaces the old `mode: script` signal, which v2 dropped.
-    """
-    if template.frontmatter.get("script"):
-        return True
-    from coga.skill import Skill
-    from coga.workflow import Workflow, WorkflowError
-
-    wf = template.frontmatter.get("workflow")
-    steps: list[Any] | None = None
-    if isinstance(wf, dict):
-        steps = wf.get("steps") if isinstance(wf.get("steps"), list) else None
-    elif isinstance(wf, str) and wf.strip():
-        try:
-            steps = [{"skills": s.skills} for s in Workflow.load(resolve_workflow_path(cfg, wf)).steps]
-        except WorkflowError:
-            steps = None
-    for step in steps or []:
-        skills = (step.get("skills") if isinstance(step, dict) else None) or []
-        if len(skills) == 1:
-            sp = resolve_skill_path(cfg, skills[0])
-            if sp is not None and Skill.load(sp).script:
-                return True
-    return False
-
-
-def _effective_autonomy(
-    cfg: Config, template: Template, *, allow_interactive: bool = True
-) -> str:
-    """Resolve a template's launch autonomy, enforcing the temporary auto ban.
-
-    Templates default to `auto` (a scheduled job runs unattended), but that is
-    temporarily refused: `claude -p` and `codex exec` buffer until completion,
-    so scheduled agent runs would sit silently — worse than skipping. Lift when
-    streaming lands. A template that runs a script **bypasses this entirely** (a
-    script produces live output); the ban only applies to agent runs. Templates
-    opt out of the ban by setting `autonomy: interactive` (if they can run from a
-    TTY) or by being a script template (a `script:` field / a workflow step whose
-    skill has a `script:` — deduced here exactly as launch deduces it).
-    """
-    effective_autonomy = template.frontmatter.get("autonomy", "auto")
-    if _is_script_template(cfg, template):
-        return effective_autonomy  # script run — the agent-only bans don't apply
-    if effective_autonomy == "auto":
+def _effective_mode(template: Template, *, allow_llm: bool = True) -> str:
+    """Resolve a template's mode, enforcing the TTY gate for LLM runs."""
+    effective_mode = template.frontmatter.get("mode", "llm")
+    if effective_mode not in {"llm", "script"}:
         raise RecurringError(
-            "autonomy=auto is temporarily disabled (auto runs produce no live "
-            "console output). Set `autonomy: interactive`, or make it a script "
-            "template, to re-enable."
+            f"mode {effective_mode!r} not in ['llm', 'script']"
         )
-    if effective_autonomy == "interactive" and not allow_interactive:
+    if effective_mode == "llm" and not allow_llm:
         raise RecurringError(
-            "autonomy=interactive requires a TTY (stdin and stdout must both be "
-            "terminals). Run `coga recurring --interactive` from a real shell, "
-            "or make the template a script template."
+            "mode=llm requires a TTY (stdin and stdout must both be terminals). "
+            "Run `coga recurring --interactive` from a real shell, or make the "
+            "template `mode: script`."
         )
-    return effective_autonomy
+    return effective_mode
 
 
 def _create_at_slug(
@@ -547,7 +496,7 @@ def _create_at_slug(
     template: Template,
     *,
     target_slug: str,
-    effective_autonomy: str,
+        effective_mode: str,
     title: str,
 ) -> CreateOutcome:
     """Create one recurring task at an explicit slug. Shared by period and
@@ -582,7 +531,7 @@ def _create_at_slug(
         # workflow so it is activatable, bumpable, and valid like any task.
         workflow_name=template.frontmatter.get("workflow") or "direct/body",
         contexts=contexts,
-        autonomy=effective_autonomy,
+        mode=effective_mode,
         owner=template.frontmatter.get("owner"),
         assignee=assignee,
         watchers=list(template.frontmatter.get("watchers") or []),

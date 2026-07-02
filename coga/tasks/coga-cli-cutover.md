@@ -2,7 +2,7 @@
 slug: coga-cli-cutover
 title: coga CLI cutover
 status: draft
-autonomy: interactive
+mode: llm
 owner: zach
 human: zach
 agent: claude

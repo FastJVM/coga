@@ -36,7 +36,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         enabled = false
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -69,7 +68,7 @@ def _task_with_blocker(
         title="Blocked work",
         workflow_name="code",
         contexts=[],
-        autonomy="interactive",
+        mode="llm",
         owner="marc",
         assignee="claude",
         watchers=[],

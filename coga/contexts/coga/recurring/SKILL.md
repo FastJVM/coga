@@ -14,7 +14,7 @@ per-period tasks.
 A recurring task lives under `coga/recurring/<name>/` and has the same
 shape as any task directory:
 
-- `ticket.md` — YAML frontmatter (`schedule`, `autonomy`, `title`, …) plus the
+- `ticket.md` — YAML frontmatter (`schedule`, `mode`, `title`, …) plus the
   run body. This is the recurring task's definition.
 - the **blackboard region** (in `ticket.md`, below the
   `<!-- coga:blackboard -->` fence) — **persists across every run.** This is
@@ -48,8 +48,8 @@ scanner skips it. That is how the starter templates ship without firing.
   `done` (finished work) and `paused` (a human parked it) stay skipped. A
   stale leftover under `tasks/recurring/<name>/` is resumed before any new
   period work for that template; there is only one instantiated path per
-  template. If a non-interactive launched task
-  returns still unfinished, the sweep stops before the next due task.
+  template. If a script-launched task returns still unfinished, the sweep
+  stops before the next due task.
 - `coga recurring launch <name>` — creates one named recurring task now,
   ignoring its schedule. `<name>` is the directory name. Unless
   `--interactive` is set, the launched REPL receives the same concrete
@@ -61,8 +61,9 @@ scanner skips it. That is how the starter templates ship without firing.
 - `schedule` — a 5-field cron string. **Required**; a recurring task without
   it (or without `ticket.md`) is skipped with a stderr warning and an entry
   in the run's Slack summary.
-- `autonomy` — `interactive` or `auto` (defaults to `auto`). Script-ness is
-  deduced from the workflow's step skills / a ticket `script:`, not declared.
+- `mode` — `llm` or `script` (defaults to `llm`). `llm` templates need a TTY
+  and run under the REPL supervisor; `script` templates run deterministic code
+  directly and are the right shape for unattended schedulers.
 - `title` — the created period task's title (else the humanized name).
 - `workflow` — optional. A template that names none creates with the
   one-step `direct/body` workflow, which runs the ticket body's ordered

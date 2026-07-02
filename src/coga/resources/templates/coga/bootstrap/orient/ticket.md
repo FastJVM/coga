@@ -1,6 +1,6 @@
 ---
 title: Orient an agent in this coga/ repo
-mode: interactive
+mode: llm
 assignee: claude
 contexts:
   - coga/architecture

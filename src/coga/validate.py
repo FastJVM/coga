@@ -70,14 +70,14 @@ from coga.ticket import Ticket, TicketError
 from coga.workflow import VALID_ASSIGNEE_ROLES
 
 VALID_STATUSES = {"draft", "active", "in_progress", "blocked", "paused", "done"}
-VALID_AUTONOMY = {"interactive", "auto"}
+VALID_MODES = {"llm", "script"}
 
 # Canonical ticket frontmatter schema.
 REQUIRED_TASK_KEYS: tuple[str, ...] = (
     "slug",
     "title",
     "status",
-    "autonomy",
+    "mode",
     "owner",
     "human",
     "agent",
@@ -498,13 +498,13 @@ def _check_frontmatter_schema(
                 severity="error",
             ))
 
-    if "autonomy" in fm:
-        autonomy = fm["autonomy"]
-        if not isinstance(autonomy, str) or autonomy not in VALID_AUTONOMY:
+    if "mode" in fm:
+        mode = fm["mode"]
+        if not isinstance(mode, str) or mode not in VALID_MODES:
             out.append(Issue(
-                kind="invalid-autonomy",
+                kind="invalid-mode",
                 task=task_label,
-                message=f"autonomy {autonomy!r} not in {sorted(VALID_AUTONOMY)}",
+                message=f"mode {mode!r} not in {sorted(VALID_MODES)}",
                 severity="error",
             ))
 

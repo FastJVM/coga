@@ -62,7 +62,7 @@ repo, and capturing your name is `coga init`'s job, not `build`'s. There is no
 separate `coga setup` command — initialize the repo with `coga init`, then run
 `coga build`.
 
-## coga create "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
+## coga create "\<title\>" [--workflow \<name\>] [--mode llm|script]
 
 Scaffold a new raw `draft` ticket and post `✨` when a notification channel
 is selected (a fresh repo selects none, so this is silent out of the box).
@@ -173,20 +173,18 @@ session's first job — the agent records the resolution with
 `coga unblock <slug> --answer "..."` (which leaves an `in_progress` ticket's
 status and step untouched) or re-blocks with a refined reason. If the resumed
 session exits before recording an answer, launch returns the ticket to
-`blocked` so blocker queues keep reporting it. Script, auto, and
-TTY-less launches of a blocked ticket are still refused until
+`blocked` so blocker queues keep reporting it. Script and TTY-less launches
+of a blocked ticket are still refused until
 `coga unblock` records the answer (`coga megalaunch` likewise still skips it
 as `skipped-unresolved-blocker`); a `done` ticket is refused because it is
 finished. A ticket that can't be activated — no workflow, or an empty
 `required` extension field — still fails loud with the same remedy `mark
 active` gives. Launching an `active` ticket then marks it
 `in_progress` (posting `▶️`) before spawning the agent; launching an
-already-`in_progress` ticket resumes it without another status flip. Interactive launches require stdin and stdout to both be
-terminals. **`autonomy: auto` is temporarily disabled** — auto runs (claude
-`-p`, codex `exec`) buffer stdout until completion, leaving the operator
-with no live console signal. Use a script step (a step whose skill has `script:`) for unattended wrappers
-and CI until streaming lands. a script step runs the step's skill script
-directly. Script launches inject task metadata env vars including
+already-`in_progress` ticket resumes it without another status flip. `mode:
+llm` launches require stdin and stdout to both be terminals. `mode: script`
+runs deterministic code directly without composing an agent prompt. Script
+launches inject task metadata env vars including
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, and `COGA_TASK_BLACKBOARD`.
 
 - `coga launch <slug>` — accepts any unique prefix (git-short-SHA-style).
@@ -197,21 +195,15 @@ directly. Script launches inject task metadata env vars including
   (e.g. `--agent claude`); does not rewrite the ticket's `assignee:`.
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
-  spawning an agent.
-- `coga launch <slug> --mode <interactive|auto>` — override the ticket's
-  `mode:` for this launch only. The debug knob for stepping through a
-  `autonomy: auto` ticket in an attended terminal. Ephemeral: the ticket file is
-  never rewritten, and both the spawned command and the composed
-  mode-specific prompt block follow the override. Rejected for a script step
-  tickets, which compose no agent prompt. `--mode auto` is rejected while
-  the auto-launch policy is in force.
+  spawning an agent. Rejected for `mode: script` tickets, which compose no
+  agent prompt.
 - `coga launch bootstrap/<name>` — stateless launch target; concurrent launches
   safe.
 
 Discussion bootstrap tickets (`bootstrap/orient`, `bootstrap/ticket`) use
 built-in templates for the standard `claude` and `codex` CLIs, or the selected
-agent's optional `discussion = "...{prompt}..."` override. In interactive mode
-the Coga prompt is context and the first human ask can name the session.
+agent's optional `discussion = "...{prompt}..."` override. In discussion
+launches the Coga prompt is context and the first human ask can name the session.
 Other task launches keep passing the composed prompt positionally.
 
 `launch` does not probe `gh` for PR state before composing the prompt —
@@ -374,7 +366,7 @@ resolver and the same deletion is reachable as a script step.
 Bootstrap tickets aren't user-deletable — they're managed by
 `coga init --update`.
 
-## coga retire \<slug\> [--mode interactive] [--agent <type>] [--no-launch]
+## coga retire \<slug\> [--agent <type>] [--no-launch]
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
 invokes the `retro/done-ticket` skill against the named ticket. The retro
@@ -383,8 +375,7 @@ base if warranted, and deletes the source task directory in the same PR.
 The retire task is scaffolded straight to `active`; `coga retire` launches
 it unless `--no-launch` is passed.
 
-- `coga retire <slug>` — scaffold and launch in `interactive` mode (auto
-  is temporarily disabled).
+- `coga retire <slug>` — scaffold and launch a `mode: llm` retire task.
 - `coga retire <slug> --no-launch` — scaffold the retire task (already
   `active`) and print the explicit `coga launch <slug>` command.
 
@@ -549,10 +540,9 @@ Dedup after Dream deletes a completed run comes from
 `last_serviced_period >= current period_key`; the repo-global `coga/log.md`
 (tagged `recurring/<name>`) is append-only human history, not the dedup source.
 
-`coga recurring --interactive` launches every due task in interactive mode
-for that run from an attended TTY, even ones whose template says `autonomy: auto`
-— the debug knob for stepping through a recurring run by hand. It threads
-`coga launch --mode interactive` through and rewrites no ticket files.
+`coga recurring --interactive` is the human-stepped debug knob for a recurring
+run. It requires an attended TTY and leaves the recurring liveness backstops
+unarmed; each template still launches according to its own `mode:`.
 
 `coga recurring --all` **forces a real, full run of every template**. It is
 *not* a sandbox: the only difference from a bare `coga recurring` is that it
@@ -567,17 +557,13 @@ slug-based suppression, no orphan reaping, and no fold-back-to-template-log
 step. Use it to force this period's work to re-run without waiting for the
 schedule.
 
-**`autonomy: auto` templates are temporarily skipped** with a stderr line and
-a Slack scan-error summary. The auto-launch path produces no live console
-output, so scheduled runs would sit silently. **`autonomy: interactive` templates
-are also skipped when `coga recurring` has no stdin/stdout TTY**, because the
-agent REPL cannot be driven. Templates should use a script step (or
-`autonomy: interactive` when the scan is launched from a real TTY) until streaming
-lands.
+`mode: llm` templates are skipped when `coga recurring` has no stdin/stdout
+TTY, because the agent REPL cannot be driven. Templates intended for cron or
+other unattended schedulers should use `mode: script`.
 
-**Idle-timeout backstop.** A `autonomy: interactive` template that *does* launch
-(a TTY is present) but whose agent stalls or crashes before signalling done —
-never reaching `coga bump` / `mark done` / `block` — would otherwise block the
+**Idle-timeout backstop.** A `mode: llm` template that *does* launch (a TTY is
+present) but whose agent stalls or crashes before signalling done — never
+reaching `coga bump` / `mark done` / `block` — would otherwise block the
 sequential sweep forever. Both the bare sweep and `coga recurring --all` arm a
 generous idle timeout on each spawned REPL (passed through as `coga launch
 --idle-timeout`): if it produces no output and takes no input for that long,
@@ -601,9 +587,8 @@ the existing task). An orphaned `in_progress` run is resumed rather than
 duplicated; a `done` or `paused` run is left alone. This is exactly what the
 `coga dream` alias expands to.
 Unless `--interactive` is set, it passes the same concrete idle-timeout and
-max-session limits as the scheduled sweep. `--interactive` runs it in
-interactive mode even if the template says `autonomy: auto`, for debugging one
-template by hand, and leaves those liveness limits unarmed.
+max-session limits as the scheduled sweep. `--interactive` leaves those
+liveness limits unarmed for debugging one template by hand.
 
 ## coga recurring list
 

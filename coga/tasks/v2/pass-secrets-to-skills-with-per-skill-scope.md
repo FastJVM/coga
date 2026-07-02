@@ -2,7 +2,7 @@
 slug: v2/pass-secrets-to-skills-with-per-skill-scope
 title: Pass secrets to skills with per-skill scope
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

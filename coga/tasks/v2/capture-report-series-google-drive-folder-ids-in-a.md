@@ -2,7 +2,7 @@
 slug: v2/capture-report-series-google-drive-folder-ids-in-a
 title: Capture report-series Google Drive folder IDs in a context
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

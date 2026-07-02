@@ -1,7 +1,7 @@
 ---
 title: Document where to run relay init and how to adopt an existing project
 status: draft
-mode: interactive
+mode: llm
 owner: zach
 human: zach
 agent: claude

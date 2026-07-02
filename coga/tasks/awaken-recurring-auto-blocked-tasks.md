@@ -2,7 +2,7 @@
 slug: awaken-recurring-auto-blocked-tasks
 title: Awaken recurring auto blocked tasks
 status: done
-autonomy: interactive
+mode: llm
 owner: nicktoper
 human: nicktoper
 agent: claude

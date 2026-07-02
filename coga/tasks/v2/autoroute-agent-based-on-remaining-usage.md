@@ -2,7 +2,7 @@
 slug: v2/autoroute-agent-based-on-remaining-usage
 title: autoroute agent based on remaining usage
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude

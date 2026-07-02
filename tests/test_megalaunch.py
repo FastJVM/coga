@@ -57,7 +57,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -101,7 +100,7 @@ def test_megalaunch_runs_active_agent_task(
         title="Run me",
         workflow_name="code",
         contexts=[],
-        autonomy="interactive",
+        mode="llm",
         owner="marc",
         assignee="claude",
         status="active",
@@ -154,7 +153,7 @@ def test_megalaunch_chains_agent_owned_steps(
         title="Run twice",
         workflow_name="two-agent",
         contexts=[],
-        autonomy="interactive",
+        mode="llm",
         owner="marc",
         assignee="claude",
         status="active",
@@ -204,22 +203,17 @@ def test_megalaunch_requires_tty(
         run_megalaunch(cfg)
 
 
-def test_megalaunch_spawns_interactive_with_liveness_backstop(
+def test_megalaunch_spawns_llm_with_liveness_backstop(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Each step is a normal interactive launch, never headless `-p` auto.
-
-    Regression: megalaunch used to override autonomy to `auto`, spawning
-    `claude -p` — which buffers all output until the run completes, so the
-    console looked frozen for the whole agent run.
-    """
+    """Each step is a normal LLM launch with the recurring liveness backstop."""
     cfg = load_config(repo)
     create_task(
         cfg=cfg,
         title="Watch me",
         workflow_name="code",
         contexts=[],
-        autonomy="interactive",
+        mode="llm",
         owner="marc",
         assignee="claude",
         status="active",
@@ -235,7 +229,6 @@ def test_megalaunch_spawns_interactive_with_liveness_backstop(
 
     def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
         seen["mode"] = mode
-        seen["autonomy_override"] = kwargs.get("autonomy_override")
         seen["idle_timeout"] = kwargs.get("idle_timeout")
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
@@ -248,8 +241,7 @@ def test_megalaunch_spawns_interactive_with_liveness_backstop(
     run = run_megalaunch(cfg)
 
     assert run.counts["completed"] == 1
-    assert seen["mode"] == "interactive"
-    assert seen["autonomy_override"] == "interactive"
+    assert seen["mode"] == "llm"
     # The recurring sweep's idle backstop is armed so a wedged REPL can't
     # starve the rest of the queue.
     assert seen["idle_timeout"] is not None
@@ -265,7 +257,7 @@ def test_megalaunch_timeout_teardown_reports_failed(
         title="Wedged",
         workflow_name="code",
         contexts=[],
-        autonomy="interactive",
+        mode="llm",
         owner="marc",
         assignee="claude",
         status="active",
@@ -297,7 +289,7 @@ def test_megalaunch_skips_open_blocker(repo: Path) -> None:
         title="Blocked",
         workflow_name="code",
         contexts=[],
-        autonomy="interactive",
+        mode="llm",
         owner="marc",
         assignee="claude",
         status="active",
@@ -323,7 +315,7 @@ def test_megalaunch_budget_guard_skips_on_low_session_window(repo: Path) -> None
         title="Too expensive",
         workflow_name="code",
         contexts=[],
-        autonomy="interactive",
+        mode="llm",
         owner="marc",
         assignee="claude",
         status="active",
@@ -347,7 +339,7 @@ def test_megalaunch_skips_agent_without_probe(repo: Path) -> None:
         title="Unprobeable",
         workflow_name="code",
         contexts=[],
-        autonomy="interactive",
+        mode="llm",
         owner="marc",
         assignee="claude",
         status="active",
@@ -369,7 +361,7 @@ def test_megalaunch_skips_unreadable_usage_window(repo: Path) -> None:
         title="No signal",
         workflow_name="code",
         contexts=[],
-        autonomy="interactive",
+        mode="llm",
         owner="marc",
         assignee="claude",
         status="active",
@@ -394,7 +386,7 @@ def test_megalaunch_ignores_non_active_tickets(
             title=title,
             workflow_name="code",
             contexts=[],
-            autonomy="interactive",
+            mode="llm",
             owner="marc",
             assignee="claude",
             status="active",
@@ -429,7 +421,7 @@ def test_megalaunch_resumes_in_progress_agent_task(
         title="Resume me",
         workflow_name="code",
         contexts=[],
-        autonomy="interactive",
+        mode="llm",
         owner="marc",
         assignee="claude",
         status="active",
@@ -476,7 +468,7 @@ def test_megalaunch_in_progress_human_assignee_is_human_gate(
         title="With human",
         workflow_name="code",
         contexts=[],
-        autonomy="interactive",
+        mode="llm",
         owner="marc",
         assignee="claude",
         status="active",
@@ -516,7 +508,7 @@ def test_megalaunch_reprobes_between_launches(
             title=title,
             workflow_name="code",
             contexts=[],
-            autonomy="interactive",
+            mode="llm",
             owner="marc",
             assignee="claude",
             status="active",
@@ -567,7 +559,7 @@ def test_megalaunch_services_tasks_oldest_first(
             title=title,
             workflow_name="code",
             contexts=[],
-            autonomy="interactive",
+            mode="llm",
             owner="marc",
             assignee="claude",
             status="active",

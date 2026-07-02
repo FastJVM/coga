@@ -2,7 +2,7 @@
 slug: v2/use-worktree-when-starting-a-dev-task
 title: use worktree when starting a dev task
 status: draft
-autonomy: interactive
+mode: llm
 owner: nick
 human: nick
 agent: claude
