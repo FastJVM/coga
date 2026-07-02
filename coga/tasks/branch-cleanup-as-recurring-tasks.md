@@ -244,3 +244,7 @@ Built all four deliverables, mirroring `autoclose-merged` end to end:
 - Minor: building the live-ticket skip-list requires enumerating not-`done` tickets' blackboards; the ticket names `parse_branch_name()` for parsing but not the enumeration mechanism (presumably the same task iteration `sweep_merged()` uses — worth confirming in `autoclose.py` line 193ff before writing new listing code).
 
 **Bottom line:** Launchable as written. Well-scoped, factually accurate (every named file/function verified), and it explicitly answers the objections that killed the earlier sweep design. Before implementation: decide the private-helper reuse strategy, close the branch-reuse hole in the merged-PR gate (check for open PRs too), and optionally attach `dev/code`.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":280530,"cache_read_input_tokens":13778677,"cli":"claude","input_tokens":27140,"model":"claude-sonnet-5","output_tokens":100233,"provider":"anthropic","schema":1,"session_id":"43f102f5-136b-4a6a-ac30-8c703be92aae","slug":"branch-cleanup-as-recurring-tasks","step":"implement","title":"branch cleanup as recurring tasks","ts":"2026-07-02T22:30:15.230571Z","usage_status":"ok"}
