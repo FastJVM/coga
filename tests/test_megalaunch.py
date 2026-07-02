@@ -419,6 +419,87 @@ def test_megalaunch_ignores_non_active_tickets(
     assert run.counts["failed"] == 0
 
 
+def test_megalaunch_resumes_in_progress_agent_task(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An in_progress agent-assigned ticket is resumed, not re-marked."""
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Resume me",
+        workflow_name="code",
+        contexts=[],
+        autonomy="interactive",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(ref["path"])
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.write(ref["path"])
+
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    def fail_mark(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("resume must not re-run the active → in_progress mark")
+
+    monkeypatch.setattr("coga.megalaunch.mark_in_progress", fail_mark)
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert run.counts["launched"] == 1
+    assert run.counts["completed"] == 1
+    assert Ticket.read(ref["path"]).status == "done"
+
+
+def test_megalaunch_in_progress_human_assignee_is_human_gate(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An in_progress ticket parked on a human shows up as skipped-human-gate."""
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="With human",
+        workflow_name="code",
+        contexts=[],
+        autonomy="interactive",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    ticket = Ticket.read(ref["path"])
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ref["path"])
+
+    def fail_spawn(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("megalaunch must not launch a human-assigned ticket")
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fail_spawn)
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    run = run_megalaunch(cfg)
+
+    assert run.counts["launched"] == 0
+    assert run.counts["skipped-human-gate"] == 1
+    assert "marc" in run.results[0].detail
+
+
 def test_megalaunch_reprobes_between_launches(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
