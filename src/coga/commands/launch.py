@@ -48,12 +48,14 @@ from coga.config import (
 from coga.github_preflight import check_git_auth, check_git_remote
 from coga import git
 from coga.logfile import append_log
+from coga.headless import run_headless
 from coga.mark import (
     RequiredExtensionMissing,
     WorkflowMissing,
     mark_active,
     mark_in_progress,
 )
+from coga.notification import post
 from coga.repl_supervisor import run_with_done_marker
 from coga.tasks import (
     BootstrapRef,
@@ -96,18 +98,19 @@ def launch(
     idle_timeout: float | None = typer.Option(
         None,
         "--idle-timeout",
-        help="Tear down a stalled interactive REPL after this many seconds with "
-        "no output or input (it never signalled done). Off by default — an "
-        "attended launch waits indefinitely. `coga recurring` sets it so one "
-        "stuck agent can't block the sweep.",
+        help="Tear down a stalled agent session (interactive REPL or headless "
+        "auto run) after this many seconds with no output or input. Off by "
+        "default — an attended launch waits indefinitely. `coga recurring` "
+        "sets it so one stuck agent can't block the sweep.",
     ),
     max_session: float | None = typer.Option(
         None,
         "--max-session",
-        help="Tear down an interactive REPL after this many seconds of wall-clock, "
-        "even while it is still producing output (the runaway-loop case idle "
-        "timeout misses). Off by default. `coga recurring` sets it from "
-        "`[launch].max_session` so a busy-but-wedged agent can't block the sweep.",
+        help="Tear down an agent session (interactive REPL or headless auto "
+        "run) after this many seconds of wall-clock, even while it is still "
+        "producing output (the runaway-loop case idle timeout misses). Off by "
+        "default. `coga recurring` sets it from `[launch].max_session` so a "
+        "busy-but-wedged agent can't block the sweep.",
     ),
     return_timeout: bool = typer.Option(
         False,
@@ -274,20 +277,6 @@ def launch(
 
         if autonomy not in ("interactive", "auto"):
             _bail(f"Unknown autonomy: {autonomy!r}")
-
-        if autonomy == "auto":
-            # Temporary policy. `claude -p` and `codex exec` buffer stdout until
-            # the run completes, so auto launches produce no live console output
-            # for the operator. Until coga grows a streaming consumer for the
-            # agent's structured output, we refuse rather than let runs sit
-            # silently. Re-enable when streaming lands.
-            _bail(
-                f"Cannot launch {ref.id_slug!r}: autonomy=auto is temporarily disabled. "
-                "Auto runs produce no live console output (claude -p and codex exec "
-                "buffer until completion), so unattended runs are unobservable. "
-                "Set the ticket to autonomy: interactive (and run from a TTY), or "
-                "give it a script if the work fits a single script entry point."
-            )
 
         if autonomy == "interactive" and not _interactive_stdio_has_tty():
             _bail(
@@ -494,6 +483,17 @@ def launch(
                 )
                 if return_timeout:
                     return "timeout"
+                if autonomy == "auto" and isinstance(ref, TaskRef):
+                    # No interactive supervisor and no sweep to report the
+                    # wedge (the sweep takes the return_timeout path above and
+                    # posts its own ⏱️ pause) — say so live.
+                    _post_auto_run_alert(
+                        cfg,
+                        ref,
+                        ticket,
+                        f"⏱️ auto run on *{ref.id_slug}* \"{ticket.title}\" "
+                        f"timed out (exit {session.exit_code})",
+                    )
                 sys.exit(session.exit_code)
             if session.exit_code != 0:
                 typer.secho(
@@ -501,6 +501,14 @@ def launch(
                     fg=typer.colors.YELLOW,
                     err=True,
                 )
+                if autonomy == "auto" and isinstance(ref, TaskRef):
+                    _post_auto_run_alert(
+                        cfg,
+                        ref,
+                        ticket,
+                        f"💥 auto run failed on *{ref.id_slug}* "
+                        f"\"{ticket.title}\": exit {session.exit_code}",
+                    )
                 sys.exit(session.exit_code)
 
             # An agent may delete its own task directory as a final action —
@@ -528,6 +536,27 @@ def launch(
             stop_reason = _harness_stop_reason(ref, ticket, updated_ticket, cfg)
             if stop_reason is not None:
                 typer.echo(stop_reason)
+                if (
+                    autonomy == "auto"
+                    and isinstance(ref, TaskRef)
+                    and updated_ticket.status == "in_progress"
+                    and (updated_ticket.step, updated_ticket.status)
+                    == (ticket.step, ticket.status)
+                ):
+                    # The unattended agent exited 0 but never ran `coga bump` /
+                    # `mark done` / `block` — a silent no-op. Nothing else will
+                    # ever report this run (state transitions broadcast
+                    # themselves, and there was none), so post it. The
+                    # recurring sweep additionally pauses the orphan.
+                    _post_auto_run_alert(
+                        cfg,
+                        ref,
+                        ticket,
+                        f"⚠️ auto run on *{ref.id_slug}* \"{ticket.title}\" "
+                        "exited without advancing the ticket (no bump / done "
+                        "/ block) — still "
+                        f"on {updated_ticket.step or 'no workflow step'}",
+                    )
                 break
     finally:
         # Tear down the per-launch worktree on every exit path — clean chain
@@ -931,6 +960,34 @@ def spawn_agent_session(
             )
             return AgentSessionResult(outcome.exit_code, outcome.kind)
 
+        if mode == "auto":
+            # Headless run: `claude -p` / `codex exec` buffer output until
+            # completion, so unattended observability is capture, not a live
+            # console. stdin comes from /dev/null (both CLIs take the prompt
+            # as argv and treat stdin as optional extra input, so EOF makes
+            # input-needing work fail fast instead of hang); stdout+stderr
+            # stream to this console AND tee into a capture file the log
+            # line below points at. The liveness limits mirror the
+            # interactive PTY watcher.
+            capture_path = _auto_capture_path(ref)
+            spawn_started = True
+            outcome = run_headless(
+                cmd,
+                env,
+                capture_path=capture_path,
+                idle_timeout=idle_timeout,
+                max_session=max_session,
+                cwd=cwd,
+            )
+            append_log(
+                cfg,
+                ref.id_slug,
+                "system",
+                f"auto run exited {outcome.exit_code} ({outcome.kind}); "
+                f"output captured to {_display_path(cfg, capture_path)}",
+            )
+            return AgentSessionResult(outcome.exit_code, outcome.kind)
+
         spawn_started = True
         result = subprocess.run(
             cmd, env=env, check=False, cwd=str(cwd) if cwd is not None else None
@@ -966,6 +1023,51 @@ def spawn_agent_session(
             prompt_file.unlink()
         except FileNotFoundError:
             pass
+
+
+def _auto_capture_path(ref: TaskRef | BootstrapRef) -> Path:
+    """Where a headless auto run's teed stdout/stderr lands.
+
+    A directory-form task gets a stable `auto-run.log` sibling next to its
+    `ticket.md` (overwritten per run — the repo-global log keeps the exit-code
+    history; the file is the *latest* run's transcript). A file-form task has
+    no companion directory, so the capture file sits beside it as
+    `<slug>.auto-run.log` (not `.md`, so task listing ignores it).
+    """
+    task_dir = ref.task_dir
+    if task_dir is not None:
+        return task_dir / "auto-run.log"
+    return ref.ticket_path.with_suffix(".auto-run.log")
+
+
+def _display_path(cfg: Config, path: Path) -> str:
+    """Repo-relative form of `path` for log lines, absolute when outside."""
+    try:
+        return str(path.resolve().relative_to(cfg.repo_root.resolve()))
+    except ValueError:
+        return str(path)
+
+
+def _post_auto_run_alert(
+    cfg: Config, ref: TaskRef, ticket: Ticket, text: str
+) -> None:
+    """Live-post an unattended run's bad ending.
+
+    An `autonomy: auto` run has no human at a console, so its observability
+    contract is "output landed in the capture file + a notification on
+    done/fail". The done half already comes from the state transitions the
+    agent itself drives (`coga bump` / `mark done` / `block` broadcast on
+    their own); this covers the fail half — a non-zero exit, a liveness
+    timeout outside the recurring sweep (which posts its own ⏱️ pause), or an
+    exit that never advanced the ticket.
+    """
+    post(
+        cfg,
+        text,
+        task_path=ref.path,
+        owner=ticket.owner or cfg.current_user,
+        watchers=ticket.watchers,
+    )
 
 
 def _skip_permissions_argv_for_launch(

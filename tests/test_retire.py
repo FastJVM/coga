@@ -157,10 +157,12 @@ def test_retire_refuses_unknown_slug(
     assert "no-such-task" in result.output
 
 
-def test_retire_refuses_auto_mode(
+def test_retire_accepts_auto_mode(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`coga retire <slug> --autonomy auto` is rejected while auto is disabled."""
+    """`coga retire <slug> --autonomy auto` scaffolds an `autonomy: auto`
+    retire task — unattended retro runs are allowed now that headless
+    launches are observable."""
     monkeypatch.chdir(repo)
     _seed_done_task(repo, "fix-retry-logic")
 
@@ -168,9 +170,27 @@ def test_retire_refuses_auto_mode(
         app, ["retire", "fix-retry-logic", "--autonomy", "auto", "--no-launch"]
     )
 
+    assert result.exit_code == 0, result.output
+    created = repo / "tasks" / "retire-fix-retry-logic.md"
+    assert created.is_file()
+    ticket = Ticket.read(created)
+    assert ticket.autonomy == "auto"
+    assert ticket.status == "active"
+
+
+def test_retire_rejects_unknown_autonomy(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(repo)
+    _seed_done_task(repo, "fix-retry-logic")
+
+    result = CliRunner().invoke(
+        app, ["retire", "fix-retry-logic", "--autonomy", "script", "--no-launch"]
+    )
+
     assert result.exit_code == 2
-    assert "autonomy=auto is temporarily disabled" in result.output
-    assert not (repo / "tasks" / "retire-fix-retry-logic").exists()
+    assert "--autonomy must be 'interactive' or 'auto'" in result.output
+    assert not (repo / "tasks" / "retire-fix-retry-logic.md").exists()
 
 
 def test_retire_launches_after_create(

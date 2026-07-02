@@ -169,10 +169,14 @@ than refusing. A ticket that can't be activated — no workflow, or an empty
 active` gives. Launching an `active` ticket then marks it
 `in_progress` (posting `▶️`) before spawning the agent; launching an
 already-`in_progress` ticket resumes it without another status flip. Interactive launches require stdin and stdout to both be
-terminals. **`autonomy: auto` is temporarily disabled** — auto runs (claude
-`-p`, codex `exec`) buffer stdout until completion, leaving the operator
-with no live console signal. Use a script step (a step whose skill has `script:`) for unattended wrappers
-and CI until streaming lands. a script step runs the step's skill script
+terminals. `autonomy: auto` launches run headless (claude `-p`, codex
+`exec`): the run's stdout/stderr stream to the launching console and are
+teed into the task's `auto-run.log`, the exit code is recorded in the
+repo-global log, and a Slack alert posts on failure, timeout, or an exit
+that never advanced the ticket — done/step notifications come from the
+`coga bump` / `mark done` / `block` the agent itself runs. stdin is
+`/dev/null`, so input-needing work fails fast instead of hanging. A script
+step (a step whose skill has `script:`) runs the step's skill script
 directly. Script launches inject task metadata env vars including
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, and `COGA_TASK_BLACKBOARD`.
 
@@ -370,8 +374,8 @@ base if warranted, and deletes the source task directory in the same PR.
 The retire task is scaffolded straight to `active`; `coga retire` launches
 it unless `--no-launch` is passed.
 
-- `coga retire <slug>` — scaffold and launch in `interactive` mode (auto
-  is temporarily disabled).
+- `coga retire <slug>` — scaffold and launch in `interactive` mode;
+  `--autonomy auto` runs the retro pass headless.
 - `coga retire <slug> --no-launch` — scaffold the retire task (already
   `active`) and print the explicit `coga launch <slug>` command.
 

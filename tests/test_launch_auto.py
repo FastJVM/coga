@@ -10,6 +10,32 @@ from conftest import seed_direct_body_workflow
 from coga.cli import app
 from coga.create import create_task
 from coga.config import load_config
+from coga.repl_supervisor import ReplOutcome
+from coga.ticket import Ticket
+
+
+def _fake_headless(calls: list[dict], *, exit_code: int = 0, kind: str = "natural",
+                   on_run=None):
+    """A stand-in for `run_headless` that records its invocation.
+
+    `on_run` lets a test simulate the agent's own state transition (e.g.
+    flipping the ticket to done, as a real run's `coga mark done` would)
+    before the launch supervisor re-reads the ticket.
+    """
+    def fake(cmd, env, *, capture_path, idle_timeout=None, max_session=None,
+             cwd=None, output_fd=None):
+        calls.append({
+            "cmd": cmd,
+            "capture_path": capture_path,
+            "idle_timeout": idle_timeout,
+            "max_session": max_session,
+        })
+        capture_path.parent.mkdir(parents=True, exist_ok=True)
+        capture_path.write_text("captured agent output\n")
+        if on_run is not None:
+            on_run()
+        return ReplOutcome(exit_code, kind)
+    return fake
 
 
 def _write(path: Path, text: str) -> None:
@@ -79,16 +105,12 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return company
 
 
-def test_launch_auto_mode_is_blocked(
+def test_launch_auto_mode_runs_headless(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`autonomy: auto` launches are temporarily disabled.
-
-    Auto runs (claude -p, codex exec) buffer stdout until completion, so an
-    unattended launch sits without any live console signal. The block lives
-    in `coga launch` itself and fires before the ticket flips to
-    `in_progress` or any agent process spawns.
-    """
+    """An `autonomy: auto` ticket launches headless: the CLI's auto argv is
+    used, output is captured next to the task, and the exit is recorded in
+    the repo-global log. No TTY is required."""
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Auto run", workflow_name="direct/body",
@@ -96,33 +118,41 @@ def test_launch_auto_mode_is_blocked(
         watchers=[], status="active",
     )
 
-    calls: list[list[str]] = []
+    calls: list[dict] = []
 
-    class _Result:
-        returncode = 0
+    def agent_marks_done() -> None:
+        ticket = Ticket.read(repo / "tasks" / "auto-run.md")
+        ticket.frontmatter["status"] = "done"
+        ticket.write(repo / "tasks" / "auto-run.md")
 
-    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
-        calls.append(cmd)
-        return _Result()
-
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "coga.commands.launch.run_headless",
+        _fake_headless(calls, on_run=agent_marks_done),
+    )
     monkeypatch.setattr("coga.commands.launch.shutil.which", lambda n: f"/usr/bin/{n}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "auto-run"])
-    assert result.exit_code == 2, result.output
-    assert "autonomy=auto is temporarily disabled" in result.output
-    # No agent spawned, ticket still active.
-    assert calls == []
-    from coga.ticket import Ticket
-    ticket = Ticket.read(repo / "tasks" / "auto-run.md")
-    assert ticket.status == "active"
+    assert result.exit_code == 0, result.output
+
+    # Headless spawn: `claude -p <prompt>` — the auto flag, not a REPL.
+    assert len(calls) == 1
+    assert calls[0]["cmd"][0] == "claude"
+    assert "-p" in calls[0]["cmd"]
+    # Capture sits beside the file-form ticket, not inside tasks listing.
+    assert calls[0]["capture_path"] == repo / "tasks" / "auto-run.auto-run.log"
+    assert calls[0]["capture_path"].read_text() == "captured agent output\n"
+    # The exit is durably recorded in the repo-global log.
+    log_text = (repo / "log.md").read_text()
+    assert "auto run exited 0 (natural)" in log_text
+    assert "auto-run.auto-run.log" in log_text
 
 
-def test_launch_mode_override_auto_is_blocked(
+def test_launch_mode_override_auto_runs_headless(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`--autonomy auto` is rejected just like an `autonomy: auto` ticket."""
+    """`--autonomy auto` runs an interactive ticket headless for this launch,
+    leaving the ticket file's `autonomy:` untouched."""
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Interactive run", workflow_name="direct/body",
@@ -130,11 +160,123 @@ def test_launch_mode_override_auto_is_blocked(
         watchers=[], status="active",
     )
 
+    calls: list[dict] = []
+
+    def agent_marks_done() -> None:
+        ticket = Ticket.read(repo / "tasks" / "interactive-run.md")
+        ticket.frontmatter["status"] = "done"
+        ticket.write(repo / "tasks" / "interactive-run.md")
+
+    monkeypatch.setattr(
+        "coga.commands.launch.run_headless",
+        _fake_headless(calls, on_run=agent_marks_done),
+    )
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda n: f"/usr/bin/{n}")
+
     result = CliRunner().invoke(
         app, ["launch", "interactive-run", "--autonomy", "auto"]
     )
-    assert result.exit_code == 2
-    assert "autonomy=auto is temporarily disabled" in result.output
+    assert result.exit_code == 0, result.output
+    assert "autonomy overridden to 'auto'" in result.output
+    assert len(calls) == 1
+    assert "-p" in calls[0]["cmd"]
+    ticket = Ticket.read(repo / "tasks" / "interactive-run.md")
+    assert ticket.autonomy == "interactive"
+
+
+def test_launch_auto_failure_posts_alert_and_propagates_exit(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-zero headless exit posts the 💥 live alert (there is no human at
+    a console to see it fail) and propagates the exit code."""
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Auto run", workflow_name="direct/body",
+        contexts=[], autonomy="auto", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    calls: list[dict] = []
+    posts: list[str] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.run_headless", _fake_headless(calls, exit_code=3)
+    )
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda n: f"/usr/bin/{n}")
+    monkeypatch.setattr(
+        "coga.commands.launch.post",
+        lambda cfg, text, **kwargs: posts.append(text),
+    )
+
+    result = CliRunner().invoke(app, ["launch", "auto-run"])
+    assert result.exit_code == 3, result.output
+    assert len(posts) == 1
+    assert "💥 auto run failed" in posts[0]
+    assert "exit 3" in posts[0]
+
+
+def test_launch_auto_timeout_posts_alert(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A liveness teardown outside the recurring sweep posts its own ⏱️ alert
+    (the sweep path returns 'timeout' instead and posts its own pause)."""
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Auto run", workflow_name="direct/body",
+        contexts=[], autonomy="auto", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    calls: list[dict] = []
+    posts: list[str] = []
+    monkeypatch.setattr(
+        "coga.commands.launch.run_headless",
+        _fake_headless(calls, exit_code=124, kind="timeout"),
+    )
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda n: f"/usr/bin/{n}")
+    monkeypatch.setattr(
+        "coga.commands.launch.post",
+        lambda cfg, text, **kwargs: posts.append(text),
+    )
+
+    result = CliRunner().invoke(app, ["launch", "auto-run"])
+    assert result.exit_code == 124, result.output
+    assert len(posts) == 1
+    assert "⏱️ auto run" in posts[0]
+    assert "timed out" in posts[0]
+
+
+def test_launch_auto_silent_noop_posts_warning(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An auto run that exits 0 without bump/done/block must not end
+    invisibly: the launch posts a ⚠️ no-advance alert and stops."""
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="Auto run", workflow_name="direct/body",
+        contexts=[], autonomy="auto", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+
+    calls: list[dict] = []
+    posts: list[str] = []
+    # exit 0 with no state transition — the silent no-op.
+    monkeypatch.setattr(
+        "coga.commands.launch.run_headless", _fake_headless(calls)
+    )
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda n: f"/usr/bin/{n}")
+    monkeypatch.setattr(
+        "coga.commands.launch.post",
+        lambda cfg, text, **kwargs: posts.append(text),
+    )
+
+    result = CliRunner().invoke(app, ["launch", "auto-run"])
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1  # ran once, did not chain or relaunch
+    assert len(posts) == 1
+    assert "⚠️ auto run" in posts[0]
+    assert "without advancing" in posts[0]
+    ticket = Ticket.read(repo / "tasks" / "auto-run.md")
+    assert ticket.status == "in_progress"
 
 
 def test_launch_mode_override_runs_auto_ticket_interactively(

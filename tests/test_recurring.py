@@ -21,7 +21,7 @@ from coga.recurring import (
     scan_due,
 )
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
-from coga.tasks import list_tasks
+from coga.tasks import list_tasks, read_ticket
 from coga.ticket import Ticket
 
 
@@ -795,13 +795,12 @@ def test_scan_due_flags_legacy_md_file(repo: Path, capsys) -> None:
     assert "skipping legacy.md" in capsys.readouterr().err
 
 
-def test_scan_due_skips_auto_mode_template(repo: Path, capsys) -> None:
-    """`mode: auto` templates are temporarily skipped with a Slack-visible error.
+def test_scan_due_creates_auto_mode_template(repo: Path, capsys) -> None:
+    """`autonomy: auto` agent templates create like any other.
 
-    Auto runs buffer stdout until completion, so a scheduled run produces no
-    live console signal. Until streaming lands, `scan_due` refuses to create
-    these — the error lands in `DueScan.errors` and `coga recurring` fires
-    its existing Slack scan-error summary.
+    The old temporary ban is lifted: an auto agent run is headless — launch
+    captures its output to the task's `auto-run.log` and posts on fail — so a
+    scheduled agent run no longer needs a TTY or a human.
     """
     _write_recurring(
         repo,
@@ -822,14 +821,13 @@ def test_scan_due_skips_auto_mode_template(repo: Path, capsys) -> None:
     )
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
-    # The good interactive template still creates.
-    assert len(scan.tasks) == 1
-    assert scan.tasks[0].template == "weekly-check"
-    # The auto template is skipped via scan.errors.
-    assert len(scan.errors) == 1
-    assert scan.errors[0][0] == "daily-auto"
-    assert "autonomy=auto is temporarily disabled" in scan.errors[0][1]
-    assert "skipping daily-auto" in capsys.readouterr().err
+    assert scan.errors == []
+    assert sorted(t.template for t in scan.tasks) == ["daily-auto", "weekly-check"]
+    auto_task = next(t for t in scan.tasks if t.template == "daily-auto")
+    assert auto_task.ref is not None
+    ticket = read_ticket(auto_task.ref)
+    assert ticket.autonomy == "auto"
+    assert ticket.status == "active"
 
 
 def test_scan_due_skips_interactive_template_without_tty(
@@ -859,11 +857,10 @@ def test_scan_due_skips_interactive_template_without_tty(
     assert "skipping weekly-check" in capsys.readouterr().err
 
 
-def test_scan_due_template_without_explicit_mode_is_skipped(
+def test_scan_due_template_without_explicit_mode_defaults_to_auto(
     repo: Path, capsys
 ) -> None:
-    """A template without `mode:` defaults to auto and is skipped while
-    auto is disabled."""
+    """A template without `autonomy:` defaults to auto and creates."""
     _write_recurring(
         repo,
         "no-mode",
@@ -882,11 +879,11 @@ def test_scan_due_template_without_explicit_mode_is_skipped(
     )
     cfg = load_config(repo)
     scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
-    assert len(scan.tasks) == 1
-    assert scan.tasks[0].template == "weekly-check"
-    assert len(scan.errors) == 1
-    assert scan.errors[0][0] == "no-mode"
-    assert "autonomy=auto is temporarily disabled" in scan.errors[0][1]
+    assert scan.errors == []
+    assert sorted(t.template for t in scan.tasks) == ["no-mode", "weekly-check"]
+    auto_task = next(t for t in scan.tasks if t.template == "no-mode")
+    assert auto_task.ref is not None
+    assert read_ticket(auto_task.ref).autonomy == "auto"
 
 
 def test_scan_due_skips_underscore_template(repo: Path, capsys) -> None:
@@ -2570,7 +2567,8 @@ def test_recurring_all_does_not_mark_new_period_for_control_live_task(
 
     result = CliRunner().invoke(app, ["recurring", "--all"])
 
-    assert result.exit_code == 1, result.output
+    # The unfinished run is paused (system actor) and the sweep exits clean.
+    assert result.exit_code == 0, result.output
     assert launched == [remote.ref.id_slug]
     control_template = git_repo.git(
         "show",
@@ -2640,10 +2638,13 @@ def test_recurring_all_reconciles_existing_tasks_before_launch_order(
 
     result = CliRunner().invoke(app, ["recurring", "--all"])
 
-    assert result.exit_code == 1, result.output
-    assert launched == [live.ref.id_slug]
+    assert result.exit_code == 0, result.output
+    # The control-branch orphan resumes FIRST; the sweep then pauses it
+    # (unfinished, system actor) and continues to the stale fresh template.
+    assert launched == [live.ref.id_slug, "recurring/aaa-first"]
     assert read_blackboard(live.ref.path / "ticket.md") == "\nremote live state\n"
-    assert "recurring launch returned with status='in_progress'" in result.output
+    assert "ended with status='in_progress'" in result.output
+    assert Ticket.read(live.ref.path / "ticket.md").status == "paused"
 
 
 def test_recurring_all_does_not_service_unreached_existing_task(
@@ -3181,13 +3182,16 @@ def test_bare_recurring_records_liveness_timeout_not_human_pause(
     assert all(f"[human:{cfg.current_user}]" not in line for line in pause_lines)
 
 
-def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
+def test_bare_recurring_pauses_unfinished_auto_task_and_continues(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Non-interactive (script/auto) templates still gate the sweep on done.
+    """An unattended launch that returns unfinished is paused, not fatal.
 
-    Unattended runs can't be redirected by a human at the terminal, so a
-    launched-but-unfinished task is a stuck task and stops the sweep.
+    Bailing the sweep would let one silent no-op starve every template
+    behind it; pausing (with a system actor, so it is distinguishable from a
+    deliberate human park) keeps the orphan from being relaunched next scan
+    while the rest of the sweep proceeds. `coga launch` posts the ⚠️
+    no-advance alert itself, so the pause here stays Slack-quiet.
     """
     company = tmp_path / "coga"
     _write(
@@ -3228,11 +3232,26 @@ def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
 
     result = CliRunner().invoke(app, ["recurring"])
 
-    assert result.exit_code == 1, result.output
-    assert len(calls) == 1
-    assert calls == ["recurring/nightly-check"]
+    assert result.exit_code == 0, result.output
+    # The sweep continued past the unfinished first task to the second.
+    assert calls == ["recurring/nightly-check", "recurring/z-nightly-check"]
     combined = result.output + (result.stderr or "")
-    assert "stopping before the next due task" in combined
+    assert "paused (auto run exited unfinished)" in combined
+
+    cfg = load_config(company)
+    for ref in list_tasks(cfg):
+        assert Ticket.read(ref.path / "ticket.md").status == "paused"
+        pause_lines = [
+            line
+            for line in task_log_lines(cfg, ref.id_slug)
+            if "→ paused" in line
+        ]
+        assert pause_lines, f"expected a pause entry for {ref.id_slug}"
+        assert all("[system]" in line for line in pause_lines)
+        assert any(
+            "unattended auto launch exited unfinished" in line
+            for line in pause_lines
+        )
 
 
 def test_bare_recurring_interactive_overrides_mode(

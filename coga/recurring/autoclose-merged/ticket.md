@@ -4,8 +4,8 @@ schedule_comment: "Every day at 8am - close merged final-step tickets before the
 title: "Autoclose merged tickets"
 # A script step runs the sweep directly with no agent: the workflow's one
 # step references the `coga/autoclose/sweep` skill, whose `script:` calls
-# `coga.autoclose.sweep_merged`. No `claude -p` / `codex exec`
-# buffering, so it is safe under the temporary mode=auto recurring freeze.
+# `coga.autoclose.sweep_merged`, with live console output of its own — no
+# headless agent capture involved.
 autonomy: auto
 workflow: autoclose-merged/sweep
 ---

@@ -32,7 +32,7 @@ def retire(
     autonomy: str = typer.Option(
         "interactive",
         "--autonomy",
-        help="Launch autonomy for the retire run: interactive. (Auto is temporarily disabled.)",
+        help="Launch autonomy for the retire run: interactive or auto.",
     ),
     no_launch: bool = typer.Option(
         False,
@@ -58,14 +58,8 @@ def retire(
     unrelated branch. (This deliberately overrides the former punt that branch
     hygiene was a Dream concern — that punt is why branches piled up.)
     """
-    if autonomy == "auto":
-        _bail(
-            "autonomy=auto is temporarily disabled: auto runs produce no live "
-            "console output. Run `coga retire <slug> --autonomy interactive` "
-            "from a TTY instead."
-        )
-    if autonomy != "interactive":
-        _bail("--autonomy must be 'interactive'")
+    if autonomy not in ("interactive", "auto"):
+        _bail("--autonomy must be 'interactive' or 'auto'")
 
     try:
         cfg = load_config()

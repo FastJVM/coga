@@ -4,8 +4,8 @@ schedule_comment: "Every day at 9am — post one Slack digest of Done tickets an
 title: "Daily digest"
 # A script step runs the flush directly with no agent: the workflow's one
 # step references the `coga/digest/flush` skill, whose `script:` runs
-# `coga digest`. No `claude -p` / `codex exec` buffering, so it is safe under
-# the temporary mode=auto recurring freeze.
+# `coga digest`, with live console output of its own — no headless agent
+# capture involved.
 autonomy: auto
 workflow: digest/post
 owner: nick

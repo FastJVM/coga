@@ -4,8 +4,8 @@ schedule_comment: "Every day at 10am - remind owners about unresolved blocker as
 title: "Blocker reminders"
 # A script step runs the reminder sweep directly with no agent: the workflow's
 # one step references the `coga/blockers/remind` skill, whose `script:` calls
-# `coga.blocker_reminders.remind_blocked_tasks`. No agent auto-run buffering, so it is
-# safe under the temporary autonomy=auto recurring freeze.
+# `coga.blocker_reminders.remind_blocked_tasks`, with live console output of
+# its own — no headless agent capture involved.
 autonomy: auto
 workflow: blocker-reminders/run
 ---

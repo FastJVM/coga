@@ -513,26 +513,19 @@ def _is_script_template(cfg: Config, template: Template) -> bool:
 def _effective_autonomy(
     cfg: Config, template: Template, *, allow_interactive: bool = True
 ) -> str:
-    """Resolve a template's launch autonomy, enforcing the temporary auto ban.
+    """Resolve a template's launch autonomy.
 
-    Templates default to `auto` (a scheduled job runs unattended), but that is
-    temporarily refused: `claude -p` and `codex exec` buffer until completion,
-    so scheduled agent runs would sit silently — worse than skipping. Lift when
-    streaming lands. A template that runs a script **bypasses this entirely** (a
-    script produces live output); the ban only applies to agent runs. Templates
-    opt out of the ban by setting `autonomy: interactive` (if they can run from a
-    TTY) or by being a script template (a `script:` field / a workflow step whose
-    skill has a `script:` — deduced here exactly as launch deduces it).
+    Templates default to `auto` (a scheduled job runs unattended). An auto
+    *agent* run is headless: `coga launch` captures its buffered stdout/stderr
+    to the task's `auto-run.log`, records the exit in the repo-global log, and
+    posts on fail/no-advance — so no TTY is required. A script template
+    produces live output on its own and never needed the agent machinery. The
+    only remaining stdio constraint is `autonomy: interactive`, which needs a
+    real terminal.
     """
     effective_autonomy = template.frontmatter.get("autonomy", "auto")
     if _is_script_template(cfg, template):
-        return effective_autonomy  # script run — the agent-only bans don't apply
-    if effective_autonomy == "auto":
-        raise RecurringError(
-            "autonomy=auto is temporarily disabled (auto runs produce no live "
-            "console output). Set `autonomy: interactive`, or make it a script "
-            "template, to re-enable."
-        )
+        return effective_autonomy  # script run — the interactive TTY ban doesn't apply
     if effective_autonomy == "interactive" and not allow_interactive:
         raise RecurringError(
             "autonomy=interactive requires a TTY (stdin and stdout must both be "

@@ -81,9 +81,10 @@ claim Linear-style pixel polish. The felt moments to dramatize instead:
 
 Comms must stay credible. State plainly where Coga is outclassed:
 
-- **Fully-unattended autonomy is temporarily disabled** (auto-mode
-  buffers output; pending streaming + a liveness watchdog). Devin /
-  Symphony / Claude Code win on fire-and-forget today.
+- **Fully-unattended autonomy is newly unblocked, not battle-tested**
+  (auto runs are captured to a log with Slack done/fail alerts and a
+  liveness watchdog, but there is no live streaming console). Devin /
+  Symphony / Claude Code still win on polished fire-and-forget today.
 - Workflow is a **linear state machine** — heavy parallel/dynamic
   orchestration → frameworks (LangGraph et al.).
 - **Self-hosted, self-supported** — no managed reliability / SLA.

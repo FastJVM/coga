@@ -1143,6 +1143,13 @@ def _stop_if_unfinished_after_launch(
     run. We pause it (so the next scan doesn't relaunch the orphan) but log and
     broadcast it as a watchdog *timeout*, with a system actor, then continue the
     sweep so one wedge can't starve the tasks behind it.
+
+    An unattended `autonomy: auto` run that returns unfinished without timing
+    out (the agent exited 0 but never bumped/finished/blocked) is paused the
+    same way, with a system actor and *no* extra Slack — `coga launch` already
+    posted the ⚠️ no-advance alert for it. Bailing the sweep here (the old
+    behavior, from when this branch was unreachable for agent runs) would let
+    one silent no-op starve every template behind it.
     """
     if not (ref.ticket_path).exists():
         return
@@ -1197,14 +1204,25 @@ def _stop_if_unfinished_after_launch(
         )
         return
 
+    suffix = "unattended auto launch exited unfinished"
+    prior_status = ticket.status
+    try:
+        mark_paused(
+            cfg,
+            ref,
+            ticket,
+            actor="system",
+            log_message=f"paused ({prior_status} → paused) — {suffix}",
+            echo=None,
+        )
+    except TaskValidationError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        sys.exit(2)
     typer.secho(
-        f"{ref.id_slug}: recurring launch returned with status={ticket.status!r}; "
-        "stopping before the next due task. Finish or delete this run, then "
-        "rerun `coga recurring`.",
-        fg=typer.colors.RED,
-        err=True,
+        f"{ref.id_slug}: ended with status={prior_status!r}; paused "
+        "(auto run exited unfinished) and continuing to next due task.",
+        fg=typer.colors.YELLOW,
     )
-    sys.exit(1)
 
 
 # --- scan reporting -----------------------------------------------------------
