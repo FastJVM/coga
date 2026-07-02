@@ -1,7 +1,7 @@
 ---
 slug: cli-extension-model/move-command-logic-to-tickets
 title: Move command logic into tickets
-status: in_progress
+status: done
 autonomy: interactive
 owner: zach
 human: zach
@@ -20,7 +20,6 @@ workflow:
     - direct/body
     assignee: agent
 secrets: null
-step: 1 (execute)
 ---
 
 ## Description
@@ -131,6 +130,31 @@ each group was split out or landed elsewhere):
 Also noticed: sibling draft `cli-extension-model/rename-shim-to-alias` is stale
 (pre-dates PR #445, which deleted the shim concept it wanted to rename;
 references dead PR #425 and old "Relay" naming) — candidate for deletion.
+Left untouched — deletion is the owner's call.
+
+## Session outcome (2026-07-01, claude) — Done= bar met, closing as umbrella
+
+Asked the human which way to go (wrap-up vs. executing a group here); no
+response after 60s, proceeded with the recommended reversible path:
+
+- **Created** `cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task`
+  (draft, `code/design-then-implement`) — the plan artifact for group 2, the one
+  group that had none. Its body records scope (what moves / what doesn't), the
+  guardrails, and the bootstrapping crux its design step must settle (the scan
+  is what launches recurring runs, so what invokes the scan task) — coordinated
+  with the reads ticket's identical command-head crux.
+- Groups 1 and 3 need nothing from this ticket: reads = child ticket
+  `move-read-views-to-tickets-as-scripts` (unblocked since PR #445); fused
+  heads = pattern committed-as-implemented by PR #491, `project`/`retire`
+  follow-ups on that pattern.
+
+Done= check: reads have a committed plan (child ticket), recurring now has one
+(new child ticket), the first move landed (#491's `ticket` collapse), and the
+fused-head design + migration path is committed as implemented. `project`/
+`retire` follow-up tickets were NOT created — the extension-model context
+already names them as follow-ups and drafting them is cheap when picked up.
+Marking done as the umbrella's coordination work is complete; execution lives
+in the child tickets.
 
 ## Tier-2 shim design (2026-06-23, zach + claude) — SUPERSEDED by PR #491, kept for the audit trail
 

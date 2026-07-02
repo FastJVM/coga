@@ -608,3 +608,4 @@
 2026-07-01 21:07 [cli-extension-model/move-command-logic-to-tickets] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-07-01 21:07 [cli-extension-model/move-command-logic-to-tickets] [megalaunch] launched via coga megalaunch
 2026-07-01 21:13 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] created (autonomy=interactive, status=draft)
+2026-07-01 21:15 [cli-extension-model/move-command-logic-to-tickets] [human:nicktoper] task done — Umbrella closed: reads + recurring each have a committed child-ticket plan; fused-head pattern landed via PR #491 (ticket collapse), project/retire follow-ups on that pattern
