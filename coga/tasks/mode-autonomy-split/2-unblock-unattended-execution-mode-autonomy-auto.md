@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - autonomy/triage
 skills: []
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -185,6 +185,32 @@ now at least 💥-posted); a script step that advances into a following agent
 step returns to the sweep un-chained and now gets paused rather than the
 old bail — arguably still not ideal, follow-up material.
 
+## Peer review (Codex, 2026-07-02)
+
+Native review command: `codex review --base main` from
+`/home/n/Code/claude/coga-unblock-auto-launch`.
+
+Must-fix findings addressed:
+
+- P1: unattended recurring auto runs that call `coga block` were being caught by
+  the generic unfinished-auto pause path, rewriting `blocked` to `paused` and
+  hiding the owner ask. Fixed `_stop_if_unfinished_after_launch` to leave
+  `blocked` tickets alone; added a regression that the sweep continues while
+  preserving blocked status.
+- P2: parent aborts (`SIGINT`/`SIGTERM` path raising out of launch) could leave
+  the `start_new_session=True` headless child running while `Popen.__exit__`
+  waited. Fixed `run_headless` to terminate/kill the child process group on
+  abort before re-raising; added a regression that simulates parent abort and
+  verifies the process group is gone.
+
+Also corrected direct stale `--mode`/`mode:` wording in the changed Coga CLI
+context and launch messages to `--autonomy`/`autonomy:` (live + packaged copy).
+
+Verification after review fixes: `python -m pytest -p no:cacheprovider` —
+1000 passed, 1 skipped.
+
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":591652,"cache_read_input_tokens":31066862,"cli":"claude","input_tokens":23538,"model":"claude-fable-5","output_tokens":156023,"provider":"anthropic","schema":1,"session_id":"e4233319-32b6-4b07-a552-ec82b928dbe5","slug":"mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto","step":"implement","title":"Unblock unattended execution (mode/autonomy: auto)","ts":"2026-07-02T05:08:52.244096Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":4579072,"cli":"codex","input_tokens":325319,"model":"gpt-5.5","output_tokens":19046,"provider":"openai","schema":1,"session_id":"019f213a-dfb1-76e3-a88e-98d2bb88dd32","slug":"mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto","step":"peer-review","title":"Unblock unattended execution (mode/autonomy: auto)","ts":"2026-07-02T15:01:51.212959Z","usage_status":"ok"}
