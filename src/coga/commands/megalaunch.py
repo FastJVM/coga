@@ -6,8 +6,14 @@ import sys
 
 import typer
 
+from coga import notification
 from coga.config import ConfigError, load_config
-from coga.megalaunch import MegalaunchError, render_run_summary, run_megalaunch
+from coga.megalaunch import (
+    MegalaunchError,
+    MegalaunchRun,
+    render_run_summary,
+    run_megalaunch,
+)
 
 
 def megalaunch(
@@ -30,6 +36,36 @@ def megalaunch(
     except MegalaunchError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
+    # Local outcome to stdout before the notification post, so a Slack crash
+    # still leaves the run summary visible (coga/sync convention).
     typer.echo(render_run_summary(run))
+    message = _drain_post_text(run)
+    if message is not None:
+        notification.post(cfg, message)
     if run.counts["failed"]:
         sys.exit(1)
+
+
+def _drain_post_text(run: MegalaunchRun) -> str | None:
+    """One live line: what was drained, or that budget skipped everything.
+
+    Silent when the run had no results at all — an empty repo is lifecycle
+    noise, not an outcome a teammate needs within minutes.
+    """
+    if not run.results:
+        return None
+    counts = run.counts
+    launched = [result.slug for result in run.results if result.launched]
+    parts = [
+        "launched " + ", ".join(f"*{slug}*" for slug in launched)
+        if launched
+        else "nothing launched"
+    ]
+    if counts["skipped-budget"]:
+        parts.append(f"{counts['skipped-budget']} skipped for budget")
+    if counts["skipped-unresolved-blocker"] or counts["skipped-human-gate"]:
+        skipped = counts["skipped-unresolved-blocker"] + counts["skipped-human-gate"]
+        parts.append(f"{skipped} not launchable")
+    if counts["failed"]:
+        parts.append(f"{counts['failed']} failed")
+    return "Megalaunch drain: " + "; ".join(parts)

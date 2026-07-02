@@ -11,7 +11,7 @@ from rich.table import Table
 
 from coga.blackboard import Blocker, open_blockers
 from coga.config import ConfigError, load_config
-from coga.logfile import last_activity_map
+from coga.logfile import first_activity_map, last_activity_map
 from coga.taskfile import TaskFileError
 from coga.tasks import (
     UnknownDirectoryError,
@@ -29,7 +29,16 @@ from coga.ticket import TicketError
 # stays on a single line.
 NARROW_WIDTH = 100
 
-ORDER_BY_CHOICES = ("slug", "status", "owner", "assignee", "step", "autonomy", "updated")
+ORDER_BY_CHOICES = (
+    "slug",
+    "status",
+    "owner",
+    "assignee",
+    "step",
+    "autonomy",
+    "updated",
+    "created",
+)
 
 
 def _format_relative(then: datetime, now: datetime) -> str:
@@ -135,6 +144,9 @@ def status(
     # One pass over the global log builds every task's last-activity timestamp,
     # instead of re-scanning a per-task log file for each row.
     activity = last_activity_map(cfg)
+    # Creation timestamps (earliest log line per ref) — the exact order the
+    # megalaunch drain services tickets in. Only needed for this sort column.
+    created = first_activity_map(cfg) if order_by == "created" else {}
 
     rows = []
     blocked_rows = []
@@ -168,23 +180,27 @@ def status(
             "step": ticket.step or "-",
             "autonomy": ticket.autonomy,
             "updated_ts": activity.get(ref.id_slug),
+            "created_ts": created.get(ref.id_slug),
         })
 
     if blocked:
         _print_blocked(console, blocked_rows)
         return
 
-    # Default reading is "newest first" for date columns and alphabetical
-    # for everything else; --reverse flips whichever default applies.
+    # Default reading is "newest first" for `updated` and alphabetical for
+    # everything else; --reverse flips whichever default applies. `created`
+    # defaults to oldest-first — it exists to show the exact order the
+    # megalaunch drain services tickets in.
     descending = (order_by == "updated") ^ reverse
 
-    if order_by == "updated":
+    if order_by in ("updated", "created"):
+        ts_key = f"{order_by}_ts"
         # Two passes so the "missing" bucket always ends up last regardless
         # of direction. Pass 1: sort by the timestamp itself, with None
         # mapped to datetime.min so it doesn't crash compares. Pass 2 is
         # stable, so it preserves pass-1 order within each bucket.
-        rows.sort(key=lambda r: r["updated_ts"] or datetime.min, reverse=descending)
-        rows.sort(key=lambda r: r["updated_ts"] is None)
+        rows.sort(key=lambda r: r[ts_key] or datetime.min, reverse=descending)
+        rows.sort(key=lambda r: r[ts_key] is None)
     else:
         rows.sort(key=lambda r: r[order_by], reverse=descending)
 

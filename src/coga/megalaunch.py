@@ -7,17 +7,24 @@ eligible step spawns the agent REPL under the PTY watcher exactly like
 back to the sweep. Recurring's idle-timeout / max-session backstops are armed
 so one wedged agent can't starve the rest of the queue. Because the spawned
 REPLs are interactive, the whole run requires a TTY — fail loud otherwise.
+
+Tasks are serviced oldest-first (first `coga/log.md` line per ref — committed
+content, so the order survives clones where file mtimes don't). The budget
+guard reads each agent's own subscription usage windows via
+`coga.usage_probe` — the 5h/session window plus the weekly window, re-probed
+before every launch — instead of coga summing its own token records. An agent
+whose windows can't be read is skipped conservatively, never launched blind.
 """
 
 from __future__ import annotations
 
 import shutil
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-from coga import usage
+from coga import usage_probe
 from coga.blackboard import open_blockers
 from coga.commands.launch import (
     _interactive_stdio_has_tty,
@@ -32,17 +39,13 @@ from coga.commands.recurring import (
 from coga.compose import ComposeError, compose_prompt
 from coga.config import Config, ConfigError, SecretError, build_launch_env, load_config
 from coga.github_preflight import check_git_auth, check_git_remote
+from coga.logfile import first_activity_map
 from coga.mark import mark_in_progress
 from coga.taskfile import read_blackboard, replace_blackboard
 from coga.tasks import TaskRef, list_tasks, read_ticket
 from coga.ticket import Ticket, TicketError
 from coga.validate import TaskValidationError
 
-
-# Cache-read tokens cost ~1/10th of regular input tokens, and a single long
-# session reads tens of millions of them — counted at full weight they exhaust
-# any realistic budget on the first launch.
-CACHE_READ_COST_DIVISOR = 10
 
 class MegalaunchError(Exception):
     """Megalaunch cannot run at all — e.g. no TTY for the interactive REPLs."""
@@ -59,26 +62,13 @@ MegalaunchOutcome = Literal[
 
 
 @dataclass(frozen=True)
-class BudgetState:
-    agent: str
-    budget: int
-    used: int
-    remaining: int
-    guard: int
-
-    @property
-    def enough(self) -> bool:
-        return self.remaining >= self.guard
-
-
-@dataclass(frozen=True)
 class MegalaunchResult:
     slug: str
     outcome: MegalaunchOutcome
     detail: str
     agent: str | None = None
     launched: bool = False
-    budget: BudgetState | None = None
+    budget: usage_probe.BudgetDecision | None = None
 
 
 @dataclass(frozen=True)
@@ -107,6 +97,7 @@ def run_megalaunch(
     *,
     max_tasks: int | None = None,
     max_steps_per_task: int = 8,
+    probes: dict[str, usage_probe.UsageProbe] | None = None,
 ) -> MegalaunchRun:
     """Attempt active, launchable tasks sequentially with one budget guard."""
     cfg = cfg or load_config()
@@ -125,8 +116,12 @@ def run_megalaunch(
     # is only torn down when it is genuinely idle.
     idle_timeout = _recurring_idle_timeout(cfg)
     max_session = _recurring_max_session(cfg)
+    # One probe per configured agent for the whole run; each budget check
+    # re-reads through it, so a launch's spend shows up in the next decision.
+    if probes is None:
+        probes = usage_probe.build_probes(cfg)
 
-    for ref in list_tasks(cfg):
+    for ref in _tasks_oldest_first(cfg):
         if max_tasks is not None and attempted >= max_tasks:
             break
         try:
@@ -141,11 +136,7 @@ def run_megalaunch(
         if ticket.status not in {"active", "blocked"}:
             continue
 
-        # Refresh the usage snapshot per task so the budget guard accounts for
-        # tokens already spent by tasks launched earlier in this same run.
-        records = usage.load_records(cfg.repo_root)
-
-        candidate = _candidate_result(cfg, ref, ticket, records)
+        candidate = _candidate_result(cfg, ref, ticket, probes)
         if candidate is not None:
             results.append(candidate)
             continue
@@ -156,7 +147,7 @@ def run_megalaunch(
                 cfg,
                 ref,
                 ticket,
-                records,
+                probes,
                 max_steps_per_task=max_steps_per_task,
                 idle_timeout=idle_timeout,
                 max_session=max_session,
@@ -166,11 +157,27 @@ def run_megalaunch(
     return MegalaunchRun(started_at=started_at, results=results)
 
 
+def _tasks_oldest_first(cfg: Config) -> list[TaskRef]:
+    """All tasks, oldest creation first (first `coga/log.md` line per ref).
+
+    The first log line is the draft/create entry — committed content, so the
+    ordering survives clone/checkout where file mtimes collapse to "all
+    equal". Refs with no parseable log line sort last, stable by slug.
+    """
+    created = first_activity_map(cfg)
+
+    def key(ref: TaskRef) -> tuple[bool, datetime, str]:
+        ts = created.get(ref.id_slug)
+        return (ts is None, ts or datetime.min, ref.id_slug)
+
+    return sorted(list_tasks(cfg), key=key)
+
+
 def _candidate_result(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
-    records: list[usage.UsageRecord],
+    probes: dict[str, usage_probe.UsageProbe],
 ) -> MegalaunchResult | None:
     blockers = open_blockers(ref.ticket_path)
     if ticket.status == "blocked":
@@ -201,12 +208,12 @@ def _candidate_result(
             ticket.assignee,
         )
 
-    budget = budget_state(cfg, records, ticket.assignee)
-    if not budget.enough:
+    budget = usage_probe.check_budget(probes, ticket.assignee, cfg.megalaunch)
+    if not budget.allowed:
         return _result(
             ref,
             "skipped-budget",
-            f"remaining {budget.remaining} tokens is below guard {budget.guard}",
+            budget.detail,
             ticket.assignee,
             budget=budget,
         )
@@ -217,14 +224,14 @@ def _launch_until_stop(
     cfg: Config,
     ref: TaskRef,
     ticket: Ticket,
-    records: list[usage.UsageRecord],
+    probes: dict[str, usage_probe.UsageProbe],
     *,
     max_steps_per_task: int,
     idle_timeout: float | None = None,
     max_session: float | None = None,
 ) -> MegalaunchResult:
     launched = False
-    last_budget: BudgetState | None = None
+    last_budget: usage_probe.BudgetDecision | None = None
     step_count = 0
 
     while True:
@@ -249,13 +256,15 @@ def _launch_until_stop(
                 budget=last_budget,
             )
 
-        budget = budget_state(cfg, records, ticket.assignee)
+        # Re-probe before every launch — the previous step just spent budget,
+        # and the agent's own usage window is the only accounting we trust.
+        budget = usage_probe.check_budget(probes, ticket.assignee, cfg.megalaunch)
         last_budget = budget
-        if not budget.enough:
+        if not budget.allowed:
             return _result(
                 ref,
                 "skipped-budget",
-                f"remaining {budget.remaining} tokens is below guard {budget.guard}",
+                budget.detail,
                 ticket.assignee,
                 launched=launched,
                 budget=budget,
@@ -380,7 +389,6 @@ def _launch_until_stop(
                 budget=budget,
             )
         ticket = after
-        records = usage.load_records(cfg.repo_root)
 
 
 def _preflight_agent_launch(cfg: Config, ref: TaskRef, ticket: Ticket) -> str | None:
@@ -405,51 +413,6 @@ def _preflight_agent_launch(cfg: Config, ref: TaskRef, ticket: Ticket) -> str | 
     return None
 
 
-def budget_state(
-    cfg: Config,
-    records: list[usage.UsageRecord],
-    agent: str | None,
-    *,
-    now: datetime | None = None,
-) -> BudgetState:
-    agent_name = agent or ""
-    now = now or datetime.now(timezone.utc)
-    since = now - timedelta(hours=cfg.megalaunch.window_hours)
-    used = 0
-    for record in records:
-        if record.agent != agent_name:
-            continue
-        ts = _parse_record_ts(record.ts)
-        if ts is not None and ts < since:
-            continue
-        used += (
-            (record.input_tokens or 0)
-            + (record.cache_creation_input_tokens or 0)
-            + (record.cache_read_input_tokens or 0) // CACHE_READ_COST_DIVISOR
-            + (record.output_tokens or 0)
-        )
-    budget = cfg.megalaunch.agent_token_budgets.get(
-        agent_name, cfg.megalaunch.default_token_budget
-    )
-    return BudgetState(
-        agent=agent_name,
-        budget=budget,
-        used=used,
-        remaining=max(0, budget - used),
-        guard=cfg.megalaunch.token_guard,
-    )
-
-
-def _parse_record_ts(value: str) -> datetime | None:
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed
-
-
 def _result(
     ref: TaskRef,
     outcome: MegalaunchOutcome,
@@ -457,7 +420,7 @@ def _result(
     agent: str | None = None,
     *,
     launched: bool = False,
-    budget: BudgetState | None = None,
+    budget: usage_probe.BudgetDecision | None = None,
 ) -> MegalaunchResult:
     return MegalaunchResult(
         slug=ref.id_slug,
@@ -492,11 +455,8 @@ def render_run_summary(run: MegalaunchRun) -> str:
         lines.append("- none")
     for result in run.results:
         budget = ""
-        if result.budget is not None:
-            budget = (
-                f" (agent={result.budget.agent}, "
-                f"remaining={result.budget.remaining}, guard={result.budget.guard})"
-            )
+        if result.budget is not None and result.budget.detail != result.detail:
+            budget = f" (budget: {result.budget.detail})"
         lines.append(f"- {result.slug}: {result.outcome} - {result.detail}{budget}")
     return "\n".join(lines) + "\n"
 
@@ -529,11 +489,9 @@ def write_run_summary(blackboard_path: Path, run: MegalaunchRun) -> None:
 
 
 __all__ = [
-    "BudgetState",
     "MegalaunchError",
     "MegalaunchResult",
     "MegalaunchRun",
-    "budget_state",
     "render_run_summary",
     "run_megalaunch",
     "trim_megalaunch_blackboard_text",
