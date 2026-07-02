@@ -87,8 +87,8 @@ def delete_ticket_branch(
 
     pr_merged = _pr_merged(blackboard_text, echo, result)
 
-    _delete_remote(cfg, root, branch, pr_merged, echo, result)
-    _delete_local(root, branch, pr_merged, echo, result)
+    delete_remote_branch(cfg, root, branch, pr_merged, echo, result)
+    delete_local_branch(root, branch, pr_merged, echo, result)
     return result
 
 
@@ -117,7 +117,7 @@ def _pr_merged(
     return True
 
 
-def _delete_remote(
+def delete_remote_branch(
     cfg: Config,
     root: Path,
     branch: str,
@@ -125,6 +125,9 @@ def _delete_remote(
     echo: Callable[[str], None],
     result: BranchCleanupResult,
 ) -> None:
+    """Delete `origin/<branch>` iff `pr_merged`. Shared with `branchsweep.py`,
+    whose merge signal is looked up by branch name instead of a ticket's `pr:`
+    URL — the caller decides `pr_merged`, this only does the git plumbing."""
     remote = cfg.git_remote
     if not pr_merged:
         _note(
@@ -145,13 +148,15 @@ def _delete_remote(
     _note(result, echo, f"Branch cleanup: could not delete remote {remote}/{branch}: {stderr}")
 
 
-def _delete_local(
+def delete_local_branch(
     root: Path,
     branch: str,
     pr_merged: bool,
     echo: Callable[[str], None],
     result: BranchCleanupResult,
 ) -> None:
+    """Delete the local `branch` iff safe. Shared with `branchsweep.py` — see
+    `delete_remote_branch`."""
     if not _local_branch_exists(root, branch):
         _note(result, echo, f"Branch cleanup: local {branch!r} not present.")
         return
@@ -246,4 +251,9 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-__all__ = ["BranchCleanupResult", "delete_ticket_branch"]
+__all__ = [
+    "BranchCleanupResult",
+    "delete_ticket_branch",
+    "delete_remote_branch",
+    "delete_local_branch",
+]
