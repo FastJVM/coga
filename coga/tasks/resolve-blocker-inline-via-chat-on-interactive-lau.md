@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/architecture
 - coga/cli
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -225,6 +225,38 @@ Nick was AFK at the design checkpoint; decisions (preamble keyed off open
 asks; unblock relaxation) are recorded above — flag at peer review if either
 should be revisited.
 
+## Peer review result (committed e2618bcb on launch-blocked-chat)
+
+Native review (`codex review --base main`) initially found two correctness
+issues, both fixed:
+
+- Blocked interactive launch now requires at least one open blocker ask before
+  it can resume; a `blocked` ticket with no open ask refuses and stays blocked.
+- Blocked launch activation now happens only after launch preflights pass, so
+  a missing agent CLI or failed preflight leaves the ticket `blocked`.
+
+A follow-up review pass found the die-before-resolution visibility problem and
+the stale tracked bootstrap context copies:
+
+- If a resumed blocked launch exits or times out before `coga unblock --answer`
+  resolves the ask, launch moves the ticket back to `blocked` so
+  `status --blocked`, `unblock --all`, and blocker reminders still see it.
+- The live tracked `coga/bootstrap/contexts/coga/{architecture,cli}` copies now
+  carry the same blocked-launch behavior update as the packaged bootstrap
+  resources. The broader pre-existing drift between old live bootstrap text and
+  packaged package-resource docs was not flattened beyond the behavior lines
+  touched by this ticket.
+
+Final native review after those fixes reported no actionable correctness
+issues. Verification:
+
+- `PYTHONPATH=$PWD/src python3.12 -m pytest tests/test_launch.py::test_launch_blocked_interactive_resumes_with_preamble tests/test_launch.py::test_launch_blocked_timeout_reblocks_unresolved_ask tests/test_launch.py::test_launch_blocked_session_records_resolution_in_flight tests/test_launch.py::test_spawn_agent_session_without_kickoff_stays_silent tests/test_launch.py::test_spawn_agent_session_appends_kickoff_for_claude tests/test_launch.py::test_spawn_agent_session_appends_kickoff_for_codex` → 6 passed (pytest cache write warning from sandbox)
+- `PYTHONPATH=$PWD/src python3.12 -m pytest` → 1000 passed, 1 skipped (same pytest cache write warning)
+- `git diff --check` → clean
+- `PYTHONPATH=$PWD/src python3.12 -m coga.cli validate --task resolve-blocker-inline-via-chat-on-interactive-lau --json` → ok_count 1, no issues
+
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":447106,"cache_read_input_tokens":19187157,"cli":"claude","input_tokens":21118,"model":"claude-fable-5","output_tokens":121100,"provider":"anthropic","schema":1,"session_id":"66c29f38-c96d-4cbb-b1f0-79c12c790a0c","slug":"resolve-blocker-inline-via-chat-on-interactive-lau","step":"implement","title":"Resolve blocker inline via chat on interactive launch","ts":"2026-07-02T18:12:20.493460Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":12876544,"cli":"codex","input_tokens":310544,"model":"gpt-5.5","output_tokens":29165,"provider":"openai","schema":1,"session_id":"019f2408-2ad7-7cf2-8efa-0eb786369798","slug":"resolve-blocker-inline-via-chat-on-interactive-lau","step":"peer-review","title":"Resolve blocker inline via chat on interactive launch","ts":"2026-07-02T18:55:43.353228Z","usage_status":"ok"}
