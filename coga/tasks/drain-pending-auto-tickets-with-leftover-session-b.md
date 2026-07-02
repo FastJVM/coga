@@ -670,3 +670,5 @@ Launchable as-is given the design step exists, but I'd make three edits first: p
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":605217,"cache_read_input_tokens":20984265,"cli":"claude","input_tokens":26960,"model":"claude-fable-5","output_tokens":209411,"provider":"anthropic","schema":1,"session_id":"d4f2fb1e-47e5-426a-a0d5-1d494463d366","slug":"drain-pending-auto-tickets-with-leftover-session-b","step":"implement","title":"Drain pending auto tickets with leftover session budget after recurring sweep","ts":"2026-07-02T04:40:36.778749Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":202622,"cache_read_input_tokens":1163147,"cli":"claude","input_tokens":18676,"model":"claude-fable-5","output_tokens":12028,"provider":"anthropic","schema":1,"session_id":"3fe7ff8a-b7eb-4975-a252-e3855d9aba5d","slug":"drain-pending-auto-tickets-with-leftover-session-b","step":"open-pr","title":"Drain pending auto tickets with leftover session budget after recurring sweep","ts":"2026-07-02T04:42:23.876757Z","usage_status":"ok"}
