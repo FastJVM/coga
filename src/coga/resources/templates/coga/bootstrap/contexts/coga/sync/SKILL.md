@@ -397,7 +397,9 @@ without ever checking out `main`: it builds the control branch's tree in a
 `commit-tree`s onto the fetched control tip, and pushes that commit straight to
 `refs/heads/<control>`. The feature working tree — staged and unstaged code
 alike — is never touched, stashed, or reset. A detached HEAD takes the same
-cross-branch path but skips the local commit (it would be orphaned).
+cross-branch path but skips the local commit (it would be orphaned); any dirty
+`merge=union` files that would otherwise have ridden that local commit are
+union-merged directly into the control-branch commit.
 
 The push to `refs/heads/<control>` is a compare-and-swap: if the control branch
 moved under us (another coga process, a teammate), the
@@ -415,6 +417,12 @@ working tree: the old on-disk task files then look like fresh local edits, and a
 later catch-all sweep can commit that stale snapshot back over the newer pushed
 state. Updating the local ref is only an optional convenience; preserving the
 attached checkout's file/index coherence is required.
+
+Detached launch-worktree cleanup checks the same boundary. After the teardown
+sweep runs, dirt relative to the old detached base is ignored if applying those
+dirty Coga paths would no longer change the fetched control tip. That lets
+successful sync remove the throwaway worktree while still preserving it when a
+task file or union-file append has not actually reached `main`.
 
 Scope is narrow. `src/coga/git.py::sync_task_state(cfg, task_path, *,
 message)` stages and commits only the task directory pathspec. It must not use
@@ -448,10 +456,13 @@ OS-state line the "Scope is narrow" rule draws, so product code (`src/`,
 `tests/`) is structurally never swept in. Branch handling and the
 `merge=union` split reuse the same machinery as `sync_paths` (union files —
 `log.md`, the digest spool — committed locally + union-merged onto the control
-branch, never landed via the wholesale-replace overlay); union membership is
-asked of git directly via `git check-attr merge`, so any future `merge=union`
-file is handled automatically. Same non-fatal failure model: a sweep that can't
-reach the control branch is surfaced (stderr + `coga/log.md`), never a crash.
+branch, never landed via the wholesale-replace overlay from a feature branch).
+On detached HEAD, where there is no durable local branch commit, those union
+files are three-way union-merged directly into the control-branch commit. Union
+membership is asked of git directly via `git check-attr merge`, so any future
+`merge=union` file is handled automatically. Same non-fatal failure model: a
+sweep that can't reach the control branch is surfaced (stderr + `coga/log.md`),
+never a crash.
 
 It is wired at two boundaries, *in addition to* — never replacing — the
 per-transition syncs, which keep the readable git history and digest filtering:

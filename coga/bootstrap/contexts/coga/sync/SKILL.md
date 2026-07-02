@@ -383,7 +383,9 @@ without ever checking out `main`: it builds the control branch's tree in a
 `commit-tree`s onto the fetched control tip, and pushes that commit straight to
 `refs/heads/<control>`. The feature working tree — staged and unstaged code
 alike — is never touched, stashed, or reset. A detached HEAD takes the same
-cross-branch path but skips the local commit (it would be orphaned).
+cross-branch path but skips the local commit (it would be orphaned); any dirty
+`merge=union` files that would otherwise have ridden that local commit are
+union-merged directly into the control-branch commit.
 
 The push to `refs/heads/<control>` is a compare-and-swap: if the control branch
 moved under us (another coga process, a teammate), the

@@ -12,7 +12,9 @@ branch, it still lands the task state on the control branch — by building the
 control branch's tree in a *temporary index* and pushing a fresh commit
 straight to `refs/heads/<control>`, never checking out `main` or touching the
 feature working tree — and *also* commits the task files on the current branch
-so the agent's checkout reflects the ticket state it works against.
+so the agent's checkout reflects the ticket state it works against. Detached
+launch worktrees take the same temp-index path; `merge=union` files that cannot
+ride a local branch commit are union-merged directly into the control commit.
 
 `sync_log` is the narrow companion for callers that append to the repo-global
 `log.md` with no task-dir sync to ride along — chiefly stateless bootstrap-ticket
@@ -278,9 +280,11 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
 
     Branch and union-file handling mirror `sync_paths`: the `merge=union` files
     (`log.md`, the digest spool) are committed locally + union-merged onto the
-    control branch, never landed via the cross-branch overlay (which would
-    replace them wholesale and drop concurrently-appended lines). Everything
-    else lands on the control branch from any branch. A clean subtree is a no-op.
+    control branch, never landed via the wholesale overlay (which would drop
+    concurrently-appended lines). Detached HEAD has no durable local branch
+    commit, so it performs that union merge directly while building the control
+    branch tree. Everything else lands on the control branch from any branch. A
+    clean subtree is a no-op.
 
     Same non-fatal failure model as `sync_paths` (stderr + `coga/log.md`, never
     a crash): the on-disk markdown is the source of truth; a sweep that can't
@@ -350,10 +354,16 @@ def _dispatch_branch_sync(
         return
 
     if branch == "HEAD":
+        overlay = set(overlay_rels)
+        union_rels = [rel for rel in local_rels if rel not in overlay]
         sys.stderr.write(
             f"[git] detached HEAD — changes landed on "
             f"{cfg.git_control_branch!r} but not committed locally. ({message})\n"
         )
+        _land_paths_on_control_branch(
+            cfg, root, overlay_rels, union_rels=union_rels, message=message
+        )
+        return
     else:
         _commit_paths(root, local_rels, message)
     _land_paths_on_control_branch(cfg, root, overlay_rels, message=message)
@@ -378,7 +388,9 @@ def _changed_paths_under(root: Path, pathspecs: str | Iterable[str]) -> list[str
     selected = [pathspecs] if isinstance(pathspecs, str) else list(pathspecs)
     if not selected:
         return []
-    out = _run_git(root, "status", "--porcelain", "-z", "--", *selected)
+    out = _run_git(
+        root, "status", "--porcelain", "-z", "--untracked-files=all", "--", *selected
+    )
     fields = out.split("\x00")
     rels: list[str] = []
     seen: set[str] = set()
@@ -638,9 +650,8 @@ def _land_on_control_branch(
     remote = cfg.git_remote
     branch = cfg.git_control_branch
 
-    for _ in range(_MAX_SYNC_ATTEMPTS):
-        _run_git(root, "fetch", remote, branch)
-        base = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+    for attempt in range(_MAX_SYNC_ATTEMPTS):
+        base = _control_base_for_attempt(root, remote, branch, attempt)
 
         tree = _build_overlay_tree(root, base, [rel])
         if tree == _run_git(root, "rev-parse", f"{base}^{{tree}}").strip():
@@ -670,17 +681,22 @@ def _land_on_control_branch(
 
 
 def _land_paths_on_control_branch(
-    cfg: Config, root: Path, rels: list[str], *, message: str
+    cfg: Config,
+    root: Path,
+    rels: list[str],
+    *,
+    union_rels: list[str] | None = None,
+    message: str,
 ) -> None:
     """Land selected pathspecs on the control branch from any branch."""
     remote = cfg.git_remote
     branch = cfg.git_control_branch
+    union_rels = union_rels or []
 
-    for _ in range(_MAX_SYNC_ATTEMPTS):
-        _run_git(root, "fetch", remote, branch)
-        base = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+    for attempt in range(_MAX_SYNC_ATTEMPTS):
+        base = _control_base_for_attempt(root, remote, branch, attempt)
 
-        tree = _build_overlay_tree(root, base, rels)
+        tree = _build_overlay_tree(root, base, rels, union_rels=union_rels)
         if tree == _run_git(root, "rev-parse", f"{base}^{{tree}}").strip():
             return
 
@@ -700,15 +716,36 @@ def _land_paths_on_control_branch(
     )
 
 
-def _build_overlay_tree(root: Path, base: str, rels: list[str]) -> str:
+def _control_base_for_attempt(
+    root: Path, remote: str, branch: str, attempt: int
+) -> str:
+    if attempt == 0:
+        local = _local_control_base(root, remote, branch)
+        if local is not None:
+            return local
+    _run_git(root, "fetch", remote, branch)
+    return _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+
+
+def _local_control_base(root: Path, remote: str, branch: str) -> str | None:
+    for ref in (f"refs/heads/{branch}", f"refs/remotes/{remote}/{branch}"):
+        if _git_ref_present(root, ref):
+            return _run_git(root, "rev-parse", ref).strip()
+    return None
+
+
+def _build_overlay_tree(
+    root: Path, base: str, rels: list[str], *, union_rels: list[str] | None = None
+) -> str:
     """Build a tree = `base`'s tree with selected pathspecs overlaid.
 
     Runs entirely against a throwaway temporary index (`GIT_INDEX_FILE`), so
     neither the real index nor the working tree is disturbed. Seeds the temp
     index from `base`, drops stale content for every selected path, re-adds the
-    current working-tree content for paths that still exist, and writes the
-    resulting tree object.
+    current working-tree content for paths that still exist, union-merges any
+    detached-head `merge=union` files, and writes the resulting tree object.
     """
+    union_rels = union_rels or []
     fd, tmp_index = tempfile.mkstemp(prefix="coga-git-index-")
     os.close(fd)
     try:
@@ -716,6 +753,7 @@ def _build_overlay_tree(root: Path, base: str, rels: list[str]) -> str:
         env = {"GIT_INDEX_FILE": tmp_index}
         _run_git(root, "read-tree", base, env=env)
         _overlay_paths(root, env, rels)
+        _overlay_union_paths(root, env, base, union_rels)
         return _run_git(root, "write-tree", env=env).strip()
     finally:
         try:
@@ -737,6 +775,146 @@ def _overlay_paths(root: Path, env: dict[str, str], rels: list[str]) -> None:
         )
         if _path_exists(root, rel):
             _run_git(root, "add", "--", rel, env=env)
+
+
+def _overlay_union_paths(
+    root: Path, env: dict[str, str], base: str, rels: list[str]
+) -> None:
+    if not rels:
+        return
+    ancestor = _run_git(root, "merge-base", "HEAD", base).strip()
+    for rel in rels:
+        merged = _merge_union_path(
+            root, current_rev=base, base_rev=ancestor, rel=rel
+        )
+        blob = _hash_blob(root, merged)
+        _run_git(
+            root,
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            "100644",
+            blob,
+            rel,
+            env=env,
+        )
+
+
+def _merge_union_path(
+    root: Path, *, current_rev: str, base_rev: str, rel: str
+) -> bytes:
+    """Three-way union-merge a working-tree file into `current_rev`.
+
+    This is the temp-index equivalent of the `merge=union` driver used when a
+    local branch commit later merges through Git. It is only used for detached
+    launch worktrees, where there is no durable local branch commit for `log.md`
+    / `spool.md` appends to ride.
+    """
+    working = _working_tree_bytes(root, rel)
+    if working is None:
+        raise GitError(
+            "cannot safely land deleted merge=union path "
+            f"{rel!r} from detached HEAD"
+        )
+    current = _tree_bytes(root, current_rev, rel) or b""
+    base = _tree_bytes(root, base_rev, rel) or b""
+    return _merge_union_bytes(current=current, base=base, other=working)
+
+
+def _merge_union_bytes(*, current: bytes, base: bytes, other: bytes) -> bytes:
+    with tempfile.TemporaryDirectory(prefix="coga-union-merge-") as tmp:
+        tmpdir = Path(tmp)
+        current_path = tmpdir / "current"
+        base_path = tmpdir / "base"
+        other_path = tmpdir / "other"
+        current_path.write_bytes(current)
+        base_path.write_bytes(base)
+        other_path.write_bytes(other)
+        try:
+            result = subprocess.run(
+                [
+                    "git",
+                    "merge-file",
+                    "--union",
+                    str(current_path),
+                    str(base_path),
+                    str(other_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+                env={**os.environ, **_noninteractive_git_env()},
+            )
+        except FileNotFoundError as exc:
+            raise GitError("`git` not found on PATH") from exc
+        if result.returncode != 0:
+            raise GitError(
+                "`git merge-file --union` failed "
+                f"(exit {result.returncode}): "
+                f"{result.stderr.strip() or result.stdout.strip()}"
+            )
+        return current_path.read_bytes()
+
+
+def _tree_bytes(root: Path, rev: str, rel: str) -> bytes | None:
+    spec = f"{rev}:{rel}"
+    try:
+        probe = subprocess.run(
+            ["git", "-C", str(root), "cat-file", "-e", spec],
+            capture_output=True,
+            check=False,
+            env={**os.environ, **_noninteractive_git_env()},
+        )
+    except FileNotFoundError as exc:
+        raise GitError("`git` not found on PATH") from exc
+    if probe.returncode != 0:
+        return None
+    result = subprocess.run(
+        ["git", "-C", str(root), "show", spec],
+        capture_output=True,
+        check=False,
+        env={**os.environ, **_noninteractive_git_env()},
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.decode(errors="replace").strip()
+        stdout = result.stdout.decode(errors="replace").strip()
+        raise GitError(
+            f"`git show {spec}` failed (exit {result.returncode}): "
+            f"{stderr or stdout}"
+        )
+    return result.stdout
+
+
+def _working_tree_bytes(root: Path, rel: str) -> bytes | None:
+    path = Path(rel)
+    if not path.is_absolute():
+        path = root / path
+    if not path.exists():
+        return None
+    if not path.is_file():
+        raise GitError(f"merge=union path {rel!r} is not a file")
+    return path.read_bytes()
+
+
+def _hash_blob(root: Path, data: bytes) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "hash-object", "-w", "--stdin"],
+            input=data,
+            capture_output=True,
+            check=False,
+            env={**os.environ, **_noninteractive_git_env()},
+        )
+    except FileNotFoundError as exc:
+        raise GitError("`git` not found on PATH") from exc
+    if result.returncode != 0:
+        stderr = result.stderr.decode(errors="replace").strip()
+        stdout = result.stdout.decode(errors="replace").strip()
+        raise GitError(
+            "`git hash-object -w --stdin` failed "
+            f"(exit {result.returncode}): {stderr or stdout}"
+        )
+    return result.stdout.decode().strip()
 
 
 def _push_ref(root: Path, remote: str, refspec: str) -> str | None:
@@ -1150,16 +1328,55 @@ def launch_worktree_has_dirty_coga_state(cfg: Config, path: Path) -> bool:
     """True when a launch worktree still has recoverable Coga OS changes.
 
     Used before teardown. Detached launch worktrees may retain state that the
-    non-fatal git sync layer could not land, especially union files such as
-    `coga/log.md`; force-removing such a checkout would delete the only local
-    copy. Non-Coga scratch files do not block cleanup.
+    non-fatal git sync layer could not land; force-removing such a checkout
+    would delete the only local copy. Dirt relative to the worktree's detached
+    base is expected after a successful sync, so this compares dirty Coga paths
+    to the fetched control tip and preserves the worktree only when applying
+    those paths would still change that tip. Non-Coga scratch files do not block
+    cleanup.
     """
     root = _toplevel(path)
     if root is None:
         return False
     coga_root = repo_root_in_worktree(cfg, path)
     state_pathspecs = _coga_state_pathspecs(root, coga_root)
-    return bool(_changed_paths_under(root, state_pathspecs))
+    changed = _changed_paths_under(root, state_pathspecs)
+    if not changed:
+        return False
+    return not _changed_paths_match_control_tip(cfg, root, changed)
+
+
+def _changed_paths_match_control_tip(
+    cfg: Config, root: Path, rels: list[str]
+) -> bool:
+    """Whether dirty working-tree paths are already represented on control."""
+    _run_git(root, "fetch", cfg.git_remote, cfg.git_control_branch)
+    control = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+    ancestor = _run_git(root, "merge-base", "HEAD", control).strip()
+    union = _union_merge_paths(root, rels)
+    for rel in rels:
+        if rel in union:
+            if not _union_path_includes_worktree(
+                root, current_rev=control, base_rev=ancestor, rel=rel
+            ):
+                return False
+            continue
+        if _working_tree_bytes(root, rel) != _tree_bytes(root, control, rel):
+            return False
+    return True
+
+
+def _union_path_includes_worktree(
+    root: Path, *, current_rev: str, base_rev: str, rel: str
+) -> bool:
+    current = _tree_bytes(root, current_rev, rel) or b""
+    try:
+        merged = _merge_union_path(
+            root, current_rev=current_rev, base_rev=base_rev, rel=rel
+        )
+    except GitError:
+        return False
+    return merged == current
 
 
 def remove_launch_worktree(cfg: Config, path: Path) -> None:

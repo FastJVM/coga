@@ -271,6 +271,7 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
         ).lstrip()
     )
     (coga_os / "coga.local.toml").write_text('user = "marc"\n')
+    (root / ".gitignore").write_text("coga/coga.local.toml\n")
     # Mirror the live repo's union-merge marking so `git check-attr merge`
     # resolves `log.md` / the digest spool as `merge=union` (the subtree sweep's
     # union split, and the spool's mergeable contract, depend on it).

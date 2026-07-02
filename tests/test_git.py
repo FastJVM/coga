@@ -390,6 +390,62 @@ def test_sync_detached_head_lands_without_local_commit(git_repo, capsys):
     assert "detached HEAD" in capsys.readouterr().err
 
 
+def test_sync_detached_head_uses_local_control_ref_before_fetch(git_repo, monkeypatch):
+    """A detached launch worktree should not need to write FETCH_HEAD on the
+    uncontended first push.
+
+    Some agent sandboxes make the per-worktree git dir read-only, so an eager
+    `git fetch origin main` fails before a perfectly valid local-control-ref
+    landing attempt can even build its tree.
+    """
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("checkout", "--detach", "HEAD")
+    task = _task_dir(git_repo.coga_os)
+    real_run_git = git._run_git
+
+    def fail_fetch(root, *args, **kwargs):
+        if args[:3] == ("fetch", "origin", "main"):
+            raise git.GitError("fetch should not run on first attempt")
+        return real_run_git(root, *args, **kwargs)
+
+    monkeypatch.setattr(git, "_run_git", fail_fetch)
+
+    git.sync_task_state(cfg, task, message="Ticket: demo — created")
+
+    assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
+
+
+def test_sync_detached_head_union_merges_log_to_control_branch(git_repo):
+    """Detached HEAD has no local branch commit for `merge=union` files to ride.
+
+    The cross-branch land must therefore union-merge dirty log/spool-style files
+    directly into the control commit instead of preserving the launch worktree
+    forever with only local log appends.
+    """
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-union-log")
+    try:
+        git_repo.push_competing_commit("coga/log.md", "remote log line\n")
+        worktree_cfg = _cfg(path / "coga")
+        append_log(worktree_cfg, "demo", "agent:codex", "detached log line")
+
+        git.sync_coga_state(worktree_cfg, message="Sync coga state")
+
+        origin_log = subprocess.run(
+            ["git", "show", "main:coga/log.md"],
+            cwd=git_repo.origin,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        assert "remote log line" in origin_log
+        assert "detached log line" in origin_log
+        assert "coga/log.md" in git_repo.git("status", "--porcelain", cwd=path)
+        assert not git.launch_worktree_has_dirty_coga_state(cfg, path)
+    finally:
+        git.remove_launch_worktree(cfg, path)
+
+
 def test_sync_noop_when_not_a_git_repo(tmp_path, capsys, real_git):
     cfg = _cfg(tmp_path)
     task = _task_dir(tmp_path)
@@ -1434,11 +1490,11 @@ def test_reap_orphan_launch_worktrees_noop_without_dir(git_repo) -> None:
     git.reap_orphan_launch_worktrees(cfg)
 
 
-def test_launch_isolates_session_in_a_worktree_and_preserves_dirty_state(
+def test_launch_isolates_session_in_a_worktree_and_cleans_up_synced_state(
     git_repo, monkeypatch
 ):
     """`[launch].worktree` runs the agent in a detached per-launch worktree and
-    preserves it on exit when unsynced Coga state remains recoverable."""
+    removes it on exit once detached Coga state has landed on control."""
     from coga.commands.launch import launch as launch_cmd
 
     toml = git_repo.coga_os / "coga.toml"
@@ -1503,9 +1559,29 @@ def test_launch_isolates_session_in_a_worktree_and_preserves_dirty_state(
     assert "status: active" in (
         git_repo.coga_os / "tasks" / "fix-retry-logic.md"
     ).read_text()  # launch status writes did not touch the primary checkout
-    assert worktree.exists()  # dirty Coga state is left for recovery
-    assert git.launch_worktree_has_dirty_coga_state(cfg, worktree)
-    git.remove_launch_worktree(cfg, worktree)
+    origin_ticket = subprocess.run(
+        ["git", "show", "main:coga/tasks/fix-retry-logic.md"],
+        cwd=git_repo.origin,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "status: in_progress" in origin_ticket
+    assert not worktree.exists()  # synced detached Coga state did not wedge cleanup
+
+
+def test_launch_worktree_dirty_check_preserves_unsynced_coga_state(git_repo) -> None:
+    """Dirty Coga state still blocks teardown when it is not on control."""
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-unsynced")
+    try:
+        task = path / "coga" / "tasks" / "demo" / "ticket.md"
+        task.parent.mkdir(parents=True)
+        task.write_text("---\ntitle: demo\n---\n\nunsynced\n")
+
+        assert git.launch_worktree_has_dirty_coga_state(cfg, path)
+    finally:
+        git.remove_launch_worktree(cfg, path)
 
 
 def test_launch_without_worktree_toggle_runs_in_place(git_repo, monkeypatch):
