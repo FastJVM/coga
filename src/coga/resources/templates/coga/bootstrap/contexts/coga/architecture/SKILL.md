@@ -205,8 +205,10 @@ task; the invariant holds for machine-authored tasks too.
   verbatim, so settling them with the human is the session's first job —
   recorded via `coga unblock <slug> --answer`, which on an already
   `in_progress` ticket resolves the asks without touching status or step.
-  Script, auto, and TTY-less launches keep refusing a blocked ticket until
-  `coga unblock` records the answer. `bump` ignores `status:`
+  If the resumed session exits before recording an answer, launch returns the
+  ticket to `blocked` so blocker queues keep reporting it. Script, auto, and
+  TTY-less launches keep refusing a blocked ticket until `coga unblock`
+  records the answer. `bump` ignores `status:`
   entirely (it owns `step:`, not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `coga bump`. Only moves when

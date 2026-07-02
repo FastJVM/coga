@@ -29,7 +29,7 @@ import typer
 
 from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
-from coga.blackboard import blackboard_size_warning, format_bytes
+from coga.blackboard import blackboard_size_warning, format_bytes, open_blockers
 from coga.commands.launch_script import is_script_launch
 from coga.compose import (
     ComposeError,
@@ -52,6 +52,7 @@ from coga.mark import (
     RequiredExtensionMissing,
     WorkflowMissing,
     mark_active,
+    mark_blocked,
     mark_in_progress,
 )
 from coga.repl_supervisor import run_with_done_marker
@@ -208,11 +209,13 @@ def launch(
             "different ticket."
         )
 
+    blocked_resume = False
+
     # A blocked ticket may be launched only by an explicit interactive human
     # act: the session's first job becomes resolving the open asks with the
     # human (the composed prompt gains a resolve-or-re-block preamble keyed
     # off the blackboard's open blockers), and the ticket reactivates inline
-    # below exactly like draft/paused. Batch surfaces are unchanged — a
+    # after preflights pass. Batch surfaces are unchanged — a
     # script step, an auto launch, or a TTY-less run has no human to discuss
     # with, so those keep the hard refusal (checked here, before any status
     # mutation). `coga megalaunch` never gets this far: it classifies blocked
@@ -224,6 +227,14 @@ def launch(
             and not is_script_launch(cfg, ticket)
             and _interactive_stdio_has_tty()
         ):
+            if not open_blockers(ref.ticket_path):
+                _bail(
+                    f"Cannot launch {ref.id_slug}: it is blocked but has no "
+                    "open blocker asks to resolve. Record a blocker with "
+                    f"`coga block --task {ref.id_slug} --reason \"...\"` or "
+                    "repair the task state before launching."
+                )
+            blocked_resume = True
             typer.echo(
                 f"Launch: {ref.id_slug} is blocked — resuming interactively; "
                 "the session's first job is to resolve or re-block the open asks."
@@ -270,7 +281,7 @@ def launch(
         if (
             not is_bootstrap
             and isinstance(ref, TaskRef)
-            and ticket.status not in {"active", "in_progress"}
+            and ticket.status in {"draft", "paused"}
         ):
             _auto_activate(cfg, ref, ticket)
 
@@ -372,6 +383,9 @@ def launch(
         # preflights above. Pre-flip, so a refused launch never posts a "started"
         # broadcast or flips status.
         _preflight_push_auth(cfg, ref, is_bootstrap=is_bootstrap)
+
+        if blocked_resume and isinstance(ref, TaskRef) and ticket.status == "blocked":
+            _auto_activate(cfg, ref, ticket)
 
         if isinstance(ref, TaskRef) and ticket.status == "active":
             try:
@@ -502,6 +516,9 @@ def launch(
                 _bail(f"Failed to spawn agent: {agent.cli!r} not found.")
 
             typer.echo(f"Launch: agent exited with code {session.exit_code}")
+            if blocked_resume:
+                _reblock_unresolved_resume(cfg, ref, step_assignee or launch_assignee)
+                blocked_resume = False
             if session.termination_kind == "timeout":
                 # A liveness limit (idle / max-session) tore the REPL down — the
                 # agent never signalled done. Don't chain to the next step.
@@ -564,7 +581,7 @@ def launch(
 
 
 def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
-    """Bring a draft / paused ticket to `active` inline.
+    """Bring a draft / paused / resumable blocked ticket to `active` inline.
 
     `coga launch` used to refuse any status but `active`/`in_progress` and
     point the operator at `coga mark active`. Now launching *is* the
@@ -572,7 +589,8 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     mutates `ticket` in place — status → active, a bare-string `workflow:`
     frozen, and `step:` seeded — so the later `mark_in_progress` flip fires off
     the same object. (A `done` ticket never reaches here: launch refuses it
-    earlier rather than restart a finished workflow.)
+    earlier rather than restart a finished workflow. A blocked ticket reaches
+    here only after the launch preflights have passed.)
 
     Fails loud, leaving the ticket untouched, when activation can't legally
     happen: the ticket has no workflow to advance, its `workflow:` ref can't
@@ -607,6 +625,49 @@ def _auto_activate(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         _bail(
             f"Cannot launch {ref.id_slug}: required extension field(s) empty: "
             f"{names}. Fill them in `ticket.md` then retry."
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
+
+
+def _reblock_unresolved_resume(
+    cfg: Config, ref: TaskRef | BootstrapRef, blocker: str | None
+) -> None:
+    """Return an unresolved blocked-ticket resume to the blocked queue.
+
+    A resumed blocked launch is allowed to become `in_progress` so the same
+    session can discuss, run `coga unblock`, and continue to `coga bump`. If
+    that session exits before recording the answer, keep the unresolved ask
+    visible to `status --blocked`, `unblock --all`, and blocker reminders.
+    """
+    if not isinstance(ref, TaskRef) or not ref.ticket_path.exists():
+        return
+    blockers = open_blockers(ref.ticket_path)
+    if not blockers:
+        return
+    ticket = read_ticket(ref)
+    if ticket.status != "in_progress":
+        return
+
+    owner = ticket.owner or cfg.current_user
+    detail = "; ".join(b.reason for b in blockers)
+    try:
+        mark_blocked(
+            cfg,
+            ref,
+            ticket,
+            actor="system",
+            log_message=(
+                "blocked: unresolved blocker still open after resumed launch exited"
+            ),
+            slack_text=(
+                f"🛑 {blocker or cfg.current_user} still blocked "
+                f"*{ref.id_slug}* \"{ticket.title}\": {detail}"
+            ),
+            echo=(
+                f"{ref.id_slug}: blocked (unresolved blocker still open; "
+                f"owner {owner} needs to answer)"
+            ),
         )
     except TaskValidationError as exc:
         _bail(str(exc))

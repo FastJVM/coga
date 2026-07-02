@@ -188,13 +188,26 @@ task; the invariant holds for machine-authored tasks too.
 ## Two state machines per ticket
 
 - **Control plane (`status`)** — `draft → active → in_progress →
-  done`, plus `paused`. Governs *whether* work happens. `coga mark`
-  owns the `draft`/`active`/`paused`/`done` transitions; `coga launch`
+  done`, plus `paused` and `blocked`. Governs *whether* work happens.
+  `coga mark` owns the `draft`/`active`/`paused`/`done` transitions;
+  `coga block` owns the `blocked` transition, and `coga unblock` resolves
+  open blocker asks and moves `blocked → active` while preserving `step:`.
+  `coga launch`
   flips an `active` ticket to `in_progress` when it spawns the agent, and —
   since launching is itself the readiness signal — also performs the
   `mark active` step inline for a ticket that is still `draft` or `paused`
   before that flip. A `done` ticket is finished: launch refuses it and leaves
-  it untouched rather than restarting its workflow. `bump` ignores `status:`
+  it untouched rather than restarting its workflow. A `blocked` ticket is
+  waiting on a concrete answer; an **interactive** launch from a TTY resumes
+  it inline (`blocked → active → in_progress`, `step:` preserved) and the
+  composed prompt gains a resolve-or-re-block preamble listing the open asks
+  verbatim, so settling them with the human is the session's first job —
+  recorded via `coga unblock <slug> --answer`, which on an already
+  `in_progress` ticket resolves the asks without touching status or step.
+  If the resumed session exits before recording an answer, launch returns the
+  ticket to `blocked` so blocker queues keep reporting it. Script, auto, and
+  TTY-less launches keep refusing a blocked ticket until `coga unblock`
+  records the answer. `bump` ignores `status:`
   entirely (it owns `step:`, not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `coga bump`. Only moves when
@@ -223,7 +236,7 @@ script or composes an agent is deduced, not declared.
 
 - **`interactive`** — human-attended terminal session. Agent gets the
   composed prompt, human stays in the loop. The REPL doesn't terminate on
-  its own — `coga bump` / `coga mark done` / `coga panic` signal the
+  its own — `coga bump` / `coga mark done` / `coga block` signal the
   launch supervisor via the session-scoped `$COGA_DONE_SENTINEL` file, and
   the supervisor SIGTERMs the REPL. The sentinel file is the only done
   channel: the supervisor honors it only when the file's content names the
@@ -234,7 +247,7 @@ script or composes an agent is deduced, not declared.
   it is an *agent's* turn — relaunching the next agent's CLI, so it rotates
   e.g. claude → codex → claude across a peer-review workflow) or returns
   control to the caller (the next step hands off to an owner/human, the status
-  flipped to `done`/`paused`, the agent panicked or exited non-zero, or no
+  flipped to `done`/`paused`/`blocked`, the agent blocked or exited non-zero, or no
   progress was made). The discriminator is agent-vs-human, not
   same-vs-changed assignee. Each respawn gives the next step a clean prompt
   scope, with no carryover reasoning from the previous skill. Cross-ticket

@@ -179,8 +179,10 @@ in_progress`, `step:` preserved) and the composed prompt gains a
 resolve-or-re-block preamble listing the open asks verbatim, making them the
 session's first job — the agent records the resolution with
 `coga unblock <slug> --answer "..."` (which leaves an `in_progress` ticket's
-status and step untouched) or re-blocks with a refined reason. Script, auto,
-and TTY-less launches of a blocked ticket are still refused until
+status and step untouched) or re-blocks with a refined reason. If the resumed
+session exits before recording an answer, launch returns the ticket to
+`blocked` so blocker queues keep reporting it. Script, auto, and
+TTY-less launches of a blocked ticket are still refused until
 `coga unblock` records the answer (`coga megalaunch` likewise still skips it
 as `skipped-unresolved-blocker`); a `done` ticket is refused because it is finished. A ticket
 that can't be activated — no workflow, or an empty `required` extension field
