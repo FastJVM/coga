@@ -613,3 +613,5 @@
 2026-07-01 21:07 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
 2026-07-01 21:15 [drain-pending-auto-tickets-with-leftover-session-b] [megalaunch] launched via coga megalaunch
 2026-07-01 21:40 [drain-pending-auto-tickets-with-leftover-session-b] [agent:claude] advanced to step 4 (open-pr)
+2026-07-01 21:40 [drain-pending-auto-tickets-with-leftover-session-b] [megalaunch] launched via coga megalaunch
+2026-07-01 21:42 [drain-pending-auto-tickets-with-leftover-session-b] [agent:claude] advanced to step 5 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/497

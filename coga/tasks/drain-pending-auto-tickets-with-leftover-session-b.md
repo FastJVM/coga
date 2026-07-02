@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts:
 - coga/recurring
 - coga/codebase
@@ -34,7 +34,7 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 4 (open-pr)
+step: 5 (review)
 ---
 
 ## Description
@@ -297,6 +297,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 ## Dev
 branch: megalaunch-usage-probe
 worktree: /home/n/Code/claude/coga-megalaunch-usage-probe
+pr: https://github.com/FastJVM/coga/pull/497
 
 ## Rescope implementation plan (2026-07-01, claude, implement)
 
@@ -348,6 +349,15 @@ Plan of record:
   `coga status --order-by created` added on the same helper.
 - Ticket body rewrite: `mode:` → `autonomy:` drift + criteria re-anchored to
   the megalaunch fold-in.
+
+## Open-pr step done (2026-07-01, claude)
+
+Pushed `megalaunch-usage-probe` (fd94c953) to origin and opened
+https://github.com/FastJVM/coga/pull/497 against main. No CI checks are
+configured on this repo (`gh pr checks` reports none), so there is no CI
+signal to wait on. Review inputs for Nick: the three provisional rescope
+decisions in "Rescope implementation plan" below (replace-not-augment token
+guard; eligibility unchanged; live end-of-run Slack post).
 
 ## Implement step done (2026-07-01, claude)
 
