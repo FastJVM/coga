@@ -5,7 +5,7 @@ status: in_progress
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
-agent: claude
+agent: codex
 assignee: nicktoper
 contexts:
 - coga/extension-model
