@@ -26,6 +26,9 @@ workflow:
     skills:
     - code/implement
     assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
   - name: open-pr
     skills:
     - code/open-pr
