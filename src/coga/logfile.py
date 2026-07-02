@@ -96,6 +96,44 @@ def last_activity(cfg: Config, task_ref: str) -> datetime | None:
     return last_activity_map(cfg).get(task_ref)
 
 
+def first_activity_map(cfg: Config) -> dict[str, datetime]:
+    """Map each task ref to the timestamp of its earliest log line.
+
+    The mirror of `last_activity_map`: the earliest parseable line per ref is
+    the draft/create entry, so this is "creation time" as committed content —
+    it survives clone/checkout, unlike file mtimes. The minimum timestamp is
+    kept rather than the first line seen because `merge=union` can leave the
+    log unsorted. Megalaunch's oldest-first drain order and
+    `coga status --order-by created` both read it.
+    """
+    path = log_path(cfg)
+    out: dict[str, datetime] = {}
+    if not path.is_file():
+        return out
+    try:
+        text = path.read_text()
+    except OSError:
+        return out
+    for line in text.splitlines():
+        match = _LINE_RE.match(line)
+        if not match:
+            continue
+        try:
+            dt = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M")
+        except ValueError:
+            continue
+        ref = match.group(2)
+        prev = out.get(ref)
+        if prev is None or dt < prev:
+            out[ref] = dt
+    return out
+
+
+def first_activity(cfg: Config, task_ref: str) -> datetime | None:
+    """Return the timestamp of `task_ref`'s first log line, or None."""
+    return first_activity_map(cfg).get(task_ref)
+
+
 def task_log_lines(cfg: Config, task_ref: str) -> list[str]:
     """Return the global log's lines for `task_ref`, in file order.
 
@@ -116,6 +154,8 @@ def task_log_lines(cfg: Config, task_ref: str) -> list[str]:
 __all__ = [
     "append_log",
     "ref_tag_for_path",
+    "first_activity_map",
+    "first_activity",
     "last_activity_map",
     "last_activity",
     "task_log_lines",

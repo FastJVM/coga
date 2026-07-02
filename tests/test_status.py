@@ -294,3 +294,40 @@ def test_status_dirs_empty_prints_note(repo: Path) -> None:
 
     assert result.exit_code == 0
     assert "no directories" in result.stdout
+
+
+# --- --order-by created ----------------------------------------------------
+
+
+def test_status_order_by_created_lists_oldest_first(repo: Path) -> None:
+    """`created` shows the exact order the megalaunch drain services tickets."""
+    from coga.paths import log_path
+
+    _task(repo, "alpha")
+    _task(repo, "beta")
+    # beta's create line is older, so it sorts first despite slug order.
+    log_path(load_config(repo)).write_text(
+        "2026-06-02 10:00 [alpha] [human:marc] created\n"
+        "2026-06-01 10:00 [beta] [human:marc] created\n"
+    )
+
+    result = CliRunner().invoke(app, ["status", "--order-by", "created"])
+
+    assert result.exit_code == 0, result.output
+    assert result.output.index("beta") < result.output.index("alpha")
+
+
+def test_status_order_by_created_reverse_lists_newest_first(repo: Path) -> None:
+    from coga.paths import log_path
+
+    _task(repo, "alpha")
+    _task(repo, "beta")
+    log_path(load_config(repo)).write_text(
+        "2026-06-02 10:00 [alpha] [human:marc] created\n"
+        "2026-06-01 10:00 [beta] [human:marc] created\n"
+    )
+
+    result = CliRunner().invoke(app, ["status", "--order-by", "created", "--reverse"])
+
+    assert result.exit_code == 0, result.output
+    assert result.output.index("alpha") < result.output.index("beta")
