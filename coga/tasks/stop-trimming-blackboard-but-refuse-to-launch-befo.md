@@ -1,7 +1,7 @@
 ---
 slug: stop-trimming-blackboard-but-refuse-to-launch-befo
 title: refuse first launch when blackboard needs synthesis
-status: active
+status: in_progress
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
@@ -80,6 +80,11 @@ Implementation shape:
 - Update tests around `mark active` / `launch` and update the architecture
   context so the durable explanation matches the new behavior.
 <!-- coga:blackboard -->
-## Production notes
 
-This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
+The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Ticket authoring notes
+
+- Set workflow to `code/with-review` and initial assignee to `claude` on 2026-07-01.
+- `PYTHONPATH=src python -m coga.cli validate --task stop-trimming-blackboard-but-refuse-to-launch-befo --json` passes with only the expected draft warning: workflow is not frozen until first launch.
+- Ticket body now captures the first-launch-only guard, the no-trimming rule, and the source/doc/test touchpoints.
