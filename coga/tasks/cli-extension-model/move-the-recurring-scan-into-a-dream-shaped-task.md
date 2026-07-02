@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: nicktoper
+assignee: codex
 contexts:
 - coga/extension-model
 - coga/architecture
@@ -38,7 +38,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (review-design)
+step: 3 (implement)
 ---
 
 ## Description
