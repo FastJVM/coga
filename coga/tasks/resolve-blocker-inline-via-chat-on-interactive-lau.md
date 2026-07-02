@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/cli
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -155,6 +155,7 @@ This blackboard is for active-work handoff notes. Authoring scratch was cleared 
 ## Dev
 branch: launch-blocked-chat
 worktree: /home/n/Code/claude/coga-launch-blocked-chat
+pr: https://github.com/FastJVM/coga/pull/501
 
 ## Implement plan (decided)
 
@@ -254,6 +255,12 @@ issues. Verification:
 - `PYTHONPATH=$PWD/src python3.12 -m pytest` → 1000 passed, 1 skipped (same pytest cache write warning)
 - `git diff --check` → clean
 - `PYTHONPATH=$PWD/src python3.12 -m coga.cli validate --task resolve-blocker-inline-via-chat-on-interactive-lau --json` → ok_count 1, no issues
+
+## Open-pr result
+
+PR opened: https://github.com/FastJVM/coga/pull/501 (branch pushed to origin).
+`gh pr checks` reports no checks on the branch — the repo has no CI configured
+for it, so there is no green/red signal to wait on.
 
 ## Usage
 
