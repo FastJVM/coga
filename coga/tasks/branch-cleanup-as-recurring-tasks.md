@@ -1,18 +1,35 @@
 ---
 slug: branch-cleanup-as-recurring-tasks
 title: branch cleanup as recurring tasks
-status: draft
+status: active
 autonomy: interactive
 owner: nick
 human: nick
 agent: claude
 assignee: nick
 contexts:
-  - coga/recurring
+- coga/recurring
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -109,47 +126,6 @@ future ticket.
   name gate is the answer to that objection.
 
 <!-- coga:blackboard -->
+## Production notes
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Bootstrap decisions (2026-07-01)
-
-- Ticket was nearly obsoleted by retire-time deletion
-  (`handle-better-delete-branches-autcommit` → `src/coga/branchcleanup.py`,
-  shipped). Kept and repurposed: the sweep is now the **safety net** for
-  branches that leak past retire (best-effort failures, tickets deleted
-  without retire, dead sessions), and its first run clears the pre-retire
-  backlog — so no separate one-off backlog ticket.
-- Gate is **GitHub by branch name** (`gh pr list --head <branch> --state
-  merged`), not ticket matching — answers the old evaluator objection that
-  retired tickets lose their `branch:` line.
-- Human wants it runnable **both ways**: scheduled recurring task and
-  standalone/on-demand ticket. Achieved by making the workflow + script skill
-  the runnable unit; recurring ticket is just one caller.
-- Weekly schedule proposed (retire covers the daily flow) — human to confirm.
-- Post-review edits: added the no-open-PR condition to the remote gate
-  (branch-reuse hole), clarified `pr_state()` is URL-keyed so a new by-branch
-  gh helper is needed, and softened "clears the backlog" (no-PR branches are
-  skipped by design — expect a manual residue pass).
-
-## Evaluator review
-
-**1. Description clarity — strong.** A cold agent can start immediately. The deliverable is enumerated as four concrete artifacts with exact paths, the model to copy (`autoclose-merged`) is named and exists in all three live locations (`coga/recurring/autoclose-merged/ticket.md`, `coga/workflows/autoclose-merged/sweep.md`, `coga/skills/coga/autoclose/sweep/{SKILL.md,run.py}`), and the deletion gates are spelled out rather than deferred to implementation. Factual claims check out: `src/coga/branchcleanup.py` exists and its module docstring states exactly the safety model the ticket summarizes (merged-PR gate for remote, `-d` then logged `-D` for local, gh-unavailable → skip); `src/coga/autoclose.py` has `pr_state()` (line 95), `parse_branch_name()` (line 71), and `sweep_merged()` (line 193); `tests/test_branchcleanup.py` and `tests/test_autoclose.py` exist. Branch counts are plausible: 11 local (≈9-10 stale after `main` and checked-out branches) and 29 remote (≈27 stale after `origin/main`/`HEAD`) — the "~29 remote" slightly counts main/HEAD, but the "~" covers it.
-
-**2. Workflow fit — correct.** The build work is genuinely code-shaped (new Python module, tests, skill/workflow/recurring files, packaged twins, a PR), which is what `code/with-review` is for. The frontmatter's `autonomy: interactive` describes the build ticket, while the deliverable's recurring ticket will be `autonomy: auto` — the ticket keeps these distinct correctly. This is the same distinction the earlier evaluator review (preserved in `coga/tasks/handle-better-delete-branches-autcommit.md`) flagged, and it's handled here.
-
-**3. Contexts — relevant, one plausible addition.** `coga/recurring` is exactly right: the agent is authoring a recurring task and needs the creation contract (5-field cron required, weekly period key `YYYY-Www`, description extraction via `## Description` to next `## `, the `###`-only-headings gotcha, blackboard-as-state rules). One candidate missing context: `dev/code` (`coga/contexts/dev/code/SKILL.md`), which defines the `## Dev` `branch:` convention the skip-list gate depends on. The ticket partially compensates by directing the implementer to `parse_branch_name()` instead of a new regex, which encodes the format variance — so this is optional, but attaching `dev/code` would be cheap insurance since the sweep's core safety gate reads that convention.
-
-**4. Broad-context vs copied-fact — well judged.** The ticket already does the right thing: the load-bearing facts (squash-merge defeats ancestry, remote delete not reflog-protected, `parse_branch_name` normalizes three `branch:` forms, the exact packaged-twin path pairs) are copied into the body rather than left implicit in an attached context. The packaged-sync checklist in `## Context` is accurate — I verified `src/coga/resources/templates/coga/recurring/autoclose-merged/`, `.../workflows/autoclose-merged/`, and `.../bootstrap/skills/coga/autoclose/` all exist, so the three claimed twin locations follow the real pattern. `coga/recurring` is broad but nearly all of it applies here; attaching it (not excerpting) is correct.
-
-**5. Scope — reasonable as one ticket.** It looks large (module + tests + skill + workflow + recurring ticket, each duplicated into the packaged tree), but the pieces are useless separately and the `autoclose-merged` precedent shows this exact bundle shipping as one unit. Out-of-scope lines (retire-time deletion unchanged, autocommit stays in the sibling ticket) are explicit. No split needed.
-
-**6. Assumptions to question before launch:**
-
-- **"Reuse `branchcleanup.py`'s delete helpers" understates the work.** The helpers are private (`_delete_remote`, `_delete_local`, `_pr_merged`) and shaped around a single ticket's `BranchCleanupResult` with a URL-keyed PR check. Reuse means either importing privates or a small refactor to export them — the implementer should decide which and note it on the blackboard, not silently duplicate.
-- **`pr_state()` doesn't cover the ticket's gate.** `pr_state()` takes a PR URL; the sweep's gate is `gh pr list --head <branch> --state merged` (by branch name). A new gh helper is needed; `pr_state` is only reusable conceptually. The `## Context` mention of `pr_state()` could mislead a fast reader into thinking the gh check already exists in the needed shape.
-- **Branch reuse hole in the merged-PR gate.** `gh pr list --head <branch> --state merged` returns a hit if that head *ever* had a merged PR — including a branch later reused for a new, still-open PR. The live-ticket skip-list catches most of this, but a reused branch on a deleted/done ticket slips through. Consider also requiring no *open* PR for the head (`--state open` empty) before deleting.
-- **"First run clears the backlog" oversells slightly.** Only backlog branches with merged PRs get deleted; abandoned no-PR branches are skipped-and-reported by design. Expect a residue that needs one manual pass — fine, but the recurring ticket body shouldn't promise a clean slate.
-- Minor: building the live-ticket skip-list requires enumerating not-`done` tickets' blackboards; the ticket names `parse_branch_name()` for parsing but not the enumeration mechanism (presumably the same task iteration `sweep_merged()` uses — worth confirming in `autoclose.py` line 193ff before writing new listing code).
-
-**Bottom line:** Launchable as written. Well-scoped, factually accurate (every named file/function verified), and it explicitly answers the objections that killed the earlier sweep design. Before implementation: decide the private-helper reuse strategy, close the branch-reuse hole in the merged-PR gate (check for open PRs too), and optionally attach `dev/code`.
+This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
