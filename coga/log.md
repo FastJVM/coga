@@ -612,6 +612,12 @@
 2026-07-01 21:15 [drain-pending-auto-tickets-with-leftover-session-b] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-07-01 21:07 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
 2026-07-01 21:15 [drain-pending-auto-tickets-with-leftover-session-b] [megalaunch] launched via coga megalaunch
+2026-07-01 21:18 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-01 21:18 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-01 21:18 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] launched in interactive mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-01 21:28 [stop-trimming-blackboard-but-refuse-to-launch-befo] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-01 21:28 [stop-trimming-blackboard-but-refuse-to-launch-befo] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '/home/n/Code/codex/coga/.git/worktrees/9fe5ac0ae5ef4d858336bd027bc8b90f/FETCH_HEAD': Read-only file system
+2026-07-01 21:28 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
 2026-07-01 21:40 [drain-pending-auto-tickets-with-leftover-session-b] [agent:claude] advanced to step 4 (open-pr)
 2026-07-01 21:40 [drain-pending-auto-tickets-with-leftover-session-b] [megalaunch] launched via coga megalaunch
 2026-07-01 21:42 [drain-pending-auto-tickets-with-leftover-session-b] [agent:claude] advanced to step 5 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/497
@@ -619,6 +625,11 @@
 2026-07-01 21:42 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [megalaunch] launched via coga megalaunch
 2026-07-01 22:08 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done: headless auto runner + capture/notify, branch unblock-auto-launch (331b9e89)
 2026-07-01 22:08 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [megalaunch] launched via coga megalaunch
+2026-07-01 22:37 [stop-trimming-blackboard-but-refuse-to-launch-befo] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-01 22:37 [stop-trimming-blackboard-but-refuse-to-launch-befo] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '/home/n/Code/codex/coga/.git/worktrees/9fe5ac0ae5ef4d858336bd027bc8b90f/FETCH_HEAD': Read-only file system
+2026-07-01 22:37 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '/home/n/Code/codex/coga/.git/worktrees/9fe5ac0ae5ef4d858336bd027bc8b90f/FETCH_HEAD': Read-only file system
+2026-07-01 22:37 [stop-trimming-blackboard-but-refuse-to-launch-befo] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-01 22:38 [stop-trimming-blackboard-but-refuse-to-launch-befo] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/498
 2026-07-02 08:01 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
 2026-07-02 08:01 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [git] sync failed: `git add -- coga/tasks/mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
 2026-07-02 08:01 [coga] [git] sync failed: `git add -- coga/log.md coga/tasks/mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
@@ -635,7 +646,12 @@
 2026-07-02 10:53 [resolve-blocker-inline-via-chat-on-interactive-lau] [megalaunch] launched via coga megalaunch
 2026-07-02 11:12 [resolve-blocker-inline-via-chat-on-interactive-lau] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done: interactive launch of a blocked ticket now resumes inline with a resolve-or-re-block preamble; branch launch-blocked-chat, commit 85c18ecb
 2026-07-02 11:10 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-02 11:31 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-02 11:31 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-02 11:31 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in interactive mode (assignee=claude, launch_assignee=codex, agent=codex)
 2026-07-02 11:37 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 11:37 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:claude] advanced to step 2 (review-design) → assigned to nicktoper
+2026-07-02 11:37 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [git] sync failed: `git add -- coga/tasks/cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task.md` failed (exit 128): error: unable to create temporary file: Read-only file system
 2026-07-02 11:12 [resolve-blocker-inline-via-chat-on-interactive-lau] [megalaunch] launched via coga megalaunch
 2026-07-02 11:55 [resolve-blocker-inline-via-chat-on-interactive-lau] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
 2026-07-02 11:55 [resolve-blocker-inline-via-chat-on-interactive-lau] [git] sync failed: `git add -- coga/tasks/resolve-blocker-inline-via-chat-on-interactive-lau.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
