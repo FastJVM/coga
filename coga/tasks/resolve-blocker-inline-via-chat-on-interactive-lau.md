@@ -224,3 +224,7 @@ and no fixture-driven test changed behavior.
 Nick was AFK at the design checkpoint; decisions (preamble keyed off open
 asks; unblock relaxation) are recorded above — flag at peer review if either
 should be revisited.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":447106,"cache_read_input_tokens":19187157,"cli":"claude","input_tokens":21118,"model":"claude-fable-5","output_tokens":121100,"provider":"anthropic","schema":1,"session_id":"66c29f38-c96d-4cbb-b1f0-79c12c790a0c","slug":"resolve-blocker-inline-via-chat-on-interactive-lau","step":"implement","title":"Resolve blocker inline via chat on interactive launch","ts":"2026-07-02T18:12:20.493460Z","usage_status":"ok"}
