@@ -184,3 +184,7 @@ recurring sweep when an agent CLI exits non-zero mid-sweep (pre-existing,
 now at least 💥-posted); a script step that advances into a following agent
 step returns to the sweep un-chained and now gets paused rather than the
 old bail — arguably still not ideal, follow-up material.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":591652,"cache_read_input_tokens":31066862,"cli":"claude","input_tokens":23538,"model":"claude-fable-5","output_tokens":156023,"provider":"anthropic","schema":1,"session_id":"e4233319-32b6-4b07-a552-ec82b928dbe5","slug":"mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto","step":"implement","title":"Unblock unattended execution (mode/autonomy: auto)","ts":"2026-07-02T05:08:52.244096Z","usage_status":"ok"}
