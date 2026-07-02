@@ -1,4 +1,8 @@
-"""Sequential console launcher for active, agent-owned Coga work.
+"""Sequential console launcher for launchable, agent-owned Coga work.
+
+A ticket is launchable when it is `active`, or `in_progress` — a step some
+earlier session started and left unfinished; those resume from the current
+step exactly like `coga launch <slug>`.
 
 Megalaunch is a set of normal interactive launches, not a headless drain: each
 eligible step spawns the agent REPL under the PTY watcher exactly like
@@ -99,7 +103,11 @@ def run_megalaunch(
     max_steps_per_task: int = 8,
     probes: dict[str, usage_probe.UsageProbe] | None = None,
 ) -> MegalaunchRun:
-    """Attempt active, launchable tasks sequentially with one budget guard."""
+    """Attempt launchable (active or resumable in_progress) tasks sequentially.
+
+    Each task runs under the same budget guard; `in_progress` tickets are
+    resumed from their current step exactly like `coga launch <slug>` would.
+    """
     cfg = cfg or load_config()
     if not _interactive_stdio_has_tty():
         raise MegalaunchError(
@@ -130,10 +138,11 @@ def run_megalaunch(
             results.append(_result(ref, "failed", f"unreadable ticket: {exc}"))
             continue
 
-        # Only `active` (launchable) and `blocked` (reportable) tickets are in
-        # scope. draft/paused/done/in_progress are ignored — never launched and
-        # never counted as a result.
-        if ticket.status not in {"active", "blocked"}:
+        # `active` (launchable), `in_progress` (resumable — a prior session
+        # started the step but exited without finishing it), and `blocked`
+        # (reportable) tickets are in scope. draft/paused/done are ignored —
+        # never launched and never counted as a result.
+        if ticket.status not in {"active", "in_progress", "blocked"}:
             continue
 
         candidate = _candidate_result(cfg, ref, ticket, probes)
@@ -184,7 +193,7 @@ def _candidate_result(
         detail = "; ".join(blocker.reason for blocker in blockers) or "status is blocked"
         return _result(ref, "skipped-unresolved-blocker", detail, ticket.assignee)
 
-    if ticket.status != "active":
+    if ticket.status not in {"active", "in_progress"}:
         return None
     if blockers:
         detail = "; ".join(blocker.reason for blocker in blockers)
