@@ -1130,7 +1130,7 @@ def _stop_if_unfinished_after_launch(
     """Stop a bare recurring sweep if one launched task is still in flight.
 
     `interactive` is set when the sweep is `--interactive` (or the just-
-    launched template's own `mode:` was interactive). In that case the human
+    launched template's own `autonomy:` was interactive). In that case the human
     is driving — exiting the agent without marking done is a valid "park this
     run and move on" signal, not a stuck task. Make that durable by pausing the
     task, then continue instead of bailing the sweep; otherwise the next scan
@@ -1155,7 +1155,7 @@ def _stop_if_unfinished_after_launch(
         return
 
     ticket = read_ticket(ref)
-    if ticket.status in {"done", "paused"}:
+    if ticket.status in {"done", "paused", "blocked"}:
         return
 
     if timed_out:

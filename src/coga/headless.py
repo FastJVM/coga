@@ -76,13 +76,21 @@ def run_headless(
             # spawned, or SIGTERM to the CLI queues behind it.
             start_new_session=True,
         ) as proc:
-            outcome = _proxy_until_exit(
-                proc,
-                capture=capture,
-                out_fd=out_fd,
-                idle_timeout=idle_timeout,
-                max_session=max_session,
-            )
+            try:
+                outcome = _proxy_until_exit(
+                    proc,
+                    capture=capture,
+                    out_fd=out_fd,
+                    idle_timeout=idle_timeout,
+                    max_session=max_session,
+                )
+            except BaseException:
+                _terminate_process_group_on_abort(
+                    proc,
+                    capture=capture,
+                    out_fd=out_fd,
+                )
+                raise
     return outcome
 
 
@@ -98,14 +106,7 @@ def _proxy_until_exit(
     pipe_fd = proc.stdout.fileno()
 
     def _note(line: str) -> None:
-        # Make watcher actions visible in both the live stream and the capture
-        # file, so a post-mortem read of the file explains a 124 by itself.
-        data = f"\n[coga watcher] {line}\n".encode()
-        capture.write(data)
-        try:
-            os.write(out_fd, data)
-        except OSError:
-            pass
+        _write_note(capture, out_fd, line)
 
     session_start = time.monotonic()
     last_activity = session_start
@@ -186,6 +187,51 @@ def _proxy_until_exit(
         # `128 + signal` code rather than Popen's negative form.
         return ReplOutcome(128 - code, "crash")
     return ReplOutcome(code, "natural")
+
+
+def _terminate_process_group_on_abort(
+    proc: subprocess.Popen, *, capture, out_fd: int
+) -> None:
+    """Stop the headless child when the parent is interrupted mid-run."""
+    if proc.poll() is not None:
+        return
+    _write_note(capture, out_fd, "aborting headless run — terminating process group")
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+
+    try:
+        proc.wait(timeout=_KILL_GRACE_SECONDS)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+
+    _write_note(
+        capture,
+        out_fd,
+        f"child still alive after {_KILL_GRACE_SECONDS}s — escalating to SIGKILL",
+    )
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=_KILL_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def _write_note(capture, out_fd: int, line: str) -> None:
+    # Make watcher actions visible in both the live stream and the capture
+    # file, so a post-mortem read of the file explains abnormal endings.
+    data = f"\n[coga watcher] {line}\n".encode()
+    capture.write(data)
+    capture.flush()
+    try:
+        os.write(out_fd, data)
+    except OSError:
+        pass
 
 
 __all__ = ["run_headless"]

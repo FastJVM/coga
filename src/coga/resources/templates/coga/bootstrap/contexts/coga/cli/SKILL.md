@@ -200,13 +200,12 @@ directly. Script launches inject task metadata env vars including
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
   spawning an agent.
-- `coga launch <slug> --mode <interactive|auto>` — override the ticket's
-  `mode:` for this launch only. The debug knob for stepping through a
+- `coga launch <slug> --autonomy <interactive|auto>` — override the ticket's
+  `autonomy:` for this launch only. The debug knob for stepping through a
   `autonomy: auto` ticket in an attended terminal. Ephemeral: the ticket file is
   never rewritten, and both the spawned command and the composed
-  mode-specific prompt block follow the override. Rejected for a script step
-  tickets, which compose no agent prompt. `--mode auto` is rejected while
-  the auto-launch policy is in force.
+  autonomy-specific prompt block follow the override. Rejected for script step
+  tickets, which compose no agent prompt.
 - `coga launch bootstrap/<name>` — stateless launch target; concurrent launches
   safe.
 
@@ -391,7 +390,7 @@ resolver and the same deletion is reachable as a script step.
 Bootstrap tickets aren't user-deletable — they're package-backed batteries
 managed by the installed Coga package.
 
-## coga retire \<slug\> [--mode interactive] [--agent <type>] [--no-launch]
+## coga retire \<slug\> [--autonomy interactive|auto] [--agent <type>] [--no-launch]
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
 invokes the `retro/done-ticket` skill against the named ticket. The retro
@@ -586,7 +585,7 @@ Dedup after Dream deletes a completed run comes from
 `coga recurring --interactive` launches every due task in interactive mode
 for that run from an attended TTY, even ones whose template says `autonomy: auto`
 — the debug knob for stepping through a recurring run by hand. It threads
-`coga launch --mode interactive` through and rewrites no ticket files.
+`coga launch --autonomy interactive` through and rewrites no ticket files.
 
 `coga recurring --all` **forces a real, full run of every template**. It is
 *not* a sandbox: the only difference from a bare `coga recurring` is that it

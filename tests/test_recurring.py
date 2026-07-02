@@ -3254,6 +3254,69 @@ def test_bare_recurring_pauses_unfinished_auto_task_and_continues(
         )
 
 
+def test_bare_recurring_preserves_blocked_auto_task_and_continues(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A headless agent that blocks did advance state; do not rewrite it paused."""
+    company = tmp_path / "coga"
+    _write(
+        company / "coga.toml",
+        """
+        version = 1
+        default_status = "draft"
+        [slack]
+        webhook = "env:SLACK_WEBHOOK_URL"
+        [agents.claude]
+        cli = "claude"
+        auto = "-p"
+        file = "CLAUDE.md"
+        """,
+    )
+    _write(company / "coga.local.toml", 'user = "marc"\n')
+    _seed_period_task_context(company)
+    _seed_script_workflow(company)
+    _write_recurring_script(
+        company,
+        "needs-answer",
+        schedule="0 9 * * *",
+        title="Needs answer",
+    )
+    _write_recurring_script(
+        company,
+        "z-after",
+        schedule="0 9 * * *",
+        title="After blocked task",
+    )
+    monkeypatch.chdir(company)
+    calls: list[str] = []
+
+    def fake_launch(task: str, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        calls.append(task)
+        ticket = Ticket.read(company / "tasks" / task / "ticket.md")
+        ticket.frontmatter["status"] = (
+            "blocked" if task == "recurring/needs-answer" else "done"
+        )
+        ticket.write(company / "tasks" / task / "ticket.md")
+
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+
+    result = CliRunner().invoke(app, ["recurring"])
+
+    assert result.exit_code == 0, result.output
+    assert calls == ["recurring/needs-answer", "recurring/z-after"]
+    assert "paused (auto run exited unfinished)" not in result.output
+    blocked_ticket = company / "tasks" / "recurring" / "needs-answer" / "ticket.md"
+    done_ticket = company / "tasks" / "recurring" / "z-after" / "ticket.md"
+    assert Ticket.read(blocked_ticket).status == "blocked"
+    assert Ticket.read(done_ticket).status == "done"
+
+    cfg = load_config(company)
+    assert not any(
+        "unattended auto launch exited unfinished" in line
+        for line in task_log_lines(cfg, "recurring/needs-answer")
+    )
+
+
 def test_bare_recurring_interactive_overrides_mode(
     dream_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -4,9 +4,13 @@ output; closed stdin; and the idle / max-session liveness limits."""
 from __future__ import annotations
 
 import os
+import shlex
 import time
 from pathlib import Path
 
+import pytest
+
+import coga.headless as headless
 from coga.headless import run_headless
 from coga.repl_supervisor import _TIMEOUT_EXIT_CODE
 
@@ -103,3 +107,45 @@ def test_headless_overwrites_previous_capture(tmp_path: Path) -> None:
     text = capture_path.read_text()
     assert "fresh" in text
     assert "stale previous run" not in text
+
+
+def test_headless_terminates_process_group_when_parent_aborts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Ctrl-C/SystemExit in the parent must not leave the auto agent running."""
+    capture_path = tmp_path / "auto-run.log"
+    live_path = tmp_path / "live-stream.out"
+    pid_path = tmp_path / "child.pid"
+
+    def abort_after_child_started(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        deadline = time.monotonic() + 5.0
+        while not pid_path.exists():
+            if time.monotonic() >= deadline:
+                raise AssertionError("child did not start")
+            time.sleep(0.01)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(headless.select, "select", abort_after_child_started)
+    script = f"echo $$ > {shlex.quote(str(pid_path))}; sleep 30"
+
+    with open(live_path, "wb") as live:
+        with pytest.raises(KeyboardInterrupt):
+            run_headless(
+                ["sh", "-c", script],
+                {"PATH": os.environ["PATH"]},
+                capture_path=capture_path,
+                output_fd=live.fileno(),
+            )
+
+    pid = int(pid_path.read_text().strip())
+    deadline = time.monotonic() + 5.0
+    while True:
+        try:
+            os.killpg(pid, 0)
+        except ProcessLookupError:
+            break
+        if time.monotonic() >= deadline:
+            pytest.fail("headless child process group survived parent abort")
+        time.sleep(0.05)
+
+    assert "aborting headless run" in capture_path.read_text()

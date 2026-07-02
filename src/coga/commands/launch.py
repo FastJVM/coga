@@ -152,15 +152,15 @@ def launch(
     def _read(target: TaskRef | BootstrapRef) -> Ticket:
         """Read the ticket, applying the ephemeral `--agent` override.
 
-        `--mode` is deliberately NOT written into `frontmatter` here: the
+        `--autonomy` is deliberately NOT written into `frontmatter` here: the
         same ticket object is handed to `mark_in_progress`, which persists
-        it. The mode override is threaded separately to `compose_prompt` and
-        `build_agent_command` so the ticket file is never touched.
+        it. The autonomy override is threaded separately to `compose_prompt`
+        and `build_agent_command` so the ticket file is never touched.
         """
         t = read_ticket(target)
         if autonomy_override is not None and is_script_launch(cfg, t):
             _bail(
-                "--autonomy-override is not supported for script tasks "
+                "--autonomy is not supported for script tasks "
                 "(they compose no agent prompt)."
             )
         if agent_override is not None and is_bootstrap:
@@ -781,7 +781,7 @@ def build_agent_command(
     transcript id. `skip_permissions_argv` (the agent's machine-local
     permission-skip argv, threaded by `_skip_permissions_argv_for_launch` only
     when its policy applies) is inserted after the name/session argv and before
-    the mode-specific argv/prompt payload — `claude -n <title> --session-id
+    the autonomy-specific argv/prompt payload — `claude -n <title> --session-id
     <uuid> <skip-argv> -p <prompt>`, `codex <skip-argv> exec <prompt>`.
 
     `discussion=True` (used for human discussion sessions like `coga chat`
@@ -1077,7 +1077,7 @@ def _skip_permissions_argv_for_launch(
 
     The policy is machine-local per-agent config (`coga.local.toml`
     `[agents.<name>] skip_permissions = "auto"`) and applies only to normal
-    task tickets running in effective `mode: auto`. Bootstrap/discussion
+    task tickets running in effective `autonomy: auto`. Bootstrap/discussion
     tickets and interactive/script launches always get `()` — today's
     behavior. Called per step so supervised chains re-evaluate the policy
     for whichever agent the current step rotated to.
@@ -1130,12 +1130,12 @@ def _echo_launch_iteration(ref: TaskRef | BootstrapRef, ticket: Ticket) -> None:
     if current is None:
         typer.echo(
             f"→ launching {ref.id_slug} "
-            f"(status={ticket.status}, mode={ticket.autonomy}, assignee={ticket.assignee or 'unassigned'})"
+            f"(status={ticket.status}, autonomy={ticket.autonomy}, assignee={ticket.assignee or 'unassigned'})"
         )
         return
     typer.echo(
         f"→ entering step {ticket.step}: {current['name']} "
-        f"(status={ticket.status}, mode={ticket.autonomy}, assignee={ticket.assignee or 'unassigned'})"
+        f"(status={ticket.status}, autonomy={ticket.autonomy}, assignee={ticket.assignee or 'unassigned'})"
     )
 
 

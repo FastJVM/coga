@@ -62,7 +62,7 @@ repo, and capturing your name is `coga init`'s job, not `build`'s. There is no
 separate `coga setup` command — initialize the repo with `coga init`, then run
 `coga build`.
 
-## coga create "\<title\>" [--workflow \<name\>] [--mode interactive|auto|script]
+## coga create "\<title\>" [--workflow \<name\>] [--autonomy interactive|auto]
 
 Scaffold a new raw `draft` ticket and post `✨` when a notification channel
 is selected (a fresh repo selects none, so this is silent out of the box).
@@ -161,12 +161,13 @@ status state machine and the step state machine are separate.
 Compose every relevant file (rules + repo context + ticket contexts +
 current step's skill + blackboard + ticket body) into one prompt and
 start the configured agent. Accepts `status: active` or `in_progress`
-directly; a `draft` / `paused` / `done` ticket is activated inline first —
-typing `coga launch` is the readiness signal, so it activates the ticket for
-you (re-activating a `done` ticket restarts its workflow at step 1) rather
-than refusing. A ticket that can't be activated — no workflow, or an empty
-`required` extension field — still fails loud with the same remedy `mark
-active` gives. Launching an `active` ticket then marks it
+directly; a `draft` / `paused` ticket is activated inline first — typing
+`coga launch` is the readiness signal, so it activates the ticket for you
+rather than refusing. A `blocked` ticket is refused until `coga unblock`
+records the answer; a `done` ticket is refused because it is finished. A ticket
+that can't be activated — no workflow, or an empty `required` extension field
+— still fails loud with the same remedy `mark active` gives. Launching an
+`active` ticket then marks it
 `in_progress` (posting `▶️`) before spawning the agent; launching an
 already-`in_progress` ticket resumes it without another status flip. Interactive launches require stdin and stdout to both be
 terminals. `autonomy: auto` launches run headless (claude `-p`, codex
@@ -189,13 +190,12 @@ directly. Script launches inject task metadata env vars including
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
   spawning an agent.
-- `coga launch <slug> --mode <interactive|auto>` — override the ticket's
-  `mode:` for this launch only. The debug knob for stepping through a
+- `coga launch <slug> --autonomy <interactive|auto>` — override the ticket's
+  `autonomy:` for this launch only. The debug knob for stepping through a
   `autonomy: auto` ticket in an attended terminal. Ephemeral: the ticket file is
   never rewritten, and both the spawned command and the composed
-  mode-specific prompt block follow the override. Rejected for a script step
-  tickets, which compose no agent prompt. `--mode auto` is rejected while
-  the auto-launch policy is in force.
+  autonomy-specific prompt block follow the override. Rejected for script step
+  tickets, which compose no agent prompt.
 - `coga launch bootstrap/<name>` — stateless launch target; concurrent launches
   safe.
 
@@ -365,7 +365,7 @@ resolver and the same deletion is reachable as a script step.
 Bootstrap tickets aren't user-deletable — they're managed by
 `coga init --update`.
 
-## coga retire \<slug\> [--mode interactive] [--agent <type>] [--no-launch]
+## coga retire \<slug\> [--autonomy interactive|auto] [--agent <type>] [--no-launch]
 
 Wrap up a `done` ticket: scaffold a one-shot `retire-<slug>` task whose body
 invokes the `retro/done-ticket` skill against the named ticket. The retro
@@ -519,7 +519,7 @@ Dedup after Dream deletes a completed run comes from
 `coga recurring --interactive` launches every due task in interactive mode
 for that run from an attended TTY, even ones whose template says `autonomy: auto`
 — the debug knob for stepping through a recurring run by hand. It threads
-`coga launch --mode interactive` through and rewrites no ticket files.
+`coga launch --autonomy interactive` through and rewrites no ticket files.
 
 `coga recurring --all` **forces a real, full run of every template**. It is
 *not* a sandbox: the only difference from a bare `coga recurring` is that it
