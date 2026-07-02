@@ -1,7 +1,7 @@
 ---
 slug: mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto
 title: 'Unblock unattended execution (mode/autonomy: auto)'
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
