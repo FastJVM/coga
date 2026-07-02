@@ -1,7 +1,7 @@
 ---
 slug: make-megalaunch-user-specific
 title: make megalaunch user specific
-status: draft
+status: active
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
@@ -9,9 +9,26 @@ agent: claude
 assignee: nicktoper
 contexts: []
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -92,41 +109,6 @@ Design points / notes:
   `tests/test_megalaunch*.py` for the owner filter.
 
 <!-- coga:blackboard -->
+## Production notes
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Evaluator review
-
-> Note: this review was run against the owner-filter-only version of the
-> ticket. It flagged the silent-no-op risk from the derived `current_user`
-> fallback; that flag is what drove the decision to *also* make `current_user`
-> config-or-crash globally (part 1 of the current Description). The review
-> below predates that expansion but remains accurate on the filter itself.
-
-## Evaluation: `make-megalaunch-user-specific`
-
-**Verdict: launchable. Description and code-pointers are accurate; a few assumptions should be surfaced before the reviewer commits to `owner`.**
-
-### 1. Description clarity — Yes
-A picked-up agent could start cold. The problem (shared-repo sweep spends budget on others' tickets), the fix (`ticket.owner == cfg.current_user` filter, `continue` to keep them out of `results`), and the "done" condition are all concrete. Code pointers verified: `run_megalaunch` loop starts at megalaunch.py:94, `read_ticket` at :98, the mirror-me status skip at :106. `Ticket.owner` exists (ticket.py:144, returns `frontmatter.get("owner")`). `cfg.current_user` field is config.py:100, populated config.py:329 (`local.get("user") or _default_user()`). All claims check out.
-
-One imprecision: the ticket says place the filter "near line 94" (top of the for loop), but `ticket.owner` requires the `read_ticket` at :98 to have run — the earliest valid spot is after :101, i.e. right beside the :106 status skip. The "mirror line 106" guidance lands the implementer in the right place regardless, so this is cosmetic.
-
-### 2. Workflow (`code/with-review`) — Good fit
-Small, localized engine change plus tests, but carrying two real judgment calls (None-owner handling; the optional `--user`/`--all-users` escape hatch). Those deserve a reviewer, so `with-review` over plain `code` is the right call.
-
-### 3. Contexts — Inline is the right call
-The facts are localized to one function and two config lines; the inline `## Context` is thorough and correct. No dedicated context is warranted. (If anything, the reviewer should glance at `codebase/SKILL.md` for the `tests/test_megalaunch.py` expectations, but attaching it isn't necessary.)
-
-### 4. Scope — Reasonable, single ticket
-Engine filter + tests is one unit of work. The escape-hatch flag is correctly deferred as optional. Not bundled.
-
-### 5. Assumptions to question before launch
-
-- **`owner` vs `human` vs `assignee` — `owner` is correct, and self-consistent.** `assignee` names the *agent* (claude) and drives the existing agent-gate/budget logic — filtering on it would be a category error, and the ticket rightly warns against conflating them. Between `owner` (accountable, ticket.py:144) and `human` (the human *worker*, ticket.py:149), `owner` is the stronger choice because **create-time sets `owner = cfg.current_user`** (create.py:67, commands/create.py:94). So the field being filtered and the value filtering it come from the *same source*, making the match self-consistent by construction. `human` is the only other defensible option but has no such guarantee.
-
-- **The load-bearing risk is `current_user` resolution, not the field choice.** Both entry points (`commands/megalaunch.py:23` and the recurring script `coga/skills/coga/megalaunch/run/run.py`) call a fresh `load_config()`, so in the recurring `auto` context `cfg.current_user` correctly resolves to the machine operator — the intent holds. **But** if a machine has no `coga.local.toml` `user`, config falls back to `_default_user()` = `git config user.name` (config.py:224–255). If that derived string (e.g. `"Nick Toper"`) doesn't exactly equal the `owner` token written into tickets (e.g. `"nicktoper"`), the filter silently drops **every** ticket and megalaunch launches nothing — a silent no-op, the worst failure mode for an unattended sweep. The match is exact-string/case-sensitive. Reviewer should decide: require `user` in `coga.local.toml`, or at minimum document that owner tokens and `current_user` must agree.
-
-- **None-owner handling is unspecified.** `ticket.owner` returns `None` when the field is absent. `ticket.owner == cfg.current_user` will exclude owner-less tickets entirely. Probably fine, but it's an undecided edge the implementer will hit — worth an explicit line in the ticket.
-
-- **Budget accounting stays global (scope note, not a blocker).** The motivation cites "spends budget on other people's tickets." This fix stops *launching* others' tickets, but `budget_state` (megalaunch.py:353) is keyed on the shared agent name (`claude`) across all repo usage records — person B's sweep still counts person A's `claude` spend against the same budget. That's arguably out of scope, but since the ticket frames the problem partly as budget, one sentence clarifying that per-user budget isolation is *not* part of this change would prevent a scope-creep argument in review.
+This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
