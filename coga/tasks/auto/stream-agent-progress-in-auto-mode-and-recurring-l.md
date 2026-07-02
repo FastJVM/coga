@@ -1,7 +1,7 @@
 ---
 slug: auto/stream-agent-progress-in-auto-mode-and-recurring-l
 title: Stream agent progress in auto-mode and recurring launches
-status: in_progress
+status: done
 autonomy: interactive
 owner: nick
 human: nick
@@ -30,7 +30,6 @@ workflow:
   - name: review
     skills: []
     assignee: owner
-step: 1 (implement)
 ---
 
 ## Description
@@ -148,6 +147,10 @@ The blackboard is a notepad to be written to often as the human and agent works 
   already interactive-or-script, so what's left of this ticket is deciding
   whether headless streaming (`--output-format=stream-json`) is still worth
   building at all.
+- Merged as PR #496 (`e5a9075d`). Nick decided headless stream-json is not
+  wanted for now — every remaining scope item is resolved or rejected, so
+  the ticket is done. If headless/auto launches ever unfreeze, streaming
+  gets a fresh ticket; approach (1) in the body above is the starting point.
 
 ## Usage
 
