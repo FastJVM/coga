@@ -293,6 +293,17 @@ that the next run must read goes in the blackboard (and is therefore composed,
 so keep it small); durable history goes in the global log (never composed, so
 let it accumulate). This is exactly what makes the single-file format safe —
 the unbounded thing is the one file compose never opens.
+Draft activation is also the first-launch readiness gate for the blackboard.
+The stock placeholder counts as empty, but substantive pre-launch notes —
+authoring/evaluator sections such as `## Evaluator review`, `## Ticket
+authoring notes`, or `## Proposals`, plus large custom scratchpads — make
+`mark active` and launch-time auto-activation refuse before workflow freezing,
+status changes, log writes, Slack posts, prompt composition, or agent spawn.
+The operator must merge durable requirements into `## Description` /
+`## Context` first. If blackboard content is intentionally part of the run,
+put it under `## Production notes`; that marker tells activation to leave
+the blackboard alone. Later `paused→active` reactivations and forced
+recurring reruns do not recheck post-launch blackboard growth.
 
 An interactive launch's PTY supervisor tears down the REPL when the
 session-scoped `$COGA_DONE_SENTINEL` file names the launched task — its sole

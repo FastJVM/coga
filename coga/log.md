@@ -652,3 +652,13 @@
 2026-07-02 11:37 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-07-02 11:37 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:claude] advanced to step 2 (review-design) → assigned to nicktoper
 2026-07-02 11:37 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [git] sync failed: `git add -- coga/tasks/cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+2026-07-02 11:12 [resolve-blocker-inline-via-chat-on-interactive-lau] [megalaunch] launched via coga megalaunch
+2026-07-02 11:55 [resolve-blocker-inline-via-chat-on-interactive-lau] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-02 11:55 [resolve-blocker-inline-via-chat-on-interactive-lau] [git] sync failed: `git add -- coga/tasks/resolve-blocker-inline-via-chat-on-interactive-lau.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-07-02 11:55 [coga] [git] sync failed: `git add -- coga/log.md coga/tasks/resolve-blocker-inline-via-chat-on-interactive-lau.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-07-02 11:55 [resolve-blocker-inline-via-chat-on-interactive-lau] [megalaunch] launched via coga megalaunch
+2026-07-02 11:57 [resolve-blocker-inline-via-chat-on-interactive-lau] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/501
+2026-07-02 12:08 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 12:42 [warn-on-launch-when-the-installed-coga-predates-th] [human:nicktoper] created (autonomy=interactive, status=draft)
+2026-07-02 13:02 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:nicktoper] advanced to step 3 (implement) → assigned to codex — Design approved by nicktoper; peer-review step added (codex implements, claude reviews)
+2026-07-02 14:07 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)

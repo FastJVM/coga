@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from textwrap import dedent
 
@@ -10,11 +11,36 @@ from coga.config import load_config
 from coga.create import create_task
 from coga.megalaunch import run_megalaunch, trim_megalaunch_blackboard_text
 from coga.ticket import Ticket
+from coga.usage_probe import UsageProbe, UsageSnapshot, UsageWindow
 
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
+
+
+def _snapshot(session_used: float = 0.0, weekly_used: float = 0.0) -> UsageSnapshot:
+    now = datetime.now(timezone.utc)
+    return UsageSnapshot(
+        agent="claude",
+        session=UsageWindow(session_used, now + timedelta(hours=5)),
+        # Resets inside the final pacing window, so only the hard floor applies.
+        weekly=UsageWindow(weekly_used, now + timedelta(hours=1)),
+    )
+
+
+class _FakeProbe(UsageProbe):
+    """Replays a snapshot sequence; the last entry repeats forever."""
+
+    def __init__(self, snapshots: list[UsageSnapshot | None]) -> None:
+        self._snapshots = list(snapshots)
+        self.reads = 0
+
+    def read(self) -> UsageSnapshot | None:
+        self.reads += 1
+        if len(self._snapshots) > 1:
+            return self._snapshots.pop(0)
+        return self._snapshots[0]
 
 
 @pytest.fixture
@@ -55,6 +81,13 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # pytest has none, so stub the check for the launch-path tests.
     monkeypatch.setattr(
         "coga.megalaunch._interactive_stdio_has_tty", lambda: True
+    )
+    # Never build real probes in the suite — the Claude probe would read the
+    # developer's live credentials and hit the network. Budget-specific tests
+    # override this with their own sequences.
+    monkeypatch.setattr(
+        "coga.usage_probe.build_probes",
+        lambda cfg: {"claude": _FakeProbe([_snapshot()])},
     )
     return company
 
@@ -283,11 +316,7 @@ def test_megalaunch_skips_open_blocker(repo: Path) -> None:
     assert "need owner answer" in run.results[0].detail
 
 
-def test_megalaunch_budget_guard_skips(repo: Path) -> None:
-    text = (repo / "coga.toml").read_text()
-    (repo / "coga.toml").write_text(
-        text + "\n[megalaunch]\ndefault_token_budget = 100\ntoken_guard = 200\n"
-    )
+def test_megalaunch_budget_guard_skips_on_low_session_window(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg,
@@ -301,10 +330,57 @@ def test_megalaunch_budget_guard_skips(repo: Path) -> None:
         watchers=[],
     )
 
-    run = run_megalaunch(cfg)
+    # 97% of the 5h window used — below the default 5% reserve.
+    probes = {"claude": _FakeProbe([_snapshot(session_used=97.0)])}
+    run = run_megalaunch(cfg, probes=probes)
 
     assert run.counts["launched"] == 0
     assert run.counts["skipped-budget"] == 1
+    assert "session" in run.results[0].detail
+
+
+def test_megalaunch_skips_agent_without_probe(repo: Path) -> None:
+    """No probe implementation for an agent means skip, never launch blind."""
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="Unprobeable",
+        workflow_name="code",
+        contexts=[],
+        autonomy="interactive",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+
+    run = run_megalaunch(cfg, probes={})
+
+    assert run.counts["launched"] == 0
+    assert run.counts["skipped-budget"] == 1
+    assert "no usage probe" in run.results[0].detail
+
+
+def test_megalaunch_skips_unreadable_usage_window(repo: Path) -> None:
+    """A probe returning no signal (error/timeout/stale) skips conservatively."""
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg,
+        title="No signal",
+        workflow_name="code",
+        contexts=[],
+        autonomy="interactive",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+
+    run = run_megalaunch(cfg, probes={"claude": _FakeProbe([None])})
+
+    assert run.counts["launched"] == 0
+    assert run.counts["skipped-budget"] == 1
+    assert "unreadable" in run.results[0].detail
 
 
 def test_megalaunch_ignores_non_active_tickets(
@@ -343,22 +419,15 @@ def test_megalaunch_ignores_non_active_tickets(
     assert run.counts["failed"] == 0
 
 
-def test_megalaunch_budget_refreshes_across_tasks(
+def test_megalaunch_reprobes_between_launches(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Tokens spent by an earlier task count against later tasks in the same run.
+    """Budget spent by an earlier launch counts against later tasks in one run.
 
-    Regression: the budget guard must re-read usage between tasks. With a stale
-    snapshot, the second task's guard sees zero spend and over-launches.
+    Regression: the guard must re-read the agent's usage window between
+    launches. With a stale snapshot, the second task's guard sees the
+    pre-launch budget and over-launches.
     """
-    from datetime import datetime, timezone
-
-    from coga import usage
-
-    text = (repo / "coga.toml").read_text()
-    (repo / "coga.toml").write_text(
-        text + "\n[megalaunch]\ndefault_token_budget = 1000\ntoken_guard = 600\n"
-    )
     cfg = load_config(repo)
     for title in ("First", "Second"):
         create_task(
@@ -384,73 +453,69 @@ def test_megalaunch_budget_refreshes_across_tasks(
         updated.frontmatter["status"] = "done"
         updated.frontmatter.pop("step", None)
         updated.write(ref_obj.ticket_path)
-        usage.append_record(
-            ref_obj.ticket_path,
-            usage.UsageRecord(
-                ts=datetime.now(timezone.utc).isoformat(),
-                title=updated.title or "",
-                slug=ref_obj.id_slug,
-                step=None,
-                agent="claude",
-                cli="claude",
-                provider="anthropic",
-                model="claude-opus-4-8",
-                session_id=None,
-                input_tokens=500,
-                cache_creation_input_tokens=0,
-                cache_read_input_tokens=0,
-                output_tokens=0,
-                usage_status="ok",
-            ),
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    # The first task's candidate check and pre-launch check see budget; the
+    # launch exhausts the session window, so the second task's probe reads 97%.
+    probes = {
+        "claude": _FakeProbe([_snapshot(), _snapshot(), _snapshot(session_used=97.0)])
+    }
+    run = run_megalaunch(cfg, probes=probes)
+
+    assert run.counts["launched"] == 1
+    assert run.counts["completed"] == 1
+    assert run.counts["skipped-budget"] == 1
+
+
+def test_megalaunch_services_tasks_oldest_first(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Drain order is creation order — the first log.md timestamp per ref.
+
+    The log is committed content, so the order survives clone/checkout where
+    file mtimes collapse to "all equal".
+    """
+    from coga.paths import log_path
+
+    cfg = load_config(repo)
+    for title in ("Alpha", "Beta"):
+        create_task(
+            cfg=cfg,
+            title=title,
+            workflow_name="code",
+            contexts=[],
+            autonomy="interactive",
+            owner="marc",
+            assignee="claude",
+            status="active",
+            watchers=[],
         )
+    # Rewrite the log so beta's create line is a day older than alpha's.
+    log_path(cfg).write_text(
+        "2026-06-02 10:00 [alpha] [human:marc] created\n"
+        "2026-06-01 10:00 [beta] [human:marc] created\n"
+    )
+
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(cfg_, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
         return _Session()
 
     monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
 
     run = run_megalaunch(cfg)
 
-    # One task launches and burns 500 tokens; the other then sees remaining
-    # 1000 - 500 = 500 < 600 guard and is skipped, instead of over-launching.
-    assert run.counts["launched"] == 1
-    assert run.counts["completed"] == 1
-    assert run.counts["skipped-budget"] == 1
-
-
-def test_budget_state_weights_cache_reads_at_one_tenth(repo: Path) -> None:
-    """Cache-read tokens count at 1/10th weight against the budget.
-
-    Regression: a single long session reads tens of millions of cache tokens;
-    at full weight one launch exhausted the default 2M budget forever.
-    """
-    from datetime import datetime, timezone
-
-    from coga import usage
-    from coga.megalaunch import budget_state
-
-    cfg = load_config(repo)
-    record = usage.UsageRecord(
-        ts=datetime.now(timezone.utc).isoformat(),
-        title="Big session",
-        slug="big-session",
-        step=None,
-        agent="claude",
-        cli="claude",
-        provider="anthropic",
-        model="claude-opus-4-8",
-        session_id=None,
-        input_tokens=50_000,
-        cache_creation_input_tokens=0,
-        cache_read_input_tokens=15_000_000,
-        output_tokens=100_000,
-        usage_status="ok",
-    )
-
-    budget = budget_state(cfg, [record], "claude")
-
-    # 50k input + 15M/10 cache reads + 100k output — not 15.15M.
-    assert budget.used == 1_650_000
-    assert budget.remaining == 2_000_000 - 1_650_000
-    assert budget.enough
+    assert [result.slug for result in run.results] == ["beta", "alpha"]
 
 
 def test_trim_megalaunch_blackboard_replaces_old_summaries() -> None:

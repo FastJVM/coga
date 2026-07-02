@@ -5,8 +5,8 @@ status: in_progress
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
-agent: claude
-assignee: nicktoper
+agent: codex
+assignee: codex
 contexts:
 - coga/extension-model
 - coga/architecture
@@ -26,6 +26,9 @@ workflow:
     skills:
     - code/implement
     assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
   - name: open-pr
     skills:
     - code/open-pr
@@ -35,7 +38,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (review-design)
+step: 3 (implement)
 ---
 
 ## Description
