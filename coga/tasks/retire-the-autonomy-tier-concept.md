@@ -1,7 +1,7 @@
 ---
 slug: retire-the-autonomy-tier-concept
 title: retire the autonomy tier concept
-status: draft
+status: active
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
@@ -9,9 +9,26 @@ agent: claude
 assignee: nicktoper
 contexts: []
 skills: []
-workflow: code/with-review
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -79,5 +96,6 @@ was meant to fold into the `mode` field rather than vanish, confirm intent
 with the owner before deleting, since that changes "retire" to "migrate".
 
 <!-- coga:blackboard -->
+## Production notes
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
