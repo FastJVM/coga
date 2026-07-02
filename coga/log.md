@@ -643,3 +643,4 @@
 2026-07-02 11:55 [resolve-blocker-inline-via-chat-on-interactive-lau] [megalaunch] launched via coga megalaunch
 2026-07-02 11:57 [resolve-blocker-inline-via-chat-on-interactive-lau] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/501
 2026-07-02 12:08 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
+2026-07-02 12:42 [warn-on-launch-when-the-installed-coga-predates-th] [human:nicktoper] created (autonomy=interactive, status=draft)
