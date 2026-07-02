@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/codebase
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -94,6 +94,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 - branch: refuse-blackboard-synthesis
 - worktree: /tmp/coga-refuse-blackboard-synthesis
 - commit: d7dd4e93
+- pr: https://github.com/FastJVM/coga/pull/498 (no CI checks configured on this repo, so none reported)
 
 ## Implementation notes
 
