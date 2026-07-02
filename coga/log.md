@@ -622,3 +622,5 @@
 2026-07-02 08:01 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
 2026-07-02 08:01 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [git] sync failed: `git add -- coga/tasks/mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
 2026-07-02 08:01 [coga] [git] sync failed: `git add -- coga/log.md coga/tasks/mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto.md` failed (exit 128): fatal: Unable to create '/home/n/Code/claude/coga/.git/index.lock': Read-only file system
+2026-07-02 08:01 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [megalaunch] launched via coga megalaunch
+2026-07-02 08:03 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/499

@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts:
 - autonomy/triage
 skills: []
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -123,6 +123,7 @@ Recurring template audit (the "opt templates in" scope item):
 
 branch: unblock-auto-launch
 worktree: /home/n/Code/claude/coga-unblock-auto-launch
+pr: https://github.com/FastJVM/coga/pull/499
 
 ## Decisions (made autonomously — owner was AFK at ask time; redirect welcome)
 
