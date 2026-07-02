@@ -97,6 +97,18 @@ def _is_stock_blackboard(text: str) -> bool:
     return text.strip() in {"", stock.strip()}
 
 
+def _is_prelaunch_authoring_heading(heading: str) -> bool:
+    normalized = " ".join(heading.split()).casefold()
+    for marker in PRELAUNCH_AUTHORING_HEADINGS:
+        marker_normalized = marker.casefold()
+        if normalized == marker_normalized:
+            return True
+        suffix = normalized.removeprefix(marker_normalized)
+        if suffix != normalized and suffix and not suffix[0].isalnum():
+            return True
+    return False
+
+
 def prelaunch_blackboard_synthesis_reason_text(text: str) -> str | None:
     """Return why a draft blackboard must be synthesized before launch.
 
@@ -112,7 +124,7 @@ def prelaunch_blackboard_synthesis_reason_text(text: str) -> str | None:
     headings = [
         heading
         for heading in _section_headings(text)
-        if heading in PRELAUNCH_AUTHORING_HEADINGS
+        if _is_prelaunch_authoring_heading(heading)
     ]
     if headings:
         return "authoring section(s): " + ", ".join(f"## {h}" for h in headings)

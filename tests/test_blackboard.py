@@ -42,6 +42,27 @@ def test_prelaunch_blackboard_detects_authoring_sections() -> None:
     assert reason == "authoring section(s): ## Evaluator review"
 
 
+def test_prelaunch_blackboard_detects_qualified_authoring_headings() -> None:
+    text = dedent(
+        """\
+        ## Evaluator review (T2, independent cold read)
+
+        Looks underspecified.
+
+        ## Proposals (draft)
+
+        Add a narrower acceptance test.
+        """
+    )
+
+    reason = prelaunch_blackboard_synthesis_reason_text(text)
+    assert (
+        reason
+        == "authoring section(s): ## Evaluator review (T2, independent cold read), "
+        "## Proposals (draft)"
+    )
+
+
 def test_prelaunch_blackboard_accepts_explicit_production_notes() -> None:
     text = dedent(
         """\
