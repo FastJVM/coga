@@ -616,3 +616,5 @@
 2026-07-01 21:40 [drain-pending-auto-tickets-with-leftover-session-b] [megalaunch] launched via coga megalaunch
 2026-07-01 21:42 [drain-pending-auto-tickets-with-leftover-session-b] [agent:claude] advanced to step 5 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/497
 2026-07-01 21:42 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-01 21:42 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [megalaunch] launched via coga megalaunch
+2026-07-01 22:08 [mode-autonomy-split/2-unblock-unattended-execution-mode-autonomy-auto] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done: headless auto runner + capture/notify, branch unblock-auto-launch (331b9e89)
