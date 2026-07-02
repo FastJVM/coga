@@ -1,7 +1,7 @@
 ---
 slug: drain-pending-auto-tickets-with-leftover-session-b
 title: Drain pending auto tickets with leftover session budget after recurring sweep
-status: active
+status: in_progress
 autonomy: interactive
 owner: nick
 human: nick
