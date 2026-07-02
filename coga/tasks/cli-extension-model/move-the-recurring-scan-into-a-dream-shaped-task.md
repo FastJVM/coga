@@ -59,6 +59,17 @@ list` (a read view — belongs to
 `launch` primitives themselves (kernel), and `recurring launch <name>`'s
 alias-facing surface (`dream`, etc. — see `add-recurring-launch-aliases`).
 
+Two places the move line cuts *through* shared code — the design must place
+them explicitly:
+- `create_named` / `_create_at_slug` (get-or-create) are shared by the bare
+  scan **and** `recurring launch <name>` (hence `coga dream`). Decide where
+  they land so neither path duplicates the other.
+- The control-branch git sync of recurring creates
+  (`_land_recurring_create_on_control_branch`, `last_serviced_period` merging,
+  restore/reconcile — roughly half of `commands/recurring.py`) is sync
+  infrastructure, not scan logic. Decide whether it moves with the scan, stays
+  shared, or is out of scope.
+
 **Guardrails** (from `coga/extension-model`): *no inversion* — the scan,
 period-dedup, and get-or-create logic is deterministic, tested Python; relocate
 it unchanged into script steps, never rewrite it as agent judgment. *No worse
@@ -68,11 +79,33 @@ is.
 
 **Design step must settle first:** the bootstrapping question — the scan is
 what *creates and launches* recurring runs, so a scan-as-recurring-task can't
-be launched by itself. What invokes the scan task (cron calling `coga launch`
-on a stateless target? the `coga recurring` verb staying as a thin head that
-launches the script, per the `show` precedent in
-`move-read-views-to-tickets-as-scripts`)? Coordinate with that reads ticket on
-one command-head-launches-script shape rather than inventing two.
+be launched by itself. This has two layers:
+- *Invocation:* what invokes the scan task — cron calling `coga launch` on a
+  stateless target, or the `coga recurring` verb staying as a thin head that
+  launches the script?
+- *Shape:* if the scan were itself a recurring *template*, something would
+  have to scan it — the scanner can't get-or-create its own run. So the
+  design may conclude the scan is a **stateless bootstrap-style script
+  target** with no period dedup of its own, not a recurring template.
+  "Dream-shaped" in the title is a working framing, not a commitment.
+
+**This ticket leads the command-head-launches-script design** (owner decision,
+2026-07-02): its design step settles the thin-head-launches-script shape, and
+`move-read-views-to-tickets-as-scripts` inherits that pattern for `show` /
+`status` rather than inventing a second one.
+
+Known constraints the design must work within (don't rediscover these):
+- `launch.py:267-268` hard-refuses script launches on stateless
+  bootstrap-style tickets — a stateless scan target hits this check; the
+  design either relaxes it (still a hard check, different rule) or picks a
+  shape that avoids it.
+- `autonomy: auto` launches are currently frozen, and `recurring.py` enforces
+  the same freeze — the relocated scan must preserve that enforcement.
+- The scan launches agent sessions; as a script step it does so from inside a
+  launched session. The `COGA_DONE_SENTINEL` session-id matching exists to
+  keep nested launches from tearing down parents — verify the nested
+  PTY-supervisor path (including `_stop_if_unfinished_after_launch` idle/max
+  timeouts) survives the move.
 
 Done = design reviewed, then the scan logic relocated unchanged with tests
 intact, `coga recurring` (bare scan) reduced to a thin head or alias, and the
@@ -86,7 +119,11 @@ seeded `example/` fixture still representative.
   (`coga.authoring` + `coga/ticket/finalize`).
 - Sibling with the same parameterization/head crux:
   `cli-extension-model/move-read-views-to-tickets-as-scripts` (draft,
-  unblocked).
+  unblocked). **This ticket designs the shared head pattern first; the reads
+  ticket inherits it.**
+- The scan's command flags today: bare `coga recurring` takes `--interactive`
+  and `--all`; `recurring launch` takes `<name>` and `--interactive`. Per "no
+  worse Typer" these stay at the thin head's Typer layer.
 
 <!-- coga:blackboard -->
 

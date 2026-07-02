@@ -634,3 +634,4 @@
 2026-07-02 11:09 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-07-02 10:53 [resolve-blocker-inline-via-chat-on-interactive-lau] [megalaunch] launched via coga megalaunch
 2026-07-02 11:12 [resolve-blocker-inline-via-chat-on-interactive-lau] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done: interactive launch of a blocked ticket now resumes inline with a resolve-or-re-block preamble; branch launch-blocked-chat, commit 85c18ecb
+2026-07-02 11:10 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
