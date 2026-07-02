@@ -606,3 +606,5 @@
 2026-07-01 16:38 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
 2026-07-01 21:03 [auto/stream-agent-progress-in-auto-mode-and-recurring-l] [human:nicktoper] task done — Shipped via PR #496 (megalaunch now spawns interactive launches); headless stream-json rejected for now
 2026-07-01 21:07 [cli-extension-model/move-command-logic-to-tickets] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-01 21:07 [cli-extension-model/move-command-logic-to-tickets] [megalaunch] launched via coga megalaunch
+2026-07-01 21:13 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] created (autonomy=interactive, status=draft)
