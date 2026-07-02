@@ -1,7 +1,7 @@
 ---
 slug: resolve-blocker-inline-via-chat-on-interactive-lau
 title: Resolve blocker inline via chat on interactive launch
-status: active
+status: in_progress
 autonomy: interactive
 owner: nicktoper
 human: nicktoper
