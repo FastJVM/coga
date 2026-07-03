@@ -2,7 +2,7 @@
 slug: v2/generic-lib-to-use-e-g-patent-models
 title: generic lib to use e.g. patent models
 status: draft
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

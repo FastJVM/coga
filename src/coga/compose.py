@@ -146,13 +146,13 @@ def compose_prompt_report(
         ref="prompt.md",
     ))
 
-    # 2. LLM-mode prompt. Script tasks never compose; enforced by launch.py.
-    if mode == "llm":
+    # 2. agent-mode prompt. Script tasks never compose; enforced by launch.py.
+    if mode == "agent":
         layers.append(PromptLayer(
             "mode_prompt",
-            "LLM mode",
-            _resource("prompt-interactive.md"),
-            ref="prompt-interactive.md",
+            "Agent mode",
+            _resource("prompt-agent.md"),
+            ref="prompt-agent.md",
         ))
 
     # 2b. Blocker-resolution preamble. An interactive session whose blackboard
@@ -163,7 +163,7 @@ def compose_prompt_report(
     # blackboard rather than a launch-threaded flag keeps the preamble purely
     # composed state: it reappears if a session dies mid-discussion and
     # disappears once `coga unblock` records the answer.
-    if mode == "llm" and not isinstance(task_ref, BootstrapRef):
+    if mode == "agent" and not isinstance(task_ref, BootstrapRef):
         open_asks = [
             b
             for b in parse_blockers_text(blackboard_text or "")

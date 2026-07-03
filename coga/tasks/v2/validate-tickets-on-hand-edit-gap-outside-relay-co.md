@@ -2,7 +2,7 @@
 slug: v2/validate-tickets-on-hand-edit-gap-outside-relay-co
 title: Validate tickets on hand-edit (gap outside relay commands)
 status: draft
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

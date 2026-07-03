@@ -15,8 +15,8 @@ workflow doing the work. This context is only the per-task test.
 
 A task may be delegated to AI only if it passes all three questions:
 
-1. **Publicly documented?** The task is public or conventional enough that an
-   LLM likely knows the domain. Private, idiosyncratic, or tacit work leans
+1. **Publicly documented?** The task is public or conventional enough that the
+   agent likely knows the domain. Private, idiosyncratic, or tacit work leans
    human.
 2. **Conventional result acceptable?** Average or conventional quality is good
    enough. Work that needs above-average, differentiating taste or judgment fails

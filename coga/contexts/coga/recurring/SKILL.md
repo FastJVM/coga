@@ -61,7 +61,7 @@ scanner skips it. That is how the starter templates ship without firing.
 - `schedule` — a 5-field cron string. **Required**; a recurring task without
   it (or without `ticket.md`) is skipped with a stderr warning and an entry
   in the run's Slack summary.
-- `mode` — `llm` or `script` (defaults to `llm`). `llm` templates need a TTY
+- `mode` — `agent` or `script` (defaults to `agent`). `agent` templates need a TTY
   and run under the REPL supervisor; `script` templates run deterministic code
   directly and are the right shape for unattended schedulers.
 - `title` — the created period task's title (else the humanized name).

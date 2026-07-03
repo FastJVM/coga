@@ -37,9 +37,9 @@ def create(
         ),
     ),
     mode: str = typer.Option(
-        "llm",
+        "agent",
         "--mode",
-        help="Task mode: llm or script.",
+        help="Task mode: agent or script.",
     ),
     workflow: str | None = typer.Option(
         None,
@@ -75,8 +75,8 @@ def create_draft(
     a ticket with no workflow, since a workflow-less ticket can never be
     `coga bump`ed.
     """
-    if mode not in {"llm", "script"}:
-        _bail("--mode must be 'llm' or 'script'")
+    if mode not in {"agent", "script"}:
+        _bail("--mode must be 'agent' or 'script'")
     directory, leaf_title = _split_create_path(title)
     if not leaf_title.strip():
         _bail("title cannot be empty")

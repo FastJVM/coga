@@ -1,8 +1,8 @@
 """Run an agent REPL through a PTY and watch for an "I'm done" signal.
 
-An LLM agent REPL doesn't exit on its own — the human types `/exit`.
+An AI agent REPL doesn't exit on its own — the human types `/exit`.
 For `coga recurring --interactive` (and any other unattended caller of an
-LLM launch) we want the agent itself to be able to
+agent launch) we want the agent itself to be able to
 signal completion so the next task can start without manual intervention.
 
 The signal travels over a single **sentinel file**. The supervisor creates a

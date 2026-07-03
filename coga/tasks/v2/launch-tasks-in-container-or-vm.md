@@ -2,7 +2,7 @@
 slug: v2/launch-tasks-in-container-or-vm
 title: Launch tasks in a container or VM instead of locally
 status: draft
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

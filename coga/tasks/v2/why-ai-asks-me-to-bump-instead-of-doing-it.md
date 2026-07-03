@@ -2,7 +2,7 @@
 slug: v2/why-ai-asks-me-to-bump-instead-of-doing-it
 title: why AI asks me to bump instead of doing it?
 status: draft
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

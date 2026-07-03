@@ -1,7 +1,7 @@
 ---
 title: relay init doesn't persist user on first run, then wedges on re-init
 status: draft
-mode: llm
+mode: agent
 owner: zach
 human: zach
 agent: claude

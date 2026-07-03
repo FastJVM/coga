@@ -2,7 +2,7 @@
 slug: wire-autonomy-triage-into-impl-ready-workflows
 title: Wire autonomy triage into impl-ready workflows
 status: done
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

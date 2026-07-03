@@ -180,7 +180,7 @@ def test_script_mode_rejects_agent_override(repo: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "check", "--agent", "claude"])
     assert result.exit_code == 2
-    assert "--agent is only supported for llm launches" in (
+    assert "--agent is only supported for agent launches" in (
         result.output + (result.stderr or "")
     )
 

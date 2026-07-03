@@ -145,7 +145,7 @@ def repo(tmp_path: Path) -> Path:
         ---
         schedule: "0 9 * * *"
         title: "Dev update"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         state_keys:
@@ -241,7 +241,7 @@ def test_create_without_state_keys_writes_no_snapshot(tmp_path: Path) -> None:
         ---
         schedule: "0 9 * * *"
         title: "Plain"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -277,7 +277,7 @@ def test_template_rejects_malformed_state_keys(
         ---
         schedule: "0 9 * * *"
         title: "Bad"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         {state_keys_line}

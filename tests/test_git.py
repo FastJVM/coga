@@ -178,7 +178,7 @@ def test_sync_log_commits_and_pushes_the_log_on_control_branch(git_repo):
     """A bare log append is committed + pushed, never left dirty (the bootstrap
     launch hole that blocks the next `git pull` at the checkout gate)."""
     cfg = load_config(git_repo.coga_os)
-    append_log(cfg, "bootstrap/orient", "human:nick", "launched in llm mode")
+    append_log(cfg, "bootstrap/orient", "human:nick", "launched in agent mode")
     # The append starts life uncommitted in the working tree.
     assert "log.md" in git_repo.git("status", "--porcelain")
 
@@ -855,7 +855,7 @@ def _seed_ticket_bootstrap(coga_os: Path) -> None:
             """
             ---
             title: Create a new ticket
-        mode: llm
+        mode: agent
             skills:
               - bootstrap/ticket
             assignee: claude
@@ -1507,7 +1507,7 @@ def test_launch_isolates_session_in_a_worktree_and_cleans_up_synced_state(
         title="Fix retry logic",
         workflow_name="direct/body",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -1596,7 +1596,7 @@ def test_launch_without_worktree_toggle_runs_in_place(git_repo, monkeypatch):
         title="Fix retry logic",
         workflow_name="direct/body",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],

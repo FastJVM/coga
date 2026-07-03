@@ -1,7 +1,7 @@
 ---
 title: Onboarding install should use a virtualenv, not system Python
 status: draft
-mode: llm
+mode: agent
 owner: zach
 human: zach
 agent: claude

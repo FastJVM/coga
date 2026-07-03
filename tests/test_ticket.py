@@ -52,7 +52,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Create a new ticket
-        mode: llm
+        mode: agent
         skills:
           - bootstrap/ticket
         assignee: claude
@@ -364,7 +364,7 @@ def test_ticket_existing_active_task_is_editable_without_status_change(
         title="Queued work",
         workflow_name="direct/body",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -393,7 +393,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
         title="Broken context",
         workflow_name="direct/body",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -433,7 +433,7 @@ def test_ticket_edits_in_progress_task(
         title="Running work",
         workflow_name="direct/body",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -505,7 +505,7 @@ def test_ticket_existing_draft_greets_as_edit_not_create(
         title="Batch draft",
         workflow_name="direct/body",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -533,7 +533,7 @@ def test_ticket_nested_bare_leaf_edits_existing_not_duplicate(
         title="Relaunch",
         workflow_name="direct/body",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -568,7 +568,7 @@ def test_ticket_ambiguous_bare_leaf_bails_without_launching(
             title="Relaunch",
             workflow_name="direct/body",
             contexts=[],
-            mode="llm",
+            mode="agent",
             owner="marc",
             assignee="claude",
             watchers=[],

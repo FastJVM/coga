@@ -54,7 +54,7 @@ def test_clean_repo_has_no_issues(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=["email/payment-flow"], mode="llm",
+        contexts=["email/payment-flow"], mode="agent",
         owner="marc", assignee="claude", watchers=[], status="draft",
     )
     report = run(cfg)
@@ -72,7 +72,7 @@ def test_broken_skill_ref(repo: Path) -> None:
         slug: 001-x
         title: X
         status: active
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         workflow:
@@ -99,7 +99,7 @@ def test_unfrozen_workflow_string_does_not_crash(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -115,7 +115,7 @@ def test_invalid_status(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -129,7 +129,7 @@ def test_invalid_status(repo: Path) -> None:
 def _draft_with_secrets(repo: Path, cfg, secrets_value) -> None:
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -201,7 +201,7 @@ def test_missing_blackboard_fence_is_error(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -220,7 +220,7 @@ def test_apply_safe_fixes_adds_missing_blackboard_fence(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -243,7 +243,7 @@ def test_run_fix_repairs_before_reporting(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -265,7 +265,7 @@ def test_large_blackboard_warns(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -559,7 +559,7 @@ def test_validate_accepts_declared_extension_fields(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
@@ -570,7 +570,7 @@ def test_validate_flags_missing_declared_extension(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     # Add the declaration AFTER the ticket exists — simulates declaring a new
@@ -594,7 +594,7 @@ def test_validate_warns_orphan_extension(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     # Now remove the declaration.
@@ -623,7 +623,7 @@ def test_validate_flags_enum_violation(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     ref = list_tasks(cfg)[0]
@@ -652,7 +652,7 @@ def test_validate_allows_empty_extension_value(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
@@ -666,7 +666,7 @@ def test_workflow_less_draft_is_clean(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name=None,
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="draft",
     )
     report = run(cfg)
@@ -686,7 +686,7 @@ def _write_workflow_less_task(repo: Path, slug: str, status: str) -> Path:
         slug: {slug}
         title: X
         status: {status}
-        mode: llm
+        mode: agent
         owner: marc
         assignee: claude
         workflow: null
@@ -726,7 +726,7 @@ def test_stuck_in_progress_flagged(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="X", workflow_name="code/with-review",
-        contexts=[], mode="llm", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status="in_progress",
     )
     ref = list_tasks(cfg)[0]
@@ -752,7 +752,7 @@ def _write_full_task(repo: Path, rel: str, title: str = "X") -> Path:
         slug: {rel}
         title: {title}
         status: draft
-        mode: llm
+        mode: agent
         owner: marc
         human: marc
         agent: claude

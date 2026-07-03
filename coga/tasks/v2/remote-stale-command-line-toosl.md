@@ -2,7 +2,7 @@
 slug: v2/remote-stale-command-line-toosl
 title: remote stale command line toosl
 status: draft
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

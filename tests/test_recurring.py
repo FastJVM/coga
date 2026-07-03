@@ -219,7 +219,7 @@ def _write_recurring_script(
 ) -> None:
     """Write a recurring SCRIPT template: `mode: script` + the seeded
     script workflow, so it is detected as a script template and bypasses the
-    LLM TTY gate. `extra` appends additional frontmatter lines (e.g.
+    Agent TTY gate. `extra` appends additional frontmatter lines (e.g.
     `state_keys`); each line is re-indented to the 8-space block so `dedent`
     strips uniformly."""
     if extra.strip():
@@ -313,7 +313,7 @@ def repo(tmp_path: Path):
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -372,7 +372,7 @@ def test_scan_due_creates_task(repo: Path) -> None:
 
     ticket = Ticket.read(task.ref.path / "ticket.md")
     assert ticket.title == "Weekly deliverability check"
-    assert ticket.mode == "llm"
+    assert ticket.mode == "agent"
     assert ticket.owner == "marc"
     assert task.ref.directory == "recurring"
     assert task.ref.slug == "weekly-check"
@@ -411,7 +411,7 @@ def test_create_does_not_duplicate_explicit_period_task_context(
         ---
         schedule: "0 9 * * 1"
         title: "Already lists period-task"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         contexts:
@@ -445,7 +445,7 @@ def test_create_preserves_non_description_template_sections(repo: Path) -> None:
         ---
         schedule: "0 9 * * 1"
         title: "Has script config"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         state_keys:
@@ -486,7 +486,7 @@ def test_create_preserves_recurring_template_secrets(repo: Path) -> None:
         ---
         title: "Locked down"
         schedule: "0 9 * * 1"
-        mode: llm
+        mode: agent
         secrets: []
         ---
 
@@ -633,7 +633,7 @@ def test_due_orders_dream_last(repo: Path) -> None:
             ---
             schedule: "0 9 * * 1"
             title: "{name}"
-            mode: llm
+            mode: agent
             assignee: claude
             owner: marc
             ---
@@ -664,7 +664,7 @@ def test_due_resuming_orphan_runs_before_fresh_dream(repo: Path) -> None:
             ---
             schedule: "0 9 * * 1"
             title: "{name}"
-            mode: llm
+            mode: agent
             assignee: claude
             owner: marc
             ---
@@ -724,7 +724,7 @@ def test_scan_due_skips_malformed_schedule(repo: Path, capsys) -> None:
         ---
         schedule: "not a cron"
         title: "Bad cron"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -752,7 +752,7 @@ def test_scan_due_accepts_year_scoped_schedule_for_current_year(repo: Path) -> N
         ---
         schedule: "0 0 1 1 * * 2026"
         title: "Year-scoped"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -819,7 +819,7 @@ def test_scan_due_rejects_invalid_mode_template(repo: Path, capsys) -> None:
     # The invalid template is skipped via scan.errors.
     assert len(scan.errors) == 1
     assert scan.errors[0][0] == "daily-auto"
-    assert "mode 'auto' not in ['llm', 'script']" in scan.errors[0][1]
+    assert "mode 'auto' not in ['agent', 'script']" in scan.errors[0][1]
     assert "skipping daily-auto" in capsys.readouterr().err
 
 
@@ -846,14 +846,14 @@ def test_scan_due_skips_interactive_template_without_tty(
     assert scan.tasks[0].template == "z-script-check"
     assert len(scan.errors) == 1
     assert scan.errors[0][0] == "weekly-check"
-    assert "mode=llm requires a TTY" in scan.errors[0][1]
+    assert "mode=agent requires a TTY" in scan.errors[0][1]
     assert "skipping weekly-check" in capsys.readouterr().err
 
 
 def test_scan_due_template_without_explicit_mode_defaults_to_llm(
     repo: Path, capsys
 ) -> None:
-    """A template without `mode:` defaults to `llm`."""
+    """A template without `mode:` defaults to `agent`."""
     _write_recurring(
         repo,
         "no-mode",
@@ -1012,7 +1012,7 @@ def test_recurring_launch_creates_dream_task(
     assert refs[0].id_slug == "recurring/dream"
     ticket = Ticket.read(refs[0].path / "ticket.md")
     assert ticket.title == "Dream"
-    assert ticket.mode == "llm"
+    assert ticket.mode == "agent"
     # Dream's template declares no workflow, so it creates with the
     # `direct/body` workflow: it runs its body's ordered phases directly,
     # but is still a workflow-carrying, bumpable, valid active task.
@@ -1046,7 +1046,7 @@ def test_recurring_launch_syncs_period_task_and_high_water(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1096,7 +1096,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_from_stale_branch(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1161,7 +1161,7 @@ def test_recurring_launch_does_not_publish_feature_only_template_log(
         ---
         schedule: "0 9 * * 1"
         title: "New weekly"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1204,7 +1204,7 @@ def test_recurring_launch_preserves_remote_ledger_entries_on_stale_main(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1262,7 +1262,7 @@ def test_recurring_launch_does_not_resurrect_remote_deleted_period_from_stale_ma
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1331,7 +1331,7 @@ def test_recurring_launch_explicit_rerun_bypasses_handled_period_ledger(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1388,7 +1388,7 @@ def test_recurring_create_sync_restores_control_ledger_for_handled_period(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1445,7 +1445,7 @@ def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1503,7 +1503,7 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1565,7 +1565,7 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1636,7 +1636,7 @@ def test_recurring_launch_preserves_unpushed_control_branch_commits(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1707,7 +1707,7 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1777,7 +1777,7 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1847,7 +1847,7 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -1926,7 +1926,7 @@ def test_recurring_launch_preserves_local_commit_when_control_fetch_fails(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -2058,7 +2058,7 @@ def test_scan_due_force_defers_existing_done_period_until_launch(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         state_keys:
@@ -2108,7 +2108,7 @@ def test_scan_due_force_does_not_advance_live_prior_period_task(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly deliverability check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         state_keys:
@@ -2310,7 +2310,7 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         state_keys:
@@ -2389,7 +2389,7 @@ def test_recurring_all_preserves_existing_local_task_state_during_force_sync(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -2446,7 +2446,7 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         state_keys:
@@ -2683,7 +2683,7 @@ def test_recurring_all_syncs_forced_existing_period_state(
         ---
         schedule: "0 9 * * 1"
         title: "Weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -2778,7 +2778,7 @@ def test_recurring_all_skips_interactive_template_without_tty(
     assert "No recurring templates to launch." in result.output
     combined = result.output + (result.stderr or "")
     assert "skipping weekly-check" in combined
-    assert "mode=llm requires a TTY" in combined
+    assert "mode=agent requires a TTY" in combined
     assert list_tasks(load_config(repo)) == []
 
 
@@ -2983,7 +2983,7 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
     assert calls == ["recurring/z-script-check"]
     combined = result.output + (result.stderr or "")
     assert "skipping weekly-check" in combined
-    assert "mode=llm requires a TTY" in combined
+    assert "mode=agent requires a TTY" in combined
     assert any(
         "skipped 1 template" in msg and "weekly-check" in msg
         for msg in slack_msgs
@@ -3001,7 +3001,7 @@ def test_bare_recurring_skips_malformed_schedule_and_continues(
         ---
         schedule: "not a cron"
         title: "Bad cron"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -3018,7 +3018,7 @@ def test_bare_recurring_skips_malformed_schedule_and_continues(
         ---
         schedule: "0 9 * * *"
         title: "Script check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---
@@ -3081,7 +3081,7 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
         ---
         schedule: "0 9 * * 1"
         title: "Second weekly check"
-        mode: llm
+        mode: agent
         assignee: claude
         owner: marc
         ---

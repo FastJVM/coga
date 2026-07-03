@@ -3,7 +3,7 @@ schedule: "0 9 * * 1"
 schedule_comment: "Every Monday at 9am"
 title: "Replace with the REM task title"
 # Pick a mode: `script` runs a skill script directly with no agent;
-# `llm` drops into a human terminal with live agent output.
+# `agent` drops into a human terminal with live agent output.
 mode: script
 workflow: namespace/your-workflow
 owner: replace-with-human-name

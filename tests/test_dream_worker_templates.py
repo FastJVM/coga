@@ -41,7 +41,7 @@ def test_dream_ships_as_a_recurring_template() -> None:
     assert text.startswith("---\n")
     assert "schedule:" in text
     assert 'title: "Dream"' in text
-    assert "mode: llm" in text
+    assert "mode: agent" in text
     assert "\n## Description\n" in text
 
 

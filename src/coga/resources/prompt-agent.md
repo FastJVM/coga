@@ -1,6 +1,6 @@
-# LLM mode
+# Agent mode
 
-You are running as an LLM agent in a live Coga launch. Work from the task files,
+You are running as an AI agent in a live Coga launch. Work from the task files,
 use blockers for missing decisions, and treat durable state as the source of
 truth.
 

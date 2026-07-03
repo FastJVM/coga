@@ -2,7 +2,7 @@
 slug: marketing/launch-relay-product-launch-comms
 title: Launch Relay — product launch comms
 status: active
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

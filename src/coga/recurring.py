@@ -297,7 +297,7 @@ def scan_due(
             continue
 
         try:
-            outcome = create_template(cfg, template, now, allow_llm=allow_interactive)
+            outcome = create_template(cfg, template, now, allow_agent=allow_interactive)
             ticket = read_ticket(outcome.ref)
         except RecurringError as exc:
             # Don't let one bad template block the rest. Stderr keeps an
@@ -343,7 +343,7 @@ def create_template(
     template: Template,
     now: datetime,
     *,
-    allow_llm: bool = True,
+    allow_agent: bool = True,
 ) -> CreateOutcome:
     """Create one recurring template for `now`'s firing. Idempotent."""
     last_fire = _last_firing(template.schedule, now)
@@ -358,7 +358,7 @@ def create_template(
     #
     # The TTY check is evaluated *after* the resume short-circuits: resuming an
     # existing task must not be blocked by it (only a fresh create launches a
-    # would-be LLM run that the check guards against).
+    # would-be agent run that the check guards against).
     live = _live_task_for_template(cfg, template.name)
     if live is not None:
         return CreateOutcome(ref=live, created=False)
@@ -367,7 +367,7 @@ def create_template(
     if existing is not None:
         return CreateOutcome(ref=existing, created=False)
 
-    effective_mode = _effective_mode(template, allow_llm=allow_llm)
+    effective_mode = _effective_mode(template, allow_agent=allow_agent)
     outcome = _create_at_slug(
         cfg,
         template,
@@ -475,16 +475,16 @@ def list_templates(cfg: Config, now: datetime | None = None) -> list[TemplateSta
     return out
 
 
-def _effective_mode(template: Template, *, allow_llm: bool = True) -> str:
-    """Resolve a template's mode, enforcing the TTY gate for LLM runs."""
-    effective_mode = template.frontmatter.get("mode", "llm")
-    if effective_mode not in {"llm", "script"}:
+def _effective_mode(template: Template, *, allow_agent: bool = True) -> str:
+    """Resolve a template's mode, enforcing the TTY gate for agent runs."""
+    effective_mode = template.frontmatter.get("mode", "agent")
+    if effective_mode not in {"agent", "script"}:
         raise RecurringError(
-            f"mode {effective_mode!r} not in ['llm', 'script']"
+            f"mode {effective_mode!r} not in ['agent', 'script']"
         )
-    if effective_mode == "llm" and not allow_llm:
+    if effective_mode == "agent" and not allow_agent:
         raise RecurringError(
-            "mode=llm requires a TTY (stdin and stdout must both be terminals). "
+            "mode=agent requires a TTY (stdin and stdout must both be terminals). "
             "Run `coga recurring --interactive` from a real shell, or make the "
             "template `mode: script`."
         )

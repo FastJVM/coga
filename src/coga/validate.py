@@ -70,7 +70,7 @@ from coga.ticket import Ticket, TicketError
 from coga.workflow import VALID_ASSIGNEE_ROLES
 
 VALID_STATUSES = {"draft", "active", "in_progress", "blocked", "paused", "done"}
-VALID_MODES = {"llm", "script"}
+VALID_MODES = {"agent", "script"}
 
 # Canonical ticket frontmatter schema.
 REQUIRED_TASK_KEYS: tuple[str, ...] = (

@@ -2,7 +2,7 @@
 slug: cli-extension-model/rename-shim-to-alias
 title: Rename "shim" to "alias" across Relay
 status: draft
-mode: llm
+mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

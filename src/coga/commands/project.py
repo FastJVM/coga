@@ -91,7 +91,7 @@ def project(
             ref,
             bootstrap_ticket,
             agent,
-            "llm",
+            "agent",
             env=os.environ.copy(),
             actor=f"human:{cfg.current_user}",
             log_message=(

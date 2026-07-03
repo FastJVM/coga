@@ -2,7 +2,7 @@
 slug: v2/relay-design-repositories
 title: relay-design-repositories
 status: paused
-mode: llm
+mode: agent
 owner: zach
 human: zach
 agent: claude

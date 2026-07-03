@@ -1,7 +1,7 @@
 ---
 title: External users can't install managed skills (relay-skills access)
 status: draft
-mode: llm
+mode: agent
 owner: zach
 human: zach
 agent: claude

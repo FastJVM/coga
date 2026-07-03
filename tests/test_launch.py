@@ -71,14 +71,14 @@ def _agent(
 
 
 def test_build_command_interactive_passes_prompt_positionally() -> None:
-    cmd = build_agent_command(_agent(), mode="llm", prompt="full prompt text")
+    cmd = build_agent_command(_agent(), mode="agent", prompt="full prompt text")
     assert cmd == ["my-cli", "full prompt text"]
 
 
 def test_build_command_injects_name_flag_when_set() -> None:
     cmd = build_agent_command(
         _agent(name_flag="-n"),
-        mode="llm",
+        mode="agent",
         prompt="full prompt text",
         name="Fix retry backoff",
     )
@@ -88,7 +88,7 @@ def test_build_command_injects_name_flag_when_set() -> None:
 def test_build_command_injects_session_id_after_name_flag() -> None:
     cmd = build_agent_command(
         _agent(name_flag="-n", session_id_flag="--session-id"),
-        mode="llm",
+        mode="agent",
         prompt="full prompt text",
         name="Fix retry backoff",
         session_id="session-123",
@@ -106,7 +106,7 @@ def test_build_command_injects_session_id_after_name_flag() -> None:
 def test_build_command_skips_name_flag_when_agent_has_none() -> None:
     cmd = build_agent_command(
         _agent(),
-        mode="llm",
+        mode="agent",
         prompt="full prompt text",
         name="Fix retry backoff",
     )
@@ -116,7 +116,7 @@ def test_build_command_skips_name_flag_when_agent_has_none() -> None:
 def test_build_command_skips_name_flag_when_name_is_empty() -> None:
     cmd = build_agent_command(
         _agent(name_flag="-n"),
-        mode="llm",
+        mode="agent",
         prompt="full prompt text",
         name="",
     )
@@ -129,7 +129,7 @@ def test_build_command_discussion_skips_name_flag() -> None:
     agent = _agent(name_flag="-n", discussion="--append-system-prompt {prompt}")
     cmd = build_agent_command(
         agent,
-        mode="llm",
+        mode="agent",
         prompt="orient body",
         name="Orient an agent in this coga/ repo",
         discussion=True,
@@ -141,7 +141,7 @@ def test_build_command_discussion_uses_template_for_claude() -> None:
     agent = _agent(discussion="--append-system-prompt {prompt}")
     cmd = build_agent_command(
         agent,
-        mode="llm",
+        mode="agent",
         prompt="orient body",
         discussion=True,
     )
@@ -152,7 +152,7 @@ def test_build_command_discussion_uses_template_for_codex() -> None:
     agent = _agent(discussion="-c developer_instructions={prompt}")
     cmd = build_agent_command(
         agent,
-        mode="llm",
+        mode="agent",
         prompt="orient body",
         discussion=True,
     )
@@ -167,7 +167,7 @@ def test_build_command_discussion_uses_default_template_for_claude_cli() -> None
     )
     cmd = build_agent_command(
         agent,
-        mode="llm",
+        mode="agent",
         prompt="orient body",
         discussion=True,
     )
@@ -182,7 +182,7 @@ def test_build_command_discussion_uses_default_template_for_codex_cli() -> None:
     )
     cmd = build_agent_command(
         agent,
-        mode="llm",
+        mode="agent",
         prompt="orient body",
         discussion=True,
     )
@@ -193,7 +193,7 @@ def test_build_command_discussion_falls_back_when_template_unset() -> None:
     agent = _agent(discussion="")
     cmd = build_agent_command(
         agent,
-        mode="llm",
+        mode="agent",
         prompt="orient body",
         discussion=True,
     )
@@ -201,7 +201,7 @@ def test_build_command_discussion_falls_back_when_template_unset() -> None:
 
 
 def test_build_command_rejects_non_llm_mode() -> None:
-    with pytest.raises(ValueError, match="only supports mode='llm'"):
+    with pytest.raises(ValueError, match="only supports mode='agent'"):
         build_agent_command(_agent(), mode="script", prompt="orient body")
 
 
@@ -212,7 +212,7 @@ def _ticket() -> Ticket:
     return Ticket(
         frontmatter={
             "title": "Spawn test",
-            "mode": "llm",
+            "mode": "agent",
             "status": "active",
             "assignee": "claude",
         },
@@ -250,7 +250,7 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
             mode="local",
             discussion="--append-system-prompt {prompt}",
         ),
-        "llm",
+        "agent",
         env={},
         actor="human:marc",
         log_message="launched",
@@ -293,7 +293,7 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
             mode="local",
             discussion="-c developer_instructions={prompt}",
         ),
-        "llm",
+        "agent",
         env={},
         actor="human:marc",
         log_message="launched",
@@ -334,10 +334,10 @@ def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
             name="claude", cli="claude", file="CLAUDE.md",
             mode="local", discussion="--append-system-prompt {prompt}",
         ),
-        "llm",
+        "agent",
         env={},
         actor="human:marc",
-        log_message="launched in llm mode",
+        log_message="launched in agent mode",
         discussion=True,
         kickoff="Begin",
         commit_log=True,
@@ -371,7 +371,7 @@ def test_spawn_leaves_log_dirty_when_commit_log_unset(git_repo, monkeypatch):
             name="claude", cli="claude", file="CLAUDE.md",
             mode="local", discussion="--append-system-prompt {prompt}",
         ),
-        "llm", env={}, actor="human:marc",
+        "agent", env={}, actor="human:marc",
         log_message="launched", discussion=True, kickoff="Begin",
     )
 
@@ -423,7 +423,7 @@ def test_spawn_sweeps_usage_record_at_teardown(git_repo, monkeypatch):
             name="claude", cli="claude", file="CLAUDE.md",
             mode="local", discussion="--append-system-prompt {prompt}",
         ),
-        "llm", env={}, actor="human:marc",
+        "agent", env={}, actor="human:marc",
         log_message="launched", discussion=True, kickoff="Begin",
         capture_usage=True,
     )
@@ -468,7 +468,7 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
             mode="local",
             discussion="--append-system-prompt {prompt}",
         ),
-        "llm",
+        "agent",
         env={},
         actor="human:marc",
         log_message="launched",
@@ -508,7 +508,7 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     cfg = load_config(company)
     create_task(
         cfg=cfg, title="Fix retry logic",
-        workflow_name="direct/body", contexts=[], mode="llm",
+        workflow_name="direct/body", contexts=[], mode="agent",
         owner="marc", assignee="claude", watchers=[], status="active",
     )
     return company
@@ -552,7 +552,7 @@ def _write_skill(repo: Path, ref: str, body: str) -> None:
     )
 
 
-def _create_chain_task(active_task: Path, *, mode: str = "llm") -> dict[str, object]:
+def _create_chain_task(active_task: Path, *, mode: str = "agent") -> dict[str, object]:
     _write(
         active_task / "workflows" / "chain.md",
         """
@@ -624,7 +624,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert ticket.status == "in_progress"
     log = _read_log(active_task)
     assert "started (active → in_progress) via coga launch" in log
-    assert "launched in llm mode" in log
+    assert "launched in agent mode" in log
 
 
 # --- push-auth gate -----------------------------------------------------------
@@ -1036,7 +1036,7 @@ def test_launch_handles_agent_self_deleting_task(
 def test_launch_marks_llm_session_supervised(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """LLM launches chain across agent-owned steps, so the child
+    """Agent launches chain across agent-owned steps, so the child
     inherits `COGA_SUPERVISED=1`. `coga bump` keys its supervised-launch
     hint off that env var."""
     envs: list[dict] = []
@@ -1106,7 +1106,7 @@ def test_launch_llm_without_tty_fails_before_lock(
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
     assert result.exit_code == 2
-    assert "Cannot launch 'fix-retry-logic': mode=llm requires a TTY" in (
+    assert "Cannot launch 'fix-retry-logic': mode=agent requires a TTY" in (
         result.output + (result.stderr or "")
     )
     assert not called
@@ -1119,13 +1119,13 @@ def test_launch_llm_chains_consecutive_agent_steps(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """LLM launches chain while the next step is still the agent's.
+    """Agent launches chain while the next step is still the agent's.
 
     After `coga bump` advances from step 1 (agent) to step 2 (also agent),
     the launch loop re-composes the prompt and spawns a fresh REPL. The
     chain stops at the first human-assigned step (step 3 here).
     """
-    ref = _create_chain_task(active_task, mode="llm")
+    ref = _create_chain_task(active_task, mode="agent")
     slug = str(ref["slug"])
     calls: list[list[str]] = []
     _allow_slack(monkeypatch)
@@ -1197,7 +1197,7 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
         title="Chain work",
         workflow_name="chain",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         human="marc",
         agent="claude",
@@ -1264,7 +1264,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
         title="Handoff work",
         workflow_name="handoff",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         human="marc",
         agent="claude",
@@ -1568,7 +1568,7 @@ def test_launch_auto_activates_draft_and_paused(
     with a workflow is activated inline, then flipped to in_progress."""
     from coga.ticket import Ticket
 
-    ref = _create_chain_task(active_task, mode="llm")
+    ref = _create_chain_task(active_task, mode="agent")
     slug = str(ref["slug"])
     ticket_md = Path(ref["path"])
     t = Ticket.read(ticket_md)
@@ -1591,7 +1591,7 @@ def test_launch_auto_activates_draft_and_paused(
 def test_launch_refuses_unsynthesized_draft_blackboard(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    ref = _create_chain_task(active_task, mode="llm")
+    ref = _create_chain_task(active_task, mode="agent")
     slug = str(ref["slug"])
     ticket_md = Path(ref["path"])
     t = Ticket.read(ticket_md)
@@ -1625,7 +1625,7 @@ def test_launch_refuses_done_ticket(
     wedge the ticket. Launch refuses loud and leaves the ticket untouched."""
     from coga.ticket import Ticket
 
-    ref = _create_chain_task(active_task, mode="llm")
+    ref = _create_chain_task(active_task, mode="agent")
     slug = str(ref["slug"])
     ticket_md = Path(ref["path"])
     t = Ticket.read(ticket_md)
@@ -1748,7 +1748,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
         title="Measure prompt scope",
         workflow_name="code/measure",
         contexts=["email/payment-flow"],
-        mode="llm",
+        mode="agent",
         owner="marc",
         human="marc",
         agent="claude",
@@ -1776,7 +1776,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
     from coga.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]))
     assert ticket.status == "draft"
-    assert "launched in llm mode" not in _read_log(active_task)
+    assert "launched in agent mode" not in _read_log(active_task)
 
 
 # --- bootstrap tickets ---------------------------------------------------------
@@ -1807,7 +1807,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Create a new ticket
-        mode: llm
+        mode: agent
         skills:
           - bootstrap/ticket
         assignee: claude
@@ -1898,7 +1898,7 @@ def test_launch_bootstrap_skips_status_and_lock(
 
     # The repo-global log recorded the launch.
     log = _read_log(bootstrap_repo)
-    assert "launched in llm mode" in log
+    assert "launched in agent mode" in log
 
 
 def test_launch_discussion_bootstrap_uses_discussion_template(
@@ -1957,7 +1957,7 @@ def test_launch_orient_bootstrap_stays_silent(
         """
         ---
         title: Chat
-        mode: llm
+        mode: agent
         assignee: claude
         ---
 
@@ -2241,7 +2241,7 @@ def test_launch_interactive_rotates_across_agents(
     cfg = load_config(active_task)
     ref = create_task(
         cfg=cfg, title="Rotate work", workflow_name="rotate", contexts=[],
-        mode="llm", owner="marc", human="marc", agent="claude",
+        mode="agent", owner="marc", human="marc", agent="claude",
         assignee="claude", watchers=[], status="active",
     )
     slug = ref["slug"]
@@ -2304,7 +2304,7 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     cfg = load_config(active_task)
     ref = create_task(
         cfg=cfg, title="Rotate2 work", workflow_name="rotate2", contexts=[],
-        mode="llm", owner="marc", human="marc", agent="claude",
+        mode="agent", owner="marc", human="marc", agent="claude",
         assignee="claude", watchers=[], status="active",
     )
     slug = ref["slug"]

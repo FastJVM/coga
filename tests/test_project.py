@@ -56,7 +56,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Plan a project into tickets
-        mode: llm
+        mode: agent
         skills:
           - bootstrap/project
         assignee: claude
@@ -116,7 +116,7 @@ def _create_drafts(*titles: str):  # type: ignore[no-untyped-def]
                 title=title,
                 workflow_name=None,
                 contexts=[],
-                mode="llm",
+                mode="agent",
                 owner=cfg.current_user,
                 assignee=None,
                 watchers=[],
@@ -222,7 +222,7 @@ def test_project_fails_loud_on_broken_draft(
             title="Broken step",
             workflow_name=None,
             contexts=[],
-            mode="llm",
+            mode="agent",
             owner=cfg.current_user,
             assignee=None,
             watchers=[],

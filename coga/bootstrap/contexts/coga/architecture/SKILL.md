@@ -232,7 +232,7 @@ megalaunch decide whether work can proceed without more human input.
 
 `mode:` in ticket frontmatter:
 
-- **`llm`** — compose the prompt and spawn the ticket assignee's agent CLI in a
+- **`agent`** — compose the prompt and spawn the ticket assignee's agent CLI in a
   live REPL. Normal launches require stdin and stdout to be TTYs. The REPL
   does not terminate on its own: `coga bump`, `coga mark done`, and
   `coga block` signal the launch supervisor via the session-scoped
@@ -241,7 +241,7 @@ megalaunch decide whether work can proceed without more human input.
   for the next agent-owned workflow step (rotating CLIs when the step assignee
   changes) or returns control to the caller at human handoffs, terminal states,
   blockers, no-progress exits, and non-zero exits. Blocked tickets can resume
-  inline only for a `mode: llm` launch from a TTY, so the first job in that
+  inline only for a `mode: agent` launch from a TTY, so the first job in that
   session is to resolve or re-block the open asks.
 - **`script`** — run deterministic code directly, with no composed agent
   prompt. The script entry comes from the current workflow step's single skill
@@ -257,7 +257,7 @@ There is no `autonomy:` field. The old `skip_permissions` / `skip_permissions_ar
 `coga launch` builds one composed prompt and writes it to a temp
 file. Layers, in order:
 
-1. Base prompt plus the LLM-mode block for `mode: llm`. Both
+1. Base prompt plus the agent-mode block for `mode: agent`. Both
    are package resources, not files under `coga/`.
 2. Repo context (`coga/context.md` — top-level facts about this
    surface).

@@ -2,7 +2,7 @@
 slug: marketing/quiet-relay-init-managed-skill-failures
 title: Quiet relay init managed-skill failures
 status: draft
-mode: llm
+mode: agent
 owner: zach
 human: zach
 agent: claude

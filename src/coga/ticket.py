@@ -125,9 +125,9 @@ class Ticket:
 
     @property
     def mode(self) -> str:
-        """The task's execution substance: `llm` composes a prompt for an
+        """The task's execution substance: `agent` composes a prompt for an
         agent; `script` runs a deterministic script entry point."""
-        return self.frontmatter.get("mode", "llm")
+        return self.frontmatter.get("mode", "agent")
 
     @property
     def script(self) -> str | None:
@@ -148,7 +148,7 @@ class Ticket:
 
     @property
     def agent(self) -> str | None:
-        """The agent (LLM coder) assigned to this ticket."""
+        """The agent assigned to this ticket."""
         return self.frontmatter.get("agent")
 
     @property

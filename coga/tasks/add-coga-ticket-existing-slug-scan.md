@@ -2,7 +2,7 @@
 slug: add-coga-ticket-existing-slug-scan
 title: add-coga-ticket-existing-slug-scan
 status: done
-mode: llm
+mode: agent
 owner: zach
 human: zach
 agent: claude

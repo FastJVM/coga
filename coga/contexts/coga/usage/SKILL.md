@@ -1,9 +1,9 @@
 ---
 name: coga/usage
-description: How coga records and reads LLM token usage — per-agent-session JSONL records appended to each task's own blackboard (no central ledger), the provider parser seam (Claude vs Codex), and `coga usage` as the single read surface. Local and committed, never a phone-home. Read before touching usage capture or adding a usage consumer.
+description: How coga records and reads agent token usage — per-agent-session JSONL records appended to each task's own blackboard (no central ledger), the provider parser seam (Claude vs Codex), and `coga usage` as the single read surface. Local and committed, never a phone-home. Read before touching usage capture or adding a usage consumer.
 ---
 
-# LLM usage tracking
+# Agent Usage Tracking
 
 Coga records the token usage of every agent session as plain committed text and
 reads it back with `coga usage`. This is a foundational **local** data primitive
@@ -40,7 +40,7 @@ iteration, so chained steps and claude↔codex rotation each get their own line.
 
 It is gated tightly:
 
-- **Only real agent sessions** (`mode: llm`). `mode: script` iterations (Dream
+- **Only real agent sessions** (`mode: agent`). `mode: script` iterations (Dream
   workers, autoclose, digest, skill-update — no transcript) and the
   `FileNotFoundError` spawn-failure path (no session ran) write **nothing**.
 - **Never raises.** A missing or unparseable transcript appends a record with

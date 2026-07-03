@@ -52,7 +52,7 @@ def _write_workflow_less_task(
         slug: {slug}
         title: Work
         status: {status}
-        mode: llm
+        mode: agent
         owner: marc
         human: marc
         agent: claude
@@ -126,7 +126,7 @@ def _make_task(
     else:
         ref = create_task(
             cfg=cfg, title="Work", workflow_name=workflow,
-            contexts=[], mode="llm", owner="marc", assignee=assignee,
+            contexts=[], mode="agent", owner="marc", assignee=assignee,
             watchers=[], status=status,
         )
     path = ref["path"]

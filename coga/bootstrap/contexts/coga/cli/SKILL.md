@@ -62,7 +62,7 @@ repo, and capturing your name is `coga init`'s job, not `build`'s. There is no
 separate `coga setup` command — initialize the repo with `coga init`, then run
 `coga build`.
 
-## coga create "\<title\>" [--workflow \<name\>] [--mode llm|script]
+## coga create "\<title\>" [--workflow \<name\>] [--mode agent|script]
 
 Scaffold a new raw `draft` ticket and post `✨` when a notification channel
 is selected (a fresh repo selects none, so this is silent out of the box).
@@ -182,7 +182,7 @@ finished. A ticket that can't be activated — no workflow, or an empty
 active` gives. Launching an `active` ticket then marks it
 `in_progress` (posting `▶️`) before spawning the agent; launching an
 already-`in_progress` ticket resumes it without another status flip. `mode:
-llm` launches require stdin and stdout to both be terminals. `mode: script`
+agent` launches require stdin and stdout to both be terminals. `mode: script`
 runs deterministic code directly without composing an agent prompt. Script
 launches inject task metadata env vars including
 `COGA_TASK_SLUG`, `COGA_TASK_DIR`, and `COGA_TASK_BLACKBOARD`.
@@ -375,7 +375,7 @@ base if warranted, and deletes the source task directory in the same PR.
 The retire task is scaffolded straight to `active`; `coga retire` launches
 it unless `--no-launch` is passed.
 
-- `coga retire <slug>` — scaffold and launch a `mode: llm` retire task.
+- `coga retire <slug>` — scaffold and launch a `mode: agent` retire task.
 - `coga retire <slug> --no-launch` — scaffold the retire task (already
   `active`) and print the explicit `coga launch <slug>` command.
 
@@ -557,11 +557,11 @@ slug-based suppression, no orphan reaping, and no fold-back-to-template-log
 step. Use it to force this period's work to re-run without waiting for the
 schedule.
 
-`mode: llm` templates are skipped when `coga recurring` has no stdin/stdout
+`mode: agent` templates are skipped when `coga recurring` has no stdin/stdout
 TTY, because the agent REPL cannot be driven. Templates intended for cron or
 other unattended schedulers should use `mode: script`.
 
-**Idle-timeout backstop.** A `mode: llm` template that *does* launch (a TTY is
+**Idle-timeout backstop.** A `mode: agent` template that *does* launch (a TTY is
 present) but whose agent stalls or crashes before signalling done — never
 reaching `coga bump` / `mark done` / `block` — would otherwise block the
 sequential sweep forever. Both the bare sweep and `coga recurring --all` arm a

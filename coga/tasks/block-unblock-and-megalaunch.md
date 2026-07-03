@@ -2,7 +2,7 @@
 slug: block-unblock-and-megalaunch
 title: Block, unblock, and megalaunch
 status: done
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: codex

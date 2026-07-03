@@ -2,7 +2,7 @@
 slug: marketing/relay-discord
 title: relay-discord
 status: active
-mode: llm
+mode: agent
 owner: zach
 human: zach
 agent: claude

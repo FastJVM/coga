@@ -2,7 +2,7 @@
 slug: v2/minimal-ci-run-pytest-on-prs-and-tags
 title: 'Minimal CI: run pytest on PRs and tags'
 status: draft
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

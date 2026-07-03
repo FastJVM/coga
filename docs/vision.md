@@ -125,11 +125,11 @@ Two consequences worth naming:
 
 **Blackboards** are per-task workspaces where agents write findings, plans, decisions, and blockers. The blackboard is how agents persist state between sessions — an agent that crashes mid-task is recoverable because the blackboard has its last known state. It's the pattern from 1970s AI research (Hearsay-II): independent processes coordinate through a shared mutable surface rather than direct message passing.
 
-**Task mode** declares execution substance, not autonomy. `mode: llm` launches
+**Task mode** declares execution substance, not autonomy. `mode: agent` launches
 the configured agent in an attended REPL; `mode: script` runs deterministic
 Python with task metadata and secrets injected. There is no ticket autonomy
 flag. Unattended drain comes from script tasks, blockers, megalaunch, and the
-liveness watchdog around supervised LLM sessions.
+liveness watchdog around supervised agent sessions.
 
 **The base prompt** is a system prompt injected into every agent session. It teaches the agent how to operate within Coga — when to advance workflow steps, when to panic, how to use the blackboard, how to handle frontmatter. The base prompt lives as version-controlled markdown. Agents don't learn Coga through their own memory or config; they learn it fresh every session from a file we own.
 

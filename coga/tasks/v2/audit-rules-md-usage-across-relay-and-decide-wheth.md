@@ -3,7 +3,7 @@ slug: v2/audit-rules-md-usage-across-relay-and-decide-wheth
 title: Audit rules.md usage across relay and decide whether to keep, gut, or remove
   it
 status: draft
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

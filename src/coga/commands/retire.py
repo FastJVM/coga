@@ -83,7 +83,7 @@ def retire(
         _bail(str(exc))
     typer.echo(
         f"Retire: using assignee {assignee} "
-        f"(agent type {agent_type.name}, mode llm)"
+        f"(agent type {agent_type.name}, mode agent)"
     )
 
     title = f"Retire {ref.id_slug}"
@@ -99,7 +99,7 @@ def retire(
             # task the validator (rightly) rejects as un-bumpable.
             workflow_name="direct/body",
             contexts=[],
-            mode="llm",
+            mode="agent",
             owner=cfg.current_user,
             assignee=assignee,
             watchers=[],

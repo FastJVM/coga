@@ -2,7 +2,7 @@
 slug: v2/debug-surface-for-recurring-tasks-streamed-output
 title: 'Debug surface for recurring tasks: streamed output + step-through'
 status: draft
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

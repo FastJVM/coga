@@ -2,7 +2,7 @@
 slug: v2/clean-uncommitted-work
 title: clean-uncommitted-work
 status: draft
-mode: llm
+mode: agent
 owner: zach
 human: zach
 agent: claude

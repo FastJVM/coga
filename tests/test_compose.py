@@ -25,7 +25,7 @@ def _write(path: Path, text: str) -> None:
 
 
 def _write_workflow_less_task(
-    repo: Path, *, title: str, mode: str = "llm", status: str = "active"
+    repo: Path, *, title: str, mode: str = "agent", status: str = "active"
 ) -> str:
     """Write a workflow-less task directly to disk. `create_task` refuses to
     create a workflow-less non-draft task now, but compose handles a
@@ -113,7 +113,7 @@ def test_compose_includes_all_sections(repo: Path) -> None:
         title="Fix retry logic",
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -128,8 +128,8 @@ def test_compose_includes_all_sections(repo: Path) -> None:
     assert "Task directory: coga/tasks/fix-retry-logic" in prompt
     # Base prompt
     assert "You are an agent working on a ticket inside Coga" in prompt
-    # LLM prompt
-    assert "LLM mode" in prompt
+    # Agent prompt
+    assert "Agent mode" in prompt
     # Repo context
     assert "Email tool is YC-backed" in prompt
     # Ticket context
@@ -165,7 +165,7 @@ def test_base_prompt_teaches_exit_after_bump(repo: Path) -> None:
         title="Chain work",
         workflow_name="code/with-review",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -201,7 +201,7 @@ def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
         title="Fix retry logic",
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -224,15 +224,15 @@ def test_compose_prompt_report_tracks_layers_and_refs(repo: Path) -> None:
 
 def test_compose_llm_mode_uses_llm_block(repo: Path) -> None:
     cfg = load_config(repo)
-    _write_workflow_less_task(repo, title="LLM task", mode="llm")
+    _write_workflow_less_task(repo, title="Agent task", mode="agent")
     ref = list_tasks(cfg)[0]
     ticket = read_ticket(ref)
     prompt = compose_prompt(cfg, ref, ticket)
-    assert "LLM mode" in prompt
+    assert "Agent mode" in prompt
 
 
 def test_compose_open_blockers_add_resolution_preamble(repo: Path) -> None:
-    """An LLM ticket with open asks composes the resolve-or-re-block
+    """An Agent ticket with open asks composes the resolve-or-re-block
     preamble, listing each ask verbatim (stale/junk ones included)."""
     cfg = load_config(repo)
     _write_workflow_less_task(repo, title="Blocked work")
@@ -271,7 +271,7 @@ def test_compose_resolved_blockers_compose_no_preamble(repo: Path) -> None:
 
 
 def test_compose_script_mode_open_blockers_compose_no_preamble(repo: Path) -> None:
-    """The preamble mandates a discussion, so it is LLM-only."""
+    """The preamble mandates a discussion, so it is Agent-only."""
     cfg = load_config(repo)
     _write_workflow_less_task(repo, title="Script blocked", mode="script")
     ref = list_tasks(cfg)[0]
@@ -290,7 +290,7 @@ def test_compose_inline_step_instructions(repo: Path) -> None:
         title="T",
         workflow_name="code/with-review",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner=None,
         assignee=None,
         watchers=[],
@@ -349,7 +349,7 @@ def test_compose_raises_on_missing_step_skill(repo: Path) -> None:
         frontmatter={
             "title": "Ghost step skill",
             "status": "in_progress",
-            "mode": "llm",
+            "mode": "agent",
             "contexts": [],
             "skills": [],
             "workflow": {

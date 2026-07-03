@@ -2,7 +2,7 @@
 slug: marketing/README
 title: Marketing tasks directory index
 status: draft
-mode: llm
+mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

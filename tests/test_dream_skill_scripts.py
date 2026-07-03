@@ -135,7 +135,7 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
         slug: processed-ticket
         title: Processed Ticket
         status: done
-        mode: llm
+        mode: agent
         owner: marc
         assignee: marc
         ---
@@ -195,7 +195,7 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
         slug: processed-ticket
         title: Processed Ticket
         status: done
-        mode: llm
+        mode: agent
         owner: marc
         assignee: marc
         ---
@@ -259,7 +259,7 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> Non
         slug: documents-the-marker
         title: Documents The Marker
         status: done
-        mode: llm
+        mode: agent
         owner: marc
         assignee: marc
         ---

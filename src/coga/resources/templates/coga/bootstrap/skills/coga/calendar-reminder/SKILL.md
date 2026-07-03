@@ -228,7 +228,7 @@ In the ticket's frontmatter as a top-level field:
 ---
 title: Brex Automation
 status: active
-mode: llm
+mode: agent
 owner: zach
 assignee: claude
 contexts:
@@ -246,7 +246,7 @@ recurring file's frontmatter instead:
 schedule: "0 9 5 1 *"
 schedule_comment: "January 5 at 9am — annually..."
 title: "Download previous year's Gusto payroll tax forms"
-mode: llm
+mode: agent
 owner: zach
 assignee: zach
 calendar_reminder_event_id: 0vhr5me50sbohsq9afo7jf85qg

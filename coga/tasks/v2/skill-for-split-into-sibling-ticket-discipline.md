@@ -2,7 +2,7 @@
 slug: v2/skill-for-split-into-sibling-ticket-discipline
 title: Skill for split-into-sibling-ticket discipline
 status: draft
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

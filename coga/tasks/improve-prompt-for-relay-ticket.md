@@ -2,7 +2,7 @@
 slug: improve-prompt-for-relay-ticket
 title: improve prompt for relay ticket
 status: in_progress
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: codex

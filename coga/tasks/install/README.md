@@ -2,7 +2,7 @@
 slug: install/README
 title: install/ — Greg's onboarding feedback index
 status: draft
-mode: llm
+mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

@@ -3,7 +3,7 @@ slug: v2/dev-loop-git-hygiene-lift-sync-with-main-into-code
 title: 'Dev-loop git hygiene: lift sync-with-main into code/open-pr + add recurring
   merged-branch cleanup'
 status: draft
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

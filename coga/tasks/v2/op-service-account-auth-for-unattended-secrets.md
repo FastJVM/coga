@@ -2,7 +2,7 @@
 slug: v2/op-service-account-auth-for-unattended-secrets
 title: Support 1Password service-account auth for op:// secrets (unattended, no prompt)
 status: draft
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

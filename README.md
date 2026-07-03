@@ -110,7 +110,7 @@ has a **receipt** — the feature that proves it.
 | Principle | What it means | The feature that proves it |
 |---|---|---|
 | **1. Hackable** | change anything, directly — no plugin fence | edit any markdown under `coga/` → next `coga launch` uses it; the ~2-min correction loop (edit → commit → fixed) |
-| **2. Agents do, humans think** | offload everything mechanizable; humans spend attention on judgment | no webUI — the CLI + files are the whole surface; `mode: llm` / `mode: script` and per-step `assignee` route work to agent, script, or human |
+| **2. Agents do, humans think** | offload everything mechanizable; humans spend attention on judgment | no webUI — the CLI + files are the whole surface; `mode: agent` / `mode: script` and per-step `assignee` route work to agent, script, or human |
 | **3. Obvious** | boring, standard, immediately understandable | the substrate is just markdown + Python + `SKILL.md` (the Claude Code / Codex format); no DB, no DSL |
 | **4. Memory via PR** | thinking compounds, human-gated, never opaque | **Dream** reads execution history and opens *proposal PRs* — propose, human disposes; the blackboard region (in `ticket.md`) = working memory, `contexts/` = long-term |
 | **5. Yours** | own the substrate, swap the vendors | git-backed markdown, local, no cloud; `claude` ↔ `codex` interchangeable; `SKILL.md` is an open standard |
@@ -555,7 +555,7 @@ discussion launches the Coga prompt is context and the first human ask can name
 the session. Ordinary task launches keep passing the composed prompt
 positionally.
 
-For workflow-bound `mode: llm` tasks, one `coga launch` can run multiple
+For workflow-bound `mode: agent` tasks, one `coga launch` can run multiple
 agent-owned steps. After each clean agent exit, Coga re-reads the ticket and
 continues in a fresh agent process only when the task is still `in_progress`, the step
 advanced, the new current step has a `skill:`, and the concrete `assignee:`
@@ -568,7 +568,7 @@ context/skill refs, bytes, and approximate token counts. The token estimate is
 intentionally dependency-light (`characters / 4`), so use it to catch prompt
 bloat and compare tasks, not to predict exact provider billing.
 
-`mode: llm` composes a prompt and requires a TTY-backed agent REPL. `mode:
+`mode: agent` composes a prompt and requires a TTY-backed agent REPL. `mode:
 script` runs deterministic code directly and composes no agent prompt, so
 `--prompt-report` is rejected for script tasks.
 
@@ -709,11 +709,11 @@ hygiene (pruning the merged feature branch, sweeping stale branches)
 belongs in a Dream worker, not here.
 
 ```sh
-coga retire add-retry                       # create and launch a mode: llm Retro run
+coga retire add-retry                       # create and launch a mode: agent Retro run
 coga retire add-retry --no-launch           # create without launching
 ```
 
-`retire` creates a `mode: llm` task and launches it unless `--no-launch` is
+`retire` creates a `mode: agent` task and launches it unless `--no-launch` is
 passed.
 
 ### `coga block --task <slug> --reason "..."`

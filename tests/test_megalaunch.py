@@ -100,7 +100,7 @@ def test_megalaunch_runs_active_agent_task(
         title="Run me",
         workflow_name="code",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -153,7 +153,7 @@ def test_megalaunch_chains_agent_owned_steps(
         title="Run twice",
         workflow_name="two-agent",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -206,14 +206,14 @@ def test_megalaunch_requires_tty(
 def test_megalaunch_spawns_llm_with_liveness_backstop(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Each step is a normal LLM launch with the recurring liveness backstop."""
+    """Each step is a normal Agent launch with the recurring liveness backstop."""
     cfg = load_config(repo)
     create_task(
         cfg=cfg,
         title="Watch me",
         workflow_name="code",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -241,7 +241,7 @@ def test_megalaunch_spawns_llm_with_liveness_backstop(
     run = run_megalaunch(cfg)
 
     assert run.counts["completed"] == 1
-    assert seen["mode"] == "llm"
+    assert seen["mode"] == "agent"
     # The recurring sweep's idle backstop is armed so a wedged REPL can't
     # starve the rest of the queue.
     assert seen["idle_timeout"] is not None
@@ -257,7 +257,7 @@ def test_megalaunch_timeout_teardown_reports_failed(
         title="Wedged",
         workflow_name="code",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -289,7 +289,7 @@ def test_megalaunch_skips_open_blocker(repo: Path) -> None:
         title="Blocked",
         workflow_name="code",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -315,7 +315,7 @@ def test_megalaunch_budget_guard_skips_on_low_session_window(repo: Path) -> None
         title="Too expensive",
         workflow_name="code",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -339,7 +339,7 @@ def test_megalaunch_skips_agent_without_probe(repo: Path) -> None:
         title="Unprobeable",
         workflow_name="code",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -361,7 +361,7 @@ def test_megalaunch_skips_unreadable_usage_window(repo: Path) -> None:
         title="No signal",
         workflow_name="code",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -386,7 +386,7 @@ def test_megalaunch_ignores_non_active_tickets(
             title=title,
             workflow_name="code",
             contexts=[],
-            mode="llm",
+            mode="agent",
             owner="marc",
             assignee="claude",
             status="active",
@@ -421,7 +421,7 @@ def test_megalaunch_resumes_in_progress_agent_task(
         title="Resume me",
         workflow_name="code",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -468,7 +468,7 @@ def test_megalaunch_in_progress_human_assignee_is_human_gate(
         title="With human",
         workflow_name="code",
         contexts=[],
-        mode="llm",
+        mode="agent",
         owner="marc",
         assignee="claude",
         status="active",
@@ -508,7 +508,7 @@ def test_megalaunch_reprobes_between_launches(
             title=title,
             workflow_name="code",
             contexts=[],
-            mode="llm",
+            mode="agent",
             owner="marc",
             assignee="claude",
             status="active",
@@ -559,7 +559,7 @@ def test_megalaunch_services_tasks_oldest_first(
             title=title,
             workflow_name="code",
             contexts=[],
-            mode="llm",
+            mode="agent",
             owner="marc",
             assignee="claude",
             status="active",

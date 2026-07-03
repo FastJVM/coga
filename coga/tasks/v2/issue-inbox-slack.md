@@ -2,7 +2,7 @@
 slug: v2/issue-inbox-slack
 title: issue-inbox-slack
 status: paused
-mode: llm
+mode: agent
 owner: zach
 human: zach
 agent: claude

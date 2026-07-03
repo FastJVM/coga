@@ -316,7 +316,7 @@ def _launch_until_stop(
                 ref,
                 before,
                 agent,
-                "llm",
+                "agent",
                 env=env,
                 actor="megalaunch",
                 log_message="launched via coga megalaunch",

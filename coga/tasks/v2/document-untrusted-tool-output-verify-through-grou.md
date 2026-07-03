@@ -2,7 +2,7 @@
 slug: v2/document-untrusted-tool-output-verify-through-grou
 title: Document untrusted-tool-output verify-through-ground-truth agent discipline
 status: draft
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

@@ -2,7 +2,7 @@
 slug: filter-relay-status-by-directory-group
 title: Filter relay status by directory/group
 status: done
-mode: llm
+mode: agent
 owner: nick
 human: nick
 agent: claude

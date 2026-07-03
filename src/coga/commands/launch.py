@@ -197,7 +197,7 @@ def launch(
     # skipped-unresolved-blocker before launching.
     if not is_bootstrap and isinstance(ref, TaskRef) and ticket.status == "blocked":
         if (
-            ticket.mode == "llm"
+            ticket.mode == "agent"
             and not is_script_launch(cfg, ticket)
             and _interactive_stdio_has_tty()
         ):
@@ -250,7 +250,7 @@ def launch(
         # is brought to `active` inline rather than refused with a "run
         # `coga mark active` first" hint. The flip to `in_progress` still happens
         # later (after the compose pre-flight), so this only does the `mark active`
-        # half. Done before the mode dispatch so both llm and script
+        # half. Done before the mode dispatch so both agent and script
         # launches start from an activated, stepped ticket.
         if (
             not is_bootstrap
@@ -263,7 +263,7 @@ def launch(
         if not assignee:
             _bail(f"Task {ref.id_slug} has no assignee")
 
-        if ticket.mode not in ("llm", "script"):
+        if ticket.mode not in ("agent", "script"):
             _bail(f"Unknown mode: {ticket.mode!r}")
 
         # `mode: script` runs the current step's skill script or the ticket's own
@@ -271,19 +271,19 @@ def launch(
         if script_launch:
             if agent_override is not None:
                 _bail(
-                    "--agent is only supported for llm launches."
+                    "--agent is only supported for agent launches."
                 )
             if is_bootstrap:
-                _bail("Bootstrap tickets only support llm launches.")
+                _bail("Bootstrap tickets only support agent launches.")
             from coga.commands.launch_script import run_script_mode
             run_script_mode(cfg, ref, ticket)
             return
 
         mode = ticket.mode
 
-        if mode == "llm" and not _interactive_stdio_has_tty():
+        if mode == "agent" and not _interactive_stdio_has_tty():
             _bail(
-                f"Cannot launch {ref.id_slug!r}: mode=llm requires a TTY "
+                f"Cannot launch {ref.id_slug!r}: mode=agent requires a TTY "
                 "(stdin and stdout must both be terminals). Run from a real "
                 "shell, or use mode: script for deterministic unattended work."
             )
@@ -353,7 +353,7 @@ def launch(
             except TaskValidationError as exc:
                 _bail(str(exc))
 
-        # LLM launches chain across consecutive agent-owned steps. After the
+        # Agent launches chain across consecutive agent-owned steps. After the
         # agent exits (via autoquit on
         # `coga bump` / `mark done` / `block`, or via `/exit`), we re-read the
         # ticket and either relaunch the next step's agent as a fresh process —
@@ -763,7 +763,7 @@ def build_agent_command(
 ) -> list[str]:
     """Build the argv for spawning the agent.
 
-    LLM mode: `<cli> <prompt>` — agent opens its REPL with the prompt as
+    Agent mode: `<cli> <prompt>` — agent opens its REPL with the prompt as
     the first user message.
 
     When the agent declares `name_flag` and a non-empty `name` is passed,
@@ -782,8 +782,8 @@ def build_agent_command(
     title. Uses configured `agent.discussion`, then built-in templates for
     known `claude` / `codex` CLIs, then falls back to positional.
     """
-    if mode != "llm":
-        raise ValueError(f"build_agent_command only supports mode='llm', got {mode!r}")
+    if mode != "agent":
+        raise ValueError(f"build_agent_command only supports mode='agent', got {mode!r}")
     discussion_template = _discussion_template(agent) if discussion else ""
     if discussion_template:
         tokens = [
@@ -879,7 +879,7 @@ def spawn_agent_session(
     usage_blackboard = ref.ticket_path
     should_capture_usage = (
         capture_usage
-        and mode == "llm"
+        and mode == "agent"
         and isinstance(ref, TaskRef)
         and usage_blackboard.is_file()
     )
@@ -920,7 +920,7 @@ def spawn_agent_session(
             # Non-fatal on any git failure.
             git.sync_log(cfg, message=f"Log: {ref.id_slug}")
 
-        if mode == "llm" and name and sys.stdout.isatty():
+        if mode == "agent" and name and sys.stdout.isatty():
             sys.stdout.write(f"\033]2;{name}\007")
             sys.stdout.flush()
 
