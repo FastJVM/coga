@@ -670,3 +670,9 @@
 2026-07-02 15:05 [branch-cleanup-as-recurring-tasks] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-02 15:05 [branch-cleanup-as-recurring-tasks] [human:nicktoper] launched in interactive mode (assignee=claude, agent=claude)
 2026-07-02 15:30 [branch-cleanup-as-recurring-tasks] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — Implemented branch-sweep on branch `branch-sweep` (worktree /home/n/Code/claude/coga-branch-sweep), committed and tested (1045 passed). Next: open-pr.
+2026-07-02 15:30 [branch-cleanup-as-recurring-tasks] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
+2026-07-02 17:06 [branch-cleanup-as-recurring-tasks] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-02 17:06 [branch-cleanup-as-recurring-tasks] [git] sync failed: `git add -- coga/tasks/branch-cleanup-as-recurring-tasks.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/branch-cleanup-as-recurring-tasks.md: failed to insert into database
+error: unable to index file 'coga/tasks/branch-cleanup-as-recurring-tasks.md'
+fatal: adding files failed

@@ -6,7 +6,7 @@ autonomy: interactive
 owner: nick
 human: nick
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/recurring
 - dev/code
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -186,6 +186,33 @@ Built all four deliverables, mirroring `autoclose-merged` end to end:
   `/home/n/Code/claude/coga-branch-sweep`, committed, not yet pushed or PR'd —
   that's `code/open-pr`, the next step.
 
+## Peer review (2026-07-02, Codex)
+
+- Ran native review from the feature worktree:
+  `codex review --base main` (initial sandboxed attempt failed because Codex
+  could not create its app-server state on a read-only filesystem; reran with
+  approval). It found two must-fix issues:
+  1. `gh pr list --head <branch> --state merged` could authorize deletion
+     from an old merged PR after a branch name was reused.
+  2. remote enumeration used cached `refs/remotes/origin/*`, so a stale
+     checkout could miss remote-only branches created elsewhere.
+- Fixed both in commit `01a450c1` (`peer-review: harden branch sweep gates`):
+  the gh gate now compares the current local/remote tip SHA to merged PR
+  `headRefOid`, local and remote refs are authorized independently when their
+  tips differ, and remote enumeration uses live `git ls-remote --heads`.
+  Remote-listing failure is recorded and makes the script runner exit nonzero
+  like gh unavailability.
+- Added regressions for branch reuse with an old merged PR head and a
+  remote-only branch pushed from another clone; updated the live and packaged
+  branch-sweep recurring/workflow/skill docs and script runners in sync.
+- Verification:
+  - `python -m pytest tests/test_branchsweep.py tests/test_branchcleanup.py -q -p no:cacheprovider`
+    — 20 passed.
+  - `python -m pytest -p no:cacheprovider` — 1048 passed, 1 skipped.
+  - `PYTHONPATH=src python -m coga.cli validate --task branch-cleanup-as-recurring-tasks --json`
+    — ok_count 1, no issues.
+  - `git diff --check` — clean.
+
 ## Bootstrap decisions (2026-07-01)
 
 - Ticket was nearly obsoleted by retire-time deletion
@@ -248,3 +275,5 @@ Built all four deliverables, mirroring `autoclose-merged` end to end:
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":280530,"cache_read_input_tokens":13778677,"cli":"claude","input_tokens":27140,"model":"claude-sonnet-5","output_tokens":100233,"provider":"anthropic","schema":1,"session_id":"43f102f5-136b-4a6a-ac30-8c703be92aae","slug":"branch-cleanup-as-recurring-tasks","step":"implement","title":"branch cleanup as recurring tasks","ts":"2026-07-02T22:30:15.230571Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3148160,"cli":"codex","input_tokens":185425,"model":"gpt-5.5","output_tokens":21227,"provider":"openai","schema":1,"session_id":"019f24f4-47fe-7790-9bf5-c87ae03a3f32","slug":"branch-cleanup-as-recurring-tasks","step":"peer-review","title":"branch cleanup as recurring tasks","ts":"2026-07-03T00:06:24.052348Z","usage_status":"ok"}
