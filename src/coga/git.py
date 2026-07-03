@@ -75,11 +75,14 @@ import sys
 import tempfile
 import time
 from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 from coga.config import Config
 from coga.logfile import append_log, ref_tag_for_path
 from coga.paths import log_path
+from coga.taskfile import TaskFileError, split_body
+from coga.ticket import Ticket, TicketError
 
 # Bounded retries when racing `refs/heads/<control>`: each loss is a refetch +
 # rebuild + repush, so a small ceiling is plenty under realistic contention
@@ -98,6 +101,15 @@ _ROOT_LAYOUT_COGA_PATHS = (
     "workflows",
 )
 
+_STATUS_PROGRESS = {
+    "draft": 0,
+    "active": 1,
+    "in_progress": 2,
+    "paused": 3,
+    "blocked": 3,
+    "done": 4,
+}
+
 
 class GitError(Exception):
     """Raised when a git operation fails (git missing, or a non-zero exit).
@@ -105,6 +117,18 @@ class GitError(Exception):
     Distinct from the soft "not a git repo" no-op: this signals a real
     failure on the control branch that the caller surfaces as a crash.
     """
+
+
+class StateRegressionError(GitError):
+    """Raised when catch-all Coga-state sync would commit stale task state."""
+
+
+@dataclass(frozen=True)
+class _TicketState:
+    status: str | None
+    step: str | None
+    step_index: int | None
+    blackboard_bytes: int | None
 
 
 def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
@@ -317,6 +341,11 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
             )
             return
 
+        base = _control_base_for_attempt(
+            root, cfg.git_remote, cfg.git_control_branch, 0
+        )
+        _guard_coga_state_regressions(cfg, root, changed, base)
+
         # `merge=union` files (log.md, the digest spool) must stay out of the
         # cross-branch overlay set — same reason `sync_paths` keeps the log out:
         # the overlay replaces a file wholesale on the control tip and would drop
@@ -328,6 +357,8 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
         _dispatch_branch_sync(
             cfg, root, local_rels=changed, overlay_rels=overlay_rels, message=message
         )
+    except StateRegressionError as exc:
+        sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
     except GitError as exc:
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
         append_log(cfg, ref_tag_for_path(cfg, subtree), "git", f"sync failed: {exc}")
@@ -446,6 +477,132 @@ def _union_merge_paths(root: Path, rels: list[str]) -> set[str]:
         if value == "union":
             union.add(path)
     return union
+
+
+def _guard_coga_state_regressions(
+    cfg: Config, root: Path, rels: list[str], base: str
+) -> None:
+    """Fail loud before a catch-all sweep commits stale task frontmatter.
+
+    `sync_coga_state` is intentionally broad within the Coga OS subtree. That
+    breadth is safe for usage records and hand-edits, but not for a stale launch
+    worktree whose task file predates a newer bump. Compare dirty task tickets
+    against the committed control-branch copy and leave the stale file dirty
+    instead of burying it in a generic "Sync coga state" commit.
+    """
+    refusals: list[str] = []
+    for rel in _changed_task_ticket_rels(root, cfg.repo_root, rels):
+        working = _working_tree_bytes(root, rel)
+        if working is None:
+            continue
+        committed = _tree_bytes(root, base, rel)
+        if committed is None:
+            continue
+        working_state = _ticket_state_from_bytes(working)
+        committed_state = _ticket_state_from_bytes(committed)
+        if working_state is None or committed_state is None:
+            continue
+        reason = _ticket_state_regression_reason(
+            rel, committed=committed_state, working=working_state
+        )
+        if reason is None:
+            continue
+
+        task_ref = _task_ref_for_ticket_rel(cfg, root, rel)
+        append_log(cfg, task_ref, "git", f"sync refused: {reason}")
+        refusals.append(reason)
+
+    if refusals:
+        raise StateRegressionError("; ".join(refusals))
+
+
+def _changed_task_ticket_rels(
+    root: Path, coga_root: Path, rels: list[str]
+) -> list[str]:
+    tasks_rel = _relative_to_root(root, coga_root / "tasks")
+    prefix = f"{tasks_rel}/" if tasks_rel != "." else ""
+    out: list[str] = []
+    for rel in rels:
+        if not rel.startswith(prefix):
+            continue
+        path = Path(rel)
+        if path.name == "ticket.md":
+            out.append(rel)
+            continue
+        if path.suffix != ".md":
+            continue
+        # A markdown file inside a directory-form task is an attachment, not a
+        # file-form ticket. File-form tickets have no sibling `ticket.md`.
+        if not (root / path.parent / "ticket.md").exists():
+            out.append(rel)
+    return out
+
+
+def _task_ref_for_ticket_rel(cfg: Config, root: Path, rel: str) -> str:
+    path = root / rel
+    if path.name == "ticket.md":
+        return ref_tag_for_path(cfg, path.parent)
+    return ref_tag_for_path(cfg, path)
+
+
+def _ticket_state_from_bytes(data: bytes) -> _TicketState | None:
+    try:
+        ticket = Ticket.parse(data.decode("utf-8"))
+    except (UnicodeDecodeError, TicketError):
+        return None
+    blackboard_bytes: int | None = None
+    try:
+        _body, blackboard = split_body(ticket.body, blackboard_required=False)
+    except TaskFileError:
+        blackboard = None
+    if blackboard is not None:
+        blackboard_bytes = len(blackboard.encode("utf-8"))
+    status = ticket.frontmatter.get("status")
+    step = ticket.frontmatter.get("step")
+    return _TicketState(
+        status=str(status) if status is not None else None,
+        step=str(step) if step is not None else None,
+        step_index=ticket.step_index(),
+        blackboard_bytes=blackboard_bytes,
+    )
+
+
+def _ticket_state_regression_reason(
+    rel: str, *, committed: _TicketState, working: _TicketState
+) -> str | None:
+    if (
+        committed.step_index is not None
+        and working.step_index is not None
+        and working.step_index < committed.step_index
+    ):
+        detail = (
+            f"{rel}: step would move backward from "
+            f"{committed.step!r} to {working.step!r}"
+        )
+        if (
+            committed.blackboard_bytes is not None
+            and working.blackboard_bytes is not None
+            and working.blackboard_bytes < committed.blackboard_bytes
+        ):
+            detail += (
+                f"; blackboard would shrink from {committed.blackboard_bytes} "
+                f"to {working.blackboard_bytes} bytes"
+            )
+        return detail
+
+    committed_status = _STATUS_PROGRESS.get(committed.status or "")
+    working_status = _STATUS_PROGRESS.get(working.status or "")
+    if (
+        committed_status is not None
+        and working_status is not None
+        and working_status < committed_status
+    ):
+        return (
+            f"{rel}: status would move backward from "
+            f"{committed.status!r} to {working.status!r}"
+        )
+
+    return None
 
 
 def _sync_on_control_branch(

@@ -57,7 +57,11 @@ from coga.mark import (
     mark_blocked,
     mark_in_progress,
 )
-from coga.repl_supervisor import run_with_done_marker
+from coga.repl_supervisor import (
+    EXPECTED_STEP_ENV,
+    EXPECTED_TASK_ENV,
+    run_with_done_marker,
+)
 from coga.tasks import (
     BootstrapRef,
     TaskNotFoundError,
@@ -420,6 +424,9 @@ def launch(
             )
 
             _echo_launch_iteration(ref, ticket)
+            step_env = dict(env)
+            step_env[EXPECTED_TASK_ENV] = str(ref.path.resolve())
+            step_env[EXPECTED_STEP_ENV] = ticket.step or ""
 
             try:
                 session = spawn_agent_session(
@@ -428,7 +435,7 @@ def launch(
                     ticket,
                     agent,
                     mode,
-                    env=env,
+                    env=step_env,
                     actor=f"human:{cfg.current_user}",
                     log_message=_launch_log_message(
                         mode,

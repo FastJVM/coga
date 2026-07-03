@@ -18,7 +18,12 @@ from coga.commands.launch import (
 )
 from coga.config import AgentType, load_config
 from coga.github_preflight import CheckResult
-from coga.repl_supervisor import _TIMEOUT_EXIT_CODE, ReplOutcome
+from coga.repl_supervisor import (
+    EXPECTED_STEP_ENV,
+    EXPECTED_TASK_ENV,
+    _TIMEOUT_EXIT_CODE,
+    ReplOutcome,
+)
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
 from coga.tasks import BootstrapRef, TaskRef, list_tasks
 from coga.ticket import Ticket
@@ -1058,6 +1063,10 @@ def test_launch_marks_llm_session_supervised(
 
     assert envs
     assert envs[0].get("COGA_SUPERVISED") == "1"
+    assert envs[0].get(EXPECTED_STEP_ENV) == "1 (execute)"
+    assert envs[0].get(EXPECTED_TASK_ENV, "").endswith(
+        "/tasks/fix-retry-logic.md"
+    )
 
 
 def test_launch_in_progress_resumes_without_status_transition(

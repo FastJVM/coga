@@ -14,12 +14,18 @@ from coga.bump import (
 )
 from coga.config import ConfigError, load_config
 from coga.paths import resolve_workflow_path
-from coga.repl_supervisor import emit_done_marker
+from coga.repl_supervisor import (
+    EXPECTED_STEP_ENV,
+    EXPECTED_TASK_ENV,
+    emit_done_marker,
+)
 from coga.tasks import (
+    TaskRef,
     TaskNotFoundError,
     read_ticket,
     resolve_task,
 )
+from coga.ticket import Ticket
 from coga.validate import TaskValidationError, assert_task_valid
 from coga.workflow import Workflow, WorkflowError
 
@@ -93,6 +99,8 @@ def bump(
             assert_task_valid(cfg, ref, action="freeze workflow on bump")
         except TaskValidationError as exc:
             _bail(str(exc))
+
+    _assert_supervised_step_is_current(ref, ticket)
 
     wf = ticket.workflow
 
@@ -223,3 +231,38 @@ def bump(
 def _bail(msg: str) -> None:
     typer.secho(msg, fg=typer.colors.RED, err=True)
     sys.exit(2)
+
+
+def _assert_supervised_step_is_current(ref: TaskRef, ticket: Ticket) -> None:
+    """Refuse stale supervised bumps.
+
+    `coga launch` composes one prompt for one ticket step. If a second launch
+    chain has already advanced that same ticket, this session's context is stale
+    and bumping again would silently skip or duplicate work. Scope the check to
+    the launched task path so inherited env vars do not affect nested fixtures
+    or another task's bump.
+    """
+    if not os.environ.get("COGA_SUPERVISED"):
+        return
+    expected_task = os.environ.get(EXPECTED_TASK_ENV)
+    expected_step = os.environ.get(EXPECTED_STEP_ENV)
+    if not expected_task or expected_step is None:
+        return
+    try:
+        expected_path = os.path.realpath(expected_task)
+        actual_path = os.path.realpath(str(ref.path))
+    except OSError:
+        return
+    if expected_path != actual_path:
+        return
+    if ticket.step == expected_step:
+        return
+
+    actual = ticket.step or "<no step>"
+    expected = expected_step or "<no step>"
+    _bail(
+        f"Refusing to bump {ref.id_slug}: this session was composed for "
+        f"step {expected!r}, but the ticket is now on step {actual!r}. "
+        "Another session may have already advanced it; relaunch before "
+        "bumping from stale context."
+    )

@@ -39,6 +39,12 @@ from coga.atomicio import atomic_write_text
 # the child. `emit_done_marker` reads this. Stable name = stable contract.
 SENTINEL_ENV = "COGA_DONE_SENTINEL"
 
+# Env vars scoped to a supervised launch step. A child `coga bump` uses these
+# as a compare-and-swap guard: it may only bump the ticket/step that composed
+# the session it is finishing.
+EXPECTED_TASK_ENV = "COGA_EXPECTED_TASK"
+EXPECTED_STEP_ENV = "COGA_EXPECTED_STEP"
+
 # Grace period after SIGTERM before we escalate to SIGKILL. Claude Code and
 # Codex respect SIGTERM, but a wedged or signal-trapping REPL would otherwise
 # block the recurring sweep indefinitely.
@@ -470,6 +476,8 @@ def emit_done_marker(session_id: str | None = None) -> None:
 
 __all__ = [
     "SENTINEL_ENV",
+    "EXPECTED_STEP_ENV",
+    "EXPECTED_TASK_ENV",
     "_TIMEOUT_EXIT_CODE",
     "_TTY_SANITIZE",
     "ReplOutcome",

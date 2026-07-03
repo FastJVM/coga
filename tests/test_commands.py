@@ -14,6 +14,7 @@ from coga.create import create_task
 from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import log_path
+from coga.repl_supervisor import EXPECTED_STEP_ENV, EXPECTED_TASK_ENV
 from coga.taskfile import join_task_body, read_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
@@ -331,6 +332,29 @@ def test_bump_unsupervised_prints_no_hint(repo: Path) -> None:
     result = runner.invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
     assert "Supervised launch" not in result.output
+
+
+def test_bump_supervised_refuses_stale_composed_step(repo: Path) -> None:
+    slug, task_path = _make_task(repo)
+    ticket = Ticket.read(task_path)
+    ticket.frontmatter["step"] = "2 (pr)"
+    ticket.write(task_path)
+
+    result = CliRunner().invoke(
+        app,
+        ["bump", slug],
+        env={
+            "COGA_SUPERVISED": "1",
+            EXPECTED_TASK_ENV: str(task_path.resolve()),
+            EXPECTED_STEP_ENV: "1 (implement)",
+        },
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "Refusing to bump" in result.output
+    assert "composed for step '1 (implement)'" in result.output
+    assert "now on step '2 (pr)'" in result.output
+    assert Ticket.read(task_path).step == "2 (pr)"
 
 
 def test_bump_past_final_step_errors_with_mark_done_hint(repo: Path) -> None:
