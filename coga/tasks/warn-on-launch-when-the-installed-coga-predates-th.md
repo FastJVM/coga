@@ -1,7 +1,7 @@
 ---
 slug: warn-on-launch-when-the-installed-coga-predates-th
 title: Warn on launch when the installed coga predates the source tree
-status: active
+status: in_progress
 mode: agent
 owner: nicktoper
 human: nicktoper
