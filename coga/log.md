@@ -769,3 +769,4 @@ fatal: adding files failed
 2026-07-03 15:06 [warn-on-launch-when-the-installed-coga-predates-th] [megalaunch] launched via coga megalaunch
 2026-07-03 15:07 [warn-on-launch-when-the-installed-coga-predates-th] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/511 (no CI configured; rebase onto main likely wanted before merge)
 2026-07-03 16:04 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-03 16:13 [coga-rename-follow-ups-post-repo-rename] [human:nicktoper] unblocked (blocked → active): Confirmed: everything already landed (PR #455 URL flips, coga 0.2.0 on PyPI 2026-06-27, README PyPI install PR #466). No diff to produce. Marking done; Desktop repo list tracked in migrate-desktop-relay-repos-to-coga-tracking.

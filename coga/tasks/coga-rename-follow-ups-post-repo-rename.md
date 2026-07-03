@@ -1,7 +1,7 @@
 ---
 slug: coga-rename-follow-ups-post-repo-rename
 title: Coga rename follow-ups (post repo-rename)
-status: blocked
+status: active
 mode: agent
 owner: zach
 human: zach
@@ -108,7 +108,8 @@ and v0.2.0 shipped — worth a look at whether it's now moot too or should be la
 
 ## Blockers
 
-- [ ] [2026-07-03 12:03] [agent:claude] id=20260703T120332 Nothing left to implement: every checklist item already landed while this ticket sat — URL flips + README clone target via merged PR #455 (bdc18b2a), PyPI trusted publisher repointed + coga 0.2.0 published 2026-06-27 (release run 28296440460), README PyPI install via PR #466 (ee2b61f6); update.py legacy gitignore entries verified consistent. I created the last open item as ticket migrate-desktop-relay-repos-to-coga-tracking (needs your Desktop repo list filled in). No diff exists for self-qa/pr steps, so: please mark this ticket done (and fill the repo list / decide whether draft coga-cli-cutover is also moot), or tell me if any part should still produce a PR.
+- [x] [2026-07-03 12:03] [agent:claude] id=20260703T120332 Nothing left to implement: every checklist item already landed while this ticket sat — URL flips + README clone target via merged PR #455 (bdc18b2a), PyPI trusted publisher repointed + coga 0.2.0 published 2026-06-27 (release run 28296440460), README PyPI install via PR #466 (ee2b61f6); update.py legacy gitignore entries verified consistent. I created the last open item as ticket migrate-desktop-relay-repos-to-coga-tracking (needs your Desktop repo list filled in). No diff exists for self-qa/pr steps, so: please mark this ticket done (and fill the repo list / decide whether draft coga-cli-cutover is also moot), or tell me if any part should still produce a PR.
+  resolved: [2026-07-03 16:13] [human:nicktoper] Confirmed: everything already landed (PR #455 URL flips, coga 0.2.0 on PyPI 2026-06-27, README PyPI install PR #466). No diff to produce. Marking done; Desktop repo list tracked in migrate-desktop-relay-repos-to-coga-tracking.
 
 ## Usage
 
