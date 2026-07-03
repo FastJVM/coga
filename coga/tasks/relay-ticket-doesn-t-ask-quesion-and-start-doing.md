@@ -1,7 +1,7 @@
 ---
 slug: relay-ticket-doesn-t-ask-quesion-and-start-doing
 title: coga ticket doesn't ask questions and starts doing the work
-status: active
+status: done
 mode: agent
 owner: nick
 human: nick
@@ -29,7 +29,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
 ---
 
 ## Description
