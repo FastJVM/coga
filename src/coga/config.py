@@ -128,7 +128,7 @@ class Config:
     # `[launch].idle_timeout = 0` must explicitly disarm it rather than collapse
     # to "omitted" and re-enable the default. The env overrides
     # (`COGA_REPL_IDLE_TIMEOUT` / `COGA_REPL_MAX_SESSION`) still win over these;
-    # see `coga.commands.recurring`. Attended `coga launch` does not read them
+    # see `coga.recurring_runner`. Attended `coga launch` does not read them
     # — only the unattended sweep arms a limit, so a human's session is never
     # killed by a committed default.
     launch_idle_timeout: float | None = None
@@ -1112,7 +1112,7 @@ def _parse_launch(
 
     `idle_timeout` / `max_session` are seconds (int or float). A `<= 0` or
     non-finite value disarms that limit (returns None), matching the env-var
-    override's "off" contract in `coga.commands.recurring`. `idle_timeout`
+    override's "off" contract in `coga.recurring_runner`. `idle_timeout`
     returns a separate presence flag so an explicit disarm can beat the built-in
     recurring default; omitted keys are None/False. These are defaults for the
     *unattended* sweep only — attended `coga launch` never reads them.

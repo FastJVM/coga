@@ -25,7 +25,7 @@ from coga.paths import log_path, resolve_skill_path, skill_resolution_paths
 from coga.skill import Skill
 from coga.notification import post
 from coga.taskfile import split_body
-from coga.tasks import TaskRef
+from coga.tasks import TargetRef
 from coga.ticket import Ticket
 from coga.validate import TaskValidationError
 
@@ -46,7 +46,7 @@ def script_repo_root(cfg: Config) -> Path:
 
 
 def build_script_env(
-    cfg: Config, ref: TaskRef, skill: Skill | None = None
+    cfg: Config, ref: TargetRef, skill: Skill | None = None
 ) -> dict[str, str]:
     """The script task/skill metadata environment contract.
 
@@ -91,7 +91,9 @@ def build_script_command(script_path: Path) -> list[str]:
     return ["sh", str(script_path)]
 
 
-def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+def run_script_mode(
+    cfg: Config, ref: TargetRef, ticket: Ticket, *, stateless: bool = False
+) -> None:
     """Execute the task's script — a step skill's, or the ticket's own.
 
     Dispatch (see `is_script_launch`):
@@ -105,6 +107,10 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     directory = the host repo (parent of coga/), or repo_root if coga.toml
     lives at the top level. Non-zero exit: task stays at current step; a Slack
     FYI is posted.
+
+    `stateless=True` is for package-backed bootstrap script targets such as
+    `bootstrap/recurring-scan`: resolve and run the same script shape, but skip
+    task lifecycle writes because there is no task.
     """
     skill, cmd, log_label, cleanup = _resolve_script(cfg, ref, ticket)
 
@@ -116,7 +122,7 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         cleanup()
         _bail(str(exc))
 
-    if ticket.status == "active":
+    if not stateless and ticket.status == "active":
         cur = ticket.current_step()
         step_note = f" (step {ticket.step_index()}: {cur['name']})" if cur else ""
         try:
@@ -141,7 +147,8 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     env.update(build_script_env(cfg, ref, skill))
     cwd = script_repo_root(cfg)
 
-    append_log(cfg, ref.id_slug, "system", f"launched as a script ({log_label})")
+    if not stateless:
+        append_log(cfg, ref.id_slug, "system", f"launched as a script ({log_label})")
 
     try:
         result = subprocess.run(cmd, env=env, cwd=cwd, check=False)
@@ -153,10 +160,15 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     # skill run as a script step does exactly that. The task still exists iff its
     # ticket file is on disk (file- or directory-form), so key the post-run
     # bookkeeping off that rather than the directory.
-    if ref.ticket_path.exists():
+    if not stateless and ref.ticket_path.exists():
         append_log(cfg, ref.id_slug, "system", f"script exited with code {exit_code}")
 
     if exit_code != 0:
+        if stateless:
+            typer.secho(
+                f"Script exited with {exit_code}.", fg=typer.colors.YELLOW, err=True
+            )
+            sys.exit(exit_code)
         cur = ticket.current_step()
         where = f" at step {ticket.step_index()} ({cur['name']})" if cur else ""
         post(
@@ -171,6 +183,8 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
         sys.exit(exit_code)
 
     typer.echo(f"{ref.id_slug}: script ran successfully")
+    if stateless:
+        return
 
     # A script has no agent to run `coga bump` / `coga mark done`, so the
     # launcher applies the same completion contract itself: advance to the next
@@ -192,7 +206,7 @@ def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
 
 
 def _resolve_script(
-    cfg: Config, ref: TaskRef, ticket: Ticket
+    cfg: Config, ref: TargetRef, ticket: Ticket
 ) -> tuple[Skill | None, list[str], str, "Callable[[], None]"]:
     """Resolve the concrete script to run and how to launch it.
 
@@ -243,7 +257,7 @@ def _resolve_skill_script(
 
 
 def _resolve_ticket_script(
-    ref: TaskRef, ticket: Ticket
+    ref: TargetRef, ticket: Ticket
 ) -> tuple[None, list[str], str, "Callable[[], None]"]:
     """Resolve the ticket's own `script:` — an inline block or a sibling file."""
     spec = ticket.script
@@ -274,7 +288,7 @@ _FENCE_RE = re.compile(r"```([^\n`]*)\n(.*?)\n```", re.DOTALL)
 
 
 def _resolve_inline_script(
-    ref: TaskRef, ticket: Ticket
+    ref: TargetRef, ticket: Ticket
 ) -> tuple[None, list[str], str, "Callable[[], None]"]:
     """Run the fenced code block in the body's `## Script` section.
 

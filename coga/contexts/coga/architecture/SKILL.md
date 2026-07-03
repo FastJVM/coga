@@ -63,16 +63,19 @@ no in-memory state.
   flips (e.g. `code/with-review`) and agent-rotation relaunches. Steps without
   one leave the assignee unchanged.
 - **Recurring templates** live in `coga/recurring/`. `coga recurring`
-  scans them, creates the current run at the stable path-qualified task ref
-  `tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/notifications),
-  records the serviced period as `last_serviced_period` in the template
-  blackboard, and launches the due ones. The created tasks then use the same
-  ticket, workflow, launch, bump, and blackboard machinery as any other task.
+  launches the stateless package-backed `bootstrap/recurring-scan` script
+  target, which scans templates, creates the current run at the stable
+  path-qualified task ref `tasks/recurring/<name>/` (`recurring/<name>` in
+  CLI/status/notifications), records the serviced period as
+  `last_serviced_period` in the template blackboard, and launches the due
+  ones. The created tasks then use the same ticket, workflow, launch, bump,
+  and blackboard machinery as any other task.
 - **Bootstrap tickets** in package `bootstrap/<name>/ticket.md` resources
-  are stateless launch targets for skills. No status, no workflow. Used for
-  ticket-less re-entry points like `coga launch bootstrap/orient` (the `chat`
-  alias). They are never factories — `coga launch` no longer creates new
-  tickets from them; use `coga create` for that.
+  are stateless launch targets for skills or ticket-owned scripts. No status,
+  no workflow. Used for ticket-less re-entry points like `coga launch
+  bootstrap/orient` (the `chat` alias) and deterministic bootstrap scripts
+  like `bootstrap/recurring-scan`. `coga launch` does not create new tickets
+  merely because a target is under `bootstrap/`; use `coga create` for that.
 - **Bundled batteries** are package-backed core skills, contexts, reusable
   workflows, hooks, and launch targets shipped in the installed package.
   `pip install coga` puts them in the wheel; `coga init` does not
@@ -206,9 +209,9 @@ is allowed. A workflow-less `done` ticket is finished and immutable, so it is
 left alone.
 
 `coga ticket` (guided authoring) fills the workflow in through its
-interview skill. `coga recurring` creating (a bare scan-and-launch run
-and the on-demand `recurring launch <name>`, including the `coga dream`
-alias) and `coga retire` create their own one-shots straight to `active`
+interview skill. The `bootstrap/recurring-scan` script target, on-demand
+`recurring launch <name>` (including the `coga dream` alias), and `coga
+retire` create their own one-shots straight to `active`
 by calling `create_task` directly — but they are **not** workflow-less
 exceptions: a template that declares no workflow (and every retire task)
 creates with the one-step `direct/body` workflow, which runs the ticket
@@ -278,7 +281,10 @@ megalaunch decide whether work can proceed without more human input.
   `script:` field, or from the ticket's own `script:` field for no-skill or
   workflow-less script tasks. Script launches inject declared secrets as
   environment variables, run without a TTY, and are the right shape for
-  recurring, cron, wrappers, and CI.
+  recurring, cron, wrappers, and CI. Package-backed bootstrap tickets may also
+  name a ticket-owned script; those run through the same script path with
+  stateless launch semantics, so the bootstrap target itself gets no task
+  lifecycle or log writes.
 
 There is no `autonomy:` field. The old `skip_permissions` / `skip_permissions_argv` keys are removed and rejected as unknown config.
 

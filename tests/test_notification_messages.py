@@ -346,7 +346,7 @@ def test_automerge_digest_preserves_transition_and_pr_link(
 def test_recurring_create_is_silent(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from coga.commands.recurring import _broadcast_scan
+    from coga.recurring_runner import _broadcast_scan
     from coga.recurring import DueScan, DueTask
     from coga.tasks import TaskRef
 

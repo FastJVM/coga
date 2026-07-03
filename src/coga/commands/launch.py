@@ -278,10 +278,8 @@ def launch(
                 _bail(
                     "--agent is only supported for agent launches."
                 )
-            if is_bootstrap:
-                _bail("Bootstrap tickets only support agent launches.")
             from coga.commands.launch_script import run_script_mode
-            run_script_mode(cfg, ref, ticket)
+            run_script_mode(cfg, ref, ticket, stateless=is_bootstrap)
             return
 
         mode = ticket.mode

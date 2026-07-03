@@ -35,7 +35,7 @@ from coga.commands.launch import (
     spawn_agent_session,
 )
 from coga.commands.launch_script import is_script_launch
-from coga.commands.recurring import (
+from coga.recurring_runner import (
     _recurring_idle_timeout,
     _recurring_max_session,
 )

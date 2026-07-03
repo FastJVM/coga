@@ -27,11 +27,15 @@ it creates a period task.
 A directory whose name starts with `_` (`_template/`, `_rem/`) is inert — the
 scanner skips it. That is how the starter templates ship without firing.
 
-- `coga recurring` (bare) — scans every recurring task, get-or-creates the
-  stable instantiated task at `coga/tasks/recurring/<name>/`, records the
-  current period as `last_serviced_period` in the template blackboard, and
-  launches the ones still `active` or orphaned `in_progress`. **Launch order
-  is phased, not alphabetical:** the
+- `coga recurring` (bare) — the public command head parses `--interactive`
+  and `--all`, then launches the package-backed `bootstrap/recurring-scan`
+  script target with those values in `COGA_RECURRING_INTERACTIVE` and
+  `COGA_RECURRING_FORCE`. That target scans every recurring task,
+  get-or-creates the stable instantiated task at
+  `coga/tasks/recurring/<name>/`, records the current period as
+  `last_serviced_period` in the template blackboard, and launches the ones
+  still `active` or orphaned `in_progress`. **Launch order is phased, not
+  alphabetical:** the
   cleanup template — Dream, the recurring janitor (see below) — is sorted
   **last** so its retro pass acts on the period tickets the *same* sweep just
   drove to `done`, instead of trailing them by a full sweep. Among the
