@@ -694,3 +694,7 @@ error: coga/tasks/cli-extension-model/move-the-recurring-scan-into-a-dream-shape
 error: unable to index file 'coga/tasks/cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task.md'
 fatal: adding files failed
 2026-07-02 22:35 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 22:22 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 22:27 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:claude] advanced to step 5 (open-pr) → assigned to codex — Peer-review passed (1032 tests green, faithful move, contexts synced). Ready for open-pr.
+2026-07-02 22:27 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-02 22:35 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [agent:codex] advanced to step 6 (review) → assigned to nicktoper
