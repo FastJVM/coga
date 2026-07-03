@@ -1,7 +1,7 @@
 ---
 slug: allow-creation-of-coga-dir-in-subdir
 title: allow creation of coga dir in subdir
-status: active
+status: in_progress
 mode: agent
 owner: nicktoper
 human: nicktoper
