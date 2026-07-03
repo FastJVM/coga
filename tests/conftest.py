@@ -126,7 +126,7 @@ def _stub_git(monkeypatch, request):
         return
     # All public sync entry points are stubbed: `sync_task_state` (mark / bump /
     # create / block), `sync_paths` (the multi-path variant `coga ticket`
-    # authoring uses), and `sync_log` (the log-only commit a bootstrap-shim
+    # authoring uses), and `sync_log` (the log-only commit a bootstrap-ticket
     # launch fires). Stubbing only the first would let authoring or a bootstrap
     # launch shell out to real git on a non-git tmp path and break the
     # faked-subprocess tests.
