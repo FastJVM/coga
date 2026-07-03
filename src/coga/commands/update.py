@@ -215,6 +215,35 @@ def copy_fresh_templates(src_root: Traversable, coga_os: Path) -> None:
     _chmod_packaged_executables(coga_os)
 
 
+def is_git_repo(target: Path) -> bool:
+    """True when `target` is a git repo root or sits inside a git work tree.
+
+    `.git` may be a directory (normal repo) or a file (worktree/submodule), so
+    test existence rather than dir-ness; that also keeps the common repo-root
+    case a pure filesystem check. A target *without* its own `.git` may still
+    be a subdir of a host repo (monorepo `coga init tools/ops`), so fall back
+    to asking git from the nearest existing ancestor — `target` itself may not
+    exist yet. `coga init` requires this up front, `_git_commit_coga_os` reuses
+    it to decide whether to commit, and `ensure_host_gitignore` to decide
+    whether a host `.gitignore` is meaningful — the three must agree, so they
+    share this predicate.
+    """
+    if (target / ".git").exists():
+        return True
+    probe = next((p for p in [target, *target.parents] if p.is_dir()), None)
+    if probe is None:
+        return False
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(probe), "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0 and result.stdout.strip() == "true"
+
+
 HOST_GITIGNORE_BEGIN = "# >>> coga-managed >>>"
 HOST_GITIGNORE_END = "# <<< coga-managed <<<"
 _HOST_GITIGNORE_BODY = (
@@ -235,10 +264,13 @@ def ensure_host_gitignore(target: Path) -> bool:
     """Insert/refresh the coga-managed block in `<target>/.gitignore`.
 
     Idempotent: leaves the file alone when the existing block already matches.
-    Only runs inside a git repo — outside one a host `.gitignore` is moot.
+    Only runs inside a git work tree — outside one a host `.gitignore` is moot.
+    For a nested init (`target` below the git root) the block still lands at
+    `<target>/.gitignore`: git scopes a nested ignore file's patterns to its
+    own directory, which is exactly where the symlinks and `.coga/` live.
     Returns True iff the file was modified.
     """
-    if not (target / ".git").exists():
+    if not is_git_repo(target):
         return False
 
     gi = target / ".gitignore"

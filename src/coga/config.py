@@ -204,6 +204,12 @@ def find_repo_root(start: Path | None = None) -> Path:
     Also descends into a sibling `coga/` subdir at each level — so
     `coga` works from a company repo's root, not just from inside
     `coga/`.
+
+    Discovery never descends deeper than that one `coga/` level: a coga repo
+    nested in a monorepo subdir (`tools/ops/coga/`, via `coga init tools/ops`)
+    is deliberately found only from inside its subtree, not from the host
+    repo's root — scanning the whole tree downward would be slow and ambiguous
+    with several nested coga repos.
     """
     cur = (start or Path.cwd()).resolve()
     for candidate in [cur, *cur.parents]:
@@ -214,7 +220,8 @@ def find_repo_root(start: Path | None = None) -> Path:
             return nested
     raise ConfigError(
         f"No coga.toml found in {cur} or any parent directory. "
-        "Run `coga` from inside a Coga repo."
+        "Run `coga` from inside a Coga repo — a coga/ nested in a subdir "
+        "is only discovered from inside that subdir's subtree."
     )
 
 

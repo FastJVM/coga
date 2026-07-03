@@ -24,6 +24,7 @@ from coga.commands.update import (
     copy_fresh_templates,
     ensure_host_gitignore,
     install_venv,
+    is_git_repo,
     packaged_template_root,
     refresh_cli,
     resolve_coga_repo_url,
@@ -135,15 +136,22 @@ def _repo_is_empty(target: Path) -> bool:
     return all(entry.name in _INIT_IGNORE for entry in target.iterdir())
 
 
-def _is_git_repo(target: Path) -> bool:
-    """True when `target` looks like a git repo (filesystem check only).
+def _enclosing_coga_root(target: Path) -> Path | None:
+    """Nearest dir at/above `target` that holds a `coga.toml`, or None.
 
-    `.git` may be a directory (normal repo) or a file (worktree/submodule), so
-    test existence rather than dir-ness. `coga init` requires this up front and
-    `_git_commit_coga_os` reuses it to decide whether to commit — the two must
-    agree, so they share this predicate.
+    Guards `coga init` against scaffolding a `coga/` inside an existing coga
+    OS tree — `find_repo_root` walks up, so the enclosing repo would claim the
+    new one's subtree and the layout can't work sanely. Each candidate's
+    `coga.toml` is checked before stopping at the first `.git` boundary: a git
+    root that is itself a coga OS dir still matches, while an outer coga repo
+    beyond the host repo's boundary is a different project and no conflict.
     """
-    return (target / ".git").exists()
+    for candidate in [target, *target.parents]:
+        if (candidate / "coga.toml").is_file():
+            return candidate
+        if (candidate / ".git").exists():
+            return None
+    return None
 
 
 # Delivered onboarding ticket, pruned from the copied tree on a filled repo
@@ -293,7 +301,11 @@ def _check_external_dependencies() -> None:
 def init(
     path: Path | None = typer.Argument(
         None,
-        help="Target dir for the new repo (created if missing). Defaults to the current dir.",
+        help=(
+            "Target dir for coga/ (created if missing) — a git repo root or "
+            "any subdir inside one (e.g. `coga init tools/ops` in a monorepo). "
+            "Defaults to the current dir."
+        ),
     ),
     user: str | None = typer.Option(
         None,
@@ -321,29 +333,52 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         )
         sys.exit(2)
 
-    # Decide empty-vs-filled against the pristine dir, before init writes
-    # anything of its own — a filled repo skips onboarding-ticket seeding.
-    is_empty = _repo_is_empty(target)
+    # A coga/ nested inside an existing coga OS tree can't work — discovery
+    # walks up and the enclosing repo claims the subtree. Fail loud before
+    # anything is written.
+    enclosing = _enclosing_coga_root(target)
+    if enclosing is not None:
+        typer.secho(
+            f"{target} is inside an existing coga repo ({enclosing / 'coga.toml'}) "
+            f"— a coga/ nested inside another coga/ can't work: discovery walks "
+            f"up and resolves the enclosing repo.\n"
+            f"Run `coga init` outside {enclosing}, or use that repo directly.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
     # Require the operator's name up front (before the slow clone/venv) so
     # `current_user` is valid from the first moment after init, and a bad
     # invocation leaves nothing on disk.
     name = _require_user_name(user)
 
     # Coga is git-backed: `coga init` commits coga/ into the host repo.
-    # If the target isn't a git repo, fail loud (principle 6) instead of writing
-    # coga/ and silently skipping the commit further down. We don't run
-    # `git init` ourselves — the user does, which keeps branch naming in their
-    # hands. Checked here, before any writes, so a bad invocation leaves nothing
-    # behind and we fail before the slow clone/venv.
-    if not _is_git_repo(target):
+    # If the target isn't inside a git work tree, fail loud (principle 6)
+    # instead of writing coga/ and silently skipping the commit further down.
+    # The target itself doesn't have to be the git root — `coga init tools/ops`
+    # inside a monorepo scaffolds a nested coga/ committed into the host repo.
+    # We don't run `git init` ourselves — the user does, which keeps branch
+    # naming in their hands. Checked here, before any writes, so a bad
+    # invocation leaves nothing behind and we fail before the slow clone/venv.
+    if not is_git_repo(target):
         typer.secho(
-            f"{target} is not a git repository — coga is git-backed and "
+            f"{target} is not inside a git repository — coga is git-backed and "
             f"`coga init` commits coga/ into your repo.\n"
-            f"Run `git init` in {target} first, then re-run `coga init`.",
+            f"Run `git init` in {target} (or an ancestor) first, then re-run "
+            f"`coga init`.",
             fg=typer.colors.RED,
             err=True,
         )
         sys.exit(2)
+
+    # Decide empty-vs-filled against the pristine dir, before init writes
+    # anything of its own — a filled repo skips onboarding-ticket seeding.
+    # A target without its own `.git` is a nested init below an established
+    # host repo's root: always treat it as filled, even when the subdir itself
+    # is empty — the onboarding interview is for genuinely new repos.
+    nested = not (target / ".git").exists()
+    is_empty = _repo_is_empty(target) and not nested
 
     target.mkdir(parents=True, exist_ok=True)
 
@@ -651,9 +686,11 @@ def _git_commit_coga_os(
     """If `target` is a git repo, stage coga/ (+ host .gitignore + extras) and commit.
 
     Returns the new commit SHA on success, None if we skipped (not a git repo,
-    nothing to stage, or git invocation failed). Never raises.
+    nothing to stage, or git invocation failed). Never raises. `target` may sit
+    below the git root (nested init) — `git -C <target>` resolves pathspecs
+    relative to `target`, and the commit lands in the host repo.
     """
-    if not _is_git_repo(target):
+    if not is_git_repo(target):
         return None
     try:
         paths = ["coga"]

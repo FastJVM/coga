@@ -637,6 +637,22 @@ def test_find_repo_root_not_found(tmp_path: Path) -> None:
         find_repo_root(tmp_path)
 
 
+def test_find_repo_root_nested_coga_only_from_inside_subtree(tmp_path: Path) -> None:
+    """A coga/ nested in a monorepo subdir (`coga init tools/ops`) is found
+    from anywhere inside its subtree, but discovery never descends more than
+    one level — the host repo's root doesn't see it."""
+    nested = tmp_path / "tools" / "ops" / "coga"
+    nested.mkdir(parents=True)
+    (nested / "coga.toml").write_text("version = 1\n")
+    inside = tmp_path / "tools" / "ops" / "src" / "deep"
+    inside.mkdir(parents=True)
+
+    assert find_repo_root(inside) == nested
+    assert find_repo_root(tmp_path / "tools" / "ops") == nested
+    with pytest.raises(ConfigError, match="No coga.toml found"):
+        find_repo_root(tmp_path)
+
+
 # --- inline per-ticket `secrets:` ---------------------------------------------
 # Secrets are no longer a central catalog; each ticket declares them inline as
 # `secrets:` frontmatter — a list of single-key `NAME: <ref>` maps where <ref>
