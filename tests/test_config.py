@@ -37,7 +37,6 @@ def repo(tmp_path: Path) -> Path:
 
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
 
@@ -130,7 +129,6 @@ def test_default_status_defaults_to_draft(tmp_path: Path) -> None:
         version = 1
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -177,113 +175,11 @@ def test_agent_session_id_flag_must_be_string(repo: Path) -> None:
         load_config(repo)
 
 
-def test_agent_skip_policy_defaults_off(repo: Path) -> None:
-    cfg = load_config(repo)
-    agent = cfg.agent_type("claude")
-    assert agent.skip_permissions == ""
-    assert agent.skip_permissions_argv == ()
-
-
-def test_agent_skip_policy_loads_from_local(repo: Path) -> None:
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.claude]
-        skip_permissions = "auto"
-        skip_permissions_argv = "--permission-mode bypassPermissions"
-        """,
-    )
-    cfg = load_config(repo)
-    agent = cfg.agent_type("claude")
-    assert agent.skip_permissions == "auto"
-    assert agent.skip_permissions_argv == ("--permission-mode", "bypassPermissions")
-
-
-def test_agent_skip_permissions_false_is_off(repo: Path) -> None:
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.claude]
-        skip_permissions = false
-        skip_permissions_argv = "--dangerously-skip-permissions"
-        """,
-    )
-    cfg = load_config(repo)
-    agent = cfg.agent_type("claude")
-    assert agent.skip_permissions == ""
-    assert agent.skip_permissions_argv == ("--dangerously-skip-permissions",)
-
-
-def test_agent_skip_permissions_rejects_bad_value(repo: Path) -> None:
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.claude]
-        skip_permissions = "always"
-        """,
-    )
-    with pytest.raises(ConfigError, match=r'must be false or "auto"'):
-        load_config(repo)
-
-
-def test_agent_skip_permissions_rejects_true_boolean(repo: Path) -> None:
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.claude]
-        skip_permissions = true
-        """,
-    )
-    with pytest.raises(ConfigError, match=r'must be false or "auto"'):
-        load_config(repo)
-
-
-def test_agent_skip_permissions_argv_rejects_non_string(repo: Path) -> None:
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.claude]
-        skip_permissions_argv = ["--dangerously-skip-permissions"]
-        """,
-    )
-    with pytest.raises(ConfigError, match="skip_permissions_argv.*must be a string"):
-        load_config(repo)
-
-
-def test_agent_skip_auto_without_argv_loads(repo: Path) -> None:
-    """Config load tolerates "auto" with no argv — `coga launch` is the
-    fail-loud point, so a half-written local table doesn't brick every
-    other coga command on the machine."""
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.claude]
-        skip_permissions = "auto"
-        """,
-    )
-    cfg = load_config(repo)
-    agent = cfg.agent_type("claude")
-    assert agent.skip_permissions == "auto"
-    assert agent.skip_permissions_argv == ()
-
-
 def test_agent_skip_keys_rejected_in_shared_toml(repo: Path) -> None:
     text = (repo / "coga.toml").read_text()
     (repo / "coga.toml").write_text(text + 'skip_permissions = "auto"\n')
     with pytest.raises(
-        ConfigError, match="machine-local policy.*must not be committed"
+        ConfigError, match=r"\[agents.claude\] has unknown key\(s\).*skip_permissions"
     ):
         load_config(repo)
 
@@ -294,28 +190,21 @@ def test_agent_skip_argv_rejected_in_shared_toml(repo: Path) -> None:
         text + 'skip_permissions_argv = "--dangerously-skip-permissions"\n'
     )
     with pytest.raises(
-        ConfigError, match="machine-local policy.*must not be committed"
+        ConfigError, match=r"\[agents.claude\] has unknown key\(s\).*skip_permissions_argv"
     ):
         load_config(repo)
 
 
-def test_local_agent_override_rejects_unknown_agent(repo: Path) -> None:
-    _write(
-        repo / "coga.local.toml",
-        """
-        user = "marc"
-
-        [agents.goat]
-        skip_permissions = "auto"
-        """,
-    )
-    with pytest.raises(ConfigError, match="unknown agent"):
+def test_agent_auto_argv_rejected_in_shared_toml(repo: Path) -> None:
+    text = (repo / "coga.toml").read_text()
+    (repo / "coga.toml").write_text(text + 'auto = "-p"\n')
+    with pytest.raises(
+        ConfigError, match=r"\[agents.claude\] has unknown key\(s\).*auto"
+    ):
         load_config(repo)
 
 
-def test_local_agent_override_rejects_other_keys(repo: Path) -> None:
-    """Local `[agents.<name>]` tables are partial overrides for the skip
-    policy only — redefining e.g. `cli` locally must fail loud."""
+def test_local_agent_overrides_are_rejected(repo: Path) -> None:
     _write(
         repo / "coga.local.toml",
         """
@@ -323,10 +212,9 @@ def test_local_agent_override_rejects_other_keys(repo: Path) -> None:
 
         [agents.claude]
         cli = "claude-nightly"
-        skip_permissions = "auto"
         """,
     )
-    with pytest.raises(ConfigError, match="unsupported keys"):
+    with pytest.raises(ConfigError, match="no longer supports"):
         load_config(repo)
 
 
@@ -445,7 +333,6 @@ def test_legacy_assignees_table_rejected(tmp_path: Path) -> None:
         version = 1
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
 
         [assignees.marc]
@@ -472,7 +359,6 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
 
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
         name_flag = "-n"
@@ -514,10 +400,6 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
         """
         user = "marc"
 
-        [agents.claude]
-        skip_permissions = "auto"
-        skip_permissions_argv = "--dangerously-skip-permissions"
-
         [git]
         enabled = false
         """,
@@ -525,7 +407,6 @@ def test_unknown_keys_accepts_every_known_key(monkeypatch: pytest.MonkeyPatch, t
     cfg = load_config(tmp_path)
     assert cfg.current_user == "marc"
     assert cfg.git_enabled is False  # local override wins
-    assert cfg.agent_type("claude").skip_permissions == "auto"
 
 
 def test_unknown_top_level_shared_section_rejected(repo: Path) -> None:
@@ -593,7 +474,6 @@ def test_unknown_notification_slack_key_rejected(tmp_path: Path) -> None:
 
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
 
         [notification.slack]
@@ -709,7 +589,6 @@ def test_assignees_dedicated_message_beats_generic(tmp_path: Path) -> None:
         version = 1
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
 
         [assignees.marc]
@@ -739,7 +618,6 @@ def test_missing_user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         version = 1
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )

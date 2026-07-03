@@ -13,11 +13,10 @@ from coga.cli import app
 from coga.create import create_task
 from coga.commands.launch import (
     _preflight_push_auth,
-    _skip_permissions_argv_for_launch,
     build_agent_command,
     spawn_agent_session,
 )
-from coga.config import AgentType, ConfigError, load_config
+from coga.config import AgentType, load_config
 from coga.github_preflight import CheckResult
 from coga.repl_supervisor import _TIMEOUT_EXIT_CODE, ReplOutcome
 from coga.taskfile import read_blackboard, replace_blackboard, upsert_blackboard
@@ -56,66 +55,40 @@ def _prompt_arg(cmd: list[str]) -> str:
 
 
 def _agent(
-    auto: str,
     name_flag: str = "",
     session_id_flag: str = "",
     discussion: str = "",
-    skip_permissions: str = "",
-    skip_permissions_argv: tuple[str, ...] = (),
 ) -> AgentType:
     return AgentType(
         name="x",
         cli="my-cli",
-        auto=auto,
         file="X.md",
         mode="local",
         name_flag=name_flag,
         session_id_flag=session_id_flag,
         discussion=discussion,
-        skip_permissions=skip_permissions,
-        skip_permissions_argv=skip_permissions_argv,
     )
 
 
 def test_build_command_interactive_passes_prompt_positionally() -> None:
-    cmd = build_agent_command(_agent("-p"), mode="interactive", prompt="full prompt text")
+    cmd = build_agent_command(_agent(), mode="agent", prompt="full prompt text")
     assert cmd == ["my-cli", "full prompt text"]
-
-
-def test_build_command_auto_prepends_flag_then_prompt() -> None:
-    cmd = build_agent_command(_agent("-p"), mode="auto", prompt="full prompt text")
-    assert cmd == ["my-cli", "-p", "full prompt text"]
-
-
-def test_build_command_auto_subcommand_style() -> None:
-    cmd = build_agent_command(_agent("exec"), mode="auto", prompt="full prompt text")
-    assert cmd == ["my-cli", "exec", "full prompt text"]
 
 
 def test_build_command_injects_name_flag_when_set() -> None:
     cmd = build_agent_command(
-        _agent("-p", name_flag="-n"),
-        mode="interactive",
+        _agent(name_flag="-n"),
+        mode="agent",
         prompt="full prompt text",
         name="Fix retry backoff",
     )
     assert cmd == ["my-cli", "-n", "Fix retry backoff", "full prompt text"]
 
 
-def test_build_command_injects_name_flag_in_auto_mode() -> None:
-    cmd = build_agent_command(
-        _agent("-p", name_flag="-n"),
-        mode="auto",
-        prompt="full prompt text",
-        name="Fix retry backoff",
-    )
-    assert cmd == ["my-cli", "-n", "Fix retry backoff", "-p", "full prompt text"]
-
-
 def test_build_command_injects_session_id_after_name_flag() -> None:
     cmd = build_agent_command(
-        _agent("-p", name_flag="-n", session_id_flag="--session-id"),
-        mode="interactive",
+        _agent(name_flag="-n", session_id_flag="--session-id"),
+        mode="agent",
         prompt="full prompt text",
         name="Fix retry backoff",
         session_id="session-123",
@@ -132,8 +105,8 @@ def test_build_command_injects_session_id_after_name_flag() -> None:
 
 def test_build_command_skips_name_flag_when_agent_has_none() -> None:
     cmd = build_agent_command(
-        _agent("-p"),
-        mode="interactive",
+        _agent(),
+        mode="agent",
         prompt="full prompt text",
         name="Fix retry backoff",
     )
@@ -142,8 +115,8 @@ def test_build_command_skips_name_flag_when_agent_has_none() -> None:
 
 def test_build_command_skips_name_flag_when_name_is_empty() -> None:
     cmd = build_agent_command(
-        _agent("-p", name_flag="-n"),
-        mode="interactive",
+        _agent(name_flag="-n"),
+        mode="agent",
         prompt="full prompt text",
         name="",
     )
@@ -153,10 +126,10 @@ def test_build_command_skips_name_flag_when_name_is_empty() -> None:
 def test_build_command_discussion_skips_name_flag() -> None:
     """Discussion mode intentionally leaves the session unnamed so the
     human's first ask becomes the title; name_flag must not pre-set it."""
-    agent = _agent("-p", name_flag="-n", discussion="--append-system-prompt {prompt}")
+    agent = _agent(name_flag="-n", discussion="--append-system-prompt {prompt}")
     cmd = build_agent_command(
         agent,
-        mode="interactive",
+        mode="agent",
         prompt="orient body",
         name="Orient an agent in this coga/ repo",
         discussion=True,
@@ -165,10 +138,10 @@ def test_build_command_discussion_skips_name_flag() -> None:
 
 
 def test_build_command_discussion_uses_template_for_claude() -> None:
-    agent = _agent("-p", discussion="--append-system-prompt {prompt}")
+    agent = _agent(discussion="--append-system-prompt {prompt}")
     cmd = build_agent_command(
         agent,
-        mode="interactive",
+        mode="agent",
         prompt="orient body",
         discussion=True,
     )
@@ -176,10 +149,10 @@ def test_build_command_discussion_uses_template_for_claude() -> None:
 
 
 def test_build_command_discussion_uses_template_for_codex() -> None:
-    agent = _agent("exec", discussion="-c developer_instructions={prompt}")
+    agent = _agent(discussion="-c developer_instructions={prompt}")
     cmd = build_agent_command(
         agent,
-        mode="interactive",
+        mode="agent",
         prompt="orient body",
         discussion=True,
     )
@@ -189,14 +162,12 @@ def test_build_command_discussion_uses_template_for_codex() -> None:
 def test_build_command_discussion_uses_default_template_for_claude_cli() -> None:
     agent = AgentType(
         name="standard-claude",
-        cli="claude",
-        auto="-p",
-        file="CLAUDE.md",
+        cli="claude", file="CLAUDE.md",
         mode="local",
     )
     cmd = build_agent_command(
         agent,
-        mode="interactive",
+        mode="agent",
         prompt="orient body",
         discussion=True,
     )
@@ -206,14 +177,12 @@ def test_build_command_discussion_uses_default_template_for_claude_cli() -> None
 def test_build_command_discussion_uses_default_template_for_codex_cli() -> None:
     agent = AgentType(
         name="standard-codex",
-        cli="codex",
-        auto="exec",
-        file="AGENTS.md",
+        cli="codex", file="AGENTS.md",
         mode="local",
     )
     cmd = build_agent_command(
         agent,
-        mode="interactive",
+        mode="agent",
         prompt="orient body",
         discussion=True,
     )
@@ -221,25 +190,19 @@ def test_build_command_discussion_uses_default_template_for_codex_cli() -> None:
 
 
 def test_build_command_discussion_falls_back_when_template_unset() -> None:
-    agent = _agent("-p", discussion="")
+    agent = _agent(discussion="")
     cmd = build_agent_command(
         agent,
-        mode="interactive",
+        mode="agent",
         prompt="orient body",
         discussion=True,
     )
     assert cmd == ["my-cli", "orient body"]
 
 
-def test_build_command_discussion_ignored_in_auto_mode() -> None:
-    agent = _agent("-p", discussion="--append-system-prompt {prompt}")
-    cmd = build_agent_command(
-        agent,
-        mode="auto",
-        prompt="orient body",
-        discussion=True,
-    )
-    assert cmd == ["my-cli", "-p", "orient body"]
+def test_build_command_rejects_non_llm_mode() -> None:
+    with pytest.raises(ValueError, match="only supports mode='agent'"):
+        build_agent_command(_agent(), mode="script", prompt="orient body")
 
 
 # --- unit: shared single-shot spawn -------------------------------------------
@@ -249,7 +212,7 @@ def _ticket() -> Ticket:
     return Ticket(
         frontmatter={
             "title": "Spawn test",
-            "mode": "interactive",
+            "mode": "agent",
             "status": "active",
             "assignee": "claude",
         },
@@ -273,7 +236,7 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, autonomy_override=None: "# Coga task\nbody",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
     )
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
@@ -283,13 +246,11 @@ def test_spawn_agent_session_appends_kickoff_for_claude(
         _ticket(),
         AgentType(
             name="claude",
-            cli="claude",
-            auto="-p",
-            file="CLAUDE.md",
+            cli="claude", file="CLAUDE.md",
             mode="local",
             discussion="--append-system-prompt {prompt}",
         ),
-        "interactive",
+        "agent",
         env={},
         actor="human:marc",
         log_message="launched",
@@ -318,7 +279,7 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, autonomy_override=None: "# Coga task\nbody",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
     )
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
@@ -328,13 +289,11 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
         _ticket(),
         AgentType(
             name="codex",
-            cli="codex",
-            auto="exec",
-            file="AGENTS.md",
+            cli="codex", file="AGENTS.md",
             mode="local",
             discussion="-c developer_instructions={prompt}",
         ),
-        "interactive",
+        "agent",
         env={},
         actor="human:marc",
         log_message="launched",
@@ -360,7 +319,7 @@ def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
     # for git so `sync_log` actually commits.
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, autonomy_override=None: "# Coga task\nbody",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
     )
     monkeypatch.setattr(
         "coga.commands.launch.run_with_done_marker",
@@ -372,13 +331,13 @@ def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):
         ref,
         _ticket(),
         AgentType(
-            name="claude", cli="claude", auto="-p", file="CLAUDE.md",
+            name="claude", cli="claude", file="CLAUDE.md",
             mode="local", discussion="--append-system-prompt {prompt}",
         ),
-        "interactive",
+        "agent",
         env={},
         actor="human:marc",
-        log_message="launched in interactive mode",
+        log_message="launched in agent mode",
         discussion=True,
         kickoff="Begin",
         commit_log=True,
@@ -399,7 +358,7 @@ def test_spawn_leaves_log_dirty_when_commit_log_unset(git_repo, monkeypatch):
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, autonomy_override=None: "# Coga task\nbody",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
     )
     monkeypatch.setattr(
         "coga.commands.launch.run_with_done_marker",
@@ -409,10 +368,10 @@ def test_spawn_leaves_log_dirty_when_commit_log_unset(git_repo, monkeypatch):
     spawn_agent_session(
         cfg, ref, _ticket(),
         AgentType(
-            name="claude", cli="claude", auto="-p", file="CLAUDE.md",
+            name="claude", cli="claude", file="CLAUDE.md",
             mode="local", discussion="--append-system-prompt {prompt}",
         ),
-        "interactive", env={}, actor="human:marc",
+        "agent", env={}, actor="human:marc",
         log_message="launched", discussion=True, kickoff="Begin",
     )
 
@@ -442,7 +401,7 @@ def test_spawn_sweeps_usage_record_at_teardown(git_repo, monkeypatch):
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, autonomy_override=None: "# Coga task\nbody",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
     )
     monkeypatch.setattr(
         "coga.commands.launch.run_with_done_marker",
@@ -461,10 +420,10 @@ def test_spawn_sweeps_usage_record_at_teardown(git_repo, monkeypatch):
     spawn_agent_session(
         cfg, ref, _ticket(),
         AgentType(
-            name="claude", cli="claude", auto="-p", file="CLAUDE.md",
+            name="claude", cli="claude", file="CLAUDE.md",
             mode="local", discussion="--append-system-prompt {prompt}",
         ),
-        "interactive", env={}, actor="human:marc",
+        "agent", env={}, actor="human:marc",
         log_message="launched", discussion=True, kickoff="Begin",
         capture_usage=True,
     )
@@ -495,7 +454,7 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
 
     monkeypatch.setattr(
         "coga.commands.launch.compose_prompt",
-        lambda cfg, ref, ticket, autonomy_override=None: "# Coga task\nbody",
+        lambda cfg, ref, ticket: "# Coga task\nbody",
     )
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
 
@@ -505,13 +464,11 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
         _ticket(),
         AgentType(
             name="claude",
-            cli="claude",
-            auto="-p",
-            file="CLAUDE.md",
+            cli="claude", file="CLAUDE.md",
             mode="local",
             discussion="--append-system-prompt {prompt}",
         ),
-        "interactive",
+        "agent",
         env={},
         actor="human:marc",
         log_message="launched",
@@ -519,111 +476,6 @@ def test_spawn_agent_session_without_kickoff_stays_silent(
     )
 
     assert calls == [["claude", "--append-system-prompt", "# Coga task\nbody"]]
-
-
-# --- unit: permission-skip argv -------------------------------------------------
-
-
-def _task_ref(slug: str = "fix-retry-logic") -> TaskRef:
-    return TaskRef(slug=slug, path=Path("/tmp") / slug)
-
-
-def test_build_command_skip_argv_after_name_flag_before_auto_flag() -> None:
-    cmd = build_agent_command(
-        _agent("-p", name_flag="-n"),
-        mode="auto",
-        prompt="full prompt text",
-        name="Fix retry backoff",
-        skip_permissions_argv=("--dangerously-skip-permissions",),
-    )
-    assert cmd == [
-        "my-cli",
-        "-n",
-        "Fix retry backoff",
-        "--dangerously-skip-permissions",
-        "-p",
-        "full prompt text",
-    ]
-
-
-def test_build_command_skip_argv_before_auto_subcommand() -> None:
-    cmd = build_agent_command(
-        _agent("exec"),
-        mode="auto",
-        prompt="full prompt text",
-        skip_permissions_argv=("--dangerously-bypass-approvals-and-sandbox",),
-    )
-    assert cmd == [
-        "my-cli",
-        "--dangerously-bypass-approvals-and-sandbox",
-        "exec",
-        "full prompt text",
-    ]
-
-
-def test_build_command_defaults_to_no_skip_argv() -> None:
-    cmd = build_agent_command(_agent("-p"), mode="auto", prompt="full prompt text")
-    assert cmd == ["my-cli", "-p", "full prompt text"]
-
-
-def test_skip_policy_applies_to_auto_task_launch() -> None:
-    agent = _agent(
-        "-p",
-        skip_permissions="auto",
-        skip_permissions_argv=("--dangerously-skip-permissions",),
-    )
-    argv = _skip_permissions_argv_for_launch(agent, "auto", _task_ref())
-    assert argv == ("--dangerously-skip-permissions",)
-
-
-def test_skip_policy_noop_in_interactive_mode() -> None:
-    agent = _agent(
-        "-p",
-        skip_permissions="auto",
-        skip_permissions_argv=("--dangerously-skip-permissions",),
-    )
-    assert _skip_permissions_argv_for_launch(agent, "interactive", _task_ref()) == ()
-
-
-def test_skip_policy_noop_without_agent_policy() -> None:
-    """An auto task whose effective agent has no local skip policy keeps
-    today's behavior — even with argv configured but the policy unset."""
-    assert _skip_permissions_argv_for_launch(_agent("-p"), "auto", _task_ref()) == ()
-    inert = _agent("-p", skip_permissions_argv=("--dangerously-skip-permissions",))
-    assert _skip_permissions_argv_for_launch(inert, "auto", _task_ref()) == ()
-
-
-def test_skip_policy_noop_for_bootstrap_ticket() -> None:
-    """`coga chat` / `coga ticket` launch targets never skip permissions, regardless
-    of the selected agent's local policy."""
-    agent = _agent(
-        "-p",
-        skip_permissions="auto",
-        skip_permissions_argv=("--dangerously-skip-permissions",),
-    )
-    ref = BootstrapRef(name="orient", path=Path("/tmp/bootstrap/orient"))
-    assert _skip_permissions_argv_for_launch(agent, "auto", ref) == ()
-
-
-def test_skip_policy_per_step_agent_rotation() -> None:
-    """Supervised chains re-resolve the policy per step from that step's
-    agent — a rotation from a skip-configured claude to an unconfigured
-    codex (or back) flips the argv accordingly."""
-    claude = _agent(
-        "-p",
-        skip_permissions="auto",
-        skip_permissions_argv=("--dangerously-skip-permissions",),
-    )
-    codex = _agent("exec")
-    ref = _task_ref()
-    assert _skip_permissions_argv_for_launch(claude, "auto", ref) != ()
-    assert _skip_permissions_argv_for_launch(codex, "auto", ref) == ()
-
-
-def test_skip_policy_fails_loud_without_argv() -> None:
-    agent = _agent("-p", skip_permissions="auto")
-    with pytest.raises(ConfigError, match="skip_permissions_argv"):
-        _skip_permissions_argv_for_launch(agent, "auto", _task_ref())
 
 
 # --- integration: end-to-end via CliRunner with mocked subprocess --------------
@@ -641,11 +493,9 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [agents.codex]
         cli = "codex"
-        auto = "exec"
         file = "AGENTS.md"
         [launch]
         worktree = false
@@ -658,7 +508,7 @@ def active_task(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     cfg = load_config(company)
     create_task(
         cfg=cfg, title="Fix retry logic",
-        workflow_name="direct/body", contexts=[], autonomy="interactive",
+        workflow_name="direct/body", contexts=[], mode="agent",
         owner="marc", assignee="claude", watchers=[], status="active",
     )
     return company
@@ -702,7 +552,7 @@ def _write_skill(repo: Path, ref: str, body: str) -> None:
     )
 
 
-def _create_chain_task(active_task: Path, *, mode: str = "interactive") -> dict[str, object]:
+def _create_chain_task(active_task: Path, *, mode: str = "agent") -> dict[str, object]:
     _write(
         active_task / "workflows" / "chain.md",
         """
@@ -732,7 +582,7 @@ def _create_chain_task(active_task: Path, *, mode: str = "interactive") -> dict[
         title="Chain work",
         workflow_name="chain",
         contexts=[],
-        autonomy=mode,
+        mode=mode,
         owner="marc",
         human="marc",
         agent="claude",
@@ -774,7 +624,7 @@ def test_launch_flow(active_task: Path, monkeypatch: pytest.MonkeyPatch) -> None
     assert ticket.status == "in_progress"
     log = _read_log(active_task)
     assert "started (active → in_progress) via coga launch" in log
-    assert "launched in interactive mode" in log
+    assert "launched in agent mode" in log
 
 
 # --- push-auth gate -----------------------------------------------------------
@@ -1101,39 +951,31 @@ def test_direct_launch_timeout_exits_non_zero(
     assert "Agent timed out" in result.output
 
 
-def test_launch_interactive_ignores_local_skip_policy(
+def test_launch_rejects_local_agent_override(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A `mode: interactive` launch never applies the agent's local
-    permission-skip policy — the argv must not reach the spawned CLI."""
+    """Local agent overrides were only for removed auto policy; reject them."""
     _write(
         active_task / "coga.local.toml",
         """
         user = "marc"
 
         [agents.claude]
-        skip_permissions = "auto"
-        skip_permissions_argv = "--dangerously-skip-permissions"
+        cli = "claude-nightly"
         """,
     )
-    calls: list[list[str]] = []
     _allow_interactive_tty(monkeypatch)
 
-    class _Result:
-        returncode = 0
-
     def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
-        calls.append(cmd)
-        return _Result()
+        raise AssertionError("launch should fail before spawning agent")
 
     monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
     monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "fix-retry-logic"])
-    assert result.exit_code == 0, result.output
-    assert len(calls) == 1
-    assert "--dangerously-skip-permissions" not in calls[0]
+    assert result.exit_code == 2
+    assert "no longer supports [agents.<name>] overrides" in result.output
 
 
 def test_launch_bails_on_missing_context(
@@ -1191,10 +1033,10 @@ def test_launch_handles_agent_self_deleting_task(
     assert not ticket_md.exists()
 
 
-def test_launch_marks_interactive_session_supervised(
+def test_launch_marks_llm_session_supervised(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Interactive launches chain across agent-owned steps, so the child
+    """Agent launches chain across agent-owned steps, so the child
     inherits `COGA_SUPERVISED=1`. `coga bump` keys its supervised-launch
     hint off that env var."""
     envs: list[dict] = []
@@ -1246,7 +1088,7 @@ def test_launch_in_progress_resumes_without_status_transition(
     assert "started (active → in_progress) via coga launch" not in log
 
 
-def test_launch_interactive_without_tty_fails_before_lock(
+def test_launch_llm_without_tty_fails_before_lock(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1264,7 +1106,7 @@ def test_launch_interactive_without_tty_fails_before_lock(
     result = CliRunner().invoke(app, ["launch", "fix-retry-logic"])
 
     assert result.exit_code == 2
-    assert "Cannot launch 'fix-retry-logic': autonomy=interactive requires a TTY" in (
+    assert "Cannot launch 'fix-retry-logic': mode=agent requires a TTY" in (
         result.output + (result.stderr or "")
     )
     assert not called
@@ -1273,17 +1115,17 @@ def test_launch_interactive_without_tty_fails_before_lock(
     ref = list_tasks(cfg)[0]
 
 
-def test_launch_interactive_chains_consecutive_agent_steps(
+def test_launch_llm_chains_consecutive_agent_steps(
     active_task: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Interactive launches chain while the next step is still the agent's.
+    """Agent launches chain while the next step is still the agent's.
 
     After `coga bump` advances from step 1 (agent) to step 2 (also agent),
     the launch loop re-composes the prompt and spawns a fresh REPL. The
     chain stops at the first human-assigned step (step 3 here).
     """
-    ref = _create_chain_task(active_task, mode="interactive")
+    ref = _create_chain_task(active_task, mode="agent")
     slug = str(ref["slug"])
     calls: list[list[str]] = []
     _allow_slack(monkeypatch)
@@ -1355,7 +1197,7 @@ def test_launch_chains_when_ticket_has_ticket_level_skills(
         title="Chain work",
         workflow_name="chain",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         human="marc",
         agent="claude",
@@ -1422,7 +1264,7 @@ def test_launch_harness_stops_when_next_skilled_step_changes_assignee(
         title="Handoff work",
         workflow_name="handoff",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         human="marc",
         agent="claude",
@@ -1726,7 +1568,7 @@ def test_launch_auto_activates_draft_and_paused(
     with a workflow is activated inline, then flipped to in_progress."""
     from coga.ticket import Ticket
 
-    ref = _create_chain_task(active_task, mode="interactive")
+    ref = _create_chain_task(active_task, mode="agent")
     slug = str(ref["slug"])
     ticket_md = Path(ref["path"])
     t = Ticket.read(ticket_md)
@@ -1749,7 +1591,7 @@ def test_launch_auto_activates_draft_and_paused(
 def test_launch_refuses_unsynthesized_draft_blackboard(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    ref = _create_chain_task(active_task, mode="interactive")
+    ref = _create_chain_task(active_task, mode="agent")
     slug = str(ref["slug"])
     ticket_md = Path(ref["path"])
     t = Ticket.read(ticket_md)
@@ -1783,7 +1625,7 @@ def test_launch_refuses_done_ticket(
     wedge the ticket. Launch refuses loud and leaves the ticket untouched."""
     from coga.ticket import Ticket
 
-    ref = _create_chain_task(active_task, mode="interactive")
+    ref = _create_chain_task(active_task, mode="agent")
     slug = str(ref["slug"])
     ticket_md = Path(ref["path"])
     t = Ticket.read(ticket_md)
@@ -1906,7 +1748,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
         title="Measure prompt scope",
         workflow_name="code/measure",
         contexts=["email/payment-flow"],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         human="marc",
         agent="claude",
@@ -1934,7 +1776,7 @@ def test_launch_prompt_report_prints_layers_without_launching(
     from coga.ticket import Ticket
     ticket = Ticket.read(Path(ref["path"]))
     assert ticket.status == "draft"
-    assert "launched in interactive mode" not in _read_log(active_task)
+    assert "launched in agent mode" not in _read_log(active_task)
 
 
 # --- bootstrap tickets ---------------------------------------------------------
@@ -1953,11 +1795,9 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         [agents.codex]
         cli = "codex"
-        auto = "exec"
         file = "AGENTS.md"
         """,
     )
@@ -1967,7 +1807,7 @@ def bootstrap_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Create a new ticket
-        autonomy: interactive
+        mode: agent
         skills:
           - bootstrap/ticket
         assignee: claude
@@ -2058,7 +1898,7 @@ def test_launch_bootstrap_skips_status_and_lock(
 
     # The repo-global log recorded the launch.
     log = _read_log(bootstrap_repo)
-    assert "launched in interactive mode" in log
+    assert "launched in agent mode" in log
 
 
 def test_launch_discussion_bootstrap_uses_discussion_template(
@@ -2076,12 +1916,10 @@ def test_launch_discussion_bootstrap_uses_discussion_template(
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         discussion = "--append-system-prompt {prompt}"
         [agents.codex]
         cli = "codex"
-        auto = "exec"
         file = "AGENTS.md"
         """,
     )
@@ -2119,7 +1957,7 @@ def test_launch_orient_bootstrap_stays_silent(
         """
         ---
         title: Chat
-        mode: interactive
+        mode: agent
         assignee: claude
         ---
 
@@ -2162,7 +2000,6 @@ def test_launch_regular_task_does_not_use_discussion_template(
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         discussion = "--append-system-prompt {prompt}"
         [launch]
@@ -2404,7 +2241,7 @@ def test_launch_interactive_rotates_across_agents(
     cfg = load_config(active_task)
     ref = create_task(
         cfg=cfg, title="Rotate work", workflow_name="rotate", contexts=[],
-        autonomy="interactive", owner="marc", human="marc", agent="claude",
+        mode="agent", owner="marc", human="marc", agent="claude",
         assignee="claude", watchers=[], status="active",
     )
     slug = ref["slug"]
@@ -2467,7 +2304,7 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     cfg = load_config(active_task)
     ref = create_task(
         cfg=cfg, title="Rotate2 work", workflow_name="rotate2", contexts=[],
-        autonomy="interactive", owner="marc", human="marc", agent="claude",
+        mode="agent", owner="marc", human="marc", agent="claude",
         assignee="claude", watchers=[], status="active",
     )
     slug = ref["slug"]

@@ -32,7 +32,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -58,7 +57,7 @@ def _make_task(repo: Path, *, workflow: str | None = "code", status: str = "draf
     cfg = load_config(repo)
     ref = create_task(
         cfg=cfg, title="Work", workflow_name=workflow,
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
         watchers=[], status=status,
     )
     return ref["slug"], ref["path"]

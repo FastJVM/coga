@@ -2,7 +2,7 @@
 slug: v2/gh-merge-requirement
 title: gh-merge-requirement
 status: paused
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

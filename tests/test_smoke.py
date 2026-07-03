@@ -64,7 +64,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         title="Fix retry logic",
         workflow_name="code/with-review",
         contexts=["email/payment-flow"],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=["pierre"],
@@ -92,7 +92,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Stripe webhooks retry" in prompt         # ticket context
     assert "Tests live next to the code" in prompt   # step skill
     assert "Current step: implement" in prompt
-    assert "Interactive mode" in prompt
+    assert "Agent mode" in prompt
     assert "Blackboard" in prompt
 
     # 3. Advance steps. Workflow has 4 steps; 3 bumps walk to the last step,
@@ -115,7 +115,7 @@ def test_lifecycle(seeded: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # 4. Create a second task so we can exercise block + slack without revival of the first.
     ref2 = create_task(
         cfg=cfg, title="Investigate slow DNS",
-        workflow_name="code/with-review", contexts=[], autonomy="interactive",
+        workflow_name="code/with-review", contexts=[], mode="agent",
         owner="marc", assignee="claude", watchers=[], status="in_progress",
     )
     r = runner.invoke(app, [

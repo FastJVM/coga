@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 import os
 import random
-import shlex
 import subprocess
 import tomllib
 from collections.abc import Mapping
@@ -35,7 +34,6 @@ class SecretError(Exception):
 class AgentType:
     name: str
     cli: str
-    auto: str
     file: str
     mode: str               # "local" | future: "remote" | "cloud"
     # Flag (or flag template) the CLI accepts to set the session display name
@@ -54,17 +52,6 @@ class AgentType:
     # token `{prompt}` is replaced with the composed prompt. Empty string lets
     # launch use its built-in defaults for known CLIs, then positional fallback.
     discussion: str = ""
-    # Machine-local permission-skip policy — settable ONLY from a partial
-    # `[agents.<name>]` table in `coga.local.toml` (shared `coga.toml`
-    # carrying either key fails config load, so a dangerous default can never
-    # be committed). `skip_permissions = "auto"` opts this agent into
-    # appending `skip_permissions_argv` for normal `mode: auto` task launches;
-    # unset / `false` keeps today's behavior. The argv is authored as one
-    # string and parsed with `shlex.split` (e.g.
-    # `"--dangerously-skip-permissions"` for claude,
-    # `"--dangerously-bypass-approvals-and-sandbox"` for codex).
-    skip_permissions: str = ""           # "" (off) | "auto"
-    skip_permissions_argv: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -403,9 +390,8 @@ def _reject_unknown_keys(table: object, allowed: frozenset[str], label: str) -> 
 
 # Fixed-schema tables — every key not listed is rejected at load time. Free-form
 # maps (aliases, secrets, extensions, slack gifs/users) are deliberately absent;
-# their keys are data. Top-level keys that carry a dedicated migration error
-# (`assignees` in shared; `skip_permissions*` in a shared `[agents.<name>]`) are
-# omitted here so their tailored raise fires before the generic check.
+# their keys are data. Deprecated / known-rejected keys run their dedicated
+# migration errors before this generic check.
 _ALLOWED_SHARED_SECTIONS: frozenset[str] = frozenset({
     "version",
     "default_status",
@@ -428,7 +414,6 @@ _ALLOWED_LOCAL_SECTIONS: frozenset[str] = frozenset({
 })
 _ALLOWED_AGENT_KEYS: frozenset[str] = frozenset({
     "cli",
-    "auto",
     "file",
     "mode",
     "name_flag",
@@ -573,30 +558,12 @@ def _parse_megalaunch(raw: object) -> MegalaunchConfig:
     )
 
 
-_LOCAL_AGENT_OVERRIDE_KEYS: frozenset[str] = frozenset({
-    # The only `[agents.<name>]` keys honored from `coga.local.toml`.
-    # Anything else in a local agent table fails loud rather than silently
-    # diverging from the shared agent definition.
-    "skip_permissions",
-    "skip_permissions_argv",
-})
-
-
 def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentType]:
     out: dict[str, AgentType] = {}
     for name, data in raw.items():
-        for required in ("cli", "auto", "file"):
+        for required in ("cli", "file"):
             if required not in data:
                 raise ConfigError(f"agents.{name}.{required} is required")
-        for local_only in sorted(_LOCAL_AGENT_OVERRIDE_KEYS):
-            if local_only in data:
-                raise ConfigError(
-                    f"agents.{name}.{local_only} is machine-local policy and "
-                    "must not be committed to shared coga.toml. Move it to a "
-                    f"partial [agents.{name}] table in coga.local.toml."
-                )
-        # Generic unknown-key reject runs after the dedicated skip-policy raise
-        # above so that machine-local-policy message is preserved.
         _reject_unknown_keys(data, _ALLOWED_AGENT_KEYS, f"[agents.{name}]")
         discussion = data.get("discussion", "")
         if not isinstance(discussion, str):
@@ -610,80 +577,21 @@ def _parse_agents(raw: dict, local_raw: dict | None = None) -> dict[str, AgentTy
                 f"agents.{name}.session_id_flag must be a string "
                 f"(got {type(session_id_flag).__name__})"
             )
-        local_data = (local_raw or {}).get(name, {})
-        skip_permissions, skip_permissions_argv = _parse_local_skip_policy(
-            name, local_data
-        )
         out[name] = AgentType(
             name=name,
             cli=data["cli"],
-            auto=data["auto"],
             file=data["file"],
             mode=data.get("mode", "local"),
             name_flag=data.get("name_flag", ""),
             session_id_flag=session_id_flag,
             discussion=discussion,
-            skip_permissions=skip_permissions,
-            skip_permissions_argv=skip_permissions_argv,
         )
-    unknown_local = sorted(set(local_raw or {}) - set(raw))
-    if unknown_local:
+    if local_raw:
         raise ConfigError(
-            f"coga.local.toml overrides unknown agent(s) {unknown_local}. "
-            f"Known agents (from coga.toml): {sorted(raw)}."
+            "coga.local.toml no longer supports [agents.<name>] overrides; "
+            "put shared agent config in coga.toml."
         )
     return out
-
-
-def _parse_local_skip_policy(
-    name: str, local_data: object
-) -> tuple[str, tuple[str, ...]]:
-    """Parse a partial local `[agents.<name>]` table's permission-skip policy.
-
-    `skip_permissions` accepts only unset / `false` (off) or the string
-    `"auto"`; anything else fails config load. `skip_permissions_argv` must be
-    a string and is parsed with `shlex.split`. The "auto without argv" case is
-    deliberately legal here — `coga launch` fails loud when the policy would
-    actually apply, so a half-written local table doesn't brick every other
-    coga command on the machine.
-    """
-    if not isinstance(local_data, dict):
-        raise ConfigError(
-            f"[agents.{name}] in coga.local.toml must be a table "
-            f"(got {type(local_data).__name__})"
-        )
-    bad_keys = sorted(set(local_data) - _LOCAL_AGENT_OVERRIDE_KEYS)
-    if bad_keys:
-        raise ConfigError(
-            f"[agents.{name}] in coga.local.toml has unsupported keys "
-            f"{bad_keys}. Only {sorted(_LOCAL_AGENT_OVERRIDE_KEYS)} may be "
-            "overridden locally; everything else belongs in shared coga.toml."
-        )
-
-    skip_permissions = ""
-    if "skip_permissions" in local_data:
-        value = local_data["skip_permissions"]
-        if value is False:
-            skip_permissions = ""
-        elif value == "auto":
-            skip_permissions = "auto"
-        else:
-            raise ConfigError(
-                f"[agents.{name}].skip_permissions in coga.local.toml must "
-                f"be false or \"auto\" (got {value!r})"
-            )
-
-    skip_permissions_argv: tuple[str, ...] = ()
-    if "skip_permissions_argv" in local_data:
-        value = local_data["skip_permissions_argv"]
-        if not isinstance(value, str):
-            raise ConfigError(
-                f"[agents.{name}].skip_permissions_argv in coga.local.toml "
-                f"must be a string (got {type(value).__name__})"
-            )
-        skip_permissions_argv = tuple(shlex.split(value))
-
-    return skip_permissions, skip_permissions_argv
 
 
 _RESERVED_TICKET_FIELD_NAMES: frozenset[str] = frozenset({

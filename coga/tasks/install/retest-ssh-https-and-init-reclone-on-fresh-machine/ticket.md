@@ -1,7 +1,7 @@
 ---
 title: Retest SSH/HTTPS clone + init re-clone on a fresh work machine
 status: draft
-mode: interactive
+mode: agent
 owner: zach
 human: zach
 agent: claude

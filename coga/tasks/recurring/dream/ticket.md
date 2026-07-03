@@ -2,7 +2,7 @@
 slug: recurring/dream
 title: Dream
 status: done
-autonomy: interactive
+mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude

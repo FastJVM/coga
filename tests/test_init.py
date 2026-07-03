@@ -204,7 +204,7 @@ def _seed_fake_clone(clone_dir: Path) -> None:
         "---\n"
         "title: coga-build\n"
         "status: active\n"
-        "mode: interactive\n"
+        "mode: agent\n"
         "owner: new-user\n"
         "human: new-user\n"
         "agent: claude\n"

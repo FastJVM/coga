@@ -58,7 +58,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
 
         """,
@@ -99,7 +98,7 @@ def test_validate_drift_runs_as_script_skill(repo: Path) -> None:
         title="Validate Drift",
         workflow_name="validate-drift",
         contexts=[],
-        autonomy="interactive",
+        mode="script",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -136,7 +135,7 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
         slug: processed-ticket
         title: Processed Ticket
         status: done
-        autonomy: interactive
+        mode: agent
         owner: marc
         assignee: marc
         ---
@@ -163,7 +162,7 @@ def test_cleanup_orphan_markers_runs_as_script_skill_and_gates_delete(repo: Path
         title="Cleanup Orphan Markers",
         workflow_name="cleanup-orphan-markers",
         contexts=[],
-        autonomy="interactive",
+        mode="script",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -196,7 +195,7 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
         slug: processed-ticket
         title: Processed Ticket
         status: done
-        autonomy: interactive
+        mode: agent
         owner: marc
         assignee: marc
         ---
@@ -223,7 +222,7 @@ def test_cleanup_orphan_markers_skips_no_new_knowledge_markers(repo: Path) -> No
         title="Cleanup Orphan Markers",
         workflow_name="cleanup-orphan-markers",
         contexts=[],
-        autonomy="interactive",
+        mode="script",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -260,7 +259,7 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> Non
         slug: documents-the-marker
         title: Documents The Marker
         status: done
-        autonomy: interactive
+        mode: agent
         owner: marc
         assignee: marc
         ---
@@ -285,7 +284,7 @@ def test_cleanup_orphan_markers_ignores_inline_retro_mentions(repo: Path) -> Non
         title="Cleanup Orphan Markers",
         workflow_name="cleanup-orphan-markers",
         contexts=[],
-        autonomy="interactive",
+        mode="script",
         owner="marc",
         assignee="claude",
         watchers=[],

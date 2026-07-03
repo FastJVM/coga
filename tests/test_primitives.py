@@ -37,7 +37,7 @@ TICKET_EXAMPLE = dedent(
     ---
     title: Fix retry logic
     status: active
-    autonomy: interactive
+    mode: agent
     owner: marc
     assignee: claude
     workflow:
@@ -66,7 +66,7 @@ TICKET_EXAMPLE = dedent(
 def test_ticket_roundtrip(tmp_path: Path) -> None:
     t = Ticket.parse(TICKET_EXAMPLE)
     assert t.title == "Fix retry logic"
-    assert t.autonomy == "interactive"
+    assert t.mode == "agent"
     assert t.contexts == ["email/payment-flow"]
     assert t.step_index() == 1
     assert t.current_step() == {"name": "implement", "skills": ["infra/testing-conventions"]}

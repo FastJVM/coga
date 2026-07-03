@@ -2,7 +2,7 @@
 slug: v2/register-a-real-domain-for-relay
 title: Register a real domain for Relay
 status: draft
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

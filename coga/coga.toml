@@ -6,14 +6,11 @@ version = 1
 default_status = "draft"
 
 # --- Agents ---
-# Permission-skip policy for `autonomy: auto` launches (`skip_permissions`,
-# `skip_permissions_argv`) is machine-local and belongs in a partial
-# `[agents.<name>]` table in coga.local.toml — committing those keys
-# here fails config load.
+# Removed headless-agent keys (`auto`, `skip_permissions`,
+# `skip_permissions_argv`) are rejected as unknown config.
 
 [agents.claude]
 cli = "claude"
-auto = "-p"
 file = "CLAUDE.md"
 mode = "local"
 # `claude -n <name>` sets the session display name shown in the /resume
@@ -30,7 +27,6 @@ discussion = "--append-system-prompt {prompt}"
 
 [agents.codex]
 cli = "codex"
-auto = "exec"
 file = "AGENTS.md"
 mode = "local"
 discussion = "-c developer_instructions={prompt}"

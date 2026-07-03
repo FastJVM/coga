@@ -41,7 +41,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
 
@@ -53,7 +52,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Create a new ticket
-        autonomy: interactive
+        mode: agent
         skills:
           - bootstrap/ticket
         assignee: claude
@@ -206,7 +205,6 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
         discussion = "--append-system-prompt {prompt}"
@@ -256,12 +254,10 @@ def test_ticket_agent_override_codex_gets_kickoff(
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
         [agents.codex]
         cli = "codex"
-        auto = "exec"
         file = "AGENTS.md"
         mode = "local"
 
@@ -368,7 +364,7 @@ def test_ticket_existing_active_task_is_editable_without_status_change(
         title="Queued work",
         workflow_name="direct/body",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -397,7 +393,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
         title="Broken context",
         workflow_name="direct/body",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -437,7 +433,7 @@ def test_ticket_edits_in_progress_task(
         title="Running work",
         workflow_name="direct/body",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -509,7 +505,7 @@ def test_ticket_existing_draft_greets_as_edit_not_create(
         title="Batch draft",
         workflow_name="direct/body",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -537,7 +533,7 @@ def test_ticket_nested_bare_leaf_edits_existing_not_duplicate(
         title="Relaunch",
         workflow_name="direct/body",
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],
@@ -572,7 +568,7 @@ def test_ticket_ambiguous_bare_leaf_bails_without_launching(
             title="Relaunch",
             workflow_name="direct/body",
             contexts=[],
-            autonomy="interactive",
+            mode="agent",
             owner="marc",
             assignee="claude",
             watchers=[],

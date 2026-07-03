@@ -1,7 +1,7 @@
 ---
 title: relay CLI should not require user to be set (default to $USER)
 status: draft
-mode: interactive
+mode: agent
 owner: zach
 human: zach
 agent: claude

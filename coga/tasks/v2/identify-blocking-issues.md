@@ -2,7 +2,7 @@
 slug: v2/identify-blocking-issues
 title: identify-blocking-issues
 status: paused
-autonomy: interactive
+mode: agent
 owner: zach
 human: zach
 agent: claude

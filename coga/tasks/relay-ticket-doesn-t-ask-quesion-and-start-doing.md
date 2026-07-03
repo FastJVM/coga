@@ -2,7 +2,7 @@
 slug: relay-ticket-doesn-t-ask-quesion-and-start-doing
 title: relay ticket doesn't ask quesion and start doingé
 status: draft
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

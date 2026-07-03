@@ -6,7 +6,7 @@ title: "Skill update"
 # step references the `bootstrap/skill-update` skill, whose `script:` runs
 # `coga skill update --all --pr`. No `claude -p` / `codex exec` buffering, so
 # it is safe under the temporary mode=auto recurring freeze.
-autonomy: auto
+mode: script
 workflow: skill-update/run
 ---
 

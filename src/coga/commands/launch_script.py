@@ -1,11 +1,4 @@
-"""`coga launch` script dispatch — direct script execution, no agent.
-
-A task runs a script (rather than composing an agent prompt) when the current
-step carries a single skill whose `SKILL.md` declares `script:`, or — for a
-no-skill step / workflow-less task — when the ticket itself declares `script:`.
-That deduction lives in `is_script_launch`; nothing on the ticket declares
-"script mode" anymore (the old `mode: script` value is gone).
-"""
+"""`coga launch` script dispatch — direct script execution, no agent."""
 
 from __future__ import annotations
 
@@ -38,23 +31,8 @@ from coga.validate import TaskValidationError
 
 
 def is_script_launch(cfg: Config, ticket: Ticket) -> bool:
-    """Deduce whether the current step runs a script (vs composing an agent).
-
-    A single-skill step whose `SKILL.md` carries `script:` runs that script. A
-    no-skill step (or a workflow-less task) runs the ticket's own `script:` when
-    one is set. Anything else composes an agent prompt.
-    """
-    step = ticket.current_step()
-    if step is not None:
-        skills = list(step.get("skills") or [])
-        if len(skills) == 1:
-            sp = resolve_skill_path(cfg, skills[0])
-            if sp is not None and Skill.load(sp).script:
-                return True   # step skill carries a script
-        if not skills and ticket.script:
-            return True        # a no-skill step runs the ticket's own script
-        return False
-    return bool(ticket.script)  # workflow-less task with a ticket-owned script
+    """Return true when the ticket declares `mode: script`."""
+    return ticket.mode == "script"
 
 
 def script_repo_root(cfg: Config) -> Path:

@@ -2,7 +2,7 @@
 slug: v2/sync-support-files-and-bare-ticket-shim-authoring
 title: Sync support files and bare-ticket-shim authoring edits across checkouts
 status: draft
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

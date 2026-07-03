@@ -2,7 +2,7 @@
 slug: v2/add-dev-testing-setup-skill
 title: Add dev testing setup skill
 status: paused
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

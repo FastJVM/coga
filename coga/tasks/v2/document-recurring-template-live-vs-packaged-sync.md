@@ -2,7 +2,7 @@
 slug: v2/document-recurring-template-live-vs-packaged-sync
 title: Document recurring template live-vs-packaged sync rule
 status: draft
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

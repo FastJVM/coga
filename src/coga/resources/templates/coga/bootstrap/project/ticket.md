@@ -1,6 +1,6 @@
 ---
 title: Plan a project into tickets
-mode: interactive
+mode: agent
 skills:
   - bootstrap/project
 assignee: claude

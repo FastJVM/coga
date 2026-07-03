@@ -2,7 +2,7 @@
 schedule: "0 2 * * *"
 schedule_comment: "Every day at 2am - attempt launchable active agent work"
 title: "Megalaunch active tickets"
-autonomy: auto
+mode: script
 workflow: megalaunch/run
 ---
 

@@ -27,7 +27,6 @@ def repo(tmp_path: Path) -> Path:
         version = 1
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )

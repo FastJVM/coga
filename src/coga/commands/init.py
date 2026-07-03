@@ -50,19 +50,9 @@ user = ""
 # (`NAME: op://vault/item/field` or `NAME: env:VAR`) — there is no central
 # [secrets] catalog here.
 
-# Per-agent permission-skip policy for autonomous runs — machine-local only
-# (these keys are rejected in shared coga.toml). With `skip_permissions =
-# "auto"`, normal `mode: auto` task launches append `skip_permissions_argv`
-# (one string, shlex-split) so the agent CLI doesn't stop on per-command
-# permission/approval prompts. Interactive launches, bootstrap tickets
-# (`coga chat` / `coga ticket`), and script tasks are unaffected.
-# Verify the flags against your installed CLIs before enabling.
-# [agents.claude]
-# skip_permissions = "auto"
-# skip_permissions_argv = "--dangerously-skip-permissions"
-# [agents.codex]
-# skip_permissions = "auto"
-# skip_permissions_argv = "--dangerously-bypass-approvals-and-sandbox"
+# Per-agent permission-skip policy from older installs is removed. Current
+# launch rejects those keys as unknown config because Coga no longer has a
+# ticket-level unattended execution axis.
 """
 
 

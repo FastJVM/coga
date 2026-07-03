@@ -2,7 +2,7 @@
 slug: v2/automerge-ticket
 title: automerge ticket
 status: paused
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

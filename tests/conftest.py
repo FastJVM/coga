@@ -261,7 +261,6 @@ def init_git_repo(tmp_path: Path) -> GitRepo:
             default_status = "draft"
             [agents.claude]
             cli = "claude"
-            auto = "-p"
             file = "CLAUDE.md"
             [notification]
             channels = ["slack"]

@@ -31,7 +31,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         webhook = "env:SLACK_WEBHOOK_URL"
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         """,
     )
@@ -83,7 +82,7 @@ def test_script_mode_executes_and_injects_secrets(repo: Path, monkeypatch: pytes
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -127,7 +126,7 @@ def test_script_mode_fails_loud_on_unset_declared_secret(
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -152,7 +151,7 @@ def test_script_mode_least_privilege_empty_list_injects_nothing(
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     ref = list_tasks(cfg)[0]
@@ -174,14 +173,14 @@ def test_script_mode_rejects_agent_override(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
 
     runner = CliRunner()
     result = runner.invoke(app, ["launch", "check", "--agent", "claude"])
     assert result.exit_code == 2
-    assert "--agent is only supported for agent (interactive/auto) launches" in (
+    assert "--agent is only supported for agent launches" in (
         result.output + (result.stderr or "")
     )
 
@@ -193,7 +192,7 @@ def test_script_mode_requires_skill_field(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Check", workflow_name="ops",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     runner = CliRunner()
@@ -210,7 +209,7 @@ def test_script_mode_nonzero_exit_logged(repo: Path) -> None:
     cfg = load_config(repo)
     create_task(
         cfg=cfg, title="Fail", workflow_name="ops",
-        contexts=[], autonomy="interactive", owner="marc", assignee="claude",
+        contexts=[], mode="script", owner="marc", assignee="claude",
         watchers=[], status="active",
     )
     runner = CliRunner()

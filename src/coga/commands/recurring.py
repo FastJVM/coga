@@ -65,9 +65,8 @@ def main(
     interactive: bool = typer.Option(
         False,
         "--interactive",
-        help="Launch every due task in interactive mode for this run, even "
-        "ones whose ticket says `autonomy: auto`. For debugging; ticket files "
-        "are not modified.",
+        help="Launch due agent-mode tasks as a human-stepped run, leaving REPL "
+        "liveness backstops unarmed. Ticket files are not modified.",
     ),
     all_: bool = typer.Option(
         False,
@@ -133,7 +132,6 @@ def main(
         )
         return
 
-    autonomy_override = "interactive" if interactive else None
     # `--interactive` is a human stepping through by hand, so leave the spawned
     # REPL unbounded; an automatic sweep arms the liveness backstops so one stuck
     # agent can't block the tasks behind it.
@@ -151,7 +149,7 @@ def main(
             _prepare_forced_launch(cfg, task)
         # Sequential by design: each launch blocks until the agent session
         # exits before the next begins. `scan_due` filters out templates that
-        # cannot run in the current stdio context (interactive with no TTY), and
+        # cannot run in the current stdio context (`mode: agent` with no TTY), and
         # the liveness backstops release any that launch but then stall. `launch`
         # returns "timeout" when a backstop fired so we record the wedge honestly
         # below instead of pausing it as a human would.
@@ -159,7 +157,6 @@ def main(
             task.ref.id_slug,
             agent_override=None,
             prompt_report=False,
-            autonomy_override=autonomy_override,
             idle_timeout=idle_timeout,
             max_session=max_session,
             return_timeout=True,
@@ -178,8 +175,8 @@ def launch(
     interactive: bool = typer.Option(
         False,
         "--interactive",
-        help="Launch in interactive mode even if the template says "
-        "`autonomy: auto`. For debugging; the ticket file is not modified.",
+        help="Launch as a human-stepped run, leaving REPL liveness backstops "
+        "unarmed. Ticket files are not modified.",
     ),
 ) -> None:
     """Create a named recurring template now and launch it.
@@ -218,9 +215,7 @@ def launch(
     else:
         typer.echo(f"{ref.id_slug} already created for this period")
 
-    _launch_created(
-        cfg, ref, autonomy_override="interactive" if interactive else None
-    )
+    _launch_created(cfg, ref, interactive=interactive)
 
 
 @app.command("list")
@@ -289,7 +284,7 @@ def _print_picked_table(console: Console, picked: list[TaskRef]) -> None:
         title_justify="left",
         show_edge=False,
     )
-    for col in ("slug", "status", "step", "autonomy"):
+    for col in ("slug", "status", "step", "mode"):
         table.add_column(col, no_wrap=True)
     for ref in picked:
         try:
@@ -301,7 +296,7 @@ def _print_picked_table(console: Console, picked: list[TaskRef]) -> None:
             ref.id_slug,
             ticket.status or "-",
             ticket.step or "-",
-            ticket.autonomy or "-",
+            ticket.mode or "-",
         )
     console.print(table)
 
@@ -313,9 +308,7 @@ def _firing_stamp(when: datetime | None) -> str:
     return when.strftime("%a %m-%d %H:%M")
 
 
-def _launch_created(
-    cfg: Config, ref: TaskRef, *, autonomy_override: str | None = None
-) -> None:
+def _launch_created(cfg: Config, ref: TaskRef, *, interactive: bool = False) -> None:
     """Launch (or resume) a created recurring task.
 
     Recurring tasks create straight to `active` — machine-authored ready
@@ -345,14 +338,12 @@ def _launch_created(
     typer.echo(f"{verb} {ref.id_slug}")
     from coga.commands.launch import launch as launch_cmd
 
-    interactive = autonomy_override == "interactive"
     idle_timeout = None if interactive else _recurring_idle_timeout(cfg)
     max_session = None if interactive else _recurring_max_session(cfg)
     launch_cmd(
         ref.id_slug,
         agent_override=None,
         prompt_report=False,
-        autonomy_override=autonomy_override,
         idle_timeout=idle_timeout,
         max_session=max_session,
         return_timeout=False,
@@ -1176,8 +1167,8 @@ def _stop_if_unfinished_after_launch(
         )
         return
 
-    if interactive or ticket.autonomy == "interactive":
-        suffix = "interactive recurring launch exited unfinished"
+    if interactive or ticket.mode == "agent":
+        suffix = "Agent-mode recurring launch exited unfinished"
         try:
             mark_paused(
                 cfg,

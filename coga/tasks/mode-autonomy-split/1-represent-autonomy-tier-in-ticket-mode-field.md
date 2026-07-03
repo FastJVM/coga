@@ -2,7 +2,7 @@
 slug: mode-autonomy-split/1-represent-autonomy-tier-in-ticket-mode-field
 title: Represent autonomy tier in ticket autonomy field
 status: in_progress
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude
@@ -264,7 +264,7 @@ This is **not** one coherent change. It's at least three:
 
 ### 5. Assumptions to question before launch
 
-- **"Close stdin to /dev/null for unattended runs" — partly right, partly risky.** For `claude -p` / `codex exec` (headless agents), closing stdin is standard and fine. But the *rationale* given ("so input-needing work fails fast instead of hanging") is questionable for an LLM agent: `claude -p` doesn't read interactive stdin anyway, and some agent CLIs read the *prompt itself* from stdin in headless mode. The implementer must verify how each configured agent CLI consumes its prompt before redirecting stdin to `/dev/null`, or an unattended run could get an empty prompt. The ticket asserts the behavior without checking the CLI contract.
+- **"Close stdin to /dev/null for unattended runs" — partly right, partly risky.** For `claude -p` / `codex exec` (headless agents), closing stdin is standard and fine. But the *rationale* given ("so input-needing work fails fast instead of hanging") is questionable for an AI agent: `claude -p` doesn't read interactive stdin anyway, and some agent CLIs read the *prompt itself* from stdin in headless mode. The implementer must verify how each configured agent CLI consumes its prompt before redirecting stdin to `/dev/null`, or an unattended run could get an empty prompt. The ticket asserts the behavior without checking the CLI contract.
 - **Gating capture on attended-vs-unattended is sound in principle** (don't pipe a TTY REPL — correct, piping would break `claude`'s interactive UI). But note the gate key changes from `mode` to `autonomy`, and the existing TTY check (`_interactive_stdio_has_tty()`, launch.py:281) and the PTY supervisor (launch.py:485) are *also* keyed on `mode == "interactive"`. The plan mentions re-keying compose and dispatch but does **not** explicitly call out re-keying these two, which are the load-bearing ones.
 - **The migration mapping loses no information for what's actually in the repo** — but note: there are **zero `mode: auto` tickets** in the entire repo right now (I counted: 114 interactive, 11 script, 0 auto). So the `auto → (agent, auto)` arm of the mapping is exercised only by tests/templates, not live tickets. That's fine, but it means the "unblock auto" half of the ticket has no real consumer until recurring templates opt in — worth confirming the recurring templates (`digest`, `dream`, `skill-update`, `autoclose-merged`) are actually meant to flip to `autonomy: auto`, since today they're `mode: script` or interactive.
 

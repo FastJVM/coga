@@ -2,7 +2,7 @@
 slug: move-ticket-authoring-out-of-core
 title: Move ticket authoring out of core
 status: in_progress
-autonomy: interactive
+mode: agent
 owner: nick
 human: nick
 agent: claude

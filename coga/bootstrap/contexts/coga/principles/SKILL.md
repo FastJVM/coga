@@ -61,9 +61,7 @@ could do; a capability exposed *only* through a non-text surface. A UI may
 *view* (read-only) but never be the only way to *do* something — the absence of
 a webUI is this principle holding, not a missing feature.
 
-**Receipt:** the CLI + files are the whole surface, no webUI; the three modes —
-`interactive`/`auto` (agent judgment) vs `script` (deterministic Python) — route
-work to the right substance; per-step `assignee` (`agent`/`other-agent`/`human`)
+**Receipt:** the CLI + files are the whole surface, no webUI; the two modes — `agent` for agent judgment and `script` for deterministic Python — route work to the right substance; per-step `assignee` (`agent`/`other-agent`/`human`)
 chains a task across operators in one `coga launch`.
 
 ## 3. Obvious — boring, standard, immediately understandable

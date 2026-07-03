@@ -57,7 +57,6 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         enabled = false
         [agents.claude]
         cli = "claude"
-        auto = "-p"
         file = "CLAUDE.md"
         mode = "local"
         """,
@@ -68,7 +67,7 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         """
         ---
         title: Create a new ticket
-        autonomy: interactive
+        mode: agent
         skills:
           - bootstrap/ticket
         assignee: claude
@@ -96,7 +95,7 @@ def _create_task(
         title=title,
         workflow_name=workflow,
         contexts=[],
-        autonomy="interactive",
+        mode="agent",
         owner="marc",
         assignee="claude",
         watchers=[],

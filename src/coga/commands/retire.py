@@ -29,11 +29,6 @@ def retire(
         "--agent",
         help="Agent nickname to assign. Defaults to the current user's first configured agent.",
     ),
-    autonomy: str = typer.Option(
-        "interactive",
-        "--autonomy",
-        help="Launch autonomy for the retire run: interactive. (Auto is temporarily disabled.)",
-    ),
     no_launch: bool = typer.Option(
         False,
         "--no-launch",
@@ -58,15 +53,6 @@ def retire(
     unrelated branch. (This deliberately overrides the former punt that branch
     hygiene was a Dream concern — that punt is why branches piled up.)
     """
-    if autonomy == "auto":
-        _bail(
-            "autonomy=auto is temporarily disabled: auto runs produce no live "
-            "console output. Run `coga retire <slug> --autonomy interactive` "
-            "from a TTY instead."
-        )
-    if autonomy != "interactive":
-        _bail("--autonomy must be 'interactive'")
-
     try:
         cfg = load_config()
     except ConfigError as exc:
@@ -97,7 +83,7 @@ def retire(
         _bail(str(exc))
     typer.echo(
         f"Retire: using assignee {assignee} "
-        f"(agent type {agent_type.name}, autonomy {autonomy})"
+        f"(agent type {agent_type.name}, mode agent)"
     )
 
     title = f"Retire {ref.id_slug}"
@@ -113,7 +99,7 @@ def retire(
             # task the validator (rightly) rejects as un-bumpable.
             workflow_name="direct/body",
             contexts=[],
-            autonomy=autonomy,
+            mode="agent",
             owner=cfg.current_user,
             assignee=assignee,
             watchers=[],
@@ -144,7 +130,6 @@ def retire(
         slug,
         agent_override=None,
         prompt_report=False,
-        autonomy_override=None,
     )
 
 
