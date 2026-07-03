@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -72,4 +72,76 @@ Recovery cost a manual salvage session (PR #500).
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: warn-version-skew
+worktree: ../coga-warn-version-skew
+
+## Design decisions (implement step)
+
+**Signal chosen: installed-package build/install time vs latest `src/coga`
+commit time.** Investigated the alternatives the ticket floated:
+
+- The ticket suggests reusing the build SHA that `coga --version` prints. But
+  `--version` only prints the `COGA_PIN` upstream SHA, and that pin only exists
+  in a *vendored* repo (`coga init`), not in a coga **source checkout** — which
+  is exactly the motivating scenario (dev running a `uv tool install .` binary
+  in the coga repo). Verified: this repo has no `COGA_PIN`; `coga --version`
+  prints just `coga 0.2.0`. So the pin can't drive the guard here.
+- The running binary carries **no** embedded build SHA today. Embedding one at
+  build time (hatchling hook) is heavy, can't help already-installed stale
+  binaries (the guard code itself must already be in the binary), and uv's
+  build-from-checkout `.git` availability is uncertain. Rejected as out of
+  scope for a warn-only guard.
+- Verified the deterministic signal that *is* available: the uv-tool install
+  writes package files with real install-time mtimes (checked
+  `site-packages/coga/__init__.py` mtime == install time, not zeroed). So
+  `mtime(coga.__file__)` is a reliable "built/installed at" timestamp.
+
+Guard logic (`src/coga/version_skew.py`):
+1. git toplevel of the operated-on repo must contain `src/coga/` → else it's
+   not a coga source checkout, silent skip.
+2. If the running package dir is *inside* `<root>/src` (editable / pythonpath
+   dev run) → the running code IS the source, no skew possible, skip.
+3. build_time = mtime of `coga.__file__`; skipped if implausibly old
+   (< 2020-01-01, guards against reproducible-build zeroed mtimes).
+4. src_ct = `git log -1 --format=%ct -- src/coga` (latest source change).
+5. Warn to stderr, naming both sides + remedy, only when `src_ct > build_time`.
+   Never refuses; wrapped so any exception is swallowed (guard must never break
+   a command).
+
+Fires on: `coga launch` entry (primary — where a stale binary burns agent
+hours) and `coga validate` (diagnostic surface). Kept out of read-only hot
+paths. Normal users: the `src/coga/` check short-circuits instantly.
+
+Tests: `tests/test_version_skew.py`, real-git tmp repo (mirrors test_git.py
+style), monkeypatch only `_installed_build_time` for determinism.
+
+## Implementation result (implement step — done)
+
+Commit `c73dec8b` on branch `warn-version-skew` (worktree
+`../coga-warn-version-skew`). Files:
+- new `src/coga/version_skew.py` — the guard.
+- `src/coga/commands/launch.py` — call after preflights pass, before the
+  status flip/spawn (see note below on placement).
+- `src/coga/commands/validate.py` — call after `load_config`, stderr-only.
+- new `tests/test_version_skew.py` — 11 tests, all green.
+
+**Launch placement note.** First put the guard right after `load_config`, but
+two existing tests (`test_launch_fails_loud_on_op_read_error`,
+`test_launch_refuses_and_stays_active_when_push_auth_broken`) assert fail-loud
+preflight paths spawn/mutate *nothing*, and they patch `subprocess.run`
+globally — so the guard's `git rev-parse` probe tripped them. Moved the call to
+just after `_preflight_push_auth` (all fail-loud preflights passed → session
+will run), which respects that invariant without weakening the tests. Warning
+still precedes the expensive agent spawn.
+
+**Verification.** `python3.12 -m pytest -p no:randomly` → 1043 passed, 1
+skipped. `coga validate --json` on the example fixture → exit 0, clean JSON on
+stdout, guard no-ops in-tree. Simulated stale out-of-tree install → warning
+renders correctly (both sides + `uv tool upgrade` / reinstall remedy).
+
+**Pre-existing flake (NOT mine — follow-up candidate).**
+`tests/test_usage_probe.py::test_codex_probe_primes_once_across_reads` fails
+only under `pytest-randomly` order (passes isolated, per-file, and in
+deterministic full runs on both this branch and `main`). Order-dependent test
+isolation issue in the codex usage probe; untouched by this change.

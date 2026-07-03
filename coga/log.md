@@ -762,3 +762,5 @@ fatal: adding files failed
 2026-07-03 12:55 [warn-on-launch-when-the-installed-coga-predates-th] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-07-03 14:30 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=nicktoper, launch_assignee=codex, agent=codex)
 2026-07-03 14:32 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=nicktoper, launch_assignee=codex, agent=codex)
+2026-07-03 12:55 [warn-on-launch-when-the-installed-coga-predates-th] [megalaunch] launched via coga megalaunch
+2026-07-03 14:48 [warn-on-launch-when-the-installed-coga-predates-th] [agent:claude] advanced to step 2 (self-qa)
