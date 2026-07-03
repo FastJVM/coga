@@ -107,3 +107,5 @@ worktree: /tmp/coga-step-regression-guards
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":8264448,"cli":"codex","input_tokens":238101,"model":"gpt-5.5","output_tokens":29833,"provider":"openai","schema":1,"session_id":"019f26bb-91ca-7ca3-82fa-e203903edf95","slug":"cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy","step":"implement","title":"fail loud on step regressions in bump and state sync","ts":"2026-07-03T17:27:37.419376Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":145897,"cache_read_input_tokens":69438,"cli":"claude","input_tokens":9221,"model":"claude-fable-5","output_tokens":1850,"provider":"anthropic","schema":1,"session_id":"a47a9e4d-81a9-4b09-8df7-7b5883f202ee","slug":"cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy","step":"peer-review","title":"fail loud on step regressions in bump and state sync","ts":"2026-07-03T17:30:19.979193Z","usage_status":"ok"}

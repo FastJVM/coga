@@ -719,3 +719,7 @@ fatal: adding files failed
 2026-07-02 23:47 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-02 23:47 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
 2026-07-03 10:27 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [agent:codex] advanced to step 2 (peer-review) → assigned to claude
+2026-07-02 23:47 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-02 23:47 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-03 10:27 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [agent:codex] advanced to step 2 (peer-review) → assigned to claude
+2026-07-03 10:27 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
