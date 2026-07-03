@@ -745,3 +745,5 @@ fatal: adding files failed
 2026-07-03 11:57 [marketing/relay-discord] [human:nicktoper] paused (active → paused)
 2026-07-03 11:57 [marketing/launch-relay-product-launch-comms] [human:nicktoper] paused (active → paused)
 2026-07-03 11:58 [coga-rename-follow-ups-post-repo-rename] [megalaunch] started (active → in_progress) via coga megalaunch
+2026-07-03 11:58 [coga-rename-follow-ups-post-repo-rename] [megalaunch] launched via coga megalaunch
+2026-07-03 12:02 [migrate-desktop-relay-repos-to-coga-tracking] [human:nicktoper] created (mode=agent, status=draft)
