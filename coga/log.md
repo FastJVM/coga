@@ -732,3 +732,4 @@ error: unable to index file 'coga/tasks/cli-extension-model/fail-loud-on-step-re
 fatal: adding files failed
 2026-07-03 10:46 [warn-on-launch-when-the-installed-coga-predates-th] [human:nicktoper] activated (draft → active)
 2026-07-03 10:46 [add-ci-to-generate-package-update-automatically-or] [human:nicktoper] activated (draft → active)
+2026-07-03 10:46 [allow-creation-of-coga-dir-in-subdir] [human:nicktoper] activated (draft → active)
