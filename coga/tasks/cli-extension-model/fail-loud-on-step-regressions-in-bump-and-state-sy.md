@@ -103,3 +103,7 @@ worktree: /tmp/coga-step-regression-guards
 - `python -m pytest tests/test_commands.py tests/test_launch.py tests/test_git.py` — 214 passed.
 - `git diff --check` — passed.
 - `python -m pytest` — 1035 passed, 1 skipped.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":8264448,"cli":"codex","input_tokens":238101,"model":"gpt-5.5","output_tokens":29833,"provider":"openai","schema":1,"session_id":"019f26bb-91ca-7ca3-82fa-e203903edf95","slug":"cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy","step":"implement","title":"fail loud on step regressions in bump and state sync","ts":"2026-07-03T17:27:37.419376Z","usage_status":"ok"}
