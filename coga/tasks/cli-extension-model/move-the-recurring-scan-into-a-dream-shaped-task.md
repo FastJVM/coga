@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: claude
+assignee: codex
 contexts:
 - coga/extension-model
 - coga/architecture
@@ -38,7 +38,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (peer-review)
+step: 5 (open-pr)
 ---
 
 ## Description
@@ -371,6 +371,66 @@ Python, semantics unchanged. The only new runtime layer is the
 head→subprocess(`coga launch bootstrap/recurring-scan`)→`run.py` boundary; the
 due-task launch loop inside the sweep is byte-identical to the old `main`, so
 PTY/done-sentinel/idle-timeout/`_stop_if_unfinished` behavior is preserved.
+
+## Peer-review (2026-07-02, Claude — other-agent) — PASS
+
+Reviewed branch `recurring-scan-target` @ e6e5c183 against `main`. Approving to
+`open-pr`; no blocking findings.
+
+**Guardrails verified (the two the ticket calls out):**
+
+- **No inversion — confirmed programmatically, not by eye.** Extracted each
+  moved function from `main:commands/recurring.py` and diffed byte-for-byte
+  against the new modules: `_sync_recurring_create`,
+  `_land_recurring_create_on_control_branch`,
+  `_refresh_forced_status_from_control`,
+  `_reconcile_forced_period_after_control_restore` (→ `recurring_sync.py`) and
+  `_launch_created`, `_stop_if_unfinished_after_launch`, `_prepare_forced_launch`,
+  `_record_forced_period_locally`, `_broadcast_scan`, `_print_table`,
+  `_firing_label`, `_recurring_idle_timeout`, `_recurring_max_session`,
+  `_env_seconds` (→ `recurring_runner.py`) — all **IDENTICAL**. `run_recurring_scan`
+  is the old `main` body verbatim modulo `force`/`interactive` params + `return 0`.
+  Logic relocated, semantics unchanged.
+- **No worse Typer — confirmed.** `--interactive`/`--all` stay at the command
+  head's Typer layer; they reach the scan only through the per-invocation
+  `COGA_RECURRING_FORCE`/`COGA_RECURRING_INTERACTIVE` env contract, never
+  persisted. Recurring state stays a pure function of files on disk.
+
+**Correctness spot-checks (the risks the subprocess boundary introduces):**
+
+- **Env contract actually threads.** `main` sets the two vars in `os.environ`;
+  `run_bootstrap_script` builds the child env via `build_launch_env`, which starts
+  from `dict(os.environ)` (config.py:1313) — so the flags are inherited into the
+  subprocess. A fresh-dict env builder would have silently dropped `--all`/
+  `--interactive`; it doesn't. Verified.
+- **TTY preserved through the extra process layer.** `run_bootstrap_script` uses
+  `subprocess.run` with no stdio redirection, so the scan subprocess inherits the
+  operator's TTY; `_interactive_stdio_has_tty()` (called inside the subprocess)
+  still sees it, and the due-task agent REPLs it spawns still get a PTY.
+- **Statelessness enforced at dispatch.** `launch.py` routes a bootstrap
+  `mode: script` ticket to `run_bootstrap_script`, which skips every
+  task-lifecycle write (mark_in_progress, task log, advance/mark_done, Slack).
+  Covered by the real-subprocess test
+  `test_launch_bootstrap_recurring_scan_runs_stateless` (asserts no `log.md`
+  lifecycle line, exit 0, success line).
+
+**Verification I ran myself:** full suite `1034 passed, 1 skipped` (skip =
+hatchling-absent wheel test, expected); `coga validate --task <this>` → All good;
+affected files (`test_recurring`/`test_launch_script`/`test_create`) 133 passed.
+
+**Design deviation — accepted.** Ticket title says "Dream-shaped task" but the
+implementation is a stateless `bootstrap/recurring-scan` script target instead.
+The design notes justify this: the scanner is the thing that *creates and
+launches* recurring/Dream templates, so making it a recurring template would be a
+self-scanning bootstrap loop. Correct call; contexts (`extension-model`,
+`recurring`, `architecture`) are updated to match the actual behavior, satisfying
+the "update the context when behavior changes" rule.
+
+**Minor, non-blocking (no change required):** this is the first `mode: script`
+bootstrap ticket, so `assignee: claude` on it is cosmetic (script mode spawns no
+agent). The extension-model table files the scan under the **Tickets** home while
+it is technically a bootstrap script target — but the row text says "stateless …
+script target," so it isn't misleading. Neither is worth holding the PR.
 
 ## Usage
 
