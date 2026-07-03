@@ -74,7 +74,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -105,10 +105,10 @@ _STATUS_PROGRESS = {
     "draft": 0,
     "active": 1,
     "in_progress": 2,
-    "paused": 3,
-    "blocked": 3,
-    "done": 4,
+    "done": 3,
 }
+
+_StateGuard = Callable[[str], None]
 
 
 class GitError(Exception):
@@ -341,10 +341,8 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
             )
             return
 
-        base = _control_base_for_attempt(
-            root, cfg.git_remote, cfg.git_control_branch, 0
-        )
-        _guard_coga_state_regressions(cfg, root, changed, base)
+        def guard(base: str) -> None:
+            _guard_coga_state_regressions(cfg, root, changed, base)
 
         # `merge=union` files (log.md, the digest spool) must stay out of the
         # cross-branch overlay set — same reason `sync_paths` keeps the log out:
@@ -355,7 +353,12 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
         overlay_rels = [rel for rel in changed if rel not in union]
 
         _dispatch_branch_sync(
-            cfg, root, local_rels=changed, overlay_rels=overlay_rels, message=message
+            cfg,
+            root,
+            local_rels=changed,
+            overlay_rels=overlay_rels,
+            message=message,
+            guard=guard,
         )
     except StateRegressionError as exc:
         sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
@@ -371,6 +374,7 @@ def _dispatch_branch_sync(
     local_rels: list[str],
     overlay_rels: list[str],
     message: str,
+    guard: _StateGuard | None = None,
 ) -> None:
     """Commit `local_rels` on the current branch and land `overlay_rels` on the
     control branch — the branch-aware core shared by `sync_paths` and
@@ -386,7 +390,9 @@ def _dispatch_branch_sync(
     """
     branch = _current_branch(root)
     if branch == cfg.git_control_branch:
-        _sync_paths_on_control_branch(cfg, root, local_rels, message=message)
+        _sync_paths_on_control_branch(
+            cfg, root, local_rels, message=message, guard=guard
+        )
         return
 
     if branch == "HEAD":
@@ -397,12 +403,25 @@ def _dispatch_branch_sync(
         overlay = set(overlay_rels)
         union_rels = [rel for rel in local_rels if rel not in overlay]
         _land_paths_on_control_branch(
-            cfg, root, overlay_rels, union_rels=union_rels, message=message
+            cfg,
+            root,
+            overlay_rels,
+            union_rels=union_rels,
+            message=message,
+            guard=guard,
         )
         return
     else:
+        before = _run_git(root, "rev-parse", "HEAD").strip() if guard else None
         _commit_paths(root, local_rels, message)
-    _land_paths_on_control_branch(cfg, root, overlay_rels, message=message)
+    try:
+        _land_paths_on_control_branch(
+            cfg, root, overlay_rels, message=message, guard=guard
+        )
+    except StateRegressionError:
+        if before is not None:
+            _restore_unpushed_sync_commit(root, before, local_rels)
+        raise
 
 
 def _coga_state_pathspecs(root: Path, coga_root: Path) -> list[str]:
@@ -619,15 +638,40 @@ def _sync_on_control_branch(
 
 
 def _sync_paths_on_control_branch(
-    cfg: Config, root: Path, rels: list[str], *, message: str
+    cfg: Config,
+    root: Path,
+    rels: list[str],
+    *,
+    message: str,
+    guard: _StateGuard | None = None,
 ) -> None:
     """Stage explicit pathspecs, commit if anything changed, and push."""
+    before: str | None = None
+    if guard is not None:
+        base = _control_base_for_attempt(
+            root, cfg.git_remote, cfg.git_control_branch, 1
+        )
+        guard(base)
+        before = _run_git(root, "rev-parse", "HEAD").strip()
     if not _commit_paths(root, rels, message):
         return
-    _push_control_branch(cfg, root)
+    try:
+        _push_control_branch(cfg, root, guard=guard)
+    except StateRegressionError:
+        if before is not None:
+            _restore_unpushed_sync_commit(root, before, rels)
+        raise
 
 
-def _push_control_branch(cfg: Config, root: Path) -> None:
+def _restore_unpushed_sync_commit(root: Path, before: str, rels: list[str]) -> None:
+    """Undo a just-created state-sync commit while keeping its files dirty."""
+    _run_git(root, "reset", "--soft", before)
+    _run_git(root, "reset", before, "--", *rels)
+
+
+def _push_control_branch(
+    cfg: Config, root: Path, *, guard: _StateGuard | None = None
+) -> None:
     """Push the checked-out control branch, absorbing a moved `origin/<control>`.
 
     The fast path is a single `git push <remote> <control>`. If `origin/<control>`
@@ -650,7 +694,7 @@ def _push_control_branch(cfg: Config, root: Path) -> None:
         if not _is_non_fast_forward(result):
             raise GitError(f"`git push {remote} {branch}` failed: {result}")
         # `origin/<control>` moved under us — integrate it and retry.
-        _rebase_onto_remote(root, remote, branch)
+        _rebase_onto_remote(root, remote, branch, guard=guard)
 
     raise GitError(
         f"could not push {branch!r} after {_MAX_SYNC_ATTEMPTS} attempts — "
@@ -658,7 +702,13 @@ def _push_control_branch(cfg: Config, root: Path) -> None:
     )
 
 
-def _rebase_onto_remote(root: Path, remote: str, branch: str) -> None:
+def _rebase_onto_remote(
+    root: Path,
+    remote: str,
+    branch: str,
+    *,
+    guard: _StateGuard | None = None,
+) -> None:
     """Rebase the local control branch onto the freshly-fetched remote tip,
     preserving unrelated dirty changes without ever leaving a conflicted tree
     or an orphaned stash.
@@ -678,6 +728,8 @@ def _rebase_onto_remote(root: Path, remote: str, branch: str) -> None:
     log), never a crash: the on-disk markdown is still the source of truth.
     """
     _run_git(root, "fetch", remote, branch)
+    if guard is not None:
+        guard(_run_git(root, "rev-parse", "FETCH_HEAD").strip())
     orig = _run_git(root, "rev-parse", "HEAD").strip()
     stashed = _stash_if_dirty(root)
 
@@ -849,6 +901,7 @@ def _land_paths_on_control_branch(
     *,
     union_rels: list[str] | None = None,
     message: str,
+    guard: _StateGuard | None = None,
 ) -> None:
     """Land selected pathspecs on the control branch from any branch."""
     remote = cfg.git_remote
@@ -857,6 +910,8 @@ def _land_paths_on_control_branch(
 
     for attempt in range(_MAX_SYNC_ATTEMPTS):
         base = _control_base_for_attempt(root, remote, branch, attempt)
+        if guard is not None:
+            guard(base)
 
         tree = _build_overlay_tree(root, base, rels, union_rels=union_rels)
         if tree == _run_git(root, "rev-parse", f"{base}^{{tree}}").strip():

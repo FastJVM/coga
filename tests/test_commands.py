@@ -357,6 +357,44 @@ def test_bump_supervised_refuses_stale_composed_step(repo: Path) -> None:
     assert Ticket.read(task_path).step == "2 (pr)"
 
 
+def test_bump_supervised_allows_unfrozen_workflow_without_step(repo: Path) -> None:
+    legacy = repo / "tasks" / "legacy"
+    legacy.mkdir(parents=True)
+    ticket_path = legacy / "ticket.md"
+    ticket_path.write_text(dedent(
+        """
+        ---
+        slug: legacy
+        title: Legacy
+        status: in_progress
+        mode: agent
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: claude
+        contexts: []
+        skills: []
+        workflow: code
+        ---
+
+        <!-- coga:blackboard -->
+        """
+    ).lstrip())
+
+    result = CliRunner().invoke(
+        app,
+        ["bump", "legacy"],
+        env={
+            "COGA_SUPERVISED": "1",
+            EXPECTED_TASK_ENV: str(legacy.resolve()),
+            EXPECTED_STEP_ENV: "",
+        },
+    )
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(ticket_path).step == "2 (pr)"
+
+
 def test_bump_past_final_step_errors_with_mark_done_hint(repo: Path) -> None:
     slug, task_path = _make_task(repo)
     runner = CliRunner()

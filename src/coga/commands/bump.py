@@ -25,7 +25,6 @@ from coga.tasks import (
     read_ticket,
     resolve_task,
 )
-from coga.ticket import Ticket
 from coga.validate import TaskValidationError, assert_task_valid
 from coga.workflow import Workflow, WorkflowError
 
@@ -83,6 +82,8 @@ def bump(
     if ticket.status != "in_progress":
         _bail(f"Task {ref.id_slug} is {ticket.status!r}. Cannot advance.")
 
+    _assert_supervised_step_is_current(ref, ticket.step)
+
     # Hand-authored / pre-freeze tickets carry `workflow:` as a bare string
     # ref instead of the frozen dict create produces. Resolve and freeze
     # in-place so the rest of bump (and future bumps) sees a normal shape.
@@ -99,8 +100,6 @@ def bump(
             assert_task_valid(cfg, ref, action="freeze workflow on bump")
         except TaskValidationError as exc:
             _bail(str(exc))
-
-    _assert_supervised_step_is_current(ref, ticket)
 
     wf = ticket.workflow
 
@@ -233,7 +232,9 @@ def _bail(msg: str) -> None:
     sys.exit(2)
 
 
-def _assert_supervised_step_is_current(ref: TaskRef, ticket: Ticket) -> None:
+def _assert_supervised_step_is_current(
+    ref: TaskRef, current_step: str | None
+) -> None:
     """Refuse stale supervised bumps.
 
     `coga launch` composes one prompt for one ticket step. If a second launch
@@ -255,10 +256,10 @@ def _assert_supervised_step_is_current(ref: TaskRef, ticket: Ticket) -> None:
         return
     if expected_path != actual_path:
         return
-    if ticket.step == expected_step:
+    if (current_step or "") == expected_step:
         return
 
-    actual = ticket.step or "<no step>"
+    actual = current_step or "<no step>"
     expected = expected_step or "<no step>"
     _bail(
         f"Refusing to bump {ref.id_slug}: this session was composed for "
