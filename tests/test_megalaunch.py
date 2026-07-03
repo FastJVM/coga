@@ -19,10 +19,14 @@ def _write(path: Path, text: str) -> None:
     path.write_text(dedent(text).lstrip())
 
 
-def _snapshot(session_used: float = 0.0, weekly_used: float = 0.0) -> UsageSnapshot:
+def _snapshot(
+    session_used: float = 0.0,
+    weekly_used: float = 0.0,
+    agent: str = "claude",
+) -> UsageSnapshot:
     now = datetime.now(timezone.utc)
     return UsageSnapshot(
-        agent="claude",
+        agent=agent,
         session=UsageWindow(session_used, now + timedelta(hours=5)),
         # Resets inside the final pacing window, so only the hard floor applies.
         weekly=UsageWindow(weekly_used, now + timedelta(hours=1)),
@@ -58,6 +62,9 @@ def repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         [agents.claude]
         cli = "claude"
         file = "CLAUDE.md"
+        [agents.codex]
+        cli = "codex"
+        file = "AGENTS.md"
         """,
     )
     _write(company / "coga.local.toml", 'user = "marc"\n')
@@ -107,13 +114,17 @@ def test_megalaunch_runs_active_agent_task(
         watchers=[],
     )
 
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
 
     class _Session:
         exit_code = 0
         termination_kind = "natural"
 
-    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_spawn(  # type: ignore[no-untyped-def]
+        cfg, ref_obj, ticket, agent, mode, **kwargs
+    ):
         updated = Ticket.read(ref_obj.ticket_path)
         updated.frontmatter["status"] = "done"
         updated.frontmatter.pop("step", None)
@@ -159,7 +170,9 @@ def test_megalaunch_chains_agent_owned_steps(
         status="active",
         watchers=[],
     )
-    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
 
     class _Session:
         exit_code = 0
@@ -167,7 +180,9 @@ def test_megalaunch_chains_agent_owned_steps(
 
     seen_steps: list[str] = []
 
-    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+    def fake_spawn(  # type: ignore[no-untyped-def]
+        cfg, ref_obj, ticket, agent, mode, **kwargs
+    ):
         updated = Ticket.read(ref_obj.ticket_path)
         seen_steps.append(updated.step or "")
         if updated.step == "1 (implement)":
@@ -186,6 +201,193 @@ def test_megalaunch_chains_agent_owned_steps(
     assert seen_steps == ["1 (implement)", "2 (verify)"]
     assert run.counts["completed"] == 1
     assert Ticket.read(ref["path"]).status == "done"
+
+
+def test_megalaunch_agent_filter_only_drains_matching_assignee(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(repo)
+    claude_ref = create_task(
+        cfg=cfg,
+        title="Claude work",
+        workflow_name="code",
+        contexts=[],
+        mode="agent",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    codex_ref = create_task(
+        cfg=cfg,
+        title="Codex work",
+        workflow_name="code",
+        contexts=[],
+        mode="agent",
+        owner="marc",
+        assignee="codex",
+        status="active",
+        watchers=[],
+    )
+
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    launched: list[str] = []
+
+    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref_obj.id_slug)
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(
+        cfg,
+        agent_filter="codex",
+        probes={"codex": _FakeProbe([_snapshot(agent="codex")])},
+    )
+
+    assert run.agent_filter == "codex"
+    assert launched == [codex_ref["slug"]]
+    assert [result.slug for result in run.results] == [codex_ref["slug"]]
+    assert run.counts["launched"] == 1
+    assert run.counts["completed"] == 1
+    assert Ticket.read(codex_ref["path"]).status == "done"
+    assert Ticket.read(claude_ref["path"]).status == "active"
+
+
+def test_megalaunch_agent_filter_stops_at_agent_handoff(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write(
+        repo / "workflows" / "two-agent.md",
+        """
+        ---
+        name: two-agent
+        description: two agent steps.
+        steps:
+          - name: implement
+            assignee: agent
+          - name: verify
+            assignee: agent
+        ---
+        """,
+    )
+    cfg = load_config(repo)
+    ref = create_task(
+        cfg=cfg,
+        title="Handoff",
+        workflow_name="two-agent",
+        contexts=[],
+        mode="agent",
+        owner="marc",
+        assignee="codex",
+        status="active",
+        watchers=[],
+    )
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    seen_steps: list[str] = []
+
+    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+        updated = Ticket.read(ref_obj.ticket_path)
+        seen_steps.append(updated.step or "")
+        updated.frontmatter["step"] = "2 (verify)"
+        updated.frontmatter["assignee"] = "claude"
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(
+        cfg,
+        agent_filter="codex",
+        probes={"codex": _FakeProbe([_snapshot(agent="codex")])},
+    )
+
+    assert seen_steps == ["1 (implement)"]
+    assert run.counts["launched"] == 1
+    assert run.counts["completed"] == 1
+    assert run.results[0].detail == "handed off to claude"
+    ticket = Ticket.read(ref["path"])
+    assert ticket.status == "in_progress"
+    assert ticket.assignee == "claude"
+
+
+def test_megalaunch_cli_accepts_agent_filter(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    cfg = load_config(repo)
+    claude_ref = create_task(
+        cfg=cfg,
+        title="Claude CLI work",
+        workflow_name="code",
+        contexts=[],
+        mode="agent",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    codex_ref = create_task(
+        cfg=cfg,
+        title="Codex CLI work",
+        workflow_name="code",
+        contexts=[],
+        mode="agent",
+        owner="marc",
+        assignee="codex",
+        status="active",
+        watchers=[],
+    )
+
+    monkeypatch.setattr("coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        "coga.usage_probe.build_probes",
+        lambda cfg: {"codex": _FakeProbe([_snapshot(agent="codex")])},
+    )
+    monkeypatch.setattr(
+        "coga.commands.megalaunch.notification.post", lambda cfg, msg: None
+    )
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    def fake_spawn(  # type: ignore[no-untyped-def]
+        cfg, ref_obj, ticket, agent, mode, **kwargs
+    ):
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    result = CliRunner().invoke(app, ["megalaunch", "--agent", "codex"])
+
+    assert result.exit_code == 0, result.output
+    assert "Agent: codex" in result.output
+    assert codex_ref["slug"] in result.output
+    assert claude_ref["slug"] not in result.output
+    assert Ticket.read(codex_ref["path"]).status == "done"
+    assert Ticket.read(claude_ref["path"]).status == "active"
 
 
 def test_megalaunch_requires_tty(

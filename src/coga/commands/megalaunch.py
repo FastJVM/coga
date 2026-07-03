@@ -23,6 +23,11 @@ def megalaunch(
         min=1,
         help="Stop after this many launchable tasks have been attempted.",
     ),
+    agent: str | None = typer.Option(
+        None,
+        "--agent",
+        help="Only drain tasks currently assigned to this configured agent type.",
+    ),
 ) -> None:
     """Run the shared megalaunch engine once."""
     try:
@@ -30,9 +35,15 @@ def megalaunch(
     except ConfigError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
+    if agent is not None:
+        try:
+            cfg.agent_type(agent)
+        except ConfigError as exc:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            sys.exit(2)
 
     try:
-        run = run_megalaunch(cfg, max_tasks=max_tasks)
+        run = run_megalaunch(cfg, max_tasks=max_tasks, agent_filter=agent)
     except MegalaunchError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         sys.exit(2)
@@ -68,4 +79,9 @@ def _drain_post_text(run: MegalaunchRun) -> str | None:
         parts.append(f"{skipped} not launchable")
     if counts["failed"]:
         parts.append(f"{counts['failed']} failed")
-    return "Megalaunch drain: " + "; ".join(parts)
+    label = (
+        f"Megalaunch drain ({run.agent_filter})"
+        if run.agent_filter is not None
+        else "Megalaunch drain"
+    )
+    return label + ": " + "; ".join(parts)

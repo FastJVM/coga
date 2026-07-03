@@ -492,7 +492,7 @@ clear-the-queue counterpart to naming one slug — it takes no slug and rejects
 `--answer` (each task is answered per-ticket at its prompt). After it finishes,
 `coga launch <slug>` each reactivated task.
 
-## coga megalaunch [--max-tasks N]
+## coga megalaunch [--max-tasks N] [--agent <type>]
 
 Attempt launchable active work sequentially using the shared megalaunch engine.
 This is not parallel fanout: it scans active tasks, skips human gates and open
@@ -511,6 +511,11 @@ failed.
 The daily `recurring/megalaunch` script task calls the same engine and writes a
 bounded `## Megalaunch Run Summary`, replacing old summaries so the recurring
 blackboard does not grow forever.
+
+Pass `--agent <type>` to scope the sweep to tickets currently assigned to that
+configured agent type. Tickets assigned to other agents are outside the run and
+are not counted as skip noise; if a launched task hands off to a different
+agent, megalaunch stops there for that task.
 
 ## coga slack --task \<slug\> --message "..."
 
@@ -690,7 +695,8 @@ only; they don't accept their own flags.
   filter) → `coga recurring --all`.
 - Launching one named recurring task now → `coga recurring launch <name>`.
 - Starting or resuming agent work on a task → `coga launch <slug>`.
-- Attempting all launchable active agent work → `coga megalaunch`.
+- Attempting all launchable active agent work → `coga megalaunch`
+  (`--agent <type>` scopes it to one agent).
 - Other bootstrap ticket → `coga launch bootstrap/<name>`.
 - Advancing a workflow-bound task → `coga bump`.
 - Catching up tickets after a teammate merged a PR → `coga automerge`
