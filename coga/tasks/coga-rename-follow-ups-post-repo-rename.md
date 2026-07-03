@@ -1,7 +1,7 @@
 ---
 slug: coga-rename-follow-ups-post-repo-rename
 title: Coga rename follow-ups (post repo-rename)
-status: active
+status: done
 mode: agent
 owner: zach
 human: zach
@@ -29,7 +29,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
 ---
 
 ## Description
