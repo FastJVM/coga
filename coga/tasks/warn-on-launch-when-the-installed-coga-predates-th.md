@@ -145,3 +145,7 @@ renders correctly (both sides + `uv tool upgrade` / reinstall remedy).
 only under `pytest-randomly` order (passes isolated, per-file, and in
 deterministic full runs on both this branch and `main`). Order-dependent test
 isolation issue in the codex usage probe; untouched by this change.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":494177,"cache_read_input_tokens":14805982,"cli":"claude","input_tokens":23096,"model":"claude-opus-4-8","output_tokens":158530,"provider":"anthropic","schema":1,"session_id":"183c4002-70d9-49f1-9292-146bff66235f","slug":"warn-on-launch-when-the-installed-coga-predates-th","step":"implement","title":"Warn on launch when the installed coga predates the source tree","ts":"2026-07-03T21:48:56.624528Z","usage_status":"ok"}
