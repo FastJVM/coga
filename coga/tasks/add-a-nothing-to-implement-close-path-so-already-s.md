@@ -11,7 +11,7 @@ assignee: nicktoper
 contexts: []
 skills: []
 workflow:
-  name: dev/with-self-review
+  name: code/with-self-review
   steps:
   - name: implement
     skills:
@@ -30,6 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -38,7 +39,7 @@ When an agent runs an implement-step ticket and finds there is **nothing to
 implement** — every checklist item already landed via other merged work, so
 there is no branch and no diff — it currently has no legitimate way to close the
 ticket. `coga bump` refuses to close final-step tickets (`bump.py:132-138`),
-`coga mark done` is owner-reserved by the `dev/with-self-review` contract, and
+`coga mark done` is owner-reserved by the `code/with-self-review` contract, and
 no skill covers the empty-work case. The only escape hatch the implement skill
 gives is `coga block` (`code/implement/SKILL.md:47-55`), so the agent overloads
 `block` — whose real semantics are "I need a concrete human answer to proceed" —
@@ -75,7 +76,7 @@ Either way, the `coga status --blocked` view should stop surfacing
 - `src/coga/commands/bump.py` (final-step close refusal, chaining)
 - `src/coga/commands/mark.py` (`_DONE_FROM`, owner gating), `commands/block.py`
 - `coga/skills/code/implement/SKILL.md`, `coga/skills/code/self-qa/SKILL.md`
-- `coga/workflows/dev/with-self-review.md` (owner-controlled review gate)
+- `coga/workflows/code/with-self-review.md` (owner-controlled review gate)
 - Keep the shipped copies in sync: `src/coga/resources/templates/coga/...`
 - Update the matching `coga/contexts/coga/` context if behavior changes.
 

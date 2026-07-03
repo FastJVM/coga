@@ -106,7 +106,7 @@ needs a design call.
 **Supersedes** the `autocleanup-worktree-branche` draft (same author, empty
 stub) — cleanup is folded in here. Close that sibling as superseded on review.
 
-**`dev/with-self-review` exists too**, but this change wants a peer set of eyes
+**`code/with-self-review` exists too**, but this change wants a peer set of eyes
 on git-lifecycle code (medium failure radius — a bad `git worktree remove`
 could delete real work), so it runs through `code/with-review` with an owner
 gate before merge.
@@ -130,7 +130,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
   primary checkout.
 - **Scope:** folded cleanup INTO this ticket. `autocleanup-worktree-branche`
   (empty sibling draft) is superseded — close on review.
-- **Workflow:** `code/with-review` (not `dev/with-self-review`) — git-lifecycle
+- **Workflow:** `code/with-review` (not `code/with-self-review`) — git-lifecycle
   code with medium failure radius wants a peer pass + owner gate.
 - **Contexts:** relay/codebase, relay/sync, dev/code.
 
