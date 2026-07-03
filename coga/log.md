@@ -693,3 +693,4 @@ fatal: adding files failed
 error: coga/tasks/cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task.md: failed to insert into database
 error: unable to index file 'coga/tasks/cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task.md'
 fatal: adding files failed
+2026-07-02 22:35 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
