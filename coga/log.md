@@ -707,3 +707,4 @@ fatal: adding files failed
 2026-07-02 22:56 [cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-02 22:56 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-02 22:56 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 23:03 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] created (mode=agent, status=draft)
