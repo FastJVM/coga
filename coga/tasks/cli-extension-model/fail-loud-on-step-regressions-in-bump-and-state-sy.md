@@ -1,20 +1,37 @@
 ---
 slug: cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy
 title: fail loud on step regressions in bump and state sync
-status: draft
+status: active
 mode: agent
 owner: nicktoper
 human: nicktoper
-agent: claude
-assignee: nicktoper
+agent: codex
+assignee: codex
 contexts:
 - coga/architecture
 - coga/sync
 - coga/codebase
 skills: []
-workflow: null
+workflow:
+  name: code/with-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
