@@ -73,6 +73,25 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
 )
 
 
+# Live/packaged file pairs that must stay byte-identical. Most bootstrap
+# templates are curated copies that intentionally diverge from the live
+# `coga/` tree, so this is an explicit allowlist, not a tree diff.
+IDENTICAL_LIVE_PACKAGED_PAIRS = (
+    (
+        "coga/contexts/coga/sync/SKILL.md",
+        "src/coga/resources/templates/coga/bootstrap/contexts/coga/sync/SKILL.md",
+    ),
+)
+
+
+def test_live_and_packaged_copies_stay_identical() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    for live, packaged in IDENTICAL_LIVE_PACKAGED_PAIRS:
+        assert (repo_root / live).read_bytes() == (repo_root / packaged).read_bytes(), (
+            f"{live} and {packaged} have drifted; edit both copies together"
+        )
+
+
 def test_package_includes_coga_resources() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((repo_root / "pyproject.toml").read_text())
