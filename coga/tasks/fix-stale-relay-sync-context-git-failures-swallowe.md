@@ -6,7 +6,7 @@ mode: agent
 owner: nick
 human: nick
 agent: claude
-assignee: claude
+assignee: nick
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -103,6 +103,15 @@ Decisions:
 
 branch: sync-context-nonfatal-git
 worktree: /home/n/Code/claude/coga-sync-context-nonfatal-git
+pr: https://github.com/FastJVM/coga/pull/510
+
+## PR step
+
+Pushed `sync-context-nonfatal-git` and opened PR #510 (title = ticket title,
+body links the ticket + test plan + reviewer notes from self-QA). CI: no
+checks are configured on this branch (`gh pr checks` → "no checks reported"),
+so there is no green/red signal to wait on. Local suite at HEAD `98e0b719`:
+1033 passed, 1 skipped (python3.12).
 
 ## Implement step outcome
 
