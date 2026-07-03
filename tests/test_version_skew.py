@@ -51,6 +51,18 @@ def _src_commit_time(root: Path) -> int:
     return latest[0]
 
 
+@pytest.fixture
+def frozen_install(tmp_path, monkeypatch):
+    """Pin the running package to a real *installed* location (a site-packages
+    dir outside any checkout), so the build-time-vs-source decision is what gets
+    exercised. Without this the test-runner's own editable coga install would be
+    detected as live source and short-circuit the decision under test."""
+    pkg = tmp_path / "site-packages" / "coga"
+    pkg.mkdir(parents=True)
+    monkeypatch.setattr(version_skew, "_installed_package_dir", lambda: pkg)
+    return pkg
+
+
 # --- source-change detection ---------------------------------------------------
 
 
@@ -86,7 +98,7 @@ def test_source_checkout_root_none_outside_git(tmp_path):
 # --- the warning decision ------------------------------------------------------
 
 
-def test_warns_when_binary_predates_source(tmp_path, monkeypatch):
+def test_warns_when_binary_predates_source(tmp_path, monkeypatch, frozen_install):
     root = _source_checkout(tmp_path)
     monkeypatch.setattr(
         version_skew, "_installed_build_time", lambda: _src_commit_time(root) - 3600
@@ -99,7 +111,7 @@ def test_warns_when_binary_predates_source(tmp_path, monkeypatch):
     assert "uv tool upgrade coga" in out
 
 
-def test_no_warning_when_binary_newer_than_source(tmp_path, monkeypatch):
+def test_no_warning_when_binary_newer_than_source(tmp_path, monkeypatch, frozen_install):
     root = _source_checkout(tmp_path)
     monkeypatch.setattr(
         version_skew, "_installed_build_time", lambda: _src_commit_time(root) + 3600
@@ -109,7 +121,7 @@ def test_no_warning_when_binary_newer_than_source(tmp_path, monkeypatch):
     assert stream.getvalue() == ""
 
 
-def test_no_warning_when_build_time_unknown(tmp_path, monkeypatch):
+def test_no_warning_when_build_time_unknown(tmp_path, monkeypatch, frozen_install):
     root = _source_checkout(tmp_path)
     monkeypatch.setattr(version_skew, "_installed_build_time", lambda: None)
     stream = io.StringIO()
@@ -139,6 +151,43 @@ def test_no_warning_when_running_in_tree(tmp_path, monkeypatch):
     stream = io.StringIO()
     assert version_skew.warn_if_installed_predates_source(root, stream=stream) is False
     assert stream.getvalue() == ""
+
+
+def test_no_warning_when_editable_source_in_other_checkout(tmp_path, monkeypatch):
+    """Editable install from checkout A, operating coga inside checkout B: the
+    running package is live source of its OWN checkout, so it is never stale —
+    even though it does not live under the *operated* repo's `src/`. (Guards the
+    common coga worktree flow: install editable once, operate in many worktrees.)"""
+    operated = _source_checkout(tmp_path / "b")
+    editable = _source_checkout(tmp_path / "a")
+    monkeypatch.setattr(
+        version_skew, "_installed_package_dir", lambda: editable / "src" / "coga"
+    )
+    # A would-be-stale build time relative to the operated repo's latest commit.
+    monkeypatch.setattr(
+        version_skew, "_installed_build_time", lambda: _src_commit_time(operated) - 3600
+    )
+    stream = io.StringIO()
+    assert (
+        version_skew.warn_if_installed_predates_source(operated, stream=stream) is False
+    )
+    assert stream.getvalue() == ""
+
+
+def test_warns_for_frozen_venv_copy_inside_source_tree(tmp_path, monkeypatch):
+    """A NON-editable install into an in-tree `.venv` is a frozen snapshot that
+    merely sits inside the checkout — it is not under `src/`, so it must still be
+    caught as skew. The live-source short-circuit must not swallow it."""
+    root = _source_checkout(tmp_path)
+    frozen = root / ".venv" / "lib" / "coga"
+    frozen.mkdir(parents=True)
+    monkeypatch.setattr(version_skew, "_installed_package_dir", lambda: frozen)
+    monkeypatch.setattr(
+        version_skew, "_installed_build_time", lambda: _src_commit_time(root) - 3600
+    )
+    stream = io.StringIO()
+    assert version_skew.warn_if_installed_predates_source(root, stream=stream) is True
+    assert "version skew" in stream.getvalue()
 
 
 def test_build_floor_rejects_reproducible_zeroed_mtime(tmp_path, monkeypatch):

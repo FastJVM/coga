@@ -66,8 +66,8 @@ def warn_if_installed_predates_source(
             return False
 
         package_dir = _installed_package_dir()
-        if package_dir is not None and _is_within(package_dir, git_root / "src"):
-            # Editable / pythonpath dev run: the running code *is* the source
+        if package_dir is not None and _is_running_live_source(package_dir):
+            # Editable / pythonpath dev run: the running code *is* a live source
             # tree, so there is nothing to be stale against.
             return False
 
@@ -112,6 +112,27 @@ def _source_checkout_root(repo_root: Path) -> Path | None:
     if not (top / "src" / "coga").is_dir():
         return None
     return top
+
+
+def _is_running_live_source(package_dir: Path) -> bool:
+    """True when the running package IS live editable source of its own checkout.
+
+    An editable / pythonpath dev run imports coga straight from a checkout's
+    `src/coga/`, so it can never be stale against that source. The property is
+    intrinsic to *where the package lives*, not to which repo is being operated
+    on — so it is resolved against the package's own git toplevel, not the
+    operated repo's. That keeps the guard silent for a coga dev who installed
+    editable from one checkout and then operates coga inside another
+    worktree/checkout (a common flow here).
+
+    It must NOT match a *frozen* copy that merely sits inside a source tree — a
+    non-editable `pip install .` into an in-tree `.venv` is exactly the stale
+    snapshot this guard exists to catch. Requiring the package to live under its
+    own checkout's `src/` (not just anywhere under the toplevel) draws that line:
+    editable source is under `src/`, an in-tree venv copy is not.
+    """
+    pkg_root = _source_checkout_root(package_dir)
+    return pkg_root is not None and _is_within(package_dir, pkg_root / "src")
 
 
 def _latest_src_change(git_root: Path) -> tuple[int, str, str] | None:
