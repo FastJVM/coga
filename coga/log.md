@@ -708,3 +708,4 @@ fatal: adding files failed
 2026-07-02 22:56 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-02 22:56 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-02 23:03 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-02 23:08 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
