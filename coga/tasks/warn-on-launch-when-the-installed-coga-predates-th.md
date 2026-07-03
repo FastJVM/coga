@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -75,6 +75,17 @@ Recovery cost a manual salvage session (PR #500).
 ## Dev
 branch: warn-version-skew
 worktree: ../coga-warn-version-skew
+pr: https://github.com/FastJVM/coga/pull/511
+
+## PR (pr step — done)
+Pushed `warn-version-skew` and opened PR #511
+(https://github.com/FastJVM/coga/pull/511). Auth probed clean
+(`gh auth status` → logged in as nicktoper; working tree clean, on branch).
+No CI is configured on this repo — `gh pr checks 511` reports "no checks
+reported", so there is no green/red signal to gate on; the human reviews
+directly. Range is `merge-base..HEAD` (2 commits: c73dec8b implement,
+82fa9927 self-qa); branch is well behind `main` per the self-qa note, a
+rebase before merge is likely wanted.
 
 ## Design decisions (implement step)
 
