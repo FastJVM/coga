@@ -581,7 +581,7 @@ your own launch wrappers elsewhere.
 The old `skip_permissions` keys are removed. Current launch has no ticket-level
 headless agent mode, so those keys are rejected as unknown config.
 
-### `coga megalaunch [--max-tasks N]`
+### `coga megalaunch [--max-tasks N] [--agent <type>]`
 
 Sequentially attempt every launchable active task with one shared budget guard.
 Despite the name this is **not** parallel fire-and-forget — it is sequential,
@@ -606,9 +606,15 @@ skipped-unresolved-blocker, skipped-budget, or failed. The same engine backs
 the daily `recurring/megalaunch` script task — which now also needs a TTY, so
 a headless scheduled run fails loud rather than launching silent agents.
 
+Pass `--agent <type>` to scope the sweep to tickets currently assigned to that
+configured agent type. Tickets assigned to other agents are outside the run
+and are not counted as skip noise; if a launched task hands off to a different
+agent, megalaunch stops there for that task.
+
 ```sh
 coga megalaunch
 coga megalaunch --max-tasks 3
+coga megalaunch --agent codex
 ```
 
 ### `coga status`

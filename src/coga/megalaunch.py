@@ -77,6 +77,7 @@ class MegalaunchResult:
 @dataclass(frozen=True)
 class MegalaunchRun:
     started_at: datetime
+    agent_filter: str | None = None
     results: list[MegalaunchResult] = field(default_factory=list)
 
     @property
@@ -99,6 +100,7 @@ def run_megalaunch(
     cfg: Config | None = None,
     *,
     max_tasks: int | None = None,
+    agent_filter: str | None = None,
     max_steps_per_task: int = 8,
     probes: dict[str, usage_probe.UsageProbe] | None = None,
 ) -> MegalaunchRun:
@@ -108,6 +110,8 @@ def run_megalaunch(
     resumed from their current step exactly like `coga launch <slug>` would.
     """
     cfg = cfg or load_config()
+    if agent_filter is not None:
+        cfg.agent_type(agent_filter)
     if not _interactive_stdio_has_tty():
         raise MegalaunchError(
             "megalaunch spawns interactive agent REPLs and requires a TTY "
@@ -143,6 +147,8 @@ def run_megalaunch(
         # never launched and never counted as a result.
         if ticket.status not in {"active", "in_progress", "blocked"}:
             continue
+        if agent_filter is not None and ticket.assignee != agent_filter:
+            continue
 
         candidate = _candidate_result(cfg, ref, ticket, probes)
         if candidate is not None:
@@ -156,13 +162,18 @@ def run_megalaunch(
                 ref,
                 ticket,
                 probes,
+                agent_filter=agent_filter,
                 max_steps_per_task=max_steps_per_task,
                 idle_timeout=idle_timeout,
                 max_session=max_session,
             )
         )
 
-    return MegalaunchRun(started_at=started_at, results=results)
+    return MegalaunchRun(
+        started_at=started_at,
+        agent_filter=agent_filter,
+        results=results,
+    )
 
 
 def _tasks_oldest_first(cfg: Config) -> list[TaskRef]:
@@ -234,6 +245,7 @@ def _launch_until_stop(
     ticket: Ticket,
     probes: dict[str, usage_probe.UsageProbe],
     *,
+    agent_filter: str | None,
     max_steps_per_task: int,
     idle_timeout: float | None = None,
     max_session: float | None = None,
@@ -259,6 +271,15 @@ def _launch_until_stop(
                 ref,
                 "completed",
                 f"handed off to {ticket.assignee or 'unassigned'}",
+                ticket.assignee,
+                launched=launched,
+                budget=last_budget,
+            )
+        if agent_filter is not None and ticket.assignee != agent_filter:
+            return _result(
+                ref,
+                "completed",
+                f"handed off to {ticket.assignee}",
                 ticket.assignee,
                 launched=launched,
                 budget=last_budget,
@@ -440,9 +461,10 @@ def render_run_summary(run: MegalaunchRun) -> str:
     counts = run.counts
     lines = [
         f"Run: {run.started_at.isoformat()}",
-        "",
-        "Counts:",
     ]
+    if run.agent_filter is not None:
+        lines.extend(["", f"Agent: {run.agent_filter}"])
+    lines.extend(["", "Counts:"])
     for key in (
         "launched",
         "completed",
