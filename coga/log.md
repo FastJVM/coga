@@ -680,3 +680,4 @@ fatal: adding files failed
 2026-07-02 17:07 [branch-cleanup-as-recurring-tasks] [agent:claude] advanced to step 4 (review) → assigned to nick — PR opened: https://github.com/FastJVM/coga/pull/504
 2026-07-02 21:23 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-02 21:23 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-02 21:23 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
