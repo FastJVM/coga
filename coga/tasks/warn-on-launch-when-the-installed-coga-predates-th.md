@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (self-qa)
+step: 3 (pr)
 ---
 
 ## Description
@@ -145,6 +145,59 @@ renders correctly (both sides + `uv tool upgrade` / reinstall remedy).
 only under `pytest-randomly` order (passes isolated, per-file, and in
 deterministic full runs on both this branch and `main`). Order-dependent test
 isolation issue in the codex usage probe; untouched by this change.
+
+## Self-QA (self-qa step — done)
+
+Ran `/code-review` and `/simplify` against my range (`merge-base(HEAD, main)..HEAD`
+— **not** `git diff main`, which is polluted because this branch is behind a
+much-advanced main; noted below for the PR step). Commit `82fa9927`.
+
+**Acted on — one substantive finding (code-review + altitude, should-fix).**
+The editable/in-tree short-circuit was scoped to the *operated* repo's git root
+(`_is_within(package_dir, git_root / "src")`). "Am I running live editable
+source?" is a property of where the *package* lives, not which repo you operate
+on. So a coga dev who installs editable from checkout A and then runs coga
+inside worktree/checkout B (our normal flow — this session included) got a
+spurious "version skew → reinstall" warning that reinstalling can't even fix.
+- Fix: new `_is_running_live_source(package_dir)` resolves the *package's own*
+  git checkout and short-circuits when the package sits under that checkout's
+  `src/`. Altitude review caught that the naive generalization
+  (`_source_checkout_root(package_dir) is not None`, dropping `_is_within`)
+  *overshoots*: it would also silence a frozen non-editable `.venv` copy living
+  inside the tree — exactly the stale binary the guard exists to catch. Keeping
+  the `src/`-membership check draws the line (editable → under `src/`; in-tree
+  venv → not).
+- Tests: added `test_no_warning_when_editable_source_in_other_checkout` (the
+  false-positive fixed) and `test_warns_for_frozen_venv_copy_inside_source_tree`
+  (the overshoot guarded). Also added a `frozen_install` fixture pinning the
+  three pure decision tests to a non-live-source install dir — before, they
+  silently depended on the test-runner's own editable install and one flipped
+  to a false pass under the new (more correct) behavior.
+
+**Reviewed and deliberately NOT changed.**
+- *Clock-skew false positive* (committer `%ct` vs local mtime): a one-time
+  spurious warning is possible right after reinstalling at HEAD if a commit's
+  committer date is a few seconds ahead. Warn-only and self-correcting; a robust
+  fix needs an arbitrary grace margin that weakens the guard. Left as a known
+  limitation for the human reviewer.
+- *Uncommitted src edits are invisible*: detection is commit-time based by
+  design and documented as such; running-against-uncommitted-source is out of
+  scope for a commit-vs-build comparison.
+- *Reuse of `git._toplevel` / `git._run_git`*: the module keeps its own
+  fully-non-raising `_run_git` and toplevel logic on purpose — the helpers are
+  called directly by tests expecting None-not-raise, and the module avoids
+  coupling to `git.py`'s raising API. Left as-is (per-module-runner convention).
+
+**Verification.** `python3.12 -m pytest -p no:randomly` → 1045 passed, 1 skipped
+(+2 new tests). `coga validate --json` on the `example/` fixture → exit 0, clean
+JSON on stdout, empty stderr (guard no-ops in-tree). Working tree clean.
+
+**For the PR step:** branch is well behind `main` (merge-base is the ticket's
+own creation commit). `git diff main` shows large unrelated deletions from
+main's advance (git.py/bump.py refactors, #509/#510). The actual change is only
+the 4 files in `merge-base..HEAD`. A rebase onto `main` before merge is likely
+wanted; version_skew.py is new so conflicts should be minimal, but launch.py /
+validate.py import lines may need reseating.
 
 ## Usage
 
