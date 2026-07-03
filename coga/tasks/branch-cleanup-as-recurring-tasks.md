@@ -1,7 +1,7 @@
 ---
 slug: branch-cleanup-as-recurring-tasks
 title: branch cleanup as recurring tasks
-status: in_progress
+status: done
 mode: agent
 owner: nick
 human: nick
@@ -30,7 +30,6 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
 ---
 
 ## Description
