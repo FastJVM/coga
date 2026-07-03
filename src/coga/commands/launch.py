@@ -67,6 +67,7 @@ from coga.tasks import (
 )
 from coga.ticket import Ticket
 from coga.validate import TaskValidationError
+from coga.version_skew import warn_if_installed_predates_source
 from coga.workflow import WorkflowError
 
 
@@ -332,6 +333,13 @@ def launch(
         # preflights above. Pre-flip, so a refused launch never posts a "started"
         # broadcast or flips status.
         _preflight_push_auth(cfg, ref, is_bootstrap=is_bootstrap)
+
+        # All fail-loud preflights have passed — the session is going to run. A
+        # stale installed binary launching agent work is the costliest place for
+        # version skew to hide (it can burn a whole session running bugs already
+        # fixed in source), so surface it here, before the status flip and spawn.
+        # Warn-only, and a silent no-op outside a coga source checkout.
+        warn_if_installed_predates_source(cfg.repo_root)
 
         if blocked_resume and isinstance(ref, TaskRef) and ticket.status == "blocked":
             _auto_activate(cfg, ref, ticket)
