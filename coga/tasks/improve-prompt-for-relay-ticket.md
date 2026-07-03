@@ -358,3 +358,7 @@ Accepted changes should be implemented in a separate ticket. Suggested scope:
 - The repo is mid-rename from Relay to Coga in several artifacts. The follow-up
   should decide whether to keep "Relay" wording where it is product-history
   accurate or migrate the authoring skill text fully to Coga.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1375616,"cli":"codex","input_tokens":133005,"model":"gpt-5.5","output_tokens":12834,"provider":"openai","schema":1,"session_id":"019f2645-a040-77c3-805a-a970732897f9","slug":"improve-prompt-for-relay-ticket","step":"agent-produces","title":"improve prompt for relay ticket","ts":"2026-07-03T04:48:57.489535Z","usage_status":"ok"}
