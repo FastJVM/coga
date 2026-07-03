@@ -1,22 +1,31 @@
 ---
 slug: relay-ticket-doesn-t-ask-quesion-and-start-doing
-title: relay ticket doesn't ask quesion and start doingé
+title: coga ticket doesn't ask questions and starts doing the work
 status: draft
 mode: agent
 owner: nick
 human: nick
 agent: claude
-assignee: nick
+assignee: claude
 contexts: []
 skills: []
-workflow: null
+workflow: dev/with-self-review
 secrets: null
 script: null
 ---
 
 ## Description
 
-
+Bug in guided ticket authoring: `coga ticket` (the `bootstrap/ticket`
+interview skill) is supposed to interview the human — one question at a time,
+then edit the ticket — but instead the agent skips the questions and starts
+doing the work directly. Reproduce with `coga ticket "<some title>"`, find why
+the interview framing doesn't hold (the skill body, how the authoring prompt
+is composed/passed as system context vs first message, or the greet-first
+`kickoff` token), and fix the skill/prompt so the session reliably interviews
+first and only ever edits the ticket — never implements it. Add or adjust
+whatever test/fixture coverage exists for prompt composition of the authoring
+path. (Ticket predates the rename — "relay ticket" means `coga ticket`.)
 
 ## Context
 

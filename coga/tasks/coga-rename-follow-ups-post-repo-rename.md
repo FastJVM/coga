@@ -6,10 +6,10 @@ mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: zach
+assignee: claude
 contexts: []
 skills: []
-workflow: null
+workflow: dev/with-self-review
 secrets: null
 script: null
 ---
@@ -34,11 +34,16 @@ were intentionally NOT made in the rename PR. See that PR's blackboard
 
 <!-- coga:blackboard -->
 
+## Production notes
+
+The checklists below are the run's work plan — intentionally part of the
+launch, not authoring scratch.
+
 ## Pending items (gated on the repo rename)
 
 **Prerequisites — boss-owned ops, gate everything below:**
-- [ ] Rename GitHub repo `FastJVM/relay` → `FastJVM/coga` (GitHub auto-redirects the old URL)
-- [ ] Repoint the PyPI trusted publisher — its repo field still says `relay`
+- [x] Rename GitHub repo `FastJVM/relay` → `FastJVM/coga` — verified 2026-07-03: this checkout's `origin` is already `https://github.com/FastJVM/coga/`
+- [ ] Repoint the PyPI trusted publisher — its repo field still says `relay` (verify before the Publish section; block on the owner if still pending)
 
 **Flip the preserved URLs `FastJVM/relay` → `FastJVM/coga`** (one sed, mirror of the reversal the rename PR did):
 - [ ] `docs/vision.md`
