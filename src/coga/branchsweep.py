@@ -9,11 +9,11 @@ is the net behind that — it walks every local and `origin` branch directly
 
 The merge signal differs from retire's: retire trusts a single ticket's
 recorded `pr:` link (`autoclose.pr_state`, URL-keyed). A swept branch has no
-ticket to point at a PR, so the check here is by **head branch name**
-(`gh pr list --head <branch>`), and it requires a merged PR **and no open
-PR** for that head — a branch that once merged a PR and was later reused for
-a new open PR must survive; ancestry can't tell "landed" from "in flight"
-once history has moved past the old merge.
+ticket to point at a PR, so the check here is by **head branch name** and
+current tip SHA (`gh pr list --head <branch> --json headRefOid`), and it
+requires a merged PR for that exact tip **and no open PR** for that head — a
+branch that once merged a PR and was later reused must survive unless the
+current ref itself is the one GitHub says landed.
 
 Live tickets are consulted defensively before any gh lookup: a not-`done`
 ticket's `## Dev` `branch:` line is skipped outright, so a ticket still
@@ -55,6 +55,7 @@ class BranchSweepResult:
     skipped: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     gh_unavailable: str | None = None
+    remote_unavailable: str | None = None
 
 
 def sweep_branches(
@@ -70,8 +71,9 @@ def sweep_branches(
     result = BranchSweepResult()
     current = _current_branch(root)
     live_branches = _live_ticket_branches(cfg)
-    local = set(_local_branches(root))
-    remote = set(_remote_branches(cfg, root))
+    local = _local_branches(root)
+    remote = _remote_branches(cfg, root, result, echo)
+    merged_by_tip: dict[tuple[str, str], bool] = {}
 
     for branch in sorted(local | remote):
         if branch == cfg.git_control_branch:
@@ -88,8 +90,20 @@ def sweep_branches(
             _note(result, echo, f"Branch sweep: {branch!r} left in place (gh unavailable).")
             continue
 
+        local_tip = local.get(branch)
+        remote_tip = remote.get(branch)
+
         try:
-            pr_merged = branch_merged_without_open_pr(branch)
+            remote_merged = (
+                _merged_for_tip(branch, remote_tip, merged_by_tip)
+                if remote_tip is not None
+                else False
+            )
+            local_merged = (
+                _merged_for_tip(branch, local_tip, merged_by_tip)
+                if local_tip is not None
+                else False
+            )
         except GhError as exc:
             result.gh_unavailable = str(exc)
             result.skipped.append(branch)
@@ -98,9 +112,9 @@ def sweep_branches(
 
         cleanup = BranchCleanupResult(branch=branch)
         if branch in remote:
-            delete_remote_branch(cfg, root, branch, pr_merged, echo, cleanup)
+            delete_remote_branch(cfg, root, branch, remote_merged, echo, cleanup)
         if branch in local:
-            delete_local_branch(root, branch, pr_merged, echo, cleanup)
+            delete_local_branch(root, branch, local_merged, echo, cleanup)
 
         if cleanup.local_deleted:
             result.local_deleted.append(branch)
@@ -112,18 +126,40 @@ def sweep_branches(
     return result
 
 
-def branch_merged_without_open_pr(branch: str) -> bool:
-    """True iff `branch` has a merged PR on GitHub and no currently open PR.
+def branch_merged_without_open_pr(branch: str, current_tip: str) -> bool:
+    """True iff `branch`'s current tip has merged and no PR is open.
 
     Raises `GhError` if `gh` is missing, unauthed, or errors.
     """
-    return bool(_gh_pr_numbers(branch, "merged")) and not _gh_pr_numbers(branch, "open")
+    merged = any(
+        item.get("headRefOid") == current_tip for item in _gh_prs(branch, "merged")
+    )
+    return merged and not _gh_prs(branch, "open")
 
 
-def _gh_pr_numbers(branch: str, state: str) -> list[int]:
+def _merged_for_tip(
+    branch: str, tip: str, cache: dict[tuple[str, str], bool]
+) -> bool:
+    key = (branch, tip)
+    if key not in cache:
+        cache[key] = branch_merged_without_open_pr(branch, tip)
+    return cache[key]
+
+
+def _gh_prs(branch: str, state: str) -> list[dict[str, object]]:
     try:
         result = subprocess.run(
-            ["gh", "pr", "list", "--head", branch, "--state", state, "--json", "number"],
+            [
+                "gh",
+                "pr",
+                "list",
+                "--head",
+                branch,
+                "--state",
+                state,
+                "--json",
+                "number,headRefOid",
+            ],
             capture_output=True,
             text=True,
             check=False,
@@ -139,7 +175,9 @@ def _gh_pr_numbers(branch: str, state: str) -> list[int]:
         data = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise GhError(f"`gh pr list --head {branch}` returned non-JSON: {exc}") from exc
-    return [item["number"] for item in data]
+    if not isinstance(data, list):
+        raise GhError(f"`gh pr list --head {branch}` returned unexpected JSON")
+    return [item for item in data if isinstance(item, dict)]
 
 
 def _live_ticket_branches(cfg: Config) -> set[str]:
@@ -167,24 +205,56 @@ def _note(result: BranchSweepResult, echo: Callable[[str], None], message: str) 
     echo(message)
 
 
-def _local_branches(root: Path) -> list[str]:
+def _local_branches(root: Path) -> dict[str, str]:
     proc = _git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads/")
-    return [line for line in proc.stdout.splitlines() if line]
-
-
-def _remote_branches(cfg: Config, root: Path) -> list[str]:
-    remote_prefix = f"{cfg.git_remote}/"
-    proc = _git(root, "for-each-ref", "--format=%(refname:short)", f"refs/remotes/{cfg.git_remote}/")
-    branches = []
+    branches: dict[str, str] = {}
     for line in proc.stdout.splitlines():
-        if not line or line == f"{cfg.git_remote}/HEAD":
+        if not line:
             continue
-        branches.append(line[len(remote_prefix):] if line.startswith(remote_prefix) else line)
+        tip = _rev_parse(root, line)
+        if tip:
+            branches[line] = tip
+    return branches
+
+
+def _remote_branches(
+    cfg: Config,
+    root: Path,
+    result: BranchSweepResult,
+    echo: Callable[[str], None],
+) -> dict[str, str]:
+    proc = _git(root, "ls-remote", "--heads", cfg.git_remote)
+    if proc.returncode != 0:
+        detail = (proc.stderr + proc.stdout).strip()
+        result.remote_unavailable = detail or f"could not list {cfg.git_remote}"
+        _note(
+            result,
+            echo,
+            f"Branch sweep: could not list {cfg.git_remote} branches — remote sweep skipped: "
+            f"{result.remote_unavailable}",
+        )
+        return {}
+    branches: dict[str, str] = {}
+    for line in proc.stdout.splitlines():
+        if not line:
+            continue
+        try:
+            tip, ref = line.split(None, 1)
+        except ValueError:
+            continue
+        prefix = "refs/heads/"
+        if ref.startswith(prefix):
+            branches[ref[len(prefix):]] = tip
     return branches
 
 
 def _current_branch(root: Path) -> str:
     proc = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def _rev_parse(root: Path, ref: str) -> str:
+    proc = _git(root, "rev-parse", ref)
     return proc.stdout.strip() if proc.returncode == 0 else ""
 
 

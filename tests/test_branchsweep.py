@@ -77,6 +77,10 @@ def _push_branch(repo: Path, branch: str, *, land_in_main: bool = False) -> None
         _git(repo, "checkout", "main")
 
 
+def _remote_url(repo: Path) -> str:
+    return _git(repo, "remote", "get-url", "origin").stdout.strip()
+
+
 def _write_ticket(repo: Path, slug: str, *, status: str, branch: str) -> None:
     task_dir = repo / "coga" / "tasks"
     task_dir.mkdir(parents=True, exist_ok=True)
@@ -122,7 +126,7 @@ def _branch_exists_remote(repo: Path, branch: str) -> bool:
 
 def test_merged_branch_deleted_local_and_remote(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat", land_in_main=True)
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch: True)
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -134,7 +138,7 @@ def test_merged_branch_deleted_local_and_remote(repo: Path, monkeypatch) -> None
 
 def test_open_pr_branch_skipped(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat")
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch: False)
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: False)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -148,7 +152,7 @@ def test_no_pr_branch_skipped(repo: Path, monkeypatch) -> None:
 
     # No PR at all → gh reports no merged and no open PRs, which is a
     # legitimate (non-error) `False` from `branch_merged_without_open_pr`.
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch: False)
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: False)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -161,7 +165,7 @@ def test_live_ticket_branch_skipped_even_if_merged(repo: Path, monkeypatch) -> N
     _push_branch(repo, "feat", land_in_main=True)
     _write_ticket(repo, "in-flight", status="in_progress", branch="feat")
 
-    def _boom(branch: str) -> bool:
+    def _boom(branch: str, tip: str) -> bool:
         raise AssertionError("gh must not be consulted for a live ticket's branch")
 
     monkeypatch.setattr(bs, "branch_merged_without_open_pr", _boom)
@@ -177,7 +181,7 @@ def test_live_ticket_branch_skipped_even_if_merged(repo: Path, monkeypatch) -> N
 def test_done_ticket_branch_not_protected(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat", land_in_main=True)
     _write_ticket(repo, "finished", status="done", branch="feat")
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch: True)
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -189,7 +193,9 @@ def test_never_deletes_control_branch(repo: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         bs,
         "branch_merged_without_open_pr",
-        lambda branch: (_ for _ in ()).throw(AssertionError("must not check PR for main")),
+        lambda branch, tip: (_ for _ in ()).throw(
+            AssertionError("must not check PR for main")
+        ),
     )
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
     assert result.local_deleted == []
@@ -200,7 +206,7 @@ def test_never_deletes_control_branch(repo: Path, monkeypatch) -> None:
 def test_checked_out_branch_left_in_place(repo: Path, monkeypatch) -> None:
     _git(repo, "checkout", "-b", "feat")
     _commit(repo, "feat.txt", "feat", "feat work")
-    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch: True)
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
 
     result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
 
@@ -212,7 +218,7 @@ def test_gh_unavailable_no_deletes(repo: Path, monkeypatch) -> None:
     _push_branch(repo, "feat", land_in_main=True)
     _push_branch(repo, "other")
 
-    def _boom(branch: str) -> bool:
+    def _boom(branch: str, tip: str) -> bool:
         raise bs.GhError("`gh` not found on PATH")
 
     monkeypatch.setattr(bs, "branch_merged_without_open_pr", _boom)
@@ -226,24 +232,92 @@ def test_gh_unavailable_no_deletes(repo: Path, monkeypatch) -> None:
     assert _branch_exists_local(repo, "other")
 
 
+def test_reused_branch_requires_current_tip(repo: Path, monkeypatch) -> None:
+    _push_branch(repo, "feat", land_in_main=True)
+    old_tip = _git(repo, "rev-parse", "feat").stdout.strip()
+    _git(repo, "checkout", "feat")
+    _commit(repo, "feat-again.txt", "feat again", "reused feat")
+    _git(repo, "push", "origin", "feat")
+    _git(repo, "checkout", "main")
+
+    def fake_prs(branch: str, state: str) -> list[dict[str, object]]:
+        assert branch == "feat"
+        if state == "merged":
+            return [{"number": 7, "headRefOid": old_tip}]
+        return []
+
+    monkeypatch.setattr(bs, "_gh_prs", fake_prs)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.local_deleted == []
+    assert result.remote_deleted == []
+    assert result.skipped == ["feat"]
+    assert _branch_exists_local(repo, "feat")
+    assert _branch_exists_remote(repo, "feat")
+
+
+def test_remote_only_branch_deleted_from_live_remote_listing(
+    repo: Path, tmp_path: Path, monkeypatch
+) -> None:
+    other = tmp_path / "other"
+    subprocess.run(
+        ["git", "clone", _remote_url(repo), str(other)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    _git(other, "config", "user.email", "t@example.com")
+    _git(other, "config", "user.name", "Tester")
+    _push_branch(other, "remote-only")
+
+    assert (
+        _git(
+            repo,
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            "refs/remotes/origin/remote-only",
+            check=False,
+        ).returncode
+        != 0
+    )
+    monkeypatch.setattr(bs, "branch_merged_without_open_pr", lambda branch, tip: True)
+
+    result = bs.sweep_branches(_cfg(repo), repo, echo=lambda _m: None)
+
+    assert result.remote_deleted == ["remote-only"]
+    assert not _branch_exists_remote(repo, "remote-only")
+
+
 def test_branch_merged_without_open_pr(monkeypatch) -> None:
     calls: list[tuple[str, str]] = []
 
-    def fake_numbers(branch: str, state: str) -> list[int]:
+    def fake_prs(branch: str, state: str) -> list[dict[str, object]]:
         calls.append((branch, state))
         if state == "merged":
-            return [7]
+            return [{"number": 7, "headRefOid": "abc"}]
         return []
 
-    monkeypatch.setattr(bs, "_gh_pr_numbers", fake_numbers)
-    assert bs.branch_merged_without_open_pr("feat") is True
+    monkeypatch.setattr(bs, "_gh_prs", fake_prs)
+    assert bs.branch_merged_without_open_pr("feat", "abc") is True
     assert ("feat", "merged") in calls
     assert ("feat", "open") in calls
 
 
 def test_branch_merged_without_open_pr_false_when_reopened(monkeypatch) -> None:
-    def fake_numbers(branch: str, state: str) -> list[int]:
-        return [7] if state in ("merged", "open") else []
+    def fake_prs(branch: str, state: str) -> list[dict[str, object]]:
+        return [{"number": 7, "headRefOid": "abc"}] if state in ("merged", "open") else []
 
-    monkeypatch.setattr(bs, "_gh_pr_numbers", fake_numbers)
-    assert bs.branch_merged_without_open_pr("feat") is False
+    monkeypatch.setattr(bs, "_gh_prs", fake_prs)
+    assert bs.branch_merged_without_open_pr("feat", "abc") is False
+
+
+def test_branch_merged_without_open_pr_false_when_tip_differs(monkeypatch) -> None:
+    def fake_prs(branch: str, state: str) -> list[dict[str, object]]:
+        if state == "merged":
+            return [{"number": 7, "headRefOid": "old"}]
+        return []
+
+    monkeypatch.setattr(bs, "_gh_prs", fake_prs)
+    assert bs.branch_merged_without_open_pr("feat", "current") is False

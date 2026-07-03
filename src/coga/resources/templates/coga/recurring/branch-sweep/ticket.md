@@ -27,8 +27,9 @@ Once a week this recurring task's script step runs the branch sweep, which:
 1. enumerates every local branch and every `origin` branch,
 2. skips `main`, the checked-out branch, and any branch recorded under a
    not-`done` ticket's `## Dev` `branch:` line,
-3. for the rest, checks GitHub by head branch name — deletes only when a
-   merged PR exists for that head and no PR is currently open for it, and
+3. for the rest, checks GitHub by head branch name and current tip SHA —
+   deletes only when a merged PR exists for that exact tip and no PR is
+   currently open for the head branch, and
 4. deletes the remote ref and/or local branch per the same policy
    `coga retire` uses (prefer `git branch -d`; log the tip SHA and force
    with `-D` for the squash-merge case; skip and report anything unmerged

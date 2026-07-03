@@ -24,6 +24,10 @@ def main() -> int:
 
     result = sweep_branches(cfg, root, echo=print)
 
+    if result.remote_unavailable:
+        sys.stderr.write(f"[branch-sweep] {result.remote_unavailable}\n")
+        return 2
+
     if result.gh_unavailable:
         sys.stderr.write(f"[branch-sweep] {result.gh_unavailable}\n")
         return 2
