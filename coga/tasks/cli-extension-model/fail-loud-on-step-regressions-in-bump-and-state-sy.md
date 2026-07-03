@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: codex
+assignee: claude
 contexts:
 - coga/architecture
 - coga/sync
@@ -31,7 +31,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -79,3 +79,27 @@ Both guards are one-comparison-shaped checks on existing write paths
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: codex/step-regression-guards
+worktree: /tmp/coga-step-regression-guards
+
+## Implementation plan
+
+- Add a supervised-launch expected-step env value scoped to the launched task path; `coga bump` will refuse when the live ticket step no longer matches the step the session was composed for.
+- Add a `sync_coga_state` preflight that compares dirty task tickets against the committed control-branch version and skips/logs any catch-all sweep that would regress a ticket's step/status state.
+- Cover both with focused regressions in the existing command/git test style before running the focused tests and full pytest.
+
+## Implementation notes
+
+- Launch now passes `COGA_EXPECTED_TASK` and `COGA_EXPECTED_STEP` into each supervised agent process; `coga bump` checks those against the resolved task path and current `step:` before advancing.
+- `sync_coga_state` now scans changed task ticket files before staging, compares their `status:` / `step:` against the committed control-branch copy, and refuses stale backward writes with a task-scoped `git` log line.
+- Added regressions for stale supervised bumps, launch env propagation, detached stale step rewinds, and status regressions.
+
+## Verification
+
+- `python -m pytest tests/test_commands.py::test_bump_supervised_refuses_stale_composed_step tests/test_launch.py::test_launch_marks_llm_session_supervised tests/test_git.py::test_sync_coga_state_refuses_detached_step_regression tests/test_git.py::test_sync_coga_state_refuses_status_regression` — 4 passed.
+- `python -m pytest tests/test_commands.py tests/test_launch.py tests/test_git.py` — 214 passed.
+- `git diff --check` — passed.
+- `python -m pytest` — 1035 passed, 1 skipped.
