@@ -35,14 +35,28 @@ step: 1 (implement)
 ## Description
 
 Allow `coga init` to scaffold `coga/` in a subdirectory of a host repo
-(e.g. `coga init tools/ops` inside a monorepo) instead of assuming the git
-root. The runtime already models nesting — `COGA_REPO_ROOT` is the host repo,
-the parent when `coga/` is nested — so the work is making init, root
-discovery, and `coga validate` resolve correctly when `coga/` lives below the
-git root. Audit the commands that walk upward to find `coga/` (launch, status,
-bump, etc.) for assumptions that break in the nested layout, add tests
-covering it, and fail loud on layouts that can't work (e.g. nesting a `coga/`
-inside an existing `coga/`).
+(e.g. `coga init tools/ops` inside a monorepo) instead of requiring the git
+root.
+
+**Step 1 — test the current behavior** (in a throwaway repo, before writing
+any code) and record the results on the blackboard:
+
+1. `coga init <subdir>` inside a git repo — expected to refuse today:
+   `_is_git_repo` (`src/coga/commands/init.py`) checks `(target/".git").exists()`,
+   and a subdir has no `.git`. Confirm.
+2. With a hand-placed nested `coga/` in a subdir: run `coga status` / `launch`
+   from inside the subtree (should work — `find_repo_root` in
+   `src/coga/config.py` walks up checking each ancestor and its direct `coga/`
+   child) and from the host-repo root (expected NOT to find it — discovery
+   never descends more than one level). Confirm both, and check git task-state
+   sync behaves with `coga/` below the git root.
+
+**Then fix what the test shows is broken**: relax init's git check to "inside
+a git work tree" (`git rev-parse`), decide whether from-the-git-root discovery
+of a nested `coga/` is in scope or documented as out, add tests for the nested
+layout, and fail loud on layouts that can't work (e.g. a `coga/` inside an
+existing `coga/`). If the tests show everything already works, mark the ticket
+done with the evidence on the blackboard instead of changing code.
 
 ## Context
 
