@@ -46,3 +46,4 @@ consumed_through:
 {"id":"6577ab99031f","ts":"2026-07-01T21:15","project":"coga","kind":"done","detail":"claude finished: execute → done ✅ — Umbrella closed: reads + recurring each have a committed child-ticket plan; fused-head pattern landed via PR #491 (ticket collapse), project/retire follow-ups on that pattern","ticket":"cli-extension-model/move-command-logic-to-tickets","owner":"zach"}
 {"id":"e6032b126df2","ts":"2026-07-02T23:51","project":"coga","kind":"done","detail":"nick finished: review → done ✅","ticket":"branch-cleanup-as-recurring-tasks","owner":"nick"}
 {"id":"127eb42c5431","ts":"2026-07-03T10:51","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"relay-ticket-doesn-t-ask-quesion-and-start-doing","owner":"nick"}
+{"id":"f4ed45d36664","ts":"2026-07-03T10:51","project":"coga","kind":"done","detail":"claude finished: implement → done ✅","ticket":"add-ci-to-generate-package-update-automatically-or","owner":"nicktoper"}
