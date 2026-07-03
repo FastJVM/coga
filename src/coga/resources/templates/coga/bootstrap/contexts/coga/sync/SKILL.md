@@ -410,13 +410,18 @@ Concurrent local or cross-machine processes each fetch→build→push; exactly o
 fast-forwards per round and the losers retry, so nothing on the control branch
 is clobbered.
 
-After a detached launch worktree wins that push, Coga **does not** fast-forward
-the local control-branch ref while that branch is checked out in any worktree.
-Moving `main` behind an attached primary checkout desynchronizes its index and
-working tree: the old on-disk task files then look like fresh local edits, and a
-later catch-all sweep can commit that stale snapshot back over the newer pushed
-state. Updating the local ref is only an optional convenience; preserving the
-attached checkout's file/index coherence is required.
+After a detached launch worktree wins that push, Coga fast-forwards the local
+control-branch ref best-effort. When no worktree has the branch checked out, a
+bare `update-ref` moves it. When one does — the primary checkout sitting on
+`main` is the common case — the ref is **never** moved directly: moving `main`
+behind an attached checkout desynchronizes its index and working tree (the old
+on-disk task files then look like fresh local edits, and a later catch-all
+sweep can commit that stale snapshot back over the newer pushed state).
+Instead the fast-forward runs *through* that worktree as `merge --ff-only`,
+which moves ref, index, and working tree together and refuses divergence or
+overwriting local edits. A refused fast-forward is a stderr note, never a
+crash — origin already has the commit; preserving the attached checkout's
+file/index coherence is required, the local ref update stays best-effort.
 
 Detached launch-worktree cleanup checks the same boundary. After the teardown
 sweep runs, dirt relative to the old detached base is ignored if applying those

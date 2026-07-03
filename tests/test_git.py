@@ -387,7 +387,63 @@ def test_sync_detached_head_lands_without_local_commit(git_repo, capsys):
     assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
     # No local commit was made — the task dir is still uncommitted on disk.
     assert "tasks/" in git_repo.git("status", "--porcelain")
-    assert "detached HEAD" in capsys.readouterr().err
+    # `main` isn't checked out anywhere (the primary is detached), so the
+    # landing fast-forwards the local ref directly via `update-ref`.
+    local = git_repo.git("rev-parse", "main").strip()
+    origin = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+    assert local == origin
+    assert "not fast-forwarded" not in capsys.readouterr().err
+
+
+def test_sync_from_launch_worktree_fast_forwards_primary_checkout(git_repo, capsys):
+    """The launch-worktree default syncs from a detached HEAD while the primary
+    checkout holds `main`. The landing must fast-forward `main` *through* that
+    worktree (`merge --ff-only`), or the primary falls behind origin after
+    every launch until a manual pull."""
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-ff")
+    try:
+        worktree_cfg = _cfg(path / "coga")
+        task = _task_dir(path / "coga")
+
+        git.sync_task_state(worktree_cfg, task, message="Ticket: demo — created")
+
+        local = git_repo.git("rev-parse", "main").strip()
+        origin = git_repo.git("rev-parse", "main", cwd=git_repo.origin).strip()
+        assert local == origin
+        # The fast-forward went through the primary worktree, so its working
+        # tree reflects the landed state — ref, index, and files agree.
+        assert (git_repo.coga_os / "tasks" / "demo" / "ticket.md").is_file()
+        assert git_repo.git("status", "--porcelain", "--", "coga/tasks") == ""
+        assert "not fast-forwarded" not in capsys.readouterr().err
+    finally:
+        git.remove_launch_worktree(cfg, path)
+
+
+def test_sync_from_launch_worktree_notes_when_fast_forward_blocked(git_repo, capsys):
+    """A conflicting local file in the primary checkout must never be clobbered
+    by the fast-forward: the landing still reaches origin, the local `main`
+    stays put, and the miss is a stderr note — not a crash."""
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-ff-blocked")
+    try:
+        # An untracked file in the primary checkout at the exact path the sync
+        # lands — `merge --ff-only` must refuse rather than overwrite it.
+        conflicting = git_repo.coga_os / "tasks" / "demo" / "ticket.md"
+        conflicting.parent.mkdir(parents=True)
+        conflicting.write_text("local human draft — do not clobber\n")
+        before = git_repo.git("rev-parse", "main").strip()
+
+        worktree_cfg = _cfg(path / "coga")
+        task = _task_dir(path / "coga")
+        git.sync_task_state(worktree_cfg, task, message="Ticket: demo — created")
+
+        assert git_repo.origin_tracks("coga/tasks/demo/ticket.md")
+        assert git_repo.git("rev-parse", "main").strip() == before
+        assert conflicting.read_text() == "local human draft — do not clobber\n"
+        assert "not fast-forwarded" in capsys.readouterr().err
+    finally:
+        git.remove_launch_worktree(cfg, path)
 
 
 def test_sync_detached_head_uses_local_control_ref_before_fetch(git_repo, monkeypatch):

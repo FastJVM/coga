@@ -32,7 +32,12 @@ the control branch) a rejected push triggers a fetch + `rebase --autostash`
 onto the new tip, then a retry — the working tree is already checked out there,
 so integrating the remote move means a rebase, with autostash keeping unrelated
 dirty changes intact. A detached HEAD takes the cross-branch landing path but
-skips the local commit (a commit on a detached HEAD would be orphaned).
+skips the local commit (a commit on a detached HEAD would be orphaned). After a
+successful landing push, the local control ref is fast-forwarded best-effort:
+directly via `update-ref` when no worktree holds the branch, or through the
+holding worktree with `merge --ff-only` — the launch-worktree default leaves
+the primary checkout on `main`, and without this it would fall behind origin
+after every launch until a manual pull.
 
 Failure model: a failed git *operation* raises `GitError` internally, but at
 the boundary (`sync_paths`) it is non-fatal — written to stderr + the task's
@@ -354,12 +359,12 @@ def _dispatch_branch_sync(
         return
 
     if branch == "HEAD":
+        # Detached HEAD (the per-launch worktree default): no local commit —
+        # it would be orphaned. The landing pushes the control branch and
+        # fast-forwards the primary checkout via `_try_update_local_ref`;
+        # only a fast-forward miss warrants a stderr note, printed there.
         overlay = set(overlay_rels)
         union_rels = [rel for rel in local_rels if rel not in overlay]
-        sys.stderr.write(
-            f"[git] detached HEAD — changes landed on "
-            f"{cfg.git_control_branch!r} but not committed locally. ({message})\n"
-        )
         _land_paths_on_control_branch(
             cfg, root, overlay_rels, union_rels=union_rels, message=message
         )
@@ -951,20 +956,35 @@ def _try_update_local_ref(root: Path, branch: str, new: str) -> None:
     """Best-effort fast-forward the local control ref to `new`.
 
     Non-fatal: origin already has the commit, so a failure here (e.g. the
-    branch isn't checked out anywhere, or moved on locally) only means a later
-    local checkout of the control branch must fetch. We don't update the ref if
-    any worktree has the branch checked out, since moving the ref behind an
-    attached worktree desyncs its index/working tree and can make stale files
-    look like fresh edits to the next catch-all sweep.
+    branch moved on locally, or a checkout has conflicting dirty edits) only
+    means a later local checkout of the control branch must fetch. When no
+    worktree has the branch checked out, a bare `update-ref` is enough. When
+    one does — the common case: the primary checkout holds `main` while a
+    detached launch worktree syncs — the ref must not be moved directly
+    (that desyncs the attached worktree's index and makes stale files look
+    like fresh edits to the next catch-all sweep); instead fast-forward
+    *through* that worktree with `merge --ff-only`, which moves ref, index,
+    and working tree together and refuses divergence or overwriting local
+    edits.
     """
-    if _branch_checked_out_in_any_worktree(root, branch):
+    worktree = _worktree_holding_branch(root, branch)
+    if worktree is _WORKTREES_UNKNOWN:
         return
-    result = subprocess.run(
-        ["git", "-C", str(root), "update-ref", f"refs/heads/{branch}", new],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    if worktree is None:
+        result = subprocess.run(
+            ["git", "-C", str(root), "update-ref", f"refs/heads/{branch}", new],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    else:
+        result = subprocess.run(
+            ["git", "-C", str(worktree), "merge", "--ff-only", "--quiet", new],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, **_noninteractive_git_env()},
+        )
     if result.returncode != 0:
         sys.stderr.write(
             f"[git] note: local {branch!r} not fast-forwarded "
@@ -972,8 +992,18 @@ def _try_update_local_ref(root: Path, branch: str, new: str) -> None:
         )
 
 
-def _branch_checked_out_in_any_worktree(root: Path, branch: str) -> bool:
-    """True when `branch` is attached to any worktree in this repository."""
+# Sentinel for "could not inspect worktrees" — distinct from "no worktree has
+# the branch" (None), which safely takes the bare `update-ref` path.
+_WORKTREES_UNKNOWN = Path("")
+
+
+def _worktree_holding_branch(root: Path, branch: str) -> Path | None:
+    """Path of the worktree with `branch` checked out, if any.
+
+    Returns None when no worktree holds the branch, and `_WORKTREES_UNKNOWN`
+    when the worktree listing itself fails (reported to stderr) — the caller
+    must then skip ref updates entirely rather than assume the branch is free.
+    """
     target = f"branch refs/heads/{branch}"
     try:
         listing = _run_git(root, "worktree", "list", "--porcelain")
@@ -982,8 +1012,14 @@ def _branch_checked_out_in_any_worktree(root: Path, branch: str) -> bool:
             f"[git] note: local {branch!r} not fast-forwarded "
             f"(could not inspect worktrees): {exc}\n"
         )
-        return True
-    return any(line == target for line in listing.splitlines())
+        return _WORKTREES_UNKNOWN
+    current: Path | None = None
+    for line in listing.splitlines():
+        if line.startswith("worktree "):
+            current = Path(line[len("worktree "):])
+        elif line == target:
+            return current
+    return None
 
 
 # --- low-level git plumbing ----------------------------------------------------

@@ -566,12 +566,10 @@ def _sync_recurring_create_paths(
             )
 
         committed_ticket = template_ticket.read_text()
-        if branch == "HEAD":
-            sys.stderr.write(
-                f"[git] detached HEAD — task state landed on "
-                f"{cfg.git_control_branch!r} but not committed locally. ({message})\n"
-            )
-        else:
+        # Detached HEAD skips the local commit (it would be orphaned); the
+        # landing push below fast-forwards the local control ref best-effort
+        # via `git._try_update_local_ref`, which reports any miss to stderr.
+        if branch != "HEAD":
             git._commit_paths(root, local_rels, message)
             committed_ticket = _show_path(root, "HEAD", ticket_rel)
         landed, already_handled = _land_recurring_create_on_control_branch(
