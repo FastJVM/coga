@@ -735,3 +735,4 @@ fatal: adding files failed
 2026-07-03 10:46 [allow-creation-of-coga-dir-in-subdir] [human:nicktoper] activated (draft → active)
 2026-07-03 10:46 [fix-stale-relay-sync-context-git-failures-swallowe] [human:nicktoper] activated (draft → active)
 2026-07-03 10:46 [coga-rename-follow-ups-post-repo-rename] [human:nicktoper] activated (draft → active)
+2026-07-03 10:46 [relay-ticket-doesn-t-ask-quesion-and-start-doing] [human:nicktoper] activated (draft → active)
