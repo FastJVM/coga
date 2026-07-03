@@ -731,3 +731,4 @@ error: coga/tasks/cli-extension-model/fail-loud-on-step-regressions-in-bump-and-
 error: unable to index file 'coga/tasks/cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy.md'
 fatal: adding files failed
 2026-07-03 10:46 [warn-on-launch-when-the-installed-coga-predates-th] [human:nicktoper] activated (draft → active)
+2026-07-03 10:46 [add-ci-to-generate-package-update-automatically-or] [human:nicktoper] activated (draft → active)

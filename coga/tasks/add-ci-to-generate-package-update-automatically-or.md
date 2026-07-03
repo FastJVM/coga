@@ -1,7 +1,7 @@
 ---
 slug: add-ci-to-generate-package-update-automatically-or
 title: add ci to generate package update automatically (or add a recurring task)
-status: draft
+status: active
 mode: agent
 owner: nicktoper
 human: nicktoper
@@ -9,9 +9,27 @@ agent: claude
 assignee: claude
 contexts: []
 skills: []
-workflow: dev/with-self-review
+workflow:
+  name: dev/with-self-review
+  steps:
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: self-qa
+    skills:
+    - code/self-qa
+    assignee: agent
+  - name: pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
