@@ -1,6 +1,6 @@
 ---
 name: coga/sync
-description: Notifications and git as coga's sync layers — why notifications are optional on first run but configured Slack fails loud, how task-state git sync works, why failures crash, and how to design new features that respect sync.
+description: Notifications and git as coga's sync layers — why notifications are optional on first run but configured Slack fails loud, how task-state git sync works, why notification failures crash but git sync misses don't, and how to design new features that respect sync.
 ---
 
 # Sync layers — notifications and git
@@ -509,10 +509,31 @@ Failure model:
   failure was swallowed yet still exited 0, so a first-time user saw a confusing
   error with no actual failure.
 - Git operation failures (missing git, invalid repo state, commit failure,
-  fetch/push failure, no remote, or contention exhausting the retry loop) crash
-  loud: stderr plus a repo-global `coga/log.md` line, then `typer.Exit(1)`. The same-branch push
-  stays crash-loud on non-fast-forward; only the cross-branch land retries
-  (where rebuilding is trivial because no working tree is involved).
+  fetch/push failure, no remote, or contention exhausting the retry loop) are
+  **non-fatal sync misses**: stderr plus a repo-global `coga/log.md` line, then
+  the command continues and exits 0. `GitError` is swallowed at each sync
+  entry point (`sync_paths` for `bump`/`mark`, `sync_coga_state` for the
+  sweep, and `sync_log`, which reports to stderr only so it never re-dirties
+  the log it just failed to commit) — the on-disk markdown is the source of
+  truth and git is only the sync layer, so a push that can't reach the
+  control branch must never abort a local state transition. (An earlier version re-raised
+  `typer.Exit(1)` here, which broke the supervised launch chain: `coga bump`'s
+  sync aborted before the done marker fired, so the supervisor never
+  relaunched the next step.) "Fail loud" means surface the miss, not crash.
+  Both push paths absorb a non-fast-forward rejection and retry, bounded by
+  the same attempt cap: the cross-branch land refetches the moved tip and
+  rebuilds its overlay tree; the same-branch push fetches and rebases with an
+  explicit stash that restores the pre-sync state on any failure.
+- The one **fatal** git gate in this failure model is launch entry, before
+  the ticket flips to `in_progress`: `coga launch` preflights push access to
+  the configured remote with the same non-interactive `git push --dry-run`
+  probe `coga validate --check-github` uses, and refuses to start the session
+  (non-zero exit, no "started" post) whenever the probe cannot push to a
+  configured remote — unauthenticated and unreachable/offline alike — because
+  the session drives through git/gh and would otherwise fail at ship time. The preflight
+  self-skips when there is nothing to gate: bootstrap tickets,
+  `[git].enabled = false`, or a remote that doesn't resolve. Mid-workflow
+  syncs (`coga bump`, `mark`, the sweep) are never fatal.
 
 Config lives in `[git]`: `enabled` defaults true, `remote` defaults `origin`,
 and `control_branch` defaults `main`. `enabled` may be overridden in
