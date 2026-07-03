@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: codex
+assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/sync
@@ -31,7 +31,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -84,6 +84,8 @@ The blackboard is a notepad to be written to often as the human and agent works 
 
 branch: codex/step-regression-guards
 worktree: /tmp/coga-step-regression-guards
+pr: https://github.com/FastJVM/coga/pull/509
+ci: no checks reported on `codex/step-regression-guards` (`gh pr checks 509`)
 
 ## Implementation plan
 

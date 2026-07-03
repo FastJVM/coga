@@ -736,3 +736,5 @@ fatal: adding files failed
 2026-07-03 10:46 [fix-stale-relay-sync-context-git-failures-swallowe] [human:nicktoper] activated (draft → active)
 2026-07-03 10:46 [coga-rename-follow-ups-post-repo-rename] [human:nicktoper] activated (draft → active)
 2026-07-03 10:46 [relay-ticket-doesn-t-ask-quesion-and-start-doing] [human:nicktoper] activated (draft → active)
+2026-07-03 10:44 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-03 10:49 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [agent:codex] advanced to step 4 (review) → assigned to nicktoper
