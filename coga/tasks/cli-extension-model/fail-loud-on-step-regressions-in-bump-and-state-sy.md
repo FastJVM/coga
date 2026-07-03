@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: claude
+assignee: codex
 contexts:
 - coga/architecture
 - coga/sync
@@ -31,7 +31,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -104,8 +104,28 @@ worktree: /tmp/coga-step-regression-guards
 - `git diff --check` — passed.
 - `python -m pytest` — 1035 passed, 1 skipped.
 
+## Peer review
+
+- `codex review --base main` initially failed in the sandbox with app-server read-only errors; reran unsandboxed.
+- Must-fix findings:
+  - `sync_coga_state` guarded only against the initial local control ref, so a stale launch worktree could still overlay step 2 onto an already-fetched/retried origin step 3.
+  - `_STATUS_PROGRESS` treated `blocked`/`paused` as newer than legitimate resume states, making catch-all sync refuse valid blocked/paused resumes if the per-transition sync had missed.
+  - supervised `bump` compared after freezing a bare-string workflow, so a session composed with no `step:` could seed `step: 1` and then refuse itself as stale.
+- Applied fixes:
+  - Committed as `2e97fc68` (`peer-review: apply step regression guard fixes`) on `codex/step-regression-guards`.
+  - Threaded the regression guard into the control-branch push/overlay retry paths so each fetched base is checked before building or rebasing the state-sync commit.
+  - Removed `blocked`/`paused` from the monotonic status ordering; linear regressions such as `in_progress` to `active` still refuse, but resume paths are allowed.
+  - Moved supervised bump comparison before legacy workflow freezing and normalized absent steps to the launch env's empty-string representation.
+- Peer-review verification:
+  - `python -m pytest tests/test_commands.py::test_bump_supervised_refuses_stale_composed_step tests/test_commands.py::test_bump_supervised_allows_unfrozen_workflow_without_step tests/test_git.py::test_sync_coga_state_refuses_detached_step_regression tests/test_git.py::test_sync_coga_state_rechecks_step_regression_after_fetch tests/test_git.py::test_sync_coga_state_refuses_status_regression tests/test_git.py::test_sync_coga_state_allows_resume_statuses` — 7 passed.
+  - `python -m pytest tests/test_commands.py tests/test_launch.py tests/test_git.py` — 218 passed.
+  - `git diff --check` — passed.
+  - `python -m pytest` — 1039 passed, 1 skipped.
+
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":8264448,"cli":"codex","input_tokens":238101,"model":"gpt-5.5","output_tokens":29833,"provider":"openai","schema":1,"session_id":"019f26bb-91ca-7ca3-82fa-e203903edf95","slug":"cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy","step":"implement","title":"fail loud on step regressions in bump and state sync","ts":"2026-07-03T17:27:37.419376Z","usage_status":"ok"}
 
 {"agent":"claude","cache_creation_input_tokens":145897,"cache_read_input_tokens":69438,"cli":"claude","input_tokens":9221,"model":"claude-fable-5","output_tokens":1850,"provider":"anthropic","schema":1,"session_id":"a47a9e4d-81a9-4b09-8df7-7b5883f202ee","slug":"cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy","step":"peer-review","title":"fail loud on step regressions in bump and state sync","ts":"2026-07-03T17:30:19.979193Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":4438016,"cli":"codex","input_tokens":260393,"model":"gpt-5.5","output_tokens":19040,"provider":"openai","schema":1,"session_id":"019f2908-1908-7380-b83a-3c911b74090b","slug":"cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy","step":"peer-review","title":"fail loud on step regressions in bump and state sync","ts":"2026-07-03T17:44:16.754384Z","usage_status":"ok"}
