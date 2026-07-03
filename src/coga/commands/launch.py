@@ -274,7 +274,13 @@ def launch(
                     "--agent is only supported for agent launches."
                 )
             if is_bootstrap:
-                _bail("Bootstrap tickets only support agent launches.")
+                # A bootstrap ticket may run a ticket-owned script, but it never
+                # enters task lifecycle bookkeeping (no status flips, log, or
+                # Slack) — it is a stateless launch target. `coga recurring`
+                # launches `bootstrap/recurring-scan` this way.
+                from coga.commands.launch_script import run_bootstrap_script
+                run_bootstrap_script(cfg, ref, ticket)
+                return
             from coga.commands.launch_script import run_script_mode
             run_script_mode(cfg, ref, ticket)
             return

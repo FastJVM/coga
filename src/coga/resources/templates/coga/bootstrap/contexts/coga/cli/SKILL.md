@@ -567,7 +567,17 @@ results to that run's blackboard, and finishes with `coga mark done`.
 
 Scan `coga/recurring/`, then scaffold and launch every task that is due.
 
-For each template (skipping `_`-prefixed files) `coga recurring` enforces
+`coga recurring` is a **thin command head**: it parses `--interactive` / `--all`,
+writes them into a narrow env contract (`COGA_RECURRING_INTERACTIVE` /
+`COGA_RECURRING_FORCE`), and launches the packaged stateless
+`bootstrap/recurring-scan` script target, which runs the deterministic sweep
+(`coga.recurring_runner` / `coga.recurring_sync`) and exits. Cron and operators
+keep calling `coga recurring`; `coga launch bootstrap/recurring-scan` runs the
+default (non-forced) scan directly. The scanner is deliberately *not* a
+recurring template — it is the thing that creates and launches them, so
+scanning itself would be a bootstrap loop.
+
+For each template (skipping `_`-prefixed files) the scan enforces
 **one live task per template**: if the generated task at `recurring/<name>` is
 already `active` or orphaned `in_progress`, that one is
 launched/resumed and no duplicate is scaffolded; only when none is live does it

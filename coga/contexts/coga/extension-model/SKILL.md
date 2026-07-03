@@ -178,7 +178,7 @@ actively fights the capability boundary.
 | Home | Members |
 | --- | --- |
 | **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · *(hooks)* secret-inject, skill-verify-at-compose |
-| **Tickets** | already out: `automerge`→sweep, `digest`→post, `delete`→delete-task · `ticket` collapsed to irreducible command head + `bootstrap/ticket` interview + `coga/ticket/finalize` script-shaped module · move targets: `recurring` (scan), `project`, `retire` |
+| **Tickets** | already out: `automerge`→sweep, `digest`→post, `delete`→delete-task, `recurring` scan → stateless `bootstrap/recurring-scan` script target · `ticket` collapsed to irreducible command head + `bootstrap/ticket` interview + `coga/ticket/finalize` script-shaped module · move targets: `project`, `retire` |
 | **External / command** | reads: `status`, `show`, `recurring list`, `skill status`, `validate` · external CLI: `skill install/install-local/install-url/update/remove` · notify/escape: `slack`, `block`, `unblock` · `secret get` |
 | **Alias (sugar)** | `chat`, `dream`, `build` · (proposed) `skill-update`, `autoclose` |
 
@@ -200,8 +200,11 @@ model):
 - **Pass 2 — what goes *into tickets*** (execution;
   `cli-extension-model/move-command-logic-to-tickets`). Moves the read views
   (`status`/`show`/`recurring list`/`skill status`) → stateless script tickets
-  (tickets-as-scripts) and `recurring` scan → a Dream-shaped task (neither needs a
-  new mechanism), and moves ticket-authoring substance out of command files.
+  (tickets-as-scripts) and the `recurring` scan → the stateless
+  `bootstrap/recurring-scan` script target (landed: the `coga recurring` head is
+  now a thin flag-parser + env-contract launcher; the sweep body lives in
+  `coga.recurring_runner` / `coga.recurring_sync`; neither needed a new
+  mechanism), and moves ticket-authoring substance out of command files.
   `ticket` is the first collapsed case: the command head still performs the
   irreducible `arg → draft → launch` hook, while deterministic finalization lives
   in `coga.authoring` and is exposed as `coga/ticket/finalize`. `project` and

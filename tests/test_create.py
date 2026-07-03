@@ -23,6 +23,35 @@ def _write(path: Path, text: str) -> None:
     path.write_text(dedent(text).lstrip())
 
 
+class _ScanResult:
+    def __init__(self, exit_code: int, output: str) -> None:
+        self.exit_code = exit_code
+        self.output = output
+
+
+def _run_bare_recurring(coga_os, *, force: bool = False, interactive: bool = False):
+    """Drive the bare recurring sweep in-process.
+
+    The `coga recurring` head subprocess-launches the stateless
+    `bootstrap/recurring-scan` target, so in-process patches don't reach it;
+    the deep sweep behavior lives in `coga.recurring_runner.run_recurring_scan`.
+    """
+    import contextlib
+    import io
+
+    from coga.recurring_runner import run_recurring_scan
+
+    cfg = load_config(coga_os)
+    buf = io.StringIO()
+    exit_code = 0
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+        try:
+            exit_code = run_recurring_scan(cfg, force=force, interactive=interactive) or 0
+        except SystemExit as exc:
+            exit_code = exc.code if isinstance(exc.code, int) else (0 if exc.code is None else 1)
+    return _ScanResult(exit_code, buf.getvalue())
+
+
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
     company = tmp_path / "coga"
@@ -586,7 +615,7 @@ def test_recurring_creates_silently(
 
     monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
     monkeypatch.setattr(
-        "coga.commands.recurring._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
     )
     # The bare scan launches due tasks sequentially; mark the stubbed launch
     # done so the recurring sweep sees a completed run.
@@ -597,8 +626,7 @@ def test_recurring_creates_silently(
 
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
-    runner = CliRunner()
-    result = runner.invoke(app, ["recurring"])
+    result = _run_bare_recurring(repo_with_bootstrap_ticket)
     assert result.exit_code == 0, result.output
     assert "Created" in result.output
 
@@ -623,8 +651,7 @@ def test_recurring_posts_error_summary(
 
     monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
 
-    runner = CliRunner()
-    result = runner.invoke(app, ["recurring"])
+    result = _run_bare_recurring(repo_with_bootstrap_ticket)
     assert result.exit_code == 0, result.output
     assert any("skipped 1 template" in m and "broken.md" in m for m in slack_msgs)
     # Path duplication regression: the bullet should NOT contain the full file path.

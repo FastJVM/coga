@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import contextlib
+import io
+import os
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -11,10 +14,12 @@ from typer.testing import CliRunner
 
 from coga import git as coga_git
 from coga.commands import recurring as recurring_cmd
+from coga import recurring_runner, recurring_sync
 from coga.cli import app
 from coga.config import load_config
 from coga.logfile import task_log_lines
 from coga.paths import tasks_dir
+from coga.recurring_runner import run_recurring_scan
 from coga.recurring import (
     read_last_serviced_period,
     create_named,
@@ -275,7 +280,7 @@ def _seed_period_task_context(company: Path) -> None:
 
 def _allow_interactive_recurring(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "coga.commands.recurring._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
     )
 
 
@@ -287,6 +292,47 @@ def _finish_period_task(coga_os: Path, slug: str) -> None:
     coga_git.sync_task_state(
         load_config(coga_os), ticket_path.parent, message=f"Ticket: {slug} — done"
     )
+
+
+class _ScanResult:
+    """Mimics the CliRunner result for in-process bare-sweep runs."""
+
+    def __init__(
+        self, exit_code: int, output: str, stderr: str, exception=None
+    ) -> None:
+        self.exit_code = exit_code
+        self.output = output
+        self.stderr = stderr
+        self.exception = exception
+
+
+def _run_bare_recurring(coga_os, *, force: bool = False, interactive: bool = False):
+    """Drive the bare recurring sweep in-process.
+
+    The `coga recurring` head now subprocess-launches the stateless
+    `bootstrap/recurring-scan` target, so in-process monkeypatches (on
+    `coga.commands.launch.launch`, notify, git, ...) don't reach it. The deep
+    sweep behavior lives in `coga.recurring_runner.run_recurring_scan`; tests
+    drive it directly. Returns a CliRunner-like result (`.exit_code`,
+    `.output` = combined stdout+stderr, `.stderr`).
+    """
+    cfg = load_config(coga_os)
+    out, err = io.StringIO(), io.StringIO()
+    exit_code = 0
+    exception = None
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        try:
+            exit_code = run_recurring_scan(cfg, force=force, interactive=interactive) or 0
+        except SystemExit as exc:
+            exit_code = exc.code if isinstance(exc.code, int) else (0 if exc.code is None else 1)
+        except Exception as exc:  # CliRunner default catch_exceptions=True parity
+            exit_code = 1
+            exception = exc
+    return _ScanResult(
+        exit_code, out.getvalue() + err.getvalue(), err.getvalue(), exception
+    )
+
+
 
 
 @pytest.fixture
@@ -1299,11 +1345,11 @@ def test_recurring_launch_does_not_resurrect_remote_deleted_period_from_stale_ma
     git_repo.git("push", "origin", "main")
     git_repo.git("reset", "--hard", stale_head)
     monkeypatch.setattr(
-        "coga.commands.recurring._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
     )
-    monkeypatch.setattr("coga.commands.recurring.notify", lambda *a, **k: None)
+    monkeypatch.setattr("coga.recurring_runner.notify", lambda *a, **k: None)
 
-    second = CliRunner().invoke(app, ["recurring"])
+    second = _run_bare_recurring(coga_os)
 
     assert second.exit_code == 0, second.output
     assert launch_calls == []
@@ -1408,7 +1454,7 @@ def test_recurring_create_sync_restores_control_ledger_for_handled_period(
 
     cfg = load_config(coga_os)
     remote = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
@@ -1421,7 +1467,7 @@ def test_recurring_create_sync_restores_control_ledger_for_handled_period(
 
     cfg = load_config(coga_os)
     stale = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", stale.ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", stale.ref)
 
     # The stale checkout's duplicate task is discarded; the create line it
     # recorded survives in the union-merged repo-global log.
@@ -1464,7 +1510,7 @@ def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
 
     cfg = load_config(coga_os)
     remote = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
@@ -1480,11 +1526,11 @@ def test_recurring_create_sync_failure_after_removing_stale_task_is_soft(
     stale = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 5))
 
     def fail_commit(*args, **kwargs):
-        raise recurring_cmd.git.GitError("simulated index lock")
+        raise recurring_sync.git.GitError("simulated index lock")
 
-    monkeypatch.setattr("coga.commands.recurring.git._commit_paths", fail_commit)
+    monkeypatch.setattr("coga.recurring_sync.git._commit_paths", fail_commit)
 
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", stale.ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", stale.ref)
 
     assert "sync failed: simulated index lock" in capsys.readouterr().err
     assert not stale.ref.path.exists()
@@ -1522,7 +1568,7 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
 
     cfg = load_config(coga_os)
     remote = create_named(cfg, "weekly-check", now=datetime(2026, 6, 8, 10, 0))
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
@@ -1536,14 +1582,14 @@ def test_recurring_sweep_skips_task_removed_by_create_sync(
     launch_calls: list[tuple[object, ...]] = []
     _freeze_recurring_now(monkeypatch, datetime(2026, 6, 8, 10, 0))  # Mon, 2026-W24
     monkeypatch.setattr(
-        "coga.commands.recurring._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
     )
     monkeypatch.setattr(
         "coga.commands.launch.launch", lambda *a, **k: launch_calls.append(a)
     )
-    monkeypatch.setattr("coga.commands.recurring.notify", lambda *a, **k: None)
+    monkeypatch.setattr("coga.recurring_runner.notify", lambda *a, **k: None)
 
-    result = CliRunner().invoke(app, ["recurring"])
+    result = _run_bare_recurring(coga_os)
 
     assert result.exit_code == 0, result.output
     assert launch_calls == []
@@ -1588,7 +1634,7 @@ def test_recurring_launch_does_not_revert_remote_done_period_from_stale_main(
         "coga.commands.launch.launch", lambda *a, **k: launch_calls.append(a)
     )
     monkeypatch.setattr(
-        "coga.commands.recurring.notify", lambda *a, **k: notify_calls.append(a)
+        "coga.recurring_runner.notify", lambda *a, **k: notify_calls.append(a)
     )
     first = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
     assert first.exit_code == 0, first.output
@@ -1736,7 +1782,7 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
         "2026-06-08 09:00 [recurring/weekly-check] [system] created "
         "recurring/weekly-check for 2026-W22\n"
     )
-    real_commit_paths = recurring_cmd.git._commit_paths
+    real_commit_paths = recurring_sync.git._commit_paths
 
     def racing_commit(root, rels, message):
         committed = real_commit_paths(root, rels, message)
@@ -1746,7 +1792,7 @@ def test_recurring_launch_preserves_midflight_remote_ledger_race(
         )
         return committed
 
-    monkeypatch.setattr("coga.commands.recurring.git._commit_paths", racing_commit)
+    monkeypatch.setattr("coga.recurring_sync.git._commit_paths", racing_commit)
     monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     result = CliRunner().invoke(app, ["recurring", "launch", "weekly-check"])
 
@@ -1802,7 +1848,7 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
     handled_ticket = _template_ticket_with_blackboard(
         coga_os, "weekly-check", handled_region
     )
-    real_commit_paths = recurring_cmd.git._commit_paths
+    real_commit_paths = recurring_sync.git._commit_paths
     raced = False
 
     def racing_commit(root, rels, message):
@@ -1816,9 +1862,9 @@ def test_recurring_launch_does_not_resurrect_midflight_handled_period(
             raced = True
         return committed
 
-    monkeypatch.setattr("coga.commands.recurring.git._commit_paths", racing_commit)
+    monkeypatch.setattr("coga.recurring_sync.git._commit_paths", racing_commit)
 
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", outcome.ref)
 
     # The handled control state (its cursor and W24 high-water) lives in the
     # template ticket's blackboard region; the stale checkout adopts it.
@@ -1869,7 +1915,7 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
     handled_ticket = _template_ticket_with_blackboard(
         coga_os, "weekly-check", handled_region
     )
-    real_fetch = recurring_cmd._fetch_control_branch
+    real_fetch = recurring_sync._fetch_control_branch
     fetch_calls = 0
 
     def racing_fetch(cfg_arg, root):
@@ -1882,9 +1928,9 @@ def test_recurring_launch_removes_checked_out_control_task_when_race_handled(
                 handled_ticket,
             )
 
-    monkeypatch.setattr(recurring_cmd, "_fetch_control_branch", racing_fetch)
+    monkeypatch.setattr(recurring_sync, "_fetch_control_branch", racing_fetch)
 
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", outcome.ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", outcome.ref)
 
     assert "sync failed" not in capsys.readouterr().err
     assert not outcome.ref.path.exists()
@@ -1907,8 +1953,8 @@ def test_recurring_create_sync_missing_git_is_soft(
     def missing_git(*args, **kwargs):
         raise FileNotFoundError("git")
 
-    monkeypatch.setattr(recurring_cmd.subprocess, "run", missing_git)
-    recurring_cmd._sync_recurring_create(cfg, "dream", outcome.ref)
+    monkeypatch.setattr(recurring_sync.subprocess, "run", missing_git)
+    recurring_sync._sync_recurring_create(cfg, "dream", outcome.ref)
 
     assert "sync skipped" in capsys.readouterr().err
 
@@ -2196,7 +2242,7 @@ def test_recurring_all_syncs_forced_recreated_period_on_control_branch(
     cfg = load_config(coga_os)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     ref = first.tasks[0].ref
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", ref)
     ticket = Ticket.read(ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(ref.path / "ticket.md")
@@ -2219,7 +2265,7 @@ def test_recurring_all_syncs_forced_recreated_period_on_control_branch(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 22, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = _run_bare_recurring(coga_os, force=True)
 
     assert result.exit_code == 0, result.output
     assert launched == [ref.id_slug]
@@ -2256,7 +2302,7 @@ def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
 
     cfg = load_config(coga_os)
     remote = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(remote.ref.path / "ticket.md")
@@ -2276,7 +2322,7 @@ def test_recurring_all_preserves_existing_control_task_from_stale_checkout(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = _run_bare_recurring(coga_os, force=True)
 
     assert result.exit_code == 0, result.output
     assert launched == [remote.ref.id_slug]
@@ -2330,7 +2376,7 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
 
     cfg = load_config(coga_os)
     stale = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", stale.ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", stale.ref)
     stale_head = git_repo.git("rev-parse", "HEAD").strip()
 
     ticket = Ticket.read(stale.ref.path / "ticket.md")
@@ -2355,7 +2401,7 @@ def test_recurring_all_restores_clean_stale_existing_task_from_control(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = _run_bare_recurring(coga_os, force=True)
 
     assert result.exit_code == 0, result.output
     assert launched == [stale.ref.id_slug]
@@ -2407,7 +2453,7 @@ def test_recurring_all_preserves_existing_local_task_state_during_force_sync(
 
     cfg = load_config(coga_os)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", first.ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", first.ref)
     # The period task's unsynced working state lives in its ticket.md blackboard.
     replace_blackboard(first.ref.path / "ticket.md", "\nlocal unsynced state\n")
 
@@ -2426,7 +2472,7 @@ def test_recurring_all_preserves_existing_local_task_state_during_force_sync(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = _run_bare_recurring(coga_os, force=True)
 
     assert result.exit_code == 0, result.output
     assert launched == [first.ref.id_slug]
@@ -2466,7 +2512,7 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
 
     cfg = load_config(coga_os)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", first.ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", first.ref)
     ticket = Ticket.read(first.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(first.ref.path / "ticket.md")
@@ -2495,7 +2541,7 @@ def test_recurring_all_snapshot_does_not_block_control_restore(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = _run_bare_recurring(coga_os, force=True)
 
     assert result.exit_code == 0, result.output
     assert launched == [first.ref.id_slug]
@@ -2534,7 +2580,7 @@ def test_recurring_all_does_not_mark_new_period_for_control_live_task(
 
     cfg = load_config(coga_os)
     remote = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0)).tasks[0]
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", remote.ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", remote.ref)
     ticket = Ticket.read(remote.ref.path / "ticket.md")
     ticket.frontmatter["status"] = "in_progress"
     ticket.write(remote.ref.path / "ticket.md")
@@ -2554,7 +2600,7 @@ def test_recurring_all_does_not_mark_new_period_for_control_live_task(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = _run_bare_recurring(coga_os, force=True)
 
     assert result.exit_code == 1, result.output
     assert launched == [remote.ref.id_slug]
@@ -2594,7 +2640,7 @@ def test_recurring_all_reconciles_existing_tasks_before_launch_order(
     first_scan = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     for task in first_scan.tasks:
         assert task.ref is not None
-        recurring_cmd._sync_recurring_create(cfg, task.template, task.ref)
+        recurring_sync._sync_recurring_create(cfg, task.template, task.ref)
     live = next(task for task in first_scan.tasks if task.template == "zzz-live")
     assert live.ref is not None
 
@@ -2624,7 +2670,7 @@ def test_recurring_all_reconciles_existing_tasks_before_launch_order(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = _run_bare_recurring(coga_os, force=True)
 
     assert result.exit_code == 1, result.output
     assert launched == [live.ref.id_slug]
@@ -2660,7 +2706,7 @@ def test_recurring_all_does_not_service_unreached_existing_task(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(repo)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = _run_bare_recurring(repo, force=True)
 
     assert result.exit_code == 1
     assert launched == ["recurring/aaa-first"]
@@ -2702,7 +2748,7 @@ def test_recurring_all_syncs_forced_existing_period_state(
     cfg = load_config(coga_os)
     first = scan_due(cfg, now=datetime(2026, 4, 22, 10, 0, 0))
     ref = first.tasks[0].ref
-    recurring_cmd._sync_recurring_create(cfg, "weekly-check", ref)
+    recurring_sync._sync_recurring_create(cfg, "weekly-check", ref)
     ticket = Ticket.read(ref.path / "ticket.md")
     ticket.frontmatter["status"] = "done"
     ticket.write(ref.path / "ticket.md")
@@ -2720,7 +2766,7 @@ def test_recurring_all_syncs_forced_existing_period_state(
     _freeze_recurring_now(monkeypatch, datetime(2026, 4, 29, 10, 0, 0))
     monkeypatch.chdir(coga_os)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = _run_bare_recurring(coga_os, force=True)
 
     assert result.exit_code == 0, result.output
     assert launched == [ref.id_slug]
@@ -2744,7 +2790,7 @@ def test_recurring_all_launches_every_template(
         lambda slug, **k: launched.append(slug),
     )
     monkeypatch.chdir(repo)
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = _run_bare_recurring(repo, force=True)
 
     assert result.exit_code == 0, result.output
     assert len(launched) == 1
@@ -2763,7 +2809,7 @@ def test_recurring_all_skips_interactive_template_without_tty(
 ) -> None:
     launched: list[str] = []
     monkeypatch.setattr(
-        "coga.commands.recurring._interactive_stdio_has_tty", lambda: False
+        "coga.recurring_runner._interactive_stdio_has_tty", lambda: False
     )
     monkeypatch.setattr(
         "coga.commands.launch.launch",
@@ -2771,7 +2817,7 @@ def test_recurring_all_skips_interactive_template_without_tty(
     )
     monkeypatch.chdir(repo)
 
-    result = CliRunner().invoke(app, ["recurring", "--all"])
+    result = _run_bare_recurring(repo, force=True)
 
     assert result.exit_code == 0, result.output
     assert launched == []
@@ -2935,7 +2981,7 @@ def test_bare_recurring_scans_and_launches_due(
 
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
-    result = CliRunner().invoke(app, ["recurring"])
+    result = _run_bare_recurring(dream_repo)
 
     assert result.exit_code == 0, result.output
     assert "Recurring scan" in result.output
@@ -2953,7 +2999,7 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
     )
     monkeypatch.chdir(repo)
     monkeypatch.setattr(
-        "coga.commands.recurring._interactive_stdio_has_tty", lambda: False
+        "coga.recurring_runner._interactive_stdio_has_tty", lambda: False
     )
     calls: list[str] = []
     slack_msgs: list[str] = []
@@ -2976,7 +3022,7 @@ def test_bare_recurring_skips_interactive_without_tty_and_continues(
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
     monkeypatch.setattr("coga.notification.slack.requests.post", capture_slack)
 
-    result = CliRunner().invoke(app, ["recurring"])
+    result = _run_bare_recurring(repo)
 
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
@@ -3053,7 +3099,7 @@ def test_bare_recurring_skips_malformed_schedule_and_continues(
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
     monkeypatch.setattr("coga.notification.slack.requests.post", capture_slack)
 
-    result = CliRunner().invoke(app, ["recurring"])
+    result = _run_bare_recurring(repo)
 
     assert result.exit_code == 0, result.output
     assert calls == ["recurring/weekly-check", "recurring/z-script-check"]
@@ -3103,7 +3149,7 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
 
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
-    result = CliRunner().invoke(app, ["recurring"])
+    result = _run_bare_recurring(repo)
 
     assert result.exit_code == 0, result.output
     assert len(calls) == 2
@@ -3115,7 +3161,7 @@ def test_bare_recurring_continues_past_unfinished_interactive_task(
     assert {Ticket.read(ref.path / "ticket.md").status for ref in refs} == {"paused"}
 
     calls.clear()
-    second = CliRunner().invoke(app, ["recurring"])
+    second = _run_bare_recurring(repo)
     assert second.exit_code == 0, second.output
     assert calls == []
     assert "No recurring tasks due." in second.output
@@ -3144,7 +3190,7 @@ def test_bare_recurring_records_liveness_timeout_not_human_pause(
 
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
-    result = CliRunner().invoke(app, ["recurring"])
+    result = _run_bare_recurring(repo)
 
     assert result.exit_code == 0, result.output
     assert len(calls) == 1
@@ -3210,7 +3256,7 @@ def test_bare_recurring_stops_before_next_due_task_if_script_unfinished(
 
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
-    result = CliRunner().invoke(app, ["recurring"])
+    result = _run_bare_recurring(company)
 
     assert result.exit_code == 1, result.output
     assert len(calls) == 1
@@ -3234,7 +3280,7 @@ def test_bare_recurring_interactive_leaves_limits_unarmed(
 
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
-    result = CliRunner().invoke(app, ["recurring", "--interactive"])
+    result = _run_bare_recurring(dream_repo, interactive=True)
 
     assert result.exit_code == 0, result.output
     assert seen == [(None, None)]
@@ -3255,7 +3301,7 @@ def test_bare_recurring_uses_ticket_mode(
 
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
-    result = CliRunner().invoke(app, ["recurring"])
+    result = _run_bare_recurring(dream_repo)
 
     assert result.exit_code == 0, result.output
     assert seen == [False]
@@ -3277,7 +3323,8 @@ def _capture_idle_timeout(
         ticket.write(repo / "tasks" / task / "ticket.md")
 
     monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
-    assert CliRunner().invoke(app, argv).exit_code == 0
+    result = _run_bare_recurring(repo, interactive=("--interactive" in argv))
+    assert result.exit_code == 0, result.output
     return seen
 
 
@@ -3327,7 +3374,7 @@ def test_recurring_idle_timeout_env_override(
 ) -> None:
     """`COGA_REPL_IDLE_TIMEOUT` overrides the default window; a `<= 0`,
     non-finite, or unparseable value disarms the backstop."""
-    from coga.commands.recurring import (
+    from coga.recurring_runner import (
         _RECURRING_IDLE_TIMEOUT_SECONDS,
         _recurring_idle_timeout,
     )
@@ -3349,7 +3396,7 @@ def test_recurring_idle_timeout_config_precedence(
 ) -> None:
     """Precedence is env > `[launch].idle_timeout` > the built-in default; an
     env override wins even to disarm a committed config value."""
-    from coga.commands.recurring import (
+    from coga.recurring_runner import (
         _RECURRING_IDLE_TIMEOUT_SECONDS,
         _recurring_idle_timeout,
     )
@@ -3380,7 +3427,7 @@ def test_recurring_max_session_resolution(
 ) -> None:
     """Max-session has no built-in default — None unless config or env sets it.
     Precedence mirrors idle-timeout: env > `[launch].max_session` > None."""
-    from coga.commands.recurring import _recurring_max_session
+    from coga.recurring_runner import _recurring_max_session
 
     monkeypatch.delenv("COGA_REPL_MAX_SESSION", raising=False)
     assert _recurring_max_session(_timeout_cfg()) is None
@@ -3404,7 +3451,7 @@ def test_bare_recurring_nothing_due(
     monkeypatch.setattr("coga.commands.launch.launch", lambda *a, **k: None)
     _allow_interactive_recurring(monkeypatch)
     runner = CliRunner()
-    runner.invoke(app, ["recurring"])  # creates + "launches" (no-op stub)
+    _run_bare_recurring(dream_repo)  # creates + "launches" (no-op stub)
 
     # Mark the created task done so it is no longer launchable.
     cfg = load_config(dream_repo)
@@ -3413,6 +3460,61 @@ def test_bare_recurring_nothing_due(
     ticket.frontmatter["status"] = "done"
     ticket.write(ref.path / "ticket.md")
 
-    result = runner.invoke(app, ["recurring"])
+    result = _run_bare_recurring(dream_repo)
     assert result.exit_code == 0, result.output
     assert "No recurring tasks due." in result.output
+
+
+# --- thin command head: env-contract threading -------------------------------
+
+
+def _capture_recurring_head(repo, monkeypatch, argv):
+    """Invoke the `coga recurring` head with a stubbed launch, returning the
+    positional target it launched and the env contract it wrote."""
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("COGA_RECURRING_FORCE", raising=False)
+    monkeypatch.delenv("COGA_RECURRING_INTERACTIVE", raising=False)
+    seen: dict[str, object] = {}
+
+    def fake_launch(target, **kwargs):  # type: ignore[no-untyped-def]
+        seen["target"] = target
+        seen["force"] = os.environ.get("COGA_RECURRING_FORCE")
+        seen["interactive"] = os.environ.get("COGA_RECURRING_INTERACTIVE")
+
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    result = CliRunner().invoke(app, argv)
+    assert result.exit_code == 0, result.output
+    return seen
+
+
+def test_recurring_head_launches_stateless_scan_target(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bare `coga recurring` is a thin head: it launches the packaged
+    `bootstrap/recurring-scan` target with the default (non-forced,
+    non-interactive) env contract."""
+    seen = _capture_recurring_head(repo, monkeypatch, ["recurring"])
+    assert seen["target"] == "bootstrap/recurring-scan"
+    assert seen["force"] == "0"
+    assert seen["interactive"] == "0"
+
+
+def test_recurring_head_threads_all_flag(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--all` reaches the scan script only through `COGA_RECURRING_FORCE`."""
+    seen = _capture_recurring_head(repo, monkeypatch, ["recurring", "--all"])
+    assert seen["target"] == "bootstrap/recurring-scan"
+    assert seen["force"] == "1"
+    assert seen["interactive"] == "0"
+
+
+def test_recurring_head_threads_interactive_flag(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--interactive` reaches the scan script only through
+    `COGA_RECURRING_INTERACTIVE`."""
+    seen = _capture_recurring_head(repo, monkeypatch, ["recurring", "--interactive"])
+    assert seen["target"] == "bootstrap/recurring-scan"
+    assert seen["force"] == "0"
+    assert seen["interactive"] == "1"

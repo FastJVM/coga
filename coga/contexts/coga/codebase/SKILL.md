@@ -26,8 +26,12 @@ review bars.
   `commands/slack.py` keeps the explicit FYI command spelling.
   `commands/block.py` and `commands/unblock.py` own blocked-state
   handoffs. `commands/megalaunch.py` is the manual drain entrypoint;
-  reusable drain logic lives in `megalaunch.py`. `bump.py` advances
-  workflow steps. `validate.py` checks repo consistency.
+  reusable drain logic lives in `megalaunch.py`. `commands/recurring.py` is a
+  thin head — the bare-sweep body lives in `recurring_runner.py` and its
+  control-branch reconciliation in `recurring_sync.py` (both shared with the
+  `recurring launch <name>` path and the `bootstrap/recurring-scan` script
+  target); `recurring.py` keeps the template/get-or-create model. `bump.py`
+  advances workflow steps. `validate.py` checks repo consistency.
 - `tests/` — pytest. Run with `python -m pytest`.
 - `example/` — seeded fixture used by tests. **Update this when
   you change task layout, prompt composition, or workflow

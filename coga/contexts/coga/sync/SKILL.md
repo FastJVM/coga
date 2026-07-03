@@ -234,7 +234,7 @@ new string:
   `commands/launch.py` / `mark.mark_in_progress` (active → in_progress
   session start), plus `coga.blocker_reminders.remind_blocked_tasks` for
   unresolved blocker reminders. Outcome callers (`notify`): `mark.mark_done` (including
-  the autoclose sweep and script-mode completion) and `commands/recurring.py`'s error
+  the autoclose sweep and script-mode completion) and `recurring_runner.py`'s error
   summary. Both paths pass
   `task_path=ref.path` (when a task exists) so a live-post failure trace lands
   in the repo-global `coga/log.md`, tagged with the task ref.

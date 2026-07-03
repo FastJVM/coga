@@ -30,7 +30,13 @@ scanner skips it. That is how the starter templates ship without firing.
 - `coga recurring` (bare) — scans every recurring task, get-or-creates the
   stable instantiated task at `coga/tasks/recurring/<name>/`, records the
   current period as `last_serviced_period` in the template blackboard, and
-  launches the ones still `active` or orphaned `in_progress`. **Launch order
+  launches the ones still `active` or orphaned `in_progress`. The command is a
+  thin head: it parses `--interactive` / `--all` into an env contract
+  (`COGA_RECURRING_INTERACTIVE` / `COGA_RECURRING_FORCE`) and launches the
+  stateless `bootstrap/recurring-scan` script target, whose sweep body lives in
+  `coga.recurring_runner` / `coga.recurring_sync` (the on-demand
+  `recurring launch <name>` path shares the same get-or-create and sync code).
+  **Launch order
   is phased, not alphabetical:** the
   cleanup template — Dream, the recurring janitor (see below) — is sorted
   **last** so its retro pass acts on the period tickets the *same* sweep just

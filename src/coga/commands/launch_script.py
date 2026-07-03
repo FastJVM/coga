@@ -91,6 +91,48 @@ def build_script_command(script_path: Path) -> list[str]:
     return ["sh", str(script_path)]
 
 
+def run_bootstrap_script(cfg: Config, ref, ticket: Ticket) -> None:
+    """Run a bootstrap ticket's own `script:` with no task lifecycle.
+
+    Bootstrap tickets are stateless launch targets (`bootstrap/<name>/`): they
+    have no status, workflow, log, or Slack lifecycle, so unlike
+    `run_script_mode` this skips every task-state write — `mark_in_progress`,
+    task append-log lines, the post-run `advance_step` / `mark_done`, and the
+    task Slack notifications. It shares this module's script resolution and
+    environment construction (`_resolve_script` + `build_launch_env` +
+    `build_script_env`), runs the script, and propagates its exit code.
+
+    This is what makes `coga launch bootstrap/recurring-scan` — and any future
+    stateless bootstrap script target — run the same way `coga delete` runs
+    `bootstrap/delete-task`: resolve, inject the `COGA_*` metadata contract,
+    run, exit.
+    """
+    skill, cmd, log_label, cleanup = _resolve_script(cfg, ref, ticket)
+
+    try:
+        env = build_launch_env(cfg, ticket.secrets)
+    except SecretError as exc:
+        cleanup()
+        _bail(str(exc))
+
+    env.update(build_script_env(cfg, ref, skill))
+    cwd = script_repo_root(cfg)
+
+    try:
+        result = subprocess.run(cmd, env=env, cwd=cwd, check=False)
+    finally:
+        cleanup()
+    exit_code = result.returncode
+
+    if exit_code != 0:
+        typer.secho(
+            f"Script exited with {exit_code}.", fg=typer.colors.YELLOW, err=True
+        )
+        sys.exit(exit_code)
+
+    typer.echo(f"{ref.id_slug}: script ran successfully")
+
+
 def run_script_mode(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
     """Execute the task's script — a step skill's, or the ticket's own.
 

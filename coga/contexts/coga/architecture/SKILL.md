@@ -66,13 +66,23 @@ no in-memory state.
   scans them, creates the current run at the stable path-qualified task ref
   `tasks/recurring/<name>/` (`recurring/<name>` in CLI/status/notifications),
   records the serviced period as `last_serviced_period` in the template
-  blackboard, and launches the due ones. The created tasks then use the same
-  ticket, workflow, launch, bump, and blackboard machinery as any other task.
+  blackboard, and launches the due ones. The scan itself is a thin command
+  head over the stateless `bootstrap/recurring-scan` script target — the sweep
+  body (scan, get-or-create, high-water dedup, control-branch sync, sequential
+  launch) lives in `coga.recurring_runner` / `coga.recurring_sync`, and the
+  scanner is deliberately *not* a recurring template because it is the thing
+  that creates and launches them. The created tasks then use the same ticket,
+  workflow, launch, bump, and blackboard machinery as any other task.
 - **Bootstrap tickets** in package `bootstrap/<name>/ticket.md` resources
-  are stateless launch targets for skills. No status, no workflow. Used for
-  ticket-less re-entry points like `coga launch bootstrap/orient` (the `chat`
-  alias). They are never factories — `coga launch` no longer creates new
-  tickets from them; use `coga create` for that.
+  are stateless launch targets. No status, no workflow, no log, no lock. Used
+  for ticket-less re-entry points like `coga launch bootstrap/orient` (the
+  `chat` alias). Most are `mode: agent`, but a bootstrap ticket may instead
+  declare `mode: script` with a ticket-owned `script:` and run statelessly —
+  `bootstrap/recurring-scan`, the target behind `coga recurring`, is the first:
+  it executes through the shared launch path with *none* of the task-lifecycle
+  writes (no status flips, task log, advance/mark-done, or Slack). They are
+  never factories — `coga launch` no longer creates new tickets from them; use
+  `coga create` for that.
 - **Bundled batteries** are package-backed core skills, contexts, reusable
   workflows, hooks, and launch targets shipped in the installed package.
   `pip install coga` puts them in the wheel; `coga init` does not

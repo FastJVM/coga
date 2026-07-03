@@ -218,3 +218,26 @@ def test_script_mode_nonzero_exit_logged(repo: Path) -> None:
     ref = list_tasks(cfg)[0]
     log = (repo / "log.md").read_text()
     assert "script exited with code 3" in log
+
+
+def test_launch_bootstrap_recurring_scan_runs_stateless(
+    repo: Path, monkeypatch: pytest.MonkeyPatch, capfd: pytest.CaptureFixture
+) -> None:
+    """`coga launch bootstrap/recurring-scan` runs the packaged stateless scan
+    script target: the ticket-owned `run.py` executes with no task lifecycle
+    (no status flips, no task-log writes, no Slack), and its exit code
+    propagates. With no recurring templates the sweep is a clean no-op.
+    """
+    result = CliRunner().invoke(app, ["launch", "bootstrap/recurring-scan"])
+    assert result.exit_code == 0, result.output
+    # run_bootstrap_script's own Python-level success line (the subprocess's
+    # stdout lands on the inherited fd, captured by capfd below).
+    assert "bootstrap/recurring-scan: script ran successfully" in result.output
+
+    captured = capfd.readouterr()
+    assert "No recurring tasks due" in (captured.out + captured.err)
+
+    # Stateless: a bootstrap script launch writes no task-lifecycle log lines.
+    log = repo / "log.md"
+    if log.exists():
+        assert "bootstrap/recurring-scan" not in log.read_text()
