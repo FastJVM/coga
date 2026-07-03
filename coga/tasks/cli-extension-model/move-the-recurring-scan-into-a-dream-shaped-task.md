@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: nicktoper
+assignee: codex
 contexts:
 - coga/extension-model
 - coga/architecture
@@ -38,7 +38,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 6 (review)
+step: 5 (open-pr)
 ---
 
 ## Description
@@ -285,11 +285,6 @@ command head.
 
 branch: codex/recurring-scan-bootstrap
 worktree: /tmp/coga-recurring-scan-bootstrap
-pr: https://github.com/FastJVM/coga/pull/507
-
-Open-pr handoff: pushed `codex/recurring-scan-bootstrap` to origin and opened
-PR #507 against `main`. `gh pr view 507` reports state `OPEN`, draft `false`,
-mergeable `MERGEABLE`; `gh pr checks 507` reports no checks on the branch yet.
 
 Implementation plan: extract the bare recurring sweep and named launch
 orchestration into shared recurring runner/sync modules; make the public
@@ -314,64 +309,63 @@ Verification:
 - `PYTHONPATH=/tmp/coga-recurring-scan-bootstrap/src python3.12 -m pytest` → 1032 passed, 1 skipped
 - `PYTHONPATH=/tmp/coga-recurring-scan-bootstrap/src python3.12 -m coga.validate --task cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task` → All good
 
-## Peer Review (2026-07-02, Claude — other-agent)
+## Peer Review (2026-07-02, Claude)
 
-**Verdict: approve. No blocking issues; ready for open-pr.**
+**Verdict: approved.** Reviewed `fd379ddb` on `codex/recurring-scan-bootstrap`
+against the acceptance criteria and the two extension-model guardrails.
 
-Reviewed branch `codex/recurring-scan-bootstrap` (`fd379ddb`, worktree
-`/tmp/coga-recurring-scan-bootstrap`). Re-ran the full suite there:
-`PYTHONPATH=$PWD/src python3.12 -m pytest` → **1032 passed, 1 skipped**.
+What was checked and held up:
 
-What I verified:
+- **No inversion.** Diffed the old `commands/recurring.py` against the new
+  `recurring_runner.py`: the sweep/get-or-create/sync/high-water/launch body
+  moved verbatim. Only transformations are `sys.exit` → return codes at the
+  entry functions, the `all_` → `force` rename, and `load_config` lifted to the
+  heads. The three surviving mid-sweep `sys.exit` sites are byte-identical to
+  the old code and still propagate through the stateless script path.
+- **No worse Typer / no hidden parameter channel.** `--interactive` / `--all`
+  stay at the Typer head and cross the process boundary only via the explicit
+  `COGA_RECURRING_INTERACTIVE` / `COGA_RECURRING_FORCE` env contract, restored
+  after launch (tested, including restoration).
+- **OptionInfo gotcha avoided.** The head calls the Typer `launch` function
+  in-Python but passes all six parameters explicitly, so no sentinel can leak;
+  a new `launch` option would still be a risk, but today's call is exact and
+  the contract test pins the full kwargs set.
+- **Interactive semantics survive the subprocess boundary.**
+  `run_script_mode` uses `subprocess.run` with inherited stdio, so the scan's
+  own `_interactive_stdio_has_tty()` check and child agent launches see the
+  operator's terminal exactly as the in-process sweep did. `.py` scripts run
+  under `sys.executable`, so `import coga` works in the child.
+- **Statelessness.** `stateless=is_bootstrap` correctly skips status flips,
+  log writes, Slack failure posts, and the completion contract; nonzero exits
+  still propagate. Verified by the new end-to-end test that runs the real
+  scan subprocess and asserts zero tasks/log writes.
+- **Packaging.** The new `bootstrap/recurring-scan/` rides the existing
+  `bootstrap/` exclude + force-include pairing. Because `tests/test_packaging.py`
+  silently skips without hatchling (it skipped in both Codex's runs and mine),
+  I built the wheel for real on the symlink-free worktree — the clean-checkout
+  shape where collisions are fatal: build succeeds, both `ticket.md` and
+  `run.py` ship.
+- **Tests.** Full suite: first run 1031 passed + 1 failed
+  (`test_usage_probe.py::test_codex_probe_primes_then_reads_fresh_rollout` —
+  passes in isolation and on rerun; unrelated, order-flaky), second run
+  1032 passed, 1 skipped (the hatchling skip, covered manually above).
+- **Docs/contexts.** Live and packaged copies updated together, including
+  honestly rewriting the extension-model context's stale "Dream-shaped task"
+  wording to the settled bootstrap-script shape.
 
-- **Faithful move, no inversion.** The bare-sweep callback body moved verbatim
-  into `recurring_runner.run_recurring_scan`; all control-branch sync,
-  get-or-create, high-water dedup, and sequential-launch orchestration moved
-  intact as tested Python (`recurring_runner.py`). Diffed old `main`
-  `recurring.py` callback against the new runner — semantically equivalent.
-  `recurring.py` is now a thin head: flags → env → `launch bootstrap/recurring-scan`.
-- **No worse Typer.** `--interactive` / `--all` stay at the command head's Typer
-  layer; they are passed via the explicit `COGA_RECURRING_INTERACTIVE` /
-  `COGA_RECURRING_FORCE` env contract (`_scan_env` sets/restores them around the
-  in-process `launch_cmd` call). Recurring state still comes from files on disk.
-- **Env contract flows correctly.** `_scan_env` mutates `os.environ`;
-  `build_launch_env` seeds the child from `os.environ`, so the subprocess sees the
-  flags. `run.py._env_flag` parses `1/true/yes/on` truthy, else false — matches the
-  head writing `"1"`/`"0"`.
-- **Stateless bootstrap path is clean.** `launch.py` drops the "bootstrap →
-  agent-only" bail and passes `stateless=is_bootstrap` to `run_script_mode`, which
-  gates *every* lifecycle write (`mark_in_progress`, both `append_log` calls, the
-  exit-code post) behind `not stateless`, and `sys.exit`s on non-zero without a
-  Slack FYI. Verified by `test_bootstrap_script_launch_is_stateless` (no task, no
-  log written).
-- **No bootstrap loop.** The scanner is a package-backed `bootstrap/` target, not a
-  `coga/recurring/` template, so `scan_due`/`list_tasks` never see it — the
-  self-scan concern from the design is correctly avoided.
-- **Packaging.** `bootstrap/recurring-scan/{ticket.md,run.py}` are asserted in
-  `test_packaging.EXPECTED_BOOTSTRAP_RESOURCES`; the dir carries a `.py` so the
-  wheel walk ships it (no pure-data force-include collision). `resolve_bootstrap`
-  resolves the target.
-- **Contexts kept in sync.** Both the live and packaged `architecture` copies were
-  updated in parallel (pre-existing drift in the packaged copy's surrounding prose
-  was preserved, not "fixed"). `extension-model`, `recurring`, bundled `cli`, and
-  `docs/cli-extension-audit.md` all accurately describe the new head+target shape.
-- **Test coverage is layered and meaningful.** Existing behavioral recurring tests
-  re-point at `recurring_runner` and route `launch bootstrap/recurring-scan`
-  in-process via `_patch_recurring_command_launch` (necessary — the real subprocess
-  would lose monkeypatches); the new head test asserts the real flags→env→launch
-  wiring and env restore.
+One finding, fixed on the branch as `9245f9c5`: the sync context (live +
+packaged copies) still credited the notify error summary to
+`commands/recurring.py`; updated to `coga/recurring_runner.py`.
 
-Minor / non-blocking observations (no action required):
-- The packaged `architecture` context has large *pre-existing* drift from the live
-  copy (old `[secrets]` catalog model, missing sections). Out of scope here; flag
-  for a separate sync pass.
+Residual notes for the record (no action needed): the parent scan launch is a
+plain `subprocess.run`, not a PTY session, so it has no done-sentinel of its
+own to trip; child launches keep their own session-scoped sentinels and
+idle/max-session limits via the unchanged moved code. Due-task child sessions
+now inherit the `COGA_RECURRING_*` env vars — harmless, nothing but `run.py`
+reads them.
 
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1350272,"cli":"codex","input_tokens":198664,"model":"gpt-5.5","output_tokens":17638,"provider":"openai","schema":1,"session_id":"019f2419-7eb8-77b0-a56d-bd96ac8ac612","slug":"cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task","step":"design","title":"Move the recurring scan into a Dream-shaped task","ts":"2026-07-02T18:37:22.262989Z","usage_status":"ok"}
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":14083072,"cli":"codex","input_tokens":540615,"model":"gpt-5.5","output_tokens":47514,"provider":"openai","schema":1,"session_id":"019f264f-0123-7731-a54a-b4619b44371e","slug":"cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task","step":"implement","title":"Move the recurring scan into a Dream-shaped task","ts":"2026-07-03T05:11:47.402279Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":186700,"cache_read_input_tokens":5107088,"cli":"claude","input_tokens":13548,"model":"claude-opus-4-8","output_tokens":39699,"provider":"anthropic","schema":1,"session_id":"f28e163f-e57e-4798-bc6d-04d2857535b4","slug":"cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task","step":"peer-review","title":"Move the recurring scan into a Dream-shaped task","ts":"2026-07-03T05:27:46.961597Z","usage_status":"ok"}
-
-{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":593664,"cli":"codex","input_tokens":105072,"model":"gpt-5.5","output_tokens":6876,"provider":"openai","schema":1,"session_id":"019f2672-8df9-7c63-b3af-acee7985f34f","slug":"cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task","step":"open-pr","title":"Move the recurring scan into a Dream-shaped task","ts":"2026-07-03T05:35:31.850378Z","usage_status":"ok"}
