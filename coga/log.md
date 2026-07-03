@@ -768,3 +768,4 @@ fatal: adding files failed
 2026-07-03 15:06 [warn-on-launch-when-the-installed-coga-predates-th] [agent:claude] advanced to step 3 (pr)
 2026-07-03 15:06 [warn-on-launch-when-the-installed-coga-predates-th] [megalaunch] launched via coga megalaunch
 2026-07-03 15:07 [warn-on-launch-when-the-installed-coga-predates-th] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/511 (no CI configured; rebase onto main likely wanted before merge)
+2026-07-03 16:04 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
