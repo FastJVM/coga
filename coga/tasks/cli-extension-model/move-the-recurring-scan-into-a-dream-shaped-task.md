@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: codex
+assignee: claude
 contexts:
 - coga/extension-model
 - coga/architecture
@@ -38,7 +38,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (implement)
+step: 4 (peer-review)
 ---
 
 ## Description
@@ -281,6 +281,36 @@ None for review-design at the moment. The design deliberately settles the
 bootstrapping fork in favor of a stateless bootstrap script target plus a thin
 command head.
 
+## Dev
+
+branch: codex/recurring-scan-bootstrap
+worktree: /tmp/coga-recurring-scan-bootstrap
+
+Implementation plan: extract the bare recurring sweep and named launch
+orchestration into shared recurring runner/sync modules; make the public
+`coga recurring` command only parse flags and launch the stateless
+`bootstrap/recurring-scan` script target with an explicit env contract; allow
+that bootstrap ticket-owned script to run without normal task lifecycle writes;
+update focused tests plus local/package contexts that describe the new shape.
+
+Implementation result: `src/coga/recurring_runner.py` now owns the scan,
+get-or-create, control-branch sync, high-water, reporting, and due-task launch
+orchestration. `src/coga/commands/recurring.py` is the thin command head:
+bare `coga recurring` launches `bootstrap/recurring-scan` with
+`COGA_RECURRING_FORCE` / `COGA_RECURRING_INTERACTIVE`; `recurring launch
+<name>` calls the shared named runner; `recurring list` stays read-only.
+Bootstrap script tickets now run through `launch_script` with stateless
+lifecycle semantics, and contexts/docs/tests were updated to match.
+
+Verification:
+- `PYTHONPATH=/tmp/coga-recurring-scan-bootstrap/src python3.12 -m py_compile src/coga/commands/recurring.py src/coga/recurring_runner.py src/coga/commands/launch.py src/coga/commands/launch_script.py src/coga/resources/templates/coga/bootstrap/recurring-scan/run.py`
+- `PYTHONPATH=/tmp/coga-recurring-scan-bootstrap/src python3.12 -m pytest tests/test_recurring.py tests/test_commands.py tests/test_launch.py tests/test_init.py tests/test_packaging.py` → 288 passed, 1 skipped
+- `PYTHONPATH=/tmp/coga-recurring-scan-bootstrap/src python3.12 -m pytest tests/test_period_state.py tests/test_autoclose_sweep.py tests/test_dream_worker_templates.py` → 39 passed
+- `PYTHONPATH=/tmp/coga-recurring-scan-bootstrap/src python3.12 -m pytest` → 1032 passed, 1 skipped
+- `PYTHONPATH=/tmp/coga-recurring-scan-bootstrap/src python3.12 -m coga.validate --task cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task` → All good
+
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1350272,"cli":"codex","input_tokens":198664,"model":"gpt-5.5","output_tokens":17638,"provider":"openai","schema":1,"session_id":"019f2419-7eb8-77b0-a56d-bd96ac8ac612","slug":"cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task","step":"design","title":"Move the recurring scan into a Dream-shaped task","ts":"2026-07-02T18:37:22.262989Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":14083072,"cli":"codex","input_tokens":540615,"model":"gpt-5.5","output_tokens":47514,"provider":"openai","schema":1,"session_id":"019f264f-0123-7731-a54a-b4619b44371e","slug":"cli-extension-model/move-the-recurring-scan-into-a-dream-shaped-task","step":"implement","title":"Move the recurring scan into a Dream-shaped task","ts":"2026-07-03T05:11:47.402279Z","usage_status":"ok"}
