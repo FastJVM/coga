@@ -109,3 +109,7 @@ and v0.2.0 shipped — worth a look at whether it's now moot too or should be la
 ## Blockers
 
 - [ ] [2026-07-03 12:03] [agent:claude] id=20260703T120332 Nothing left to implement: every checklist item already landed while this ticket sat — URL flips + README clone target via merged PR #455 (bdc18b2a), PyPI trusted publisher repointed + coga 0.2.0 published 2026-06-27 (release run 28296440460), README PyPI install via PR #466 (ee2b61f6); update.py legacy gitignore entries verified consistent. I created the last open item as ticket migrate-desktop-relay-repos-to-coga-tracking (needs your Desktop repo list filled in). No diff exists for self-qa/pr steps, so: please mark this ticket done (and fill the repo list / decide whether draft coga-cli-cutover is also moot), or tell me if any part should still produce a PR.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":174479,"cache_read_input_tokens":2541076,"cli":"claude","input_tokens":16193,"model":"claude-fable-5","output_tokens":46969,"provider":"anthropic","schema":1,"session_id":"7d387b29-8109-42c5-bd6b-75113361457e","slug":"coga-rename-follow-ups-post-repo-rename","step":"implement","title":"Coga rename follow-ups (post repo-rename)","ts":"2026-07-03T19:03:36.082505Z","usage_status":"ok"}
