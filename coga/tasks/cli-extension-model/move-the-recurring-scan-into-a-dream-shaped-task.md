@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: codex
+assignee: nicktoper
 contexts:
 - coga/extension-model
 - coga/architecture
@@ -38,7 +38,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 5 (open-pr)
+step: 6 (review)
 ---
 
 ## Description
@@ -285,6 +285,10 @@ command head.
 
 branch: codex/recurring-scan-bootstrap
 worktree: /tmp/coga-recurring-scan-bootstrap
+pr: https://github.com/FastJVM/coga/pull/507
+
+Open PR note: pushed `9245f9c5` to origin and confirmed PR #507 is open and
+ready for review. `gh pr checks 507` currently reports no checks for the branch.
 
 Implementation plan: extract the bare recurring sweep and named launch
 orchestration into shared recurring runner/sync modules; make the public
