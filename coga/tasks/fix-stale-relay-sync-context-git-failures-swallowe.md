@@ -122,3 +122,7 @@ Tests: `python3.12 -m pytest -q` in the worktree — 1032 passed, 1 skipped.
 (System `python3` is 3.9; use `python3.12` in this environment.)
 No fixture changes needed — no task layout / composition / workflow
 semantics touched. No push, no PR (later steps).
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":207637,"cache_read_input_tokens":4401901,"cli":"claude","input_tokens":21688,"model":"claude-fable-5","output_tokens":57798,"provider":"anthropic","schema":1,"session_id":"f23b9e02-a597-4a9c-a7ac-1960b6ce26cd","slug":"fix-stale-relay-sync-context-git-failures-swallowe","step":"implement","title":"Fix stale coga/sync context: git failures swallowed (exit 0), not typer.Exit(1)","ts":"2026-07-03T19:09:45.766527Z","usage_status":"ok"}
