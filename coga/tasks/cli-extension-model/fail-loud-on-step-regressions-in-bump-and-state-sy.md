@@ -1,7 +1,7 @@
 ---
 slug: cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy
 title: fail loud on step regressions in bump and state sync
-status: active
+status: in_progress
 mode: agent
 owner: nicktoper
 human: nicktoper
