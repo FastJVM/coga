@@ -168,3 +168,7 @@ Note for follow-up consideration (not fixed here, adjacent): `coga uninstall`
 and any other command using a bare `(target/".git").exists()` outside
 init/update paths were not audited beyond what the tests cover; uninstall
 operates on an already-discovered repo so it should be unaffected.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":412014,"cache_read_input_tokens":12220441,"cli":"claude","input_tokens":21851,"model":"claude-fable-5","output_tokens":136849,"provider":"anthropic","schema":1,"session_id":"b7defcfd-1766-4f8b-bb30-66374638fd20","slug":"allow-creation-of-coga-dir-in-subdir","step":"implement","title":"allow creation of coga dir in subdir","ts":"2026-07-03T19:38:28.090672Z","usage_status":"ok"}
