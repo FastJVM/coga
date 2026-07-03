@@ -751,3 +751,5 @@ fatal: adding files failed
 2026-07-03 12:03 [fix-stale-relay-sync-context-git-failures-swallowe] [megalaunch] started (active → in_progress) via coga megalaunch
 2026-07-03 12:03 [fix-stale-relay-sync-context-git-failures-swallowe] [megalaunch] launched via coga megalaunch
 2026-07-03 12:09 [fix-stale-relay-sync-context-git-failures-swallowe] [agent:claude] advanced to step 2 (self-qa)
+2026-07-03 12:09 [fix-stale-relay-sync-context-git-failures-swallowe] [megalaunch] launched via coga megalaunch
+2026-07-03 12:21 [fix-stale-relay-sync-context-git-failures-swallowe] [agent:claude] advanced to step 3 (pr) — self-qa done: 4 doc inaccuracies fixed + parity test added (98e0b719); details on blackboard

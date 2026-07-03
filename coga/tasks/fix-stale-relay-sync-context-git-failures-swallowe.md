@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (self-qa)
+step: 3 (pr)
 ---
 
 ## Description
@@ -122,6 +122,49 @@ Tests: `python3.12 -m pytest -q` in the worktree — 1032 passed, 1 skipped.
 (System `python3` is 3.9; use `python3.12` in this environment.)
 No fixture changes needed — no task layout / composition / workflow
 semantics touched. No push, no PR (later steps).
+
+## Self-QA
+
+Ran `/code-review` (8 finder angles + 1-vote verify) and `/simplify` against
+the branch. `/simplify` applied nothing — its four angles (reuse,
+simplification, efficiency, altitude) all came back as house-style false
+positives on verification (contexts deliberately mirror source docstrings,
+repetition and the history parenthetical are load-bearing). `/code-review`
+surfaced 4 real inaccuracies in the *new* prose; fixed in `98e0b719`
+(both copies kept byte-identical):
+
+1. "reachable-but-unauthenticated remote" → the probe never tests
+   reachability; any failed `git push --dry-run` bails, offline included
+   (`github_preflight.py:110-134`). Reworded to "unauthenticated and
+   unreachable/offline alike".
+2. "`GitError` swallowed at the `sync_paths` boundary" → three independent
+   swallow points (`sync_paths` git.py:250, `sync_coga_state` :331,
+   `sync_log` :193); the sweep never routes through `sync_paths`, and
+   `sync_log` skips the log line. Now enumerated.
+3. "before any state flip" → draft/paused tickets auto-activate (+ git sync,
+   Slack-silent) at launch.py:260 BEFORE the preflight at :334. Now says
+   "before the ticket flips to `in_progress`".
+4. "The one fatal git gate" → worktree creation is a second fatal git bail
+   at launch (launch.py:669-673). Scoped to "in this failure model".
+
+Also added a scoped live↔packaged byte-parity test
+(`tests/test_packaging.py::test_live_and_packaged_copies_stay_identical`)
+so a single-copy edit of the sync context fails CI. Blanket tree parity is
+NOT possible: `architecture/SKILL.md` and `period-task/SKILL.md`
+live-vs-packaged copies already differ substantially (flagging for human —
+unclear if intentional per CLAUDE.md's "in sync unless intentional and
+documented").
+
+Notes for the human reviewer (out of scope for this docs PR, not fixed):
+- `src/coga/git.py` module docstring is itself stale in two spots: says the
+  miss is logged to "the task's log.md" (actually repo-global `coga/log.md`,
+  per `paths.py:120` / `logfile.py`) and "rebase --autostash" (code now uses
+  an explicit stash helper, git.py:509-562). The context doc is correct.
+- `launch.py:633` comment repeats the same "reachable" inaccuracy fixed in
+  the doc.
+
+Tests after fixes: `python3.12 -m pytest -q` — 1033 passed, 1 skipped.
+Working tree clean.
 
 ## Usage
 
