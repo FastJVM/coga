@@ -74,12 +74,15 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from pathlib import Path
 
 from coga.config import Config
 from coga.logfile import append_log, ref_tag_for_path
 from coga.paths import log_path
+from coga.taskfile import TaskFileError, split_body
+from coga.ticket import Ticket, TicketError
 
 # Bounded retries when racing `refs/heads/<control>`: each loss is a refetch +
 # rebuild + repush, so a small ceiling is plenty under realistic contention
@@ -98,6 +101,15 @@ _ROOT_LAYOUT_COGA_PATHS = (
     "workflows",
 )
 
+_STATUS_PROGRESS = {
+    "draft": 0,
+    "active": 1,
+    "in_progress": 2,
+    "done": 3,
+}
+
+_StateGuard = Callable[[str], None]
+
 
 class GitError(Exception):
     """Raised when a git operation fails (git missing, or a non-zero exit).
@@ -105,6 +117,18 @@ class GitError(Exception):
     Distinct from the soft "not a git repo" no-op: this signals a real
     failure on the control branch that the caller surfaces as a crash.
     """
+
+
+class StateRegressionError(GitError):
+    """Raised when catch-all Coga-state sync would commit stale task state."""
+
+
+@dataclass(frozen=True)
+class _TicketState:
+    status: str | None
+    step: str | None
+    step_index: int | None
+    blackboard_bytes: int | None
 
 
 def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
@@ -317,6 +341,9 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
             )
             return
 
+        def guard(base: str) -> None:
+            _guard_coga_state_regressions(cfg, root, changed, base)
+
         # `merge=union` files (log.md, the digest spool) must stay out of the
         # cross-branch overlay set — same reason `sync_paths` keeps the log out:
         # the overlay replaces a file wholesale on the control tip and would drop
@@ -326,8 +353,15 @@ def sync_coga_state(cfg: Config, *, message: str = "Sync coga state") -> None:
         overlay_rels = [rel for rel in changed if rel not in union]
 
         _dispatch_branch_sync(
-            cfg, root, local_rels=changed, overlay_rels=overlay_rels, message=message
+            cfg,
+            root,
+            local_rels=changed,
+            overlay_rels=overlay_rels,
+            message=message,
+            guard=guard,
         )
+    except StateRegressionError as exc:
+        sys.stderr.write(f"[git] sync refused: {exc}. Message was: {message}\n")
     except GitError as exc:
         sys.stderr.write(f"[git] sync failed: {exc}. Message was: {message}\n")
         append_log(cfg, ref_tag_for_path(cfg, subtree), "git", f"sync failed: {exc}")
@@ -340,6 +374,7 @@ def _dispatch_branch_sync(
     local_rels: list[str],
     overlay_rels: list[str],
     message: str,
+    guard: _StateGuard | None = None,
 ) -> None:
     """Commit `local_rels` on the current branch and land `overlay_rels` on the
     control branch — the branch-aware core shared by `sync_paths` and
@@ -355,7 +390,9 @@ def _dispatch_branch_sync(
     """
     branch = _current_branch(root)
     if branch == cfg.git_control_branch:
-        _sync_paths_on_control_branch(cfg, root, local_rels, message=message)
+        _sync_paths_on_control_branch(
+            cfg, root, local_rels, message=message, guard=guard
+        )
         return
 
     if branch == "HEAD":
@@ -366,12 +403,25 @@ def _dispatch_branch_sync(
         overlay = set(overlay_rels)
         union_rels = [rel for rel in local_rels if rel not in overlay]
         _land_paths_on_control_branch(
-            cfg, root, overlay_rels, union_rels=union_rels, message=message
+            cfg,
+            root,
+            overlay_rels,
+            union_rels=union_rels,
+            message=message,
+            guard=guard,
         )
         return
     else:
+        before = _run_git(root, "rev-parse", "HEAD").strip() if guard else None
         _commit_paths(root, local_rels, message)
-    _land_paths_on_control_branch(cfg, root, overlay_rels, message=message)
+    try:
+        _land_paths_on_control_branch(
+            cfg, root, overlay_rels, message=message, guard=guard
+        )
+    except StateRegressionError:
+        if before is not None:
+            _restore_unpushed_sync_commit(root, before, local_rels)
+        raise
 
 
 def _coga_state_pathspecs(root: Path, coga_root: Path) -> list[str]:
@@ -448,6 +498,132 @@ def _union_merge_paths(root: Path, rels: list[str]) -> set[str]:
     return union
 
 
+def _guard_coga_state_regressions(
+    cfg: Config, root: Path, rels: list[str], base: str
+) -> None:
+    """Fail loud before a catch-all sweep commits stale task frontmatter.
+
+    `sync_coga_state` is intentionally broad within the Coga OS subtree. That
+    breadth is safe for usage records and hand-edits, but not for a stale launch
+    worktree whose task file predates a newer bump. Compare dirty task tickets
+    against the committed control-branch copy and leave the stale file dirty
+    instead of burying it in a generic "Sync coga state" commit.
+    """
+    refusals: list[str] = []
+    for rel in _changed_task_ticket_rels(root, cfg.repo_root, rels):
+        working = _working_tree_bytes(root, rel)
+        if working is None:
+            continue
+        committed = _tree_bytes(root, base, rel)
+        if committed is None:
+            continue
+        working_state = _ticket_state_from_bytes(working)
+        committed_state = _ticket_state_from_bytes(committed)
+        if working_state is None or committed_state is None:
+            continue
+        reason = _ticket_state_regression_reason(
+            rel, committed=committed_state, working=working_state
+        )
+        if reason is None:
+            continue
+
+        task_ref = _task_ref_for_ticket_rel(cfg, root, rel)
+        append_log(cfg, task_ref, "git", f"sync refused: {reason}")
+        refusals.append(reason)
+
+    if refusals:
+        raise StateRegressionError("; ".join(refusals))
+
+
+def _changed_task_ticket_rels(
+    root: Path, coga_root: Path, rels: list[str]
+) -> list[str]:
+    tasks_rel = _relative_to_root(root, coga_root / "tasks")
+    prefix = f"{tasks_rel}/" if tasks_rel != "." else ""
+    out: list[str] = []
+    for rel in rels:
+        if not rel.startswith(prefix):
+            continue
+        path = Path(rel)
+        if path.name == "ticket.md":
+            out.append(rel)
+            continue
+        if path.suffix != ".md":
+            continue
+        # A markdown file inside a directory-form task is an attachment, not a
+        # file-form ticket. File-form tickets have no sibling `ticket.md`.
+        if not (root / path.parent / "ticket.md").exists():
+            out.append(rel)
+    return out
+
+
+def _task_ref_for_ticket_rel(cfg: Config, root: Path, rel: str) -> str:
+    path = root / rel
+    if path.name == "ticket.md":
+        return ref_tag_for_path(cfg, path.parent)
+    return ref_tag_for_path(cfg, path)
+
+
+def _ticket_state_from_bytes(data: bytes) -> _TicketState | None:
+    try:
+        ticket = Ticket.parse(data.decode("utf-8"))
+    except (UnicodeDecodeError, TicketError):
+        return None
+    blackboard_bytes: int | None = None
+    try:
+        _body, blackboard = split_body(ticket.body, blackboard_required=False)
+    except TaskFileError:
+        blackboard = None
+    if blackboard is not None:
+        blackboard_bytes = len(blackboard.encode("utf-8"))
+    status = ticket.frontmatter.get("status")
+    step = ticket.frontmatter.get("step")
+    return _TicketState(
+        status=str(status) if status is not None else None,
+        step=str(step) if step is not None else None,
+        step_index=ticket.step_index(),
+        blackboard_bytes=blackboard_bytes,
+    )
+
+
+def _ticket_state_regression_reason(
+    rel: str, *, committed: _TicketState, working: _TicketState
+) -> str | None:
+    if (
+        committed.step_index is not None
+        and working.step_index is not None
+        and working.step_index < committed.step_index
+    ):
+        detail = (
+            f"{rel}: step would move backward from "
+            f"{committed.step!r} to {working.step!r}"
+        )
+        if (
+            committed.blackboard_bytes is not None
+            and working.blackboard_bytes is not None
+            and working.blackboard_bytes < committed.blackboard_bytes
+        ):
+            detail += (
+                f"; blackboard would shrink from {committed.blackboard_bytes} "
+                f"to {working.blackboard_bytes} bytes"
+            )
+        return detail
+
+    committed_status = _STATUS_PROGRESS.get(committed.status or "")
+    working_status = _STATUS_PROGRESS.get(working.status or "")
+    if (
+        committed_status is not None
+        and working_status is not None
+        and working_status < committed_status
+    ):
+        return (
+            f"{rel}: status would move backward from "
+            f"{committed.status!r} to {working.status!r}"
+        )
+
+    return None
+
+
 def _sync_on_control_branch(
     cfg: Config, root: Path, rel: str, *, message: str
 ) -> None:
@@ -462,15 +638,40 @@ def _sync_on_control_branch(
 
 
 def _sync_paths_on_control_branch(
-    cfg: Config, root: Path, rels: list[str], *, message: str
+    cfg: Config,
+    root: Path,
+    rels: list[str],
+    *,
+    message: str,
+    guard: _StateGuard | None = None,
 ) -> None:
     """Stage explicit pathspecs, commit if anything changed, and push."""
+    before: str | None = None
+    if guard is not None:
+        base = _control_base_for_attempt(
+            root, cfg.git_remote, cfg.git_control_branch, 1
+        )
+        guard(base)
+        before = _run_git(root, "rev-parse", "HEAD").strip()
     if not _commit_paths(root, rels, message):
         return
-    _push_control_branch(cfg, root)
+    try:
+        _push_control_branch(cfg, root, guard=guard)
+    except StateRegressionError:
+        if before is not None:
+            _restore_unpushed_sync_commit(root, before, rels)
+        raise
 
 
-def _push_control_branch(cfg: Config, root: Path) -> None:
+def _restore_unpushed_sync_commit(root: Path, before: str, rels: list[str]) -> None:
+    """Undo a just-created state-sync commit while keeping its files dirty."""
+    _run_git(root, "reset", "--soft", before)
+    _run_git(root, "reset", before, "--", *rels)
+
+
+def _push_control_branch(
+    cfg: Config, root: Path, *, guard: _StateGuard | None = None
+) -> None:
     """Push the checked-out control branch, absorbing a moved `origin/<control>`.
 
     The fast path is a single `git push <remote> <control>`. If `origin/<control>`
@@ -493,7 +694,7 @@ def _push_control_branch(cfg: Config, root: Path) -> None:
         if not _is_non_fast_forward(result):
             raise GitError(f"`git push {remote} {branch}` failed: {result}")
         # `origin/<control>` moved under us — integrate it and retry.
-        _rebase_onto_remote(root, remote, branch)
+        _rebase_onto_remote(root, remote, branch, guard=guard)
 
     raise GitError(
         f"could not push {branch!r} after {_MAX_SYNC_ATTEMPTS} attempts — "
@@ -501,7 +702,13 @@ def _push_control_branch(cfg: Config, root: Path) -> None:
     )
 
 
-def _rebase_onto_remote(root: Path, remote: str, branch: str) -> None:
+def _rebase_onto_remote(
+    root: Path,
+    remote: str,
+    branch: str,
+    *,
+    guard: _StateGuard | None = None,
+) -> None:
     """Rebase the local control branch onto the freshly-fetched remote tip,
     preserving unrelated dirty changes without ever leaving a conflicted tree
     or an orphaned stash.
@@ -521,6 +728,8 @@ def _rebase_onto_remote(root: Path, remote: str, branch: str) -> None:
     log), never a crash: the on-disk markdown is still the source of truth.
     """
     _run_git(root, "fetch", remote, branch)
+    if guard is not None:
+        guard(_run_git(root, "rev-parse", "FETCH_HEAD").strip())
     orig = _run_git(root, "rev-parse", "HEAD").strip()
     stashed = _stash_if_dirty(root)
 
@@ -692,6 +901,7 @@ def _land_paths_on_control_branch(
     *,
     union_rels: list[str] | None = None,
     message: str,
+    guard: _StateGuard | None = None,
 ) -> None:
     """Land selected pathspecs on the control branch from any branch."""
     remote = cfg.git_remote
@@ -700,6 +910,8 @@ def _land_paths_on_control_branch(
 
     for attempt in range(_MAX_SYNC_ATTEMPTS):
         base = _control_base_for_attempt(root, remote, branch, attempt)
+        if guard is not None:
+            guard(base)
 
         tree = _build_overlay_tree(root, base, rels, union_rels=union_rels)
         if tree == _run_git(root, "rev-parse", f"{base}^{{tree}}").strip():

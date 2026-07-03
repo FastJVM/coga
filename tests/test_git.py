@@ -62,6 +62,40 @@ def _task_dir(parent: Path, slug: str = "demo") -> Path:
     return path
 
 
+def _step_ticket_text(
+    *, step: str, status: str = "in_progress", blackboard: str = "notes\n"
+) -> str:
+    head = dedent(f"""
+        ---
+        slug: demo
+        title: demo
+        status: {status}
+        mode: agent
+        owner: marc
+        human: marc
+        agent: claude
+        assignee: claude
+        contexts: []
+        skills: []
+        workflow:
+          name: code
+          steps:
+          - name: implement
+          - name: review
+          - name: merge
+        step: {step}
+        ---
+
+        ## Description
+
+        Demo.
+
+        <!-- coga:blackboard -->
+
+    """).lstrip()
+    return head + blackboard
+
+
 def _write_config(tmp_path: Path, *, shared_extra: str = "", local_extra: str = "") -> Path:
     root = tmp_path / "coga"
     root.mkdir()
@@ -1274,6 +1308,200 @@ def test_sync_coga_state_lands_nonunion_on_main_keeps_union_local_on_feature(git
     assert not git_repo.origin_tracks("coga/log.md")
     # ...while it IS committed on the feature branch (reaches main via PR merge).
     assert "hand note" in git_repo.git("show", "HEAD:coga/log.md")
+
+
+def test_sync_coga_state_refuses_detached_step_regression(git_repo, capsys):
+    """A stale launch worktree must not bury a newer bump in `Sync coga state`.
+
+    The stale checkout starts at step 1, main advances to step 2, then the stale
+    checkout dirties its old ticket. The catch-all sweep should leave that old
+    file dirty and log the refusal instead of pushing a generic state-sync
+    commit that rewinds the ticket on origin/main.
+    """
+    cfg = load_config(git_repo.coga_os)
+    task = git_repo.coga_os / "tasks" / "demo"
+    task.mkdir(parents=True)
+    ticket = task / "ticket.md"
+    ticket.write_text(_step_ticket_text(step="1 (implement)", blackboard="old\n"))
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo step 1")
+    git_repo.git("push", "origin", "main")
+
+    worktree = git.add_launch_worktree(cfg, "stale-step-regression")
+    try:
+        ticket.write_text(
+            _step_ticket_text(
+                step="2 (review)",
+                blackboard="peer review verdict\nPR link\n",
+            )
+        )
+        git_repo.git("add", "coga/tasks/demo/ticket.md")
+        git_repo.git("commit", "-m", "Ticket: demo — step 2 (review)")
+        git_repo.git("push", "origin", "main")
+
+        stale_cfg = _cfg(worktree / "coga")
+        stale_ticket = worktree / "coga" / "tasks" / "demo" / "ticket.md"
+        stale_ticket.write_text(
+            _step_ticket_text(step="1 (implement)", blackboard="old\nusage\n")
+        )
+
+        git.sync_coga_state(stale_cfg, message="Sync coga state")
+
+        captured = capsys.readouterr()
+        assert "sync refused" in captured.err
+        assert "step would move backward" in captured.err
+        assert "coga/tasks/demo/ticket.md" in captured.err
+        origin_ticket = subprocess.run(
+            ["git", "show", "main:coga/tasks/demo/ticket.md"],
+            cwd=git_repo.origin,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        assert "step: 2 (review)" in origin_ticket
+        assert "peer review verdict" in origin_ticket
+        assert "usage" not in origin_ticket
+        assert "Sync coga state" not in git_repo.origin_subjects()
+        assert "ticket.md" in git_repo.git(
+            "status", "--porcelain", "--", "coga/tasks/demo/ticket.md",
+            cwd=worktree,
+        )
+        assert "sync refused" in (worktree / "coga" / "log.md").read_text()
+        assert "demo" in (worktree / "coga" / "log.md").read_text()
+    finally:
+        git.remove_launch_worktree(cfg, worktree)
+
+
+def test_sync_coga_state_rechecks_step_regression_after_fetch(git_repo, capsys):
+    """A stale local control ref must not let an older worktree overwrite origin."""
+    cfg = load_config(git_repo.coga_os)
+    task = git_repo.coga_os / "tasks" / "demo"
+    task.mkdir(parents=True)
+    ticket = task / "ticket.md"
+    ticket.write_text(_step_ticket_text(step="1 (implement)", blackboard="old\n"))
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo step 1")
+    git_repo.git("push", "origin", "main")
+
+    worktree = git.add_launch_worktree(cfg, "stale-fetch-regression")
+    try:
+        stale_cfg = _cfg(worktree / "coga")
+        stale_ticket = worktree / "coga" / "tasks" / "demo" / "ticket.md"
+        stale_ticket.write_text(
+            _step_ticket_text(step="2 (review)", blackboard="stale\nusage\n")
+        )
+        git_repo.push_competing_commit(
+            "coga/tasks/demo/ticket.md",
+            _step_ticket_text(step="3 (merge)", blackboard="newest\n"),
+        )
+
+        git.sync_coga_state(stale_cfg, message="Sync coga state")
+
+        captured = capsys.readouterr()
+        assert "sync refused" in captured.err
+        assert "step would move backward" in captured.err
+        origin_ticket = subprocess.run(
+            ["git", "show", "main:coga/tasks/demo/ticket.md"],
+            cwd=git_repo.origin,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        assert "step: 3 (merge)" in origin_ticket
+        assert "newest" in origin_ticket
+        assert "stale" not in origin_ticket
+        assert "Sync coga state" not in git_repo.origin_subjects()
+        assert "ticket.md" in git_repo.git(
+            "status", "--porcelain", "--", "coga/tasks/demo/ticket.md",
+            cwd=worktree,
+        )
+    finally:
+        git.remove_launch_worktree(cfg, worktree)
+
+
+def test_sync_coga_state_refuses_status_regression(git_repo, capsys):
+    cfg = load_config(git_repo.coga_os)
+    task = git_repo.coga_os / "tasks" / "demo"
+    task.mkdir(parents=True)
+    ticket = task / "ticket.md"
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="in_progress",
+            blackboard="current\n",
+        )
+    )
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", "seed demo in progress")
+    git_repo.git("push", "origin", "main")
+
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status="active",
+            blackboard="stale\n",
+        )
+    )
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    captured = capsys.readouterr()
+    assert "sync refused" in captured.err
+    assert "status would move backward" in captured.err
+    origin_ticket = subprocess.run(
+        ["git", "show", "main:coga/tasks/demo/ticket.md"],
+        cwd=git_repo.origin,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "status: in_progress" in origin_ticket
+    assert "stale" not in origin_ticket
+    assert "Sync coga state" not in git_repo.origin_subjects()
+
+
+@pytest.mark.parametrize(
+    ("committed_status", "working_status"),
+    [("blocked", "active"), ("paused", "in_progress")],
+)
+def test_sync_coga_state_allows_resume_statuses(
+    git_repo, committed_status, working_status
+):
+    cfg = load_config(git_repo.coga_os)
+    task = git_repo.coga_os / "tasks" / "demo"
+    task.mkdir(parents=True)
+    ticket = task / "ticket.md"
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status=committed_status,
+            blackboard="waiting\n",
+        )
+    )
+    git_repo.git("add", "coga/tasks/demo/ticket.md")
+    git_repo.git("commit", "-m", f"seed demo {committed_status}")
+    git_repo.git("push", "origin", "main")
+
+    ticket.write_text(
+        _step_ticket_text(
+            step="1 (implement)",
+            status=working_status,
+            blackboard="resumed\n",
+        )
+    )
+
+    git.sync_coga_state(cfg, message="Sync coga state")
+
+    origin_ticket = subprocess.run(
+        ["git", "show", "main:coga/tasks/demo/ticket.md"],
+        cwd=git_repo.origin,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert f"status: {working_status}" in origin_ticket
+    assert "resumed" in origin_ticket
+    assert "Sync coga state" in git_repo.origin_subjects()
 
 
 def test_sync_coga_state_noop_on_clean_subtree(git_repo):

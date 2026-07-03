@@ -105,6 +105,8 @@ def _clear_supervised_session_env(monkeypatch):
     (autouse runs first, so their `monkeypatch.setenv` wins)."""
     monkeypatch.delenv("COGA_DONE_SENTINEL", raising=False)
     monkeypatch.delenv("COGA_SUPERVISED", raising=False)
+    monkeypatch.delenv("COGA_EXPECTED_TASK", raising=False)
+    monkeypatch.delenv("COGA_EXPECTED_STEP", raising=False)
 
 
 @pytest.fixture(autouse=True)
