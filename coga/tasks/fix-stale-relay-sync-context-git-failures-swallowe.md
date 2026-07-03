@@ -1,7 +1,7 @@
 ---
 slug: fix-stale-relay-sync-context-git-failures-swallowe
 title: 'Fix stale coga/sync context: git failures swallowed (exit 0), not typer.Exit(1)'
-status: active
+status: in_progress
 mode: agent
 owner: nick
 human: nick
