@@ -1,6 +1,6 @@
 ---
-slug: v2/sync-support-files-and-bare-ticket-shim-authoring
-title: Sync support files and bare-ticket-shim authoring edits across checkouts
+slug: v2/sync-support-files-and-bare-ticket-authoring
+title: Sync support files and bare-ticket authoring edits across checkouts
 status: draft
 mode: agent
 owner: nick
