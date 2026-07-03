@@ -744,3 +744,4 @@ fatal: adding files failed
 2026-07-03 11:56 [launch-prompt/review-and-edit-the-relay-launch-prompt-editorial] [human:nicktoper] paused (active → paused)
 2026-07-03 11:57 [marketing/relay-discord] [human:nicktoper] paused (active → paused)
 2026-07-03 11:57 [marketing/launch-relay-product-launch-comms] [human:nicktoper] paused (active → paused)
+2026-07-03 11:58 [coga-rename-follow-ups-post-repo-rename] [megalaunch] started (active → in_progress) via coga megalaunch
