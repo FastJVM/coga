@@ -779,3 +779,4 @@ fatal: adding files failed
 2026-07-03 18:02 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-03 18:08 [cli-extension-model/move-read-views-to-tickets-as-scripts] [agent:claude] advanced to step 2 (review-design) → assigned to nicktoper — Design spec written. Crux (parameterized read → arg-less script ticket) resolved by committed #491 precedent: thin command head keeps the arg at the Typer layer, render moves to a tested module + script skill, no new launcher. 4 open questions on the blackboard (chief: package-module vs. render-body-in-coga/skills; status's flag matrix).
 2026-07-03 18:13 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-03 18:13 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] started (active → in_progress) via coga launch
