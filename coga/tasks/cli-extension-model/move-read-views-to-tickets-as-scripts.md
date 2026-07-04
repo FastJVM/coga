@@ -276,3 +276,7 @@ Python exposed via a thin `script: run.py` skill — the exact shape `views.py`
 4. **Scope confirm:** this ticket = `show` + `status` only.
    `validate`/`skill status`/`recurring list` share the destination but are
    deferred to follow-ups (already stated in the body). Confirm.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":318955,"cache_read_input_tokens":2394179,"cli":"claude","input_tokens":21225,"model":"claude-opus-4-8","output_tokens":68969,"provider":"anthropic","schema":1,"session_id":"c1a51f10-e7ae-4991-8a2f-7b2ec26595c1","slug":"cli-extension-model/move-read-views-to-tickets-as-scripts","step":"design","title":"Move show/status into their lowest-tier mechanism","ts":"2026-07-04T01:08:04.441234Z","usage_status":"ok"}
