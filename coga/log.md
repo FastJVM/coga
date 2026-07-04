@@ -807,3 +807,5 @@ error: unable to index file 'coga/tasks/add-a-nothing-to-implement-close-path-so
 fatal: adding files failed
 2026-07-04 11:02 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-04 11:17 [add-a-nothing-to-implement-close-path-so-already-s] [agent:claude] advanced to step 3 (pr) — self-qa done: /code-review + /simplify ran; no correctness changes (findings matched block.py pattern), added docstring fix + workflowless test. Branch codex/already-satisfied-close.
+2026-07-04 11:17 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:18 [add-a-nothing-to-implement-close-path-so-already-s] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/516 (no CI configured on repo)
