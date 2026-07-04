@@ -775,3 +775,4 @@ fatal: adding files failed
 2026-07-03 16:16 [zzz-throwaway-workflow-probe] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-03 18:02 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-03 18:02 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-03 18:06 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
