@@ -200,7 +200,8 @@ launches inject task metadata env vars including
   path under `tasks/` (`marketing/coga-crm`), matching what `coga status`
   prints — the bare leaf alone won't resolve.
 - `coga launch <slug> --agent <type>` — one-off agent-type override
-  (e.g. `--agent claude`); does not rewrite the ticket's `assignee:`.
+  for an agent-owned task (e.g. `--agent claude`); does not rewrite the
+  ticket's `assignee:` and does not bypass a human handoff.
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
   spawning an agent. Rejected for `mode: script` tickets, which compose no
@@ -236,7 +237,8 @@ supervised chain.
 
 Agent type comes from the ticket's `assignee` directly — it names an
 `[agents.<type>]` block in `coga.toml`. Human assignees aren't
-launchable; reassign to an agent type first.
+launchable, and `--agent` does not convert a human handoff into an agent
+step; reassign to an agent type first.
 
 For workflow-bound interactive tasks, `launch` can continue through
 consecutive agent-owned steps in fresh processes. After a clean agent exit,

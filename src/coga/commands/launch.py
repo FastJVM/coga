@@ -227,6 +227,12 @@ def launch(
                 f"to resume."
             )
 
+    # Refuse human handoffs before allocating an isolated launch worktree. A
+    # human-owned active/in-progress step should report the handoff directly,
+    # even in sandboxes where `.git/worktrees` is not writable.
+    if not is_bootstrap and ticket.status not in {"draft", "paused"}:
+        _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
+
     # Per-launch `git worktree` isolation (`[launch].worktree`). When on, the
     # whole supervised session — launch-owned status writes, every step's
     # compose, spawn, in-session `coga bump`/`mark`, and usage sync — runs
@@ -283,6 +289,8 @@ def launch(
             return
 
         mode = ticket.mode
+
+        _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
         if mode == "agent" and not _interactive_stdio_has_tty():
             _bail(
@@ -1109,6 +1117,30 @@ def _launch_log_message(
     return (
         f"launched in {mode} mode "
         f"(assignee={assignee}, launch_assignee={launch_assignee}, agent={agent_name})"
+    )
+
+
+def _refuse_human_handoff_launch(
+    cfg: Config,
+    ref: TaskRef | BootstrapRef,
+    ticket: Ticket,
+    agent_override: str | None,
+) -> None:
+    assignee = ticket.assignee
+    if (
+        isinstance(ref, BootstrapRef)
+        or ticket.mode != "agent"
+        or not assignee
+        or assignee in cfg.agents
+    ):
+        return
+    override = (
+        f" with --agent {agent_override!r}" if agent_override is not None else ""
+    )
+    _bail(
+        f"Cannot launch {ref.id_slug}{override}: assignee {assignee!r} "
+        "is not a configured agent type. This is a human handoff; "
+        "reassign the task to an agent type before launching an agent."
     )
 
 
