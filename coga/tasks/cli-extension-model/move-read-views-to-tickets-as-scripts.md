@@ -194,3 +194,5 @@ commit: 3089433e (not pushed; PR is the open-pr step)
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":292755,"cache_read_input_tokens":10102182,"cli":"claude","input_tokens":30533,"model":"claude-opus-4-8","output_tokens":104572,"provider":"anthropic","schema":1,"session_id":"a30c8543-13eb-4145-bfee-e8084dee0dfe","slug":"cli-extension-model/move-read-views-to-tickets-as-scripts","step":"implement","title":"Move show/status into their lowest-tier mechanism","ts":"2026-07-04T01:25:06.353364Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1227264,"cli":"codex","input_tokens":103379,"model":"gpt-5.5","output_tokens":5348,"provider":"openai","schema":1,"session_id":"019f2aba-b8e3-7072-a8f1-c00d653c7910","slug":"cli-extension-model/move-read-views-to-tickets-as-scripts","step":"peer-review","title":"Move show/status into their lowest-tier mechanism","ts":"2026-07-04T03:07:00.118091Z","usage_status":"ok"}
