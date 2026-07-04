@@ -1234,6 +1234,33 @@ def _worktree_holding_branch(root: Path, branch: str) -> Path | None:
     return None
 
 
+def list_worktrees(root: Path) -> list[tuple[Path, str | None]]:
+    """Every git worktree as `(path, branch_name_or_None)`.
+
+    Branch is `None` for a detached-HEAD worktree (the per-launch isolation
+    default). Best-effort: returns `[]` when the listing fails or the checkout
+    is not git-backed, so callers degrade to "can't tell" rather than crash.
+    """
+    try:
+        listing = _run_git(root, "worktree", "list", "--porcelain")
+    except GitError:
+        return []
+    out: list[tuple[Path, str | None]] = []
+    path: Path | None = None
+    branch: str | None = None
+    for line in listing.splitlines():
+        if line.startswith("worktree "):
+            if path is not None:
+                out.append((path, branch))
+            path = Path(line[len("worktree "):])
+            branch = None
+        elif line.startswith("branch refs/heads/"):
+            branch = line[len("branch refs/heads/"):]
+    if path is not None:
+        out.append((path, branch))
+    return out
+
+
 # --- low-level git plumbing ----------------------------------------------------
 
 

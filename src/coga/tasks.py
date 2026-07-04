@@ -8,7 +8,7 @@ from typing import Union
 
 from coga.config import Config
 from coga.paths import bootstrap_path, tasks_dir
-from coga.ticket import Ticket
+from coga.ticket import Ticket, TicketError
 
 
 class TaskNotFoundError(Exception):
@@ -310,6 +310,60 @@ def read_ticket(ref: TargetRef) -> Ticket:
     return Ticket.read(ref.ticket_path)
 
 
+def task_live_in_other_worktrees(
+    cfg: Config,
+    ref: TaskRef,
+    live_statuses: tuple[str, ...] = ("in_progress",),
+) -> list[tuple[Path, str, str]]:
+    """Worktrees *other than* the current checkout whose copy of this ticket is
+    live (`in_progress` by default).
+
+    Coga has no filesystem mutex — ticket `status` lives in a git-tracked file,
+    so every branch/worktree carries its own copy. Working the same ticket in
+    two worktrees at once diverges silently (the failure this repo hit). This
+    reads each other worktree's copy of the *same* `ticket.md` path and reports
+    where it is already live, so callers can fail loud before adding a third
+    divergent copy.
+
+    Returns `(worktree_path, branch_or_"(detached)", status)` per hit.
+    Best-effort: `[]` when worktrees can't be listed, the checkout isn't
+    git-backed, or a sibling copy is missing/unparseable — never raises.
+    """
+    # Local import: git imports ticket, not tasks — no cycle. `_toplevel` is the
+    # git working-tree root, which every `git worktree list` path shares; anchor
+    # on it rather than `cfg.repo_root`, which may be the nested `coga/` dir and
+    # not the git root (the two differ whenever `coga/` lives inside a repo).
+    from coga.git import GitError, _toplevel, list_worktrees
+
+    del cfg  # reserved for future use; path math anchors on the git toplevel
+    try:
+        root = _toplevel(ref.ticket_path)
+    except GitError:
+        return []
+    if root is None:
+        return []
+    try:
+        current = root.resolve()
+        rel = ref.ticket_path.resolve().relative_to(current)
+    except (ValueError, OSError):
+        return []
+
+    hits: list[tuple[Path, str, str]] = []
+    for wt_path, branch in list_worktrees(root):
+        try:
+            if wt_path.resolve() == current:
+                continue
+        except OSError:
+            continue
+        try:
+            status = Ticket.read(wt_path / rel).status
+        except (TicketError, OSError):
+            continue
+        if status in live_statuses:
+            hits.append((wt_path, branch or "(detached)", status))
+    return hits
+
+
 __all__ = [
     "TaskRef",
     "BootstrapRef",
@@ -325,4 +379,5 @@ __all__ = [
     "resolve_bootstrap",
     "resolve_target",
     "read_ticket",
+    "task_live_in_other_worktrees",
 ]

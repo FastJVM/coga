@@ -86,17 +86,21 @@ The deliberate separation keeps the moment of authorship distinct from
 the moment of starting work. Tickets you mean to draft now and start
 later get the same call; nothing fires the agent until you choose to.
 
-## coga ticket [\<title-or-slug\>] [--agent <type>]
+## coga ticket [\<title-or-slug\>] [--agent <type>] [--force]
 
 Run the guided ticket-authoring interview (`bootstrap/ticket`).
 
 - `coga ticket` — ask for a title, create a draft, and fill it.
 - `coga ticket "Add retry to webhook handler"` — create that draft, then
   launch the authoring skill against it.
-- `coga ticket add-retry` — edit an existing ticket at any status. Editing
-  leaves the status unchanged; for an `in_progress` or `done` ticket it
-  prints a heads-up first (revising one in flight or already finished is
-  unusual) but does not refuse.
+- `coga ticket add-retry` — edit an existing ticket. Editing leaves the status
+  unchanged. A *live* ticket is guarded: re-authoring one that is `in_progress`
+  — here, or `in_progress` in another git worktree/branch — is **refused**.
+  Rewriting a ticket an agent is actively working resets its step/workflow and
+  forks it from the copy in flight (the cross-worktree divergence Coga's
+  no-mutex model allows). Pause it first (`coga mark paused <slug>`), work it
+  where it is live, or pass `--force` to override. A `done` ticket gets a soft
+  caution only — revising a finished ticket for a retro tweak is legitimate.
 
 The guided authoring flow chooses workflow/context/assignee with the human,
 edits the ticket, and leaves status unchanged. After the session it

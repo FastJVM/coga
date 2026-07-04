@@ -28,16 +28,18 @@ from coga.tasks import (
     read_ticket,
     resolve_bootstrap,
     resolve_task,
+    task_live_in_other_worktrees,
 )
 from coga.ticket import Ticket
 
 
 AUTHORING_SKILL = "bootstrap/ticket"
 # Guided editing is allowed from any lifecycle status — the human owns the
-# ticket and may revise it at any stage. `in_progress` and `done` are unusual
-# enough to warrant a heads-up (see CAUTION_STATUSES) but are not refused.
+# ticket and may revise it at any stage. A *live* ticket (in_progress here or in
+# another worktree) is refused without --force, because re-authoring it resets
+# its step/workflow and forks it from the active copy; `done` gets a soft
+# caution only. See `_resolve_existing`.
 EDITABLE_STATUSES = {"draft", "active", "in_progress", "paused", "done"}
-CAUTION_STATUSES = {"in_progress", "done"}
 
 # Kickoff tokens — the authoring session's first user turn, which the
 # `bootstrap/ticket` skill reads to greet the human as the right launch shape.
@@ -66,6 +68,16 @@ def ticket(
         "--agent",
         help="Agent nickname to use for the authoring interview.",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help=(
+            "Author a ticket that is in_progress (here or in another worktree). "
+            "Re-authoring a live ticket resets its step/workflow and diverges "
+            "from the active copy; --force overrides the refusal."
+        ),
+    ),
 ) -> None:
     """Run the bootstrap/ticket authoring skill."""
     try:
@@ -87,7 +99,7 @@ def ticket(
         source_ticket = bootstrap_ticket
         kickoff = AUTHORING_KICKOFF
     else:
-        ref, source_ticket, created = _resolve_or_create_target(cfg, target)
+        ref, source_ticket, created = _resolve_or_create_target(cfg, target, force)
         kickoff = AUTHORING_KICKOFF_NEW if created else AUTHORING_KICKOFF_EDIT
 
     launch_assignee = (
@@ -109,7 +121,7 @@ def ticket(
 
 
 def _resolve_or_create_target(
-    cfg: Config, target: str
+    cfg: Config, target: str, force: bool = False
 ) -> tuple[TaskRef, Ticket, bool]:
     """Resolve `target` to an existing task to edit, or scaffold a new draft.
 
@@ -134,7 +146,7 @@ def _resolve_or_create_target(
         # semantics — and `coga launch` / `coga status` — untouched.
         leaf_matches = [t for t in list_tasks(cfg) if t.slug == target]
         if len(leaf_matches) == 1:
-            return _resolve_existing(leaf_matches[0])
+            return _resolve_existing(cfg, leaf_matches[0], force)
         if len(leaf_matches) > 1:
             slugs = ", ".join(t.id_slug for t in leaf_matches)
             _bail(
@@ -148,15 +160,23 @@ def _resolve_or_create_target(
         typer.echo(f"{ref.id_slug}: launching guided ticket authoring")
         return ref, read_ticket(ref), True
 
-    return _resolve_existing(ref)
+    return _resolve_existing(cfg, ref, force)
 
 
-def _resolve_existing(ref: TaskRef) -> tuple[TaskRef, Ticket, bool]:
+def _resolve_existing(
+    cfg: Config, ref: TaskRef, force: bool = False
+) -> tuple[TaskRef, Ticket, bool]:
     """Read an existing task for editing, gating on its status.
 
     Shared by the normal `resolve_task` hit and the nested bare-leaf scan, so
-    both edit paths apply the same status guard and caution heads-up. `created`
-    is always False — an existing ticket is never a fresh draft.
+    both edit paths apply the same status guard. `created` is always False — an
+    existing ticket is never a fresh draft.
+
+    Re-authoring a *live* ticket is refused unless `--force`: rewriting a ticket
+    that is `in_progress` (here, or in another worktree/branch) is what resets
+    its step/workflow and forks it from the copy an agent is actively working —
+    the cross-worktree divergence this repo hit. `done` stays a soft caution
+    (revising a finished ticket for a retro tweak is legitimate, not a fork).
     """
     ticket = read_ticket(ref)
     if ticket.status not in EDITABLE_STATUSES:
@@ -164,13 +184,33 @@ def _resolve_existing(ref: TaskRef) -> tuple[TaskRef, Ticket, bool]:
             f"Task {ref.id_slug} has unknown status {ticket.status!r}; "
             "refusing guided ticket editing."
         )
-    if ticket.status in CAUTION_STATUSES:
+
+    if ticket.status == "in_progress" and not force:
+        _bail(
+            f"Refusing to author {ref.id_slug}: it is in_progress — work is "
+            "active. Re-authoring a live ticket resets its step/workflow and "
+            "diverges from the copy an agent is working. Pause it first "
+            f"(`coga mark paused {ref.id_slug}`), or pass --force to edit anyway."
+        )
+
+    if not force:
+        elsewhere = task_live_in_other_worktrees(cfg, ref)
+        if elsewhere:
+            where = "; ".join(
+                f"{path} (branch {branch}, {status})"
+                for path, branch, status in elsewhere
+            )
+            _bail(
+                f"Refusing to author {ref.id_slug}: it is in_progress in "
+                f"another worktree — {where}. Editing this copy would fork the "
+                "ticket from the active one. Work it in that worktree, pause it "
+                "there, or pass --force to edit anyway."
+            )
+
+    if ticket.status == "done":
         typer.secho(
-            f"Note: {ref.id_slug} is {ticket.status!r}. Editing leaves its "
-            "status unchanged; this revises a ticket already in flight"
-            if ticket.status == "in_progress"
-            else f"Note: {ref.id_slug} is {ticket.status!r}. Editing leaves its "
-            "status unchanged; this revises a finished ticket",
+            f"Note: {ref.id_slug} is 'done'. Editing leaves its status "
+            "unchanged; this revises a finished ticket.",
             fg=typer.colors.YELLOW,
             err=True,
         )

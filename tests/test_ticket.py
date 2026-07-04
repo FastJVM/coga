@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from textwrap import dedent
 
@@ -17,6 +18,25 @@ from coga.ticket import Ticket
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
+
+
+def _install_run(monkeypatch: pytest.MonkeyPatch, fake) -> None:  # type: ignore[no-untyped-def]
+    """Patch the spawn subprocess while letting real `git` calls through.
+
+    `coga ticket` now scans sibling worktrees (`git worktree list`) before
+    editing a live ticket. That runs through the same `subprocess.run` these
+    tests fake for the agent spawn, so route `git` to the real subprocess (which
+    returns no extra worktrees in these non-git / single-worktree fixtures) and
+    hand everything else to the test's `fake`.
+    """
+    real_run = subprocess.run
+
+    def dispatch(cmd, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if cmd and cmd[0] == "git":
+            return real_run(cmd, *args, **kwargs)
+        return fake(cmd, *args, **kwargs)
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", dispatch)
 
 
 def _prompt_arg(cmd: list[str]) -> str:
@@ -96,7 +116,7 @@ def _allow_ticket_launch(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    _install_run(monkeypatch, fake_run)
 
 
 def test_ticket_title_creates_draft_and_launches_authoring(
@@ -182,7 +202,7 @@ def test_ticket_authoring_does_not_inject_coga_secrets(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    _install_run(monkeypatch, fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
     assert result.exit_code == 0, result.output
@@ -226,7 +246,7 @@ def test_ticket_uses_discussion_template_when_agent_configures_one(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    _install_run(monkeypatch, fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "Investigate retries"])
     assert result.exit_code == 0, result.output
@@ -278,7 +298,7 @@ def test_ticket_agent_override_codex_gets_kickoff(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    _install_run(monkeypatch, fake_run)
 
     result = CliRunner().invoke(
         app, ["ticket", "Investigate retries", "--agent", "codex"]
@@ -346,7 +366,7 @@ def test_ticket_requires_tty_before_spawning(
         called = True
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: False)
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    _install_run(monkeypatch, fake_run)
 
     result = CliRunner().invoke(app, ["ticket"])
     assert result.exit_code == 2
@@ -412,7 +432,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    _install_run(monkeypatch, fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "broken-context"])
     assert result.exit_code == 2
@@ -423,11 +443,7 @@ def test_ticket_reports_compose_error_for_broken_editable_task(
     assert not called
 
 
-def test_ticket_edits_in_progress_task(
-    repo: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    cfg = load_config(repo)
+def _seed_in_progress(cfg) -> None:  # type: ignore[no-untyped-def]
     create_task(
         cfg=cfg,
         title="Running work",
@@ -439,14 +455,38 @@ def test_ticket_edits_in_progress_task(
         watchers=[],
         status="in_progress",
     )
+
+
+def test_ticket_refuses_to_reauthor_in_progress_task(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Re-authoring a live ticket resets its step/workflow and forks it from the
+    # copy an agent is working — the cross-worktree divergence this guards.
+    _seed_in_progress(load_config(repo))
     prompts: list[str] = []
     _allow_ticket_launch(monkeypatch, prompts)
 
     result = CliRunner().invoke(app, ["ticket", "running-work"])
+    assert result.exit_code == 2
+    combined = result.output + (result.stderr or "")
+    assert "in_progress" in combined
+    assert "--force" in combined
+    # Refused before any authoring session is spawned.
+    assert prompts == []
+
+
+def test_ticket_force_reauthors_in_progress_task(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # --force is the deliberate override: it edits the live ticket anyway.
+    _seed_in_progress(load_config(repo))
+    prompts: list[str] = []
+    _allow_ticket_launch(monkeypatch, prompts)
+
+    result = CliRunner().invoke(app, ["ticket", "running-work", "--force"])
     assert result.exit_code == 0, result.output
-    # in_progress no longer refused — the editing session launches, with a
-    # heads-up that the ticket is in flight.
-    assert "in_progress" in (result.output + (result.stderr or ""))
     assert len(prompts) == 1
 
 
@@ -470,7 +510,7 @@ def _capture_ticket_launch(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    _install_run(monkeypatch, fake_run)
 
 
 def test_ticket_without_target_launches_bootstrap_interview(
@@ -583,7 +623,7 @@ def test_ticket_ambiguous_bare_leaf_bails_without_launching(
 
     monkeypatch.setattr("coga.commands.ticket._interactive_stdio_has_tty", lambda: True)
     monkeypatch.setattr("coga.commands.ticket.shutil.which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    _install_run(monkeypatch, fake_run)
 
     result = CliRunner().invoke(app, ["ticket", "relaunch"])
     assert result.exit_code == 2
