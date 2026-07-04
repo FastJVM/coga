@@ -798,3 +798,4 @@ fatal: adding files failed
 2026-07-04 10:14 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-04 10:52 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done on branch open-pr-script (commit 584ebe34); full suite green. Per-step script dispatch + code/open-pr script.
 2026-07-04 10:52 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 10:52 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] started (active → in_progress) via coga launch
