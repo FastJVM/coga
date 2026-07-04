@@ -13,7 +13,7 @@ contexts:
 - coga/codebase
 skills: []
 workflow:
-  name: dev/with-self-review
+  name: code/with-self-review
   steps:
   - name: implement
     skills:

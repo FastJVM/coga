@@ -1,5 +1,5 @@
 ---
-name: dev/with-self-review
+name: code/with-self-review
 description: Code change with an agent self-QA pass (/code-review + /simplify, fixes committed in place) before the PR is opened, so the human reviewer sees one clean diff. Three agent steps then human PR review.
 steps:
   - name: implement
@@ -33,7 +33,7 @@ before the handoff**: check that the PR is mergeable (e.g. `gh pr view
 conflicts, re-run `python -m pytest`, and push so the human reviewer
 receives a clean, mergeable PR. Only then `coga bump` to hand off to the
 owner. If a conflict needs a judgment call you can't make, write it to
-the blackboard and `coga panic` instead of bumping.
+the blackboard and `coga block` instead of bumping.
 
 ## review
 
