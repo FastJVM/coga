@@ -117,3 +117,5 @@ worktree: /tmp/coga-already-satisfied-close
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":5354752,"cli":"codex","input_tokens":182128,"model":"gpt-5.5","output_tokens":23728,"provider":"openai","schema":1,"session_id":"019f2e42-ca29-7463-9591-bc988369d555","slug":"add-a-nothing-to-implement-close-path-so-already-s","step":"implement","title":"Add a nothing-to-implement close path so already-satisfied tickets don't park as blocked","ts":"2026-07-04T18:02:10.602430Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":296208,"cache_read_input_tokens":8527844,"cli":"claude","input_tokens":19954,"model":"claude-opus-4-8","output_tokens":81164,"provider":"anthropic","schema":1,"session_id":"bff2395b-fdc2-495d-9f1b-bee12bae09cf","slug":"add-a-nothing-to-implement-close-path-so-already-s","step":"self-qa","title":"Add a nothing-to-implement close path so already-satisfied tickets don't park as blocked","ts":"2026-07-04T18:17:17.149316Z","usage_status":"ok"}
