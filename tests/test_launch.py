@@ -2425,8 +2425,8 @@ def test_current_step_is_script_detects_scripted_step(active_task: Path) -> None
 def test_launch_runs_scripted_step_as_script_not_agent(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A mode: agent ticket sitting on a script step runs the script, not an agent."""
-    _allow_interactive_tty(monkeypatch)
+    """A mode: agent ticket sitting on a script step runs without agent setup."""
+    _deny_interactive_tty(monkeypatch)
     _write(
         active_task / "workflows" / "shipflow.md",
         """
@@ -2453,8 +2453,11 @@ def test_launch_runs_scripted_step_as_script_not_agent(
     )
     slug = created["slug"]
 
-    monkeypatch.setattr("coga.commands.launch._preflight_push_auth", lambda *a, **k: None)
-    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+    def _no_agent_setup(*a, **k):  # type: ignore[no-untyped-def]
+        raise AssertionError("a script step must not require agent setup")
+
+    monkeypatch.setattr("coga.commands.launch._preflight_push_auth", _no_agent_setup)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", _no_agent_setup)
 
     def _no_agent(*a, **k):  # type: ignore[no-untyped-def]
         raise AssertionError("a script step must not spawn an agent")
