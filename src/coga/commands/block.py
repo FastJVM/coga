@@ -67,7 +67,10 @@ def block(
     except TaskValidationError as exc:
         _bail(str(exc))
 
-    emit_done_marker(session_id=str(ref.path.resolve()))
+    # `id_slug` (not the resolved path) scopes the signal so it matches the
+    # supervisor regardless of which checkout — primary or per-launch worktree
+    # — the command runs in. See `bump.py` for the worktree-drift rationale.
+    emit_done_marker(session_id=ref.id_slug)
 
 
 def _bail(msg: str) -> None:
