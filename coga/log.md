@@ -812,3 +812,10 @@ fatal: adding files failed
 2026-07-04 11:20 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] launched in agent mode (assignee=nicktoper, launch_assignee=codex, agent=codex)
 2026-07-04 11:21 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-04 11:22 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-04 10:52 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-04 11:24 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review fix committed: 1bf7ab6d; targeted launch/open-pr tests passed; full suite has unrelated usage_probe failure.
+2026-07-04 11:24 [make-open-pr-a-script-step-so-bump-requires-a-real] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-07-04 11:24 [coga] [git] sync failed: `git add -- coga/tasks/make-open-pr-a-script-step-so-bump-requires-a-real.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/make-open-pr-a-script-step-so-bump-requires-a-real.md: failed to insert into database
+error: unable to index file 'coga/tasks/make-open-pr-a-script-step-so-bump-requires-a-real.md'
+fatal: adding files failed

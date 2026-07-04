@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/architecture
 - coga/principles
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -130,6 +130,48 @@ bumps.
 branch: open-pr-script
 worktree: /home/n/Code/claude/coga-open-pr-script
 pr:
+
+## PR
+
+Summary:
+- Converts `code/open-pr` into a deterministic script-backed step and teaches
+  launch to run per-step scripts inside agent workflows.
+- Fixes the peer-review finding that relaunching while already on a script step
+  still went through agent-only setup first; scripted steps now run before TTY,
+  agent CLI, prompt composition, or agent git-auth preflights.
+- Adds/updates tests for open-pr script behavior and script-step dispatch.
+
+Test plan:
+- `codex review --base main` (unsandboxed after sandbox app-server init failed)
+- `PYTHONPATH=/home/n/Code/claude/coga-open-pr-script/src python -m pytest -p no:cacheprovider tests/test_launch.py tests/test_launch_script.py tests/test_open_pr.py -q`
+- `PYTHONPATH=/home/n/Code/claude/coga-open-pr-script/src python -m coga.cli validate --task make-open-pr-a-script-step-so-bump-requires-a-real --json`
+
+Note: full-suite verification with the same `PYTHONPATH` currently has one
+unrelated failure in
+`tests/test_usage_probe.py::test_codex_probe_primes_then_reads_fresh_rollout`;
+that test also fails when run alone and this branch does not touch usage-probe
+code.
+
+## Peer review (codex)
+
+Native review found one must-fix issue: a `mode: agent` ticket relaunched while
+already sitting on a script step still required a TTY, agent CLI, composed
+prompt, and agent git-auth preflight before it could reach the script dispatch.
+That would block the new no-agent `code/open-pr` behavior in exactly the
+relaunch-after-fix scenario.
+
+Applied fix in commit `1bf7ab6d` on `open-pr-script`: current script steps now
+run immediately after activation/worktree re-rooting and before agent-only
+setup. If the script advances to a human handoff or terminal state, launch stops
+and cleans up the launch worktree; if it advances to an agent step, normal
+agent setup continues from the fresh ticket. The in-loop dispatch still handles
+script steps reached after an agent bump.
+
+Verification:
+- `python -m pytest tests/test_launch.py::test_launch_runs_scripted_step_as_script_not_agent tests/test_launch.py::test_current_step_is_script_detects_scripted_step tests/test_open_pr.py -q` -> 16 passed
+- `PYTHONPATH=/home/n/Code/claude/coga-open-pr-script/src python -m pytest -p no:cacheprovider tests/test_launch.py tests/test_launch_script.py tests/test_open_pr.py -q` -> 93 passed
+- `PYTHONPATH=/home/n/Code/claude/coga-open-pr-script/src python -m coga.cli validate --task make-open-pr-a-script-step-so-bump-requires-a-real --json` -> clean
+- Full suite attempt: `PYTHONPATH=/home/n/Code/claude/coga-open-pr-script/src python -m pytest -p no:cacheprovider` -> 1079 passed, 1 skipped, 1 unrelated failure in `tests/test_usage_probe.py::test_codex_probe_primes_then_reads_fresh_rollout` (fails alone; branch does not touch usage probe).
 
 ## Investigation findings (implement step)
 
