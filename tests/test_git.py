@@ -1569,6 +1569,13 @@ def test_sweep_skips_read_only_and_runs_for_mutating_commands(monkeypatch):
     assert calls == [cfg]  # mutating command-group subcommand swept
 
     calls.clear()
+    monkeypatch.setattr(
+        cli.sys, "argv", ["coga", "mark", "already-satisfied", "demo"]
+    )
+    cli._sweep_coga_state(cfg)
+    assert calls == [cfg]  # terminal mark subcommand swept
+
+    calls.clear()
     cli._sweep_coga_state(None)
     assert calls == []  # no repo → nothing to sweep
 

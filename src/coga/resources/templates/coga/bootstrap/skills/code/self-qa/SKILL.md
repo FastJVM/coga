@@ -13,10 +13,14 @@ this step just makes sure the diff they see is already clean.
 ## Order of operations
 
 1. **Confirm state.** Read `branch:` and `worktree:` under `## Dev` on
-   the blackboard. Change into the feature worktree and confirm it is on
-   the recorded branch with a clean working tree (the previous
-   `code/implement` step committed). If not, `coga block` — something
-   is off.
+   the blackboard. If there is no branch because the implement step
+   recorded concrete `## Already satisfied` evidence, verify that evidence
+   from the repo, add a short `## Self-QA` note, run
+   `coga mark already-satisfied <slug> --evidence "<one-line summary>"`,
+   and stop. Otherwise, change into the feature worktree and confirm it is
+   on the recorded branch with a clean working tree (the previous
+   `code/implement` step committed). If the branch/worktree is missing
+   without already-satisfied evidence, `coga block` — something is off.
 2. **Run `/code-review`.** Invoke the `/code-review` slash command at
    default effort against the branch's diff vs `main`. Note the findings;
    you'll address them in step 4. Do not use `/code-review ultra` here —

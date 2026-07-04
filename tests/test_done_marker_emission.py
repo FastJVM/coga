@@ -1,12 +1,12 @@
 """Tests for the session-done signal on session-ending commands.
 
-`coga bump`, `coga mark done`, and `coga block` signal the supervising
-`coga launch` that the session is over so it can SIGTERM the agent's REPL
-(see `coga.repl_supervisor`). The signal travels over the *sentinel file*
-(`$COGA_DONE_SENTINEL`) and nothing else: a success writes the task's
-resolved path into the file, scoped to this session. Other transitions
-(`mark active`, `mark paused`, or any error path) must NOT write it at all
-— the session is not over.
+`coga bump`, terminal `coga mark` transitions, and `coga block` signal the
+supervising `coga launch` that the session is over so it can SIGTERM the
+agent's REPL (see `coga.repl_supervisor`). The signal travels over the
+*sentinel file* (`$COGA_DONE_SENTINEL`) and nothing else: a success writes the
+task's resolved path into the file, scoped to this session. Other transitions
+(`mark active`, `mark paused`, or any error path) must NOT write it at all —
+the session is not over.
 """
 
 from __future__ import annotations
@@ -195,6 +195,24 @@ def test_mark_done_success_unsupervised_is_noop(
     slug, _ = _make_task(repo, status="active")
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
+
+
+def test_mark_already_satisfied_success_signals_via_sentinel(
+    repo: Path, sentinel: Path
+) -> None:
+    slug, path = _make_task(repo, status="in_progress")
+    result = CliRunner().invoke(
+        app,
+        [
+            "mark",
+            "already-satisfied",
+            slug,
+            "--evidence",
+            "all checklist items already landed",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert sentinel.read_text().strip() == str(path.resolve())
 
 
 def test_mark_done_error_does_not_signal(repo: Path, sentinel: Path) -> None:

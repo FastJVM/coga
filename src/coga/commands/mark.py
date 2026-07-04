@@ -14,6 +14,7 @@ import sys
 
 import typer
 
+from coga.blackboard import append_to_section
 from coga.config import ConfigError, load_config
 from coga.mark import (
     BlackboardNeedsSynthesis,
@@ -169,6 +170,61 @@ def done(
     # transitions (active / paused) are not terminal and intentionally
     # skip the marker. The resolved task path scopes the signal to this
     # ticket (see `emit_done_marker`).
+    emit_done_marker(session_id=str(ref.path.resolve()))
+
+
+@app.command("already-satisfied")
+def already_satisfied(
+    task: str = typer.Argument(..., help="Task ID or id-slug."),
+    evidence: str = typer.Option(
+        ...,
+        "--evidence",
+        help="What was verified that makes this ticket already complete.",
+    ),
+) -> None:
+    """Close a ticket whose requested work is already complete elsewhere."""
+    cfg, ref, ticket = _load(task)
+    evidence = " ".join(evidence.split())
+    if not evidence:
+        _bail("--evidence cannot be empty")
+    _check_transition(ref.id_slug, ticket.status, _DONE_FROM, "done")
+
+    actor = (
+        f"agent:{ticket.assignee}"
+        if ticket.assignee
+        else f"human:{cfg.current_user}"
+    )
+    finisher = ticket.assignee or cfg.current_user
+    append_to_section(
+        ref.ticket_path,
+        "Already satisfied",
+        f"- [{actor}] {evidence}",
+    )
+
+    ticket = read_ticket(ref)
+    prev = ticket.current_step()
+    transition = f": {prev['name']} → done" if prev else ""
+    slack_text = (
+        f"✅ {finisher} closed *{ref.id_slug}* "
+        f"\"{ticket.title}\"{transition} as already satisfied: {evidence}"
+    )
+
+    try:
+        _mark_done(
+            cfg, ref, ticket,
+            actor=actor,
+            log_message=f"already satisfied: {evidence}",
+            slack_text=slack_text,
+            digest_detail=(
+                f"{finisher} closed as already satisfied"
+                f"{transition or ' → done'} ✅ — {evidence}"
+            ),
+            image_url=cfg.gif_for("done"),
+            echo=f"{ref.id_slug}: already satisfied (done)",
+        )
+    except TaskValidationError as exc:
+        _bail(str(exc))
+
     emit_done_marker(session_id=str(ref.path.resolve()))
 
 

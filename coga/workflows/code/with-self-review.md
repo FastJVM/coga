@@ -18,6 +18,20 @@ steps:
     assignee: owner
 ---
 
+## already-satisfied
+
+If the implement or self-qa agent verifies that every requested item already
+landed elsewhere and there is no branch, diff, or PR to create, the agent may
+close the ticket with:
+
+`coga mark already-satisfied <slug> --evidence "<one-line summary>"`
+
+The agent must write concrete evidence to the blackboard first. This is the
+only direct agent close path in this workflow; ordinary code changes still go
+through implement, self-QA, PR, and the owner-controlled review gate. A missing
+decision or ambiguous verification is a real blocker, not an already-satisfied
+closure.
+
 ## pr
 
 Follow the `code/open-pr` skill to push and open the PR. In addition to

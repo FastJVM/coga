@@ -193,7 +193,9 @@ task; the invariant holds for machine-authored tasks too.
 
 - **Control plane (`status`)** — `draft → active → in_progress →
   done`, plus `paused` and `blocked`. Governs *whether* work happens.
-  `coga mark` owns the `draft`/`active`/`paused`/`done` transitions;
+  `coga mark` owns the `draft`/`active`/`paused`/`done` transitions,
+  including `coga mark already-satisfied` for evidence-backed no-diff
+  closure;
   `coga block` owns the `blocked` transition, and `coga unblock` resolves
   open blocker asks and moves `blocked → active` while preserving `step:`.
   `coga launch`
@@ -210,7 +212,9 @@ task; the invariant holds for machine-authored tasks too.
   `in_progress` ticket resolves the asks without touching status or step.
   If the resumed session exits before recording an answer, launch returns the
   ticket to `blocked` so blocker queues keep reporting it. Script and TTY-less launches keep refusing a blocked ticket until `coga unblock`
-  records the answer. `bump` ignores `status:`
+  records the answer. Already-satisfied work is closed as `done` through
+  `coga mark already-satisfied` after blackboard evidence; it is not a
+  blocker. `bump` ignores `status:`
   entirely (it owns `step:`, not `status:`).
 - **Data plane (`step`)** — current position in the frozen workflow.
   Format `N (step-name)`. Owned entirely by `coga bump`. Only moves when
@@ -238,8 +242,8 @@ megalaunch decide whether work can proceed without more human input.
 
 - **`agent`** — compose the prompt and spawn the ticket assignee's agent CLI in a
   live REPL. Normal launches require stdin and stdout to be TTYs. The REPL
-  does not terminate on its own: `coga bump`, `coga mark done`, and
-  `coga block` signal the launch supervisor via the session-scoped
+  does not terminate on its own: `coga bump`, terminal `coga mark`
+  transitions (`done` and `already-satisfied`), and `coga block` signal the launch supervisor via the session-scoped
   `$COGA_DONE_SENTINEL` file, and the supervisor tears the REPL down. After
   teardown, `coga launch` re-reads the ticket and either spawns a fresh REPL
   for the next agent-owned workflow step (rotating CLIs when the step assignee
