@@ -820,3 +820,4 @@ error: coga/tasks/make-open-pr-a-script-step-so-bump-requires-a-real.md: failed 
 error: unable to index file 'coga/tasks/make-open-pr-a-script-step-so-bump-requires-a-real.md'
 fatal: adding files failed
 2026-07-04 11:27 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:claude] slack: Peer review done: advanced to open-pr; fix commit 1bf7ab6d; state sync recovered on main as 3b2c11be.
+2026-07-04 11:31 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
