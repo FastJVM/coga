@@ -794,3 +794,4 @@ fatal: adding files failed
 2026-07-04 10:11 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-04 10:11 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-04 10:14 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 10:14 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] started (active → in_progress) via coga launch
