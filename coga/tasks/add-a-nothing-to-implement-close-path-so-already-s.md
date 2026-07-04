@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (self-qa)
+step: 3 (pr)
 ---
 
 ## Description
@@ -103,6 +103,16 @@ worktree: /tmp/coga-already-satisfied-close
   - `PYTHONPATH=/tmp/coga-already-satisfied-close/src python -m pytest -q` -> 1071 passed, 1 skipped.
   - `PYTHONPATH=/tmp/coga-already-satisfied-close/src python -m coga.cli validate --task add-a-nothing-to-implement-close-path-so-already-s --json` -> ok_count 1, no issues.
   - `git diff --check` and staged `git diff --cached --check` clean.
+
+## Self-QA
+
+- Ran `/code-review` (high-effort, 8-angle finder + verify) and `/simplify` (reuse/simplification/efficiency/altitude) against `codex/already-satisfied-close` vs `main`.
+- `/code-review`: two candidate findings, both rejected as non-bugs — the `agent:{assignee}` actor attribution and the append-then-transition ordering are the *exact* established pattern from `block.py` (`already_satisfied` is a deliberate structural mirror of `block`). No correctness changes.
+- `/simplify`: rejected the "delete the re-read" finding as a **false positive** — `mark_done` calls `ticket.write()` which re-renders the whole file, so the re-read is load-bearing (dropping it would clobber the just-appended `## Already satisfied` evidence and fail `test_mark_already_satisfied_closes_with_evidence`). Skipped the `_finish_done`/`actor_for` helper-extraction findings: they'd rework the untouched `done` command and `block.py`, against this file's standalone-command convention and self-QA's "don't sweep adjacent files" scope. Skipped the whitespace-collapse note (intentional single-line entry).
+- Applied (in-scope, contained to the changed file): fixed the `mark.py` module docstring that still claimed "three subcommands" with a strict verb↔status mapping; added a comment explaining the agent actor attribution; added `test_mark_already_satisfied_workflowless_collapses_transition` covering the previously-untested `prev is None` (no-workflow) transition-collapse branch.
+- Doc sync verified clean: live vs packaged copies of `implement`, `self-qa`, `with-self-review`, and `architecture` are byte-identical on the already-satisfied hunks (`cli/SKILL.md` has no maintained live counterpart — packaged-only, pre-existing).
+- Committed as `032ec2d0` (self-qa).
+- Verification (python3.12): full suite `1072 passed, 1 skipped`; targeted mark/notification/marker/git tests `138 passed`; `validate --task ...` ok_count 1, no issues; `git diff --check` clean.
 
 ## Usage
 
