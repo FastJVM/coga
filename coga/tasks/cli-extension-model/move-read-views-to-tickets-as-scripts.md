@@ -179,3 +179,7 @@ commit: 3089433e (not pushed; PR is the open-pr step)
 ## Adjacent observations (not fixed here)
 - The re-authoring dropped a completed design spec from the ticket without
   merging it into the body. Recovered from git; not a code issue.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":292755,"cache_read_input_tokens":10102182,"cli":"claude","input_tokens":30533,"model":"claude-opus-4-8","output_tokens":104572,"provider":"anthropic","schema":1,"session_id":"a30c8543-13eb-4145-bfee-e8084dee0dfe","slug":"cli-extension-model/move-read-views-to-tickets-as-scripts","step":"implement","title":"Move show/status into their lowest-tier mechanism","ts":"2026-07-04T01:25:06.353364Z","usage_status":"ok"}
