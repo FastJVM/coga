@@ -1,21 +1,19 @@
-"""`coga show` — print a task's ticket (with its blackboard) and log history."""
+"""`coga show` — print a task's ticket (with its blackboard) and log history.
+
+Thin Typer head: the `<task>` operand and error→exit translation live here; the
+render itself is `coga.views.render_show` (also exposed as the `coga/show`
+script skill).
+"""
 
 from __future__ import annotations
 
 import sys
 
 import typer
-from rich.console import Console
-from rich.markdown import Markdown
-from rich.rule import Rule
 
 from coga.config import ConfigError, load_config
-from coga.logfile import task_log_lines
-from coga.tasks import (
-    BootstrapRef,
-    TaskNotFoundError,
-    resolve_target,
-)
+from coga.tasks import TaskNotFoundError
+from coga.views import render_show
 
 
 def show(
@@ -30,35 +28,9 @@ def show(
         _bail(str(exc))
 
     try:
-        ref = resolve_target(cfg, task)
+        render_show(cfg, task)
     except TaskNotFoundError as exc:
         _bail(str(exc))
-
-    console = Console()
-
-    # The single-file ticket.md carries frontmatter + body + blackboard.
-    console.print(Rule(f"{ref.id_slug}/ticket.md"))
-    console.print()
-    ticket_path = ref.ticket_path
-    if not ticket_path.is_file():
-        console.print("[dim](no ticket.md)[/dim]")
-    else:
-        text = ticket_path.read_text()
-        console.print(Markdown(text) if text.strip() else "[dim](empty)[/dim]")
-
-    # Bootstrap tickets are stateless: no log history to reconstruct.
-    if isinstance(ref, BootstrapRef):
-        return
-
-    console.print()
-    console.print(Rule(f"{ref.id_slug} — log (from coga/log.md)"))
-    console.print()
-    lines = task_log_lines(cfg, ref.id_slug)
-    if not lines:
-        console.print("[dim](no log entries)[/dim]")
-    else:
-        for line in lines:
-            console.print(line)
 
 
 def _bail(msg: str) -> None:
