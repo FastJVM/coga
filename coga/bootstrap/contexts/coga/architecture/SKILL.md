@@ -49,7 +49,7 @@ no in-memory state.
   only, never persists it on the ticket.
 - **Workflows** are ordered step definitions. A repo's own workflows live in
   `coga/workflows/`; package-backed reusable workflows (the core `code/*`
-  loop, `dev/with-self-review`, `docs/create-google-doc`, the Dream child
+  loop, `code/with-self-review`, `docs/create-google-doc`, the Dream child
   workflows, `digest/post`) live under `coga/bootstrap/workflows/`.
   Resolution is local-first, exactly like skills and contexts: a local
   `workflows/<ref>.md` overrides a bundled `bootstrap/workflows/<ref>.md`.

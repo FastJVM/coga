@@ -49,7 +49,7 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "with-review.md",
     "coga/resources/templates/coga/bootstrap/workflows/code/"
     "design-then-implement.md",
-    "coga/resources/templates/coga/bootstrap/workflows/dev/"
+    "coga/resources/templates/coga/bootstrap/workflows/code/"
     "with-self-review.md",
     "coga/resources/templates/coga/bootstrap/workflows/docs/"
     "create-google-doc.md",
