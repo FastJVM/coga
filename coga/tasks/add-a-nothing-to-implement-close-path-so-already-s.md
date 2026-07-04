@@ -2,7 +2,7 @@
 slug: add-a-nothing-to-implement-close-path-so-already-s
 title: Add a nothing-to-implement close path so already-satisfied tickets don't park
   as blocked
-status: draft
+status: active
 mode: agent
 owner: nicktoper
 human: nicktoper
