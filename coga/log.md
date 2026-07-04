@@ -789,3 +789,4 @@ fatal: adding files failed
 2026-07-03 20:08 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-03 20:08 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-03 21:39 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-03 21:47 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] task done — Landed via PR #513 (squash-merged as 6534a9eb). Ticket state reconciled after cross-worktree divergence.
