@@ -30,7 +30,7 @@ import typer
 from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
 from coga.blackboard import blackboard_size_warning, format_bytes, open_blockers
-from coga.commands.launch_script import is_script_launch
+from coga.commands.launch_script import current_step_is_script, is_script_launch
 from coga.compose import (
     ComposeError,
     PromptComposition,
@@ -391,6 +391,33 @@ def launch(
         first_step = True
         while True:
             ticket = _read(ref)
+
+            # A workflow step whose single skill declares a `script:` runs as a
+            # deterministic script even inside a `mode: agent` workflow. The
+            # launcher — not an agent — executes it: on exit 0 `run_script_mode`
+            # advances the step (or marks the task done on the final step); on a
+            # non-zero exit it posts a failure and leaves the step put, then
+            # exits. This is what makes `code/open-pr`'s completion require a real
+            # PR — the step cannot advance unless the script produced one, so an
+            # agent can no longer bump past it with nothing built. Checked before
+            # agent resolution so a script step needs no agent CLI.
+            if not is_bootstrap and current_step_is_script(cfg, ticket):
+                from coga.commands.launch_script import run_script_mode
+
+                first_step = False
+                before = ticket
+                _echo_launch_iteration(ref, ticket)
+                # Advances the step on success; on failure posts and sys.exit —
+                # SystemExit unwinds through the finally below, tearing down the
+                # launch worktree (the feature worktree, holding the commits, is
+                # separate and untouched).
+                run_script_mode(cfg, ref, ticket)
+                after = read_ticket(ref)
+                stop_reason = _harness_stop_reason(ref, before, after, cfg)
+                if stop_reason is not None:
+                    typer.echo(stop_reason)
+                    break
+                continue
 
             # Resolve the agent for THIS step from the ticket's current
             # assignee, so the supervisor can rotate claude <-> codex across

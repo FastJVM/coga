@@ -57,6 +57,10 @@ _PR_NUMBER_RE = re.compile(r"/pull/(\d+)")
 # surrounding backticks/whitespace are stripped in `parse_branch_name`. A
 # naive `(\S+)` here would swallow the trailing backtick or miss the list form.
 _BRANCH_LINE_RE = re.compile(r"^\s*(?:-\s*)?branch:\s*(.+?)\s*$", re.MULTILINE)
+# The `worktree:` line follows the same accreted shapes as `branch:` (bare,
+# list-item, backtick-wrapped), so parse it the same way. The open-pr script
+# needs it to locate the feature checkout it pushes from.
+_WORKTREE_LINE_RE = re.compile(r"^\s*(?:-\s*)?worktree:\s*(.+?)\s*$", re.MULTILINE)
 
 
 def parse_pr_url(blackboard_text: str) -> str | None:
@@ -85,6 +89,26 @@ def parse_branch_name(blackboard_text: str) -> str | None:
         return None
     name = match.group(1).strip().strip("`").strip()
     return name or None
+
+
+def parse_worktree_path(blackboard_text: str) -> str | None:
+    """Return the normalized `worktree:` path under `## Dev`, or None if absent.
+
+    Mirrors `parse_branch_name`'s normalization (tolerates a leading "- " list
+    prefix and surrounding backticks), so the bare, list-item, and
+    backtick-wrapped forms all yield the same plain path. Returns None for a
+    missing or empty worktree line, or a placeholder like `(not yet created)`.
+    """
+    section = _DEV_SECTION_RE.search(blackboard_text)
+    if not section:
+        return None
+    match = _WORKTREE_LINE_RE.search(section.group(1))
+    if not match:
+        return None
+    path = match.group(1).strip().strip("`").strip()
+    if not path or path.startswith("("):
+        return None
+    return path
 
 
 def parse_pr_number(url: str) -> int | None:
