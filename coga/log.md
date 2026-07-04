@@ -793,3 +793,4 @@ fatal: adding files failed
 2026-07-03 21:53 [cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy] [human:nicktoper] task done — PR #509 merged 2026-07-03 21:41; closing final review step
 2026-07-04 10:11 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-04 10:11 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-04 10:14 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] activated (draft → active) — auto on launch

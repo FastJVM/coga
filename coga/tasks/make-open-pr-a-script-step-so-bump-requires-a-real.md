@@ -1,7 +1,7 @@
 ---
 slug: make-open-pr-a-script-step-so-bump-requires-a-real
 title: Make open-pr a script step so bump requires a real PR
-status: draft
+status: active
 mode: agent
 owner: nicktoper
 human: nicktoper
