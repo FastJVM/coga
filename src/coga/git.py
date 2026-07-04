@@ -1598,8 +1598,7 @@ def _changed_paths_match_control_tip(
     cfg: Config, root: Path, rels: list[str]
 ) -> bool:
     """Whether dirty working-tree paths are already represented on control."""
-    _run_git(root, "fetch", cfg.git_remote, cfg.git_control_branch)
-    control = _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+    control = _control_tip_for_dirty_check(cfg, root)
     ancestor = _run_git(root, "merge-base", "HEAD", control).strip()
     union = _union_merge_paths(root, rels)
     for rel in rels:
@@ -1612,6 +1611,42 @@ def _changed_paths_match_control_tip(
         if _working_tree_bytes(root, rel) != _tree_bytes(root, control, rel):
             return False
     return True
+
+
+def _control_tip_for_dirty_check(cfg: Config, root: Path) -> str:
+    try:
+        _run_git(root, "fetch", cfg.git_remote, cfg.git_control_branch)
+        return _run_git(root, "rev-parse", "FETCH_HEAD").strip()
+    except GitError as exc:
+        if not _is_fetch_head_write_failure(str(exc)):
+            raise
+        local = _local_control_tip(root, cfg.git_remote, cfg.git_control_branch)
+        if local is None:
+            raise
+        sys.stderr.write(
+            "[git] note: could not refresh control tip for launch-worktree "
+            f"cleanup ({exc}); using local {cfg.git_remote}/{cfg.git_control_branch}.\n"
+        )
+        return local
+
+
+def _is_fetch_head_write_failure(message: str) -> bool:
+    lowered = message.lower()
+    return "fetch_head" in lowered and any(
+        marker in lowered
+        for marker in (
+            "read-only file system",
+            "permission denied",
+            "cannot open",
+        )
+    )
+
+
+def _local_control_tip(root: Path, remote: str, branch: str) -> str | None:
+    for ref in (f"refs/remotes/{remote}/{branch}", f"refs/heads/{branch}"):
+        if _git_ref_present(root, ref):
+            return _run_git(root, "rev-parse", ref).strip()
+    return None
 
 
 def _union_path_includes_worktree(

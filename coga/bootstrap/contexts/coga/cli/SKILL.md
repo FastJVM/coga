@@ -215,8 +215,8 @@ auto-bumping a ticket whose final-step PR has merged is the job of
 `coga automerge` / the `autoclose-merged` recurring sweep, never launch. It
 does, though, **pre-flight git push access**: before flipping status or
 spawning the agent, it runs a non-interactive `git push --dry-run` against the
-configured remote (the same probe as `coga validate --check-github`) and
-refuses the launch if push auth is broken. Coga drives the whole session
+configured remote (the same push-auth probe `coga validate --check-github`
+uses) and refuses the launch if push auth is broken. Coga drives the whole session
 through git/gh (branch push, `gh pr create`, every `coga bump` syncs ticket
 state), so a dead remote means a run guaranteed to fail at ship time — fail
 loud at the door, not after a long run. The gate self-skips for bootstrap
@@ -681,8 +681,10 @@ is an opt-in preflight that mirrors `--check-slack`: it probes git/GitHub auth
 readiness so a raw tool failure surfaces as an actionable setup hint before PR
 time instead of surprising an agent mid-run. It probes the *configured* remote
 (`git remote get-url <cfg.git_remote>`, not a hardcoded `origin`), checks push
-access with a non-mutating `git push --dry-run`, and verifies `gh --version` and
-`gh auth status --hostname <host>` for that remote's host. Every probe is fully
+access with a non-mutating `git push --dry-run`, fetches the configured control
+branch and verifies the current `HEAD` contains it before PR handoff, and verifies
+`gh --version` and `gh auth status --hostname <host>` for that remote's host.
+Every probe is fully
 non-interactive (`GIT_TERMINAL_PROMPT=0`, ssh `BatchMode=yes`) so a missing
 credential fails fast rather than hanging on a hidden prompt; failures are
 `(github)` errors excluded from the ok count. It is opt-in because the default

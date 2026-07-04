@@ -536,6 +536,41 @@ def test_sync_detached_head_union_merges_log_to_control_branch(git_repo):
         git.remove_launch_worktree(cfg, path)
 
 
+def test_launch_worktree_dirty_check_falls_back_when_fetch_head_read_only(
+    git_repo, monkeypatch
+):
+    """Cleanup should not strand worktrees when only FETCH_HEAD is read-only.
+
+    Sandboxed launch sessions can successfully land their dirty Coga state on
+    control, then fail the cleanup freshness fetch because `.git/worktrees/...`
+    cannot write FETCH_HEAD. If local `origin/main` already names the landed
+    control tip, that dirty state is recoverable elsewhere and the worktree can
+    be removed.
+    """
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-readonly-fetch-head")
+    original_run_git = git._run_git
+    try:
+        worktree_cfg = _cfg(path / "coga")
+        append_log(worktree_cfg, "demo", "agent:codex", "detached log line")
+        git.sync_coga_state(worktree_cfg, message="Sync coga state")
+
+        def fail_fetch_head(root, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if args == ("fetch", "origin", "main"):
+                raise git.GitError(
+                    "`git fetch origin main` failed (exit 255): "
+                    "error: cannot open '.git/FETCH_HEAD': Read-only file system"
+                )
+            return original_run_git(root, *args, **kwargs)
+
+        monkeypatch.setattr(git, "_run_git", fail_fetch_head)
+
+        assert not git.launch_worktree_has_dirty_coga_state(cfg, path)
+    finally:
+        monkeypatch.setattr(git, "_run_git", original_run_git)
+        git.remove_launch_worktree(cfg, path)
+
+
 def test_sync_noop_when_not_a_git_repo(tmp_path, capsys, real_git):
     cfg = _cfg(tmp_path)
     task = _task_dir(tmp_path)

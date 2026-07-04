@@ -894,7 +894,9 @@ def _github_issues(cfg: Config) -> list[Issue]:
     from coga.github_preflight import run_preflight
 
     issues: list[Issue] = []
-    for result in run_preflight(cfg.git_remote):
+    for result in run_preflight(
+        cfg.git_remote, control_branch=cfg.git_control_branch
+    ):
         if not result.ok:
             issues.append(
                 Issue(

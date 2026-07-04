@@ -423,6 +423,10 @@ def test_check_github_success(repo: Path, monkeypatch: pytest.MonkeyPatch) -> No
                     0, "git@github.com:o/r.git\n"
                 ),
                 ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("git", "fetch", "origin", "main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                    _FakeProc(0)
+                ),
                 ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
                 ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
                     0, "", "Logged in to github.com"
@@ -471,6 +475,10 @@ def test_check_github_missing_gh(
                     0, "git@github.com:o/r.git\n"
                 ),
                 ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("git", "fetch", "origin", "main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                    _FakeProc(0)
+                ),
                 ("gh", "--version"): FileNotFoundError(),
             }
         ),
@@ -493,6 +501,10 @@ def test_check_github_gh_unauthenticated(
                     0, "git@ghe.example.com:o/r.git\n"
                 ),
                 ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("git", "fetch", "origin", "main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                    _FakeProc(0)
+                ),
                 ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
                 ("gh", "auth", "status", "--hostname", "ghe.example.com"): _FakeProc(
                     1, "", "not logged in to ghe.example.com"
@@ -535,6 +547,40 @@ def test_check_github_push_auth_failure(
     assert "github-git-auth" in kinds
     auth_issue = next(i for i in report.issues if i.kind == "github-git-auth")
     assert "push access" in auth_issue.message
+
+
+def test_check_github_stale_branch(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "coga.github_preflight.subprocess.run",
+        _fake_subprocess_factory(
+            {
+                ("git", "remote", "get-url", "origin"): _FakeProc(
+                    0, "https://github.com/o/r.git\n"
+                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("git", "fetch", "origin", "main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                    _FakeProc(1)
+                ),
+                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
+                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
+                    0, "", "Logged in to github.com"
+                ),
+            }
+        ),
+    )
+    cfg = load_config(repo)
+    report = run(cfg, check_github=True)
+
+    kinds = _github_kinds(report)
+    assert "github-git-branch-current" in kinds
+    branch_issue = next(
+        i for i in report.issues if i.kind == "github-git-branch-current"
+    )
+    assert "does not contain latest origin/main" in branch_issue.message
+    assert "git rebase FETCH_HEAD" in branch_issue.message
 
 
 def test_run_no_github_check_by_default(
