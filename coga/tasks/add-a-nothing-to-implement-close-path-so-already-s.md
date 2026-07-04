@@ -7,7 +7,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -30,7 +30,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -85,3 +85,25 @@ Either way, the `coga status --blocked` view should stop surfacing
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: codex/already-satisfied-close
+worktree: /tmp/coga-already-satisfied-close
+
+## Implement notes
+
+- Read ticket plus Coga principles, architecture, codebase, current-direction, and project-stage contexts.
+- Chosen shape: add a first-class already-satisfied closure command that marks the task done with required evidence, instead of overloading `blocked` or adding a new status.
+- Implemented `coga mark already-satisfied <slug> --evidence "..."` in commit `131fac39` on `codex/already-satisfied-close`.
+- The command appends `## Already satisfied` evidence, re-reads the ticket, marks it `done`, posts a done-style notification, and emits the supervisor done sentinel.
+- Updated live and packaged `code/implement`, `code/self-qa`, `code/with-self-review`, and Coga CLI/architecture contexts so agents use this path instead of `coga block` for no-diff already-satisfied tickets.
+- Verification:
+  - `PYTHONPATH=/tmp/coga-already-satisfied-close/src python -m pytest -q tests/test_mark.py tests/test_notification_messages.py tests/test_done_marker_emission.py tests/test_git.py` -> 137 passed.
+  - `PYTHONPATH=/tmp/coga-already-satisfied-close/src python -m pytest -q` -> 1071 passed, 1 skipped.
+  - `PYTHONPATH=/tmp/coga-already-satisfied-close/src python -m coga.cli validate --task add-a-nothing-to-implement-close-path-so-already-s --json` -> ok_count 1, no issues.
+  - `git diff --check` and staged `git diff --cached --check` clean.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":5354752,"cli":"codex","input_tokens":182128,"model":"gpt-5.5","output_tokens":23728,"provider":"openai","schema":1,"session_id":"019f2e42-ca29-7463-9591-bc988369d555","slug":"add-a-nothing-to-implement-close-path-so-already-s","step":"implement","title":"Add a nothing-to-implement close path so already-satisfied tickets don't park as blocked","ts":"2026-07-04T18:02:10.602430Z","usage_status":"ok"}
