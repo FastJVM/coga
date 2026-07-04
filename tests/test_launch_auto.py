@@ -99,7 +99,7 @@ def test_launch_script_mode_runs_script_not_agent(
     _write_script_task(repo, slug="script-run", title="Script run")
     calls: list[str] = []
 
-    def fake_script_mode(cfg, ref, ticket):  # type: ignore[no-untyped-def]
+    def fake_script_mode(cfg, ref, ticket, **kwargs):  # type: ignore[no-untyped-def]
         calls.append(ref.id_slug)
 
     def fail_agent_lookup(name):  # type: ignore[no-untyped-def]

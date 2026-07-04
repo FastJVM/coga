@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from textwrap import dedent
 
@@ -8,6 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from conftest import seed_direct_body_workflow
+from coga import recurring_runner
 from coga.cli import app
 from coga.create import create_task
 from coga.config import load_config
@@ -21,6 +23,23 @@ from coga.ticket import Ticket
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(text).lstrip())
+
+
+def _patch_recurring_command_launch(
+    monkeypatch: pytest.MonkeyPatch,
+    repo: Path,
+    child_launch,
+) -> None:
+    def fake_launch(task: str, **kwargs):  # type: ignore[no-untyped-def]
+        if task == "bootstrap/recurring-scan":
+            return recurring_runner.run_recurring_scan(
+                load_config(repo),
+                force=os.environ.get("COGA_RECURRING_FORCE") == "1",
+                interactive=os.environ.get("COGA_RECURRING_INTERACTIVE") == "1",
+            )
+        return child_launch(task, **kwargs)
+
+    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
 
 
 @pytest.fixture
@@ -586,7 +605,7 @@ def test_recurring_creates_silently(
 
     monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
     monkeypatch.setattr(
-        "coga.commands.recurring._interactive_stdio_has_tty", lambda: True
+        "coga.recurring_runner._interactive_stdio_has_tty", lambda: True
     )
     # The bare scan launches due tasks sequentially; mark the stubbed launch
     # done so the recurring sweep sees a completed run.
@@ -595,7 +614,9 @@ def test_recurring_creates_silently(
         ticket.frontmatter["status"] = "done"
         ticket.write(repo_with_bootstrap_ticket / "tasks" / task / "ticket.md")
 
-    monkeypatch.setattr("coga.commands.launch.launch", fake_launch)
+    _patch_recurring_command_launch(
+        monkeypatch, repo_with_bootstrap_ticket, fake_launch
+    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["recurring"])
@@ -622,6 +643,11 @@ def test_recurring_posts_error_summary(
         return R()
 
     monkeypatch.setattr("coga.notification.slack.requests.post", _capture)
+    _patch_recurring_command_launch(
+        monkeypatch,
+        repo_with_bootstrap_ticket,
+        lambda *args, **kwargs: None,
+    )
 
     runner = CliRunner()
     result = runner.invoke(app, ["recurring"])

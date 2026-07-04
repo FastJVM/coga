@@ -33,9 +33,10 @@ the `coga/cli` *context*. Read this for the worked classification; read
    alias has no hook point.
 
 3. **Bootstrap launch tickets / recurring launches** — package-backed tickets
-   at `bootstrap/<name>/ticket.md` (stateless launch targets) and templates at
-   `coga/recurring/<name>/` launched via `recurring launch <name>`. These are
-   the only place pure passthroughs actually live.
+   at `bootstrap/<name>/ticket.md` (stateless launch targets, including
+   ticket-owned scripts) and templates at `coga/recurring/<name>/` launched via
+   `recurring launch <name>`. These are the only place pure passthroughs
+   actually live.
 
 ## The rule
 
@@ -83,7 +84,7 @@ recurring-launch space; no top-level verb is a hidden passthrough.
 | `validate` | built-in | No | Static repo/config diagnostic, `--fix` creates missing files. |
 | `skill` (group) | built-in | No | `gh skill` wrapper: install/update/remove/status, provenance, digests. |
 | `mark` (group) | built-in | No | Status transitions + Slack + workflow gating + post-write validate. |
-| `recurring` (group) | built-in | No | Schedule scan, get-or-create, sequential launch, dedup high-water mark. |
+| `recurring` (group) | thin built-in scan head + `bootstrap/recurring-scan` / `coga.recurring_runner` | No | The public head owns flags/env; the extracted runner still does schedule scan, get-or-create, sequential launch, dedup high-water mark. |
 | `secret` (group) | built-in | No | Secret resolution/inspection. |
 
 **No CLI verb is an alias-able pure passthrough.** Each is its own
@@ -96,10 +97,12 @@ implementation, not a fixed rewrite to another command.
 | `orient` | `chat` default alias → `launch bootstrap/orient` | Yes — already aliased | Pure `launch bootstrap/orient`; no pre/post logic. |
 | `ticket` | `coga ticket` command head + `coga/ticket/finalize` | No | The bootstrap ticket exists, but authoring needs draft-on-fly / post-exit validate / git-sync / TTY. The validate/sync substance is script-shaped, not an alias hook. |
 | `project` | `coga project` built-in | No | Interview + multi-draft scaffold + TTY guard; not a passthrough. |
+| `recurring-scan` | `coga recurring` command head + `coga.recurring_runner` | No | The bootstrap script target exists, but the public command parses `--interactive` / `--all` and passes them through an explicit env contract before launch. |
 
-Only `orient`, `project`, `ticket` are bootstrap tickets (`resolve_bootstrap`);
-`orient` is already the `chat` alias and the other two need built-ins. **No
-un-aliased bootstrap-ticket passthrough remains.**
+Only `orient`, `project`, `ticket`, and `recurring-scan` are bootstrap tickets
+(`resolve_bootstrap`); `orient` is already the `chat` alias, `recurring-scan`
+is already behind the `coga recurring` head, and the other two need built-ins.
+**No un-aliased bootstrap-ticket passthrough remains.**
 
 ### Recurring launches (`recurring launch <name>`)
 

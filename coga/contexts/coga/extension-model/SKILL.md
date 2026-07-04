@@ -178,7 +178,7 @@ actively fights the capability boundary.
 | Home | Members |
 | --- | --- |
 | **Kernel** | `launch`/compose · `create`/`draft` primitive · `mark` · `bump` · fresh `init` · *(hooks)* secret-inject, skill-verify-at-compose |
-| **Tickets** | already out: `automerge`→sweep, `digest`→post, `delete`→delete-task · `ticket` collapsed to irreducible command head + `bootstrap/ticket` interview + `coga/ticket/finalize` script-shaped module · move targets: `recurring` (scan), `project`, `retire` |
+| **Tickets** | already out: `automerge`→sweep, `digest`→post, `delete`→delete-task · `ticket` collapsed to irreducible command head + `bootstrap/ticket` interview + `coga/ticket/finalize` script-shaped module · `recurring` scan collapsed to thin command head + `bootstrap/recurring-scan` stateless script target · move targets: `project`, `retire` |
 | **External / command** | reads: `show`/`status` collapsed to thin command heads + `coga.views` render exposed as the `coga/show` script-shaped module (mirrors `ticket`); `recurring list`, `skill status`, `validate` still whole commands · external CLI: `skill install/install-local/install-url/update/remove` · notify/escape: `slack`, `block`, `unblock` · `secret get` |
 | **Alias (sugar)** | `chat`, `dream`, `build` · (proposed) `skill-update`, `autoclose` |
 

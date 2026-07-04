@@ -552,7 +552,7 @@ resolved value.
 ## coga dream
 
 Run Coga's generic cleanup pass now. `dream` is not a built-in command — it
-is a default alias for `recurring launch dream`. It scaffolds the
+is a default alias for `recurring launch dream`. It creates the
 `coga/recurring/dream/` recurring task and launches it interactively.
 
 The instantiated task ref is `recurring/dream`: the `recurring/` directory
@@ -565,12 +565,15 @@ results to that run's blackboard, and finishes with `coga mark done`.
 
 ## coga recurring
 
-Scan `coga/recurring/`, then scaffold and launch every task that is due.
+Scan `coga/recurring/`, then create and launch every task that is due.
+The Typer command head only parses `--interactive` / `--all` and launches the
+stateless package-backed `bootstrap/recurring-scan` script target, passing
+those flags as `COGA_RECURRING_INTERACTIVE` / `COGA_RECURRING_FORCE`.
 
 For each template (skipping `_`-prefixed files) `coga recurring` enforces
 **one live task per template**: if the generated task at `recurring/<name>` is
 already `active` or orphaned `in_progress`, that one is
-launched/resumed and no duplicate is scaffolded; only when none is live does it
+launched/resumed and no duplicate is created; only when none is live does it
 get-or-create the current run at `coga/tasks/recurring/<name>/` and advance
 the template blackboard's `last_serviced_period` line. It launches the due ones
 **sequentially** — orphaned `in_progress` resumes first, then fresh launches,
@@ -627,7 +630,7 @@ Dream, REM, and other recurring maintenance loops all use this surface.
 
 ## coga recurring launch \<name\>
 
-Scaffold one named recurring template now and launch it, ignoring its
+Create one named recurring template now and launch it, ignoring its
 schedule. `name` is the directory name under `coga/recurring/`. The task
 ref is `recurring/<name>`, so a manual `launch` and a bare `coga recurring`
 converge on one stable task directory (idempotent — a second `launch` reuses
@@ -640,11 +643,11 @@ liveness limits unarmed for debugging one template by hand.
 
 ## coga recurring list
 
-Read-only view of the recurring system — scaffolds nothing and launches
+Read-only view of the recurring system — creates nothing and launches
 nothing (the inspectable counterpart of a bare `coga recurring`, which
 get-or-creates each due period's task and runs it). Prints two tables: every
 template with its schedule, last/next firing, and current-period state
-(`due — not scaffolded`, or the live instance's status); then the **picked
+(`due — not created`, or the live instance's status); then the **picked
 tasks** — the recurring period tasks already on disk, with their status and
 step. A template that fails to load (e.g. missing `schedule`) shows as an
 error row instead of crashing the view.

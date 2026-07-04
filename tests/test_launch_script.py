@@ -218,3 +218,14 @@ def test_script_mode_nonzero_exit_logged(repo: Path) -> None:
     ref = list_tasks(cfg)[0]
     log = (repo / "log.md").read_text()
     assert "script exited with code 3" in log
+
+
+def test_bootstrap_script_launch_is_stateless(repo: Path) -> None:
+    result = CliRunner().invoke(app, ["launch", "bootstrap/recurring-scan"])
+    assert result.exit_code == 0, result.output
+    assert "bootstrap/recurring-scan: script ran successfully" in result.output
+
+    cfg = load_config(repo)
+    assert list_tasks(cfg) == []
+    log_path = repo / "log.md"
+    assert not log_path.exists() or log_path.read_text() == ""
