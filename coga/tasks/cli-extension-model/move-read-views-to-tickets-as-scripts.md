@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/extension-model
 - coga/architecture
@@ -30,7 +30,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -144,7 +144,8 @@ recorded, so I proceed on the spec's **recommended defaults**:
 ### Dev
 branch: move-read-views-to-views-module
 worktree: /home/n/Code/claude/coga-move-read-views
-commit: 3089433e (not pushed; PR is the open-pr step)
+commit: 3089433e (pushed to origin)
+pr: https://github.com/FastJVM/coga/pull/513
 
 ### Done (implement step)
 - **`src/coga/views.py`** (new): `ViewError`, `render_show`,
