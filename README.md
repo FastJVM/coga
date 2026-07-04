@@ -532,7 +532,7 @@ already-`in_progress` ticket resumes it.
 ```sh
 coga launch add-retry-to-webhook-handler           # full slug
 coga launch add-retry                              # any unique prefix works
-coga launch add-retry --agent codex                # one-off agent override
+coga launch add-retry --agent codex                # one-off override for agent-owned work
 coga launch add-retry --prompt-report              # show prompt layer sizes, no launch
 coga launch bootstrap/orient                       # stateless launch target → run a skill
 coga launch bootstrap/orient --agent codex         # choose a bootstrap agent
@@ -543,10 +543,13 @@ Tasks are addressed by slug — there is no numeric ID. Pass any unique prefix
 
 The agent type comes from the ticket's `assignee` (e.g. `claude`), which
 names an `[agents.<type>]` block in `coga.toml` directly. Pass
-`--agent <type>` to override for this launch only; normal task launches do
-not rewrite the ticket's `assignee`. Bootstrap tickets use the same flag for
-one-off sessions, so `coga chat --agent codex` can open the orient ticket
-with Codex while `coga chat --agent claude` opens it with Claude.
+`--agent <type>` to override which configured agent runs this launch only;
+normal task launches do not rewrite the ticket's `assignee`. `--agent` does
+not bypass a human handoff: if the current `assignee` is not a configured
+agent type, reassign the ticket before launching an agent. Bootstrap tickets
+use the same flag for one-off sessions, so `coga chat --agent codex` can open
+the orient ticket with Codex while `coga chat --agent claude` opens it with
+Claude.
 
 Discussion tickets (`bootstrap/orient`, `bootstrap/ticket`) use built-in
 discussion templates for the standard `claude` and `codex` CLIs, or the
