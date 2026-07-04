@@ -821,3 +821,5 @@ error: unable to index file 'coga/tasks/make-open-pr-a-script-step-so-bump-requi
 fatal: adding files failed
 2026-07-04 11:27 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:claude] slack: Peer review done: advanced to open-pr; fix commit 1bf7ab6d; state sync recovered on main as 3b2c11be.
 2026-07-04 11:31 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:32 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:33 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/517
