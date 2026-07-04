@@ -1,8 +1,10 @@
-"""`coga mark <state> <slug>` — change a ticket's status.
+"""`coga mark <verb> <slug>` — change a ticket's status.
 
-Three subcommands: `mark active`, `mark paused`, `mark done`. Each verb is
-the literal `status` value it sets, so the command shape mirrors the
-frontmatter field.
+The lifecycle subcommands are `mark active`, `mark paused`, and `mark
+done`; each verb is the literal `status` value it sets, so the command
+shape mirrors the frontmatter field. `mark already-satisfied` is the
+evidence-backed exception: it still writes `status: done`, but its verb
+records that the ticket closed with no diff or PR (see its docstring).
 
 `coga launch` owns the `active` → `in_progress` start transition. `coga
 bump` no longer marks final-step tickets done.
@@ -32,7 +34,7 @@ from coga.workflow import WorkflowError
 
 app = typer.Typer(
     name="mark",
-    help="Change a ticket's status (active / paused / done).",
+    help="Change a ticket's status (active / paused / done / already-satisfied).",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -189,6 +191,9 @@ def already_satisfied(
         _bail("--evidence cannot be empty")
     _check_transition(ref.id_slug, ticket.status, _DONE_FROM, "done")
 
+    # Agent-initiated close, so attribute to the step's agent assignee
+    # (mirrors `coga block`); `done` is the human/owner terminal verb and
+    # attributes to `cfg.current_user` instead.
     actor = (
         f"agent:{ticket.assignee}"
         if ticket.assignee
