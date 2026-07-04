@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/extension-model
 - coga/architecture
@@ -30,7 +30,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -179,6 +179,17 @@ commit: 3089433e (not pushed; PR is the open-pr step)
 ## Adjacent observations (not fixed here)
 - The re-authoring dropped a completed design spec from the ticket without
   merging it into the body. Recovered from git; not a code issue.
+
+## Peer review (codex, 2026-07-03)
+- Feature branch/worktree reviewed: `move-read-views-to-views-module` at
+  `/home/n/Code/claude/coga-move-read-views`, commit `3089433e`.
+- Native review: `codex review --base main` first failed in the sandbox with the
+  known read-only app-server/PATH-alias error, then passed unsandboxed with no
+  actionable correctness findings.
+- Verification: `python -m pytest` in the feature worktree passed
+  `1062 passed, 1 skipped` (sandbox emitted a non-fatal pytest cache write
+  warning because the feature worktree is outside the writable root).
+- No peer-review code changes were needed, so no review-fix commit was created.
 
 ## Usage
 

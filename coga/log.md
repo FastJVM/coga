@@ -782,3 +782,5 @@ fatal: adding files failed
 2026-07-03 18:13 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-03 18:13 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-03 18:25 [cli-extension-model/move-read-views-to-tickets-as-scripts] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-03 18:25 [cli-extension-model/move-read-views-to-tickets-as-scripts] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-03 20:06 [cli-extension-model/move-read-views-to-tickets-as-scripts] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
