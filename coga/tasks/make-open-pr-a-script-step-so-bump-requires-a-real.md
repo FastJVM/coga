@@ -221,3 +221,7 @@ codebase context says leave them) — untouched.
 
 Note this ticket's OWN open-pr step will still run the old agent way: launch
 worktrees fork from `main`, so the new behavior only applies once this merges.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":622914,"cache_read_input_tokens":40111304,"cli":"claude","input_tokens":54600,"model":"claude-opus-4-8","output_tokens":308492,"provider":"anthropic","schema":1,"session_id":"337eb95f-f254-4f3f-a564-6adc2e26b5b0","slug":"make-open-pr-a-script-step-so-bump-requires-a-real","step":"implement","title":"Make open-pr a script step so bump requires a real PR","ts":"2026-07-04T17:52:03.583746Z","usage_status":"ok"}
