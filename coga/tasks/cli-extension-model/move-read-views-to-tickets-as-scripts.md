@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/extension-model
 - coga/architecture
@@ -30,7 +30,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -101,4 +101,81 @@ simplest first conversion.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Implement notes (claude, 2026-07-03)
+
+### Recovered design (was dropped when Nico re-authored the ticket)
+The `design`/`review-design` steps ran and a full spec was written to the
+blackboard (commit `5108cfec`), but Nico re-authored the ticket to a straight
+`code/with-review` workflow (commit `9a14151e`), which reset the body/blackboard
+and relaunched into `implement`. No answers to the 4 open questions were
+recorded, so I proceed on the spec's **recommended defaults**:
+
+1. **(a) #491-faithful:** render logic → tested `src/coga/views.py` (package);
+   thin `coga/show` `script: run.py` skill imports it. Keeps tested Python in the
+   package (no-inversion guardrail), matches #491's `ticket`→`coga.authoring`
+   collapse and the "coordinate on one mechanism" instruction.
+2. **`status`:** keep a thin Typer command over the extracted module; its
+   8-flag surface has no clean env channel, so `show` (single operand) gets the
+   full script-skill treatment as the proof; `status` gets render extracted + a
+   default-view script home.
+3. Reword the `coga/extension-model` reads row/prose in this PR (mirrors how
+   #491 reworded the `ticket` row) — closes the contradiction Nico flagged.
+4. Scope = `show` + `status` only.
+
+### Plan
+1. New `src/coga/views.py` — typer-free: `ViewError`, `render_show`,
+   `render_status` + helpers (`_format_relative`, `_build_table`,
+   `_summary_line`, `_print_blocked`, `_list_dirs`, `_done_hint`,
+   `_safe_open_blockers`) and constants (`NARROW_WIDTH`, `ORDER_BY_CHOICES`)
+   moved **verbatim**. `sys.exit(2)`/`typer.secho` become raised typed errors
+   (`ViewError` for bad `--order-by`; existing `UnknownDirectoryError`/
+   `TaskNotFoundError` propagate). `typer.echo` → `print`.
+2. Shrink `commands/show.py` + `status.py` to thin heads: Typer sig,
+   `load_config`, catch `ConfigError`/`TaskNotFoundError`/`UnknownDirectoryError`/
+   `ViewError` → `sys.exit(2)`, call `views.render_*`.
+3. `coga/show` script skill (SKILL.md + run.py reading `COGA_VIEW_TARGET`),
+   in both packaged `src/coga/resources/templates/coga/bootstrap/skills/` and
+   live `coga/skills/` copies (CLAUDE.md sync rule). Mirrors
+   `coga/ticket/finalize`.
+4. `tests/test_views.py` for the extracted renders; `tests/test_status.py`
+   stays green (it exercises the CLI + `coga.tasks`, not command internals).
+5. Reword `coga/extension-model` reads row/prose.
+
+### Dev
+branch: move-read-views-to-views-module
+worktree: /home/n/Code/claude/coga-move-read-views
+commit: 3089433e (not pushed; PR is the open-pr step)
+
+### Done (implement step)
+- **`src/coga/views.py`** (new): `ViewError`, `render_show`,
+  `render_show_from_env` (reads `COGA_VIEW_TARGET`), `render_status`, plus the
+  helpers/constants moved **verbatim**. Typer-free; raises typed errors instead
+  of `sys.exit`.
+- **`commands/show.py` / `status.py`**: shrunk to thin heads (351-line
+  status.py → ~92 lines). Catch `ConfigError`/`TaskNotFoundError`/
+  `UnknownDirectoryError`/`ViewError` → `sys.exit(2)`, call `views.render_*`.
+- **`coga/show` script skill** (SKILL.md + run.py) in both packaged bootstrap
+  and live `coga/skills/` copies. Mirrors `coga/ticket/finalize`.
+- **`tests/test_views.py`** (new). `tests/test_status.py` unchanged + green.
+- **`coga/extension-model`** reads row + Pass-2 prose reworded to the shipped
+  thin-head + script-render shape (closes the contradiction Nico flagged).
+
+### Verification
+- `python -m pytest`: **1062 passed, 1 skipped** (packaging importorskip).
+- **Byte-identical check**: captured `coga show`/`coga status` output across all
+  flags (`--all/--order-by/--reverse/--dirs/--blocked/--no-recurse`, `[DIR]`,
+  bootstrap-ref, unknown-task/dir, bad `--order-by`) on the branch vs. the
+  pre-change files from `main` → **diff empty (IDENTICAL)**.
+- `coga/show` `run.py` end-to-end: happy path exit 0; missing env var and
+  unknown target both fail loud exit 2.
+
+### Deferred (per design, not this ticket)
+- `status`'s 8-flag surface got render-extracted + a thin head but **no**
+  dedicated script skill (no clean env channel for 8 flags — Open Question 2);
+  `show` (single operand) is the script-skill proof.
+- `validate` / `skill status` / `recurring list` share the destination —
+  separate follow-ups.
+
+## Adjacent observations (not fixed here)
+- The re-authoring dropped a completed design spec from the ticket without
+  merging it into the body. Recovered from git; not a code issue.
