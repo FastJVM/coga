@@ -5,8 +5,8 @@ status: active
 mode: agent
 owner: nicktoper
 human: nicktoper
-agent: claude
-assignee: nicktoper
+agent: codex
+assignee: codex
 contexts:
 - coga/principles
 - coga/architecture
@@ -110,16 +110,3 @@ navigate, with the README linking out to it ("Full docs →").
   Coordinate the "Full docs →" link target so the two land consistently.
 
 <!-- coga:blackboard -->
-
-Ticket bootstrap is complete. Durable evaluator points were folded into
-`## Context` so the implementation prompt carries them directly.
-
-## Bootstrap notes
-
-- Human clarified the purpose: create real product documentation that explains
-  Coga and how it works, not just a command-reference dumping ground.
-- Highest priority is the getting-started guide.
-- Editorial bar: avoid generic AI voice; use concrete, human, operator-facing
-  prose.
-- Workflow kept as `docs/with-review` because this is a docs-only change with
-  peer review and an owner review gate.
