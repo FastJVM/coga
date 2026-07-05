@@ -25,6 +25,7 @@ from coga.commands.update import (
     ensure_host_gitignore,
     install_venv,
     is_git_repo,
+    nearest_existing_dir,
     packaged_template_root,
     refresh_cli,
     resolve_coga_repo_url,
@@ -141,14 +142,19 @@ def _enclosing_coga_root(target: Path) -> Path | None:
 
     Guards `coga init` against scaffolding a `coga/` inside an existing coga
     OS tree — `find_repo_root` walks up, so the enclosing repo would claim the
-    new one's subtree and the layout can't work sanely. Each candidate's
-    `coga.toml` is checked before stopping at the first `.git` boundary: a git
-    root that is itself a coga OS dir still matches, while an outer coga repo
-    beyond the host repo's boundary is a different project and no conflict.
+    new one's subtree and the layout can't work sanely. Mirrors that discovery:
+    at each candidate check both a direct `coga.toml` and a sibling `coga/`
+    subdir (the common layout — a git repo whose coga lives at `<repo>/coga/`),
+    since `find_repo_root` resolves the target through either. The first `.git`
+    boundary stops the walk: an outer coga repo beyond the host repo's boundary
+    is a different project and no conflict.
     """
     for candidate in [target, *target.parents]:
         if (candidate / "coga.toml").is_file():
             return candidate
+        nested = candidate / "coga"
+        if (nested / "coga.toml").is_file():
+            return nested
         if (candidate / ".git").exists():
             return None
     return None
@@ -165,7 +171,7 @@ def _host_ignores_coga(target: Path) -> bool:
     loud before writing anything. `target` may not exist yet, so run
     `git check-ignore` from the nearest existing ancestor.
     """
-    probe = next((p for p in [target, *target.parents] if p.is_dir()), None)
+    probe = nearest_existing_dir(target)
     if probe is None:
         return False
     try:

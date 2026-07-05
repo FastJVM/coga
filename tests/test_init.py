@@ -1159,6 +1159,26 @@ def test_init_refuses_target_inside_existing_coga_repo(
     assert not (coga_os / "coga").exists()
 
 
+def test_init_refuses_sibling_subdir_of_root_level_coga(
+    tmp_path: Path, fake_clone, fake_venv
+) -> None:
+    """The common layout — a git repo whose coga lives at `<repo>/coga/` —
+    governs every subdir via `find_repo_root`'s sibling-`coga/` descent. So
+    `coga init <repo>/data` must be refused too: it would shadow the root coga
+    for that subtree, not just when the target sits literally inside coga/."""
+    host = _make_git_repo(tmp_path / "company")
+    coga_os = host / "coga"
+    coga_os.mkdir()
+    (coga_os / "coga.toml").write_text("version = 1\n")
+
+    target = host / "data"  # sibling of coga/, governed by the root coga
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 2, result.output
+    assert "inside an existing coga repo" in result.output
+    assert str(coga_os / "coga.toml") in result.output
+    assert not (target / "coga").exists()
+
+
 def test_init_refuses_target_gitignored_by_host_repo(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:

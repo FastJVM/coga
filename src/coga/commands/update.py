@@ -215,6 +215,17 @@ def copy_fresh_templates(src_root: Traversable, coga_os: Path) -> None:
     _chmod_packaged_executables(coga_os)
 
 
+def nearest_existing_dir(target: Path) -> Path | None:
+    """The nearest dir at/above `target` that exists on disk, or None.
+
+    `coga init`'s target may not exist yet (`coga init tools/ops` creates the
+    subdir), but `git -C` needs a real directory to run from; both `is_git_repo`
+    and init's `_host_ignores_coga` probe git from this ancestor, so they share
+    the walk.
+    """
+    return next((p for p in [target, *target.parents] if p.is_dir()), None)
+
+
 def is_git_repo(target: Path) -> bool:
     """True when `target` is a git repo root or sits inside a git work tree.
 
@@ -230,7 +241,7 @@ def is_git_repo(target: Path) -> bool:
     """
     if (target / ".git").exists():
         return True
-    probe = next((p for p in [target, *target.parents] if p.is_dir()), None)
+    probe = nearest_existing_dir(target)
     if probe is None:
         return False
     try:
