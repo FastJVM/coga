@@ -921,3 +921,5 @@ fatal: adding files failed
 2026-07-06 12:04 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-06 12:04 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
 2026-07-04 21:16 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 09:46 [move-ticket-authoring-out-of-core] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-05 09:48 [move-ticket-authoring-out-of-core] [human:nicktoper] task done
