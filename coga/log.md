@@ -888,3 +888,5 @@ fatal: adding files failed
 error: coga/tasks/make-megalaunch-user-specific.md: failed to insert into database
 error: unable to index file 'coga/tasks/make-megalaunch-user-specific.md'
 fatal: adding files failed
+2026-07-05 14:47 [make-megalaunch-user-specific] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 14:52 [make-megalaunch-user-specific] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/523

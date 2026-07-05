@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -134,6 +134,19 @@ Design points / notes:
 
 branch: megalaunch-user-specific
 worktree: /home/n/Code/claude/coga-megalaunch-user-specific
+pr: https://github.com/FastJVM/coga/pull/523
+
+### Done (open-pr step)
+
+- Pre-push probe: `gh` auth good (nicktoper, https, remote `FastJVM/coga`).
+  Branch was 2 commits behind `origin/main` (coga-state files only — `log.md`,
+  `digest/spool.md`, task `.md`s — zero source overlap). With the owner's OK,
+  merged `origin/main` in (conflict-free), which made the branch current
+  (0 behind); source diff vs main intact.
+- Pushed `megalaunch-user-specific`; opened PR #523
+  (https://github.com/FastJVM/coga/pull/523), base `main`, links the ticket.
+- CI: repo has no checks configured for this branch (`gh pr checks 523` →
+  "no checks reported"), so there is no CI signal to be green on.
 
 ## Production notes
 
