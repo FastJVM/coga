@@ -244,17 +244,24 @@ def launch(
     worktree_path: Path | None = None
     spawn_cwd: Path | None = None
     script_launch = is_script_launch(cfg, ticket)
+    # A `mode: agent` workflow can sit on a script step (e.g. code/open-pr):
+    # that step runs with no agent, through the same run_script_mode path as a
+    # whole `mode: script` ticket. Treat both alike for launch-worktree
+    # isolation and the mode dispatch below — the script uses the feature
+    # worktree recorded under `## Dev`, not a launch-isolation worktree.
+    run_current_as_script = script_launch or current_step_is_script(cfg, ticket)
     if (
         cfg.launch_worktree
         and isinstance(ref, TaskRef)
         and not is_bootstrap
-        and not script_launch
+        and not run_current_as_script
     ):
         cfg, ref, worktree_path = _enter_launch_worktree(base_cfg, ref, task)
         if worktree_path is not None:
             spawn_cwd = worktree_path
             ticket = _read(ref)
             script_launch = is_script_launch(cfg, ticket)
+            run_current_as_script = script_launch or current_step_is_script(cfg, ticket)
 
     try:
         # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
@@ -270,64 +277,26 @@ def launch(
         ):
             _auto_activate(cfg, ref, ticket)
 
-        if ticket.mode not in ("agent", "script"):
-            _bail(f"Unknown mode: {ticket.mode!r}")
-
-        # `mode: script` runs the current step's skill script or the ticket's own
-        # `script:` with no agent and no composed prompt.
-        if script_launch:
-            if not ticket.assignee:
-                _bail(f"Task {ref.id_slug} has no assignee")
-            if agent_override is not None:
-                _bail(
-                    "--agent is only supported for agent launches."
-                )
-            from coga.commands.launch_script import run_script_mode
-            run_script_mode(cfg, ref, ticket, stateless=is_bootstrap)
-            return
-
-        first_step = True
-
-        def _run_current_script_steps(current: Ticket) -> Ticket | None:
-            """Run scripted workflow steps before any agent-only setup.
-
-            A `mode: agent` ticket can be relaunched while already sitting on a
-            script step (notably `code/open-pr`). That step must not require a
-            TTY, agent CLI, composed prompt, or agent git-auth preflight: the
-            script is the work. If the script advances to another agent-owned
-            step, return the fresh ticket so normal agent setup can continue.
-            Return None when the supervisor should stop at a handoff/terminal
-            state.
-            """
-            nonlocal first_step
-
-            while not is_bootstrap and current_step_is_script(cfg, current):
-                from coga.commands.launch_script import run_script_mode
-
-                first_step = False
-                before = current
-                _echo_launch_iteration(ref, current)
-                # Advances the step on success; on failure posts and sys.exit —
-                # SystemExit unwinds through the cleanup handlers below. The
-                # feature worktree recorded under ## Dev is separate and untouched.
-                run_script_mode(cfg, ref, current)
-                current = read_ticket(ref)
-                stop_reason = _harness_stop_reason(ref, before, current, cfg)
-                if stop_reason is not None:
-                    typer.echo(stop_reason)
-                    return None
-            return current
-
-        next_ticket = _run_current_script_steps(ticket)
-        if next_ticket is None:
-            if worktree_path is not None:
-                _cleanup_launch_worktree(base_cfg, cfg, worktree_path)
-            return
-        ticket = next_ticket
-
         assignee = ticket.assignee
         if not assignee:
             _bail(f"Task {ref.id_slug} has no assignee")
+
+        if ticket.mode not in ("agent", "script"):
+            _bail(f"Unknown mode: {ticket.mode!r}")
+
+        # A whole `mode: script` ticket AND a `mode: agent` workflow whose current
+        # step is a script step (e.g. code/open-pr) both run with no agent and no
+        # composed prompt, through the same run_script_mode path. Handling it here
+        # — before the agent-only TTY / CLI / git-auth setup — is what lets a
+        # relaunch land straight on the script step without a terminal. The
+        # supervisor loop below runs the same path for a script step reached
+        # mid-chain; on exit 0 the step advances, on non-zero it does not.
+        if run_current_as_script:
+            if script_launch and agent_override is not None:
+                _bail("--agent is only supported for agent launches.")
+            from coga.commands.launch_script import run_script_mode
+            run_script_mode(cfg, ref, ticket, stateless=is_bootstrap)
+            return
 
         mode = ticket.mode
 
@@ -340,7 +309,7 @@ def launch(
                 "shell, or use mode: script for deterministic unattended work."
             )
 
-        launch_assignee = (agent_override or assignee) if first_step else assignee
+        launch_assignee = agent_override or assignee
 
         # Resolve the agent type — the ticket's assignee names it directly.
         try:
@@ -437,17 +406,29 @@ def launch(
         raise
 
     try:
+        first_step = True
         while True:
             ticket = _read(ref)
 
             # A workflow step whose single skill declares a `script:` runs as a
-            # deterministic script even inside a `mode: agent` workflow. The
-            # launcher — not an agent — executes it and advances only on exit 0,
-            # so `code/open-pr` cannot complete without producing a real PR.
-            next_ticket = _run_current_script_steps(ticket)
-            if next_ticket is None:
-                break
-            ticket = next_ticket
+            # deterministic script even inside a `mode: agent` workflow — the same
+            # run_script_mode path used above, dispatched per step. The launcher,
+            # not an agent, executes it and advances only on exit 0, so
+            # `code/open-pr` reached mid-chain (peer-review → open-pr) cannot
+            # complete without producing a real PR.
+            if not is_bootstrap and current_step_is_script(cfg, ticket):
+                from coga.commands.launch_script import run_script_mode
+
+                _echo_launch_iteration(ref, ticket)
+                before = ticket
+                # Advances the step on success; on failure posts and sys.exit.
+                run_script_mode(cfg, ref, ticket)
+                ticket = read_ticket(ref)
+                stop_reason = _harness_stop_reason(ref, before, ticket, cfg)
+                if stop_reason is not None:
+                    typer.echo(stop_reason)
+                    break
+                continue
 
             # Resolve the agent for THIS step from the ticket's current
             # assignee, so the supervisor can rotate claude <-> codex across
