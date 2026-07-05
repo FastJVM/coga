@@ -860,3 +860,4 @@ fatal: adding files failed
 2026-07-05 11:53 [write-real-coga-documentation-command-reference-gu] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-05 11:53 [write-real-coga-documentation-command-reference-gu] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
 2026-07-05 13:27 [write-real-coga-documentation-command-reference-gu] [agent:codex] advanced to step 2 (peer-review) → assigned to claude
+2026-07-05 13:29 [audit-chat-and-build-are-core-free] [human:nicktoper] activated (draft → active) — auto on launch
