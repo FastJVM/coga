@@ -856,3 +856,4 @@ fatal: adding files failed
 2026-07-05 11:33 [allow-creation-of-coga-dir-in-subdir] [agent:claude] advanced to step 3 (pr)
 2026-07-05 11:33 [allow-creation-of-coga-dir-in-subdir] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-05 11:37 [allow-creation-of-coga-dir-in-subdir] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR updated: https://github.com/FastJVM/coga/pull/522 now includes the self-qa sibling-subdir guard fix (32009066); MERGEABLE
+2026-07-05 11:53 [write-real-coga-documentation-command-reference-gu] [human:nicktoper] started (active → in_progress) via coga launch
