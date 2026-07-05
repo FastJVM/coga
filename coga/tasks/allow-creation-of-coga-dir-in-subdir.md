@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (self-qa)
+step: 3 (pr)
 ---
 
 ## Description
@@ -115,6 +115,7 @@ pointed at the local checkout so init clones offline.
 - branch: init-in-subdir
 - worktree: /home/n/Code/claude/coga-init-in-subdir
 - commit: 56adaf44 "Allow coga init to scaffold coga/ in a subdir of a host repo"
+- commit: 96083470 "self-qa: fail loud on gitignored target, scope init commit to coga/"
 
 ## Implemented (step: implement)
 
@@ -168,6 +169,64 @@ Note for follow-up consideration (not fixed here, adjacent): `coga uninstall`
 and any other command using a bare `(target/".git").exists()` outside
 init/update paths were not audited beyond what the tests cover; uninstall
 operates on an already-discovered repo so it should be unaffected.
+
+## Self-QA (step: self-qa)
+
+Ran `/code-review` (high) + `/simplify` against `main...HEAD` (two-dot is huge
+— main is far ahead; the branch's own change is only 6 files). Commit
+`96083470` "self-qa: fail loud on gitignored target, scope init commit to
+coga/".
+
+**Applied (2 correctness fixes — both empirically reproduced first):**
+
+1. **Silent commit skip on a gitignored target.** Nested init newly reaches a
+   case the up-front git check was meant to forbid: if the host repo gitignores
+   the target subtree (`coga init build/ops`, `build/` ignored), `git add --
+   coga` exits 1, the `CalledProcessError` is swallowed, and init reports
+   success with no "Committed coga/" line — leaving an uncommitted, gitignored,
+   `git status`-invisible coga/. Added `_host_ignores_coga` (`git check-ignore`
+   from nearest existing ancestor) + a fail-loud pre-flight refusal, placed
+   with the other gates before any writes.
+
+2. **Commit swept unrelated staged files.** `_git_commit_coga_os` committed with
+   no pathspec; inside a live monorepo the user often has files staged, which
+   got folded into the "Create coga" commit. Scoped both the staged-check and
+   the commit to the coga paths (`-- *paths`). Verified: unrelated staged file
+   stays staged, only coga/ is committed.
+
+Tests: `test_init_refuses_target_gitignored_by_host_repo`,
+`test_init_into_subdir_leaves_unrelated_staged_files_alone`. CLI reference
+SKILL.md notes the gitignore refusal alongside the coga-in-coga one.
+
+**Reviewed and deliberately not changed (noted for the human reviewer):**
+
+- *Broadened init gate (removed-behavior finder).* Standing inside an unrelated
+  git checkout and running `coga init myproject` now scaffolds a nested coga
+  instead of refusing "not a git repository". This is the intended feature, not
+  a regression — the tradeoff is documented; init prints the committed SHA and
+  target. Left as-is by design.
+- *`is_git_repo` reuse of `git._toplevel` (cleanup finder).* Semantics genuinely
+  differ — `_toplevel` *raises* (GitError on dubious-ownership / git-missing)
+  and does a single `.parent` hop, whereas the predicate must return a bool and
+  walk to the nearest existing ancestor for a not-yet-created target. Reusing it
+  would import a `git.py` private into a command module and fight the bool
+  contract. Kept the self-contained predicate.
+- *Redundant `is_git_repo` calls / `nested` re-stat (cleanup finder).* Threading
+  a computed flag through `ensure_host_gitignore` + `_git_commit_coga_os` adds
+  more plumbing than the 2–3 cheap `git rev-parse` calls it saves (dwarfed by
+  clone/venv). Nit — skipped.
+- *Dubious-ownership → misleading "not inside a git repository" (correctness
+  finder, edge).* `git rev-parse` exit 128 for `safe.directory` inside a valid
+  work tree makes `is_git_repo` return False. Rare env issue; the failure is at
+  least loud (just a slightly-off message). Not fixed — flagged for reviewer.
+- *Onboarding withheld from a genuinely-empty new repo initialized from a subdir
+  (correctness finder).* `nested` keys on `.git`-at-target, so `coga init sub`
+  in a brand-new empty repo prunes onboarding. This is the documented
+  "nested = filled" decision; the corner is accepted, not fixed.
+
+Verification: `python -m pytest` → **1039 passed, 1 skipped** (+2 new);
+`coga validate --json` → 0 errors (validation behavior untouched). Working tree
+clean on `init-in-subdir`.
 
 ## Usage
 

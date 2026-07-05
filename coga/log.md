@@ -848,3 +848,5 @@ fatal: adding files failed
 2026-07-04 21:13 [improve-readme] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-04 21:16 [improve-readme] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened & mergeable: https://github.com/FastJVM/coga/pull/520 (README-only, 918→73 lines; resolved a main conflict that re-added the old command reference)
 2026-07-05 09:45 [write-real-coga-documentation-command-reference-gu] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-05 09:48 [allow-creation-of-coga-dir-in-subdir] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 10:04 [allow-creation-of-coga-dir-in-subdir] [agent:claude] advanced to step 3 (pr) — self-qa done: /code-review + /simplify run; 2 correctness fixes applied (fail-loud on gitignored target; scope init commit to coga/), 1039 tests pass. Advancing to pr.
