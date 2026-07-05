@@ -1,12 +1,12 @@
 ---
 slug: make-megalaunch-user-specific
 title: make megalaunch user specific
-status: active
+status: in_progress
 mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: claude
 contexts: []
 skills: []
 workflow:

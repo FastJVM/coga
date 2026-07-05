@@ -862,3 +862,4 @@ fatal: adding files failed
 2026-07-05 13:27 [write-real-coga-documentation-command-reference-gu] [agent:codex] advanced to step 2 (peer-review) → assigned to claude
 2026-07-05 13:29 [audit-chat-and-build-are-core-free] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-05 13:29 [audit-chat-and-build-are-core-free] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-05 13:29 [make-megalaunch-user-specific] [human:nicktoper] started (active → in_progress) via coga launch
