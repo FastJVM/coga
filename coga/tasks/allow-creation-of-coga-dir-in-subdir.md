@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -115,6 +115,26 @@ pointed at the local checkout so init clones offline.
 - branch: init-in-subdir
 - worktree: /home/n/Code/claude/coga-init-in-subdir
 - commit: 56adaf44 "Allow coga init to scaffold coga/ in a subdir of a host repo"
+- commit: 96083470 "self-qa: fail loud on gitignored target, scope init commit to coga/"
+- commit: 32009066 "self-qa: refuse init into a sibling subdir of a root-level coga, dedup ancestor walk"
+- pr: https://github.com/FastJVM/coga/pull/522
+
+## PR (step: pr)
+
+Re-ran the pr step after a self-qa rewind added the sibling-subdir guard fix
+(`32009066`). PR #522 already existed from the earlier pr session but only
+carried `56adaf44` + `96083470`; pushed `32009066` so the PR now reflects all
+three commits (GitHub reports **MERGEABLE**). Updated the PR body to describe
+the new guard fix, the `nearest_existing_dir` dedup, and the corrected test
+count (1040 passed, 1 skipped).
+
+- **Auth preflight:** `coga validate --check-github` from the feature worktree
+  reported no git/gh/branch-freshness failures — its only ERRORs are unrelated
+  malformed `install/*` tickets elsewhere in the repo (exit 1 is repo-wide
+  ticket validation, not a github-auth failure). Same as the prior pr session.
+- **Branch is behind `origin/main` but merges cleanly** (`MERGEABLE`, no
+  conflicts). Opened/kept as-is rather than rebasing over the far-ahead main;
+  rebase-vs-merge is the reviewer's call at merge time. Noted in the PR body.
 
 ## Implemented (step: implement)
 
