@@ -291,16 +291,17 @@ def load_config(repo_root: Path | None = None) -> Config:
     # never guesses it. A guessed name (git `user.name`, OS username) can
     # disagree with the `owner` tokens written into tickets, and for an
     # unattended sweep a wrong `me` fails silently. So a missing/empty `user` is
-    # a hard error on every command (including a bare clone with no
-    # `coga.local.toml`); the remedy is `coga init --user <name>`, which writes
-    # `user` before anything reads config.
+    # a hard error on every command. Existing repos recover by creating or
+    # editing `coga.local.toml`; fresh repos pass `coga init --user <name>`,
+    # which writes `user` before anything reads config.
     current_user = local.get("user")
     if not current_user:
         raise ConfigError(
             "No `user` set in coga.local.toml — coga needs your name and will "
-            "not guess it. Run `coga init --user <name>` (e.g. `coga init "
-            '--user marc`), or add `user = "<name>"` to '
-            f"{local_path}."
+            'not guess it. Add `user = "<name>"` to '
+            f"{local_path} (for example, `user = \"marc\"`). "
+            "For a fresh repo that has not been initialized yet, run "
+            "`coga init --user <name>`."
         )
 
     return Config(

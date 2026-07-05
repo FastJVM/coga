@@ -580,7 +580,7 @@ def test_extra_local_field_retired(repo: Path) -> None:
 def test_missing_user_fails_loud(tmp_path: Path) -> None:
     """A missing/empty `user` is a hard error on every command — coga reads the
     operator's name from config and never guesses it. The message points at the
-    `coga init --user <name>` remedy."""
+    existing-repo edit remedy."""
     _write(
         tmp_path / "coga.toml",
         """
@@ -591,8 +591,12 @@ def test_missing_user_fails_loud(tmp_path: Path) -> None:
         """,
     )
     _write(tmp_path / "coga.local.toml", "")
-    with pytest.raises(ConfigError, match="coga init --user"):
+    with pytest.raises(ConfigError) as excinfo:
         load_config(tmp_path)
+    message = str(excinfo.value)
+    assert 'Add `user = "<name>"`' in message
+    assert "coga.local.toml" in message
+    assert "fresh repo" in message
 
 
 def test_find_repo_root(repo: Path) -> None:
