@@ -876,3 +876,4 @@ fatal: adding files failed
 2026-07-05 13:29 [make-megalaunch-user-specific] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-05 13:29 [make-megalaunch-user-specific] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-05 13:36 [make-megalaunch-user-specific] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-05 13:38 [coga-cli-cutover] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
