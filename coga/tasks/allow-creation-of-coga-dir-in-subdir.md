@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -116,6 +116,26 @@ pointed at the local checkout so init clones offline.
 - worktree: /home/n/Code/claude/coga-init-in-subdir
 - commit: 56adaf44 "Allow coga init to scaffold coga/ in a subdir of a host repo"
 - commit: 96083470 "self-qa: fail loud on gitignored target, scope init commit to coga/"
+- pr: https://github.com/FastJVM/coga/pull/522
+
+## PR (step: pr)
+
+Pushed `init-in-subdir`, opened PR #522 against `main`.
+
+- **Auth preflight passed.** `coga validate --check-github` reported no
+  git/gh auth failures (its only ERRORs were unrelated malformed `install/*`
+  tickets elsewhere in the repo). The current `github_preflight.py` checks
+  git-remote / git-auth / gh-installed / gh-auth only — it does **not**
+  enforce the branch-freshness refusal the open-pr skill describes.
+- **Branch is 94 commits behind `origin/main` (2 ahead) but merges cleanly.**
+  `git merge-tree --write-tree origin/main HEAD` → exit 0, no conflicts, and
+  the branch only touches init.py / update.py / config.py / cli SKILL.md /
+  the two test files. Opened the PR as-is rather than rebasing: a rebase over
+  94 commits is safe conflict-wise but would re-base the against-old-base QA,
+  which is the reviewer's call at merge time. Noted in the PR body.
+- **Version skew (warning only):** the installed `coga` binary (built
+  2026-07-04) predates the checkout source (96083470, 2026-07-05); check-github
+  flagged it but continued. Does not affect the auth result.
 
 ## Implemented (step: implement)
 
