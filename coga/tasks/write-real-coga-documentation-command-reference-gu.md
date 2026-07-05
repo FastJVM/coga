@@ -1,19 +1,34 @@
 ---
 slug: write-real-coga-documentation-command-reference-gu
 title: Write real Coga product documentation
-status: draft
+status: active
 mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
 contexts:
-  - coga/principles
-  - coga/architecture
+- coga/principles
+- coga/architecture
 skills: []
-workflow: docs/with-review
+workflow:
+  name: docs/with-review
+  steps:
+  - name: implement
+    skills: []
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills: []
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
@@ -49,7 +64,8 @@ navigate, with the README linking out to it ("Full docs →").
   generated site for this first real documentation pass. A likely shape is
   `docs/README.md` or `docs/index.md`, `docs/getting-started.md`,
   `docs/concepts.md`, and `docs/reference.md`, but let the implementation pick
-  the smallest navigable structure that serves the reader.
+  the smallest navigable structure that serves the reader. Make the chosen docs
+  entrypoint canonical and link to it from README.
 - **Source material:** the current `README.md` holds most of the raw content —
   the `## Getting Started`, `## Commands`, `## Task lifecycle`,
   `## External CLI Tools`, `## Layout`, notifications, aliases, Dream/REM, and
@@ -64,25 +80,39 @@ navigate, with the README linking out to it ("Full docs →").
   against them; do not trust old README prose where they disagree.
 - **Command coverage:** document the public command surface that exists at
   implementation time, including flags shown by help output. If a command is
-  mostly contributor/internal-facing, say so rather than omitting it.
+  mostly contributor/internal-facing, say so rather than omitting it. Start the
+  command reference from the current help output so the minimum command list is
+  generated from the CLI rather than guessed.
 - **Voice/vision:** `docs/vision.md` plus the attached `coga/principles` and
   `coga/architecture` contexts define the product, concepts, and tone. The docs
   should sound like a competent operator explaining a tool they use, not like an
-  AI-generated product page.
+  AI-generated product page. Use `coga/architecture` selectively; it is there to
+  explain concepts that help users understand behavior, not to dump the whole
+  internal model into public docs.
+- **Depth:** keep the implementation launchable. Do not try to make every
+  section exhaustive. Getting started should be complete; concepts and reference
+  should be accurate; Dream/REM, notifications, aliases, and contributor details
+  can be concise if they point readers to the next useful place.
 - **Verification:** at minimum, verify task structure with
   `PYTHONPATH=$PWD/src python -m coga.cli validate --task write-real-coga-documentation-command-reference-gu --json`.
   During the docs audit, run `coga --help` and relevant `coga <command> --help`
   output (or the equivalent source-checkout invocation) for any command reference
-  claims, and check changed markdown for broken obvious links.
+  claims. Check changed markdown for broken obvious links; if there is no link
+  checker available, do a manual path/link audit and record that in the PR.
 - **Current terminology:** document the product as it exists when implemented.
   Do not preempt the planned `workflow` -> `playbook` rename unless that change
   has already landed.
+- **Open assumptions to check at implementation time:** whether `improve-readme`
+  has landed, whether the CLI surface has changed, how much notification setup
+  needs provider/secrets caveats, how deep Dream/REM docs should go in this first
+  pass, and whether `workflow` is still the current term.
 - **Sequencing:** this can proceed in parallel with or after `improve-readme`.
   Coordinate the "Full docs →" link target so the two land consistently.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+Ticket bootstrap is complete. Durable evaluator points were folded into
+`## Context` so the implementation prompt carries them directly.
 
 ## Bootstrap notes
 
@@ -93,17 +123,3 @@ The blackboard is a notepad to be written to often as the human and agent works 
   prose.
 - Workflow kept as `docs/with-review` because this is a docs-only change with
   peer review and an owner review gate.
-
-## Evaluator review
-
-1. **Clear enough to start:** Yes. It gives a clear goal, priority order, source material, voice guidance, acceptance shape, and verification expectations. A future agent can begin by auditing README/help output and drafting the docs tree.
-
-2. **Workflow fit:** `docs/with-review` fits. This is documentation-only but product-facing, so peer review plus owner review is appropriate.
-
-3. **Contexts:** `coga/principles` is directly relevant. `coga/architecture` is relevant for explaining Coga’s mental model, but broad; the agent should use it selectively for primitives, planes, prompt composition, and locking only where those concepts help users understand behavior.
-
-4. **Missing:** It could specify the minimum command list or require generating it from current help output before writing. It could also define the expected README end state more concretely if `improve-readme` has or has not landed. A link-check command or acceptable manual link audit standard would help.
-
-5. **Scope:** Reasonable but large. “Getting started first, then concise supporting docs” keeps it launchable. The risky part is combining onboarding, full command reference, Dream/REM, notifications, aliases, lifecycle, and contributor docs in one ticket. The agent should avoid trying to make every section exhaustive.
-
-6. **Assumptions to question before launch:** Whether `improve-readme` has landed; which docs entrypoint should be canonical; whether the public CLI surface is stable enough to document now; how deep Dream/REM docs should go; whether notification setup needs secrets/provider-specific caveats; and whether terminology like `workflow` is still current at implementation time.

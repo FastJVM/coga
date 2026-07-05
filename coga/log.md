@@ -847,3 +847,4 @@ error: unable to index file 'coga/tasks/improve-readme.md'
 fatal: adding files failed
 2026-07-04 21:13 [improve-readme] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-04 21:16 [improve-readme] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened & mergeable: https://github.com/FastJVM/coga/pull/520 (README-only, 918→73 lines; resolved a main conflict that re-added the old command reference)
+2026-07-05 09:45 [write-real-coga-documentation-command-reference-gu] [human:nicktoper] activated (draft → active) — auto on launch
