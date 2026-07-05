@@ -863,3 +863,13 @@ fatal: adding files failed
 2026-07-05 13:29 [audit-chat-and-build-are-core-free] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-05 13:29 [audit-chat-and-build-are-core-free] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-05 13:29 [make-megalaunch-user-specific] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-05 13:29 [audit-chat-and-build-are-core-free] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-05 13:33 [audit-chat-and-build-are-core-free] [human:nicktoper] task done — Already satisfied: chat/build are pure aliases; pytest passed
+2026-07-05 13:33 [audit-chat-and-build-are-core-free] [git] sync failed: `git add -- coga/tasks/audit-chat-and-build-are-core-free.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/audit-chat-and-build-are-core-free.md: failed to insert into database
+error: unable to index file 'coga/tasks/audit-chat-and-build-are-core-free.md'
+fatal: adding files failed
+2026-07-05 13:33 [coga] [git] sync failed: `git add -- coga/tasks/audit-chat-and-build-are-core-free.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/audit-chat-and-build-are-core-free.md: failed to insert into database
+error: unable to index file 'coga/tasks/audit-chat-and-build-are-core-free.md'
+fatal: adding files failed
