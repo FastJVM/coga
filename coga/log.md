@@ -839,3 +839,9 @@ fatal: adding files failed
 error: coga/tasks/improve-readme.md: failed to insert into database
 error: unable to index file 'coga/tasks/improve-readme.md'
 fatal: adding files failed
+2026-07-04 20:07 [improve-readme] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-04 21:13 [improve-readme] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-04 21:13 [improve-readme] [git] sync failed: `git add -- coga/tasks/improve-readme.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/improve-readme.md: failed to insert into database
+error: unable to index file 'coga/tasks/improve-readme.md'
+fatal: adding files failed

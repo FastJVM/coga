@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/principles
 skills: []
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -120,3 +120,19 @@ launch._
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1054208,"cli":"codex","input_tokens":155486,"model":"gpt-5.5","output_tokens":10817,"provider":"openai","schema":1,"session_id":"019f303b-801a-77f2-a9eb-f227f34c13b4","slug":"improve-readme","step":"implement","title":"improve-readme","ts":"2026-07-05T03:07:50.662378Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":460672,"cli":"codex","input_tokens":142597,"model":"gpt-5.5","output_tokens":4548,"provider":"openai","schema":1,"session_id":"019f303f-26b2-7841-b8c7-0eea3c61c399","slug":"improve-readme","step":"peer-review","title":"improve-readme","ts":"2026-07-05T04:13:41.505344Z","usage_status":"ok"}
+## Peer Review
+
+- Native review: `codex review --base main` initially hit the known read-only
+  app-server setup error in the sandbox; rerun outside the sandbox completed
+  with no factual or functional findings.
+- Manual content pass: reviewed `README.md` against `main`, `docs/vision.md`,
+  `coga/contexts/coga/principles/SKILL.md`, and `pyproject.toml`. The
+  implementation commit changes only `README.md`, keeps the requested arc, drops
+  the command reference/demo, and uses the verified install commands.
+- Link/reference pass: `docs/vision.md`,
+  `coga/contexts/coga/principles/SKILL.md`, and `LICENSE` are present. No
+  context/template cross-copy sync needed because this is README-only.
+- Verification: `git diff --check main -- README.md`; no pytest run because no
+  code or fixture changed.
