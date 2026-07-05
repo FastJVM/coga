@@ -4,9 +4,11 @@
 `coga launch` that the session is over so it can SIGTERM the agent's REPL
 (see `coga.repl_supervisor`). The signal travels over the *sentinel file*
 (`$COGA_DONE_SENTINEL`) and nothing else: a success writes the task's
-resolved path into the file, scoped to this session. Other transitions
-(`mark active`, `mark paused`, or any error path) must NOT write it at all
-— the session is not over.
+`id_slug` into the file, scoped to this session. The slug (not the resolved
+path) is what makes the signal survive `[launch].worktree` isolation, where
+the same ticket lives at two absolute paths. Other transitions (`mark
+active`, `mark paused`, or any error path) must NOT write it at all — the
+session is not over.
 """
 
 from __future__ import annotations
@@ -125,11 +127,12 @@ def _no_supervisor(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_bump_success_signals_via_sentinel(
     repo: Path, sentinel: Path
 ) -> None:
-    slug, path = _make_task(repo)
+    slug, _ = _make_task(repo)
     result = CliRunner().invoke(app, ["bump", slug])
     assert result.exit_code == 0, result.output
-    # The signal goes to the side-channel file, scoped to this task.
-    assert sentinel.read_text().strip() == str(path.resolve())
+    # The signal goes to the side-channel file, scoped to this task by its
+    # worktree-independent `id_slug` (not the resolved path).
+    assert sentinel.read_text().strip() == slug
 
 
 def test_bump_success_unsupervised_is_noop(
@@ -182,10 +185,10 @@ def test_bump_error_wrong_status_does_not_signal(
 def test_mark_done_success_signals_via_sentinel(
     repo: Path, sentinel: Path
 ) -> None:
-    slug, path = _make_task(repo, status="active")
+    slug, _ = _make_task(repo, status="active")
     result = CliRunner().invoke(app, ["mark", "done", slug])
     assert result.exit_code == 0, result.output
-    assert sentinel.read_text().strip() == str(path.resolve())
+    assert sentinel.read_text().strip() == slug
 
 
 def test_mark_done_success_unsupervised_is_noop(
@@ -225,12 +228,12 @@ def test_mark_paused_does_not_signal(repo: Path, sentinel: Path) -> None:
 def test_block_success_signals_via_sentinel(
     repo: Path, sentinel: Path
 ) -> None:
-    slug, path = _make_task(repo)
+    slug, _ = _make_task(repo)
     result = CliRunner().invoke(
         app, ["block", "--task", slug, "--reason", "stuck on 429 backoff ceiling"]
     )
     assert result.exit_code == 0, result.output
-    assert sentinel.read_text().strip() == str(path.resolve())
+    assert sentinel.read_text().strip() == slug
 
 
 def test_block_success_unsupervised_is_noop(
@@ -253,3 +256,44 @@ def test_block_error_empty_reason_does_not_signal(
     )
     assert result.exit_code == 2
     assert not sentinel.exists()
+
+
+# --- worktree-independence (the regression this fix closes) -------------------
+
+
+def test_sentinel_scope_is_worktree_independent(repo: Path) -> None:
+    """The sentinel is scoped by `id_slug`, not the resolved path.
+
+    Under `[launch].worktree` isolation the supervisor scopes the channel from
+    the primary checkout while the agent's `coga bump` runs in the per-launch
+    worktree — two different absolute paths for one ticket. A path-scoped
+    marker written from the worktree never matched what the supervisor polled,
+    so the REPL hung and the human had to relaunch by hand. `id_slug` is the
+    same from either checkout, so the two sides agree.
+
+    This asserts the invariant the fix relies on: the identity string is stable
+    across checkouts, while the resolved path — the OLD scope key — is not.
+    """
+    from coga import tasks as tasks_mod
+
+    slug, primary_path = _make_task(repo)
+
+    # Mirror the whole task tree into a per-launch worktree checkout, the way
+    # `coga launch` re-roots into `.coga/worktrees/<hex>` under isolation.
+    import shutil
+
+    wt_root = repo / ".coga" / "worktrees" / "deadbeefcafe"
+    shutil.copytree(repo, wt_root, ignore=shutil.ignore_patterns(".coga"))
+
+    primary_ref = tasks_mod.resolve_target(load_config(repo), slug)
+    worktree_ref = tasks_mod.resolve_target(load_config(wt_root), slug)
+
+    # What `launch` scopes to and what `bump`/`mark`/`block` write — identical
+    # from either checkout. This is what makes teardown fire regardless of the
+    # bump's cwd.
+    assert primary_ref.id_slug == worktree_ref.id_slug == slug
+
+    # The resolved paths (the pre-fix scope key) genuinely diverge — that
+    # divergence is exactly the mismatch that used to hang the REPL.
+    assert primary_ref.path.resolve() != worktree_ref.path.resolve()
+    assert primary_ref.path.resolve() == primary_path.resolve()

@@ -1558,7 +1558,71 @@ def add_launch_worktree(cfg: Config, key: str) -> Path | None:
     path = base / key
     commitish = _launch_worktree_base(root, cfg.git_remote, cfg.git_control_branch)
     _run_git(root, "worktree", "add", "--detach", str(path), commitish)
+    # Stamp the supervising process so `reap_orphan_launch_worktrees` can tell a
+    # live launch from a crash orphan without waiting out the age gate. The
+    # caller of `add_launch_worktree` is the `coga launch` process that then runs
+    # the whole session (the PTY supervisor loop), so its PID is the liveness
+    # signal for this worktree.
+    _stamp_launch_worktree_owner(root, key, os.getpid())
     return path
+
+
+# Git's private admin dir per worktree (`.git/worktrees/<key>/`) — never part of
+# the working tree, and removed by `git worktree remove`/`prune`, so a marker
+# stored there can't dirty the checkout or leak after teardown.
+_LAUNCH_OWNER_PIDFILE = "coga-launch.pid"
+
+
+def _launch_worktree_admin_dir(root: Path, key: str) -> Path | None:
+    """Absolute path of git's admin dir for launch worktree `key`, or None."""
+    try:
+        out = _run_git(root, "rev-parse", "--git-path", f"worktrees/{key}").strip()
+    except GitError:
+        return None
+    if not out:
+        return None
+    admin = Path(out)
+    if not admin.is_absolute():
+        admin = root / admin
+    return admin
+
+
+def _stamp_launch_worktree_owner(root: Path, key: str, pid: int) -> None:
+    """Record the supervising PID for a launch worktree. Best-effort."""
+    admin = _launch_worktree_admin_dir(root, key)
+    if admin is None or not admin.is_dir():
+        return
+    try:
+        (admin / _LAUNCH_OWNER_PIDFILE).write_text(f"{pid}\n")
+    except OSError:
+        pass
+
+
+def _launch_worktree_owner_pid(root: Path, key: str) -> int | None:
+    """The PID that owns launch worktree `key`, or None when unstamped."""
+    admin = _launch_worktree_admin_dir(root, key)
+    if admin is None:
+        return None
+    try:
+        return int((admin / _LAUNCH_OWNER_PIDFILE).read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _process_alive(pid: int) -> bool:
+    """Whether `pid` names a live process. Errs toward 'alive' when unsure so a
+    liveness check never destroys a worktree it can't prove is abandoned."""
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists, just owned by another user
+    except OSError:
+        return True  # can't tell — keep the worktree
+    return True
 
 
 def _launch_worktree_base(root: Path, remote: str, branch: str) -> str:
@@ -1690,13 +1754,26 @@ def remove_launch_worktree(cfg: Config, path: Path) -> None:
 def reap_orphan_launch_worktrees(
     cfg: Config, *, max_age_seconds: float = _ORPHAN_WORKTREE_MAX_AGE_SECONDS
 ) -> None:
-    """Force-remove crash-orphaned launch worktrees, best-effort.
+    """Remove crash-orphaned launch worktrees, best-effort.
 
     Normal teardown removes a launch worktree in `coga launch`'s `finally`; this
-    is the backstop for a hard crash that skipped it. Run on launch entry: prune
-    git's registry, then force-remove any directory under the worktree root older
-    than `max_age_seconds` (a live session is created far more recently). Never
-    raises — orphan cleanup must not block a fresh launch.
+    is the backstop for one the process never got to. Run on launch entry: prune
+    git's registry, then decide each directory under the worktree root by the
+    liveness of its owning `coga launch` process (stamped at creation):
+
+    - **owner alive** → keep, always. A precise signal, so even an attended
+      session running longer than `max_age_seconds` is never reaped mid-work
+      (the old dir-mtime age gate could not see that it was still live).
+    - **owner dead, no recoverable Coga state** → remove now, without waiting out
+      the age gate. This is the common orphan — a stillborn or crashed session —
+      and the pile-up this fixes.
+    - **owner dead but recoverable Coga state remains** → hold for recovery, the
+      same bargain `_cleanup_launch_worktree` strikes, but bounded: once older
+      than `max_age_seconds` it is force-removed so held worktrees still GC.
+    - **unstamped** (created before owner-stamping, or the stamp failed) → fall
+      back to the original `max_age_seconds` age gate, since liveness is unknown.
+
+    Never raises — orphan cleanup must not block a fresh launch.
     """
     root = _toplevel(cfg.repo_root)
     if root is None:
@@ -1716,12 +1793,33 @@ def reap_orphan_launch_worktrees(
     for entry in entries:
         if not entry.is_dir():
             continue
+        pid = _launch_worktree_owner_pid(root, entry.name)
+        if pid is not None and _process_alive(pid):
+            continue  # live supervisor — never reap
         try:
             age = now - entry.stat().st_mtime
         except OSError:
             continue
-        if age >= max_age_seconds:
-            remove_launch_worktree(cfg, entry)
+        within_recovery_window = age < max_age_seconds
+        if within_recovery_window:
+            if pid is None:
+                # No liveness signal: could still be a live pre-stamp session.
+                # Keep the original generous age gate rather than guess.
+                continue
+            if _has_recoverable_launch_state(cfg, entry):
+                # Dead owner, but the finally-path recovery bargain applies:
+                # leave it for a human until the age gate forces GC.
+                continue
+        remove_launch_worktree(cfg, entry)
+
+
+def _has_recoverable_launch_state(cfg: Config, path: Path) -> bool:
+    """`launch_worktree_has_dirty_coga_state`, but never raises — an
+    inconclusive check must keep the worktree (safe direction), not delete it."""
+    try:
+        return launch_worktree_has_dirty_coga_state(cfg, path)
+    except GitError:
+        return True
 
 
 def repo_root_in_worktree(cfg: Config, worktree_path: Path) -> Path:
