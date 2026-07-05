@@ -1,7 +1,7 @@
 ---
 slug: improve-readme
 title: improve-readme
-status: active
+status: in_progress
 mode: agent
 owner: nicktoper
 human: nicktoper
