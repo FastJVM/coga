@@ -852,3 +852,5 @@ fatal: adding files failed
 2026-07-05 10:04 [allow-creation-of-coga-dir-in-subdir] [agent:claude] advanced to step 3 (pr) — self-qa done: /code-review + /simplify run; 2 correctness fixes applied (fail-loud on gitignored target; scope init commit to coga/), 1039 tests pass. Advancing to pr.
 2026-07-05 10:04 [allow-creation-of-coga-dir-in-subdir] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-05 10:08 [allow-creation-of-coga-dir-in-subdir] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/522 (branch 94 behind main but merges clean, no conflicts)
+2026-07-05 11:19 [allow-creation-of-coga-dir-in-subdir] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 11:33 [allow-creation-of-coga-dir-in-subdir] [agent:claude] advanced to step 3 (pr)

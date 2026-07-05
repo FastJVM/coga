@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 4 (review)
+step: 3 (pr)
 ---
 
 ## Description
@@ -115,27 +115,6 @@ pointed at the local checkout so init clones offline.
 - branch: init-in-subdir
 - worktree: /home/n/Code/claude/coga-init-in-subdir
 - commit: 56adaf44 "Allow coga init to scaffold coga/ in a subdir of a host repo"
-- commit: 96083470 "self-qa: fail loud on gitignored target, scope init commit to coga/"
-- pr: https://github.com/FastJVM/coga/pull/522
-
-## PR (step: pr)
-
-Pushed `init-in-subdir`, opened PR #522 against `main`.
-
-- **Auth preflight passed.** `coga validate --check-github` reported no
-  git/gh auth failures (its only ERRORs were unrelated malformed `install/*`
-  tickets elsewhere in the repo). The current `github_preflight.py` checks
-  git-remote / git-auth / gh-installed / gh-auth only — it does **not**
-  enforce the branch-freshness refusal the open-pr skill describes.
-- **Branch is 94 commits behind `origin/main` (2 ahead) but merges cleanly.**
-  `git merge-tree --write-tree origin/main HEAD` → exit 0, no conflicts, and
-  the branch only touches init.py / update.py / config.py / cli SKILL.md /
-  the two test files. Opened the PR as-is rather than rebasing: a rebase over
-  94 commits is safe conflict-wise but would re-base the against-old-base QA,
-  which is the reviewer's call at merge time. Noted in the PR body.
-- **Version skew (warning only):** the installed `coga` binary (built
-  2026-07-04) predates the checkout source (96083470, 2026-07-05); check-github
-  flagged it but continued. Does not affect the auth result.
 
 ## Implemented (step: implement)
 
@@ -192,68 +171,55 @@ operates on an already-discovered repo so it should be unaffected.
 
 ## Self-QA (step: self-qa)
 
-Ran `/code-review` (high) + `/simplify` against `main...HEAD` (two-dot is huge
-— main is far ahead; the branch's own change is only 6 files). Commit
-`96083470` "self-qa: fail loud on gitignored target, scope init commit to
-coga/".
+Ran `/code-review` (high effort, 8 finder angles + verify) and `/simplify`
+against the branch diff vs `main`. A prior self-qa session had already run
+`/code-review` once and committed its fixes (`96083470`: fail-loud on a
+gitignored target + scope the init commit to `coga/`); this session re-ran both
+passes over the post-fix diff and finished the step.
 
-**Applied (2 correctness fixes — both empirically reproduced first):**
+**Applied (commit `32009066`):**
+- **Correctness (`/code-review`, must-fix): the coga-in-coga guard didn't
+  mirror discovery.** `_enclosing_coga_root` only checked a *direct*
+  `coga.toml` at each ancestor, but `find_repo_root` also descends into a
+  sibling `coga/`. For the *standard* layout (git repo at `<repo>/`, coga at
+  `<repo>/coga/`), `coga init <repo>/data` was therefore **not** refused — it
+  would scaffold a second `coga/` that shadows the root one for that subtree,
+  the exact ambiguity the guard exists to prevent, and the most natural misuse
+  of this feature. Fixed the walk to also check the sibling `coga/`; added
+  `test_init_refuses_sibling_subdir_of_root_level_coga`. (The target-level
+  `coga_os.exists()` guard runs first, so the direct-`coga/` case still gets
+  its "already exists" message — verified existing refusal tests unchanged.)
+- **Simplification (`/simplify`): extracted `nearest_existing_dir`.** The
+  "nearest existing ancestor" walk was copy-pasted in `is_git_repo`
+  (update.py) and `_host_ignores_coga` (init.py); now one shared helper.
 
-1. **Silent commit skip on a gitignored target.** Nested init newly reaches a
-   case the up-front git check was meant to forbid: if the host repo gitignores
-   the target subtree (`coga init build/ops`, `build/` ignored), `git add --
-   coga` exits 1, the `CalledProcessError` is swallowed, and init reports
-   success with no "Committed coga/" line — leaving an uncommitted, gitignored,
-   `git status`-invisible coga/. Added `_host_ignores_coga` (`git check-ignore`
-   from nearest existing ancestor) + a fail-loud pre-flight refusal, placed
-   with the other gates before any writes.
+**Reviewed and deliberately NOT changed (left for the human reviewer):**
+- **Reuse: `is_git_repo` is a 4th copy of the `git._toplevel` probe.** Real
+  DRY debt, but `_toplevel` *raises* `GitError` on unexpected git failures
+  (e.g. `safe.directory` dubious-ownership) where `is_git_repo` returns
+  `False`. Swapping it into the init gate changes error semantics (traceback
+  vs. clean "not inside a git repository" message), so it's out of scope for a
+  self-QA/simplify pass — flag for a dedicated consolidation.
+- **`is_git_repo` on a `safe.directory` repo returns `False` → misleading
+  "not inside a git repository" message** (containers / shared checkouts).
+  Narrow diagnostic issue; the old code couldn't do nested init at all.
+- **Broadened `is_git_repo` attaches coga to an unintended ancestor repo**
+  (e.g. `coga init ~/projects/newapp` when `$HOME` is a dotfiles git repo).
+  Inherent to the accepted "inside a git work tree" design — coga can't infer
+  intent; the alternative is re-narrowing the feature.
+- **Submodule / `.git`-boundary edge cases**: a target inside a git submodule
+  commits into the submodule; a target inside `<coga>/.coga/**` isn't caught
+  by the coga-in-coga guard (the walk stops at the vendored clone's `.git`).
+  Both contrived; robustly fixing means resolving the real git toplevel — a
+  bigger change than self-QA should make.
 
-2. **Commit swept unrelated staged files.** `_git_commit_coga_os` committed with
-   no pathspec; inside a live monorepo the user often has files staged, which
-   got folded into the "Create coga" commit. Scoped both the staged-check and
-   the commit to the coga paths (`-- *paths`). Verified: unrelated staged file
-   stays staged, only coga/ is committed.
-
-Tests: `test_init_refuses_target_gitignored_by_host_repo`,
-`test_init_into_subdir_leaves_unrelated_staged_files_alone`. CLI reference
-SKILL.md notes the gitignore refusal alongside the coga-in-coga one.
-
-**Reviewed and deliberately not changed (noted for the human reviewer):**
-
-- *Broadened init gate (removed-behavior finder).* Standing inside an unrelated
-  git checkout and running `coga init myproject` now scaffolds a nested coga
-  instead of refusing "not a git repository". This is the intended feature, not
-  a regression — the tradeoff is documented; init prints the committed SHA and
-  target. Left as-is by design.
-- *`is_git_repo` reuse of `git._toplevel` (cleanup finder).* Semantics genuinely
-  differ — `_toplevel` *raises* (GitError on dubious-ownership / git-missing)
-  and does a single `.parent` hop, whereas the predicate must return a bool and
-  walk to the nearest existing ancestor for a not-yet-created target. Reusing it
-  would import a `git.py` private into a command module and fight the bool
-  contract. Kept the self-contained predicate.
-- *Redundant `is_git_repo` calls / `nested` re-stat (cleanup finder).* Threading
-  a computed flag through `ensure_host_gitignore` + `_git_commit_coga_os` adds
-  more plumbing than the 2–3 cheap `git rev-parse` calls it saves (dwarfed by
-  clone/venv). Nit — skipped.
-- *Dubious-ownership → misleading "not inside a git repository" (correctness
-  finder, edge).* `git rev-parse` exit 128 for `safe.directory` inside a valid
-  work tree makes `is_git_repo` return False. Rare env issue; the failure is at
-  least loud (just a slightly-off message). Not fixed — flagged for reviewer.
-- *Onboarding withheld from a genuinely-empty new repo initialized from a subdir
-  (correctness finder).* `nested` keys on `.git`-at-target, so `coga init sub`
-  in a brand-new empty repo prunes onboarding. This is the documented
-  "nested = filled" decision; the corner is accepted, not fixed.
-
-Verification: `python -m pytest` → **1039 passed, 1 skipped** (+2 new);
-`coga validate --json` → 0 errors (validation behavior untouched). Working tree
-clean on `init-in-subdir`.
+**Tests:** `python3.12 -m pytest` in the worktree — **1040 passed, 1 skipped**
+(pre-existing). `test_init.py` + `test_config.py` alone: 154 passed. Working
+tree clean. (Note: the repo's default `python` is 3.9, which init rejects;
+tests must run under `python3.12`.)
 
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":412014,"cache_read_input_tokens":12220441,"cli":"claude","input_tokens":21851,"model":"claude-fable-5","output_tokens":136849,"provider":"anthropic","schema":1,"session_id":"b7defcfd-1766-4f8b-bb30-66374638fd20","slug":"allow-creation-of-coga-dir-in-subdir","step":"implement","title":"allow creation of coga dir in subdir","ts":"2026-07-03T19:38:28.090672Z","usage_status":"ok"}
 
 {"agent":"claude","cache_creation_input_tokens":156970,"cache_read_input_tokens":719974,"cli":"claude","input_tokens":13675,"model":"claude-fable-5","output_tokens":45984,"provider":"anthropic","schema":1,"session_id":"e5137934-8bab-4673-93d9-b808225c418d","slug":"allow-creation-of-coga-dir-in-subdir","step":"self-qa","title":"allow creation of coga dir in subdir","ts":"2026-07-03T19:55:52.565343Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":249260,"cache_read_input_tokens":9578714,"cli":"claude","input_tokens":17887,"model":"claude-opus-4-8","output_tokens":111815,"provider":"anthropic","schema":1,"session_id":"40c2fd36-0e94-4f54-b88a-53d84cf44fa6","slug":"allow-creation-of-coga-dir-in-subdir","step":"self-qa","title":"allow creation of coga dir in subdir","ts":"2026-07-05T17:04:04.344603Z","usage_status":"ok"}
-
-{"agent":"claude","cache_creation_input_tokens":88378,"cache_read_input_tokens":1720702,"cli":"claude","input_tokens":15653,"model":"claude-opus-4-8","output_tokens":33940,"provider":"anthropic","schema":1,"session_id":"e9c64df8-0cb3-4e59-a344-ad3fb8b912ed","slug":"allow-creation-of-coga-dir-in-subdir","step":"pr","title":"allow creation of coga dir in subdir","ts":"2026-07-05T17:08:51.454517Z","usage_status":"ok"}
