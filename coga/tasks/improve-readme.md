@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/principles
 skills: []
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -87,6 +87,10 @@ person wrote it. Ruthlessly cut; brevity is the point.
   The human owns the final voice at the review gate; the draft is a starting
   point to be cut down, not the finished product.
 
+## PR
+
+https://github.com/FastJVM/coga/pull/520
+
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
@@ -101,6 +105,7 @@ launch._
 
 - branch: codex/improve-readme
 - worktree: /tmp/coga-improve-readme
+- pr: https://github.com/FastJVM/coga/pull/520
 - Plan: replace `README.md` with a short README-only public entry point: hook,
   install, key values, and a pointer to the companion docs ticket for the full
   command guide.
@@ -116,6 +121,20 @@ launch._
   - Note: `python -m coga.cli --help` failed in the ambient interpreter because
     the source checkout is not installed there; verified the actual README
     surface with `coga --help` instead.
+
+## Open PR
+
+- PR opened: https://github.com/FastJVM/coga/pull/520 (base `main`).
+- On open, the PR was `CONFLICTING`/`DIRTY`: `main` had advanced and also
+  touched `README.md`. Merged `origin/main` into `codex/improve-readme`; the
+  only content conflict was `README.md` (main re-introduced the long command
+  reference this ticket removes). Resolved with `git checkout --ours README.md`
+  (kept the 73-line rewrite); all other files auto-merged from main.
+- Post-merge state: `git diff --name-only origin/main...HEAD` → `README.md`
+  only; `git diff --check` clean; PR now `MERGEABLE`/`CLEAN`.
+- Docs re-verification: referenced links resolve — `docs/vision.md`,
+  `coga/contexts/coga/principles/SKILL.md`, `LICENSE` all present. No pytest run
+  because the merge touched no code/fixtures on this branch's diff (README-only).
 
 ## Usage
 
