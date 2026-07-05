@@ -195,11 +195,13 @@ coga validate --check-github
 ```
 
 It verifies the configured remote exists, probes push access with a
-non-mutating `git push --dry-run`, and confirms `gh` is installed and
-authenticated for the remote host - turning each failure into a direct setup
-hint (set/fix the remote, load your SSH key or credential helper, run
-`gh auth login`) instead of a surprise at PR time. Like `--check-slack`, it is
-the only thing that makes `coga validate` touch the network; plain
+non-mutating `git push --dry-run`, checks that the current branch contains the
+configured control branch, and confirms `gh` is installed and authenticated for
+the remote host - turning each failure into a direct setup hint (set/fix the
+remote, load your SSH key or credential helper, rebase/merge the control
+branch, run `gh auth login`) instead of a surprise at PR time. Like
+`--check-slack`, it is the only thing that makes `coga validate` touch the
+network; plain
 `coga validate`, `coga status`, and `coga show` stay offline and read-only.
 
 Multi-surface companies (e.g. an admin repo + a code repo) run multiple
@@ -854,7 +856,7 @@ coga validate --json                # machine-readable output
 coga validate --task add-retry      # validate one task (skips Slack + idle checks)
 coga validate --fix                 # conservative safe repairs (add a missing blackboard fence)
 coga validate --check-slack         # probe the Slack webhook
-coga validate --check-github        # probe git/GitHub auth readiness
+coga validate --check-github        # probe git/GitHub auth + branch readiness
 ```
 
 `--idle-hours` and `--max-blackboard-kb` tune the thresholds for the idle-task
