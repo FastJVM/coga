@@ -1,18 +1,33 @@
 ---
 slug: improve-readme
 title: improve-readme
-status: draft
+status: active
 mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts:
-  - coga/principles
+- coga/principles
 skills: []
-workflow: docs/with-review
+workflow:
+  name: docs/with-review
+  steps:
+  - name: implement
+    skills: []
+    assignee: agent
+  - name: peer-review
+    skills: []
+    assignee: other-agent
+  - name: open-pr
+    skills: []
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (implement)
 ---
 
 ## Description
