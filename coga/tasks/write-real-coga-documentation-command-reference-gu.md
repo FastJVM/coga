@@ -1,13 +1,15 @@
 ---
 slug: write-real-coga-documentation-command-reference-gu
-title: Write real coga documentation (command reference + guides)
+title: Write real Coga product documentation
 status: draft
 mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: nicktoper
-contexts: []
+contexts:
+  - coga/principles
+  - coga/architecture
 skills: []
 workflow: docs/with-review
 secrets: null
@@ -16,40 +18,92 @@ script: null
 
 ## Description
 
-Stand up real Coga documentation so the README can stay minimal. The current
-920-line `README.md` doubles as a full CLI manual — the companion ticket
-`improve-readme` strips that down to a hook + install + key values and drops
-the exhaustive command reference. This ticket is where that reference (and
-proper guides) should actually live.
+Stand up real Coga documentation so the README can stay minimal and the product
+has a place to explain itself. The docs should teach what Coga is, how it works,
+and how a new operator actually starts using it.
 
-Scope to decide first (part of the work): **where** the docs live — a `docs/`
-tree of markdown, a generated docs site, or a single `docs/reference.md`. Then
-port and clean up the real content: the full `coga <command>` reference,
-task/workflow lifecycle, Dream/REM, notifications, aliases, and any concepts a
-new operator needs. This is a rewrite/reorganize, not a copy-paste of the old
-README prose.
+The highest-priority deliverable is a strong **getting started** guide. It
+should take a new operator from install/init through creating, launching, and
+finishing a first task, while giving enough of the mental model to understand
+what just happened. After that, build the supporting docs: core concepts,
+task/workflow lifecycle, command reference, Dream/REM, notifications, aliases,
+and the contributor/operator details a serious user needs.
 
-Done = coherent docs that a new user and a contributor can navigate, with the
-README linking out to them ("Full docs →").
+This is a rewrite and organization pass, not a copy-paste of the old README.
+The voice matters: write practical, concrete, human docs. Avoid generic AI
+voice, filler, breathless marketing prose, and vague "unlock productivity"
+claims. Prefer specific examples, real commands, and the product's own language.
+
+Scope this as the first coherent documentation tree, not the final perfect docs
+site. The getting-started path should be complete enough for a new operator to
+use. The command reference should be accurate for the current CLI. Deeper
+Dream/REM and contributor material can be concise as long as it gives readers a
+real place to continue.
+
+Done = a coherent markdown docs tree that a new user and a contributor can
+navigate, with the README linking out to it ("Full docs →").
 
 ## Context
 
-- **Source material:** the current `README.md` (pre-`improve-readme` rewrite)
-  holds most of the raw content — the `## Commands` section (lines ~274–903),
-  `## Task lifecycle`, `## External CLI Tools`, `## Layout`, notifications, and
-  aliases. Pull from it, but treat it as material to reorganize, not preserve
-  verbatim.
+- **Docs home:** prefer a normal markdown tree under `docs/` rather than a
+  generated site for this first real documentation pass. A likely shape is
+  `docs/README.md` or `docs/index.md`, `docs/getting-started.md`,
+  `docs/concepts.md`, and `docs/reference.md`, but let the implementation pick
+  the smallest navigable structure that serves the reader.
+- **Source material:** the current `README.md` holds most of the raw content —
+  the `## Getting Started`, `## Commands`, `## Task lifecycle`,
+  `## External CLI Tools`, `## Layout`, notifications, aliases, Dream/REM, and
+  development sections. Pull from it, but treat it as material to reorganize,
+  verify, and rewrite.
+- **README end state:** README should keep the short hook/install/key-values
+  surface and link to the new docs. Do not leave the exhaustive manual duplicated
+  in README unless `improve-readme` has not landed yet and you need a temporary
+  compatibility shape; in that case, coordinate the final "Full docs →" target.
 - **Canonical behavior:** `coga --help` and the `src/coga/commands/` modules
-  are the source of truth for command flags/behavior — verify the reference
-  against them, don't trust the old README where they disagree.
-- **Voice/vision:** `docs/vision.md` and the `coga/contexts/coga/` contexts
-  (principles, architecture, codebase) define the concepts and voice.
+  are the source of truth for command flags/behavior. Verify the reference
+  against them; do not trust old README prose where they disagree.
+- **Command coverage:** document the public command surface that exists at
+  implementation time, including flags shown by help output. If a command is
+  mostly contributor/internal-facing, say so rather than omitting it.
+- **Voice/vision:** `docs/vision.md` plus the attached `coga/principles` and
+  `coga/architecture` contexts define the product, concepts, and tone. The docs
+  should sound like a competent operator explaining a tool they use, not like an
+  AI-generated product page.
+- **Verification:** at minimum, verify task structure with
+  `PYTHONPATH=$PWD/src python -m coga.cli validate --task write-real-coga-documentation-command-reference-gu --json`.
+  During the docs audit, run `coga --help` and relevant `coga <command> --help`
+  output (or the equivalent source-checkout invocation) for any command reference
+  claims, and check changed markdown for broken obvious links.
+- **Current terminology:** document the product as it exists when implemented.
+  Do not preempt the planned `workflow` -> `playbook` rename unless that change
+  has already landed.
 - **Sequencing:** this can proceed in parallel with or after `improve-readme`.
   Coordinate the "Full docs →" link target so the two land consistently.
-- **Not yet interviewed:** this ticket was scaffolded as a follow-up during the
-  `improve-readme` bootstrap. Run `coga ticket write-real-coga-documentation-command-reference-gu`
-  to flesh out the docs-home decision and scope before launching.
 
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Bootstrap notes
+
+- Human clarified the purpose: create real product documentation that explains
+  Coga and how it works, not just a command-reference dumping ground.
+- Highest priority is the getting-started guide.
+- Editorial bar: avoid generic AI voice; use concrete, human, operator-facing
+  prose.
+- Workflow kept as `docs/with-review` because this is a docs-only change with
+  peer review and an owner review gate.
+
+## Evaluator review
+
+1. **Clear enough to start:** Yes. It gives a clear goal, priority order, source material, voice guidance, acceptance shape, and verification expectations. A future agent can begin by auditing README/help output and drafting the docs tree.
+
+2. **Workflow fit:** `docs/with-review` fits. This is documentation-only but product-facing, so peer review plus owner review is appropriate.
+
+3. **Contexts:** `coga/principles` is directly relevant. `coga/architecture` is relevant for explaining Coga’s mental model, but broad; the agent should use it selectively for primitives, planes, prompt composition, and locking only where those concepts help users understand behavior.
+
+4. **Missing:** It could specify the minimum command list or require generating it from current help output before writing. It could also define the expected README end state more concretely if `improve-readme` has or has not landed. A link-check command or acceptable manual link audit standard would help.
+
+5. **Scope:** Reasonable but large. “Getting started first, then concise supporting docs” keeps it launchable. The risky part is combining onboarding, full command reference, Dream/REM, notifications, aliases, lifecycle, and contributor docs in one ticket. The agent should avoid trying to make every section exhaustive.
+
+6. **Assumptions to question before launch:** Whether `improve-readme` has landed; which docs entrypoint should be canonical; whether the public CLI surface is stable enough to document now; how deep Dream/REM docs should go; whether notification setup needs secrets/provider-specific caveats; and whether terminology like `workflow` is still current at implementation time.
