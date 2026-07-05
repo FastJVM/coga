@@ -222,9 +222,14 @@ def bump(
 
     # Tell a supervising `coga launch` the session is done so the agent's
     # REPL tears down without `/exit`. Harmless tagged line otherwise. The
-    # resolved task path scopes the signal to this ticket so an unrelated
-    # nested `coga bump` (e.g. a test fixture) can't end our session.
-    emit_done_marker(session_id=str(ref.path.resolve()))
+    # task's `id_slug` scopes the signal to this ticket so an unrelated nested
+    # `coga bump` (e.g. a test fixture) can't end our session. It is the
+    # *slug*, not the resolved path, on purpose: under `[launch].worktree`
+    # isolation the same ticket lives at two absolute paths (the primary
+    # checkout and the per-launch worktree), so a path-scoped marker written
+    # from the "wrong" cwd never matched what the supervisor polled for and
+    # the REPL hung. The slug is identical from either checkout.
+    emit_done_marker(session_id=ref.id_slug)
 
 
 def _bail(msg: str) -> None:

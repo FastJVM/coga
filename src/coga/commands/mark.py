@@ -167,9 +167,10 @@ def done(
     # `mark done` is a session-end transition; tell a supervising
     # `coga launch` to tear down the agent's REPL. Other `mark`
     # transitions (active / paused) are not terminal and intentionally
-    # skip the marker. The resolved task path scopes the signal to this
-    # ticket (see `emit_done_marker`).
-    emit_done_marker(session_id=str(ref.path.resolve()))
+    # skip the marker. The task's `id_slug` scopes the signal to this
+    # ticket (see `emit_done_marker`) — worktree-independent, unlike a
+    # resolved path, so it matches whichever checkout the command runs in.
+    emit_done_marker(session_id=ref.id_slug)
 
 
 # --- helpers -----------------------------------------------------------------

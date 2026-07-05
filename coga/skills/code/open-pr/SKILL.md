@@ -15,13 +15,15 @@ yourself.
 1. **Find the feature worktree.** Read `branch:` and `worktree:` under
    `## Dev` on the blackboard. Change into that worktree and confirm
    it is on the recorded branch with a clean working tree.
-2. **Probe auth before you push.** Run `coga validate --check-github`
-   (or, minimally, `gh auth status`) *first*. If git/`gh` auth isn't
-   ready, do **not** improvise around it: write the exact failure and the
-   suggested fix (set/fix the remote, load your SSH key or credential
-   helper, run `gh auth login`) under `## Dev` on the blackboard, then
-   `coga block` with a one-line reason so the human can fix auth and
-   relaunch. The push and PR cannot succeed without it.
+2. **Probe auth and branch freshness before you push.** Run
+   `coga validate --check-github` from the feature worktree. This checks
+   git/`gh` auth and refuses a branch that does not contain the latest
+   configured control branch (usually `origin/main`). If it fails, do
+   **not** improvise around it: write the exact failure and the suggested
+   fix (set/fix the remote, load your SSH key or credential helper, run
+   `gh auth login`, or rebase/merge the control branch) under `## Dev` on
+   the blackboard, then `coga block` with a one-line reason so the human
+   can fix the environment or relaunch after the branch is current.
 3. **Push** the branch from the feature worktree.
 4. **Open the PR** with `gh pr create`. If the `code/self-qa` step
    already opened a draft, run `gh pr ready <PR#>` instead. Title =
@@ -51,9 +53,9 @@ yourself.
 
 ## Gotchas
 
-- If git/`gh` auth isn't ready, you caught it in step 2: blackboard the
-  failure and `coga block` rather than skipping the PR step or
-  improvising around missing auth.
+- If git/`gh` auth isn't ready, or the branch is behind the control branch,
+  you caught it in step 2: blackboard the failure and `coga block` rather
+  than skipping the PR step or opening a stale PR.
 - If CI fails for reasons unrelated to your change, write it to the
   blackboard with a link to the failing run, then bump anyway. The
   human decides whether to re-run or rework.

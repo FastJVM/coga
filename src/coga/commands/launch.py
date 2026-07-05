@@ -949,10 +949,18 @@ def spawn_agent_session(
         # Agent CLIs (`claude`, `codex`) don't exit on their own. Run through a
         # PTY watcher so an agent that writes the session-done sentinel after
         # `coga bump` / `coga mark done` / `coga block` releases the REPL.
+        # Scope the sentinel by the task's `id_slug`, the identifier `bump` /
+        # `mark` / `block` write. It must be the slug, not `ref.path.resolve()`:
+        # under `[launch].worktree` isolation `ref` is re-rooted into the
+        # per-launch worktree, so a path-scoped marker only matched when the
+        # agent's `coga bump` also ran from that worktree — a bump from the
+        # primary checkout (or a peer agent's separate clone) wrote a different
+        # path, the poll never matched, and the REPL hung. The slug is the same
+        # from any checkout, so teardown fires regardless of the bump's cwd.
         outcome = run_with_done_marker(
             cmd,
             env,
-            session_id=str(ref.path.resolve()),
+            session_id=ref.id_slug,
             idle_timeout=idle_timeout,
             max_session=max_session,
             cwd=cwd,

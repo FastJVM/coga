@@ -452,8 +452,13 @@ def emit_done_marker(session_id: str | None = None) -> None:
     `session_id` is written as the file content so the supervisor can verify
     the signal names *its* session and ignore stray writes from unrelated
     descendants that merely inherited the env var. Session-ending commands
-    pass the resolved task path (see `coga.commands.{bump,mark,block}`); a
-    bare call writes the legacy `"done"` sentinel.
+    pass the task's `id_slug` (see `coga.commands.{bump,mark,block}`) — the
+    worktree-independent ticket identity. It is deliberately the slug rather
+    than the resolved task path: under `[launch].worktree` isolation the same
+    ticket exists at two absolute paths (primary checkout + per-launch
+    worktree), so a path-scoped marker written from the "wrong" cwd never
+    matched what the supervisor polled and the REPL hung. A bare call writes
+    the legacy `"done"` sentinel.
     """
     sentinel = os.environ.get(SENTINEL_ENV)
     if not sentinel:
