@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -130,6 +130,67 @@ Design points / notes:
   `tests/test_megalaunch*.py` for the owner filter.
 
 <!-- coga:blackboard -->
+## Dev
+
+branch: megalaunch-user-specific
+worktree: /home/n/Code/claude/coga-megalaunch-user-specific
+
 ## Production notes
 
 This blackboard is for active-work handoff notes. Authoring scratch was cleared at activation; durable requirements belong in the ticket body.
+
+### Plan (implement step)
+
+Part 1 — config fail-loud:
+- Delete `_default_user()` in `src/coga/config.py`; raise `ConfigError` in
+  `load_config` when `local.get("user")` is missing/empty (remedy: `coga init
+  --user <name>` or add `user = "<name>"` to `coga.local.toml`).
+- Rewrite the 4-line "no longer fatal" comment above the call site.
+- `coga init`: `_require_user_name(None)` fails loud (`sys.exit(2)`) telling
+  operator to pass `--user NAME`; drop the `_default_user` import + use.
+
+Part 2 — megalaunch owner filter:
+- In `run_megalaunch`, after `read_ticket`, `continue` when
+  `ticket.owner != cfg.current_user` (mirror the status skip; no new outcome).
+
+Tests: config missing-user crash; init bare fails loud + `--user` still works;
+megalaunch owner filter excludes other owners without inflating counts.
+Fixtures: grep temp-dir configs building coga.local.toml without `user`.
+
+### Done (implement step)
+
+Commit `6adc3004` on branch `megalaunch-user-specific`.
+
+- `src/coga/config.py`: deleted `_default_user()`; `load_config` now raises
+  `ConfigError` (with the `coga init --user <name>` / add-`user`-line remedy,
+  quoting the exact `coga.local.toml` path) when `user` is missing/empty.
+  Rewrote the stale "no longer fatal" comment.
+- `src/coga/commands/init.py`: `_require_user_name(None)` now `sys.exit(2)` with
+  a "pass `--user NAME`" message; dropped the `_default_user` import + use.
+- `src/coga/megalaunch.py`: `run_megalaunch` `continue`s when
+  `ticket.owner != cfg.current_user`, right after `read_ticket` (mirrors the
+  status skip; no new outcome, so other owners don't inflate counts).
+- Tests: rewrote `test_missing_local_toml_fails_loud`,
+  `test_missing_user_fails_loud`, `test_init_without_user_fails_loud`; removed
+  the obsolete `_default_user` derive tests; added
+  `test_megalaunch_only_sweeps_current_users_tickets`.
+
+Verification:
+- `python3.12 -m pytest` — 1071 passed, 1 skipped. The single failure
+  (`test_bootstrap_script_launch_is_stateless`) is **pre-existing and
+  environment-only**: a subprocess-launched `run.py` can't `import coga` under
+  this interpreter (coga not pip-installed here). Confirmed it fails identically
+  on the unmodified base commit, so it is not from this change.
+- End-to-end: `load_config` fails loud on empty `user` and loads with a real
+  one; `coga init` (no `--user`) exits 2 and writes nothing.
+
+Notes for later steps / PR:
+- Breaking change for existing operators with no `user` in `coga.local.toml`
+  (relying on the git-name derive): every command hard-fails until they run
+  `coga init --user <name>` or add the line.
+- Out of scope: budget still keyed on the shared agent name (e.g. `claude`) —
+  this stops *launching* others' tickets but does not isolate per-user token
+  budgets. Owner-less tickets (`owner` absent → `None`) are excluded by the
+  filter; acceptable per the ticket.
+- No packaged-template/example sync needed: changes are package source only;
+  `example/coga/coga.local.toml` already sets `user = "marc"`.

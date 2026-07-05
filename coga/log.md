@@ -873,3 +873,6 @@ fatal: adding files failed
 error: coga/tasks/audit-chat-and-build-are-core-free.md: failed to insert into database
 error: unable to index file 'coga/tasks/audit-chat-and-build-are-core-free.md'
 fatal: adding files failed
+2026-07-05 13:29 [make-megalaunch-user-specific] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-05 13:29 [make-megalaunch-user-specific] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-05 13:36 [make-megalaunch-user-specific] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
