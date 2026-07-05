@@ -31,7 +31,6 @@ from coga.commands.update import (
     write_bin_wrapper,
     write_pin,
 )
-from coga.config import _default_user
 from coga.dependencies import DEPENDENCIES
 from coga.managed_skills import (
     ManagedSkillError,
@@ -73,26 +72,22 @@ def _require_user_name(user: str | None) -> str:
     """Resolve the `--user` value for a direct `coga init`.
 
     `coga init` takes the operator's name as a parameter rather than prompting,
-    so init stays scriptable. When `--user` is omitted we no longer exit — we
-    derive a name from the machine (git `user.name`, then the OS username) and
-    warn, so first-run never wedges (Greg's case). The derived name is written
-    to `coga.local.toml` like an explicit `--user` would be. An invalid
-    `--user` value is still a hard error.
+    so init stays scriptable. `--user NAME` is required and coga never guesses:
+    a guessed name (git `user.name`, OS username) can disagree with the `owner`
+    tokens written into tickets, so init fails loud when it is omitted rather
+    than deriving one. `coga init --user NAME` is the one blessed way to set the
+    name, and because init writes `user` before anything reads config it still
+    works on a bare clone. An invalid `--user` value is also a hard error.
     """
     if user is None:
-        # _default_user() may return a git `user.name` containing characters that
-        # would break the `user = "..."` line; fall back to a safe literal then.
-        derived = _clean_user_name(_default_user()) or "user"
         typer.secho(
-            f'No --user given — defaulting to "{derived}" (from your git '
-            "user.name / OS username). This is the name tickets you create are "
-            "owned by and attributed to; set a different one with "
-            "`coga init --user NAME` (e.g. `coga init --user marc`), or edit "
-            "`user` in coga/coga.local.toml.",
-            fg=typer.colors.YELLOW,
+            "`coga init` needs your name: pass `--user NAME` (e.g. `coga init "
+            "--user marc`). This is the name tickets you create are owned by "
+            "and attributed to; coga does not guess it.",
+            fg=typer.colors.RED,
             err=True,
         )
-        return derived
+        sys.exit(2)
     name = _clean_user_name(user)
     if name is None:
         typer.secho(

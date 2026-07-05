@@ -141,6 +141,17 @@ def run_megalaunch(
             results.append(_result(ref, "failed", f"unreadable ticket: {exc}"))
             continue
 
+        # Scope the sweep to the running operator's own work. On a shared repo a
+        # daily sweep must not launch (and spend budget on) other people's
+        # tickets, so a ticket owned by anyone but `cfg.current_user` is skipped
+        # silently — like the status skip below, it never enters `results`, so
+        # other owners' work doesn't inflate the summary counts. `ticket.owner`
+        # is `None` when the field is absent, so owner-less tickets are excluded
+        # too. Part 1 guarantees `current_user` is a real configured name, never
+        # a guess, so this filter is trustworthy for unattended runs.
+        if ticket.owner != cfg.current_user:
+            continue
+
         # `active` (launchable), `in_progress` (resumable — a prior session
         # started the step but exited without finishing it), and `blocked`
         # (reportable) tickets are in scope. draft/paused/done are ignored —

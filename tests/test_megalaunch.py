@@ -265,6 +265,67 @@ def test_megalaunch_agent_filter_only_drains_matching_assignee(
     assert Ticket.read(claude_ref["path"]).status == "active"
 
 
+def test_megalaunch_only_sweeps_current_users_tickets(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sweep is scoped to the running operator (`cfg.current_user`, here
+    `marc`). A ticket owned by someone else is not launched and never enters
+    `results`, so it doesn't inflate the summary counts."""
+    cfg = load_config(repo)
+    mine = create_task(
+        cfg=cfg,
+        title="My work",
+        workflow_name="code",
+        contexts=[],
+        mode="agent",
+        owner="marc",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+    theirs = create_task(
+        cfg=cfg,
+        title="Their work",
+        workflow_name="code",
+        contexts=[],
+        mode="agent",
+        owner="dora",
+        assignee="claude",
+        status="active",
+        watchers=[],
+    )
+
+    monkeypatch.setattr(
+        "coga.megalaunch.shutil.which", lambda name: f"/usr/bin/{name}"
+    )
+
+    class _Session:
+        exit_code = 0
+        termination_kind = "natural"
+
+    launched: list[str] = []
+
+    def fake_spawn(cfg, ref_obj, ticket, agent, mode, **kwargs):  # type: ignore[no-untyped-def]
+        launched.append(ref_obj.id_slug)
+        updated = Ticket.read(ref_obj.ticket_path)
+        updated.frontmatter["status"] = "done"
+        updated.frontmatter.pop("step", None)
+        updated.write(ref_obj.ticket_path)
+        return _Session()
+
+    monkeypatch.setattr("coga.megalaunch.spawn_agent_session", fake_spawn)
+
+    run = run_megalaunch(cfg)
+
+    assert launched == [mine["slug"]]
+    assert [result.slug for result in run.results] == [mine["slug"]]
+    assert run.counts["launched"] == 1
+    assert run.counts["completed"] == 1
+    assert Ticket.read(mine["path"]).status == "done"
+    # The other owner's ticket is untouched — not launched, not counted.
+    assert Ticket.read(theirs["path"]).status == "active"
+
+
 def test_megalaunch_agent_filter_stops_at_agent_handoff(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
