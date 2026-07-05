@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/principles
 skills: []
@@ -27,7 +27,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -96,3 +96,27 @@ install command verified against PyPI (`coga` v0.2.0) and baked into the Install
 reality bullet; the demo section is already out of scope in the Description, so
 the reviewer's demo/4-part-arc notes are moot. Blackboard cleared — ready to
 launch._
+
+## Dev
+
+- branch: codex/improve-readme
+- worktree: /tmp/coga-improve-readme
+- Plan: replace `README.md` with a short README-only public entry point: hook,
+  install, key values, and a pointer to the companion docs ticket for the full
+  command guide.
+- Commit: 207a97ed1c63dae44c9077bede260983373f56ea (`Rewrite README`)
+- Result: `README.md` only, reduced from 918 lines to 73 lines. Shape is hook +
+  one paragraph, install, key values; no demo and no command reference.
+- Verification:
+  - `git diff --check`
+  - `test -f docs/vision.md`
+  - `test -f coga/contexts/coga/principles/SKILL.md`
+  - `coga --help`
+  - `PYTHONPATH=src python -m coga --help`
+  - Note: `python -m coga.cli --help` failed in the ambient interpreter because
+    the source checkout is not installed there; verified the actual README
+    surface with `coga --help` instead.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":1054208,"cli":"codex","input_tokens":155486,"model":"gpt-5.5","output_tokens":10817,"provider":"openai","schema":1,"session_id":"019f303b-801a-77f2-a9eb-f227f34c13b4","slug":"improve-readme","step":"implement","title":"improve-readme","ts":"2026-07-05T03:07:50.662378Z","usage_status":"ok"}

@@ -831,3 +831,11 @@ fatal: adding files failed
 2026-07-04 20:03 [improve-readme] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-04 20:03 [improve-readme] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-04 20:03 [improve-readme] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-04 20:07 [improve-readme] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-04 20:07 [improve-readme] [git] sync failed: `git add -- coga/tasks/improve-readme.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/improve-readme.md: failed to insert into database
+error: unable to index file 'coga/tasks/improve-readme.md'
+fatal: adding files failed
