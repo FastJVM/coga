@@ -194,3 +194,7 @@ Notes for later steps / PR:
   filter; acceptable per the ticket.
 - No packaged-template/example sync needed: changes are package source only;
   `example/coga/coga.local.toml` already sets `user = "marc"`.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":257704,"cache_read_input_tokens":6992414,"cli":"claude","input_tokens":23293,"model":"claude-opus-4-8","output_tokens":44450,"provider":"anthropic","schema":1,"session_id":"ceafd926-edbf-4f4e-8eb9-b1df42b1f7f6","slug":"make-megalaunch-user-specific","step":"implement","title":"make megalaunch user specific","ts":"2026-07-05T20:36:48.523682Z","usage_status":"ok"}
