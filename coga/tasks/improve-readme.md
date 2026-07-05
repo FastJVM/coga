@@ -3,8 +3,8 @@ slug: improve-readme
 title: improve-readme
 status: draft
 mode: agent
-owner: nick
-human: nick
+owner: nicktoper
+human: nicktoper
 agent: claude
 assignee: claude
 contexts:
@@ -31,15 +31,13 @@ Target shape, in this order:
    (verify the correct incantation against how the package is published —
    `uv tool install coga` for an isolated CLI, or `uv pip install coga`); the
    editable-from-source path can stay but should be secondary.
-3. **Demo** — one paragraph or a short transcript that makes what Coga *does*
-   obvious at a glance. Only include this if it genuinely lands; **if the best
-   you can write is weak, drop the section entirely** rather than shipping a
-   flat demo.
-4. **Key values** — a short section on what makes Coga different: it surfaces
+3. **Key values** — a short section on what makes Coga different: it surfaces
    everything (you're in charge, nothing hidden, your corrections compound,
    markdown + git on your disk, no lock-in). This is the manifesto/vision
    distilled to a few lines — pull from the attached `coga/principles` context
    and `docs/vision.md`, don't reinvent it.
+
+No demo/example section — deliberately out of scope for this rewrite.
 
 Done = a dramatically shorter README that follows this arc and reads like a
 person wrote it. Ruthlessly cut; brevity is the point.
@@ -49,7 +47,10 @@ person wrote it. Ruthlessly cut; brevity is the point.
 - **Current README:** `README.md` at repo root, 920 lines. Skim it for the
   real install steps and the genuine feature claims, but treat almost all of
   it as material to cut, not preserve. The exhaustive `## Commands` reference
-  (every `coga <cmd>`) does **not** belong in the README — link out or drop it.
+  (every `coga <cmd>`) does **not** belong in the README — drop it. The real
+  command reference and guides are handled by the companion ticket
+  `write-real-coga-documentation-command-reference-gu`; a bare "Full docs →"
+  pointer is fine, but don't try to preserve the reference content here.
 - **Voice source:** `docs/vision.md` is the public-facing manifesto (Pirsig
   classical-vs-romantic framing, "don't don't think — think better", compounding
   context, legibility, no lock-in). The attached `coga/principles` context is
@@ -59,8 +60,9 @@ person wrote it. Ruthlessly cut; brevity is the point.
   (`pip install coga` / `pipx install coga` today). Confirm the exact `uv`
   command works before writing it — don't assume.
 - **Scope:** README-only, docs change, no code. Keep the diff to `README.md`.
-  If a demo requires a feature that doesn't exist yet, don't invent it — write
-  from what's real or drop the demo.
+  No demo section. Full command reference / real docs are a separate ticket
+  (`write-real-coga-documentation-command-reference-gu`) — link out, don't
+  inline.
 - **The trap to avoid:** the reason this ticket exists is generated-prose bloat.
   The human owns the final voice at the review gate; the draft is a starting
   point to be cut down, not the finished product.
