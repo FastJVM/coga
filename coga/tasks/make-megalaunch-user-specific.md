@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts: []
 skills: []
 workflow:
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -195,6 +195,32 @@ Notes for later steps / PR:
 - No packaged-template/example sync needed: changes are package source only;
   `example/coga/coga.local.toml` already sets `user = "marc"`.
 
+### Done (peer-review step)
+
+Native review:
+- First `codex review --base main` failed before findings with the known
+  sandbox app-server error (`Read-only file system (os error 30)`); reran the
+  same command outside the sandbox and got two must-fix P2 findings.
+
+Applied in commit `898d93b7` (`peer-review: apply review findings`):
+- Fixed missing-user `ConfigError` recovery text: existing repos are now told
+  to add `user = "<name>"` to the actual `coga.local.toml` path; `coga init
+  --user <name>` is only described as the fresh-repo path.
+- Updated the shipped megalaunch contract to state the silent current-user
+  owner filter, including the packaged CLI context and both live/packaged
+  `recurring/megalaunch` ticket text.
+
+Verification:
+- `python -m pytest tests/test_config.py tests/test_init.py tests/test_megalaunch.py -q`
+  — 164 passed.
+- `git diff --check` — clean.
+- `python -m pytest` — 1071 passed, 1 skipped, 1 failed. The failure is the
+  same environment-only `test_bootstrap_script_launch_is_stateless` failure
+  from the implement handoff: subprocess `run.py` cannot `import coga` in this
+  checkout.
+
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":257704,"cache_read_input_tokens":6992414,"cli":"claude","input_tokens":23293,"model":"claude-opus-4-8","output_tokens":44450,"provider":"anthropic","schema":1,"session_id":"ceafd926-edbf-4f4e-8eb9-b1df42b1f7f6","slug":"make-megalaunch-user-specific","step":"implement","title":"make megalaunch user specific","ts":"2026-07-05T20:36:48.523682Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":2843008,"cli":"codex","input_tokens":299830,"model":"gpt-5.5","output_tokens":14534,"provider":"openai","schema":1,"session_id":"019f33ff-7f2b-77a1-bf1a-e5e91b89355c","slug":"make-megalaunch-user-specific","step":"peer-review","title":"make megalaunch user specific","ts":"2026-07-05T21:47:07.169328Z","usage_status":"ok"}
