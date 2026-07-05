@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex
-assignee: codex
+assignee: claude
 contexts:
 - coga/principles
 - coga/architecture
@@ -28,7 +28,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -110,3 +110,30 @@ navigate, with the README linking out to it ("Full docs →").
   Coordinate the "Full docs →" link target so the two land consistently.
 
 <!-- coga:blackboard -->
+
+## Dev
+
+- branch: codex/write-real-coga-documentation
+- worktree: /tmp/coga-real-docs
+- base: local `main` at ec9f6b6e; `improve-readme` has not landed there, but the local `codex/improve-readme` branch preserves the accepted short README.
+- scope check: docs-only. No code behavior changes planned.
+
+## Findings
+
+- Correction: `codex/improve-readme` has the accepted 73-line README, but local `main` still has the long README. This branch will carry the minimal README shape plus a `Full docs ->` link so the new docs tree has one entrypoint.
+
+## Implementation
+
+- Replaced the long root `README.md` with a short hook/install/key-values entrypoint and `Full docs -> docs/README.md`.
+- Added the docs tree in `/tmp/coga-real-docs`: `docs/README.md`, `docs/getting-started.md`, `docs/concepts.md`, `docs/reference.md`, `docs/operations.md`, and `docs/development.md`.
+- Command reference was checked against `env PYTHONPATH=src python -m coga.cli --help` plus command/subcommand help for the public surface.
+
+## Verification
+
+- `git diff --check`
+- `env PYTHONPATH=src python -m coga.cli --help`
+- `env PYTHONPATH=src python -m coga.cli launch --help`
+- `env PYTHONPATH=src python -m coga.cli skill --help`
+- `env PYTHONPATH=src python -m coga.cli recurring --help`
+- Manual local-link path audit for changed docs: README/docs entrypoints, `docs/vision.md`, and referenced Coga context files all exist.
+- `env PYTHONPATH=src python -m coga.cli validate --task write-real-coga-documentation-command-reference-gu --json` -> passed with no issues.
