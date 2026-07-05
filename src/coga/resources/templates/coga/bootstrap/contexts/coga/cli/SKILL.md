@@ -143,12 +143,10 @@ created drafts and fails loud if any has a schema error.
 
 ## coga mark \<state\> \<slug\> [--message "..."]
 
-Change a ticket's `status`. The lifecycle subcommands are `mark active`,
-`mark paused`, and `mark done`; those verbs mirror the frontmatter field, so
-the command shape is `<status field value> on disk` = `<mark subcommand>`.
-`mark already-satisfied` is the evidence-backed exception: it still writes
-`status: done`, but its command name records why the ticket closed without a
-branch or PR.
+Change a ticket's `status`. Three subcommands: `mark active`,
+`mark paused`, `mark done`. The verb mirrors the frontmatter field, so
+the command shape is `<status field value> on disk` = `<mark
+subcommand>`.
 
 - `mark active <slug>` — allowed from `draft` or `paused`. Posts `🚀`.
   Refuses a workflow-less ticket — set `workflow:` or run `coga ticket`
@@ -158,12 +156,6 @@ branch or PR.
 - `mark done <slug>` — allowed from `active` or `in_progress`. Clears
   `step:`. Posts `🎉`. Use this to finish a workflow on its final step, or
   to finish any ticket without a workflow.
-- `mark already-satisfied <slug> --evidence "..."` — allowed from `active`
-  or `in_progress`. Appends the evidence under `## Already satisfied`, clears
-  `step:`, writes `status: done`, posts `✅`, and signals the launch
-  supervisor. Use this when an agent verifies that every requested item
-  already landed elsewhere and there is no diff or PR to create. Do not use
-  `coga block` for that case; `blocked` is only for concrete unanswered asks.
 
 `--message` piggy-backs an FYI onto the Slack broadcast.
 
@@ -698,7 +690,6 @@ only; they don't accept their own flags.
 - Approving/queueing without launching → `coga mark active <slug>`.
 - Pausing a task → `coga mark paused <slug>`.
 - Finishing a task (final step, or no workflow) → `coga mark done <slug>`.
-- Already satisfied / no diff → `coga mark already-satisfied <slug> --evidence "..."`.
 - Ticket-less chat session → `coga chat` (alias for
   `launch bootstrap/orient`).
 - Running Coga cleanup now → `coga dream`.

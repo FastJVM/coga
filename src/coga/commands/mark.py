@@ -1,10 +1,8 @@
-"""`coga mark <verb> <slug>` — change a ticket's status.
+"""`coga mark <state> <slug>` — change a ticket's status.
 
-The lifecycle subcommands are `mark active`, `mark paused`, and `mark
-done`; each verb is the literal `status` value it sets, so the command
-shape mirrors the frontmatter field. `mark already-satisfied` is the
-evidence-backed exception: it still writes `status: done`, but its verb
-records that the ticket closed with no diff or PR (see its docstring).
+Three subcommands: `mark active`, `mark paused`, `mark done`. Each verb is
+the literal `status` value it sets, so the command shape mirrors the
+frontmatter field.
 
 `coga launch` owns the `active` → `in_progress` start transition. `coga
 bump` no longer marks final-step tickets done.
@@ -16,7 +14,6 @@ import sys
 
 import typer
 
-from coga.blackboard import append_to_section
 from coga.config import ConfigError, load_config
 from coga.mark import (
     BlackboardNeedsSynthesis,
@@ -34,7 +31,7 @@ from coga.workflow import WorkflowError
 
 app = typer.Typer(
     name="mark",
-    help="Change a ticket's status (active / paused / done / already-satisfied).",
+    help="Change a ticket's status (active / paused / done).",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -172,64 +169,6 @@ def done(
     # transitions (active / paused) are not terminal and intentionally
     # skip the marker. The resolved task path scopes the signal to this
     # ticket (see `emit_done_marker`).
-    emit_done_marker(session_id=str(ref.path.resolve()))
-
-
-@app.command("already-satisfied")
-def already_satisfied(
-    task: str = typer.Argument(..., help="Task ID or id-slug."),
-    evidence: str = typer.Option(
-        ...,
-        "--evidence",
-        help="What was verified that makes this ticket already complete.",
-    ),
-) -> None:
-    """Close a ticket whose requested work is already complete elsewhere."""
-    cfg, ref, ticket = _load(task)
-    evidence = " ".join(evidence.split())
-    if not evidence:
-        _bail("--evidence cannot be empty")
-    _check_transition(ref.id_slug, ticket.status, _DONE_FROM, "done")
-
-    # Agent-initiated close, so attribute to the step's agent assignee
-    # (mirrors `coga block`); `done` is the human/owner terminal verb and
-    # attributes to `cfg.current_user` instead.
-    actor = (
-        f"agent:{ticket.assignee}"
-        if ticket.assignee
-        else f"human:{cfg.current_user}"
-    )
-    finisher = ticket.assignee or cfg.current_user
-    append_to_section(
-        ref.ticket_path,
-        "Already satisfied",
-        f"- [{actor}] {evidence}",
-    )
-
-    ticket = read_ticket(ref)
-    prev = ticket.current_step()
-    transition = f": {prev['name']} → done" if prev else ""
-    slack_text = (
-        f"✅ {finisher} closed *{ref.id_slug}* "
-        f"\"{ticket.title}\"{transition} as already satisfied: {evidence}"
-    )
-
-    try:
-        _mark_done(
-            cfg, ref, ticket,
-            actor=actor,
-            log_message=f"already satisfied: {evidence}",
-            slack_text=slack_text,
-            digest_detail=(
-                f"{finisher} closed as already satisfied"
-                f"{transition or ' → done'} ✅ — {evidence}"
-            ),
-            image_url=cfg.gif_for("done"),
-            echo=f"{ref.id_slug}: already satisfied (done)",
-        )
-    except TaskValidationError as exc:
-        _bail(str(exc))
-
     emit_done_marker(session_id=str(ref.path.resolve()))
 
 

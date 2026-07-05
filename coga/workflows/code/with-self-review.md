@@ -21,16 +21,14 @@ steps:
 ## already-satisfied
 
 If the implement or self-qa agent verifies that every requested item already
-landed elsewhere and there is no branch, diff, or PR to create, the agent may
-close the ticket with:
+landed elsewhere and there is no branch, diff, or PR to create, the agent
+closes the ticket with `coga mark done <slug>`.
 
-`coga mark already-satisfied <slug> --evidence "<one-line summary>"`
-
-The agent must write concrete evidence to the blackboard first. This is the
-only direct agent close path in this workflow; ordinary code changes still go
-through implement, self-QA, PR, and the owner-controlled review gate. A missing
-decision or ambiguous verification is a real blocker, not an already-satisfied
-closure.
+The agent must write concrete evidence under `## Already satisfied` on the
+blackboard first. This is the only direct agent close path in this workflow;
+ordinary code changes still go through implement, self-QA, PR, and the
+owner-controlled review gate. A missing decision or ambiguous verification is a
+real blocker (`coga block`), not an already-satisfied closure.
 
 ## pr
 

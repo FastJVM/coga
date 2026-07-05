@@ -196,9 +196,7 @@ _SWEEPING_COMMANDS = frozenset(
 _SWEEPING_SKILL_SUBCOMMANDS = frozenset(
     {"install", "install-local", "install-url", "update", "remove"}
 )
-_SWEEPING_MARK_SUBCOMMANDS = frozenset(
-    {"active", "paused", "done", "already-satisfied"}
-)
+_SWEEPING_MARK_SUBCOMMANDS = frozenset({"active", "paused", "done"})
 
 
 def _sweep_coga_state(cfg) -> None:

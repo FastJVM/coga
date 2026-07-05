@@ -377,59 +377,6 @@ def test_mark_done_already_done_errors(repo: Path) -> None:
     assert "already 'done'" in result.output
 
 
-def test_mark_already_satisfied_closes_with_evidence(repo: Path) -> None:
-    slug, task_path = _make_task(repo, status="in_progress")
-    runner = CliRunner()
-    result = runner.invoke(
-        app,
-        [
-            "mark",
-            "already-satisfied",
-            slug,
-            "--evidence",
-            "main already contains the checklist items",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    t = Ticket.read(task_path)
-    assert t.status == "done"
-    assert t.step is None
-    blackboard = read_blackboard(task_path)
-    assert "## Already satisfied" in blackboard
-    assert "[agent:claude] main already contains the checklist items" in blackboard
-    log = _read_log(repo)
-    assert "already satisfied: main already contains the checklist items" in log
-    assert "blocked:" not in log
-
-
-def test_mark_already_satisfied_rejects_empty_evidence(repo: Path) -> None:
-    slug, task_path = _make_task(repo, status="in_progress")
-    runner = CliRunner()
-    result = runner.invoke(
-        app, ["mark", "already-satisfied", slug, "--evidence", ""]
-    )
-    assert result.exit_code == 2
-    assert "--evidence cannot be empty" in result.output
-    assert Ticket.read(task_path).status == "in_progress"
-
-
-def test_mark_already_satisfied_from_draft_errors(repo: Path) -> None:
-    slug, task_path = _make_task(repo, status="draft")
-    runner = CliRunner()
-    result = runner.invoke(
-        app,
-        [
-            "mark",
-            "already-satisfied",
-            slug,
-            "--evidence",
-            "work already landed",
-        ],
-    )
-    assert result.exit_code == 2
-    assert Ticket.read(task_path).status == "draft"
-
-
 # --- --message ----------------------------------------------------------------
 
 

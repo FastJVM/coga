@@ -220,46 +220,6 @@ def test_mark_done_workflowless_collapses_transition(
     assert "→ done" not in msg
 
 
-def test_mark_already_satisfied_shows_evidence(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slug, _ = _make_task(repo, status="in_progress")
-    posts = _capture(monkeypatch)
-    result = CliRunner().invoke(
-        app,
-        [
-            "mark",
-            "already-satisfied",
-            slug,
-            "--evidence",
-            "all checklist items already landed",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    assert _body(posts, "✅") == (
-        f"✅ claude closed *{slug}* \"Work\": implement → done "
-        "as already satisfied: all checklist items already landed"
-    )
-
-
-def test_mark_already_satisfied_workflowless_collapses_transition(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    slug, _ = _make_task(repo, workflow=None, status="active")
-    posts = _capture(monkeypatch)
-    result = CliRunner().invoke(
-        app,
-        ["mark", "already-satisfied", slug, "--evidence", "already landed"],
-    )
-    assert result.exit_code == 0, result.output
-    msg = _body(posts, "✅")
-    assert msg == (
-        f"✅ claude closed *{slug}* \"Work\" "
-        "as already satisfied: already landed"
-    )
-    assert "→ done" not in msg
-
-
 # --- bump ---------------------------------------------------------------------
 
 

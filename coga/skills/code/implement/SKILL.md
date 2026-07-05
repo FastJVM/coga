@@ -17,11 +17,11 @@ later `code/open-pr` step does that, after self-review and fixes.
 2. **Close already-satisfied tickets directly.** If every requested
    checklist item has already landed in other work and there is genuinely
    no branch, diff, or PR to create, do not manufacture one and do not
-   `coga block`. Write per-item evidence under `## Already satisfied`
-   on the blackboard, then run:
-   `coga mark already-satisfied <slug> --evidence "<one-line summary>"`
-   and stop. Use this only when the evidence is concrete; if a human
-   decision is needed, `coga block` with that ask instead.
+   `coga block` — a blocker is for an unanswered human question, not for
+   finished work. Write per-item evidence under `## Already satisfied`
+   on the blackboard, then run `coga mark done <slug>` and stop. Use this
+   only when the evidence is concrete; if a human decision is genuinely
+   needed, `coga block` with that ask instead.
 3. **Create a feature worktree.** From the primary checkout on `main`,
    create a feature branch in a separate worktree outside the repo
    directory, for example:
@@ -73,8 +73,7 @@ later `code/open-pr` step does that, after self-review and fixes.
 - `coga bump <slug>` has been run — the step is not done until it has.
 - Or, for the already-satisfied path only: no branch/worktree is required,
   the blackboard records concrete evidence under `## Already satisfied`,
-  and `coga mark already-satisfied <slug> --evidence "..."` has closed the
-  ticket.
+  and `coga mark done <slug>` has closed the ticket.
 
 ## What this skill does NOT do
 

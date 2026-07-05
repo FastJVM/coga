@@ -16,8 +16,8 @@ this step just makes sure the diff they see is already clean.
    the blackboard. If there is no branch because the implement step
    recorded concrete `## Already satisfied` evidence, verify that evidence
    from the repo, add a short `## Self-QA` note, run
-   `coga mark already-satisfied <slug> --evidence "<one-line summary>"`,
-   and stop. Otherwise, change into the feature worktree and confirm it is
+   `coga mark done <slug>`, and stop. Otherwise, change into the feature
+   worktree and confirm it is
    on the recorded branch with a clean working tree (the previous
    `code/implement` step committed). If the branch/worktree is missing
    without already-satisfied evidence, `coga block` — something is off.
