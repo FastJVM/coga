@@ -63,20 +63,38 @@ task then only drives the machine operator's own work.
 
 Key code — config change (part 1):
 
-- `_default_user()` (`src/coga/config.py:224`) is the fallback to retire. Its
-  docstring deliberately never crashes so `--help`/read-only work on a bare
-  clone; that guarantee is being dropped on purpose.
+- Retire `_default_user()` (`src/coga/config.py:224`) **entirely** — deriving a
+  name silently is the antipattern we're killing: it hides a real config
+  problem (no `user` set) behind a plausible-looking guess. Delete the whole
+  function, not just its `load_config` call site.
 - `current_user = local.get("user") or _default_user()` (`config.py:329`) is
   the line to change: raise `ConfigError` when `local.get("user")` is
   missing/empty instead of deriving. `current_user` is a `Config` field
-  (`config.py:100`). Give the error a clear remedy (run `coga init --user
-  <name>`, or add `user = "<name>"` to `coga.local.toml`).
-- `coga init --user <name>` already writes `user` into `coga.local.toml`, so
-  the durable path exists — this just makes it mandatory.
+  (`config.py:100`). Give the error a clear remedy: run `coga init --user
+  <name>`, or add `user = "<name>"` to `coga.local.toml`.
+- Rewrite the now-false prose that documents the old "never fatal" contract:
+  the `_default_user` docstring goes with the function, and the 4-line comment
+  above the call site (`config.py:324–328`) — "A missing `user` is no longer
+  fatal: derive one…" — must be replaced with the new fail-loud rationale so
+  the code stops describing the opposite of what it does.
+- `coga init` must stop deriving too — it's the other half of the same
+  antipattern. `_require_user_name(None)` (`src/coga/commands/init.py:72`)
+  currently derives from git/OS and warns; change it to fail loudly telling the
+  operator to pass `--user NAME`. Remove the `_default_user` import
+  (`init.py:34`) and its use at `init.py:85`. Net effect: `coga init --user
+  marc` is the one blessed way to set the name, and it still works on a bare
+  clone — init writes `user` before anything reads config, so there's no
+  chicken-and-egg and the operator is never walled out of the remedy.
 - Expect fallout: anything that constructs a `Config` without a `user`
   (tests, fixtures, `example/coga/`, docs) may now need an explicit `user`.
-  Grep for `load_config`/`current_user` usage and fix fixtures; a helper for
-  tests to build a `Config` with a user may be warranted.
+  `example/coga/coga.local.toml` already sets `user = "marc"`, so the smoke
+  fixture is fine; temp-dir configs built in tests are the real risk. Grep for
+  `load_config`/`current_user` usage and fix fixtures; a helper for tests to
+  build a `Config` with a user may be warranted.
+- Rollout note for the PR: this is a breaking change for *existing* operators,
+  not just bare clones — anyone currently running with no `user` in
+  `coga.local.toml` (relying on the git-name derive) starts hard-failing on
+  every command until they run `coga init --user <name>` or add the line.
 
 Key code — megalaunch filter (part 2):
 
@@ -105,7 +123,10 @@ Design points / notes:
   token budgets. Call that out in the PR.
 - Keep the packaged template copy in sync per CLAUDE.md if any shipped
   template/example changes (e.g. adding `user` to `example/coga/`'s local
-  config). Add/adjust tests: config tests for the missing-`user` crash, and
+  config). Add/adjust tests: config tests for the missing-`user` crash;
+  `coga init` tests that a bare `coga init` (no `--user`) now fails loudly and
+  that `coga init --user NAME` still succeeds on a bare clone (the escape
+  hatch — verify you can actually run coga after it); and
   `tests/test_megalaunch*.py` for the owner filter.
 
 <!-- coga:blackboard -->
