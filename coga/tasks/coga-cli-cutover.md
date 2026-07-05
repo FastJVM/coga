@@ -1,7 +1,7 @@
 ---
 slug: coga-cli-cutover
 title: coga CLI cutover
-status: draft
+status: active
 mode: agent
 owner: zach
 human: zach
