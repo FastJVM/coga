@@ -258,6 +258,33 @@ def test_open_pr_fails_when_worktree_dirty(tmp_path, monkeypatch):
         open_pr(cfg, slug="dirty", blackboard_path=ticket)
 
 
+def test_open_pr_fails_when_branch_is_stale(tmp_path, monkeypatch):
+    """A branch that predates the control tip must fail loud, not open a PR.
+
+    This is the #518 stale-branch guard the agent checklist used to run via
+    `coga validate --check-github`; the script step has to carry it forward or
+    the protection is lost. Branch off main, then advance `origin/main` from a
+    competing clone so the feature branch no longer contains the control tip.
+    """
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+
+    wt = _feature_worktree(repo, tmp_path, "stale-branch", commit=True)
+    # Another process lands on origin/main after we branched → we are behind it.
+    repo.push_competing_commit("coga/rival.txt", "landed elsewhere\n")
+    ticket = _write_ticket(repo.coga_os, "stale", branch="stale-branch", worktree=wt)
+
+    cfg = load_config(repo.coga_os)
+    with pytest.raises(OpenPrError, match="does not contain the latest"):
+        open_pr(cfg, slug="stale", blackboard_path=ticket)
+
+    # No PR opened, no pr: recorded.
+    assert not log.exists() or "pr create" not in log.read_text()
+    assert parse_pr_url(read_blackboard(ticket)) is None
+
+
 # --- set_dev_pr unit ----------------------------------------------------------
 
 

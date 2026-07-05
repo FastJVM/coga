@@ -2102,6 +2102,59 @@ def test_launch_agent_override_normal_task_uses_requested_agent_without_reassign
     assert "assignee=claude, launch_assignee=codex, agent=codex" in log
 
 
+def test_launch_agent_override_does_not_bypass_human_handoff(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ref.ticket_path)
+    _allow_interactive_tty(monkeypatch)
+
+    def fake_run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("human handoff should fail before spawning an agent")
+
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+    monkeypatch.setattr("coga.commands.launch.shutil.which", lambda name: f"/usr/bin/{name}")
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
+
+    assert result.exit_code == 2
+    assert "Cannot launch fix-retry-logic with --agent 'codex'" in (
+        result.output + (result.stderr or "")
+    )
+    assert "assignee 'marc' is not a configured agent type" in (
+        result.output + (result.stderr or "")
+    )
+
+
+def test_launch_human_handoff_refuses_before_worktree_creation(
+    active_task: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = active_task / "coga.toml"
+    config_path.write_text(
+        config_path.read_text().replace("worktree = false", "worktree = true")
+    )
+    cfg = load_config(active_task)
+    ref = list_tasks(cfg)[0]
+    ticket = Ticket.read(ref.ticket_path)
+    ticket.frontmatter["status"] = "in_progress"
+    ticket.frontmatter["assignee"] = "marc"
+    ticket.write(ref.ticket_path)
+
+    def add_launch_worktree(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("human handoff should fail before worktree creation")
+
+    monkeypatch.setattr("coga.commands.launch.git.add_launch_worktree", add_launch_worktree)
+
+    result = CliRunner().invoke(app, ["launch", "fix-retry-logic", "--agent", "codex"])
+
+    assert result.exit_code == 2
+    assert "This is a human handoff" in (result.output + (result.stderr or ""))
+
+
 def test_launch_bootstrap_unknown_ticket(
     bootstrap_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

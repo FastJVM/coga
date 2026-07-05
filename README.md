@@ -195,11 +195,13 @@ coga validate --check-github
 ```
 
 It verifies the configured remote exists, probes push access with a
-non-mutating `git push --dry-run`, and confirms `gh` is installed and
-authenticated for the remote host - turning each failure into a direct setup
-hint (set/fix the remote, load your SSH key or credential helper, run
-`gh auth login`) instead of a surprise at PR time. Like `--check-slack`, it is
-the only thing that makes `coga validate` touch the network; plain
+non-mutating `git push --dry-run`, checks that the current branch contains the
+configured control branch, and confirms `gh` is installed and authenticated for
+the remote host - turning each failure into a direct setup hint (set/fix the
+remote, load your SSH key or credential helper, rebase/merge the control
+branch, run `gh auth login`) instead of a surprise at PR time. Like
+`--check-slack`, it is the only thing that makes `coga validate` touch the
+network; plain
 `coga validate`, `coga status`, and `coga show` stay offline and read-only.
 
 Multi-surface companies (e.g. an admin repo + a code repo) run multiple
@@ -532,7 +534,7 @@ already-`in_progress` ticket resumes it.
 ```sh
 coga launch add-retry-to-webhook-handler           # full slug
 coga launch add-retry                              # any unique prefix works
-coga launch add-retry --agent codex                # one-off agent override
+coga launch add-retry --agent codex                # one-off override for agent-owned work
 coga launch add-retry --prompt-report              # show prompt layer sizes, no launch
 coga launch bootstrap/orient                       # stateless launch target → run a skill
 coga launch bootstrap/orient --agent codex         # choose a bootstrap agent
@@ -543,10 +545,13 @@ Tasks are addressed by slug — there is no numeric ID. Pass any unique prefix
 
 The agent type comes from the ticket's `assignee` (e.g. `claude`), which
 names an `[agents.<type>]` block in `coga.toml` directly. Pass
-`--agent <type>` to override for this launch only; normal task launches do
-not rewrite the ticket's `assignee`. Bootstrap tickets use the same flag for
-one-off sessions, so `coga chat --agent codex` can open the orient ticket
-with Codex while `coga chat --agent claude` opens it with Claude.
+`--agent <type>` to override which configured agent runs this launch only;
+normal task launches do not rewrite the ticket's `assignee`. `--agent` does
+not bypass a human handoff: if the current `assignee` is not a configured
+agent type, reassign the ticket before launching an agent. Bootstrap tickets
+use the same flag for one-off sessions, so `coga chat --agent codex` can open
+the orient ticket with Codex while `coga chat --agent claude` opens it with
+Claude.
 
 Discussion tickets (`bootstrap/orient`, `bootstrap/ticket`) use built-in
 discussion templates for the standard `claude` and `codex` CLIs, or the
@@ -851,7 +856,7 @@ coga validate --json                # machine-readable output
 coga validate --task add-retry      # validate one task (skips Slack + idle checks)
 coga validate --fix                 # conservative safe repairs (add a missing blackboard fence)
 coga validate --check-slack         # probe the Slack webhook
-coga validate --check-github        # probe git/GitHub auth readiness
+coga validate --check-github        # probe git/GitHub auth + branch readiness
 ```
 
 `--idle-hours` and `--max-blackboard-kb` tune the thresholds for the idle-task

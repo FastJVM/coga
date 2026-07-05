@@ -227,6 +227,12 @@ def launch(
                 f"to resume."
             )
 
+    # Refuse human handoffs before allocating an isolated launch worktree. A
+    # human-owned active/in-progress step should report the handoff directly,
+    # even in sandboxes where `.git/worktrees` is not writable.
+    if not is_bootstrap and ticket.status not in {"draft", "paused"}:
+        _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
+
     # Per-launch `git worktree` isolation (`[launch].worktree`). When on, the
     # whole supervised session — launch-owned status writes, every step's
     # compose, spawn, in-session `coga bump`/`mark`, and usage sync — runs
@@ -324,6 +330,8 @@ def launch(
             _bail(f"Task {ref.id_slug} has no assignee")
 
         mode = ticket.mode
+
+        _refuse_human_handoff_launch(cfg, ref, ticket, agent_override)
 
         if mode == "agent" and not _interactive_stdio_has_tty():
             _bail(
@@ -990,10 +998,18 @@ def spawn_agent_session(
         # Agent CLIs (`claude`, `codex`) don't exit on their own. Run through a
         # PTY watcher so an agent that writes the session-done sentinel after
         # `coga bump` / `coga mark done` / `coga block` releases the REPL.
+        # Scope the sentinel by the task's `id_slug`, the identifier `bump` /
+        # `mark` / `block` write. It must be the slug, not `ref.path.resolve()`:
+        # under `[launch].worktree` isolation `ref` is re-rooted into the
+        # per-launch worktree, so a path-scoped marker only matched when the
+        # agent's `coga bump` also ran from that worktree — a bump from the
+        # primary checkout (or a peer agent's separate clone) wrote a different
+        # path, the poll never matched, and the REPL hung. The slug is the same
+        # from any checkout, so teardown fires regardless of the bump's cwd.
         outcome = run_with_done_marker(
             cmd,
             env,
-            session_id=str(ref.path.resolve()),
+            session_id=ref.id_slug,
             idle_timeout=idle_timeout,
             max_session=max_session,
             cwd=cwd,
@@ -1158,6 +1174,30 @@ def _launch_log_message(
     return (
         f"launched in {mode} mode "
         f"(assignee={assignee}, launch_assignee={launch_assignee}, agent={agent_name})"
+    )
+
+
+def _refuse_human_handoff_launch(
+    cfg: Config,
+    ref: TaskRef | BootstrapRef,
+    ticket: Ticket,
+    agent_override: str | None,
+) -> None:
+    assignee = ticket.assignee
+    if (
+        isinstance(ref, BootstrapRef)
+        or ticket.mode != "agent"
+        or not assignee
+        or assignee in cfg.agents
+    ):
+        return
+    override = (
+        f" with --agent {agent_override!r}" if agent_override is not None else ""
+    )
+    _bail(
+        f"Cannot launch {ref.id_slug}{override}: assignee {assignee!r} "
+        "is not a configured agent type. This is a human handoff; "
+        "reassign the task to an agent type before launching an agent."
     )
 
 

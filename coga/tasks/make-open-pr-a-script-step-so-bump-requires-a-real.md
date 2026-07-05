@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/principles
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 4 (review)
 ---
 
 ## Description
@@ -126,4 +126,148 @@ bumps.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: open-pr-script
+worktree: /home/n/Code/claude/coga-open-pr-script
+pr: https://github.com/FastJVM/coga/pull/517
+
+## PR
+
+Summary:
+- Converts `code/open-pr` into a deterministic script-backed step and teaches
+  launch to run per-step scripts inside agent workflows.
+- Fixes the peer-review finding that relaunching while already on a script step
+  still went through agent-only setup first; scripted steps now run before TTY,
+  agent CLI, prompt composition, or agent git-auth preflights.
+- Adds/updates tests for open-pr script behavior and script-step dispatch.
+
+Test plan:
+- `codex review --base main` (unsandboxed after sandbox app-server init failed)
+- `PYTHONPATH=/home/n/Code/claude/coga-open-pr-script/src python -m pytest -p no:cacheprovider tests/test_launch.py tests/test_launch_script.py tests/test_open_pr.py -q`
+- `PYTHONPATH=/home/n/Code/claude/coga-open-pr-script/src python -m coga.cli validate --task make-open-pr-a-script-step-so-bump-requires-a-real --json`
+
+Note: full-suite verification with the same `PYTHONPATH` currently has one
+unrelated failure in
+`tests/test_usage_probe.py::test_codex_probe_primes_then_reads_fresh_rollout`;
+that test also fails when run alone and this branch does not touch usage-probe
+code.
+
+## Peer review (codex)
+
+Native review found one must-fix issue: a `mode: agent` ticket relaunched while
+already sitting on a script step still required a TTY, agent CLI, composed
+prompt, and agent git-auth preflight before it could reach the script dispatch.
+That would block the new no-agent `code/open-pr` behavior in exactly the
+relaunch-after-fix scenario.
+
+Applied fix in commit `1bf7ab6d` on `open-pr-script`: current script steps now
+run immediately after activation/worktree re-rooting and before agent-only
+setup. If the script advances to a human handoff or terminal state, launch stops
+and cleans up the launch worktree; if it advances to an agent step, normal
+agent setup continues from the fresh ticket. The in-loop dispatch still handles
+script steps reached after an agent bump.
+
+Verification:
+- `python -m pytest tests/test_launch.py::test_launch_runs_scripted_step_as_script_not_agent tests/test_launch.py::test_current_step_is_script_detects_scripted_step tests/test_open_pr.py -q` -> 16 passed
+- `PYTHONPATH=/home/n/Code/claude/coga-open-pr-script/src python -m pytest -p no:cacheprovider tests/test_launch.py tests/test_launch_script.py tests/test_open_pr.py -q` -> 93 passed
+- `PYTHONPATH=/home/n/Code/claude/coga-open-pr-script/src python -m coga.cli validate --task make-open-pr-a-script-step-so-bump-requires-a-real --json` -> clean
+- Full suite attempt: `PYTHONPATH=/home/n/Code/claude/coga-open-pr-script/src python -m pytest -p no:cacheprovider` -> 1079 passed, 1 skipped, 1 unrelated failure in `tests/test_usage_probe.py::test_codex_probe_primes_then_reads_fresh_rollout` (fails alone; branch does not touch usage probe).
+
+## Investigation findings (implement step)
+
+**Key discovery — the ticket's premise assumes machinery that doesn't exist yet.**
+The ticket (and `coga/architecture`) say "a step runs as a script when its single
+skill declares a `script:` entry." The script *resolution* half is real
+(`launch_script._resolve_script` already handles "current step's single skill
+declares script:"), **but the dispatch half is not**:
+
+- `is_script_launch(cfg, ticket)` == `ticket.mode == "script"` — a *whole-ticket*
+  flag. There is **no per-step** script detection anywhere
+  (`grep` confirms `is_script_launch` is the only gate; it's only ever
+  `ticket.mode == "script"`).
+- The agent supervisor loop in `commands/launch.py` (`while True:`, ~L392–520)
+  **always spawns an agent** for each step. It never checks whether the current
+  step is a script step.
+- Every existing script workflow (autoclose, digest, dream children,
+  blocker-reminders) is a *wholly* `mode: script` ticket. No ticket today mixes
+  agent steps and script steps.
+
+`code/with-review` is `mode: agent`, so **every** step — including `open-pr` —
+runs as an agent today. Simply adding `script: run.py` to the `open-pr` SKILL.md
+would do nothing: the supervisor would still spawn an agent whose composed
+prompt just contains the (now thin) SKILL body.
+
+**Therefore the real change has two parts:**
+
+1. **Launcher (core):** teach the agent supervisor to dispatch a *script step*
+   inside an otherwise agent-mode workflow. Add `current_step_is_script(cfg,
+   ticket)`; in the supervisor loop, when the current step is a script step, run
+   `run_script_mode(cfg, ref, ticket)` (which pushes the work + auto-advances on
+   exit 0, and on non-zero exit posts "script failed" and **leaves the step
+   put** — exactly the fail-loud guarantee we want), then re-read + use
+   `_harness_stop_reason` to stop at the human `review` step.
+2. **Skill:** rewrite `code/open-pr/SKILL.md` to `script: run.py` + add `run.py`
+   implementing the deterministic recipe (read `## Dev` branch/worktree/body →
+   verify branch/clean/commits-ahead → `git push` → `gh pr create`/`gh pr ready`
+   → write `pr: <url>` to `## Dev` → let the launcher bump). Both live +
+   packaged copies.
+
+**Why this closes the hole by construction:** the launcher only bumps a script
+step on exit 0. No branch / no commits ahead / `gh` failure → non-zero exit →
+step does NOT advance → fail loud. The agent can no longer bump past open-pr
+without a real PR because the agent isn't the one bumping — the script's exit
+code is.
+
+**Worktree note:** under `[launch].worktree`, implement→peer-review→open-pr all
+run in one launch worktree; the feature worktree path is absolute in `## Dev`,
+so the open-pr script targets it with `git -C <feature_worktree>` regardless of
+the script's own cwd. `_advance_after_script`'s bump/sync runs in-worktree just
+like an agent step's bump.
+
+**Design decisions surfaced to human before writing core launcher code (see FYI).**
+
+## Implement step — complete (commit 584ebe34 on `open-pr-script`)
+
+Settled decisions (confirmed with human):
+- **Per-step dispatch:** added to the supervisor (the core change). ✅
+- **Replace outright:** `code/open-pr` is now the script; no agent variant kept.
+- **PR body fallback:** `## PR` section → else `## Description` → else title.
+
+What landed:
+- `src/coga/open_pr.py` — importable `open_pr()` recipe (`OpenPrError` on every
+  fail-loud path); `run.py` (live + packaged) is a thin wrapper (mirrors
+  autoclose/digest).
+- `src/coga/commands/launch_script.py` — `current_step_is_script(cfg, ticket)`.
+- `src/coga/commands/launch.py` — supervisor loop dispatches a script step via
+  `run_script_mode` (advances only on exit 0; non-zero → fail-loud, no advance).
+- `src/coga/autoclose.py` — `parse_worktree_path` (shared `## Dev` parser).
+- `code/open-pr/SKILL.md` declares `script: run.py`; `code/with-review`,
+  `code/with-self-review`, `code/design-then-implement` workflow docs updated;
+  `coga/architecture` + `dev/code` contexts document the new shape. Both
+  live + packaged copies in sync (enforced by a test).
+
+Tests (all green — full suite 1080 passed, 1 skipped):
+- `tests/test_open_pr.py` — opens+records PR, `## Description` fallback, readies
+  a draft, and the fail-loud paths (no commits ahead = the incident case, no
+  branch, no worktree, dirty tree); `set_dev_pr` units; live/packaged sync.
+- `tests/test_launch.py` — `current_step_is_script` detection + supervisor runs
+  the scripted step as a script, never spawning an agent.
+- Wheel builds clean on a symlink-free export and ships the new files.
+- `coga validate` shows no new errors (only pre-existing unrelated dogfood drift).
+
+Scope notes: the packaged `coga/architecture` context was already ~118 lines
+divergent from the live copy on `main` (unrelated topics); I applied **only** my
+subsection to each, preserving that pre-existing drift rather than reconciling it
+here. `coga/bootstrap/**` mirrors are vestigial (runtime never reads them; the
+codebase context says leave them) — untouched.
+
+Note this ticket's OWN open-pr step will still run the old agent way: launch
+worktrees fork from `main`, so the new behavior only applies once this merges.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":622914,"cache_read_input_tokens":40111304,"cli":"claude","input_tokens":54600,"model":"claude-opus-4-8","output_tokens":308492,"provider":"anthropic","schema":1,"session_id":"337eb95f-f254-4f3f-a564-6adc2e26b5b0","slug":"make-open-pr-a-script-step-so-bump-requires-a-real","step":"implement","title":"Make open-pr a script step so bump requires a real PR","ts":"2026-07-04T17:52:03.583746Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":7026560,"cli":"codex","input_tokens":299889,"model":"gpt-5.5","output_tokens":25889,"provider":"openai","schema":1,"session_id":"019f2e42-4f11-7621-b806-ea6e08bee58f","slug":"make-open-pr-a-script-step-so-bump-requires-a-real","step":"peer-review","title":"Make open-pr a script step so bump requires a real PR","ts":"2026-07-04T18:31:53.883894Z","usage_status":"ok"}
+
+{"agent":"claude","cache_creation_input_tokens":151652,"cache_read_input_tokens":855485,"cli":"claude","input_tokens":18600,"model":"claude-opus-4-8","output_tokens":9191,"provider":"anthropic","schema":1,"session_id":"04a6a125-b228-4316-b4eb-b9ab2920732e","slug":"make-open-pr-a-script-step-so-bump-requires-a-real","step":"open-pr","title":"Make open-pr a script step so bump requires a real PR","ts":"2026-07-04T18:33:17.702278Z","usage_status":"ok"}

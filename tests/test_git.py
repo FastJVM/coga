@@ -536,6 +536,41 @@ def test_sync_detached_head_union_merges_log_to_control_branch(git_repo):
         git.remove_launch_worktree(cfg, path)
 
 
+def test_launch_worktree_dirty_check_falls_back_when_fetch_head_read_only(
+    git_repo, monkeypatch
+):
+    """Cleanup should not strand worktrees when only FETCH_HEAD is read-only.
+
+    Sandboxed launch sessions can successfully land their dirty Coga state on
+    control, then fail the cleanup freshness fetch because `.git/worktrees/...`
+    cannot write FETCH_HEAD. If local `origin/main` already names the landed
+    control tip, that dirty state is recoverable elsewhere and the worktree can
+    be removed.
+    """
+    cfg = _cfg(git_repo.coga_os)
+    path = git.add_launch_worktree(cfg, "session-readonly-fetch-head")
+    original_run_git = git._run_git
+    try:
+        worktree_cfg = _cfg(path / "coga")
+        append_log(worktree_cfg, "demo", "agent:codex", "detached log line")
+        git.sync_coga_state(worktree_cfg, message="Sync coga state")
+
+        def fail_fetch_head(root, *args, **kwargs):  # type: ignore[no-untyped-def]
+            if args == ("fetch", "origin", "main"):
+                raise git.GitError(
+                    "`git fetch origin main` failed (exit 255): "
+                    "error: cannot open '.git/FETCH_HEAD': Read-only file system"
+                )
+            return original_run_git(root, *args, **kwargs)
+
+        monkeypatch.setattr(git, "_run_git", fail_fetch_head)
+
+        assert not git.launch_worktree_has_dirty_coga_state(cfg, path)
+    finally:
+        monkeypatch.setattr(git, "_run_git", original_run_git)
+        git.remove_launch_worktree(cfg, path)
+
+
 def test_sync_noop_when_not_a_git_repo(tmp_path, capsys, real_git):
     cfg = _cfg(tmp_path)
     task = _task_dir(tmp_path)
@@ -1753,18 +1788,81 @@ def test_remove_launch_worktree_forces_through_dirty_tree(git_repo) -> None:
     assert not path.exists()
 
 
-def test_reap_orphan_launch_worktrees_removes_only_stale(git_repo) -> None:
+def _dead_pid() -> int:
+    """A PID that names no live process: spawn a child and reap it, so
+    `os.kill(pid, 0)` raises `ProcessLookupError`."""
+    proc = subprocess.Popen(["sh", "-c", "exit 0"])
+    proc.wait()
+    return proc.pid
+
+
+def test_reap_keeps_live_owner_regardless_of_age(git_repo) -> None:
+    """The owning `coga launch` process is alive → keep the worktree even when
+    its dir mtime is ancient. Liveness beats the age gate, so an attended
+    session running past `max_age_seconds` is never reaped mid-work."""
     cfg = _cfg(git_repo.coga_os)
-    stale = git.add_launch_worktree(cfg, "crashed")
-    fresh = git.add_launch_worktree(cfg, "running")
-    # Backdate the orphan well past the threshold; leave the live one recent.
-    old = 1
-    os.utime(stale, (old, old))
+    # `add_launch_worktree` stamps this (live) test process as the owner.
+    live = git.add_launch_worktree(cfg, "running")
+    os.utime(live, (1, 1))  # pretend it is very old
 
     git.reap_orphan_launch_worktrees(cfg, max_age_seconds=60)
 
-    assert not stale.exists()  # crash orphan reaped
-    assert fresh.is_dir()  # live session untouched
+    assert live.is_dir()
+    git.remove_launch_worktree(cfg, live)
+
+
+def test_reap_removes_dead_owner_promptly(git_repo, monkeypatch) -> None:
+    """Owner process gone + no recoverable state → reaped now, without waiting
+    out the age gate. This is the stillborn/crash orphan the fix collects."""
+    cfg = _cfg(git_repo.coga_os)
+    wt = git.add_launch_worktree(cfg, "crashed-clean")
+    root = git._toplevel(cfg.repo_root)
+    git._stamp_launch_worktree_owner(root, "crashed-clean", _dead_pid())
+    monkeypatch.setattr(git, "_has_recoverable_launch_state", lambda *a: False)
+
+    # Recent mtime — the old age gate would have kept it; liveness reaps it.
+    git.reap_orphan_launch_worktrees(cfg, max_age_seconds=60)
+
+    assert not wt.exists()
+
+
+def test_reap_holds_then_gcs_dead_owner_with_recoverable_state(
+    git_repo, monkeypatch
+) -> None:
+    """Owner gone but recoverable Coga state remains → held for recovery while
+    fresh, then force-removed once past the age window so it still GCs."""
+    cfg = _cfg(git_repo.coga_os)
+    wt = git.add_launch_worktree(cfg, "crashed-dirty")
+    root = git._toplevel(cfg.repo_root)
+    git._stamp_launch_worktree_owner(root, "crashed-dirty", _dead_pid())
+    monkeypatch.setattr(git, "_has_recoverable_launch_state", lambda *a: True)
+
+    git.reap_orphan_launch_worktrees(cfg, max_age_seconds=60)
+    assert wt.is_dir()  # recent → held for recovery
+
+    os.utime(wt, (1, 1))  # age past the window
+    git.reap_orphan_launch_worktrees(cfg, max_age_seconds=60)
+    assert not wt.exists()  # GC backstop still fires
+
+
+def test_reap_unstamped_worktree_uses_age_gate(git_repo) -> None:
+    """A worktree with no owner stamp (created before owner-stamping) keeps the
+    original behaviour: reap only past `max_age_seconds`, since a young one may
+    still be a live pre-stamp session we cannot prove is dead."""
+    cfg = _cfg(git_repo.coga_os)
+    stale = git.add_launch_worktree(cfg, "legacy-stale")
+    fresh = git.add_launch_worktree(cfg, "legacy-fresh")
+    root = git._toplevel(cfg.repo_root)
+    # Drop the owner markers to simulate pre-stamp worktrees.
+    for key in ("legacy-stale", "legacy-fresh"):
+        admin = git._launch_worktree_admin_dir(root, key)
+        (admin / git._LAUNCH_OWNER_PIDFILE).unlink()
+    os.utime(stale, (1, 1))
+
+    git.reap_orphan_launch_worktrees(cfg, max_age_seconds=60)
+
+    assert not stale.exists()  # old + unstamped → reaped
+    assert fresh.is_dir()  # young + unstamped → kept (may be a live session)
     git.remove_launch_worktree(cfg, fresh)
 
 

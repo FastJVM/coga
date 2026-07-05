@@ -12,7 +12,10 @@ act on before launch.
 Each probe returns a structured `CheckResult`; `coga.validate` maps the
 failures into report `Issue`s. The push probe is a non-mutating dry run and
 runs non-interactively (`GIT_TERMINAL_PROMPT=0` plus ssh `BatchMode=yes`) so a
-missing credential can never hang the check on a hidden password prompt.
+missing credential can never hang the check on a hidden password prompt. The
+branch-freshness probe deliberately runs in the same explicit preflight: opening
+a PR from a branch that predates the control branch can leave ticket state stale
+even when auth is fine.
 """
 
 from __future__ import annotations
@@ -135,6 +138,56 @@ def check_git_auth(remote: str) -> CheckResult:
     return CheckResult("git-auth", True, f"remote {remote!r} push access authenticated")
 
 
+def check_branch_contains_control(remote: str, control_branch: str) -> CheckResult:
+    """Verify the current branch contains the latest configured control branch."""
+    rc, _out, err = _run(["git", "fetch", remote, control_branch])
+    if rc is None:
+        return CheckResult(
+            "git-branch-current",
+            False,
+            f"could not fetch {remote}/{control_branch} "
+            f"({_first_line(err) or 'unknown error'}).",
+        )
+    if rc != 0:
+        return CheckResult(
+            "git-branch-current",
+            False,
+            f"could not fetch {remote}/{control_branch} "
+            f"(`git fetch {remote} {control_branch}` failed: "
+            f"{_first_line(err) or 'no output'}).",
+        )
+
+    rc, _out, err = _run(["git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"])
+    if rc is None:
+        return CheckResult(
+            "git-branch-current",
+            False,
+            f"could not compare HEAD with {remote}/{control_branch} "
+            f"({_first_line(err) or 'unknown error'}).",
+        )
+    if rc == 0:
+        return CheckResult(
+            "git-branch-current",
+            True,
+            f"HEAD contains latest {remote}/{control_branch}",
+        )
+    if rc == 1:
+        return CheckResult(
+            "git-branch-current",
+            False,
+            f"current branch does not contain latest {remote}/{control_branch}. "
+            f"Rebase or merge before opening a PR, e.g. "
+            f"`git fetch {remote} {control_branch}` then `git rebase FETCH_HEAD`.",
+        )
+    return CheckResult(
+        "git-branch-current",
+        False,
+        f"could not compare HEAD with {remote}/{control_branch} "
+        f"(`git merge-base --is-ancestor FETCH_HEAD HEAD` failed: "
+        f"{_first_line(err) or 'no output'}).",
+    )
+
+
 def _remote_host(remote_url: str | None) -> str | None:
     """Return a hostname from common git remote URL forms."""
     if not remote_url:
@@ -200,7 +253,7 @@ def check_gh_auth(host: str | None = None) -> CheckResult:
     return CheckResult("gh-auth", True, f"gh authenticated{target}")
 
 
-def run_preflight(remote: str) -> list[CheckResult]:
+def run_preflight(remote: str, *, control_branch: str = "main") -> list[CheckResult]:
     """Run the full preflight against the configured remote.
 
     Skips probes that can't be meaningful: reachability only runs when the
@@ -212,7 +265,10 @@ def run_preflight(remote: str) -> list[CheckResult]:
     remote_result = check_git_remote(remote)
     results.append(remote_result)
     if remote_result.ok:
-        results.append(check_git_auth(remote))
+        auth = check_git_auth(remote)
+        results.append(auth)
+        if auth.ok:
+            results.append(check_branch_contains_control(remote, control_branch))
 
     gh_installed = check_gh_installed()
     results.append(gh_installed)

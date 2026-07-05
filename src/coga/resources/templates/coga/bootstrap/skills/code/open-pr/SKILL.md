@@ -21,10 +21,15 @@ nothing to hand-run and no `coga bump` to remember: the launcher bumps for you.
    `dev/code` context).
 2. Confirms the feature worktree is on that branch, is clean, and has commits
    ahead of the base branch (`[git].control_branch`, default `main`).
-3. Pushes the branch (`git push -u <remote> <branch>`).
-4. Opens the PR with `gh pr create` — or `gh pr ready` if a draft already exists
+3. Confirms the branch is **not stale** — it must contain the latest
+   `<remote>/<control-branch>` (fetch + `merge-base --is-ancestor`). This is the
+   same stale-branch guard the agent checklist used to run via
+   `coga validate --check-github`: a branch that predates the control tip can
+   reintroduce reverted work, so the script refuses it instead of opening the PR.
+4. Pushes the branch (`git push -u <remote> <branch>`).
+5. Opens the PR with `gh pr create` — or `gh pr ready` if a draft already exists
    for the branch, or reuses an already-open PR on a re-run (idempotent).
-5. Writes `pr: <url>` back under `## Dev`.
+6. Writes `pr: <url>` back under `## Dev`.
 
 **PR title** = the ticket title. **PR body** comes, in order, from: a `## PR`
 section the agent authored on the blackboard (or in the ticket body), else the
@@ -52,6 +57,8 @@ The script consumes what implement/peer-review recorded. If those steps didn't:
   with the missing field named and a `coga block` hint.
 - Worktree on the wrong branch, dirty, or no commits ahead of base → exit
   non-zero; nothing is pushed or opened.
+- Branch is stale (does not contain the latest control branch) → exit non-zero;
+  rebase/merge the control branch in an earlier step, then relaunch.
 - `git push` / `gh pr create` auth failure → exit non-zero with the
   `github_preflight` setup hint (fix the remote, load your SSH key / credential
   helper, `gh auth login`).

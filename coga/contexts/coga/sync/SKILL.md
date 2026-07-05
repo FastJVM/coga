@@ -427,7 +427,11 @@ Detached launch-worktree cleanup checks the same boundary. After the teardown
 sweep runs, dirt relative to the old detached base is ignored if applying those
 dirty Coga paths would no longer change the fetched control tip. That lets
 successful sync remove the throwaway worktree while still preserving it when a
-task file or union-file append has not actually reached `main`.
+task file or union-file append has not actually reached `main`. If the cleanup
+freshness fetch itself cannot write `FETCH_HEAD` because the launch sandbox made
+git metadata read-only, cleanup may compare against the already-present local
+`<remote>/<control>` ref instead; other fetch failures still preserve the
+worktree for recovery.
 
 Scope is narrow. `src/coga/git.py::sync_task_state(cfg, task_path, *,
 message)` stages and commits only the task directory pathspec. It must not use

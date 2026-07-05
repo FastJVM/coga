@@ -126,9 +126,10 @@ def open_pr(cfg: Config, *, slug: str, blackboard_path: Path) -> str:
 
     Reads `branch:` / `worktree:` (and an optional `## PR` body) from the
     ticket's `## Dev` blackboard section, confirms the worktree is on that
-    branch, clean, and ahead of the base branch, pushes, opens the PR
-    (`gh pr create`, or `gh pr ready` for an existing draft, or reuses an
-    already-open PR), and writes `pr: <url>` back under `## Dev`.
+    branch, clean, ahead of the base branch, and not stale (contains the latest
+    `<remote>/<base>`), pushes, opens the PR (`gh pr create`, or `gh pr ready`
+    for an existing draft, or reuses an already-open PR), and writes
+    `pr: <url>` back under `## Dev`.
 
     Raises `OpenPrError` on any fail-loud condition — the caller must not
     advance the workflow step when that happens.
@@ -214,6 +215,37 @@ def open_pr(cfg: Config, *, slug: str, blackboard_path: Path) -> str:
             "nothing to open a PR for. This is exactly the failure open-pr must "
             "not paper over: implement/peer-review produced no committed change. "
             f"Build the change, or `coga block --task {slug}`."
+        )
+
+    # --- refuse a stale branch (must contain the latest control tip) ---------
+    # The agent open-pr checklist used to run this guard via
+    # `coga validate --check-github`; carrying it into the script keeps the
+    # protection when open-pr is no longer an agent step. A branch that predates
+    # `<remote>/<base>` can reintroduce work that was reverted on the control
+    # branch, so fetch the control tip and require it to be an ancestor of HEAD.
+    fetched = _git(["fetch", remote, base], cwd=worktree)
+    if fetched.returncode != 0:
+        raise OpenPrError(
+            f"`git fetch {remote} {base}` failed in {worktree!r}: "
+            f"{fetched.stderr.strip() or 'no output'}. Cannot confirm the branch "
+            f"is current with {remote}/{base} before opening the PR."
+        )
+    contains = _git(
+        ["merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"], cwd=worktree
+    )
+    if contains.returncode == 1:
+        raise OpenPrError(
+            f"Branch {branch!r} does not contain the latest {remote}/{base}. "
+            "Opening a PR from a stale branch can reintroduce reverted work; "
+            "rebase or merge the control branch first (e.g. "
+            f"`git fetch {remote} {base}` then `git rebase FETCH_HEAD`) and "
+            f"relaunch, or `coga block --task {slug}`."
+        )
+    if contains.returncode != 0:
+        raise OpenPrError(
+            f"Could not compare HEAD with {remote}/{base} in {worktree!r} "
+            "(`git merge-base --is-ancestor FETCH_HEAD HEAD` failed: "
+            f"{contains.stderr.strip() or 'no output'})."
         )
 
     # --- push ----------------------------------------------------------------

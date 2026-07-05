@@ -200,7 +200,8 @@ launches inject task metadata env vars including
   path under `tasks/` (`marketing/coga-crm`), matching what `coga status`
   prints — the bare leaf alone won't resolve.
 - `coga launch <slug> --agent <type>` — one-off agent-type override
-  (e.g. `--agent claude`); does not rewrite the ticket's `assignee:`.
+  for an agent-owned task (e.g. `--agent claude`); does not rewrite the
+  ticket's `assignee:` and does not bypass a human handoff.
 - `coga launch <slug> --prompt-report` — print composed prompt layers,
   exact context/skill refs, bytes, and approximate token counts without
   spawning an agent. Rejected for `mode: script` tickets, which compose no
@@ -219,8 +220,8 @@ auto-bumping a ticket whose final-step PR has merged is the job of
 `coga automerge` / the `autoclose-merged` recurring sweep, never launch. It
 does, though, **pre-flight git push access**: before flipping status or
 spawning the agent, it runs a non-interactive `git push --dry-run` against the
-configured remote (the same probe as `coga validate --check-github`) and
-refuses the launch if push auth is broken. Coga drives the whole session
+configured remote (the same push-auth probe `coga validate --check-github`
+uses) and refuses the launch if push auth is broken. Coga drives the whole session
 through git/gh (branch push, `gh pr create`, every `coga bump` syncs ticket
 state), so a dead remote means a run guaranteed to fail at ship time — fail
 loud at the door, not after a long run. The gate self-skips for bootstrap
@@ -236,7 +237,8 @@ supervised chain.
 
 Agent type comes from the ticket's `assignee` directly — it names an
 `[agents.<type>]` block in `coga.toml`. Human assignees aren't
-launchable; reassign to an agent type first.
+launchable, and `--agent` does not convert a human handoff into an agent
+step; reassign to an agent type first.
 
 For workflow-bound interactive tasks, `launch` can continue through
 consecutive agent-owned steps in fresh processes. After a clean agent exit,
@@ -731,8 +733,10 @@ is an opt-in preflight that mirrors `--check-slack`: it probes git/GitHub auth
 readiness so a raw tool failure surfaces as an actionable setup hint before PR
 time instead of surprising an agent mid-run. It probes the *configured* remote
 (`git remote get-url <cfg.git_remote>`, not a hardcoded `origin`), checks push
-access with a non-mutating `git push --dry-run`, and verifies `gh --version` and
-`gh auth status --hostname <host>` for that remote's host. Every probe is fully
+access with a non-mutating `git push --dry-run`, fetches the configured control
+branch and verifies the current `HEAD` contains it before PR handoff, and verifies
+`gh --version` and `gh auth status --hostname <host>` for that remote's host.
+Every probe is fully
 non-interactive (`GIT_TERMINAL_PROMPT=0`, ssh `BatchMode=yes`) so a missing
 credential fails fast rather than hanging on a hidden prompt; failures are
 `(github)` errors excluded from the ok count. It is opt-in because the default

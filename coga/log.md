@@ -795,3 +795,55 @@ fatal: adding files failed
 2026-07-04 10:11 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-04 10:14 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-04 10:14 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 10:14 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 10:52 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — implement done on branch open-pr-script (commit 584ebe34); full suite green. Per-step script dispatch + code/open-pr script.
+2026-07-04 10:52 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 10:52 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 10:52 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] launched in agent mode (assignee=nicktoper, launch_assignee=codex, agent=codex)
+2026-07-04 11:02 [add-a-nothing-to-implement-close-path-so-already-s] [agent:nicktoper] advanced to step 2 (self-qa) → assigned to claude
+2026-07-04 11:02 [add-a-nothing-to-implement-close-path-so-already-s] [git] sync failed: `git add -- coga/tasks/add-a-nothing-to-implement-close-path-so-already-s.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/add-a-nothing-to-implement-close-path-so-already-s.md: failed to insert into database
+error: unable to index file 'coga/tasks/add-a-nothing-to-implement-close-path-so-already-s.md'
+fatal: adding files failed
+2026-07-04 11:02 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:17 [add-a-nothing-to-implement-close-path-so-already-s] [agent:claude] advanced to step 3 (pr) — self-qa done: /code-review + /simplify ran; no correctness changes (findings matched block.py pattern), added docstring fix + workflowless test. Branch codex/already-satisfied-close.
+2026-07-04 11:17 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:18 [add-a-nothing-to-implement-close-path-so-already-s] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/516 (no CI configured on repo)
+2026-07-04 11:20 [add-a-nothing-to-implement-close-path-so-already-s] [human:nicktoper] launched in agent mode (assignee=nicktoper, launch_assignee=codex, agent=codex)
+2026-07-04 11:21 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:22 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-04 10:52 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-04 11:24 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review fix committed: 1bf7ab6d; targeted launch/open-pr tests passed; full suite has unrelated usage_probe failure.
+2026-07-04 11:24 [make-open-pr-a-script-step-so-bump-requires-a-real] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-07-04 11:24 [coga] [git] sync failed: `git add -- coga/tasks/make-open-pr-a-script-step-so-bump-requires-a-real.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/make-open-pr-a-script-step-so-bump-requires-a-real.md: failed to insert into database
+error: unable to index file 'coga/tasks/make-open-pr-a-script-step-so-bump-requires-a-real.md'
+fatal: adding files failed
+2026-07-04 11:27 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:claude] slack: Peer review done: advanced to open-pr; fix commit 1bf7ab6d; state sync recovered on main as 3b2c11be.
+2026-07-04 11:31 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:32 [make-open-pr-a-script-step-so-bump-requires-a-real] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 11:33 [make-open-pr-a-script-step-so-bump-requires-a-real] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/517
+2026-07-04 12:17 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 19:47 [migrate-desktop-relay-repos-to-coga-tracking] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-04 20:03 [improve-readme] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 20:03 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 20:03 [improve-readme] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 20:03 [improve-readme] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-04 20:07 [improve-readme] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-04 20:07 [improve-readme] [git] sync failed: `git add -- coga/tasks/improve-readme.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/improve-readme.md: failed to insert into database
+error: unable to index file 'coga/tasks/improve-readme.md'
+fatal: adding files failed
+2026-07-04 20:07 [improve-readme] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-04 21:13 [improve-readme] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-04 21:13 [improve-readme] [git] sync failed: `git add -- coga/tasks/improve-readme.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/improve-readme.md: failed to insert into database
+error: unable to index file 'coga/tasks/improve-readme.md'
+fatal: adding files failed
+2026-07-04 21:13 [improve-readme] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-04 21:16 [improve-readme] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened & mergeable: https://github.com/FastJVM/coga/pull/520 (README-only, 918→73 lines; resolved a main conflict that re-added the old command reference)
