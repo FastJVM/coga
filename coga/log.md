@@ -827,3 +827,4 @@ fatal: adding files failed
 2026-07-04 19:47 [migrate-desktop-relay-repos-to-coga-tracking] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-07-04 20:03 [improve-readme] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-04 20:03 [improve-readme] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-04 20:03 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
