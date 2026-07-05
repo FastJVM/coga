@@ -154,6 +154,30 @@ def _enclosing_coga_root(target: Path) -> Path | None:
     return None
 
 
+def _host_ignores_coga(target: Path) -> bool:
+    """True when the host repo's ignore rules would exclude the coga/ dir we're
+    about to create at `target`.
+
+    `git add` refuses ignored paths, so if the host repo gitignores the target
+    subtree (e.g. `coga init build/ops` where `build/` is ignored) we'd write
+    coga/ to disk and then silently skip the commit — the very silent-skip the
+    up-front git check exists to prevent. Detected here so `coga init` can fail
+    loud before writing anything. `target` may not exist yet, so run
+    `git check-ignore` from the nearest existing ancestor.
+    """
+    probe = next((p for p in [target, *target.parents] if p.is_dir()), None)
+    if probe is None:
+        return False
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(probe), "check-ignore", "-q", str(target / "coga")],
+            capture_output=True,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
+
+
 # Delivered onboarding ticket, pruned from the copied tree on a filled repo
 # (a real project doesn't want the bootstrap interview seeded for it).
 _ONBOARDING_TICKET_DIRS: tuple[str, ...] = ("coga-build",)
@@ -367,6 +391,22 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
             f"`coga init` commits coga/ into your repo.\n"
             f"Run `git init` in {target} (or an ancestor) first, then re-run "
             f"`coga init`.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
+    # The host repo must actually be able to track coga/. If its ignore rules
+    # exclude the target, `git add` refuses the path and the commit is silently
+    # skipped — same silent-skip the git check above guards against. Fail loud
+    # up front (still before any writes) so nothing is left behind.
+    if _host_ignores_coga(target):
+        typer.secho(
+            f"{target / 'coga'} is gitignored by the host repo — coga is "
+            f"git-backed and `coga init` must commit coga/ into your repo, but "
+            f"git refuses to track an ignored path.\n"
+            f"Remove the ignore rule covering {target}, or pick a target the "
+            f"repo tracks, then re-run `coga init`.",
             fg=typer.colors.RED,
             err=True,
         )
@@ -688,7 +728,9 @@ def _git_commit_coga_os(
     Returns the new commit SHA on success, None if we skipped (not a git repo,
     nothing to stage, or git invocation failed). Never raises. `target` may sit
     below the git root (nested init) — `git -C <target>` resolves pathspecs
-    relative to `target`, and the commit lands in the host repo.
+    relative to `target`, and the commit lands in the host repo. The commit is
+    scoped to the staged coga paths, so any unrelated changes the user already
+    had staged in the host repo are left staged, not swept in.
     """
     if not is_git_repo(target):
         return None
@@ -705,15 +747,21 @@ def _git_commit_coga_os(
             capture_output=True,
             text=True,
         )
-        # Anything actually staged?
+        # Anything actually staged *among our paths*? Scope the check (and the
+        # commit below) to `paths`: a nested init runs inside a live host repo
+        # where the user may already have unrelated files staged, and an
+        # unscoped commit would sweep them into the "Create coga" commit.
         diff = subprocess.run(
-            ["git", "-C", str(target), "diff", "--cached", "--quiet"],
+            ["git", "-C", str(target), "diff", "--cached", "--quiet", "--", *paths],
             capture_output=True,
         )
         if diff.returncode == 0:
             return None
         subprocess.run(
-            ["git", "-C", str(target), "commit", "-m", "Create coga via `coga init`"],
+            [
+                "git", "-C", str(target),
+                "commit", "-m", "Create coga via `coga init`", "--", *paths,
+            ],
             check=True,
             capture_output=True,
             text=True,

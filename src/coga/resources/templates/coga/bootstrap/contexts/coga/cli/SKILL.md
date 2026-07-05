@@ -20,7 +20,8 @@ Scaffold `coga/` in `PATH` (default `.`).
   `tools/ops/coga/` committed into the host repo. A nested coga repo is
   discovered only from inside its subtree (`tools/ops/…`) — commands run
   from the host repo's root won't see it. Nesting a `coga/` inside an
-  existing coga repo is refused.
+  existing coga repo is refused, as is a target the host repo gitignores
+  (init must be able to commit `coga/`).
 
 It clones the upstream CLI into the repo's `coga/.coga/`, copies the
 package's coga templates, builds the self-contained venv the vendored CLI
