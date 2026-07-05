@@ -137,3 +137,7 @@ navigate, with the README linking out to it ("Full docs →").
 - `env PYTHONPATH=src python -m coga.cli recurring --help`
 - Manual local-link path audit for changed docs: README/docs entrypoints, `docs/vision.md`, and referenced Coga context files all exist.
 - `env PYTHONPATH=src python -m coga.cli validate --task write-real-coga-documentation-command-reference-gu --json` -> passed with no issues.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":3586816,"cli":"codex","input_tokens":317962,"model":"gpt-5.5","output_tokens":36334,"provider":"openai","schema":1,"session_id":"019f33a0-c2c3-73b1-9aee-ea818a5de69c","slug":"write-real-coga-documentation-command-reference-gu","step":"implement","title":"Write real Coga product documentation","ts":"2026-07-05T20:28:05.737790Z","usage_status":"ok"}
