@@ -1,7 +1,7 @@
 ---
 slug: move-ticket-authoring-out-of-core
 title: Move ticket authoring out of core
-status: in_progress
+status: done
 mode: agent
 owner: nick
 human: nick
@@ -27,7 +27,6 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 4 (review)
 ---
 
 ## Description
