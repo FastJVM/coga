@@ -203,3 +203,7 @@ Reuses #517's `open_pr.py` recipe, `autoclose.py` parse fns, and
 - `code/open-pr` back to an agent skill (drop `script: run.py`; delete run.py).
 - Workflows: open-pr is an agent step with `requires: pr`.
 - Docs/contexts synced (live + packaged copies).
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":583430,"cache_read_input_tokens":43802699,"cli":"claude","input_tokens":64727,"model":"claude-opus-4-8","output_tokens":224995,"provider":"anthropic","schema":1,"session_id":"ef77b458-be8c-42f0-a6dd-91bff5dfd497","slug":"move-open-pr-gate-from-launch-into-bump-make-open","step":"implement","title":"Move open-pr gate from launch into bump; make open-pr a mixed agent step","ts":"2026-07-06T06:07:21.451139Z","usage_status":"ok"}
