@@ -914,3 +914,4 @@ fatal: adding files failed
 2026-07-05 22:34 [move-open-pr-gate-from-launch-into-bump-make-open] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-05 22:34 [move-open-pr-gate-from-launch-into-bump-make-open] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-05 23:07 [move-open-pr-gate-from-launch-into-bump-make-open] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-06 11:54 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
