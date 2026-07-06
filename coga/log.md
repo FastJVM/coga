@@ -921,3 +921,4 @@ fatal: adding files failed
 2026-07-06 12:04 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-06 12:04 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
 2026-07-06 12:59 [Move open_pr recipe into the code/open-pr-skill-keep-only-parse-worktree-path-in-cor] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-06 12:59 [move-open-pr-recipe-into-the-code-open-pr-skill-ke] [human:nicktoper] created (mode=agent, status=draft)
