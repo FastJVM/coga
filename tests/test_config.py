@@ -63,41 +63,12 @@ def test_load_basic(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert not hasattr(cfg, "secrets")
 
 
-def test_missing_local_toml_still_loads(
-    repo: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """With no coga.local.toml at all, load_config derives the user (git
-    user.name, then the OS username) instead of failing."""
-    import coga.config as config_mod
-
+def test_missing_local_toml_fails_loud(repo: Path) -> None:
+    """With no coga.local.toml at all, load_config fails loud rather than
+    guessing a name — the operator must set `user` explicitly."""
     (repo / "coga.local.toml").unlink()
-    monkeypatch.setattr(config_mod, "_default_user", lambda: "dora")
-    assert load_config(repo).current_user == "dora"
-
-
-def test_default_user_prefers_git_then_os(monkeypatch: pytest.MonkeyPatch) -> None:
-    """_default_user uses git user.name when set, else the OS username."""
-    import subprocess
-
-    from coga.config import _default_user
-
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout="git-name\n", stderr=""),
-    )
-    assert _default_user() == "git-name"
-
-    monkeypatch.setattr(
-        subprocess,
-        "run",
-        lambda *a, **k: subprocess.CompletedProcess(a, 1, stdout="", stderr=""),
-    )
-    monkeypatch.setenv("USER", "ada")
-    assert _default_user() == "ada"
-    monkeypatch.delenv("USER", raising=False)
-    monkeypatch.setenv("LOGNAME", "lin")
-    assert _default_user() == "lin"
+    with pytest.raises(ConfigError, match="No `user` set in coga.local.toml"):
+        load_config(repo)
 
 
 def test_secrets_table_in_local_toml_rejected(repo: Path) -> None:
@@ -606,12 +577,10 @@ def test_extra_local_field_retired(repo: Path) -> None:
     assert not hasattr(cfg, "extra_local")
 
 
-def test_missing_user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A missing `user` is no longer fatal — it derives a name from the machine
-    (git user.name, then the OS username), so a fresh clone runs `--help` /
-    read-only / write commands without editing coga.local.toml first."""
-    import coga.config as config_mod
-
+def test_missing_user_fails_loud(tmp_path: Path) -> None:
+    """A missing/empty `user` is a hard error on every command — coga reads the
+    operator's name from config and never guesses it. The message points at the
+    existing-repo edit remedy."""
     _write(
         tmp_path / "coga.toml",
         """
@@ -622,8 +591,12 @@ def test_missing_user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """,
     )
     _write(tmp_path / "coga.local.toml", "")
-    monkeypatch.setattr(config_mod, "_default_user", lambda: "greg")
-    assert load_config(tmp_path).current_user == "greg"
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(tmp_path)
+    message = str(excinfo.value)
+    assert 'Add `user = "<name>"`' in message
+    assert "coga.local.toml" in message
+    assert "fresh repo" in message
 
 
 def test_find_repo_root(repo: Path) -> None:

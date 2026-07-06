@@ -221,40 +221,6 @@ def find_repo_root(start: Path | None = None) -> Path:
 # --- loader --------------------------------------------------------------------
 
 
-def _default_user() -> str:
-    """Best-effort operator name when `coga.local.toml` sets no `user`.
-
-    A name is cosmetic for most commands (task attribution, Slack), so a missing
-    `user` must never wall anyone out — derive one rather than hard-failing
-    (`--help` and read-only included). Prefer the name the operator already
-    configured for git, since that's what their commits are attributed to, then
-    fall back to the OS username, then a last-resort literal. `coga init --user`
-    is still how you set a durable name explicitly.
-    """
-    import getpass
-    import subprocess
-
-    try:
-        name = subprocess.run(
-            ["git", "config", "user.name"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        ).stdout.strip()
-        if name:
-            return name
-    except Exception:
-        pass
-
-    name = os.environ.get("USER") or os.environ.get("LOGNAME")
-    if name:
-        return name
-    try:
-        return getpass.getuser()
-    except Exception:
-        return "user"
-
-
 def load_config(repo_root: Path | None = None) -> Config:
     root = repo_root or find_repo_root()
     shared = _read_toml(root / "coga.toml")
@@ -321,12 +287,22 @@ def load_config(repo_root: Path | None = None) -> Config:
     ) = _parse_launch(shared.get("launch"))
     megalaunch = _parse_megalaunch(shared.get("megalaunch"))
 
-    # A missing `user` is no longer fatal: derive one (git `user.name`, then the
-    # OS username) so `--help`, read-only, and write commands all work on a bare
-    # clone (no coga.local.toml). `coga init` writes a durable `user` — the
-    # `--user` value, or the same derived default — and warns when it had to
-    # derive it.
-    current_user = local.get("user") or _default_user()
+    # The operator's `user` must be set explicitly in `coga.local.toml` — coga
+    # never guesses it. A guessed name (git `user.name`, OS username) can
+    # disagree with the `owner` tokens written into tickets, and for an
+    # unattended sweep a wrong `me` fails silently. So a missing/empty `user` is
+    # a hard error on every command. Existing repos recover by creating or
+    # editing `coga.local.toml`; fresh repos pass `coga init --user <name>`,
+    # which writes `user` before anything reads config.
+    current_user = local.get("user")
+    if not current_user:
+        raise ConfigError(
+            "No `user` set in coga.local.toml — coga needs your name and will "
+            'not guess it. Add `user = "<name>"` to '
+            f"{local_path} (for example, `user = \"marc\"`). "
+            "For a fresh repo that has not been initialized yet, run "
+            "`coga init --user <name>`."
+        )
 
     return Config(
         repo_root=root,
