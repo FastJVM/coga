@@ -90,7 +90,6 @@ from coga.ticket import Ticket, TicketError
 _MAX_SYNC_ATTEMPTS = 5
 
 _ROOT_LAYOUT_COGA_PATHS = (
-    "bootstrap",
     "coga.toml",
     "context.md",
     "contexts",
