@@ -1,7 +1,7 @@
 ---
 slug: move-open-pr-gate-from-launch-into-bump-make-open
 title: Move open-pr gate from launch into bump; make open-pr a mixed agent step
-status: active
+status: in_progress
 mode: agent
 owner: nicktoper
 human: nicktoper

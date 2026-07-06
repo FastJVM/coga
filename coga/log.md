@@ -911,3 +911,4 @@ fatal: adding files failed
 2026-07-05 20:50 [ticket-must-merge-blackblaord] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
 2026-07-05 20:52 [ticket-must-merge-blackblaord] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
 2026-07-05 22:11 [ticket-must-merge-blackblaord] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/524
+2026-07-05 22:34 [move-open-pr-gate-from-launch-into-bump-make-open] [human:nicktoper] started (active → in_progress) via coga launch
