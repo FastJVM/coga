@@ -119,12 +119,22 @@ files in your git repo, on your machine, no hosted backend. And no single model
 vendor owns you — agents are interchangeable.
 
 **Forbids:** moving state into a hosted service you can't inspect; lock-in to one
-model vendor; a format only one vendor can read.
+model vendor; a format only one vendor can read. **No phoning home — no
+telemetry, usage tracking, or install ping, not even anonymized or opt-out.**
+Coga sends nothing about you or your repo anywhere; product signals come from
+public surfaces (PyPI/GitHub) you can read too, never from instrumenting the
+operator's machine.
 
-**Receipt:** git-backed markdown, local by default, no cloud. `claude` ↔ `codex`
-interchangeable (`[agents.*]` in `coga.toml`, `other-agent` rotation across
-workflow steps). `coga init` vendors the CLI into your repo. SKILL.md is an
-open standard.
+**Receipt:** git-backed markdown, local by default, no cloud. Nothing in Coga
+makes a network call you didn't initiate. `claude` ↔ `codex` interchangeable
+(`[agents.*]` in `coga.toml`, `other-agent` rotation across workflow steps).
+`coga init` vendors the CLI into your repo. SKILL.md is an open standard.
+
+> Considered and rejected (2026-06): an opt-out anonymous install ping (3
+> fields, no PII) to gauge product-market fit. Even with loud disclosure and a
+> one-line disable it cuts against this principle — users don't want to be
+> tracked, and a tool that phones home isn't fully *yours*. Use the PyPI/GitHub
+> estimate instead.
 
 ## 6. Fail loud — surface every failure, never silent-wrong-answers
 
@@ -139,8 +149,37 @@ command (`status`, `show`, `validate`) that mutates state or hits the network as
 a side effect of reading.
 
 **Receipt:** missing context/skill → raise; `coga validate` errors on broken
-refs; Slack/script failures surface (and log), never swallowed; `coga panic`
+refs; Slack/script failures surface (and log), never swallowed; `coga block`
 hands a blocked task back to a human rather than guessing.
+
+## 7. Ticketed — every unit of work is a durable, directable task
+
+Better thinking needs something to think *about* and something that survives the
+session. So every substantive unit of work is a **ticket** — a git-backed
+`ticket.md` with a blackboard (working memory) and a workflow (its steps) —
+never an untracked side-channel action that vanishes when the process exits. The
+ticket is what the human directs, what an agent resumes, what the team sees, and
+what the correction loop later reads. Work you can't point at is work you can't
+think about, hand off, or fix.
+
+This is not "everything is a ticket." Reusable *process* stays a **skill**, its
+deterministic core a **script**, and the CLI verbs (`launch`, `bump`, `status`)
+*operate on* tickets rather than being work themselves. The rule bites on
+**work**: a substantive change, decision, or task gets a ticket — it does not get
+done as a bespoke command, a loose branch, or an agent action that leaves no
+recoverable trace.
+
+**Forbids:** doing substantive work through an untracked side channel (a one-off
+command that mutates the repo with no ticket/blackboard/log; an agent change that
+leaves no resumable trace); a bespoke Coga command that performs task-work
+instead of operating on a ticket; machine-authored maintenance that runs loose
+instead of as a real task.
+
+**Receipt:** `coga create` / `coga ticket` scaffold every unit of work as a
+`ticket.md`; the blackboard persists state between stateless sessions and
+`coga bump` advances + logs each step; even machine-authored work (Dream,
+`recurring`, `retire`) creates a real task with the `direct/body` workflow
+rather than running loose — there is no sanctioned workflow-less active task.
 
 ---
 
