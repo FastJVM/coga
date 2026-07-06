@@ -919,3 +919,4 @@ fatal: adding files failed
 2026-07-06 11:54 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
 2026-07-06 12:01 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-06 12:04 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-06 12:04 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
