@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/codebase
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -113,6 +113,7 @@ The blackboard is a notepad to be written to often as the human and agent works 
 branch: codex/ticket-blackboard-fold
 worktree: /tmp/coga-ticket-blackboard-fold
 commit: 999ccf48 Flag unsynthesized draft blackboards
+pr: https://github.com/FastJVM/coga/pull/524
 
 ## Implementation
 
@@ -136,3 +137,9 @@ commit: 999ccf48 Flag unsynthesized draft blackboards
 
 - Codex review found one must-fix: the cleanup wording could reset useful blackboard state when editing non-draft tickets. Fixed in feature commit dcf7e00c by making full stock reset draft-only, preserving unrelated non-draft blackboard content, and adding a packaged-template regression assertion.
 - Verification after the peer-review fix: `PYTHONPATH=/tmp/coga-ticket-blackboard-fold/src python3.12 -m pytest tests/test_bootstrap_ticket_skill_template.py tests/test_validate.py tests/test_mark.py tests/test_blackboard.py` -> 82 passed; `PYTHONPATH=/tmp/coga-ticket-blackboard-fold/src python3.12 -m pytest` -> 1076 passed, 1 skipped; `PYTHONPATH=/tmp/coga-ticket-blackboard-fold/src python3.12 -m coga.cli validate --task ticket-must-merge-blackblaord --json` -> ok_count 1, no issues.
+
+## Open PR
+
+- PR: https://github.com/FastJVM/coga/pull/524
+- Preflight: `coga validate --check-github` succeeded for GitHub/auth freshness after unsandboxing (no GitHub/freshness errors), but raw repo-wide validation still exits nonzero on pre-existing unrelated task drift; `--check-github` cannot be combined with `--task`.
+- CI: `gh pr checks 524` reported no checks on the branch yet.
