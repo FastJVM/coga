@@ -24,6 +24,8 @@ from coga.commands.update import (
     copy_fresh_templates,
     ensure_host_gitignore,
     install_venv,
+    is_git_repo,
+    nearest_existing_dir,
     packaged_template_root,
     refresh_cli,
     resolve_coga_repo_url,
@@ -130,15 +132,51 @@ def _repo_is_empty(target: Path) -> bool:
     return all(entry.name in _INIT_IGNORE for entry in target.iterdir())
 
 
-def _is_git_repo(target: Path) -> bool:
-    """True when `target` looks like a git repo (filesystem check only).
+def _enclosing_coga_root(target: Path) -> Path | None:
+    """Nearest dir at/above `target` that holds a `coga.toml`, or None.
 
-    `.git` may be a directory (normal repo) or a file (worktree/submodule), so
-    test existence rather than dir-ness. `coga init` requires this up front and
-    `_git_commit_coga_os` reuses it to decide whether to commit — the two must
-    agree, so they share this predicate.
+    Guards `coga init` against scaffolding a `coga/` inside an existing coga
+    OS tree — `find_repo_root` walks up, so the enclosing repo would claim the
+    new one's subtree and the layout can't work sanely. Mirrors that discovery:
+    at each candidate check both a direct `coga.toml` and a sibling `coga/`
+    subdir (the common layout — a git repo whose coga lives at `<repo>/coga/`),
+    since `find_repo_root` resolves the target through either. The first `.git`
+    boundary stops the walk: an outer coga repo beyond the host repo's boundary
+    is a different project and no conflict.
     """
-    return (target / ".git").exists()
+    for candidate in [target, *target.parents]:
+        if (candidate / "coga.toml").is_file():
+            return candidate
+        nested = candidate / "coga"
+        if (nested / "coga.toml").is_file():
+            return nested
+        if (candidate / ".git").exists():
+            return None
+    return None
+
+
+def _host_ignores_coga(target: Path) -> bool:
+    """True when the host repo's ignore rules would exclude the coga/ dir we're
+    about to create at `target`.
+
+    `git add` refuses ignored paths, so if the host repo gitignores the target
+    subtree (e.g. `coga init build/ops` where `build/` is ignored) we'd write
+    coga/ to disk and then silently skip the commit — the very silent-skip the
+    up-front git check exists to prevent. Detected here so `coga init` can fail
+    loud before writing anything. `target` may not exist yet, so run
+    `git check-ignore` from the nearest existing ancestor.
+    """
+    probe = nearest_existing_dir(target)
+    if probe is None:
+        return False
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(probe), "check-ignore", "-q", str(target / "coga")],
+            capture_output=True,
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
 
 
 # Delivered onboarding ticket, pruned from the copied tree on a filled repo
@@ -288,7 +326,11 @@ def _check_external_dependencies() -> None:
 def init(
     path: Path | None = typer.Argument(
         None,
-        help="Target dir for the new repo (created if missing). Defaults to the current dir.",
+        help=(
+            "Target dir for coga/ (created if missing) — a git repo root or "
+            "any subdir inside one (e.g. `coga init tools/ops` in a monorepo). "
+            "Defaults to the current dir."
+        ),
     ),
     user: str | None = typer.Option(
         None,
@@ -316,29 +358,68 @@ def _do_init(path: Path, *, user: str | None = None) -> None:
         )
         sys.exit(2)
 
-    # Decide empty-vs-filled against the pristine dir, before init writes
-    # anything of its own — a filled repo skips onboarding-ticket seeding.
-    is_empty = _repo_is_empty(target)
+    # A coga/ nested inside an existing coga OS tree can't work — discovery
+    # walks up and the enclosing repo claims the subtree. Fail loud before
+    # anything is written.
+    enclosing = _enclosing_coga_root(target)
+    if enclosing is not None:
+        typer.secho(
+            f"{target} is inside an existing coga repo ({enclosing / 'coga.toml'}) "
+            f"— a coga/ nested inside another coga/ can't work: discovery walks "
+            f"up and resolves the enclosing repo.\n"
+            f"Run `coga init` outside {enclosing}, or use that repo directly.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
     # Require the operator's name up front (before the slow clone/venv) so
     # `current_user` is valid from the first moment after init, and a bad
     # invocation leaves nothing on disk.
     name = _require_user_name(user)
 
     # Coga is git-backed: `coga init` commits coga/ into the host repo.
-    # If the target isn't a git repo, fail loud (principle 6) instead of writing
-    # coga/ and silently skipping the commit further down. We don't run
-    # `git init` ourselves — the user does, which keeps branch naming in their
-    # hands. Checked here, before any writes, so a bad invocation leaves nothing
-    # behind and we fail before the slow clone/venv.
-    if not _is_git_repo(target):
+    # If the target isn't inside a git work tree, fail loud (principle 6)
+    # instead of writing coga/ and silently skipping the commit further down.
+    # The target itself doesn't have to be the git root — `coga init tools/ops`
+    # inside a monorepo scaffolds a nested coga/ committed into the host repo.
+    # We don't run `git init` ourselves — the user does, which keeps branch
+    # naming in their hands. Checked here, before any writes, so a bad
+    # invocation leaves nothing behind and we fail before the slow clone/venv.
+    if not is_git_repo(target):
         typer.secho(
-            f"{target} is not a git repository — coga is git-backed and "
+            f"{target} is not inside a git repository — coga is git-backed and "
             f"`coga init` commits coga/ into your repo.\n"
-            f"Run `git init` in {target} first, then re-run `coga init`.",
+            f"Run `git init` in {target} (or an ancestor) first, then re-run "
+            f"`coga init`.",
             fg=typer.colors.RED,
             err=True,
         )
         sys.exit(2)
+
+    # The host repo must actually be able to track coga/. If its ignore rules
+    # exclude the target, `git add` refuses the path and the commit is silently
+    # skipped — same silent-skip the git check above guards against. Fail loud
+    # up front (still before any writes) so nothing is left behind.
+    if _host_ignores_coga(target):
+        typer.secho(
+            f"{target / 'coga'} is gitignored by the host repo — coga is "
+            f"git-backed and `coga init` must commit coga/ into your repo, but "
+            f"git refuses to track an ignored path.\n"
+            f"Remove the ignore rule covering {target}, or pick a target the "
+            f"repo tracks, then re-run `coga init`.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
+    # Decide empty-vs-filled against the pristine dir, before init writes
+    # anything of its own — a filled repo skips onboarding-ticket seeding.
+    # A target without its own `.git` is a nested init below an established
+    # host repo's root: always treat it as filled, even when the subdir itself
+    # is empty — the onboarding interview is for genuinely new repos.
+    nested = not (target / ".git").exists()
+    is_empty = _repo_is_empty(target) and not nested
 
     target.mkdir(parents=True, exist_ok=True)
 
@@ -646,9 +727,13 @@ def _git_commit_coga_os(
     """If `target` is a git repo, stage coga/ (+ host .gitignore + extras) and commit.
 
     Returns the new commit SHA on success, None if we skipped (not a git repo,
-    nothing to stage, or git invocation failed). Never raises.
+    nothing to stage, or git invocation failed). Never raises. `target` may sit
+    below the git root (nested init) — `git -C <target>` resolves pathspecs
+    relative to `target`, and the commit lands in the host repo. The commit is
+    scoped to the staged coga paths, so any unrelated changes the user already
+    had staged in the host repo are left staged, not swept in.
     """
-    if not _is_git_repo(target):
+    if not is_git_repo(target):
         return None
     try:
         paths = ["coga"]
@@ -663,15 +748,21 @@ def _git_commit_coga_os(
             capture_output=True,
             text=True,
         )
-        # Anything actually staged?
+        # Anything actually staged *among our paths*? Scope the check (and the
+        # commit below) to `paths`: a nested init runs inside a live host repo
+        # where the user may already have unrelated files staged, and an
+        # unscoped commit would sweep them into the "Create coga" commit.
         diff = subprocess.run(
-            ["git", "-C", str(target), "diff", "--cached", "--quiet"],
+            ["git", "-C", str(target), "diff", "--cached", "--quiet", "--", *paths],
             capture_output=True,
         )
         if diff.returncode == 0:
             return None
         subprocess.run(
-            ["git", "-C", str(target), "commit", "-m", "Create coga via `coga init`"],
+            [
+                "git", "-C", str(target),
+                "commit", "-m", "Create coga via `coga init`", "--", *paths,
+            ],
             check=True,
             capture_output=True,
             text=True,

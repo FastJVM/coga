@@ -773,15 +773,16 @@ def test_init_refuses_existing_coga_os(tmp_path: Path, fake_clone, fake_venv) ->
 def test_init_into_missing_dir_errors_not_git_repo(
     tmp_path: Path, fake_clone, fake_venv
 ) -> None:
-    """A target that doesn't exist can't be a git repo, so init fails loud
+    """A target that doesn't exist and has no git repo above it fails loud
     instead of auto-creating the dir and silently skipping the commit. Nothing
-    is written — the dir stays absent."""
+    is written — the dir stays absent. (A missing target *below* a git root is
+    fine — that's the nested monorepo init.)"""
     target = tmp_path / "fresh"
     assert not target.exists()
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2
-    assert "not a git repository" in result.output
+    assert "not inside a git repository" in result.output
     assert "git init" in result.output
     assert not target.exists()
 
@@ -1074,18 +1075,182 @@ def test_init_commits_coga_os_when_target_is_git_repo(
 def test_init_fails_loud_when_target_is_not_git_repo(
     tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """coga is git-backed: a non-git target is a hard error (not a silent
-    skip), and nothing is written to disk — the user runs `git init` here and
-    re-runs."""
+    """coga is git-backed: a target outside any git work tree is a hard error
+    (not a silent skip), and nothing is written to disk — the user runs
+    `git init` here and re-runs."""
     target = tmp_path / "company"
-    target.mkdir()  # exists, but is not a git repo
+    target.mkdir()  # exists, but is not a git repo (nor inside one)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
     result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
     assert result.exit_code == 2
-    assert "not a git repository" in result.output
+    assert "not inside a git repository" in result.output
     assert "git init" in result.output
     assert not (target / "coga").exists()
+
+
+# --- nested init (coga/ in a subdir of a host repo) ---------------------------
+
+
+def test_init_into_subdir_of_git_repo(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`coga init tools/ops` inside a monorepo scaffolds a nested coga/ and
+    commits it into the host repo — the target doesn't have to be the git
+    root, just inside its work tree. The missing subdir is created."""
+    host = tmp_path / "monorepo"
+    host.mkdir()
+    subprocess.run(["git", "init", "-q", str(host)], check=True)
+    subprocess.run(["git", "-C", str(host), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(host), "config", "user.name", "T"], check=True)
+    (host / "README.md").write_text("host project\n")
+    subprocess.run(["git", "-C", str(host), "add", "README.md"], check=True)
+    subprocess.run(["git", "-C", str(host), "commit", "-qm", "host"], check=True)
+    target = host / "tools" / "ops"
+    assert not target.exists()
+    monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+    assert "Committed coga/ as" in result.output
+
+    assert (target / "coga" / "coga.toml").is_file()
+    # Committed into the *host* repo, with paths below the git root.
+    tracked = subprocess.run(
+        ["git", "-C", str(host), "ls-files"],
+        capture_output=True, text=True, check=True,
+    ).stdout.splitlines()
+    assert "tools/ops/coga/coga.toml" in tracked
+    # The coga-managed ignore block lands at the nested target — git scopes a
+    # nested .gitignore to its own dir, where the symlinks and .coga/ live.
+    host_gi = (target / ".gitignore").read_text()
+    assert update_cmd.HOST_GITIGNORE_BEGIN in host_gi
+    assert ".claude/skills/coga" in host_gi
+    # A nested init sits in an established host project: onboarding is never
+    # seeded, even though the subdir itself started empty.
+    assert not (target / "coga" / "tasks" / "coga-build.md").exists()
+    assert "Run `coga build`" not in result.output
+    assert 'coga ticket "' in result.output
+
+
+def test_init_refuses_target_inside_existing_coga_repo(
+    tmp_path: Path, fake_clone, fake_venv
+) -> None:
+    """A coga/ nested inside an existing coga OS tree can't work — discovery
+    walks up and resolves the enclosing repo — so init refuses before writing
+    anything, both for a subdir of the coga tree and the coga dir itself."""
+    host = _make_git_repo(tmp_path / "company")
+    coga_os = host / "coga"
+    coga_os.mkdir()
+    (coga_os / "coga.toml").write_text("version = 1\n")
+
+    for target in (coga_os / "sub", coga_os):
+        result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+        assert result.exit_code == 2, result.output
+        assert "inside an existing coga repo" in result.output
+    assert not (coga_os / "sub").exists()
+    assert not (coga_os / "coga").exists()
+
+
+def test_init_refuses_sibling_subdir_of_root_level_coga(
+    tmp_path: Path, fake_clone, fake_venv
+) -> None:
+    """The common layout — a git repo whose coga lives at `<repo>/coga/` —
+    governs every subdir via `find_repo_root`'s sibling-`coga/` descent. So
+    `coga init <repo>/data` must be refused too: it would shadow the root coga
+    for that subtree, not just when the target sits literally inside coga/."""
+    host = _make_git_repo(tmp_path / "company")
+    coga_os = host / "coga"
+    coga_os.mkdir()
+    (coga_os / "coga.toml").write_text("version = 1\n")
+
+    target = host / "data"  # sibling of coga/, governed by the root coga
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 2, result.output
+    assert "inside an existing coga repo" in result.output
+    assert str(coga_os / "coga.toml") in result.output
+    assert not (target / "coga").exists()
+
+
+def test_init_refuses_target_gitignored_by_host_repo(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If the host repo gitignores the target subtree, `git add` would refuse
+    coga/ and the commit would be silently skipped. Init fails loud up front
+    instead — nothing is written to disk."""
+    host = tmp_path / "monorepo"
+    host.mkdir()
+    subprocess.run(["git", "init", "-q", str(host)], check=True)
+    subprocess.run(["git", "-C", str(host), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(host), "config", "user.name", "T"], check=True)
+    (host / ".gitignore").write_text("build/\n")
+    subprocess.run(["git", "-C", str(host), "add", ".gitignore"], check=True)
+    subprocess.run(["git", "-C", str(host), "commit", "-qm", "host"], check=True)
+    target = host / "build" / "ops"
+    monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 2, result.output
+    assert "gitignored by the host repo" in result.output
+    assert not (target / "coga").exists()
+
+
+def test_init_into_subdir_leaves_unrelated_staged_files_alone(
+    tmp_path: Path, fake_clone, fake_venv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A nested init commits only coga/ (and its host files), never the user's
+    pre-existing staged changes in the live host repo."""
+    host = tmp_path / "monorepo"
+    host.mkdir()
+    subprocess.run(["git", "init", "-q", str(host)], check=True)
+    subprocess.run(["git", "-C", str(host), "config", "user.email", "t@t"], check=True)
+    subprocess.run(["git", "-C", str(host), "config", "user.name", "T"], check=True)
+    (host / "README.md").write_text("host project\n")
+    subprocess.run(["git", "-C", str(host), "add", "README.md"], check=True)
+    subprocess.run(["git", "-C", str(host), "commit", "-qm", "host"], check=True)
+    # The user has unrelated work staged when they run `coga init`.
+    (host / "wip.py").write_text("print('wip')\n")
+    subprocess.run(["git", "-C", str(host), "add", "wip.py"], check=True)
+    target = host / "tools" / "ops"
+    monkeypatch.setenv("PATH", os.environ["PATH"])  # need git on PATH
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    result = CliRunner().invoke(app, ["init", str(target), "--user", "tester"])
+    assert result.exit_code == 0, result.output
+
+    committed = subprocess.run(
+        ["git", "-C", str(host), "show", "--name-only", "--format=", "HEAD"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split()
+    assert "wip.py" not in committed
+    assert "tools/ops/coga/coga.toml" in committed
+    # The user's staged file is untouched — still staged, not committed.
+    staged = subprocess.run(
+        ["git", "-C", str(host), "diff", "--cached", "--name-only"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split()
+    assert "wip.py" in staged
+
+
+def test_is_git_repo_accepts_missing_subdir_below_work_tree(tmp_path: Path) -> None:
+    """The shared git predicate walks to the nearest existing ancestor, so a
+    not-yet-created nested target inside a work tree passes, while anything
+    outside a work tree still fails."""
+    host = tmp_path / "host"
+    host.mkdir()
+    subprocess.run(["git", "init", "-q", str(host)], check=True)
+
+    assert update_cmd.is_git_repo(host / "tools" / "ops") is True
+    assert update_cmd.is_git_repo(tmp_path / "elsewhere" / "deep") is False
+
+
+def test_is_git_repo_fast_path_on_git_marker(tmp_path: Path) -> None:
+    """A bare `.git` entry (dir or worktree/submodule file) short-circuits
+    without invoking git — the same filesystem check init always used."""
+    target = _make_git_repo(tmp_path / "company")
+    assert update_cmd.is_git_repo(target) is True
 
 
 # --- skill discovery wiring ---------------------------------------------------
