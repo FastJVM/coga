@@ -125,3 +125,7 @@ commit: 999ccf48 Flag unsynthesized draft blackboards
 - `PYTHONPATH=/tmp/coga-ticket-blackboard-fold/src python3.12 -m pytest tests/test_validate.py tests/test_mark.py tests/test_blackboard.py` -> 78 passed.
 - `PYTHONPATH=/tmp/coga-ticket-blackboard-fold/src python3.12 -m pytest` -> 1075 passed, 1 skipped.
 - `PYTHONPATH=/tmp/coga-ticket-blackboard-fold/src python3.12 -m coga.cli validate --json` from `example/coga` -> ok_count 1, no issues.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":4250368,"cli":"codex","input_tokens":126973,"model":"gpt-5.5","output_tokens":18973,"provider":"openai","schema":1,"session_id":"019f355d-2cca-7d33-9758-77a933cf3d29","slug":"ticket-must-merge-blackblaord","step":"implement","title":"ticket must merge blackblaord","ts":"2026-07-06T03:37:49.261601Z","usage_status":"ok"}
