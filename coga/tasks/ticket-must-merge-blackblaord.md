@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/codebase
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -129,3 +129,10 @@ commit: 999ccf48 Flag unsynthesized draft blackboards
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":4250368,"cli":"codex","input_tokens":126973,"model":"gpt-5.5","output_tokens":18973,"provider":"openai","schema":1,"session_id":"019f355d-2cca-7d33-9758-77a933cf3d29","slug":"ticket-must-merge-blackblaord","step":"implement","title":"ticket must merge blackblaord","ts":"2026-07-06T03:37:49.261601Z","usage_status":"ok"}
+
+---
+
+## Peer review
+
+- Codex review found one must-fix: the cleanup wording could reset useful blackboard state when editing non-draft tickets. Fixed in feature commit dcf7e00c by making full stock reset draft-only, preserving unrelated non-draft blackboard content, and adding a packaged-template regression assertion.
+- Verification after the peer-review fix: `PYTHONPATH=/tmp/coga-ticket-blackboard-fold/src python3.12 -m pytest tests/test_bootstrap_ticket_skill_template.py tests/test_validate.py tests/test_mark.py tests/test_blackboard.py` -> 82 passed; `PYTHONPATH=/tmp/coga-ticket-blackboard-fold/src python3.12 -m pytest` -> 1076 passed, 1 skipped; `PYTHONPATH=/tmp/coga-ticket-blackboard-fold/src python3.12 -m coga.cli validate --task ticket-must-merge-blackblaord --json` -> ok_count 1, no issues.
