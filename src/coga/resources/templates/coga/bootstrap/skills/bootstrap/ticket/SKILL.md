@@ -348,10 +348,15 @@ After confirmation, do one final cleanup pass before printing the closing line:
    section where a future implementer will need it. Preserve concrete review
    findings, risks, constraints, and out-of-scope decisions; do not dump the
    whole review verbatim.
-3. Reset the blackboard region to the stock placeholder for this ticket title.
-   Do not leave empty authoring headings behind.
-4. Re-read the ticket and verify the durable notes now live above the
-   blackboard fence and the blackboard is stock.
+3. If the ticket is still `status: draft`, reset the blackboard region to the
+   stock placeholder for this ticket title. Do not leave empty authoring
+   headings behind.
+4. If editing an existing non-draft ticket (`active`, `in_progress`, `paused`,
+   or `done`), preserve unrelated blackboard content such as blockers, dev
+   notes, production notes, and handoff notes; remove only the authoring
+   sections you used.
+5. Re-read the ticket and verify the durable notes now live above the
+   blackboard fence and the blackboard cleanup matches the ticket status.
 
 Once that cleanup is complete, print one closing line. For a draft:
 
