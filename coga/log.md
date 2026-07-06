@@ -933,3 +933,4 @@ fatal: adding files failed
 2026-07-06 14:59 [decide-what-belongs-in-core-vs-skills-and-move-ski] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-06 15:01 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-06 15:02 [Stop direct/body-tickets-from-stranding-committed-code-off-mai] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-06 15:02 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
