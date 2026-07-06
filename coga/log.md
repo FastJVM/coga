@@ -928,3 +928,5 @@ fatal: adding files failed
 2026-07-05 14:52 [make-megalaunch-user-specific] [git] sync refused: coga/tasks/make-megalaunch-user-specific.md: step would move backward from '4 (review)' to '1 (implement)'; blackboard would shrink from 6351 to 165 bytes
 2026-07-05 15:01 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-05 20:16 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-06 12:59 [Move open_pr recipe into the code/open-pr-skill-keep-only-parse-worktree-path-in-cor] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-06 12:59 [move-open-pr-recipe-into-the-code-open-pr-skill-ke] [human:nicktoper] created (mode=agent, status=draft)

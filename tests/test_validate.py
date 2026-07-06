@@ -9,6 +9,7 @@ import requests
 
 from coga.create import create_task
 from coga.config import load_config
+from coga.taskfile import replace_blackboard
 from coga.tasks import list_tasks
 from coga.ticket import Ticket
 from coga.validate import apply_safe_fixes, probe_slack, run
@@ -272,13 +273,70 @@ def test_large_blackboard_warns(repo: Path) -> None:
     # Single-file format: the measured blackboard is the region below the fence
     # in ticket.md, not a sibling blackboard.md. The region content starts on its
     # own line after the fence (as every real blackboard writer leaves it).
-    from coga.taskfile import replace_blackboard
     replace_blackboard(ref.ticket_path, "\n\n" + "x" * 2048 + "\n")
 
     report = run(cfg, max_blackboard_bytes=1024)
     issue = next(i for i in report.issues if i.kind == "large-blackboard")
     assert issue.severity == "warn"
     assert "included in launch prompts" in issue.message
+
+
+def test_draft_authoring_blackboard_warns_without_fixing(repo: Path) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="agent", owner="marc", assignee="claude",
+        watchers=[], status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(ref.ticket_path, "\n## Evaluator review\n\nNeeds synthesis.\n")
+
+    report = run(cfg, fix=True)
+
+    issue = next(
+        i for i in report.issues if i.kind == "unsynthesized-draft-blackboard"
+    )
+    assert issue.severity == "warn"
+    assert "## Evaluator review" in issue.message
+    assert "`## Production notes`" in issue.message
+    assert report.fixes == []
+
+
+def test_authoring_blackboard_warning_is_draft_only(repo: Path) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="X", workflow_name="code/with-review",
+        contexts=[], mode="agent", owner="marc", assignee="claude",
+        watchers=[], status="active",
+    )
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(ref.ticket_path, "\n## Evaluator review\n\nActive work note.\n")
+
+    report = run(cfg)
+
+    assert not [
+        i for i in report.issues if i.kind == "unsynthesized-draft-blackboard"
+    ]
+
+
+def test_draft_authoring_blackboard_allows_production_notes(repo: Path) -> None:
+    cfg = load_config(repo)
+    create_task(
+        cfg=cfg, title="X", workflow_name=None,
+        contexts=[], mode="agent", owner="marc", assignee="claude",
+        watchers=[], status="draft",
+    )
+    ref = list_tasks(cfg)[0]
+    replace_blackboard(
+        ref.ticket_path,
+        "\n## Production notes\n\nKeep this for launch.\n\n## Evaluator review\n\nReviewed.\n",
+    )
+
+    report = run(cfg)
+
+    assert not [
+        i for i in report.issues if i.kind == "unsynthesized-draft-blackboard"
+    ]
 
 
 class _FakeResponse:
