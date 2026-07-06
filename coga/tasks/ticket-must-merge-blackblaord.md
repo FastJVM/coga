@@ -90,29 +90,3 @@ validate; the deferred "every ticket resets its blackboard at `done`" idea
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
-
-## Evaluator review
-
-**Evaluator review (cold read)**
-
-**Overall:** This is an unusually well-specified draft. The `## Description` states the problem and two concrete changes crisply, and the `## Context` block does the heavy lifting a picked-up agent needs: exact file/symbol pointers (`render_blackboard`, `_is_stock_blackboard`, `prelaunch_blackboard_synthesis_reason`, `mark.py:240`, `validate.py:318`), the "reuse the same helper" instruction, the two-copies-in-sync note, and a clear out-of-scope fence. An agent with no prior context could start. The items below are refinements, not blockers.
-
-**Workflow fit — good.** `code/with-review` matches: the work is a real source change (`validate.py`) plus prompt/skill edits, shipped via PR, and the `## Context` explicitly names a design tension that wants human judgment. No mismatch. (The bulk of the diff is markdown/prompt rather than "code," but with-review still fits.)
-
-**Contexts — appropriate.** `coga/codebase` is the right single attachment for a change spanning source layout + tests, and — importantly — the ticket already followed the "copy the specific fact into `## Context`" rule rather than leaning on breadth: the blackboard/mark/validate specifics are inlined. Nothing critical is missing. One gap: the ticket never names the test surface. `code/with-review` will expect tests, so pointing at `tests/test_validate.py` / `tests/test_mark.py` / `tests/test_blackboard.py` (whichever exist) would save the agent a search.
-
-**Scope — reasonable, single ticket.** Skill edit (×2 copies) + one flag-only validate finding + tests. The deferred "every ticket resets at done" idea is correctly pushed out of scope.
-
-**Assumptions to question before launch:**
-
-1. **The `mark active` "refuses until synthesized" claim is accurate — but narrower than stated.** `_refuse_unsynthesized_draft_blackboard` fires *only* at the `draft → active` boundary (`if prior_status != "draft": return`). So the refusal only guards a draft's first activation, not later transitions. The description reads as if it's a general gate; it isn't. Fine for this ticket, but the implementer should know the scope.
-
-2. **The new validate finding MUST be status-gated to `draft` — the ticket implies this but doesn't make it a hard requirement.** `prelaunch_blackboard_synthesis_reason` is status-agnostic: it flags any non-stock blackboard carrying authoring headings *or* >600 chars of non-placeholder text. Active/in_progress/paused tickets have working blackboards (blockers, notes, running commentary) that will routinely exceed 600 chars or carry headings — so a naive reuse of the helper in `_check_one_task` would false-flag nearly every live ticket. The finding has to be scoped to `ticket.status == "draft"` (and honor the `## Production notes` opt-out the helper already respects). This is the single most important precision the ticket underspecifies; call it out explicitly rather than relying on "surfaces a draft whose blackboard…".
-
-3. **The bootstrap auto-clear collides with the step-7 summary, and this is left undecided.** Step 7 prints `Evaluator review: see the ticket.md blackboard region ## Evaluator review`, and the stated reason the review lives in the blackboard is so the human can re-read it. If the skill wipes the blackboard to stock *as its final action after* confirmation, that pointer goes stale and the evaluator review survives only in git history. The ticket half-acknowledges this ("consider whether the review should be folded into the body first") but defers the decision to the reviewer. This is the crux and should be resolved *before* launch: either (a) fold the review into `## Context`/body before clearing, or (b) don't clear the review section, or (c) accept git-only retention and reword the step-7 summary line so it doesn't dangle. Shipping the clear without picking one produces a visibly broken summary.
-
-4. **No hard contradiction with `mark.py`, but a philosophical one worth naming.** Clearing to stock makes `_is_stock_blackboard` true, so `prelaunch_blackboard_synthesis_reason` returns `None` and the refusal passes — the two mechanisms are complementary, not contradictory. However, the refusal exists to *force the human to synthesize authoring notes into the body before launch*; auto-wiping to stock discards those notes instead of synthesizing them. So the new behavior largely neuters the refusal's intent for the bootstrap path (it remains a backstop only for tickets authored outside bootstrap). That's a defensible design, but it's a behavior change to the correction loop and should be stated as such, not framed purely as "cleanup."
-
-**One factual correction for the ticket:** the two skill copies do **not** currently match — `diff -q` reports the live copy and the packaged `src/coga/resources/templates/...` copy already differ on disk today. The agent should diff both before editing and reconcile deliberately, rather than assuming they start identical and editing them in lockstep.
-
-**Cosmetic:** title/slug typo "blackblaord" (slug is baked, so live-with-it).
