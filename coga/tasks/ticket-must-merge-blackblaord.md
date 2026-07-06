@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/codebase
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -107,3 +107,21 @@ validate; the deferred "every ticket resets its blackboard at `done`" idea
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+
+branch: codex/ticket-blackboard-fold
+worktree: /tmp/coga-ticket-blackboard-fold
+commit: 999ccf48 Flag unsynthesized draft blackboards
+
+## Implementation
+
+- `bootstrap/ticket` now tells the authoring agent to summarize durable evaluator findings in the step-7 summary, wait for confirmation, fold evaluator/proposal/authoring notes into the ticket body, and reset the blackboard to stock before printing the closing line.
+- `coga validate` now emits warn-only `unsynthesized-draft-blackboard` findings for `status: draft` tickets whose blackboard trips `prelaunch_blackboard_synthesis_reason()`. It skips non-draft tickets and preserves the existing `## Production notes` opt-out. No `--fix` mutation was added.
+- Existing live/package `bootstrap/ticket` copy differences around package bootstrap discovery were preserved; the new cleanup text was added to both copies.
+
+## Verification
+
+- `PYTHONPATH=/tmp/coga-ticket-blackboard-fold/src python3.12 -m pytest tests/test_validate.py tests/test_mark.py tests/test_blackboard.py` -> 78 passed.
+- `PYTHONPATH=/tmp/coga-ticket-blackboard-fold/src python3.12 -m pytest` -> 1075 passed, 1 skipped.
+- `PYTHONPATH=/tmp/coga-ticket-blackboard-fold/src python3.12 -m coga.cli validate --json` from `example/coga` -> ok_count 1, no issues.
