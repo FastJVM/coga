@@ -52,3 +52,4 @@ consumed_through:
 {"id":"ee2d3be2b530","ts":"2026-07-03T21:53","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅ — PR #509 merged 2026-07-03 21:41; closing final review step","ticket":"cli-extension-model/fail-loud-on-step-regressions-in-bump-and-state-sy","owner":"nicktoper"}
 {"id":"e51958efac50","ts":"2026-07-05T13:33","project":"c4e3cf962ec7469ba1e25adef0fe8a9a","kind":"done","detail":"claude finished: implement → done ✅ — Already satisfied: chat/build are pure aliases; pytest passed","ticket":"audit-chat-and-build-are-core-free","owner":"zach"}
 {"id":"73742421af29","ts":"2026-07-05T14:43","project":"coga","kind":"done","detail":"claude finished: cutover → done ✅","ticket":"coga-cli-cutover","owner":"zach"}
+{"id":"9c53d71a2ad0","ts":"2026-07-05T09:48","project":"coga","kind":"done","detail":"nick finished: review → done ✅","ticket":"move-ticket-authoring-out-of-core","owner":"nick"}

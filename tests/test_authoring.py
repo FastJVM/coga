@@ -177,6 +177,37 @@ def test_finalize_authored_syncs_task_and_support_paths(
     ]
 
 
+def test_finalize_authored_skips_deleted_ticket(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A session may end by deleting the ticket (the human decides the task
+    # should go away). `finalize_authored` must not fail validating a ref
+    # whose ticket.md was removed, nor try to re-sync it.
+    import shutil
+
+    cfg = load_config(repo)
+    ref = _create_task(repo, "Delete me")
+    before = snapshot_authoring_state(cfg)
+
+    if ref.path.is_dir():
+        shutil.rmtree(ref.path)
+    else:
+        ref.path.unlink()
+
+    calls: list[tuple[Path, list[Path], str]] = []
+    monkeypatch.setattr(
+        "coga.authoring.git.sync_paths",
+        lambda cfg, anchor, paths, *, message: calls.append(
+            (anchor, list(paths), message)
+        ),
+    )
+
+    finalize_authored(cfg, before_snapshot=before, ref=ref)
+
+    assert calls == []
+
+
 def test_finalize_authored_discovers_new_task_from_bootstrap_interview(
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,

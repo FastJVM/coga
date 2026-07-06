@@ -157,6 +157,15 @@ def finalize_authored(
         if isinstance(ref, TaskRef)
         else authored_task_refs(cfg, changed_paths, before_snapshot.tasks)
     )
+    # A session may legitimately end by deleting the ticket (the human decides
+    # the task should go away — `coga delete` already committed the removal).
+    # Don't validate or re-sync a ref whose ticket.md no longer exists; that
+    # would fail with a spurious `missing-file` error on a deliberate deletion.
+    authored_refs = [
+        authored_ref
+        for authored_ref in authored_refs
+        if authored_ref.ticket_path.is_file()
+    ]
     for authored_ref in authored_refs:
         validate_authored_task(cfg, authored_ref)
 
