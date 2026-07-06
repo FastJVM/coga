@@ -894,3 +894,4 @@ fatal: adding files failed
 2026-07-05 14:59 [ticket-must-merge-blackblaord] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-05 14:59 [ticket-must-merge-blackblaord] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-07-05 18:43 [ticket-must-merge-blackblaord] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
+2026-07-05 18:43 [ticket-must-merge-blackblaord] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
