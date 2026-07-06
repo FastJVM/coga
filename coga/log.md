@@ -895,3 +895,4 @@ fatal: adding files failed
 2026-07-05 14:59 [ticket-must-merge-blackblaord] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-07-05 18:43 [ticket-must-merge-blackblaord] [human:nicktoper] ticket authoring launched (assignee=claude, agent=claude)
 2026-07-05 18:43 [ticket-must-merge-blackblaord] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
+2026-07-05 19:31 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
