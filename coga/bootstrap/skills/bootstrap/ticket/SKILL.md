@@ -328,7 +328,7 @@ Summary
   <2–3 sentences in your own words: what this ticket is, what done looks
   like, anything you flagged as a gap or assumption.>
 
-Evaluator review: see the ticket.md blackboard region ## Evaluator review
+Durable review notes: <1-2 lines with durable evaluator findings, or "none">
 ```
 
 Then ask the human directly: "Does this look right, or anything to change
@@ -337,7 +337,25 @@ workflow, drop a context, reword the description, fix an extension field —
 make the edit and reprint the relevant part of the summary. Only move on
 once they explicitly confirm.
 
-After confirmation, print one closing line. For a draft:
+After confirmation, do one final cleanup pass before printing the closing line:
+
+1. Re-read the blackboard authoring sections: `## Evaluator review`,
+   `## Proposals`, and `## Ticket authoring notes` if present.
+2. Fold the durable substance into the ticket body, usually `## Context` or the
+   section where a future implementer will need it. Preserve concrete review
+   findings, risks, constraints, and out-of-scope decisions; do not dump the
+   whole review verbatim.
+3. If the ticket is still `status: draft`, reset the blackboard region to the
+   stock placeholder for this ticket title. Do not leave empty authoring
+   headings behind.
+4. If editing an existing non-draft ticket (`active`, `in_progress`, `paused`,
+   or `done`), preserve unrelated blackboard content such as blockers, dev
+   notes, production notes, and handoff notes; remove only the authoring
+   sections you used.
+5. Re-read the ticket and verify the durable notes now live above the
+   blackboard fence and the blackboard cleanup matches the ticket status.
+
+Once that cleanup is complete, print one closing line. For a draft:
 
 ```
 Filled <slug>. Run `coga launch <slug>` when ready. Use `coga mark active <slug>` only to approve it without launching.
