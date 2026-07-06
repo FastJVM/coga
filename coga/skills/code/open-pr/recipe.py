@@ -1,9 +1,13 @@
 """Push a code ticket's branch and open (or ready) its PR — logic for code/open-pr.
 
-The `code/open-pr` skill's `run.py` is a thin wrapper over `open_pr()` here, the
-way `coga/autoclose` and `coga/commands/digest` back their script skills. Keeping
-the recipe in an importable module (not trapped in the skill script) is what
-makes it unit-testable.
+This recipe lives **beside** the skill's `run.py` in the skill directory, so the
+skill is self-contained: the logic is in the editable skill, not trapped in the
+installed `coga` package. Python runs a `.py` script step with the script's own
+directory on `sys.path[0]`, so `run.py` imports this as a plain sibling module
+(`from recipe import ...`); the unit test loads it the same way. It still imports
+shared infrastructure (`coga.autoclose` parsers, `coga.compose`, `coga.taskfile`,
+`coga.ticket`, `coga.config`, `coga.github_preflight`) from the package — those
+are shared utilities, not open-pr-specific logic, so they stay in core.
 
 The recipe is deliberately deterministic — that is the whole point of making
 open-pr a script step rather than an agent checklist. The launch supervisor runs

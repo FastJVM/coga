@@ -1,5 +1,5 @@
-"""Tests for `coga.open_pr` — the deterministic push→PR→record recipe behind the
-`code/open-pr` script step.
+"""Tests for the `code/open-pr` recipe — the deterministic push→PR→record logic
+behind the `code/open-pr` script step (loaded from the skill dir, see below).
 
 Uses the real-git harness (`init_git_repo`) so branch/commit/push behaviour is
 exercised for real against a bare `origin`, and a fake `gh` on PATH so the PR
@@ -21,8 +21,17 @@ import pytest
 from conftest import init_git_repo
 from coga.autoclose import parse_pr_url, parse_worktree_path
 from coga.config import load_config
-from coga.open_pr import OpenPrError, open_pr, set_dev_pr
 from coga.taskfile import read_blackboard
+
+# The open-pr recipe lives beside the skill's run.py in the skill dir (the skill
+# is self-contained), not in the `coga` package. Load it the way a script step
+# does — put the skill dir on sys.path and import the sibling `recipe` module.
+import sys
+
+_OPEN_PR_SKILL_DIR = Path(__file__).resolve().parents[1] / "coga" / "skills" / "code" / "open-pr"
+sys.path.insert(0, str(_OPEN_PR_SKILL_DIR))
+
+from recipe import OpenPrError, open_pr, set_dev_pr  # noqa: E402
 
 
 # --- fixtures / helpers -------------------------------------------------------

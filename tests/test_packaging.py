@@ -65,6 +65,11 @@ EXPECTED_BOOTSTRAP_RESOURCES = (
     "coga/resources/templates/coga/bootstrap/skills/code/implement/"
     "SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/code/open-pr/SKILL.md",
+    # open-pr is a script step: run.py is its entry point and recipe.py is the
+    # self-contained recipe run.py imports as a sibling — both must ship or the
+    # skill can't run in a fresh repo.
+    "coga/resources/templates/coga/bootstrap/skills/code/open-pr/run.py",
+    "coga/resources/templates/coga/bootstrap/skills/code/open-pr/recipe.py",
     "coga/resources/templates/coga/bootstrap/skills/code/self-qa/SKILL.md",
     "coga/resources/templates/coga/bootstrap/skills/coga/digest/flush/"
     "SKILL.md",

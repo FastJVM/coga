@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Push the branch and open (or ready) the PR — the script body of code/open-pr.
 
-Thin wrapper over `coga.open_pr.open_pr` (mirroring how `coga/autoclose/sweep`
-and `coga/digest/flush` back their script skills). Runs as a Coga script step
+Thin wrapper over the sibling `recipe.open_pr` (the recipe lives beside this
+script in the skill dir, so the skill is self-contained). Runs as a Coga script step
 (see `coga.commands.launch_script`): the launch supervisor executes it in place
 of an agent and, on exit 0, advances the workflow; on any non-zero exit it posts
 a failure and leaves the step put. That is the point — the open-pr step cannot
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from coga.config import ConfigError, load_config
-from coga.open_pr import OpenPrError, open_pr
+from recipe import OpenPrError, open_pr
 
 
 def main() -> int:
