@@ -8,6 +8,7 @@ steps:
     assignee: agent
   - name: pr
     assignee: agent
+    requires: pr
   - name: approve
     assignee: human
   - name: merge

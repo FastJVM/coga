@@ -2659,9 +2659,9 @@ def test_launch_rotation_stops_when_next_agent_cli_missing(
     assert ticket.assignee == "codex"
 
 
-# --- per-step script dispatch inside a mode: agent workflow -------------------
+# --- per-step script dispatch inside a mixed workflow -------------------------
 #
-# `code/open-pr` is a script step interleaved between agent steps. The launch
+# A script-backed skill can be interleaved between agent steps. The launch
 # supervisor must run it via `run_script_mode` (not spawn an agent) when the
 # current step's single skill declares a `script:`. See `current_step_is_script`
 # and the supervisor loop in `commands/launch.py`.
@@ -2734,7 +2734,7 @@ def test_current_step_is_script_detects_scripted_step(active_task: Path) -> None
 def test_launch_runs_scripted_step_as_script_not_agent(
     active_task: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A mode: agent ticket sitting on a script step runs without agent setup."""
+    """A ticket sitting on a script step runs without agent setup."""
     _deny_interactive_tty(monkeypatch)
     _write(
         active_task / "workflows" / "shipflow.md",

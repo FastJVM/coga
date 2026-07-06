@@ -4,7 +4,7 @@ schedule_comment: "Every Monday at 8am — after branch-sweep deletes dead branc
 title: "Rebase stale worktrees"
 # Runs as an agent: a rebase can hit conflicts, and deciding whether a
 # textually-clean rebase is still semantically right needs judgment — the
-# exact judgment the deterministic open-pr script step refuses to fake.
+# exact judgment the deterministic `coga open-pr` command refuses to fake.
 # Launch on demand with `coga recurring launch rebase-stale-worktrees`
 # whenever the open-pr staleness gate fires.
 ---
@@ -14,7 +14,7 @@ title: "Rebase stale worktrees"
 Bring live feature branches back up to date with the control branch so the
 `code/open-pr` staleness gate passes on relaunch.
 
-The open-pr script step fails loud when a branch is materially stale relative
+The `coga open-pr` command fails loud when a branch is materially stale relative
 to `origin/main` — correct fail-loud behavior, because a stale PR can
 reintroduce reverted work, but the remedy (rebase, re-verify, force-push) is
 manual per branch. This task is that remedy, run over every live branch at

@@ -1,21 +1,10 @@
-"""Push a code ticket's branch and open (or ready) its PR — logic for code/open-pr.
+"""Push a code ticket's branch and open (or ready) its PR.
 
-This recipe lives **beside** the skill's `run.py` in the skill directory, so the
-skill is self-contained: the logic is in the editable skill, not trapped in the
-installed `coga` package. Python runs a `.py` script step with the script's own
-directory on `sys.path[0]`, so `run.py` imports this as a plain sibling module
-(`from recipe import ...`); the unit test loads it the same way. It still imports
-shared infrastructure (`coga.autoclose` parsers, `coga.compose`, `coga.taskfile`,
-`coga.ticket`, `coga.config`, `coga.github_preflight`) from the package — those
-are shared utilities, not open-pr-specific logic, so they stay in core.
-
-The recipe is deliberately deterministic — that is the whole point of making
-open-pr a script step rather than an agent checklist. The launch supervisor runs
-it and advances the workflow **only on exit 0**; every fail-loud condition here
-raises `OpenPrError`, which the wrapper turns into a non-zero exit, so the step
-cannot advance without a real PR. In particular a branch with no commits ahead
-of the base (the cross-worktree divergence incident) fails loud instead of
-silently marching the workflow forward.
+`coga open-pr` calls this deterministic recipe from the ordinary agent-owned
+open-pr step. Every operational refusal raises `OpenPrError`, which the command
+renders as a concise non-zero exit. The workflow's `requires: pr` completion
+gate is separate: `coga bump` advances only after this recipe records the PR URL
+under `## Dev`.
 """
 
 from __future__ import annotations
@@ -51,6 +40,21 @@ def _run(args: list[str], *, cwd: str | None = None) -> subprocess.CompletedProc
 
 def _git(args: list[str], *, cwd: str) -> subprocess.CompletedProcess[str]:
     return _run(["git", "-C", cwd, *args])
+
+
+def _remote_branch_oid(remote: str, branch: str, *, cwd: str) -> str | None:
+    """Return the advertised remote branch OID, or None when it does not exist."""
+    result = _git(
+        ["ls-remote", "--heads", remote, f"refs/heads/{branch}"], cwd=cwd
+    )
+    if result.returncode != 0:
+        hint = check_git_auth(remote).detail
+        raise OpenPrError(
+            f"`git ls-remote {remote} {branch}` failed: "
+            f"{result.stderr.strip() or 'no output'}\n{hint}"
+        )
+    line = next((line for line in result.stdout.splitlines() if line.strip()), "")
+    return line.split(maxsplit=1)[0] if line else None
 
 
 _PR_LINE_RE = re.compile(r"^(?P<prefix>\s*(?:-\s*)?)pr:.*$", re.MULTILINE)
@@ -254,11 +258,24 @@ def open_pr(cfg: Config, *, slug: str, blackboard_path: Path) -> str:
         raise OpenPrError(gh_auth.detail)
 
     # --- push ----------------------------------------------------------------
-    push = _git(["push", "-u", remote, branch], cwd=worktree)
+    # A previous open-pr attempt may have pushed before `gh` failed. If the
+    # operator then rebases as instructed, an ordinary retry is non-fast-forward.
+    # Use an explicit lease against the OID observed immediately before push:
+    # rewritten local history is publishable, but concurrent remote updates are
+    # still rejected instead of overwritten.
+    remote_oid = _remote_branch_oid(remote, branch, cwd=worktree)
+    push_args = ["push", "-u"]
+    if remote_oid:
+        push_args.append(
+            f"--force-with-lease=refs/heads/{branch}:{remote_oid}"
+        )
+    push_args.extend([remote, branch])
+    push = _git(push_args, cwd=worktree)
     if push.returncode != 0:
         hint = check_git_auth(remote).detail
+        rendered = " ".join(push_args)
         raise OpenPrError(
-            f"`git push -u {remote} {branch}` failed: "
+            f"`git {rendered}` failed: "
             f"{push.stderr.strip() or 'no output'}\n{hint}"
         )
 

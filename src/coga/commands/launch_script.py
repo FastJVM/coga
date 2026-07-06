@@ -46,9 +46,9 @@ def current_step_is_script(cfg: Config, ticket: Ticket) -> bool:
     A step runs as a script when it has exactly one skill and that skill's
     SKILL.md declares a `script:` entry — the same rule `_resolve_script` uses to
     pick the step-skill script. This is what lets a workflow interleave a
-    deterministic script step (e.g. `code/open-pr`) with agent steps: the
-    launch supervisor consults this per step and runs the script itself rather
-    than spawning an agent.
+    deterministic script-backed maintenance step with agent steps: the launch
+    supervisor consults this per step and runs the script itself rather than
+    spawning an agent.
     """
     step = ticket.current_step()
     if step is None:
