@@ -14,7 +14,15 @@ later `code/open-pr` step does that, after self-review and fixes.
 1. **Read the ticket carefully.** Description, acceptance criteria,
    referenced files. If anything is ambiguous, write the ambiguity to
    the blackboard and stop — do not guess.
-2. **Create a feature worktree.** From the primary checkout on `main`,
+2. **Close already-satisfied tickets directly.** If every requested
+   checklist item has already landed in other work and there is genuinely
+   no branch, diff, or PR to create, do not manufacture one and do not
+   `coga block` — a blocker is for an unanswered human question, not for
+   finished work. Write per-item evidence under `## Already satisfied`
+   on the blackboard, then run `coga mark done <slug>` and stop. Use this
+   only when the evidence is concrete; if a human decision is genuinely
+   needed, `coga block` with that ask instead.
+3. **Create a feature worktree.** From the primary checkout on `main`,
    create a feature branch in a separate worktree outside the repo
    directory, for example:
    `git worktree add ../coga-<branch-name> -b <branch-name> main`.
@@ -23,11 +31,11 @@ later `code/open-pr` step does that, after self-review and fixes.
    write `branch: <branch-name>` and `worktree: <path>` under a `## Dev`
    section on the blackboard. See the `dev/code` context for the full
    convention.
-3. **Implement in the worktree.** Change into the feature worktree and
+4. **Implement in the worktree.** Change into the feature worktree and
    match existing code style. Keep changes scoped to the
    ticket — no opportunistic refactors. If you find a real adjacent bug,
    write it on the blackboard for a follow-up ticket; don't fix it here.
-4. **Test.** Add a regression test before the fix when the ticket is a
+5. **Test.** Add a regression test before the fix when the ticket is a
    bug. Run `python -m pytest`. If validation behavior changed, run
    `coga validate --json` against the example fixture. **Make new tests
    conform to the existing suite, not to your own taste** — agents
@@ -41,11 +49,11 @@ later `code/open-pr` step does that, after self-review and fixes.
    - Keep coverage deterministic and low-creating: no real time,
      network, or filesystem nondeterminism; no sprawling mocks where a
      fixture or a plain call would do.
-5. **Update the example fixture** when behavior affects task layout,
+6. **Update the example fixture** when behavior affects task layout,
    prompt composition, or workflow semantics (per CLAUDE.md).
-6. **Commit.** Conventional, present-tense summary line. Reference the
+7. **Commit.** Conventional, present-tense summary line. Reference the
    ticket slug in the body. One commit per logical change is fine.
-7. **Bump — this is what ends the step.** Return to the primary
+8. **Bump — this is what ends the step.** Return to the primary
    checkout and run `coga bump <slug>`. This advances the workflow to
    the next step and is the *only* thing that does so — there is no
    autobump. If you stop here without running it, the workflow stalls
@@ -63,6 +71,9 @@ later `code/open-pr` step does that, after self-review and fixes.
 - No push, no PR yet.
 - Blackboard reflects what changed and any decisions made.
 - `coga bump <slug>` has been run — the step is not done until it has.
+- Or, for the already-satisfied path only: no branch/worktree is required,
+  the blackboard records concrete evidence under `## Already satisfied`,
+  and `coga mark done <slug>` has closed the ticket.
 
 ## What this skill does NOT do
 
