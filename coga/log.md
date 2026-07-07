@@ -945,3 +945,4 @@ fatal: adding files failed
 2026-07-07 10:26 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-07 10:26 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-07 10:28 [clean-up-workflows-and-make-sure-they-re-in-bootst] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-07 10:28 [cleanup-core-commands] [human:nicktoper] created (mode=agent, status=draft)
