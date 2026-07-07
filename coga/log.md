@@ -943,3 +943,4 @@ fatal: adding files failed
 2026-07-07 10:25 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [human:nicktoper] activated (draft → active) — auto on launch
 2026-07-07 10:25 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-07 10:26 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] activated (draft → active) — auto on launch
+2026-07-07 10:26 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] started (active → in_progress) via coga launch
