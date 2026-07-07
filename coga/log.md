@@ -946,3 +946,4 @@ fatal: adding files failed
 2026-07-07 10:26 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-07 10:28 [clean-up-workflows-and-make-sure-they-re-in-bootst] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-07 10:28 [cleanup-core-commands] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-07 10:52 [stop-direct-body-tickets-from-stranding-committed] [agent:claude] advanced to step 2 (self-qa) — Guardrail (b) implemented on branch direct-body-strand-guard (commit 70c6b81e); audit found no local direct/body offenders — see blackboard
