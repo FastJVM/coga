@@ -15,8 +15,6 @@ Do not leave the durable explanation only in chat, PR comments, or task notes wh
 ## Project Structure & Module Organization
 Core code lives in `src/coga/`. Keep CLI entrypoints thin in `src/coga/commands/` and move reusable behavior into focused modules such as `config.py`, `compose.py`, `tasks.py`, and `validate.py`. Prompt/protocol templates live in `src/coga/resources/`. Tests live in `tests/`. Use `example/coga/` as the seeded fixture for end-to-end behavior.
 
-**Extend at the edges, not the core.** Prefer adding a **skill**, **context**, **workflow**, or **ticket** — a file under `coga/` (batteries under `src/coga/resources/templates/coga/bootstrap/`) — over growing the core Python package. A skill's deterministic logic belongs **in the skill directory** (a module beside its `run.py`, e.g. `code/open-pr/recipe.py` — a `.py` script step runs with its own dir on `sys.path[0]`, so `run.py` imports it as a sibling), **not** in a new `src/coga/<feature>.py`. Reach into `src/coga/` only for genuinely shared infrastructure that several skills or commands need, and then only as a deliberate, reviewed promotion — never the default landing spot for whatever one task happened to require. A task must never drop its own helper into core; that is the antipattern the `code/open-pr` recipe was moved out of core to avoid.
-
 When changing shipped Coga OS contexts or templates, check both the live repo copy under `coga/` and the packaged copy under `src/coga/resources/templates/coga/`. Keep them in sync unless the difference is intentional and documented.
 
 ## Build, Test, and Development Commands
