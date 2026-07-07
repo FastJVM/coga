@@ -1,7 +1,7 @@
 ---
 slug: stop-direct-body-tickets-from-stranding-committed
 title: Stop direct-body tickets from stranding committed code off-main
-status: draft
+status: active
 mode: agent
 owner: nicktoper
 human: nicktoper
