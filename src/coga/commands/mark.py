@@ -18,6 +18,7 @@ from coga.config import ConfigError, load_config
 from coga.mark import (
     BlackboardNeedsSynthesis,
     RequiredExtensionMissing,
+    StrandedProductCode,
     WorkflowMissing,
 )
 from coga.mark import format_blackboard_synthesis_refusal
@@ -133,6 +134,12 @@ def done(
         "--message",
         help="Optional FYI to piggy-back on the state-transition broadcast.",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Finish even if a direct/body ticket committed product code that "
+        "won't reach the control branch (the code will stay stranded).",
+    ),
 ) -> None:
     """Set status to `done`. Allowed from `active` or `in_progress`."""
     cfg, ref, ticket = _load(task)
@@ -160,6 +167,19 @@ def done(
             digest_detail=f"{finisher} finished{transition or ' → done'} ✅{suffix}",
             image_url=cfg.gif_for("done"),
             echo=f"{ref.id_slug}: done",
+            force=force,
+        )
+    except StrandedProductCode as exc:
+        listed = "\n".join(f"    {p}" for p in exc.paths)
+        _bail(
+            f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow has "
+            f"no push/PR step, but this checkout committed tracked product code "
+            f"that is not on {cfg.git_control_branch!r}:\n"
+            f"{listed}\n"
+            f"That code will strand off the control branch when the launch "
+            f"worktree is removed. Move the ticket to a code/* workflow "
+            f"(code/with-self-review or code/with-review) so it opens a PR, or "
+            f"re-run with --force to finish anyway and keep the code stranded."
         )
     except TaskValidationError as exc:
         _bail(str(exc))

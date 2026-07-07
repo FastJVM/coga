@@ -26,6 +26,56 @@ from coga.ticket import Ticket
 from coga.validate import assert_task_valid
 from coga.workflow import Workflow
 
+# Workflows with no push/PR step: finishing one with committed product code
+# strands that code off the control branch. Kept as a set so the guard can grow
+# to other bodyless flows without touching the call site.
+_NO_PR_WORKFLOWS = {"direct/body"}
+
+
+class StrandedProductCode(RuntimeError):
+    """Raised when a `direct/body` ticket is finished with committed product
+    code that will not reach the control branch (the workflow has no push/PR
+    step). The CLI renders the offending paths and points at a `code/*`
+    workflow; `--force` overrides.
+    """
+
+    def __init__(self, workflow_name: str, paths: list[str]):
+        self.workflow_name = workflow_name
+        self.paths = paths
+        super().__init__(
+            f"{workflow_name} task committed {len(paths)} tracked product "
+            "file(s) not on the control branch"
+        )
+
+
+def _workflow_name(ticket: Ticket) -> str | None:
+    """The ticket's workflow name, whether frozen (dict) or a bare-string ref."""
+    wf = ticket.workflow
+    if isinstance(wf, dict):
+        name = wf.get("name")
+        return str(name) if name else None
+    if isinstance(wf, str):
+        return wf.strip() or None
+    return None
+
+
+def _assert_no_stranded_product_code(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
+    """Refuse to finish a no-PR-workflow ticket that committed product code.
+
+    A `direct/body` (or other push/PR-less) workflow lands only Coga OS state on
+    the control branch; any tracked product code the agent committed rides a
+    throwaway launch-worktree branch that never reaches `main` and dangles when
+    the worktree is removed. Detect it before the `done` write and raise so the
+    CLI can steer the ticket to a `code/*` workflow (or `--force` past it).
+    """
+    name = _workflow_name(ticket)
+    if name not in _NO_PR_WORKFLOWS:
+        return
+    stranded = git.stranded_product_paths(cfg, ref.path)
+    if stranded:
+        raise StrandedProductCode(name or "direct/body", stranded)
+
+
 def mark_done(
     cfg: Config,
     ref: TaskRef,
@@ -37,6 +87,7 @@ def mark_done(
     digest_detail: str,
     image_url: str | None = None,
     echo: str | None = None,
+    force: bool = False,
 ) -> None:
     """Flip a ticket to `done`: write frontmatter, log, notify.
 
@@ -48,7 +99,13 @@ def mark_done(
     `echo` is the stdout line printed before the notify (so the local outcome
     is visible even if a live post crashes). Pass `None` to suppress — used by
     quiet auto-bump paths such as launch-time freshness checks.
+
+    A `direct/body` ticket that committed tracked product code off the control
+    branch is refused with `StrandedProductCode` (the code would strand); pass
+    `force=True` to override. See `_assert_no_stranded_product_code`.
     """
+    if not force:
+        _assert_no_stranded_product_code(cfg, ref, ticket)
     owner = ticket.owner or cfg.current_user
     ticket.frontmatter["status"] = "done"
     ticket.frontmatter.pop("step", None)
@@ -391,4 +448,5 @@ __all__ = [
     "mark_done",
     "RequiredExtensionMissing",
     "WorkflowMissing",
+    "StrandedProductCode",
 ]
