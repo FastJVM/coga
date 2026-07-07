@@ -1,17 +1,17 @@
 ---
 slug: auto-persist-dirty-launch-worktrees-to-pushed-bran
 title: Auto-persist dirty launch worktrees to pushed branches
-status: draft
+status: active
 mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
 assignee: claude
 contexts:
-  - coga/codebase
-  - coga/architecture
-  - coga/sync
-  - dev/code
+- coga/codebase
+- coga/architecture
+- coga/sync
+- dev/code
 skills: []
 workflow:
   name: code/with-self-review

@@ -940,3 +940,4 @@ fatal: adding files failed
 2026-07-06 22:04 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-06 22:04 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [git] sync failed: `git add -- coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
 2026-07-06 22:04 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-07 10:25 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [human:nicktoper] activated (draft → active) — auto on launch
