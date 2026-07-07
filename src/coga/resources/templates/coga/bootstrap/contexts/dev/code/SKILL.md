@@ -61,8 +61,15 @@ When to write each:
 - **`worktree:`** — the moment you create the feature worktree. Use a
   path outside the primary checkout so it does not appear as an
   untracked directory in the control-plane checkout.
-- **`pr:`** — as soon as `gh pr create` returns the URL. One line,
-  the full URL.
+- **`pr:`** — the full PR URL, one line. In workflows whose PR step is
+  the `code/open-pr` **script** (e.g. `code/with-review`,
+  `code/with-self-review`, `code/design-then-implement`), you do **not** write
+  this line by hand: the script reads `branch:` / `worktree:`, pushes, opens the
+  PR, and writes `pr:` back itself. Your job in the preceding agent step is to
+  make sure `branch:` and `worktree:` are recorded and the branch is committed —
+  the script fails loud (and the step does not advance) if they are missing or
+  there is nothing to PR. In a hand-run flow, write `pr:` yourself as soon as
+  `gh pr create` returns the URL.
 
 Update in place, don't append. If you rebase onto a renamed branch
 or create a fresh worktree or PR, overwrite the existing line. The

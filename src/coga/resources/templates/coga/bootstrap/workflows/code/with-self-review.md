@@ -32,20 +32,27 @@ real blocker (`coga block`), not an already-satisfied closure.
 
 ## pr
 
-Follow the `code/open-pr` skill to push and open the PR. In addition to
-the blackboard `## Dev` entry, **update the ticket**: write the PR link
-into `ticket.md` so the source of truth records where the change landed.
-Add a `## PR` section to the ticket body (or update it if present) with
-the PR URL before you `coga bump`.
+**Script step — no agent runs here.** The `code/open-pr` skill declares a
+`script:`, so the launch supervisor runs it directly: it reads `branch:` /
+`worktree:` from `## Dev`, confirms the worktree is on that branch, clean, and
+ahead of `main`, pushes, opens the PR (`gh pr create`, or `gh pr ready` for an
+existing draft), writes `pr: <url>` back under `## Dev`, and — on exit 0 — the
+launcher advances to `review`.
 
-After the PR is open, **resolve any merge conflicts with the base branch
-before the handoff**: check that the PR is mergeable (e.g. `gh pr view
-<PR#> --json mergeable,mergeStateStatus`), and if it conflicts with
-`main`, merge/rebase `main` into the feature branch, resolve the
-conflicts, re-run `python -m pytest`, and push so the human reviewer
-receives a clean, mergeable PR. Only then `coga bump` to hand off to the
-owner. If a conflict needs a judgment call you can't make, write it to
-the blackboard and `coga block` instead of bumping.
+Nothing to hand-run and no `coga bump` here. If the script exits non-zero
+(missing `## Dev` fields, nothing committed ahead of `main`, or a git/`gh` auth
+problem) the step does **not** advance and a failure is posted. This is what
+makes the step require a real PR by construction.
+
+Because `open-pr` is deterministic, anything needing judgment must be done in
+the **preceding `self-qa` step**, before it bumps:
+
+- **Author the PR body** — add a `## PR` section on the blackboard (summary +
+  one-line test plan). The script uses it as the PR body, falling back to
+  `## Description` if absent.
+- **Make the branch mergeable with `main`** — resolve any base conflicts,
+  re-run `python -m pytest`, and commit, so the reviewer gets a clean PR. Leave
+  the branch committed and ahead of `main`.
 
 ## review
 

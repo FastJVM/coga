@@ -30,7 +30,7 @@ import typer
 from coga import usage as usage_tracking
 from coga.agent_skills import refresh_agent_skill_view
 from coga.blackboard import blackboard_size_warning, format_bytes, open_blockers
-from coga.commands.launch_script import is_script_launch
+from coga.commands.launch_script import current_step_is_script, is_script_launch
 from coga.compose import (
     ComposeError,
     PromptComposition,
@@ -244,17 +244,24 @@ def launch(
     worktree_path: Path | None = None
     spawn_cwd: Path | None = None
     script_launch = is_script_launch(cfg, ticket)
+    # A `mode: agent` workflow can sit on a script step (e.g. code/open-pr):
+    # that step runs with no agent, through the same run_script_mode path as a
+    # whole `mode: script` ticket. Treat both alike for launch-worktree
+    # isolation and the mode dispatch below — the script uses the feature
+    # worktree recorded under `## Dev`, not a launch-isolation worktree.
+    run_current_as_script = script_launch or current_step_is_script(cfg, ticket)
     if (
         cfg.launch_worktree
         and isinstance(ref, TaskRef)
         and not is_bootstrap
-        and not script_launch
+        and not run_current_as_script
     ):
         cfg, ref, worktree_path = _enter_launch_worktree(base_cfg, ref, task)
         if worktree_path is not None:
             spawn_cwd = worktree_path
             ticket = _read(ref)
             script_launch = is_script_launch(cfg, ticket)
+            run_current_as_script = script_launch or current_step_is_script(cfg, ticket)
 
     try:
         # Typing `coga launch` *is* the readiness signal: a draft / paused ticket
@@ -277,13 +284,16 @@ def launch(
         if ticket.mode not in ("agent", "script"):
             _bail(f"Unknown mode: {ticket.mode!r}")
 
-        # `mode: script` runs the current step's skill script or the ticket's own
-        # `script:` with no agent and no composed prompt.
-        if script_launch:
-            if agent_override is not None:
-                _bail(
-                    "--agent is only supported for agent launches."
-                )
+        # A whole `mode: script` ticket AND a `mode: agent` workflow whose current
+        # step is a script step (e.g. code/open-pr) both run with no agent and no
+        # composed prompt, through the same run_script_mode path. Handling it here
+        # — before the agent-only TTY / CLI / git-auth setup — is what lets a
+        # relaunch land straight on the script step without a terminal. The
+        # supervisor loop below runs the same path for a script step reached
+        # mid-chain; on exit 0 the step advances, on non-zero it does not.
+        if run_current_as_script:
+            if script_launch and agent_override is not None:
+                _bail("--agent is only supported for agent launches.")
             from coga.commands.launch_script import run_script_mode
             run_script_mode(cfg, ref, ticket, stateless=is_bootstrap)
             return
@@ -399,6 +409,26 @@ def launch(
         first_step = True
         while True:
             ticket = _read(ref)
+
+            # A workflow step whose single skill declares a `script:` runs as a
+            # deterministic script even inside a `mode: agent` workflow — the same
+            # run_script_mode path used above, dispatched per step. The launcher,
+            # not an agent, executes it and advances only on exit 0, so
+            # `code/open-pr` reached mid-chain (peer-review → open-pr) cannot
+            # complete without producing a real PR.
+            if not is_bootstrap and current_step_is_script(cfg, ticket):
+                from coga.commands.launch_script import run_script_mode
+
+                _echo_launch_iteration(ref, ticket)
+                before = ticket
+                # Advances the step on success; on failure posts and sys.exit.
+                run_script_mode(cfg, ref, ticket)
+                ticket = read_ticket(ref)
+                stop_reason = _harness_stop_reason(ref, before, ticket, cfg)
+                if stop_reason is not None:
+                    typer.echo(stop_reason)
+                    break
+                continue
 
             # Resolve the agent for THIS step from the ticket's current
             # assignee, so the supervisor can rotate claude <-> codex across

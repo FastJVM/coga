@@ -35,6 +35,30 @@ def is_script_launch(cfg: Config, ticket: Ticket) -> bool:
     return ticket.mode == "script"
 
 
+def current_step_is_script(cfg: Config, ticket: Ticket) -> bool:
+    """True when the ticket's *current workflow step* is a script step.
+
+    A step runs as a script when it has exactly one skill and that skill's
+    SKILL.md declares a `script:` entry — the same rule `_resolve_script` uses to
+    pick the step-skill script. This is what lets a `mode: agent` workflow
+    interleave a deterministic script step (e.g. `code/open-pr`) with agent
+    steps: the launch supervisor consults this per step and runs the script
+    itself rather than spawning an agent. Whole-ticket `mode: script` launches
+    are covered by `is_script_launch`; this is orthogonal (it never inspects
+    `ticket.mode`).
+    """
+    step = ticket.current_step()
+    if step is None:
+        return False
+    skills_refs = list(step.get("skills") or [])
+    if len(skills_refs) != 1:
+        return False
+    sp = resolve_skill_path(cfg, skills_refs[0])
+    if sp is None:
+        return False
+    return bool(Skill.load(sp).script)
+
+
 def script_repo_root(cfg: Config) -> Path:
     """Working directory for a script run.
 

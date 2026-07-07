@@ -288,6 +288,27 @@ megalaunch decide whether work can proceed without more human input.
 
 There is no `autonomy:` field. The old `skip_permissions` / `skip_permissions_argv` keys are removed and rejected as unknown config.
 
+### Script steps inside an agent workflow
+
+`mode:` is the ticket's *default* substance, but execution is decided **per
+step**. Inside a `mode: agent` workflow, any step whose single skill declares a
+`script:` runs as a script — the launch supervisor runs it directly instead of
+spawning an agent. This is how `code/with-review` interleaves the deterministic
+`code/open-pr` step between agent steps: implement (agent) → peer-review (agent)
+→ open-pr (**script**) → review (human).
+
+The supervisor loop checks each step with `current_step_is_script` (a step has
+one skill and that skill's SKILL.md has a `script:`) before resolving an agent.
+On a script step it calls the same `run_script_mode` used by whole-ticket
+scripts, which runs the script and, **on exit 0**, advances the step (or marks
+the task done after the final step); **on a non-zero exit** it posts a failure
+and leaves the step put. So a script step's completion is gated by its exit
+code, not by an agent's judgment — a step cannot advance without its script
+producing its output. (This is the mechanism that makes `code/open-pr` require a
+real PR: no branch / no commits ahead of base / `gh` failure → non-zero exit →
+the step does not advance.) Whole-ticket `mode: script` launches are the
+orthogonal case, gated by `is_script_launch` (`ticket.mode == "script"`).
+
 ## Prompt composition
 
 `coga launch` builds one composed prompt and writes it to a temp
