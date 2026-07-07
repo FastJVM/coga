@@ -947,3 +947,13 @@ fatal: adding files failed
 2026-07-07 10:28 [clean-up-workflows-and-make-sure-they-re-in-bootst] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-07 10:28 [cleanup-core-commands] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-07 10:52 [stop-direct-body-tickets-from-stranding-committed] [agent:claude] advanced to step 2 (self-qa) — Guardrail (b) implemented on branch direct-body-strand-guard (commit 70c6b81e); audit found no local direct/body offenders — see blackboard
+2026-07-07 10:25 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-07 15:22 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [agent:claude] advanced to step 2 (self-qa)
+2026-07-07 15:22 [auto-persist-dirty-launch-worktrees-to-pushed-bran] [git] sync failed: `git add -- coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md: failed to insert into database
+error: unable to index file 'coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md'
+fatal: adding files failed
+2026-07-07 15:22 [coga] [git] sync failed: `git add -- coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md: failed to insert into database
+error: unable to index file 'coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md'
+fatal: adding files failed

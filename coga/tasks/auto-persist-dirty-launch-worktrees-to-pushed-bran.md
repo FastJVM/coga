@@ -33,7 +33,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (self-qa)
 ---
 
 ## Description
@@ -109,4 +109,16 @@ pushed branch and the ticket must say where it is.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+
+branch: codex/auto-persist-launch-dirt
+worktree: /tmp/coga-auto-persist-launch-dirt
+pr:
+
+## Notes
+
+- 2026-07-07: Created the feature worktree from `main`. Implementation target is launch-worktree cleanup in `src/coga/git.py`, with regression coverage in `tests/test_git.py`.
+- 2026-07-07: Implemented cleanup-time auto-persist for dirty non-Coga launch worktree paths. Coga state still syncs through `sync_coga_state`; product/docs dirt is committed with `commit-tree` to a non-control branch, pushed, and then recorded under `## Dev` before teardown. Updated both live and packaged `coga/sync` contexts.
+- Commit: `8f6e7846` (`Persist dirty launch worktree changes`).
+- Verification: `PYTHONPATH=/tmp/coga-auto-persist-launch-dirt/src python3.12 -m pytest tests/test_git.py -k 'launch_worktree or launch_cleanup'` (18 passed); `PYTHONPATH=/tmp/coga-auto-persist-launch-dirt/src python3.12 -m pytest` (1091 passed, 1 skipped); `git diff --check` (clean).
+- Handoff note: task-scoped validation, `coga bump auto-persist-dirty-launch-worktrees-to-pushed-bran`, and `coga block --task auto-persist-dirty-launch-worktrees-to-pushed-bran ...` all failed before running because this launch checkout has no `coga/coga.local.toml` user configured. I did not write `coga.local.toml`; the public Coga command needs that local config before the workflow can advance.
