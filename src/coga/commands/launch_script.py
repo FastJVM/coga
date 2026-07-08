@@ -20,7 +20,7 @@ from coga.bump import (
 from coga.compose import _extract_section
 from coga.config import Config, SecretError, build_launch_env
 from coga.logfile import append_log
-from coga.mark import mark_done, mark_in_progress
+from coga.mark import StrandedProductCode, mark_done, mark_in_progress
 from coga.paths import log_path, resolve_skill_path, skill_resolution_paths
 from coga.skill import Skill
 from coga.notification import post
@@ -435,6 +435,18 @@ def _mark_script_done(cfg: Config, ref: TaskRef, ticket: Ticket) -> None:
             ),
             digest_detail="→ done (script)",
             echo=f"{ref.id_slug}: done",
+        )
+    except StrandedProductCode as exc:
+        # No `_NO_PR_WORKFLOWS` member runs as a script today, so this is
+        # currently unreachable — but the guard set is meant to grow. Surface
+        # the strand loudly (as the interactive `mark done` does) instead of
+        # letting it escape as a traceback from an unattended script launch.
+        listed = "\n".join(f"    {p}" for p in exc.paths)
+        _bail(
+            f"Cannot finish {ref.id_slug}: its {exc.workflow_name} workflow has "
+            f"no push/PR step, but this checkout committed tracked product code "
+            f"not on the control branch:\n{listed}\n"
+            f"Move it to a code/* workflow so it opens a PR."
         )
     except TaskValidationError as exc:
         _bail(str(exc))

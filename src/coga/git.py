@@ -188,8 +188,12 @@ def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
         root = _toplevel(anchor_path)
         if root is None:
             return []
-        if not _control_branch_present(root, cfg.git_control_branch, cfg.git_remote):
-            return []
+        # A local base is all this function needs (the three-dot diff is
+        # against a local rev); `_local_control_base` returns None when neither
+        # the local branch nor the fetched remote-tracking ref exists, which
+        # already covers "control branch absent". Unlike the sync helpers this
+        # never fetches/pushes, so it skips their `_control_branch_present`
+        # pre-check and its remote-only `ls-remote` probe.
         base = _local_control_base(root, cfg.git_remote, cfg.git_control_branch)
         if base is None:
             return []
@@ -200,10 +204,13 @@ def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
             f":(exclude){spec}"
             for spec in _coga_state_pathspecs(root, cfg.repo_root)
         ]
+        # `-z` (NUL-delimited, no path quoting) so a product file with
+        # non-ASCII characters is named verbatim in the `mark done` error rather
+        # than git-quoted — the same reason `_changed_paths_under` uses it.
         out = _run_git(
-            root, "diff", "--name-only", f"{base}...{head}", "--", ".", *excludes
+            root, "diff", "-z", "--name-only", f"{base}...{head}", "--", ".", *excludes
         )
-        return [line for line in out.splitlines() if line]
+        return [path for path in out.split("\x00") if path]
     except GitError:
         return []
 

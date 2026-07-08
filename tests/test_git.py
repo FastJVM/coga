@@ -2053,6 +2053,17 @@ def test_stranded_product_paths_flags_committed_code_off_control(git_repo):
     assert git.stranded_product_paths(cfg, git_repo.coga_os) == ["src/coga/stray.py"]
 
 
+def test_stranded_product_paths_flags_detached_head_launch_worktree(git_repo):
+    """The real trigger: a detached-HEAD launch worktree with a committed
+    product file. `refs/heads/main` stays put (the base) while the detached
+    HEAD advances, so the three-dot diff still isolates the stranded commit."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("checkout", "--detach")
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    assert git.stranded_product_paths(cfg, git_repo.coga_os) == ["src/coga/stray.py"]
+
+
 def test_stranded_product_paths_ignores_coga_state(git_repo):
     """Committed Coga OS-state (`coga/`) is what sync already lands — not stranded."""
     cfg = load_config(git_repo.coga_os)
