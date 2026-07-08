@@ -115,6 +115,54 @@ guardrail, with the design decision for each recorded on the blackboard.
 > itself was never persisted — the notes stranded with the previous session.
 > Recovered from git (branch + commit `70c6b81e`) and the log entry.
 
+> pr step: branch was stale (behind `origin/main` by 9, incl. the open-pr
+> script landing as #517 and unrelated ticket-state syncs). Rebased cleanly
+> onto `origin/main` — only source overlap was `launch_script.py`, auto-merged
+> without conflict. Post-rebase commits: `41c50ee2` (guard) + `7e8bfcc5`
+> (self-qa). Full suite green (`1115 passed, 1 skipped`); the lone
+> `test_bootstrap_script_launch_is_stateless` failure is the documented
+> no-editable-install sandbox artifact, not a regression.
+
+## PR
+
+Guards the `direct/body` workflow against silently stranding committed product
+code off `main` — the failure mode from the 2026-07-06 benchmark incident (PR
+#42), where `direct/body` synced only ticket state while 2374 vendored files
+never reached `main` and were lost when the launch worktree was torn down.
+
+**Change.** `direct/body` has no push/PR step, so "done" and "on `main`" can
+diverge the moment a bodyless ticket commits real source. This adds a
+deterministic block at the exact moment that divergence becomes permanent —
+`coga mark done`:
+
+- `git.stranded_product_paths(cfg, anchor)` — three-dot (`base...HEAD`) diff of
+  HEAD vs the control branch, restricted to paths **outside** the Coga OS-state
+  subtree. Non-empty ⇒ product code the control branch won't get. Fail-open
+  (`[]`, never raises) when git is off / not a repo / control branch absent /
+  HEAD level with base / any probe fails.
+- `mark.mark_done(..., force=False)` raises `StrandedProductCode` for
+  `_NO_PR_WORKFLOWS` (`{"direct/body"}`) when stranding is detected;
+  `coga mark done <slug> [--force]` names the offending paths, points at
+  `code/*`, and exits 2. `_mark_script_done` catches it and bails loudly.
+
+**Audit (objective 1/2):** no in-repo code-producing `direct/body` tickets to
+remediate — the `benchmark/*` series lives in the xpllm repo, and the local
+`direct/body` tickets (Dream sweep, a done design ticket) produce no stranded
+product trees. So the guard is the forward protection; remediation is a no-op
+here. Full rationale in the `## Audit` blackboard section.
+
+**Guardrail choice (objective 3):** picked the `mark done` refusal over a
+Dream/REM sweep (after-the-fact) or forcing external worktrees (a larger,
+separate launch change tracked on its own ticket) — it's the smallest
+deterministic block and composes with the worktree-relocation work rather than
+competing with it. Known limitation: fires only when `mark done` runs from the
+worktree holding the commit (true for `direct/body`, where the transition runs
+in the launch worktree).
+
+**Tests:** `stranded_product_paths` edge cases (HEAD==base, detached-HEAD
+launch worktree, subdir control-branch layout, fail-open) + `mark done`
+refusal/`--force` bypass. Suite green on python3.12.
+
 ## Audit (objective 1)
 
 Swept `coga/tasks/` for `direct/body` tickets. Local offenders producing
