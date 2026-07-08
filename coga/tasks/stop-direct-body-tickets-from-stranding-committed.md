@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts: []
 skills: []
 workflow:
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -104,6 +104,7 @@ guardrail, with the design decision for each recorded on the blackboard.
 ## Dev
 
 - branch: `direct-body-strand-guard`
+- pr: https://github.com/FastJVM/coga/pull/528
 - worktree: `/home/n/Code/claude/coga-strand-guard` (external checkout, per
   `code/implement` doctrine — not `.coga/worktrees/`)
 - base: `2370bcb2` (merge-base with `main`); implement commit `70c6b81e`
