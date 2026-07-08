@@ -957,3 +957,5 @@ fatal: adding files failed
 error: coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md: failed to insert into database
 error: unable to index file 'coga/tasks/auto-persist-dirty-launch-worktrees-to-pushed-bran.md'
 fatal: adding files failed
+2026-07-07 15:05 [stop-direct-body-tickets-from-stranding-committed] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-07 18:16 [stop-direct-body-tickets-from-stranding-committed] [agent:claude] advanced to step 3 (pr) — self-qa clean: applied simplify + code-review fixes (commit d8887b31); branch direct-body-strand-guard ready for PR. Recovered stranded blackboard (Dev/Audit/guardrail) — see ticket.
