@@ -1612,6 +1612,14 @@ def test_venv_python_version_handles_malformed_cfg(tmp_path: Path) -> None:
     assert update_cmd._venv_python_version(venv) is None
 
 
+def test_venv_python_executable_parses_pyvenv_cfg(tmp_path: Path) -> None:
+    venv = tmp_path / ".venv"
+    venv.mkdir()
+    base_python = tmp_path / "python3.11"
+    (venv / "pyvenv.cfg").write_text(f"executable = {base_python}\n")
+    assert update_cmd._venv_python_executable(venv) == base_python.resolve()
+
+
 def test_install_venv_recreates_on_python_version_mismatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1824,6 +1832,60 @@ def test_install_venv_builds_with_coga_python_override(
     update_cmd.install_venv(coga_os)
 
     assert [cmd[0] for cmd in venv_calls] == [str(override)]
+
+
+def test_install_venv_recreates_when_override_changes_same_minor_interpreter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """COGA_PYTHON replaces a same-X.Y venv built by another interpreter."""
+    override = tmp_path / "new" / "python3.11"
+    override.parent.mkdir()
+    override.write_text("#!/bin/sh\n")
+    override.chmod(0o755)
+    monkeypatch.setenv(update_cmd.COGA_PYTHON_ENV, str(override))
+    coga_os = _venv_fixture_coga_os(tmp_path, requires_python=">=3.11")
+
+    venv_dir = coga_os / ".coga" / ".venv"
+    (venv_dir / "bin").mkdir(parents=True)
+    (venv_dir / "bin" / "python").write_text("#!/bin/sh\n")
+    (venv_dir / "bin" / "python").chmod(0o755)
+    old_python = tmp_path / "old" / "python3.11"
+    (venv_dir / "pyvenv.cfg").write_text(
+        f"version = 3.11.8\nexecutable = {old_python}\n"
+    )
+    sentinel = venv_dir / "old-interpreter.txt"
+    sentinel.write_text("stale")
+
+    venv_calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        if cmd[1] == "-c" and "sys.executable" in cmd[2]:
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout=f"{override}\n", stderr=""
+            )
+        if cmd[1] == "-c":
+            return subprocess.CompletedProcess(cmd, 0, stdout="3.11.9\n", stderr="")
+        if cmd[1:3] == ["-m", "venv"]:
+            venv_calls.append(list(cmd))
+            new_venv = Path(cmd[3])
+            (new_venv / "bin").mkdir(parents=True)
+            (new_venv / "bin" / "python").write_text("#!/bin/sh\n")
+            (new_venv / "bin" / "python").chmod(0o755)
+            (new_venv / "pyvenv.cfg").write_text(
+                f"version = 3.11.9\nexecutable = {override}\n"
+            )
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if "pip" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        raise AssertionError(f"unexpected subprocess call: {cmd}")
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    update_cmd.install_venv(coga_os)
+
+    assert not sentinel.exists()
+    assert [cmd[0] for cmd in venv_calls] == [str(override)]
+    assert update_cmd._venv_python_executable(venv_dir) == override.resolve()
 
 
 def test_install_venv_missing_ensurepip_prints_remediation(

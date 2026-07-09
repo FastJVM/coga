@@ -419,6 +419,24 @@ def _python_version(python: str) -> tuple[int, int, int] | None:
     return None
 
 
+def _python_executable(python: str) -> Path | None:
+    """Resolved executable identity reported by `python`, or None on failure."""
+    if python == sys.executable:
+        return Path(sys.executable).resolve()
+    try:
+        result = subprocess.run(
+            [python, "-c", "import sys; print(sys.executable)"],
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return None
+    executable = result.stdout.strip()
+    if result.returncode != 0 or not executable:
+        return None
+    return Path(executable).resolve()
+
+
 def _requires_python_spec(pyproject: Path) -> str | None:
     """`project.requires-python` from a pyproject.toml, or None if absent/unreadable."""
     try:
@@ -493,9 +511,10 @@ def install_venv(coga_os: Path) -> Path:
     remediation instead of half-way through a broken bootstrap.
 
     Idempotent: re-running upgrades the venv in place. If the existing venv was
-    built against a different Python X.Y than the chosen interpreter, it gets
-    rebuilt from scratch (pip-installed packages from the old version aren't
-    portable, and a host Python upgrade can leave a broken interpreter symlink).
+    built against a different Python X.Y, or an explicit `COGA_PYTHON` resolves
+    to a different base executable, it gets rebuilt from scratch (pip-installed
+    packages from another interpreter aren't portable, and a host Python upgrade
+    can leave a broken interpreter symlink).
     Returns the venv path. Exits with a clear error if Python venv/pip aren't usable.
     """
     dst_coga = coga_os / ".coga"
@@ -535,14 +554,35 @@ def install_venv(coga_os: Path) -> Path:
     target_version = python_version[:2]
     venv_version = _venv_python_version(venv_dir)
     venv_python = venv_dir / "bin" / "python"
+    override_requested = bool(os.environ.get(COGA_PYTHON_ENV, "").strip())
+    selected_executable = (
+        _python_executable(python)
+        if override_requested and venv_dir.exists()
+        else None
+    )
+    venv_executable = (
+        _venv_python_executable(venv_dir) if override_requested else None
+    )
+    override_mismatch = override_requested and venv_dir.exists() and (
+        selected_executable is None
+        or venv_executable is None
+        or selected_executable != venv_executable
+    )
     if venv_dir.exists() and (
         not venv_python.is_file()
         or (venv_version is not None and venv_version != target_version)
+        or override_mismatch
     ):
         if venv_version is not None and venv_version != target_version:
             typer.echo(
                 f"Recreating venv (was Python {venv_version[0]}.{venv_version[1]}, "
                 f"now {target_version[0]}.{target_version[1]})…"
+            )
+        elif override_mismatch:
+            old = str(venv_executable) if venv_executable is not None else "unknown"
+            new = str(selected_executable) if selected_executable is not None else python
+            typer.echo(
+                f"Recreating venv ({COGA_PYTHON_ENV} selects {new}, was {old})…"
             )
         shutil.rmtree(venv_dir)
 
@@ -687,6 +727,18 @@ def _venv_python_version(venv_dir: Path) -> tuple[int, int] | None:
         parts = value.strip().split(".")
         if len(parts) >= 2 and parts[0].isdigit() and parts[1].isdigit():
             return int(parts[0]), int(parts[1])
+    return None
+
+
+def _venv_python_executable(venv_dir: Path) -> Path | None:
+    """Resolved base executable recorded in `pyvenv.cfg`, or None."""
+    cfg = venv_dir / "pyvenv.cfg"
+    if not cfg.is_file():
+        return None
+    for line in cfg.read_text().splitlines():
+        key, sep, value = line.partition("=")
+        if sep and key.strip() == "executable" and value.strip():
+            return Path(value.strip()).resolve()
     return None
 
 
