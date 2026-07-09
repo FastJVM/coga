@@ -6,10 +6,11 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: nicktoper
-contexts: []
+assignee: claude
+contexts:
+  - dev/code
 skills: []
-workflow: null
+workflow: code/with-review
 secrets: null
 script: null
 ---

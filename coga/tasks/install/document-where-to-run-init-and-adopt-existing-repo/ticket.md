@@ -6,10 +6,11 @@ mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: zach
-contexts: []
+assignee: claude
+contexts:
+  - dev/code
 skills: []
-workflow: null
+workflow: code/with-review
 secrets: null
 ---
 
