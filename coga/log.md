@@ -990,3 +990,4 @@ fatal: adding files failed
 2026-07-09 15:04 [install/warn-loud-when-init-commit-is-skipped] [human:nicktoper] activated (draft → active)
 2026-07-09 15:04 [install/document-where-to-run-init-and-adopt-existing-repo] [human:nicktoper] activated (draft → active)
 2026-07-09 15:04 [install/external-users-cannot-install-managed-skills] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/harden-packaging-and-install-before-launch] [human:nicktoper] activated (draft → active)
