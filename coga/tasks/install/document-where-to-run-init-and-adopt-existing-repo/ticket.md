@@ -28,3 +28,12 @@ Touchpoint: README Getting Started, under editorial revision in
 `marketing/readme-and-docs`. Related behavior ticket:
 `marketing/relay-init-git-inits-a-fresh-dir` (fail loud when the init target
 isn't a git repo).
+
+**Retest 2026-07-08 (fresh-container):** the behavior half is fixed — init in
+a non-git dir fails loud with "Run `git init` … first". The docs half is
+worse than before: the current README (73 lines) has **no Getting Started at
+all** — it never mentions `coga init`, `--user`, running in the project's git
+root, adopting an existing repo, or that git *and gh* are required at init
+(no External CLI Tools section). Also: the "No coga.toml found" error tells
+you to run coga "from inside a Coga repo" without naming `coga init` — add
+the hint there too (`src/coga/cli.py`).

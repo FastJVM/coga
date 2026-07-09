@@ -39,6 +39,38 @@ trying to install Relay on a managed work machine.
   init re-clone: the fixes shipped (see below) but Greg still hit it, so this is
   a verification/retest ticket on a clean machine.
 
+### Filed from the fresh-container retest (2026-07-08)
+
+Issues found re-running the full first-install path in a clean docker
+`python:3.12` container (PyPI 0.2.0 + main HEAD):
+
+- `vendor-cli-from-installed-package-not-git-clone` — init clones main HEAD to
+  vendor the CLI; skew makes the vendored CLI reject init's own coga.toml.
+  Replace the clone with install-from-package.
+- `warn-loud-when-init-commit-is-skipped` — no git identity → init silently
+  skips the coga/ commit; first `coga create` then errors on missing HEAD.
+- `add-migration-errors-for-removed-config-keys` — HEAD rejects 0.2.0's own
+  scaffolded `[agents.*] auto` key with a generic unknown-key error.
+- `cut-release-to-realign-pypi-with-main` — main carries breaking changes but
+  still calls itself 0.2.0; release after the migration errors land.
+- `quiet-managed-skill-failures-on-old-gh` — gh<2.90 dumps the gh usage screen
+  per skill (~260 lines); detect once, one compact line.
+- `improve-reinit-already-exists-message` — bare "already exists" refusal with
+  no remedy (`--update` is gone).
+- `init-next-steps-should-mention-agent-cli-requireme` — "run `coga build`"
+  without saying Claude Code/Codex must be installed.
+- `gh-auth-hint-on-managed-skill-rate-limit` — anonymous API quota 403s the
+  skill installs; remediation should say `gh auth login`.
+- `decide-whether-gh-stays-required-at-init` — deliberate call on demoting gh
+  to point-of-need like `op`.
+
+Retest verdicts were also appended to the Greg-era tickets still open
+(`pip-hash-requirement…`, `relay-help-and-cli…`, `document-where-to-run-init…`,
+`retest-ssh-https…`). Verified fixed and left to close/delete:
+`recommend-virtualenv-not-system-python` (uv path),
+`init-does-not-persist-user-then-blocks-on-reinit` (atomic rollback),
+`external-users-cannot-install-managed-skills` (public manifest, warn-only).
+
 ### Deliberately NOT filed (already covered)
 
 - **SSH vs HTTPS clone + init re-clone / `RELAY_REPO_URL`** → the behavior fix is

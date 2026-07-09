@@ -29,3 +29,11 @@ and Development Commands"). This is the first domino in his install attempt — 
 also caused the partial `relay init` failure tracked by
 `install/init-does-not-persist-user-then-blocks-on-reinit`. Broader install
 robustness is the umbrella `install/harden-packaging-and-install-before-launch`.
+
+**Retest 2026-07-08 (fresh-container):** still broken. `PIP_REQUIRE_HASHES=1`
+raw-fails both `pip install coga` ("requirements must have versions pinned")
+and `pip install -e .` ("no single file to hash") with no coga-side detection
+and no docs mention. Partial mitigation shipped: README now leads with
+`uv tool install coga`, which ignores pip config. Remaining work: document
+the uv escape hatch next to the pip instructions (README Install), and/or
+detect the failure and print the remediation.

@@ -31,3 +31,12 @@ on a real SSH-default machine. Touchpoints to exercise: `RELAY_REPO_URL` /
 `clone_upstream` in `src/relay/commands/update.py`, and source normalization in
 `src/relay/skill_manager.py`. Sibling onboarding issues live in this `install/`
 group.
+
+**Retest 2026-07-08 (fresh-container, HTTPS path):** `COGA_REPO_URL` override
+verified working (including a local-path value — Greg's workaround is a
+sanctioned path now); code prefers an SSH coga remote when one exists; failed
+clone rolls back atomically. Still open here: (a) the real SSH-default-machine
+run this ticket asks for, and (b) the re-clone surprise itself, which
+escalated — the clone vendors *main HEAD*, not the installed version, and is
+slated for removal in `install/vendor-cli-from-installed-package-not-git-clone`.
+If that ticket lands first, only the SSH-machine verification remains.

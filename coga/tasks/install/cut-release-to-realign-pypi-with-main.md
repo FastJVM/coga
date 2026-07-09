@@ -16,9 +16,23 @@ script: null
 
 ## Description
 
-
+Main has drifted from the published 0.2.0 wheel with breaking changes and no
+version bump — `pyproject.toml` still says 0.2.0 while HEAD removed the
+`[agents.*] auto` config key, hard-requires `coga init --user`, requires
+`user` at config load for every command, dropped the `autonomy` field/column,
+and renamed "panic" → "block" in notification text. Because `coga init`
+vendors main HEAD (see the vendor-cli sibling ticket), this skew ships to
+every fresh init today. Bump the version (0.3.0), cut the release per
+`docs/releasing.md`, and publish — after the migration-error ticket lands so
+upgraders get actionable errors instead of generic unknown-key failures.
 
 ## Context
+
+Found in the 2026-07-08 fresh-container retest: PyPI 0.2.0 and `pip install
+/src` both report `coga 0.2.0` yet behave differently on init/--help/config.
+Depends on: `install/add-migration-errors-for-removed-config-keys` (land
+first), ideally `install/vendor-cli-from-installed-package-not-git-clone`.
+Touchpoints: `pyproject.toml` version, `docs/releasing.md` process.
 
 <!-- coga:blackboard -->
 

@@ -16,9 +16,20 @@ script: null
 
 ## Description
 
-
+Unauthenticated `gh skill install` runs against GitHub's anonymous API quota
+(60 req/hr per IP); repeated inits — or one init behind office NAT — 403 all
+managed-skill installs with a raw rate-limit dump. The failures are warn-only
+(init proceeds), but the remediation hint suggests re-running
+`coga skill install …`, which hits the same limit. When the failure is a
+rate-limit 403, the remediation should say `gh auth login` (authenticated
+requests get a much higher quota), and the raw GitHub ToS/request-ID blob
+should be trimmed to the one actionable line.
 
 ## Context
+
+Found in the 2026-07-08 fresh-container retest (third init from one IP,
+gh 2.96 unauthenticated). Touchpoints: `src/coga/managed_skills.py` /
+`src/coga/skill_manager.py` (failure classification + remediation text).
 
 <!-- coga:blackboard -->
 
