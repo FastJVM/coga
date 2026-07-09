@@ -978,3 +978,4 @@ fatal: adding files failed
 2026-07-09 11:37 [install/decide-whether-gh-stays-required-at-init] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-09 12:29 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-09 12:29 [validate-tickets-at-create-time] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 15:03 [install/add-migration-errors-for-removed-config-keys] [human:nicktoper] activated (draft → active)
