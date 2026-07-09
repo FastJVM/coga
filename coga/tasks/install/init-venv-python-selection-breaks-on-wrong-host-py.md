@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -57,4 +57,53 @@ the venv itself, so the interpreter-selection question survives that ticket.
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: venv-python-selection
+worktree: /home/n/Code/claude/coga/.coga/worktrees/coga-venv-python-selection
+
+## Implemented (commit c82c0f6e on venv-python-selection)
+
+All in `src/coga/commands/update.py`; tests in `tests/test_init.py` next to
+the existing venv-recreation block, same monkeypatched-`subprocess.run` style.
+
+1. **Explicit, documented resolution rule** — new `resolve_venv_python()`:
+   (1) `$COGA_PYTHON` if set (path or PATH name via `shutil.which`; exits 2
+   if it doesn't resolve — an explicit choice never silently falls back),
+   else (2) `sys.executable`, the interpreter running the coga CLI. Rule
+   documented in the function and `install_venv` docstrings. `COGA_PYTHON`
+   is the escape hatch for "pip accepted this Python but the vendored build
+   chokes on it" — a requires-python check alone can't catch a too-new
+   interpreter that the spec still admits.
+2. **Validate before building** — `_requires_python_spec()` parses
+   `requires-python` from the vendored pyproject (stdlib `tomllib`);
+   `_version_satisfies()` is a minimal PEP 440 clause matcher
+   (`>= > <= < == != ~=` + `.*` wildcards on ==/!=; unparseable clauses
+   count as satisfied so an exotic spec can't brick the bootstrap — pip
+   re-checks at install time). Rejection names the spec, the interpreter
+   path/version, and the `COGA_PYTHON=` remediation, and happens before any
+   venv is created or removed.
+3. **ensurepip remediation** — when `python -m venv` fails and stderr
+   mentions ensurepip, the error appends
+   `sudo apt install python3.X-venv` (X.Y from the chosen interpreter) or
+   "set COGA_PYTHON to a Python with venv support".
+4. **Rebuild check follows the chosen interpreter** — recreate-on-X.Y-
+   mismatch now compares `pyvenv.cfg` against the *resolved* python's
+   version, not blindly `sys.version_info`.
+
+Verification:
+- `python3.12 -m pytest` (with `PYTHONPATH=src`): 1135 passed, 1 skipped.
+- E2E on this host: `COGA_PYTHON=<miniconda 3.9>` → rejected pre-build with
+  "Python 3.9.12 … does not satisfy … (>=3.11)" + remediation, exit 2.
+  `COGA_PYTHON=python3.12` → real venv built (pyvenv.cfg 3.12.12), vendored
+  CLI pip-installed and executable.
+
+Notes for reviewer:
+- Pre-existing, unrelated: `test_launch_script.py::test_bootstrap_script_
+  launch_is_stateless` fails when `coga` isn't installed in the running
+  interpreter (pytest's `pythonpath = ["src"]` doesn't reach subprocesses);
+  fails identically on unmodified main, passes with `PYTHONPATH=src`
+  exported. Not caused by this change; possible follow-up: export it from
+  the test or conftest.
+- Debian's own venv-failure stderr already suggests the apt package; our
+  remediation keys on "ensurepip" in stderr, so it's additive and also
+  covers non-Debian pythons with stripped ensurepip.
