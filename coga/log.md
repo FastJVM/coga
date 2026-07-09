@@ -1007,3 +1007,8 @@ fatal: adding files failed
 2026-07-09 15:06 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-09 15:07 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-09 15:16 [install/init-venv-python-selection-breaks-on-wrong-host-py] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — Implemented: explicit venv interpreter rule (COGA_PYTHON override), requires-python pre-check, ensurepip remediation — branch venv-python-selection, suite green
+2026-07-09 15:06 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-09 15:07 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
+2026-07-09 15:16 [install/init-venv-python-selection-breaks-on-wrong-host-py] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — Implemented: explicit venv interpreter rule (COGA_PYTHON override), requires-python pre-check, ensurepip remediation — branch venv-python-selection, suite green
+2026-07-09 15:16 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-09 16:38 [install/init-venv-python-selection-breaks-on-wrong-host-py] [agent:codex] advanced to step 3 (open-pr) → assigned to claude

@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -29,7 +29,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -107,6 +107,37 @@ Notes for reviewer:
 - Debian's own venv-failure stderr already suggests the apt package; our
   remediation keys on "ensurepip" in stderr, so it's additive and also
   covers non-Debian pythons with stripped ensurepip.
+
+## Peer Review
+
+Native `codex review --base main` was rerun outside the sandbox after the
+known read-only app-server startup failure. It found one must-fix: an existing
+venv from a different interpreter with the same X.Y caused an explicit
+`COGA_PYTHON` override to be silently ignored.
+
+Fixed in commit `9b967200`: an explicit override now compares the selected
+interpreter's resolved executable identity with `pyvenv.cfg` and rebuilds on
+mismatch (or when old metadata cannot prove a match). Added regression coverage
+and documented the durable rule in `coga/codebase`.
+
+Verification:
+- `PYTHONPATH=$PWD/src python3.12 -m pytest tests/test_init.py -q` — 94 passed.
+- `PYTHONPATH=$PWD/src python3.12 -m pytest -q` — 1137 passed, 1 skipped.
+- `git diff --check main...HEAD` — clean.
+- `git merge-tree <merge-base> main HEAD` — clean merge; no conflicts.
+- `coga validate --task install/init-venv-python-selection-breaks-on-wrong-host-py
+  --json` — clean (`ok_count: 1`, no issues) after the owner authorized creating
+  this launch checkout's missing machine-local user config.
+
+## PR
+
+Make the interpreter that builds `.coga/.venv` explicit and fail early: honor
+`COGA_PYTHON` before falling back to the running CLI's Python, validate the
+choice against the vendored `requires-python`, rebuild when either X.Y or an
+explicit interpreter identity changes, and give exact `venv`/`ensurepip`
+remediation. The interpreter contract is documented in `coga/codebase`.
+
+Test plan: `PYTHONPATH=$PWD/src python3.12 -m pytest -q` (1137 passed, 1 skipped).
 
 ## Usage
 
