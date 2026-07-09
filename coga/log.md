@@ -969,3 +969,4 @@ fatal: adding files failed
 2026-07-08 20:22 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-09 11:37 [install/vendor-cli-from-installed-package-not-git-clone] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-09 11:37 [install/warn-loud-when-init-commit-is-skipped] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 11:37 [install/add-migration-errors-for-removed-config-keys] [human:nicktoper] created (mode=agent, status=draft)
