@@ -976,3 +976,4 @@ fatal: adding files failed
 2026-07-09 11:37 [install/init-next-steps-should-mention-agent-cli-requireme] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-09 11:37 [install/gh-auth-hint-on-managed-skill-rate-limit] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-09 11:37 [install/decide-whether-gh-stays-required-at-init] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 12:29 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] created (mode=agent, status=draft)
