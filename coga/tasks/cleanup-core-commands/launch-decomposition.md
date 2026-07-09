@@ -1,25 +1,46 @@
 ---
 slug: cleanup-core-commands/launch-decomposition
 title: Decompose launch into substrate plus ticket orchestration
-status: draft
+status: active
 mode: agent
 owner: nicktoper
 human: nicktoper
 agent: codex
 assignee: codex
 contexts:
-  - coga/principles
-  - coga/architecture
-  - coga/codebase
-  - coga/current-direction
-  - coga/extension-model
-  - coga/project-stage
-  - coga/cli
-  - dev/code
+- coga/principles
+- coga/architecture
+- coga/codebase
+- coga/current-direction
+- coga/extension-model
+- coga/project-stage
+- coga/cli
+- dev/code
 skills: []
-workflow: code/design-then-implement
+workflow:
+  name: code/design-then-implement
+  steps:
+  - name: design
+    skills:
+    - code/design
+    assignee: agent
+  - name: review-design
+    skills: []
+    assignee: owner
+  - name: implement
+    skills:
+    - code/implement
+    assignee: agent
+  - name: open-pr
+    skills:
+    - code/open-pr
+    assignee: agent
+  - name: review
+    skills: []
+    assignee: owner
 secrets: null
 script: null
+step: 1 (design)
 ---
 
 ## Description

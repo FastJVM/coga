@@ -999,3 +999,4 @@ fatal: adding files failed
 2026-07-08 20:24 [bootstrap/ticket] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
 2026-07-08 20:24 [cleanup-core-commands] [human:nicktoper] ticket authoring launched (assignee=codex, agent=codex)
 2026-07-09 15:06 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nicktoper] started (active → in_progress) via coga launch
+2026-07-09 15:07 [cleanup-core-commands/launch-decomposition] [human:nicktoper] activated (draft → active) — auto on launch
