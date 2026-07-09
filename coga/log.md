@@ -972,3 +972,4 @@ fatal: adding files failed
 2026-07-09 11:37 [install/add-migration-errors-for-removed-config-keys] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-09 11:37 [install/cut-release-to-realign-pypi-with-main] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-09 11:37 [install/quiet-managed-skill-failures-on-old-gh] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 11:37 [install/improve-reinit-already-exists-message] [human:nicktoper] created (mode=agent, status=draft)
