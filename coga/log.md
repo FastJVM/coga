@@ -974,3 +974,4 @@ fatal: adding files failed
 2026-07-09 11:37 [install/quiet-managed-skill-failures-on-old-gh] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-09 11:37 [install/improve-reinit-already-exists-message] [human:nicktoper] created (mode=agent, status=draft)
 2026-07-09 11:37 [install/init-next-steps-should-mention-agent-cli-requireme] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 11:37 [install/gh-auth-hint-on-managed-skill-rate-limit] [human:nicktoper] created (mode=agent, status=draft)
