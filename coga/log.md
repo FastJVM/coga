@@ -994,3 +994,4 @@ fatal: adding files failed
 2026-07-09 15:04 [install/init-does-not-persist-user-then-blocks-on-reinit] [human:nicktoper] activated (draft → active)
 2026-07-09 15:04 [install/pip-hash-requirement-breaks-editable-install] [human:nicktoper] activated (draft → active)
 2026-07-09 15:04 [install/recommend-virtualenv-not-system-python] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/relay-help-and-cli-should-not-require-user] [human:nicktoper] activated (draft → active)
