@@ -1,4 +1,5 @@
 ---
+slug: install/init-does-not-persist-user-then-blocks-on-reinit
 title: relay init doesn't persist user on first run, then wedges on re-init
 status: draft
 mode: agent
@@ -29,3 +30,7 @@ init hardening: `marketing/relay-init-git-inits-a-fresh-dir` (fail loud when the
 target isn't a git repo) and `fresh-repo-default-branch-mismatch-git-init-master`.
 Name capture itself is `relay-init-captures-name-via-user-param` (done). Init code
 is in `src/relay/commands/` (init) and `src/relay/config.py`.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

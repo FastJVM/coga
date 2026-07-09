@@ -1,4 +1,5 @@
 ---
+slug: install/recommend-virtualenv-not-system-python
 title: Onboarding install should use a virtualenv, not system Python
 status: draft
 mode: agent
@@ -29,3 +30,7 @@ editorial revision in `marketing/readme-and-docs`. Distinct from
 `document-cross-machine-sandbox-dev-loop-friction-i` (that captures the
 *contributor* dev-loop python-version friction — .venv 3.9 vs the 3.11+ Relay
 needs); this one is about first-time *user* onboarding.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

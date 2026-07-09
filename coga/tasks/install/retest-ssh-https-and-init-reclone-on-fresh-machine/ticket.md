@@ -1,4 +1,5 @@
 ---
+slug: install/retest-ssh-https-and-init-reclone-on-fresh-machine
 title: Retest SSH/HTTPS clone + init re-clone on a fresh work machine
 status: draft
 mode: agent
@@ -40,3 +41,7 @@ run this ticket asks for, and (b) the re-clone surprise itself, which
 escalated — the clone vendors *main HEAD*, not the installed version, and is
 slated for removal in `install/vendor-cli-from-installed-package-not-git-clone`.
 If that ticket lands first, only the SSH-machine verification remains.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

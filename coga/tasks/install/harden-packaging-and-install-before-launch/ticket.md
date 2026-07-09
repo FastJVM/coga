@@ -1,4 +1,5 @@
 ---
+slug: install/harden-packaging-and-install-before-launch
 title: Harden packaging and first-install before launch
 status: draft
 mode: agent
@@ -29,3 +30,7 @@ alongside this ticket in `install/`. Pointers: the editable-install path
 (`marketing/readme-and-docs`), and the `pip install relay-os` packaging story
 referenced in the `relay/cli` and `relay/architecture` contexts. This is a
 scoping/decision ticket; the concrete fixes are its sibling tickets.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

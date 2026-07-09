@@ -1,4 +1,5 @@
 ---
+slug: install/relay-help-and-cli-should-not-require-user
 title: relay CLI should not require user to be set (default to $USER)
 status: draft
 mode: agent
@@ -36,3 +37,7 @@ works everywhere, blank `user` tolerated. But unreleased main REGRESSES this:
 it before they can run anything. Scope this ticket to main's behavior:
 read-only/help commands must not need `user`, and document (or automate) the
 teammate step that creates `coga.local.toml`.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

@@ -1,4 +1,5 @@
 ---
+slug: install/document-where-to-run-init-and-adopt-existing-repo
 title: Document where to run relay init and how to adopt an existing project
 status: draft
 mode: agent
@@ -37,3 +38,7 @@ root, adopting an existing repo, or that git *and gh* are required at init
 (no External CLI Tools section). Also: the "No coga.toml found" error tells
 you to run coga "from inside a Coga repo" without naming `coga init` — add
 the hint there too (`src/coga/cli.py`).
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

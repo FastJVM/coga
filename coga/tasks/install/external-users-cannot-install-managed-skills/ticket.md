@@ -1,4 +1,5 @@
 ---
+slug: install/external-users-cannot-install-managed-skills
 title: External users can't install managed skills (relay-skills access)
 status: draft
 mode: agent
@@ -29,3 +30,7 @@ usage dumps burying the success lines) is already owned by
 orthogonal *access/availability* problem for non-team users. Skill install
 delegates to `gh skill` (see the `relay/cli` context, `relay skill`) and
 `src/relay/skill_manager.py`.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.

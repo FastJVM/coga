@@ -1,4 +1,5 @@
 ---
+slug: install/pip-hash-requirement-breaks-editable-install
 title: pip hash-checking mode breaks editable install
 status: draft
 mode: agent
@@ -37,3 +38,7 @@ and no docs mention. Partial mitigation shipped: README now leads with
 `uv tool install coga`, which ignores pip config. Remaining work: document
 the uv escape hatch next to the pip instructions (README Install), and/or
 detect the failure and print the remediation.
+
+<!-- coga:blackboard -->
+
+The blackboard is a notepad to be written to often as the human and agent works through a task.
