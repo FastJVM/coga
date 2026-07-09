@@ -968,3 +968,4 @@ fatal: adding files failed
 2026-07-07 18:26 [stop-direct-body-tickets-from-stranding-committed] [agent:claude] advanced to step 4 (review) → assigned to nicktoper — PR opened: https://github.com/FastJVM/coga/pull/528
 2026-07-08 20:22 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-09 11:37 [install/vendor-cli-from-installed-package-not-git-clone] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-09 11:37 [install/warn-loud-when-init-commit-is-skipped] [human:nicktoper] created (mode=agent, status=draft)
