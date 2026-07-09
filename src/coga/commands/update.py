@@ -10,9 +10,11 @@ from __future__ import annotations
 from importlib.resources import files
 from importlib.resources.abc import Traversable
 import os
+import re
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 import typer
@@ -363,11 +365,135 @@ def write_bin_wrapper(bin_dir: Path) -> None:
     wrapper.symlink_to(Path("..") / ".venv" / "bin" / "coga")
 
 
+COGA_PYTHON_ENV = "COGA_PYTHON"
+
+
+def resolve_venv_python() -> str:
+    """Pick the interpreter that builds `.coga/.venv`. The rule, in order:
+
+    1. `$COGA_PYTHON` — explicit operator override; a path or a PATH name
+       (`COGA_PYTHON=python3.11 coga init …`). The escape hatch when the
+       CLI's own interpreter is one the vendored build chokes on. Exits if
+       it doesn't resolve to an executable — an explicit choice that can't
+       be honored must never silently fall back to a different Python.
+    2. `sys.executable` — the interpreter running the coga CLI. Whatever
+       installed coga (pipx, uv tool, pip) already imports it under this
+       Python, and `python -m venv` derives the venv from this
+       interpreter's base, so the venv gets the version validated here.
+
+    `install_venv` validates the choice against the vendored copy's
+    `requires-python` before building anything.
+    """
+    override = os.environ.get(COGA_PYTHON_ENV, "").strip()
+    if not override:
+        return sys.executable
+    resolved = shutil.which(override)
+    if not resolved:
+        typer.secho(
+            f"{COGA_PYTHON_ENV}={override} does not resolve to an executable"
+            " Python — fix or unset it.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    return resolved
+
+
+def _python_version(python: str) -> tuple[int, int, int] | None:
+    """(major, minor, micro) of `python`, or None if it can't be run/parsed."""
+    if python == sys.executable:
+        return (sys.version_info[0], sys.version_info[1], sys.version_info[2])
+    try:
+        result = subprocess.run(
+            [python, "-c", "import sys; print('%d.%d.%d' % sys.version_info[:3])"],
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    parts = result.stdout.strip().split(".")
+    if len(parts) == 3 and all(p.isdigit() for p in parts):
+        return (int(parts[0]), int(parts[1]), int(parts[2]))
+    return None
+
+
+def _requires_python_spec(pyproject: Path) -> str | None:
+    """`project.requires-python` from a pyproject.toml, or None if absent/unreadable."""
+    try:
+        data = tomllib.loads(pyproject.read_text())
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    spec = data.get("project", {}).get("requires-python")
+    if isinstance(spec, str) and spec.strip():
+        return spec.strip()
+    return None
+
+
+_SPEC_CLAUSE_RE = re.compile(r"^(>=|<=|==|!=|~=|>|<)\s*([0-9]+(?:\.[0-9]+)*(?:\.\*)?)$")
+
+
+def _version_satisfies(version: tuple[int, int, int], spec: str) -> bool:
+    """Check a Python version against a `requires-python` specifier.
+
+    Covers the PEP 440 subset that shows up in real requires-python fields:
+    comma-joined `>= > <= < == != ~=` clauses plus `.*` wildcards on ==/!=.
+    Clauses it can't parse count as satisfied — an exotic spec must not
+    brick the bootstrap; pip re-checks the full spec at install time.
+    """
+    for clause in spec.split(","):
+        clause = clause.strip()
+        if not clause:
+            continue
+        match = _SPEC_CLAUSE_RE.match(clause)
+        if not match:
+            continue
+        if not _spec_clause_holds(version, match.group(1), match.group(2)):
+            return False
+    return True
+
+
+def _spec_clause_holds(version: tuple[int, int, int], op: str, want: str) -> bool:
+    wildcard = want.endswith(".*")
+    if wildcard:
+        want = want[:-2]
+    want_parts = tuple(int(p) for p in want.split("."))
+    if wildcard and op in ("==", "!="):
+        matches = version[: len(want_parts)] == want_parts
+        return matches if op == "==" else not matches
+    padded = (want_parts + (0, 0, 0))[:3]
+    if op == ">=":
+        return version >= padded
+    if op == ">":
+        return version > padded
+    if op == "<=":
+        return version <= padded
+    if op == "<":
+        return version < padded
+    if op == "==":
+        return version == padded
+    if op == "!=":
+        return version != padded
+    if op == "~=":
+        # ~=X.Y means >=X.Y and matching all but the last given component.
+        if len(want_parts) < 2:
+            return True
+        return version >= padded and version[: len(want_parts) - 1] == want_parts[:-1]
+    return True
+
+
 def install_venv(coga_os: Path) -> Path:
     """Create `.coga/.venv/` and `pip install` the vendored coga package into it.
 
+    The venv's interpreter comes from `resolve_venv_python()` ($COGA_PYTHON,
+    else the Python running this CLI) and is validated against the vendored
+    copy's `requires-python` before anything is built, so an interpreter the
+    install method tolerated but the vendored build can't use fails here with
+    remediation instead of half-way through a broken bootstrap.
+
     Idempotent: re-running upgrades the venv in place. If the existing venv was
-    built against a different Python X.Y than the current interpreter, it gets
+    built against a different Python X.Y than the chosen interpreter, it gets
     rebuilt from scratch (pip-installed packages from the old version aren't
     portable, and a host Python upgrade can leave a broken interpreter symlink).
     Returns the venv path. Exits with a clear error if Python venv/pip aren't usable.
@@ -383,33 +509,61 @@ def install_venv(coga_os: Path) -> Path:
         )
         sys.exit(2)
 
-    host_version = sys.version_info[:2]
+    python = resolve_venv_python()
+    python_version = _python_version(python)
+    if python_version is None:
+        typer.secho(
+            f"Cannot determine the Python version of {python} — it doesn't run.\n"
+            f"Set {COGA_PYTHON_ENV} to a working Python 3 interpreter and re-run.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+    spec = _requires_python_spec(pyproject)
+    if spec is not None and not _version_satisfies(python_version, spec):
+        version_str = ".".join(str(p) for p in python_version)
+        typer.secho(
+            f"Python {version_str} ({python}) does not satisfy the vendored "
+            f"CLI's requires-python ({spec}).\n"
+            f"Re-run with a suitable interpreter, e.g. "
+            f"{COGA_PYTHON_ENV}=python3.11 coga init …",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        sys.exit(2)
+
+    target_version = python_version[:2]
     venv_version = _venv_python_version(venv_dir)
     venv_python = venv_dir / "bin" / "python"
     if venv_dir.exists() and (
         not venv_python.is_file()
-        or (venv_version is not None and venv_version != host_version)
+        or (venv_version is not None and venv_version != target_version)
     ):
-        if venv_version is not None and venv_version != host_version:
+        if venv_version is not None and venv_version != target_version:
             typer.echo(
                 f"Recreating venv (was Python {venv_version[0]}.{venv_version[1]}, "
-                f"now {host_version[0]}.{host_version[1]})…"
+                f"now {target_version[0]}.{target_version[1]})…"
             )
         shutil.rmtree(venv_dir)
 
     if not venv_python.is_file():
         typer.echo(f"Creating venv at {venv_dir}…")
         result = subprocess.run(
-            [sys.executable, "-m", "venv", str(venv_dir)],
+            [python, "-m", "venv", str(venv_dir)],
             capture_output=True,
             text=True,
         )
         if result.returncode != 0:
-            typer.secho(
-                f"venv creation failed:\n{result.stderr}",
-                fg=typer.colors.RED,
-                err=True,
-            )
+            message = f"venv creation failed:\n{result.stderr}"
+            if "ensurepip" in result.stderr:
+                message += (
+                    f"\n{python} is missing the venv/ensurepip modules "
+                    "(Debian/Ubuntu ship them separately). Fix:\n"
+                    f"  sudo apt install python{target_version[0]}."
+                    f"{target_version[1]}-venv\n"
+                    f"or set {COGA_PYTHON_ENV} to a Python with venv support."
+                )
+            typer.secho(message, fg=typer.colors.RED, err=True)
             sys.exit(2)
 
     typer.echo("Installing vendored CLI into venv (pip install)…")

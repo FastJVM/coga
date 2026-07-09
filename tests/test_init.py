@@ -1697,6 +1697,162 @@ def test_install_venv_keeps_matching_venv(
     assert sentinel.read_text() == "preserve me"
 
 
+# --- venv interpreter selection ------------------------------------------------
+
+
+def test_resolve_venv_python_defaults_to_sys_executable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(update_cmd.COGA_PYTHON_ENV, raising=False)
+    assert update_cmd.resolve_venv_python() == sys.executable
+
+
+def test_resolve_venv_python_honors_coga_python(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stub = tmp_path / "python3.11"
+    stub.write_text("#!/bin/sh\n")
+    stub.chmod(0o755)
+    monkeypatch.setenv(update_cmd.COGA_PYTHON_ENV, str(stub))
+    assert update_cmd.resolve_venv_python() == str(stub)
+
+
+def test_resolve_venv_python_exits_on_dangling_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys,
+) -> None:
+    """An explicit COGA_PYTHON that doesn't exist fails loud, never falls back."""
+    monkeypatch.setenv(update_cmd.COGA_PYTHON_ENV, str(tmp_path / "no-such-python"))
+    with pytest.raises(SystemExit) as exc:
+        update_cmd.resolve_venv_python()
+    assert exc.value.code == 2
+    assert update_cmd.COGA_PYTHON_ENV in capsys.readouterr().err
+
+
+def test_requires_python_spec_reads_pyproject(tmp_path: Path) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text("[project]\nname = 'coga'\nrequires-python = \">=3.11\"\n")
+    assert update_cmd._requires_python_spec(pyproject) == ">=3.11"
+
+
+def test_requires_python_spec_none_when_absent(tmp_path: Path) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text("[project]\nname = 'coga'\n")
+    assert update_cmd._requires_python_spec(pyproject) is None
+
+
+@pytest.mark.parametrize(
+    ("version", "spec", "expected"),
+    [
+        ((3, 11, 4), ">=3.11", True),
+        ((3, 10, 9), ">=3.11", False),
+        ((3, 12, 0), ">=3.11,<3.12", False),
+        ((3, 11, 9), ">=3.11,<3.12", True),
+        ((4, 0, 0), "<4", False),
+        ((3, 12, 1), "!=3.12.*", False),
+        ((3, 13, 0), "!=3.12.*", True),
+        ((3, 11, 2), "~=3.11", True),
+        ((4, 0, 0), "~=3.11", False),
+        ((3, 11, 0), "==3.11", True),
+        # Unparseable clauses count as satisfied — never brick the bootstrap.
+        ((3, 11, 0), ">=3.11, unparseable-nonsense", True),
+    ],
+)
+def test_version_satisfies_spec(
+    version: tuple[int, int, int], spec: str, expected: bool,
+) -> None:
+    assert update_cmd._version_satisfies(version, spec) is expected
+
+
+def _venv_fixture_coga_os(tmp_path: Path, requires_python: str | None = None) -> Path:
+    """A minimal `<coga_os>/.coga/pyproject.toml` tree for install_venv tests."""
+    coga_os = tmp_path / "coga"
+    dst_coga = coga_os / ".coga"
+    dst_coga.mkdir(parents=True)
+    body = "[project]\nname = 'coga'\n"
+    if requires_python is not None:
+        body += f'requires-python = "{requires_python}"\n'
+    (dst_coga / "pyproject.toml").write_text(body)
+    return coga_os
+
+
+def test_install_venv_rejects_python_outside_requires_python(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys,
+) -> None:
+    """The requires-python check runs before any venv is built."""
+    monkeypatch.delenv(update_cmd.COGA_PYTHON_ENV, raising=False)
+    coga_os = _venv_fixture_coga_os(tmp_path, requires_python=">=99.0")
+
+    with pytest.raises(SystemExit) as exc:
+        update_cmd.install_venv(coga_os)
+
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    assert ">=99.0" in err
+    assert update_cmd.COGA_PYTHON_ENV in err
+    assert not (coga_os / ".coga" / ".venv").exists()
+
+
+def test_install_venv_builds_with_coga_python_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """COGA_PYTHON picks the interpreter the venv is created with."""
+    override = tmp_path / "python3.11"
+    override.write_text("#!/bin/sh\n")
+    override.chmod(0o755)
+    monkeypatch.setenv(update_cmd.COGA_PYTHON_ENV, str(override))
+    coga_os = _venv_fixture_coga_os(tmp_path, requires_python=">=3.11")
+
+    venv_calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        if cmd[1] == "-c":  # version probe of the override interpreter
+            return subprocess.CompletedProcess(cmd, 0, stdout="3.11.9\n", stderr="")
+        if cmd[1:3] == ["-m", "venv"]:
+            venv_calls.append(list(cmd))
+            new_venv = Path(cmd[3])
+            (new_venv / "bin").mkdir(parents=True)
+            (new_venv / "bin" / "python").write_text("#!/bin/sh\n")
+            (new_venv / "bin" / "python").chmod(0o755)
+            (new_venv / "pyvenv.cfg").write_text("version = 3.11.9\n")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        if "pip" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        raise AssertionError(f"unexpected subprocess call: {cmd}")
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    update_cmd.install_venv(coga_os)
+
+    assert [cmd[0] for cmd in venv_calls] == [str(override)]
+
+
+def test_install_venv_missing_ensurepip_prints_remediation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys,
+) -> None:
+    """A Debian-style venv failure names the python3.X-venv package to install."""
+    monkeypatch.delenv(update_cmd.COGA_PYTHON_ENV, raising=False)
+    coga_os = _venv_fixture_coga_os(tmp_path)
+
+    def fake_run(cmd, **kwargs):
+        if cmd[1:3] == ["-m", "venv"]:
+            return subprocess.CompletedProcess(
+                cmd, 1, stdout="",
+                stderr="Error: ensurepip is not available.\n",
+            )
+        raise AssertionError(f"unexpected subprocess call: {cmd}")
+
+    monkeypatch.setattr(update_cmd.subprocess, "run", fake_run)
+
+    with pytest.raises(SystemExit) as exc:
+        update_cmd.install_venv(coga_os)
+
+    assert exc.value.code == 2
+    err = capsys.readouterr().err
+    major, minor = sys.version_info[:2]
+    assert f"apt install python{major}.{minor}-venv" in err
+    assert update_cmd.COGA_PYTHON_ENV in err
+
+
 # --- running_cli_location / upgrade_global_cli --------------------------------
 
 
