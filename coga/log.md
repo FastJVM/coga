@@ -983,3 +983,4 @@ fatal: adding files failed
 2026-07-09 15:03 [install/decide-whether-gh-stays-required-at-init] [human:nicktoper] activated (draft → active)
 2026-07-09 15:03 [install/gh-auth-hint-on-managed-skill-rate-limit] [human:nicktoper] activated (draft → active)
 2026-07-09 15:03 [install/improve-reinit-already-exists-message] [human:nicktoper] activated (draft → active)
+2026-07-09 15:03 [install/init-next-steps-should-mention-agent-cli-requireme] [human:nicktoper] activated (draft → active)
