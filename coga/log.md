@@ -988,3 +988,4 @@ fatal: adding files failed
 2026-07-09 15:04 [install/quiet-managed-skill-failures-on-old-gh] [human:nicktoper] activated (draft → active)
 2026-07-09 15:04 [install/vendor-cli-from-installed-package-not-git-clone] [human:nicktoper] activated (draft → active)
 2026-07-09 15:04 [install/warn-loud-when-init-commit-is-skipped] [human:nicktoper] activated (draft → active)
+2026-07-09 15:04 [install/document-where-to-run-init-and-adopt-existing-repo] [human:nicktoper] activated (draft → active)
