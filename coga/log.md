@@ -1003,3 +1003,4 @@ fatal: adding files failed
 2026-07-09 15:08 [cleanup-core-commands/launch-decomposition] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-09 15:08 [cleanup-core-commands/launch-decomposition] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
 2026-07-09 15:08 [cleanup-core-commands/launch-decomposition] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-09 15:08 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
