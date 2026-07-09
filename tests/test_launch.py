@@ -12,6 +12,8 @@ from conftest import seed_direct_body_workflow
 from coga.cli import app
 from coga.create import create_task
 from coga.commands.launch import (
+    _MAX_PROMPT_ARG_BYTES,
+    _argv_prompt,
     _preflight_push_auth,
     build_agent_command,
     spawn_agent_session,
@@ -210,6 +212,23 @@ def test_build_command_rejects_non_llm_mode() -> None:
         build_agent_command(_agent(), mode="script", prompt="orient body")
 
 
+def test_argv_prompt_passes_small_prompt_verbatim(tmp_path: Path) -> None:
+    prompt_file = tmp_path / "prompt.md"
+    assert _argv_prompt("full prompt text", prompt_file) == "full prompt text"
+
+
+def test_argv_prompt_swaps_oversized_prompt_for_file_pointer(tmp_path: Path) -> None:
+    """A prompt over MAX_ARG_STRLEN can't ride argv — execvp fails with E2BIG
+    and the launch dies with a bare 127. Oversized prompts are delivered as a
+    short pointer at the prompt file instead."""
+    prompt_file = tmp_path / "prompt.md"
+    huge = "y" * (_MAX_PROMPT_ARG_BYTES + 1)
+    arg = _argv_prompt(huge, prompt_file)
+    assert arg != huge
+    assert str(prompt_file) in arg
+    assert len(arg.encode()) < _MAX_PROMPT_ARG_BYTES
+
+
 # --- unit: shared single-shot spawn -------------------------------------------
 
 
@@ -307,6 +326,49 @@ def test_spawn_agent_session_appends_kickoff_for_codex(
     )
 
     assert calls == [["codex", "-c", "developer_instructions=# Coga task\nbody", "Begin"]]
+
+
+def test_spawn_agent_session_oversized_prompt_rides_argv_as_pointer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The composed prompt can outgrow Linux's per-argument exec limit (a
+    142 KB prompt did, killing the launch with a bare 127). Over the limit,
+    the argv carries a pointer at the prompt file, never the prompt itself."""
+    ref = TaskRef(slug="draft-ticket", path=tmp_path / "draft-ticket")
+    ref.path.mkdir()
+    calls: list[list[str]] = []
+
+    class _Result:
+        returncode = 0
+
+    def fake_run(cmd, env=None, check=False, cwd=None):  # type: ignore[no-untyped-def]
+        calls.append(cmd)
+        return _Result()
+
+    huge_prompt = "# Coga task\n" + "y" * (_MAX_PROMPT_ARG_BYTES + 1)
+    monkeypatch.setattr(
+        "coga.commands.launch.compose_prompt",
+        lambda cfg, ref, ticket: huge_prompt,
+    )
+    monkeypatch.setattr("coga.commands.launch.subprocess.run", fake_run)
+
+    result = spawn_agent_session(
+        SimpleNamespace(repo_root=tmp_path),
+        ref,
+        _ticket(),
+        AgentType(name="codex", cli="codex", file="AGENTS.md", mode="local"),
+        "agent",
+        env={},
+        actor="human:marc",
+        log_message="launched",
+    )
+
+    assert result.exit_code == 0
+    (cmd,) = calls
+    assert all(len(arg.encode()) < _MAX_PROMPT_ARG_BYTES for arg in cmd)
+    assert huge_prompt not in cmd
+    pointer = cmd[-1]
+    assert "coga-draft-ticket-" in pointer  # names the prompt file
 
 
 def test_spawn_commits_log_append_when_commit_log_set(git_repo, monkeypatch):

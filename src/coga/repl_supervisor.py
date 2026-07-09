@@ -204,11 +204,16 @@ def run_with_done_marker(
         if cwd is not None:
             try:
                 os.chdir(cwd)
-            except OSError:
+            except OSError as exc:
+                os.write(2, f"coga: chdir to launch cwd {cwd} failed: {exc}\r\n".encode())
                 os._exit(127)
         try:
             os.execvp(cmd[0], cmd)
-        except OSError:
+        except OSError as exc:
+            # E2BIG (an argv element over MAX_ARG_STRLEN), ENOENT, and EACCES
+            # all land here. A bare 127 reads as "command not found" and hides
+            # which — name the errno so the failure is diagnosable.
+            os.write(2, f"coga: exec {cmd[0]} failed: {exc}\r\n".encode())
             os._exit(127)
 
     _resize_pty(master_fd)

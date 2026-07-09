@@ -803,6 +803,31 @@ def _cleanup_launch_worktree(
     git.remove_launch_worktree(base_cfg, worktree_path)
 
 
+# Linux caps a single execve() argument at MAX_ARG_STRLEN (32 pages =
+# 131072 bytes). A composed prompt at or over it makes the PTY child's
+# execvp fail with E2BIG before the agent ever starts. Stay under with
+# headroom for a discussion template's text wrapped around `{prompt}`.
+_MAX_PROMPT_ARG_BYTES = 120_000
+
+
+def _argv_prompt(prompt: str, prompt_file: Path) -> str:
+    """The prompt as it rides argv: verbatim, or a file pointer when oversized.
+
+    The prompt file is already on disk (written before the argv is built) and
+    is only removed after the session ends, so the pointer stays valid for the
+    agent's whole run. Same content, one indirection — the alternative is a
+    guaranteed E2BIG exec failure.
+    """
+    if len(prompt.encode()) <= _MAX_PROMPT_ARG_BYTES:
+        return prompt
+    return (
+        f"Read the file {prompt_file} in full before doing anything else — "
+        "its contents are your complete composed Coga prompt, too large to "
+        "pass as a command-line argument. Follow it exactly as if it had "
+        "been given to you as this message."
+    )
+
+
 def build_agent_command(
     agent,
     mode: str,
@@ -924,6 +949,13 @@ def spawn_agent_session(
         f"{label}: prompt written to {prompt_file} "
         f"({len(prompt)} chars)"
     )
+    prompt_arg = _argv_prompt(prompt, prompt_file)
+    if prompt_arg is not prompt:
+        typer.echo(
+            f"{label}: prompt exceeds the {_MAX_PROMPT_ARG_BYTES}-byte "
+            f"single-argument limit — the agent will read it from "
+            f"{prompt_file}"
+        )
 
     # Single-file format: usage records live in the `## Usage` section of the
     # ticket's blackboard region, so the usage "blackboard" is the ticket itself.
@@ -950,7 +982,7 @@ def spawn_agent_session(
         cmd = build_agent_command(
             agent,
             mode,
-            prompt,
+            prompt_arg,
             name=name,
             discussion=discussion,
             session_id=usage_session_id,

@@ -325,7 +325,12 @@ file. Layers, in order:
 7. The task description (the ticket body's `## Description`).
 
 The agent gets all of this as one input. There is no follow-up
-loading.
+loading. One delivery caveat: the prompt rides the agent CLI's argv, and
+Linux caps a single argument at 128 KiB. Launch swaps a composed prompt over
+~120 KB for a short argv pointer telling the agent to read the prompt file
+(kept on disk for the whole session) — same content, one indirection, instead
+of a guaranteed `E2BIG` exec failure. A prompt that big is usually context
+bloat; `coga launch --prompt-report` shows which layer to trim.
 
 Note what is deliberately **absent**: the `coga/log.md` audit log is never
 a composition layer. It is the one repo-global, append-only file, lives outside
