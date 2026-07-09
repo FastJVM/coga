@@ -2013,3 +2013,121 @@ def test_launch_without_worktree_toggle_runs_in_place(git_repo, monkeypatch):
 
     assert captured["cwd"] is None
     assert not (git_repo.root / ".coga" / "worktrees").exists()
+
+
+# --- direct/body stranding guard (`stranded_product_paths`, `mark done`) --------
+#
+# A `direct/body` workflow has no push/PR step, so product code the agent commits
+# rides a throwaway launch-worktree branch that state-sync never lands on `main`
+# and that dangles when the worktree is removed (the 2026-07-06 DaCapo incident).
+# `stranded_product_paths` detects it; `mark done` refuses on it unless `--force`.
+
+
+def _commit_product_file(git_repo, relpath: str, text: str = "print('x')\n") -> None:
+    """Commit a tracked non-Coga file on the current branch/HEAD."""
+    path = git_repo.root / relpath
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    git_repo.git("add", "--", relpath)
+    git_repo.git("commit", "-m", f"add {relpath}")
+
+
+def _active_task(git_repo, *, workflow: str, slug: str) -> tuple[str, Path]:
+    """Create + activate a task (frozen workflow, launch-ready) on `main`."""
+    cfg = load_config(git_repo.coga_os)
+    ref = create_task(
+        cfg=cfg, title="Strandy", workflow_name=workflow,
+        contexts=[], mode="agent", owner="marc", assignee="claude",
+        watchers=[], status="draft", slug_override=slug,
+    )
+    assert runner.invoke(app, ["mark", "active", ref["slug"]]).exit_code == 0
+    return ref["slug"], Path(ref["path"])
+
+
+def test_stranded_product_paths_flags_committed_code_off_control(git_repo):
+    """Product code committed on a branch that never lands on `main` is flagged."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    assert git.stranded_product_paths(cfg, git_repo.coga_os) == ["src/coga/stray.py"]
+
+
+def test_stranded_product_paths_flags_detached_head_launch_worktree(git_repo):
+    """The real trigger: a detached-HEAD launch worktree with a committed
+    product file. `refs/heads/main` stays put (the base) while the detached
+    HEAD advances, so the three-dot diff still isolates the stranded commit."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.git("checkout", "--detach")
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    assert git.stranded_product_paths(cfg, git_repo.coga_os) == ["src/coga/stray.py"]
+
+
+def test_stranded_product_paths_ignores_coga_state(git_repo):
+    """Committed Coga OS-state (`coga/`) is what sync already lands — not stranded."""
+    cfg = load_config(git_repo.coga_os)
+    git_repo.checkout_branch("feature/x")
+    _commit_product_file(
+        git_repo, "coga/tasks/demo/ticket.md", "---\ntitle: demo\n---\n"
+    )
+
+    assert git.stranded_product_paths(cfg, git_repo.coga_os) == []
+
+
+def test_stranded_product_paths_empty_on_control_branch(git_repo):
+    """On the control branch HEAD == base, so there is nothing to strand."""
+    cfg = load_config(git_repo.coga_os)
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    assert git.stranded_product_paths(cfg, git_repo.coga_os) == []
+
+
+def test_stranded_product_paths_soft_empty_off_git(tmp_path, real_git):
+    """Fail-open: a non-git checkout and disabled git both yield `[]`, never raise."""
+    assert git.stranded_product_paths(_cfg(tmp_path), tmp_path) == []
+    assert git.stranded_product_paths(
+        _cfg(tmp_path, git_enabled=False), tmp_path
+    ) == []
+
+
+def test_mark_done_refuses_direct_body_with_stranded_code(git_repo):
+    """`coga mark done` on a `direct/body` ticket with committed product code
+    off `main` is refused, names the path, and leaves the ticket unfinished."""
+    slug, task_path = _active_task(git_repo, workflow="direct/body", slug="strandy")
+    git_repo.checkout_branch("feature/x")
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    result = runner.invoke(app, ["mark", "done", slug])
+
+    assert result.exit_code == 2, result.output
+    combined = result.output + (result.stderr or "")
+    assert "src/coga/stray.py" in combined
+    assert "code/with-self-review" in combined
+    # The guard runs before the write, so the ticket is untouched.
+    assert Ticket.read(task_path).status == "active"
+
+
+def test_mark_done_force_overrides_stranded_code(git_repo):
+    """`--force` finishes the ticket anyway (the code stays stranded, by choice)."""
+    slug, task_path = _active_task(git_repo, workflow="direct/body", slug="forced")
+    git_repo.checkout_branch("feature/x")
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    result = runner.invoke(app, ["mark", "done", slug, "--force"])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).status == "done"
+
+
+def test_mark_done_allows_code_workflow_with_committed_code(git_repo):
+    """The guard is scoped to `direct/body`: a `code/*` workflow (which opens a
+    PR) finishes normally even with committed product code on its branch."""
+    slug, task_path = _active_task(git_repo, workflow="code", slug="coder")
+    git_repo.checkout_branch("feature/x")
+    _commit_product_file(git_repo, "src/coga/stray.py")
+
+    result = runner.invoke(app, ["mark", "done", slug])
+
+    assert result.exit_code == 0, result.output
+    assert Ticket.read(task_path).status == "done"

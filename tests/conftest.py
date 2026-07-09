@@ -135,6 +135,9 @@ def _stub_git(monkeypatch, request):
     monkeypatch.setattr("coga.git.sync_task_state", lambda *a, **k: None)
     monkeypatch.setattr("coga.git.sync_paths", lambda *a, **k: None)
     monkeypatch.setattr("coga.git.sync_log", lambda *a, **k: None)
+    # The `direct/body` stranding guard (`mark done`) also shells out to git;
+    # default it to "nothing stranded" off the real-git harness.
+    monkeypatch.setattr("coga.git.stranded_product_paths", lambda *a, **k: [])
     # The catch-all subtree sweep fires from the launch teardown and the CLI
     # dispatch boundary, so it too must no-op off the real-git harness.
     monkeypatch.setattr("coga.git.sync_coga_state", lambda *a, **k: None)

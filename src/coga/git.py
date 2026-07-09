@@ -157,6 +157,64 @@ def sync_task_state(cfg: Config, task_path: Path, *, message: str) -> None:
     sync_paths(cfg, task_path, [task_path], message=message)
 
 
+def stranded_product_paths(cfg: Config, anchor_path: Path) -> list[str]:
+    """Tracked non-Coga paths this checkout committed that the control branch lacks.
+
+    The detection half of the `direct/body` stranding guard. A workflow with no
+    push/PR step (`direct/body`) can leave committed *product* code on a
+    throwaway launch-worktree branch: coga's scoped state-sync lands only the
+    `coga/` OS-state subtree on the control branch (never `git add -A`), so the
+    product commit rides no branch that reaches `main`. When the worktree is
+    deleted its ref goes with it and the commits dangle — the 2026-07-06 DaCapo
+    incident. This surfaces that code *before* `mark done` closes the task.
+
+    Compares the current HEAD against the control branch with a merge-base
+    (three-dot) diff, `--name-only`, restricted to paths **outside** the Coga
+    OS-state subtree (the same pathspecs `sync_coga_state` owns, negated). The
+    three-dot form isolates what HEAD introduced since it forked, so an
+    independently-advanced control branch is not mistaken for stranded work; and
+    a HEAD already level with the control branch (the on-`main` `mark done`) is a
+    fast `[]`. Only tracked, committed files appear, so ignored files and the
+    dirty working tree are out of scope by construction.
+
+    Fail-open — returns `[]` and never raises when git is disabled, this is not a
+    git repo, the control branch is absent, or any git probe fails: a guard that
+    cannot inspect git must not block a local `mark done` transition (the on-disk
+    markdown is the source of truth, per this module's failure model).
+    """
+    if not cfg.git_enabled:
+        return []
+    try:
+        root = _toplevel(anchor_path)
+        if root is None:
+            return []
+        # A local base is all this function needs (the three-dot diff is
+        # against a local rev); `_local_control_base` returns None when neither
+        # the local branch nor the fetched remote-tracking ref exists, which
+        # already covers "control branch absent". Unlike the sync helpers this
+        # never fetches/pushes, so it skips their `_control_branch_present`
+        # pre-check and its remote-only `ls-remote` probe.
+        base = _local_control_base(root, cfg.git_remote, cfg.git_control_branch)
+        if base is None:
+            return []
+        head = _run_git(root, "rev-parse", "HEAD").strip()
+        if head == base:
+            return []
+        excludes = [
+            f":(exclude){spec}"
+            for spec in _coga_state_pathspecs(root, cfg.repo_root)
+        ]
+        # `-z` (NUL-delimited, no path quoting) so a product file with
+        # non-ASCII characters is named verbatim in the `mark done` error rather
+        # than git-quoted — the same reason `_changed_paths_under` uses it.
+        out = _run_git(
+            root, "diff", "-z", "--name-only", f"{base}...{head}", "--", ".", *excludes
+        )
+        return [path for path in out.split("\x00") if path]
+    except GitError:
+        return []
+
+
 def sync_log(cfg: Config, *, message: str) -> None:
     """Commit (and on the control branch, push) the repo-global `log.md` alone.
 
