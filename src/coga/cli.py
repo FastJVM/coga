@@ -333,7 +333,10 @@ def main() -> None:
         msg = str(exc)
         if "No coga.toml found" in msg:
             help_invoked = any(arg in ("--help", "-h") for arg in sys.argv[1:])
-            known_command = invoked_command in _BUILTIN_COMMANDS
+            known_command = (
+                invoked_command in _BUILTIN_COMMANDS
+                or invoked_command in _DEFAULT_ALIASES
+            )
             if known_command and not init_invoked and not help_invoked:
                 typer.secho(
                     f"{msg}\nTo adopt an existing project, go to the project's "
