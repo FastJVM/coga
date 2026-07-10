@@ -6,7 +6,7 @@ mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -60,3 +60,16 @@ the hint there too (`src/coga/cli.py`).
 <!-- coga:blackboard -->
 
 The blackboard is a notepad to be written to often as the human and agent works through a task.
+
+## Dev
+branch: docs/init-adopt-existing-repo
+worktree: /tmp/coga-init-adoption-docs
+
+## Implement
+
+- Scope confirmed from the 2026-07-08 retest: add a compact README Getting Started path covering prerequisites, existing-repo-root adoption, `--user`, and empty-directory recovery; add `coga init` to the missing-config CLI hint.
+- Product edits are isolated in the feature worktree above; launch checkout changes remain control-plane-only.
+- README now says Coga is adopted inside the target project's Git root, names Git and `gh` as init prerequisites, shows `coga init --user <your-name>`, and distinguishes moving to an existing repo from running `git init` for a genuinely new project.
+- `src/coga/cli.py` now turns the missing-config result for known repo commands into a direct `coga init --user NAME` adoption hint while preserving repo-free help/init/uninstall behavior. Regression coverage lives in `tests/test_aliases.py`.
+- Verification: `PYTHONPATH=/tmp/coga-init-adoption-docs/src python3.12 -m pytest` -> 1122 passed, 1 skipped; `git diff --check` clean.
+- Commit: `66f505f3e15ef20cf491b9bd217bfa6c8c07a160` (`Clarify how to initialize Coga in a project`). Feature worktree is clean. No push or PR created in this step.
