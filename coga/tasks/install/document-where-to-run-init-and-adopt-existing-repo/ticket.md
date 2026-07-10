@@ -73,3 +73,7 @@ worktree: /tmp/coga-init-adoption-docs
 - `src/coga/cli.py` now turns the missing-config result for known repo commands into a direct `coga init --user NAME` adoption hint while preserving repo-free help/init/uninstall behavior. Regression coverage lives in `tests/test_aliases.py`.
 - Verification: `PYTHONPATH=/tmp/coga-init-adoption-docs/src python3.12 -m pytest` -> 1122 passed, 1 skipped; `git diff --check` clean.
 - Commit: `66f505f3e15ef20cf491b9bd217bfa6c8c07a160` (`Clarify how to initialize Coga in a project`). Feature worktree is clean. No push or PR created in this step.
+
+## Usage
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":2532096,"cli":"codex","input_tokens":155419,"model":"gpt-5.6-sol","output_tokens":11267,"provider":"openai","schema":1,"session_id":"019f4d4c-d7c1-77e0-870a-b7543f5b1fc6","slug":"install/document-where-to-run-init-and-adopt-existing-repo","step":"implement","title":"Document where to run relay init and how to adopt an existing project","ts":"2026-07-10T18:47:55.389249Z","usage_status":"ok"}
