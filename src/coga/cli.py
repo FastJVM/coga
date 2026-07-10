@@ -332,6 +332,16 @@ def main() -> None:
     except ConfigError as exc:
         msg = str(exc)
         if "No coga.toml found" in msg:
+            help_invoked = any(arg in ("--help", "-h") for arg in sys.argv[1:])
+            known_command = invoked_command in _BUILTIN_COMMANDS
+            if known_command and not init_invoked and not help_invoked:
+                typer.secho(
+                    f"{msg}\nTo adopt an existing project, go to the project's "
+                    "git root and run `coga init --user NAME`.",
+                    fg=typer.colors.RED,
+                    err=True,
+                )
+                sys.exit(2)
             cfg = None
         elif init_invoked:
             typer.secho(

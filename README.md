@@ -57,6 +57,29 @@ Then run:
 coga --help
 ```
 
+## Getting Started
+
+Coga is adopted into an existing project, not set up in a separate workspace.
+Install Git and the GitHub CLI (`gh`) first; `coga init` requires both. Then run
+init from the root of the Git repository you want Coga to manage:
+
+```sh
+cd /path/to/your/project
+coga init --user <your-name>
+```
+
+This adds Coga's markdown OS under `coga/` in that same repository.
+
+If you tried `coga init` in a separate empty directory, leave that directory
+and run the commands above from your actual project's Git root instead. If the
+empty directory is the start of a brand-new project, initialize Git there
+before running Coga:
+
+```sh
+git init
+coga init --user <your-name>
+```
+
 For command help, start with `coga --help`. For the deeper "why", read
 [`docs/vision.md`](docs/vision.md). For the operating contract that Coga agents
 actually load, read
