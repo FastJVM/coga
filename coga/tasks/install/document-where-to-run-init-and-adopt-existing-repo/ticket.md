@@ -90,3 +90,5 @@ Test plan: `PYTHONPATH=$PWD/src python3.12 -m pytest` (1123 passed, 1 skipped).
 ## Usage
 
 {"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":2532096,"cli":"codex","input_tokens":155419,"model":"gpt-5.6-sol","output_tokens":11267,"provider":"openai","schema":1,"session_id":"019f4d4c-d7c1-77e0-870a-b7543f5b1fc6","slug":"install/document-where-to-run-init-and-adopt-existing-repo","step":"implement","title":"Document where to run relay init and how to adopt an existing project","ts":"2026-07-10T18:47:55.389249Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":2326272,"cli":"codex","input_tokens":89775,"model":"gpt-5.6-sol","output_tokens":7944,"provider":"openai","schema":1,"session_id":"019f4d5b-9cce-72f1-9b7c-12d34a44dbd8","slug":"install/document-where-to-run-init-and-adopt-existing-repo","step":"peer-review","title":"Document where to run relay init and how to adopt an existing project","ts":"2026-07-10T22:37:50.285870Z","usage_status":"ok"}
