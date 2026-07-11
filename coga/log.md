@@ -1030,3 +1030,4 @@ fatal: adding files failed
 2026-07-10 15:44 [install/init-venv-python-selection-breaks-on-wrong-host-py] [system] launched as a script (skill=code/open-pr, script=run.py)
 2026-07-10 15:44 [install/init-venv-python-selection-breaks-on-wrong-host-py] [system] script exited with code 0
 2026-07-10 15:44 [install/init-venv-python-selection-breaks-on-wrong-host-py] [system] advanced to step 4 (review) → assigned to nicktoper after script step
+2026-07-10 18:25 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nick] task done
