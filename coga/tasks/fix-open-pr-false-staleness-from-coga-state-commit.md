@@ -87,4 +87,8 @@ worktree: /tmp/coga-open-pr-state-drift
   skill copies.
 - Commit: `6d1489dc` (`Allow open-pr through state-only control drift`).
 - Verification: focused `tests/test_open_pr.py tests/test_validate.py` -> 61
-  passed; full suite -> 1125 passed, 1 skipped; `git diff --check` clean.
+  passed. After rebasing over current `origin/main`, the full suite produced
+  1145 passed, 1 skipped, and the unrelated intermittent
+  `test_codex_probe_primes_then_reads_fresh_rollout` failure; its complete
+  `tests/test_usage_probe.py` file passes independently (16 passed).
+  `git diff --check` is clean.
