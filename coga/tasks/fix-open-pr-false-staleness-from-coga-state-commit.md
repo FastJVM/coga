@@ -98,3 +98,7 @@ worktree: /tmp/coga-open-pr-state-drift
 - Relaunch check (2026-07-10): feature worktree clean at `271120f8`, focused
   `tests/test_open_pr.py tests/test_validate.py` re-run -> 61 passed. Step was
   complete but never bumped; bumping now.
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":153065,"cache_read_input_tokens":755742,"cli":"claude","input_tokens":31,"model":"claude-fable-5","output_tokens":7359,"provider":"anthropic","schema":1,"session_id":"b2904d8a-57f3-438c-9079-4d25062900c5","slug":"fix-open-pr-false-staleness-from-coga-state-commit","step":"implement","title":"Fix open-pr false staleness from Coga state commits","ts":"2026-07-11T03:51:25.285230Z","usage_status":"ok"}
