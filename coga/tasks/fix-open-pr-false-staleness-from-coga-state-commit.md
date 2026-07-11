@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - coga/architecture
 - coga/principles
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -95,3 +95,6 @@ worktree: /tmp/coga-open-pr-state-drift
   `git diff --check` is clean. A real probe from the pushed feature worktree,
   while it trails current `origin/main` only by task/log commits, returns
   `ok=True` with `value='state-only-drift'`.
+- Relaunch check (2026-07-10): feature worktree clean at `271120f8`, focused
+  `tests/test_open_pr.py tests/test_validate.py` re-run -> 61 passed. Step was
+  complete but never bumped; bumping now.
