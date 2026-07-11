@@ -177,6 +177,35 @@ def test_install_managed_skills_skips_optional_skills_when_gh_missing(
     assert result.details["reason"] == "GitHub CLI (`gh`) is not installed"
 
 
+def test_install_managed_skills_skips_source_blocked_by_saml_enforcement(
+    tmp_path: Path,
+) -> None:
+    commands: list[list[str]] = []
+
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        commands.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            1,
+            stdout="",
+            stderr=(
+                "GraphQL: Resource protected by organization SAML enforcement. "
+                "You must grant your OAuth token access to this organization."
+            ),
+        )
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[ManagedSkillSpec(ref="tools/example", source="owner/private")],
+        runner=runner,
+    )
+
+    assert commands == [["gh", "repo", "view", "owner/private", "--json", "name"]]
+    assert summary.counts() == {"skipped-no-access": 1}
+    assert "SAML enforcement" in summary.results[0].details["reason"]
+
+
 def test_required_managed_skill_from_inaccessible_source_fails_loud(
     tmp_path: Path,
 ) -> None:

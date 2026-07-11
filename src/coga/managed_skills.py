@@ -311,6 +311,8 @@ def _github_access_denial_reason(output: str) -> str | None:
         "must authenticate",
         "gh auth login",
         "resource not accessible by",
+        "saml enforcement",
+        "grant your oauth token access",
         "http 401",
         "http 404",
     )
