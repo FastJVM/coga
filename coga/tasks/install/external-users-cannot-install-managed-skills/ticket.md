@@ -6,7 +6,7 @@ mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: claude
+assignee: codex
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 1 (implement)
+step: 2 (peer-review)
 ---
 
 ## Description
@@ -51,4 +51,65 @@ delegates to `gh skill` (see the `relay/cli` context, `relay skill`) and
 
 <!-- coga:blackboard -->
 
-The blackboard is a notepad to be written to often as the human and agent works through a task.
+## Dev
+branch: managed-skills-no-access
+worktree: /home/n/Code/claude/coga/.coga/worktrees/coga-managed-skills-no-access
+
+## Findings (implement step)
+
+- The ticket's "relay" names map onto this repo: `relay init --update` ≈ `coga init`,
+  `src/relay/skill_manager.py` = `src/coga/skill_manager.py`. The managed-skill
+  install path is `src/coga/managed_skills.py` (`install_managed_skills`), called
+  only from `coga init` (`src/coga/commands/init.py:_install_managed_skills_or_exit`).
+- Manifest: `src/coga/resources/managed-skills.toml` — 7 optional github-sourced
+  skills, all from one source repo. Each spec runs its own `gh skill install`,
+  so a user without access to the source repo gets one failure per skill
+  (the "12 failures" Greg saw), each surfaced as status=failed + warning.
+- Root cause: no preflight on source-repo accessibility; `gh skill install` is
+  attempted per skill and fails per skill for users outside the org.
+
+## Implemented (commit a024cf80 on managed-skills-no-access)
+
+- `src/coga/managed_skills.py`: new `_github_source_unavailable_reason` /
+  `_probe_github_source` / `_no_access_result`. Before any github-sourced
+  managed-skill install, each unique source is probed once per run with
+  `gh repo view <owner/repo> --json name` (cache dict threaded through
+  `install_managed_skills` / `reconcile_managed_skills` into `_run_install`).
+  Unreachable source (private repo, no gh auth, or gh missing entirely →
+  FileNotFoundError caught) ⇒ optional skills get status `skipped-no-access`
+  with reason + remediation in details, and **no** `gh skill install` runs at
+  all; required skills still raise ManagedSkillError (fail-loud unchanged).
+  Probe only runs on the real install path — an injected `github_installer`
+  test seam bypasses it, preserving existing tests.
+- `src/coga/commands/init.py`: `_print_no_access_skill_notes` — one
+  consolidated yellow note per unreachable source ("skipped N optional managed
+  skills from <source> … Coga works without them … get access or `gh auth
+  login`, then `coga skill install …`") instead of a warning per skill.
+- `src/coga/resources/managed-skills.toml`: comment documents the new
+  degrade behavior.
+- Tests: 4 new in tests/test_managed_skills.py (single probe per shared
+  source + no install attempts, gh-missing skip, required fail-loud on
+  no-access, accessible source proceeds to install) and 1 new in
+  tests/test_init.py (consolidated note, no per-skill warnings). Style
+  mirrors existing runner/seam-based tests.
+
+## Verification
+
+- `python3.12 -m pytest tests/test_managed_skills.py tests/test_init.py -q` → 105 passed.
+- Full suite in a scratch venv with `pip install -e .`: 1147 passed, 1 skipped.
+- Note: bare `python3.12 -m pytest` (no editable install) fails
+  `tests/test_launch_script.py::test_bootstrap_script_launch_is_stateless`
+  with ModuleNotFoundError — pre-existing on the base commit too (subprocess
+  needs coga installed); unrelated to this change, green once installed.
+
+## Notes for review
+
+- Ticket's "12 failures": live manifest has 7 entries, all one source repo —
+  count differs from the report but the mechanism (one failing `gh skill
+  install` per optional skill for a no-access user) is what's fixed. With the
+  preflight, the noisy gh usage dumps never run for no-access users, which
+  also de-fangs (but doesn't close) the separate noise ticket
+  `marketing/quiet-relay-init-managed-skill-failures`.
+- Chose "degrade cleanly + clearly state optional/how to get access" over
+  "don't require private-repo access" (moving skills to a public source is a
+  publishing decision, not a CLI change).

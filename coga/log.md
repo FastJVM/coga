@@ -1038,3 +1038,6 @@ fatal: adding files failed
 2026-07-10 18:35 [fix-open-pr-false-staleness-from-coga-state-commit] [git] sync failed: `git add -- coga/tasks/fix-open-pr-false-staleness-from-coga-state-commit.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
 2026-07-10 18:35 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
 2026-07-10 18:36 [install/external-users-cannot-install-managed-skills] [human:nick] started (active → in_progress) via coga launch
+2026-07-10 18:36 [install/external-users-cannot-install-managed-skills] [human:nick] started (active → in_progress) via coga launch
+2026-07-10 18:36 [install/external-users-cannot-install-managed-skills] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-10 18:48 [install/external-users-cannot-install-managed-skills] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
