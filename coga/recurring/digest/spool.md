@@ -53,3 +53,4 @@ consumed_through:
 {"id":"e51958efac50","ts":"2026-07-05T13:33","project":"c4e3cf962ec7469ba1e25adef0fe8a9a","kind":"done","detail":"claude finished: implement → done ✅ — Already satisfied: chat/build are pure aliases; pytest passed","ticket":"audit-chat-and-build-are-core-free","owner":"zach"}
 {"id":"73742421af29","ts":"2026-07-05T14:43","project":"coga","kind":"done","detail":"claude finished: cutover → done ✅","ticket":"coga-cli-cutover","owner":"zach"}
 {"id":"9c53d71a2ad0","ts":"2026-07-05T09:48","project":"coga","kind":"done","detail":"nick finished: review → done ✅","ticket":"move-ticket-authoring-out-of-core","owner":"nick"}
+{"id":"9e63c2bfc979","ts":"2026-07-10T18:25","project":"coga","kind":"done","detail":"nicktoper finished: review → done ✅","ticket":"install/init-venv-python-selection-breaks-on-wrong-host-py","owner":"nicktoper"}
