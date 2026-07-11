@@ -1041,3 +1041,4 @@ fatal: adding files failed
 2026-07-10 18:36 [install/external-users-cannot-install-managed-skills] [human:nick] started (active → in_progress) via coga launch
 2026-07-10 18:36 [install/external-users-cannot-install-managed-skills] [human:nick] launched in agent mode (assignee=claude, agent=claude)
 2026-07-10 18:48 [install/external-users-cannot-install-managed-skills] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-10 20:50 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] started (active → in_progress) via coga launch
