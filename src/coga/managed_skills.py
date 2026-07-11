@@ -287,12 +287,36 @@ def _probe_github_source(source: str, *, runner: Runner | None) -> str | None:
         return "GitHub CLI (`gh`) is not installed"
     if result.returncode == 0:
         return None
-    lines = [
-        line.strip()
-        for line in (result.stderr or result.stdout).splitlines()
-        if line.strip()
-    ]
-    return lines[0] if lines else f"`gh repo view {target}` failed"
+    output = result.stderr or result.stdout
+    reason = _github_access_denial_reason(output)
+    if reason is not None:
+        return reason
+    # A failed reachability probe is not necessarily an access denial. Let the
+    # real installer report rate limits, network outages, and other operational
+    # failures through the existing optional/required failure path.
+    return None
+
+
+def _github_access_denial_reason(output: str) -> str | None:
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    if not lines:
+        return None
+    normalized = output.casefold()
+    access_markers = (
+        "could not resolve to a repository",
+        "not logged into any github hosts",
+        "authentication failed",
+        "bad credentials",
+        "requires authentication",
+        "must authenticate",
+        "gh auth login",
+        "resource not accessible by",
+        "http 401",
+        "http 404",
+    )
+    if any(marker in normalized for marker in access_markers):
+        return lines[0]
+    return None
 
 
 def _no_access_result(spec: ManagedSkillSpec, reason: str) -> SkillResult:

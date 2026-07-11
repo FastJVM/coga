@@ -231,6 +231,42 @@ def test_install_managed_skills_installs_when_source_accessible(
     ] in commands
 
 
+def test_install_managed_skills_does_not_treat_probe_outage_as_no_access(
+    tmp_path: Path,
+) -> None:
+    commands: list[list[str]] = []
+
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        commands.append(command)
+        if command[:3] == ["gh", "repo", "view"]:
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="",
+                stderr="error connecting to api.github.com: network is unreachable",
+            )
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[ManagedSkillSpec(ref="tools/example", source="owner/repo")],
+        runner=runner,
+    )
+
+    assert summary.counts() == {"installed": 1}
+    assert commands[0] == ["gh", "repo", "view", "owner/repo", "--json", "name"]
+    assert [
+        "gh",
+        "skill",
+        "install",
+        "owner/repo",
+        "tools/example",
+        "--dir",
+        str(tmp_path / "skills"),
+    ] in commands
+
+
 def test_reconcile_managed_skills_uses_update_path_for_existing_skill(
     tmp_path: Path,
 ) -> None:
