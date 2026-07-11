@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - coga/architecture
 - coga/principles
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -98,6 +98,30 @@ worktree: /tmp/coga-open-pr-state-drift
 - Relaunch check (2026-07-10): feature worktree clean at `271120f8`, focused
   `tests/test_open_pr.py tests/test_validate.py` re-run -> 61 passed. Step was
   complete but never bumped; bumping now.
+
+## Peer review
+
+- Native `codex review --base main` found two must-fix P2s: state-path
+  classification was not scoped to the configured Coga root, and Git rename
+  detection could hide overlap with the old task path.
+- Fixed both in `012c8595` (`peer-review: tighten state drift classification`).
+  The exception now handles root and nested layouts only for the active Coga OS,
+  and `--no-renames` keeps both rename endpoints visible. Added validation and
+  real-git regression coverage.
+- Verification: focused suite -> 64 passed; full suite -> 1149 passed, 1 skipped;
+  `git diff --check` clean. Current `origin/main` is nine commits ahead only in
+  non-overlapping task/log state, and `git merge-tree --write-tree HEAD
+  FETCH_HEAD` succeeds without conflicts.
+
+## PR
+
+Allow the shared GitHub preflight and script-backed open-PR step to continue
+when the control branch is ahead only through non-overlapping Coga task/audit
+state, while preserving a loud failure for material, mixed, overlapping, or
+mis-scoped drift. Surface the accepted exception and cover nested/root Coga
+layouts plus rename overlap in regression tests.
+
+Test plan: `PYTHONPATH=$PWD/src python3.12 -m pytest -q` (1149 passed, 1 skipped).
 
 ## Usage
 
