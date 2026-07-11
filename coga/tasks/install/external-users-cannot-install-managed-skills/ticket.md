@@ -113,3 +113,7 @@ worktree: /home/n/Code/claude/coga/.coga/worktrees/coga-managed-skills-no-access
 - Chose "degrade cleanly + clearly state optional/how to get access" over
   "don't require private-repo access" (moving skills to a public source is a
   publishing decision, not a CLI change).
+
+## Usage
+
+{"agent":"claude","cache_creation_input_tokens":255785,"cache_read_input_tokens":8398095,"cli":"claude","input_tokens":194,"model":"claude-fable-5","output_tokens":75281,"provider":"anthropic","schema":1,"session_id":"7ac00306-fdf1-45d7-89ea-78a362599c5f","slug":"install/external-users-cannot-install-managed-skills","step":"implement","title":"External users can't install managed skills (relay-skills access)","ts":"2026-07-11T01:48:08.284853Z","usage_status":"ok"}
