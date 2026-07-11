@@ -1047,3 +1047,7 @@ fatal: adding files failed
 2026-07-10 21:14 [make-open-pr-metadata-tolerate-annotated-branch-an] [human:nick] created (mode=agent, status=draft)
 2026-07-10 20:51 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
 2026-07-10 21:23 [fix-open-pr-false-staleness-from-coga-state-commit] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review fixed two P2 freshness-boundary findings; full suite 1149 passed, 1 skipped.
+2026-07-10 20:51 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-10 21:23 [fix-open-pr-false-staleness-from-coga-state-commit] [agent:codex] advanced to step 3 (open-pr) → assigned to claude — Peer review fixed two P2 freshness-boundary findings; full suite 1149 passed, 1 skipped.
+2026-07-10 21:23 [fix-open-pr-false-staleness-from-coga-state-commit] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-10 21:23 [fix-open-pr-false-staleness-from-coga-state-commit] [system] script exited with code 2
