@@ -6,7 +6,7 @@ mode: agent
 owner: nicktoper
 human: nicktoper
 agent: claude
-assignee: claude
+assignee: nicktoper
 contexts:
 - coga/architecture
 - coga/principles
@@ -32,7 +32,7 @@ workflow:
     assignee: owner
 secrets: null
 script: null
-step: 3 (open-pr)
+step: 4 (review)
 ---
 
 ## Description
@@ -72,6 +72,7 @@ sync.
 
 ## Dev
 
+pr: https://github.com/FastJVM/coga/pull/531
 branch: fix/open-pr-state-only-drift
 worktree: /tmp/coga-open-pr-state-drift
 

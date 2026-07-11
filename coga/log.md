@@ -1053,3 +1053,10 @@ fatal: adding files failed
 2026-07-10 21:23 [fix-open-pr-false-staleness-from-coga-state-commit] [system] script exited with code 2
 2026-07-10 21:25 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
 2026-07-10 21:25 [bootstrap/orient] [human:nicktoper] launched in agent mode (assignee=codex, agent=codex)
+2026-07-10 21:36 [fix-open-pr-false-staleness-from-coga-state-commit] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-10 21:36 [fix-open-pr-false-staleness-from-coga-state-commit] [system] script exited with code 2
+2026-07-10 21:36 [fix-open-pr-false-staleness-from-coga-state-commit] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-07-10 21:36 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-10 21:44 [fix-open-pr-false-staleness-from-coga-state-commit] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-10 21:44 [fix-open-pr-false-staleness-from-coga-state-commit] [system] script exited with code 0
+2026-07-10 21:44 [fix-open-pr-false-staleness-from-coga-state-commit] [system] advanced to step 4 (review) → assigned to nicktoper after script step
