@@ -10,6 +10,7 @@ from pathlib import Path
 import tomllib
 
 from coga.config import Config
+from coga.github_source import github_owner_repo
 from coga.skill_manager import (
     Downloader,
     Runner,
@@ -19,6 +20,7 @@ from coga.skill_manager import (
     _skill_target,
     install_github_skill,
     install_url_skill,
+    run_subprocess,
     update_skills,
 )
 
@@ -135,6 +137,7 @@ def install_managed_skills(
     cfg = _manifest_skill_config(coga_os)
     summary = ManagedSkillSummary()
     skill_specs = specs if specs is not None else load_managed_skill_manifest()
+    access_cache: dict[str, str | None] = {}
     for spec in skill_specs:
         target = _skill_target(cfg, spec.ref)
         if target.exists():
@@ -155,6 +158,7 @@ def install_managed_skills(
                 runner=runner,
                 downloader=downloader,
                 github_installer=github_installer,
+                access_cache=access_cache,
             )
         )
     return summary
@@ -172,6 +176,7 @@ def reconcile_managed_skills(
     cfg = _manifest_skill_config(coga_os)
     summary = ManagedSkillSummary()
     skill_specs = specs if specs is not None else load_managed_skill_manifest()
+    access_cache: dict[str, str | None] = {}
     for spec in skill_specs:
         target = _skill_target(cfg, spec.ref)
         if not target.exists():
@@ -182,6 +187,7 @@ def reconcile_managed_skills(
                     runner=runner,
                     downloader=downloader,
                     github_installer=github_installer,
+                    access_cache=access_cache,
                 )
             )
             continue
@@ -217,11 +223,27 @@ def _run_install(
     runner: Runner | None,
     downloader: Downloader | None,
     github_installer: GithubInstaller | None,
+    access_cache: dict[str, str | None] | None = None,
 ) -> SkillResult:
     try:
         if spec.source_type == "github":
             if github_installer is not None:
                 return github_installer(cfg, spec.source, spec.ref)
+            # Managed manifests routinely pull several skills from one source
+            # repo, and an onboarding user often can't see that repo at all
+            # (private, or gh unauthenticated). Probe each unique source once
+            # instead of letting every `gh skill install` fail separately.
+            reason = _github_source_unavailable_reason(
+                spec.source, runner=runner, cache=access_cache
+            )
+            if reason is not None:
+                if spec.required:
+                    raise ManagedSkillError(
+                        _required_failure_message(
+                            spec, f"no access to {spec.source} ({reason})"
+                        )
+                    )
+                return _no_access_result(spec, reason)
             return install_github_skill(cfg, spec.source, spec.ref, runner=runner)
         return install_url_skill(
             cfg,
@@ -234,6 +256,61 @@ def _run_install(
         if spec.required:
             raise ManagedSkillError(_required_failure_message(spec, exc)) from exc
         return _failure_result(spec, exc)
+
+
+def _github_source_unavailable_reason(
+    source: str,
+    *,
+    runner: Runner | None,
+    cache: dict[str, str | None] | None,
+) -> str | None:
+    """Return why `source` can't be reached through `gh`, or None if it can.
+
+    Cached per reconcile/install run so a manifest with many skills from one
+    repo probes that repo once, not once per skill.
+    """
+    key = source.strip()
+    if cache is not None and key in cache:
+        return cache[key]
+    reason = _probe_github_source(key, runner=runner)
+    if cache is not None:
+        cache[key] = reason
+    return reason
+
+
+def _probe_github_source(source: str, *, runner: Runner | None) -> str | None:
+    target = github_owner_repo(source) or source
+    command = ["gh", "repo", "view", target, "--json", "name"]
+    try:
+        result = (runner or run_subprocess)(command, None)
+    except FileNotFoundError:
+        return "GitHub CLI (`gh`) is not installed"
+    if result.returncode == 0:
+        return None
+    lines = [
+        line.strip()
+        for line in (result.stderr or result.stdout).splitlines()
+        if line.strip()
+    ]
+    return lines[0] if lines else f"`gh repo view {target}` failed"
+
+
+def _no_access_result(spec: ManagedSkillSpec, reason: str) -> SkillResult:
+    return SkillResult(
+        name=spec.ref,
+        source_type=spec.source_type,
+        status="skipped-no-access",
+        message=(
+            f"optional skill skipped — {spec.source} is not accessible with "
+            f"your GitHub credentials ({reason})"
+        ),
+        details={
+            "source": spec.source,
+            "required": spec.required,
+            "remediation": spec.remediation_command(),
+            "reason": reason,
+        },
+    )
 
 
 def _failure_result(spec: ManagedSkillSpec, exc: object) -> SkillResult:

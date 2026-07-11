@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -119,6 +120,115 @@ def test_optional_managed_skill_install_failure_is_reported(tmp_path: Path) -> N
     [result] = summary.results
     assert result.details["required"] is False
     assert result.details["remediation"] == "coga skill install owner/repo tools/example"
+
+
+def test_install_managed_skills_skips_optional_skills_from_inaccessible_source(
+    tmp_path: Path,
+) -> None:
+    commands: list[list[str]] = []
+
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        commands.append(command)
+        if command[:3] == ["gh", "repo", "view"]:
+            return subprocess.CompletedProcess(
+                command,
+                1,
+                stdout="",
+                stderr=(
+                    "GraphQL: Could not resolve to a Repository with the name "
+                    "'owner/private'. (repository)"
+                ),
+            )
+        raise AssertionError(f"unexpected command past failed probe: {command}")
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[
+            ManagedSkillSpec(ref="tools/one", source="owner/private"),
+            ManagedSkillSpec(ref="tools/two", source="owner/private"),
+        ],
+        runner=runner,
+    )
+
+    # One probe for the shared source, and no `gh skill install` attempts.
+    assert commands == [["gh", "repo", "view", "owner/private", "--json", "name"]]
+    assert summary.counts() == {"skipped-no-access": 2}
+    first = summary.results[0]
+    assert "owner/private is not accessible" in first.message
+    assert first.details["remediation"] == "coga skill install owner/private tools/one"
+    assert "Could not resolve to a Repository" in first.details["reason"]
+
+
+def test_install_managed_skills_skips_optional_skills_when_gh_missing(
+    tmp_path: Path,
+) -> None:
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        raise FileNotFoundError("gh")
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[ManagedSkillSpec(ref="tools/example", source="owner/repo")],
+        runner=runner,
+    )
+
+    assert summary.counts() == {"skipped-no-access": 1}
+    [result] = summary.results
+    assert result.details["reason"] == "GitHub CLI (`gh`) is not installed"
+
+
+def test_required_managed_skill_from_inaccessible_source_fails_loud(
+    tmp_path: Path,
+) -> None:
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            list(args), 1, stdout="", stderr="HTTP 404: Not Found"
+        )
+
+    with pytest.raises(ManagedSkillError) as exc:
+        install_managed_skills(
+            tmp_path,
+            specs=[
+                ManagedSkillSpec(
+                    ref="tools/core",
+                    source="owner/private",
+                    required=True,
+                )
+            ],
+            runner=runner,
+        )
+
+    assert "no access to owner/private" in str(exc.value)
+    assert "Remediation: coga skill install owner/private tools/core" in str(exc.value)
+
+
+def test_install_managed_skills_installs_when_source_accessible(
+    tmp_path: Path,
+) -> None:
+    commands: list[list[str]] = []
+
+    def runner(args, cwd) -> subprocess.CompletedProcess[str]:
+        command = list(args)
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    summary = install_managed_skills(
+        tmp_path,
+        specs=[ManagedSkillSpec(ref="tools/example", source="owner/repo")],
+        runner=runner,
+    )
+
+    assert summary.counts() == {"installed": 1}
+    assert commands[0] == ["gh", "repo", "view", "owner/repo", "--json", "name"]
+    assert [
+        "gh",
+        "skill",
+        "install",
+        "owner/repo",
+        "tools/example",
+        "--dir",
+        str(tmp_path / "skills"),
+    ] in commands
 
 
 def test_reconcile_managed_skills_uses_update_path_for_existing_skill(
