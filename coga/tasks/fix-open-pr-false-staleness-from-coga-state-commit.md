@@ -85,10 +85,13 @@ worktree: /tmp/coga-open-pr-state-drift
   drift.
 - Updated the packaged CLI contract and both live/packaged `code/open-pr`
   skill copies.
-- Commit: `6d1489dc` (`Allow open-pr through state-only control drift`).
+- Commits: `6d1489dc` (`Allow open-pr through state-only control drift`) and
+  `271120f8` (`Surface accepted state-only branch drift`).
 - Verification: focused `tests/test_open_pr.py tests/test_validate.py` -> 61
   passed. After rebasing over current `origin/main`, the full suite produced
   1145 passed, 1 skipped, and the unrelated intermittent
   `test_codex_probe_primes_then_reads_fresh_rollout` failure; its complete
   `tests/test_usage_probe.py` file passes independently (16 passed).
-  `git diff --check` is clean.
+  `git diff --check` is clean. A real probe from the pushed feature worktree,
+  while it trails current `origin/main` only by task/log commits, returns
+  `ok=True` with `value='state-only-drift'`.
