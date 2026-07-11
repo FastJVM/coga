@@ -743,8 +743,13 @@ readiness so a raw tool failure surfaces as an actionable setup hint before PR
 time instead of surprising an agent mid-run. It probes the *configured* remote
 (`git remote get-url <cfg.git_remote>`, not a hardcoded `origin`), checks push
 access with a non-mutating `git push --dry-run`, fetches the configured control
-branch and verifies the current `HEAD` contains it before PR handoff, and verifies
-`gh --version` and `gh auth status --hostname <host>` for that remote's host.
+branch, and verifies before PR handoff that `HEAD` contains every material
+control-branch change. Divergence confined to non-overlapping generated
+`coga/tasks/**` and `coga/log.md` state is reported but accepted; Coga writes
+that state between workflow steps, so requiring literal ancestry would make the
+next script-backed `open-pr` step stale by construction. Source, docs, config,
+mixed, or overlapping state drift remains an error. The preflight also verifies
+`gh --version` and `gh auth status --hostname <host>` for the remote's host.
 Every probe is fully
 non-interactive (`GIT_TERMINAL_PROMPT=0`, ssh `BatchMode=yes`) so a missing
 credential fails fast rather than hanging on a hidden prompt; failures are

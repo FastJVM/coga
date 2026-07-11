@@ -267,8 +267,8 @@ def test_open_pr_fails_when_worktree_dirty(tmp_path, monkeypatch):
         open_pr(cfg, slug="dirty", blackboard_path=ticket)
 
 
-def test_open_pr_fails_when_branch_is_stale(tmp_path, monkeypatch):
-    """A branch that predates the control tip must fail loud, not open a PR.
+def test_open_pr_fails_when_branch_has_material_stale_drift(tmp_path, monkeypatch):
+    """A branch missing a material control change must fail loud, not open a PR.
 
     This is the #518 stale-branch guard the agent checklist used to run via
     `coga validate --check-github`; the script step has to carry it forward or
@@ -286,10 +286,63 @@ def test_open_pr_fails_when_branch_is_stale(tmp_path, monkeypatch):
     ticket = _write_ticket(repo.coga_os, "stale", branch="stale-branch", worktree=wt)
 
     cfg = load_config(repo.coga_os)
-    with pytest.raises(OpenPrError, match="does not contain the latest"):
+    with pytest.raises(OpenPrError, match="not safe to publish"):
         open_pr(cfg, slug="stale", blackboard_path=ticket)
 
     # No PR opened, no pr: recorded.
+    assert not log.exists() or "pr create" not in log.read_text()
+    assert parse_pr_url(read_blackboard(ticket)) is None
+
+
+def test_open_pr_accepts_non_overlapping_coga_state_drift(
+    tmp_path, monkeypatch, capsys
+):
+    """A step/log sync after peer review must not force a manual rebase."""
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+
+    wt = _feature_worktree(repo, tmp_path, "state-drift", commit=True)
+    repo.push_competing_commit("coga/tasks/other.md", "new task state\n")
+    repo.push_competing_commit("coga/log.md", "new audit state\n")
+    ticket = _write_ticket(
+        repo.coga_os, "state-only", branch="state-drift", worktree=wt
+    )
+
+    cfg = load_config(repo.coga_os)
+    url = open_pr(cfg, slug="state-only", blackboard_path=ticket)
+
+    assert url == "https://github.com/acme/repo/pull/7"
+    assert (
+        "advanced only through non-overlapping Coga task/log state"
+        in capsys.readouterr().out
+    )
+    assert "pr create" in log.read_text()
+    assert parse_pr_url(read_blackboard(ticket)) == url
+
+
+def test_open_pr_rejects_overlapping_coga_state_drift(tmp_path, monkeypatch):
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+
+    wt = _feature_worktree(repo, tmp_path, "overlapping-state", commit=True)
+    shared = wt / "coga" / "tasks" / "shared.md"
+    shared.parent.mkdir(parents=True, exist_ok=True)
+    shared.write_text("feature state\n")
+    repo.git("add", "--", "coga/tasks/shared.md", cwd=wt)
+    repo.git("commit", "-m", "feature: touch shared state", cwd=wt)
+    repo.push_competing_commit("coga/tasks/shared.md", "control state\n")
+    ticket = _write_ticket(
+        repo.coga_os, "overlap", branch="overlapping-state", worktree=wt
+    )
+
+    cfg = load_config(repo.coga_os)
+    with pytest.raises(OpenPrError, match="Overlapping paths: coga/tasks/shared.md"):
+        open_pr(cfg, slug="overlap", blackboard_path=ticket)
+
     assert not log.exists() or "pr create" not in log.read_text()
     assert parse_pr_url(read_blackboard(ticket)) is None
 
@@ -333,7 +386,7 @@ _PACKAGED_SKILL = (
 )
 
 
-@pytest.mark.parametrize("name", ["SKILL.md", "run.py"])
+@pytest.mark.parametrize("name", ["SKILL.md", "recipe.py", "run.py"])
 def test_open_pr_live_and_packaged_copies_stay_in_sync(name: str) -> None:
     assert (_LIVE_SKILL / name).read_text() == (_PACKAGED_SKILL / name).read_text()
 

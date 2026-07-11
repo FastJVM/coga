@@ -919,7 +919,9 @@ def _github_issues(cfg: Config) -> list[Issue]:
 
     issues: list[Issue] = []
     for result in run_preflight(
-        cfg.git_remote, control_branch=cfg.git_control_branch
+        cfg.git_remote,
+        control_branch=cfg.git_control_branch,
+        cwd=cfg.repo_root,
     ):
         if not result.ok:
             issues.append(

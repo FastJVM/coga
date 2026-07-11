@@ -13,9 +13,9 @@ Each probe returns a structured `CheckResult`; `coga.validate` maps the
 failures into report `Issue`s. The push probe is a non-mutating dry run and
 runs non-interactively (`GIT_TERMINAL_PROMPT=0` plus ssh `BatchMode=yes`) so a
 missing credential can never hang the check on a hidden password prompt. The
-branch-freshness probe deliberately runs in the same explicit preflight: opening
-a PR from a branch that predates the control branch can leave ticket state stale
-even when auth is fine.
+branch-freshness probe deliberately runs in the same explicit preflight. It
+rejects missing material control-branch changes while accepting visible,
+non-overlapping task/log state drift that Coga itself generates between steps.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from __future__ import annotations
 import os
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlparse
 
 # Wall-clock ceiling for any single probe. The push probe talks to the network;
@@ -47,7 +48,12 @@ class CheckResult:
     value: str | None = None
 
 
-def _run(args: list[str], *, env: dict[str, str] | None = None) -> tuple[int | None, str, str]:
+def _run(
+    args: list[str],
+    *,
+    env: dict[str, str] | None = None,
+    cwd: str | Path | None = None,
+) -> tuple[int | None, str, str]:
     """Run a subprocess capturing output.
 
     Returns `(returncode, stdout, stderr)`. `returncode` is `None` when the
@@ -63,6 +69,7 @@ def _run(args: list[str], *, env: dict[str, str] | None = None) -> tuple[int | N
             check=False,
             timeout=_PROBE_TIMEOUT,
             env=run_env,
+            cwd=cwd,
         )
     except FileNotFoundError:
         return None, "", "not found on PATH"
@@ -138,9 +145,44 @@ def check_git_auth(remote: str) -> CheckResult:
     return CheckResult("git-auth", True, f"remote {remote!r} push access authenticated")
 
 
-def check_branch_contains_control(remote: str, control_branch: str) -> CheckResult:
-    """Verify the current branch contains the latest configured control branch."""
-    rc, _out, err = _run(["git", "fetch", remote, control_branch])
+def _is_coga_state_path(path: str) -> bool:
+    """True for generated task/audit state in a top-level or nested Coga OS."""
+    return (
+        path == "coga/log.md"
+        or path.endswith("/coga/log.md")
+        or path.startswith("coga/tasks/")
+        or "/coga/tasks/" in path
+    )
+
+
+def _changed_paths(
+    ref_a: str,
+    ref_b: str,
+    *,
+    cwd: str | Path | None,
+) -> tuple[set[str] | None, str]:
+    rc, out, err = _run(
+        ["git", "diff", "--name-only", ref_a, ref_b], cwd=cwd
+    )
+    if rc != 0:
+        return None, _first_line(err) or "no output"
+    return {line.strip() for line in out.splitlines() if line.strip()}, ""
+
+
+def check_branch_contains_control(
+    remote: str,
+    control_branch: str,
+    *,
+    cwd: str | Path | None = None,
+) -> CheckResult:
+    """Verify the branch contains material control changes.
+
+    Coga advances the control branch for task and audit-log state between agent
+    steps. Missing only that generated state is safe when the feature branch did
+    not touch the same files; source, documentation, config, mixed, or
+    overlapping state drift remains a hard failure.
+    """
+    rc, _out, err = _run(["git", "fetch", remote, control_branch], cwd=cwd)
     if rc is None:
         return CheckResult(
             "git-branch-current",
@@ -157,7 +199,9 @@ def check_branch_contains_control(remote: str, control_branch: str) -> CheckResu
             f"{_first_line(err) or 'no output'}).",
         )
 
-    rc, _out, err = _run(["git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"])
+    rc, _out, err = _run(
+        ["git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"], cwd=cwd
+    )
     if rc is None:
         return CheckResult(
             "git-branch-current",
@@ -171,20 +215,63 @@ def check_branch_contains_control(remote: str, control_branch: str) -> CheckResu
             True,
             f"HEAD contains latest {remote}/{control_branch}",
         )
-    if rc == 1:
+    if rc != 1:
         return CheckResult(
             "git-branch-current",
             False,
-            f"current branch does not contain latest {remote}/{control_branch}. "
-            f"Rebase or merge before opening a PR, e.g. "
-            f"`git fetch {remote} {control_branch}` then `git rebase FETCH_HEAD`.",
+            f"could not compare HEAD with {remote}/{control_branch} "
+            f"(`git merge-base --is-ancestor FETCH_HEAD HEAD` failed: "
+            f"{_first_line(err) or 'no output'}).",
         )
+
+    rc, out, err = _run(["git", "merge-base", "FETCH_HEAD", "HEAD"], cwd=cwd)
+    merge_base = _first_line(out)
+    if rc != 0 or not merge_base:
+        return CheckResult(
+            "git-branch-current",
+            False,
+            f"could not find the merge base with {remote}/{control_branch} "
+            f"({_first_line(err) or 'no output'}).",
+        )
+
+    control_paths, path_error = _changed_paths(merge_base, "FETCH_HEAD", cwd=cwd)
+    if control_paths is None:
+        return CheckResult(
+            "git-branch-current",
+            False,
+            f"could not inspect changes on {remote}/{control_branch} ({path_error}).",
+        )
+    feature_paths, path_error = _changed_paths(merge_base, "HEAD", cwd=cwd)
+    if feature_paths is None:
+        return CheckResult(
+            "git-branch-current",
+            False,
+            f"could not inspect changes on the current branch ({path_error}).",
+        )
+
+    overlapping = control_paths & feature_paths
+    if (
+        all(_is_coga_state_path(path) for path in control_paths)
+        and not overlapping
+    ):
+        return CheckResult(
+            "git-branch-current",
+            True,
+            f"{remote}/{control_branch} advanced only through non-overlapping "
+            "Coga task/log state; branch is safe to publish",
+            value="state-only-drift",
+        )
+
+    reason = ""
+    if overlapping:
+        reason = f" Overlapping paths: {', '.join(sorted(overlapping))}."
     return CheckResult(
         "git-branch-current",
         False,
-        f"could not compare HEAD with {remote}/{control_branch} "
-        f"(`git merge-base --is-ancestor FETCH_HEAD HEAD` failed: "
-        f"{_first_line(err) or 'no output'}).",
+        f"current branch does not contain latest {remote}/{control_branch}. "
+        f"Rebase or merge before opening a PR, e.g. "
+        f"`git fetch {remote} {control_branch}` then `git rebase FETCH_HEAD`."
+        f"{reason}",
     )
 
 
@@ -253,7 +340,12 @@ def check_gh_auth(host: str | None = None) -> CheckResult:
     return CheckResult("gh-auth", True, f"gh authenticated{target}")
 
 
-def run_preflight(remote: str, *, control_branch: str = "main") -> list[CheckResult]:
+def run_preflight(
+    remote: str,
+    *,
+    control_branch: str = "main",
+    cwd: str | Path | None = None,
+) -> list[CheckResult]:
     """Run the full preflight against the configured remote.
 
     Skips probes that can't be meaningful: reachability only runs when the
@@ -268,7 +360,9 @@ def run_preflight(remote: str, *, control_branch: str = "main") -> list[CheckRes
         auth = check_git_auth(remote)
         results.append(auth)
         if auth.ok:
-            results.append(check_branch_contains_control(remote, control_branch))
+            results.append(
+                check_branch_contains_control(remote, control_branch, cwd=cwd)
+            )
 
     gh_installed = check_gh_installed()
     results.append(gh_installed)
