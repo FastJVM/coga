@@ -85,6 +85,6 @@ worktree: /tmp/coga-open-pr-state-drift
   drift.
 - Updated the packaged CLI contract and both live/packaged `code/open-pr`
   skill copies.
-- Commit: `55b0d4f2` (`Allow open-pr through state-only control drift`).
+- Commit: `6d1489dc` (`Allow open-pr through state-only control drift`).
 - Verification: focused `tests/test_open_pr.py tests/test_validate.py` -> 61
   passed; full suite -> 1125 passed, 1 skipped; `git diff --check` clean.
