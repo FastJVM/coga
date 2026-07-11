@@ -145,14 +145,21 @@ def check_git_auth(remote: str) -> CheckResult:
     return CheckResult("git-auth", True, f"remote {remote!r} push access authenticated")
 
 
-def _is_coga_state_path(path: str) -> bool:
-    """True for generated task/audit state in a top-level or nested Coga OS."""
-    return (
-        path == "coga/log.md"
-        or path.endswith("/coga/log.md")
-        or path.startswith("coga/tasks/")
-        or "/coga/tasks/" in path
+def _coga_root_prefix(coga_root: str | Path) -> tuple[str | None, str]:
+    """Return the active Coga OS root relative to its git toplevel."""
+    rc, out, err = _run(
+        ["git", "rev-parse", "--show-prefix"], cwd=coga_root
     )
+    if rc != 0:
+        return None, _first_line(err) or "no output"
+    return out.strip().strip("/"), ""
+
+
+def _is_coga_state_path(path: str, *, coga_prefix: str) -> bool:
+    """True for task/audit state under the configured Coga OS root."""
+    tasks = f"{coga_prefix}/tasks/" if coga_prefix else "tasks/"
+    log = f"{coga_prefix}/log.md" if coga_prefix else "log.md"
+    return path == log or path.startswith(tasks)
 
 
 def _changed_paths(
@@ -161,8 +168,11 @@ def _changed_paths(
     *,
     cwd: str | Path | None,
 ) -> tuple[set[str] | None, str]:
+    # Disable rename detection so both endpoints remain visible. Otherwise a
+    # control-side task rename can look disjoint from a feature-side edit of
+    # the old path and incorrectly pass the non-overlap gate.
     rc, out, err = _run(
-        ["git", "diff", "--name-only", ref_a, ref_b], cwd=cwd
+        ["git", "diff", "--no-renames", "--name-only", ref_a, ref_b], cwd=cwd
     )
     if rc != 0:
         return None, _first_line(err) or "no output"
@@ -174,6 +184,7 @@ def check_branch_contains_control(
     control_branch: str,
     *,
     cwd: str | Path | None = None,
+    coga_root: str | Path,
 ) -> CheckResult:
     """Verify the branch contains material control changes.
 
@@ -249,9 +260,20 @@ def check_branch_contains_control(
             f"could not inspect changes on the current branch ({path_error}).",
         )
 
+    coga_prefix, path_error = _coga_root_prefix(coga_root)
+    if coga_prefix is None:
+        return CheckResult(
+            "git-branch-current",
+            False,
+            f"could not locate the configured Coga OS in git ({path_error}).",
+        )
+
     overlapping = control_paths & feature_paths
     if (
-        all(_is_coga_state_path(path) for path in control_paths)
+        all(
+            _is_coga_state_path(path, coga_prefix=coga_prefix)
+            for path in control_paths
+        )
         and not overlapping
     ):
         return CheckResult(
@@ -345,6 +367,7 @@ def run_preflight(
     *,
     control_branch: str = "main",
     cwd: str | Path | None = None,
+    coga_root: str | Path,
 ) -> list[CheckResult]:
     """Run the full preflight against the configured remote.
 
@@ -361,7 +384,12 @@ def run_preflight(
         results.append(auth)
         if auth.ok:
             results.append(
-                check_branch_contains_control(remote, control_branch, cwd=cwd)
+                check_branch_contains_control(
+                    remote,
+                    control_branch,
+                    cwd=cwd,
+                    coga_root=coga_root,
+                )
             )
 
     gh_installed = check_gh_installed()

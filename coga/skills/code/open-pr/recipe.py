@@ -226,7 +226,12 @@ def open_pr(cfg: Config, *, slug: str, blackboard_path: Path) -> str:
     # Task-step and audit-log sync advances the control branch between agent
     # steps. The shared preflight permits only non-overlapping generated state;
     # any source/docs/config or overlapping drift remains a hard failure.
-    freshness = check_branch_contains_control(remote, base, cwd=worktree)
+    freshness = check_branch_contains_control(
+        remote,
+        base,
+        cwd=worktree,
+        coga_root=cfg.repo_root,
+    )
     if not freshness.ok:
         raise OpenPrError(
             f"Branch {branch!r} is not safe to publish. {freshness.detail} "

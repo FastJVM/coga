@@ -347,6 +347,58 @@ def test_open_pr_rejects_overlapping_coga_state_drift(tmp_path, monkeypatch):
     assert parse_pr_url(read_blackboard(ticket)) is None
 
 
+def test_open_pr_rejects_task_rename_overlapping_feature_edit(
+    tmp_path, monkeypatch
+):
+    """A control rename must retain its old path for overlap detection."""
+    repo = init_git_repo(tmp_path)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = _install_fake_gh(monkeypatch, bin_dir)
+
+    original = repo.coga_os / "tasks" / "original.md"
+    original.write_text("base state\n")
+    repo.git("add", "--", "coga/tasks/original.md")
+    repo.git("commit", "-m", "seed task state")
+    repo.git("push", "origin", "main")
+
+    wt = _feature_worktree(repo, tmp_path, "rename-overlap", commit=True)
+    feature_original = wt / "coga" / "tasks" / "original.md"
+    feature_original.write_text("feature state\n")
+    repo.git("add", "--", "coga/tasks/original.md", cwd=wt)
+    repo.git("commit", "-m", "feature: edit original task", cwd=wt)
+
+    clone = repo.origin.parent / "rename-clone"
+    repo.git("clone", str(repo.origin), str(clone), cwd=repo.origin.parent)
+    repo.git("config", "user.email", "rival@example.com", cwd=clone)
+    repo.git("config", "user.name", "Rival", cwd=clone)
+    repo.git("checkout", "-B", "main", "origin/main", cwd=clone)
+    repo.git(
+        "mv",
+        "coga/tasks/original.md",
+        "coga/tasks/renamed.md",
+        cwd=clone,
+    )
+    repo.git("commit", "-m", "rename task state", cwd=clone)
+    repo.git("push", "origin", "main", cwd=clone)
+
+    ticket = _write_ticket(
+        repo.coga_os,
+        "rename-overlap",
+        branch="rename-overlap",
+        worktree=wt,
+    )
+    with pytest.raises(OpenPrError, match="coga/tasks/original.md"):
+        open_pr(
+            load_config(repo.coga_os),
+            slug="rename-overlap",
+            blackboard_path=ticket,
+        )
+
+    assert not log.exists() or "pr create" not in log.read_text()
+    assert parse_pr_url(read_blackboard(ticket)) is None
+
+
 # --- set_dev_pr unit ----------------------------------------------------------
 
 

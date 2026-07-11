@@ -922,6 +922,7 @@ def _github_issues(cfg: Config) -> list[Issue]:
         cfg.git_remote,
         control_branch=cfg.git_control_branch,
         cwd=cfg.repo_root,
+        coga_root=cfg.repo_root,
     ):
         if result.ok and result.value == "state-only-drift":
             issues.append(

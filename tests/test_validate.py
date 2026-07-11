@@ -625,12 +625,15 @@ def test_check_github_stale_branch(
                 ("git", "merge-base", "FETCH_HEAD", "HEAD"): _FakeProc(
                     0, "base-sha\n"
                 ),
-                ("git", "diff", "--name-only", "base-sha", "FETCH_HEAD"): (
-                    _FakeProc(0, "src/coga/changed.py\n")
-                ),
-                ("git", "diff", "--name-only", "base-sha", "HEAD"): (
-                    _FakeProc(0, "README.md\n")
-                ),
+                (
+                    "git", "diff", "--no-renames", "--name-only",
+                    "base-sha", "FETCH_HEAD",
+                ): _FakeProc(0, "src/coga/changed.py\n"),
+                (
+                    "git", "diff", "--no-renames", "--name-only",
+                    "base-sha", "HEAD",
+                ): _FakeProc(0, "README.md\n"),
+                ("git", "rev-parse", "--show-prefix"): _FakeProc(0, "coga/\n"),
                 ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
                 ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
                     0, "", "Logged in to github.com"
@@ -668,12 +671,15 @@ def test_check_github_accepts_non_overlapping_coga_state_drift(
                 ("git", "merge-base", "FETCH_HEAD", "HEAD"): _FakeProc(
                     0, "base-sha\n"
                 ),
-                ("git", "diff", "--name-only", "base-sha", "FETCH_HEAD"): (
-                    _FakeProc(0, "coga/tasks/other.md\ncoga/log.md\n")
-                ),
-                ("git", "diff", "--name-only", "base-sha", "HEAD"): (
-                    _FakeProc(0, "src/coga/feature.py\n")
-                ),
+                (
+                    "git", "diff", "--no-renames", "--name-only",
+                    "base-sha", "FETCH_HEAD",
+                ): _FakeProc(0, "coga/tasks/other.md\ncoga/log.md\n"),
+                (
+                    "git", "diff", "--no-renames", "--name-only",
+                    "base-sha", "HEAD",
+                ): _FakeProc(0, "src/coga/feature.py\n"),
+                ("git", "rev-parse", "--show-prefix"): _FakeProc(0, "coga/\n"),
                 ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
                 ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
                     0, "", "Logged in to github.com"
@@ -693,6 +699,57 @@ def test_check_github_accepts_non_overlapping_coga_state_drift(
     )
     assert issue.severity == "warning"
     assert "safe to publish" in issue.message
+
+
+@pytest.mark.parametrize(
+    ("coga_prefix", "control_paths", "expected_kind"),
+    [
+        ("", "tasks/other.md\nlog.md\n", "github-git-branch-state-only-drift"),
+        ("coga/", "example/coga/tasks/other.md\n", "github-git-branch-current"),
+    ],
+)
+def test_check_github_scopes_state_drift_to_configured_coga_root(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    coga_prefix: str,
+    control_paths: str,
+    expected_kind: str,
+) -> None:
+    monkeypatch.setattr(
+        "coga.github_preflight.subprocess.run",
+        _fake_subprocess_factory(
+            {
+                ("git", "remote", "get-url", "origin"): _FakeProc(
+                    0, "https://github.com/o/r.git\n"
+                ),
+                ("git", "push", "--dry-run", "origin"): _FakeProc(0),
+                ("git", "fetch", "origin", "main"): _FakeProc(0),
+                ("git", "merge-base", "--is-ancestor", "FETCH_HEAD", "HEAD"): (
+                    _FakeProc(1)
+                ),
+                ("git", "merge-base", "FETCH_HEAD", "HEAD"): _FakeProc(
+                    0, "base-sha\n"
+                ),
+                (
+                    "git", "diff", "--no-renames", "--name-only",
+                    "base-sha", "FETCH_HEAD",
+                ): _FakeProc(0, control_paths),
+                (
+                    "git", "diff", "--no-renames", "--name-only",
+                    "base-sha", "HEAD",
+                ): _FakeProc(0, "src/coga/feature.py\n"),
+                ("git", "rev-parse", "--show-prefix"): _FakeProc(0, coga_prefix),
+                ("gh", "--version"): _FakeProc(0, "gh version 2.90.0\n"),
+                ("gh", "auth", "status", "--hostname", "github.com"): _FakeProc(
+                    0, "", "Logged in to github.com"
+                ),
+            }
+        ),
+    )
+
+    report = run(load_config(repo), check_github=True)
+
+    assert _github_kinds(report) == [expected_kind]
 
 
 def test_run_no_github_check_by_default(
