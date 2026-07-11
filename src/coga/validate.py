@@ -923,7 +923,16 @@ def _github_issues(cfg: Config) -> list[Issue]:
         control_branch=cfg.git_control_branch,
         cwd=cfg.repo_root,
     ):
-        if not result.ok:
+        if result.ok and result.value == "state-only-drift":
+            issues.append(
+                Issue(
+                    kind="github-git-branch-state-only-drift",
+                    task="(github)",
+                    message=result.detail,
+                    severity="warning",
+                )
+            )
+        elif not result.ok:
             issues.append(
                 Issue(
                     kind=f"github-{result.name}",

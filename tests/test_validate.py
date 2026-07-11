@@ -685,7 +685,14 @@ def test_check_github_accepts_non_overlapping_coga_state_drift(
     cfg = load_config(repo)
     report = run(cfg, check_github=True)
 
-    assert _github_kinds(report) == []
+    assert _github_kinds(report) == ["github-git-branch-state-only-drift"]
+    issue = next(
+        item
+        for item in report.issues
+        if item.kind == "github-git-branch-state-only-drift"
+    )
+    assert issue.severity == "warning"
+    assert "safe to publish" in issue.message
 
 
 def test_run_no_github_check_by_default(
