@@ -1044,3 +1044,4 @@ fatal: adding files failed
 2026-07-10 20:50 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-10 20:50 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] launched in agent mode (assignee=claude, agent=claude)
 2026-07-10 20:51 [fix-open-pr-false-staleness-from-coga-state-commit] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-10 21:14 [make-open-pr-metadata-tolerate-annotated-branch-an] [human:nick] created (mode=agent, status=draft)
