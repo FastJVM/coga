@@ -1031,3 +1031,9 @@ fatal: adding files failed
 2026-07-10 15:44 [install/init-venv-python-selection-breaks-on-wrong-host-py] [system] script exited with code 0
 2026-07-10 15:44 [install/init-venv-python-selection-breaks-on-wrong-host-py] [system] advanced to step 4 (review) → assigned to nicktoper after script step
 2026-07-10 18:25 [install/init-venv-python-selection-breaks-on-wrong-host-py] [human:nick] task done
+2026-07-10 18:27 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] created (mode=agent, status=draft)
+2026-07-10 18:27 [fix-open-pr-false-staleness-from-coga-state-commit] [git] sync failed: `git add -- coga/tasks/fix-open-pr-false-staleness-from-coga-state-commit.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-07-10 18:27 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
+2026-07-10 18:35 [fix-open-pr-false-staleness-from-coga-state-commit] [human:nicktoper] activated (draft → active) — Implementation committed on fix/open-pr-state-only-drift; ready for workflow review.
+2026-07-10 18:35 [fix-open-pr-false-staleness-from-coga-state-commit] [git] sync failed: `git add -- coga/tasks/fix-open-pr-false-staleness-from-coga-state-commit.md coga/log.md` failed (exit 128): fatal: Unable to create '/home/n/Code/codex/coga/.git/index.lock': Read-only file system
+2026-07-10 18:35 [coga] [git] sync failed: `git fetch origin main` failed (exit 255): error: cannot open '.git/FETCH_HEAD': Read-only file system
