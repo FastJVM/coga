@@ -554,3 +554,18 @@
 2026-06-30 21:00 [bootstrap/orient] [human:nicktoper] launched in interactive mode (assignee=codex, agent=codex)
 2026-07-01 07:47 [bootstrap/orient] [human:lilfedor] launched in interactive mode (assignee=claude, agent=claude)
 2026-07-01 08:58 [add-coga-ticket-existing-slug-scan] [human:lilfedor] task done
+2026-07-12 11:20 [coga-notifications/coga-notifications-context] [human:lilfedor] created (autonomy=interactive, status=draft)
+2026-07-12 11:20 [coga-notifications/coga-notifications-context] [git] sync failed: `git add -- coga/tasks/coga-notifications/coga-notifications-context.md coga/log.md` failed (exit 128): fatal: Unable to create '/Users/zach2179/dev/coga/.git/index.lock': File exists.
+
+Another git process seems to be running in this repository, e.g.
+an editor opened by 'git commit'. Please make sure all processes
+are terminated then try again. If it still fails, a git process
+may have crashed in this repository earlier:
+remove the file manually to continue.
+2026-07-12 11:20 [coga] [git] sync failed: `git add -- coga/log.md coga/tasks/coga-notifications/` failed (exit 128): fatal: Unable to create '/Users/zach2179/dev/coga/.git/index.lock': File exists.
+
+Another git process seems to be running in this repository, e.g.
+an editor opened by 'git commit'. Please make sure all processes
+are terminated then try again. If it still fails, a git process
+may have crashed in this repository earlier:
+remove the file manually to continue.
