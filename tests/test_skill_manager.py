@@ -19,6 +19,7 @@ from coga.skill import Skill
 from coga.skill_manager import (
     GH_SKILL_REQUIRED,
     SOURCE_SCHEMA,
+    GhSkillUnavailableError,
     SkillManagerError,
     SkillResult,
     SkillUpdateSummary,
@@ -625,11 +626,30 @@ def test_missing_gh_skill_fails_loud_with_upgrade_hint(
         assert command == ["gh", "skill", "--help"]
         return _completed(command, returncode=1, stderr="unknown command: skill")
 
-    with pytest.raises(SkillManagerError) as exc:
+    with pytest.raises(GhSkillUnavailableError) as exc:
         install_github_skill(cfg, "owner/repo", runner=old_gh)
 
     assert GH_SKILL_REQUIRED in str(exc.value)
     assert "unknown command: skill" in str(exc.value)
+
+
+def test_old_gh_skill_probe_message_drops_usage_dump(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    usage_dump = 'unknown command "skill" for "gh"\n\nUsage:  gh <command> [flags]\n\nCORE COMMANDS\n  auth: Authenticate gh\n'
+
+    def old_gh(args, cwd=None):
+        return _completed(list(args), returncode=1, stderr=usage_dump)
+
+    with pytest.raises(GhSkillUnavailableError) as exc:
+        install_github_skill(cfg, "owner/repo", runner=old_gh)
+
+    message = str(exc.value)
+    assert GH_SKILL_REQUIRED in message
+    assert 'unknown command "skill" for "gh"' in message
+    assert "Usage:" not in message
+    assert "CORE COMMANDS" not in message
 
 
 def test_install_url_checks_gh_skill_before_downloading(
