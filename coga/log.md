@@ -1112,3 +1112,4 @@ fatal: adding files failed
 2026-07-12 20:32 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
 2026-07-12 20:32 [install/external-users-cannot-install-managed-skills] [system] script exited with code 0
 2026-07-12 20:32 [install/external-users-cannot-install-managed-skills] [system] advanced to step 4 (review) → assigned to zach after script step
+2026-07-12 20:35 [install/harden-packaging-and-install-before-launch] [human:nick] activated (paused → active) — auto on launch
