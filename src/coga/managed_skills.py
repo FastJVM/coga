@@ -191,14 +191,14 @@ def reconcile_managed_skills(
     gh_unavailable: GhSkillUnavailableError | None = None
     for spec in skill_specs:
         target = _skill_target(cfg, spec.ref)
-        if gh_unavailable is not None:
-            if spec.required:
-                raise ManagedSkillError(
-                    _required_failure_message(spec, gh_unavailable)
-                ) from gh_unavailable
-            summary.results.append(_gh_unavailable_result(spec, gh_unavailable))
-            continue
         if not target.exists():
+            if gh_unavailable is not None:
+                if spec.required:
+                    raise ManagedSkillError(
+                        _required_failure_message(spec, gh_unavailable)
+                    ) from gh_unavailable
+                summary.results.append(_gh_unavailable_result(spec, gh_unavailable))
+                continue
             try:
                 summary.results.append(
                     _run_install(
@@ -212,6 +212,13 @@ def reconcile_managed_skills(
             except GhSkillUnavailableError as exc:
                 gh_unavailable = exc
                 summary.results.append(_gh_unavailable_result(spec, exc))
+            continue
+        if gh_unavailable is not None and spec.source_type == "github":
+            if spec.required:
+                raise ManagedSkillError(
+                    _required_failure_message(spec, gh_unavailable)
+                ) from gh_unavailable
+            summary.results.append(_gh_unavailable_result(spec, gh_unavailable))
             continue
         try:
             if updater is not None:

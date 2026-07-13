@@ -594,12 +594,20 @@ def ensure_gh_skill(*, runner: Runner | None = None) -> None:
     except FileNotFoundError as exc:
         raise GhSkillUnavailableError(GH_SKILL_REQUIRED) from exc
     if result.returncode != 0:
-        # Old gh follows `unknown command "skill"` with its full usage screen;
-        # keep only the first line so callers can report the failure compactly.
         output = (result.stderr or result.stdout).strip()
-        detail = output.splitlines()[0].strip() if output else ""
-        message = f"{GH_SKILL_REQUIRED}\n{detail}" if detail else GH_SKILL_REQUIRED
-        raise GhSkillUnavailableError(message)
+        normalized = output.lower()
+        old_gh = (
+            'unknown command "skill" for "gh"' in normalized
+            or "unknown command: skill" in normalized
+        )
+        if old_gh:
+            # Old gh follows the unknown-command line with its full usage
+            # screen; keep only that first line so callers can report it once.
+            detail = output.splitlines()[0].strip() if output else ""
+            message = f"{GH_SKILL_REQUIRED}\n{detail}" if detail else GH_SKILL_REQUIRED
+            raise GhSkillUnavailableError(message)
+        message = f"{GH_SKILL_REQUIRED}\n{output}" if output else GH_SKILL_REQUIRED
+        raise SkillManagerError(message)
 
 
 def run_command_string(

@@ -652,6 +652,25 @@ def test_old_gh_skill_probe_message_drops_usage_dump(
     assert "CORE COMMANDS" not in message
 
 
+def test_gh_skill_probe_preserves_non_version_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cfg = load_config(_repo(tmp_path, monkeypatch))
+    config_failure = (
+        "warning: failed to load config: open /config.yml: permission denied\n"
+        "failed to create root command: failed to read configuration"
+    )
+
+    def broken_config(args, cwd=None):
+        return _completed(list(args), returncode=1, stderr=config_failure)
+
+    with pytest.raises(SkillManagerError) as exc:
+        install_github_skill(cfg, "owner/repo", runner=broken_config)
+
+    assert type(exc.value) is SkillManagerError
+    assert config_failure in str(exc.value)
+
+
 def test_install_url_checks_gh_skill_before_downloading(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

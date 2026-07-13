@@ -195,6 +195,50 @@ def test_reconcile_managed_skills_detects_old_gh_once_and_skips_rest(
     assert summary.counts() == {"skipped-old-gh": 2}
 
 
+def test_reconcile_managed_skills_updates_existing_url_skill_after_old_gh(
+    tmp_path: Path,
+) -> None:
+    for name in ("github", "url"):
+        existing = tmp_path / "skills" / "tools" / name
+        existing.mkdir(parents=True)
+        (existing / "SKILL.md").write_text("local\n")
+    updated: list[str] = []
+
+    def update(_: Config, skill: str) -> SkillUpdateSummary:
+        updated.append(skill)
+        if skill == "tools/github":
+            raise GhSkillUnavailableError(
+                "GitHub CLI 2.90.0+ with `gh skill` is required"
+            )
+        return SkillUpdateSummary(
+            [
+                SkillResult(
+                    name=skill,
+                    source_type="url",
+                    status="unchanged",
+                    message="upstream digest unchanged",
+                )
+            ]
+        )
+
+    summary = reconcile_managed_skills(
+        tmp_path,
+        specs=[
+            ManagedSkillSpec(ref="tools/github", source="owner/repo"),
+            ManagedSkillSpec(
+                ref="tools/url",
+                source="https://example.test/skill",
+                source_type="url",
+                required=True,
+            ),
+        ],
+        updater=update,
+    )
+
+    assert updated == ["tools/github", "tools/url"]
+    assert summary.counts() == {"skipped-old-gh": 1, "unchanged": 1}
+
+
 def test_reconcile_managed_skills_uses_update_path_for_existing_skill(
     tmp_path: Path,
 ) -> None:
