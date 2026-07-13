@@ -64,10 +64,13 @@ done *here*, before you bump:
   summary and a one-line test plan. The `open-pr` script uses it as the PR
   body (falling back to `## Description` if you skip it), so this is where the
   human-facing description is written.
-- **Make the branch mergeable.** Ensure the feature branch has no conflicts
-  with the base (`main`): if it does, merge/rebase `main` in, resolve, re-run
-  `python -m pytest`, and commit so the reviewer receives a clean, mergeable
-  PR. If a conflict needs a judgment call you can't make, `coga block`.
+- **Make the branch fresh, not just conflict-free.** Don't wait for a
+  conflict: run `git fetch origin main && git rebase FETCH_HEAD` in the
+  feature worktree unconditionally, resolve whatever surfaces, re-run
+  `python -m pytest`, and commit. The `open-pr` script refuses a branch that
+  is materially stale against `origin/main` even when it merges cleanly, and
+  as a script it has no judgment to rebase with — this step is the last one
+  that does. If a conflict needs a call you can't make, `coga block`.
 
 Leave the branch clean and committed with commits ahead of `main`; the
 `open-pr` script refuses to advance otherwise (it will not open an empty PR).
