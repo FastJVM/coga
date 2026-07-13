@@ -6,7 +6,7 @@ mode: agent
 owner: zach
 human: zach
 agent: claude
-assignee: codex
+assignee: claude
 contexts:
 - dev/code
 skills: []
@@ -28,7 +28,7 @@ workflow:
     skills: []
     assignee: owner
 secrets: null
-step: 2 (peer-review)
+step: 3 (open-pr)
 ---
 
 ## Description
@@ -121,6 +121,30 @@ for dev setup — retest note scoped remaining docs work to README Install;
 dev-env readers hitting this now get the pointer from coga's own error
 message. docs/migrating-to-coga.md also mentions `pip install -e .`
 (untouched, same reasoning).
+
+## Peer review
+
+Native `codex review --base main` found one must-fix: current pip reports
+`Can't verify hashes for these file:// requirements because they point to
+directories` for Coga's non-editable local-directory venv bootstrap, and the
+detector did not recognize that shape. Added the exact marker and regression
+case in commit `a7d4a4a1`.
+
+Verification:
+- `PYTHONPATH=/home/n/Code/claude/coga/.coga/worktrees/coga-pip-hash-hint/src python -m pytest`
+  — 1152 passed, 1 skipped.
+- `git merge-tree $(git merge-base main HEAD) main HEAD` — no conflicts with
+  current `main`.
+- Feature worktree is clean and the branch has two commits ahead of its base.
+
+## PR
+
+Teach Coga to recognize pip hash-checking failures in both its vendored venv
+bootstrap and skill-requirement installs, print the exact one-command
+remediation without silently overriding managed-machine policy, and document
+the `uv` and `PIP_REQUIRE_HASHES=0` escape hatches in the README.
+
+Test plan: `PYTHONPATH=/home/n/Code/claude/coga/.coga/worktrees/coga-pip-hash-hint/src python -m pytest` (1152 passed, 1 skipped).
 
 ## Usage
 
