@@ -1078,3 +1078,25 @@ fatal: adding files failed
 2026-07-12 18:02 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
 2026-07-12 18:02 [install/external-users-cannot-install-managed-skills] [system] script exited with code 2
 2026-07-12 18:02 [bootstrap/orient] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-11 10:50 [install/harden-packaging-and-install-before-launch] [human:nicktoper] launched in agent mode (assignee=claude, launch_assignee=codex, agent=codex)
+2026-07-11 10:52 [install/harden-packaging-and-install-before-launch] [agent:claude] blocked: This umbrella ticket has no standalone implementation acceptance: its concrete fixes are owned by still-active install/ siblings. Please approve converting it into the final clean-machine end-to-end verification gate after those fixes land, or name the specific standalone deliverable for this step.
+2026-07-11 10:52 [install/harden-packaging-and-install-before-launch] [slack] post failed: ConnectionError: HTTPSConnectionPool(host='hooks.slack.com', port=443): Max retries exceeded with url: /services/T0AG1AVQYR1/B0B0KD0BTQB/80ymQIGGTLX5qhkYZ8OsRUe0 (Caused by NameResolutionError("HTTPSConnection(host='hooks.slack.com', port=443): Failed to resolve 'hooks.slack.com' ([Errno -2] Name or service not known)"))
+2026-07-11 10:52 [coga] [git] sync failed: `git add -- coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md: failed to insert into database
+error: unable to index file 'coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md'
+fatal: adding files failed
+2026-07-12 18:04 [install/harden-packaging-and-install-before-launch] [human:nicktoper] unblocked (blocked → active): Approved: convert this ticket to the final clean-machine end-to-end verification gate, using a one-step direct/body workflow and no implementation PR.
+2026-07-12 18:04 [install/harden-packaging-and-install-before-launch] [git] sync failed: `git add -- coga/tasks/install/harden-packaging-and-install-before-launch` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/install/harden-packaging-and-install-before-launch/blackboard.md: failed to insert into database
+error: unable to index file 'coga/tasks/install/harden-packaging-and-install-before-launch/blackboard.md'
+fatal: adding files failed
+2026-07-12 18:04 [install/harden-packaging-and-install-before-launch] [git] sync refused: coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md: status would move backward from 'in_progress' to 'active'
+2026-07-12 18:04 [install/harden-packaging-and-install-before-launch] [human:nicktoper] paused (active → paused) — Reframed as the final clean-machine verification gate; paused until sibling install fixes land and the target release is published.
+2026-07-12 18:04 [install/harden-packaging-and-install-before-launch] [git] sync failed: `git add -- coga/tasks/install/harden-packaging-and-install-before-launch` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/install/harden-packaging-and-install-before-launch/blackboard.md: failed to insert into database
+error: unable to index file 'coga/tasks/install/harden-packaging-and-install-before-launch/blackboard.md'
+fatal: adding files failed
+2026-07-12 18:04 [coga] [git] sync failed: `git add -- coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md: failed to insert into database
+error: unable to index file 'coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md'
+fatal: adding files failed
