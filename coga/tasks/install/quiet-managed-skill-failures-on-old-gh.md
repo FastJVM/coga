@@ -156,3 +156,5 @@ Tests: `PYTHONPATH="$PWD/src" python3.12 -m pytest -q` — 1156 passed, 1 skippe
 ## Usage
 
 {"agent":"claude","cache_creation_input_tokens":273495,"cache_read_input_tokens":8436817,"cli":"claude","input_tokens":175,"model":"claude-fable-5","output_tokens":93845,"provider":"anthropic","schema":1,"session_id":"b67c3f98-3b68-4f6b-9792-defd26b0b210","slug":"install/quiet-managed-skill-failures-on-old-gh","step":"implement","title":"Quiet managed skill failures on old gh","ts":"2026-07-13T04:19:20.175108Z","usage_status":"ok"}
+
+{"agent":"codex","cache_creation_input_tokens":null,"cache_read_input_tokens":8721408,"cli":"codex","input_tokens":294252,"model":"gpt-5.6-sol","output_tokens":12015,"provider":"openai","schema":1,"session_id":"019f59b3-78ff-7552-af81-7115c01c56cd","slug":"install/quiet-managed-skill-failures-on-old-gh","step":"peer-review","title":"Quiet managed skill failures on old gh","ts":"2026-07-13T18:40:41.086335Z","usage_status":"ok"}
