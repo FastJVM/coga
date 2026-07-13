@@ -1062,3 +1062,12 @@ fatal: adding files failed
 2026-07-10 21:44 [fix-open-pr-false-staleness-from-coga-state-commit] [system] advanced to step 4 (review) → assigned to nicktoper after script step
 2026-07-11 10:50 [install/harden-packaging-and-install-before-launch] [human:nicktoper] started (active → in_progress) via coga launch
 2026-07-12 17:36 [make-ticket-script-form-works] [human:nick] created (mode=agent, status=draft)
+2026-07-10 18:36 [install/external-users-cannot-install-managed-skills] [human:nick] started (active → in_progress) via coga launch
+2026-07-10 18:36 [install/external-users-cannot-install-managed-skills] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-10 18:48 [install/external-users-cannot-install-managed-skills] [agent:claude] advanced to step 2 (peer-review) → assigned to codex
+2026-07-10 18:48 [install/external-users-cannot-install-managed-skills] [human:nick] launched in agent mode (assignee=codex, agent=codex)
+2026-07-12 17:50 [install/external-users-cannot-install-managed-skills] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-12 17:50 [install/external-users-cannot-install-managed-skills] [git] sync failed: `git add -- coga/tasks/install/external-users-cannot-install-managed-skills` failed (exit 128): error: unable to create temporary file: Read-only file system
+error: coga/tasks/install/external-users-cannot-install-managed-skills/blackboard.md: failed to insert into database
+error: unable to index file 'coga/tasks/install/external-users-cannot-install-managed-skills/blackboard.md'
+fatal: adding files failed
