@@ -1103,3 +1103,5 @@ fatal: adding files failed
 2026-07-12 20:15 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
 2026-07-12 20:15 [install/external-users-cannot-install-managed-skills] [system] script exited with code 1
 2026-07-12 20:15 [bootstrap/orient] [human:nick] launched in agent mode (assignee=claude, agent=claude)
+2026-07-12 20:15 [install/document-where-to-run-init-and-adopt-existing-repo] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 20:15 [install/document-where-to-run-init-and-adopt-existing-repo] [system] script exited with code 2
