@@ -1100,3 +1100,5 @@ fatal: adding files failed
 error: coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md: failed to insert into database
 error: unable to index file 'coga/tasks/install/harden-packaging-and-install-before-launch/ticket.md'
 fatal: adding files failed
+2026-07-12 20:15 [install/external-users-cannot-install-managed-skills] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 20:15 [install/external-users-cannot-install-managed-skills] [system] script exited with code 1
