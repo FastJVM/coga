@@ -1140,3 +1140,6 @@ fatal: adding files failed
 2026-07-12 20:53 [install/pip-hash-requirement-breaks-editable-install] [agent:claude] advanced to step 2 (peer-review) → assigned to codex — Implemented: hash-mode detection in coga's pip calls + README escape-hatch docs; branch pip-hash-hint, suite green
 2026-07-12 20:54 [install/pip-hash-requirement-breaks-editable-install] [human:nick] launched in agent mode (assignee=codex, agent=codex)
 2026-07-12 21:02 [install/pip-hash-requirement-breaks-editable-install] [agent:codex] advanced to step 3 (open-pr) → assigned to claude
+2026-07-12 21:02 [install/pip-hash-requirement-breaks-editable-install] [system] launched as a script (skill=code/open-pr, script=run.py)
+2026-07-12 21:02 [install/pip-hash-requirement-breaks-editable-install] [system] script exited with code 0
+2026-07-12 21:02 [install/pip-hash-requirement-breaks-editable-install] [system] advanced to step 4 (review) → assigned to zach after script step
